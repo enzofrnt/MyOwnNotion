@@ -30,15 +30,15 @@ The run includes domain unit/property tests, IndexedDB local projection and outb
 
 ## Browser matrix
 
-| Project | Local result |
-| --- | --- |
-| Chromium desktop | Pass, 17/17 journeys |
-| WebKit desktop | Pass, 17/17 journeys |
-| Chromium mobile | Pass, 17/17 journeys |
-| WebKit mobile | Pass, 17/17 journeys |
-| Firefox desktop | Environment-blocked locally; GitHub Actions result pending |
+| Project | Local result | GitHub Actions |
+| --- | --- | --- |
+| Chromium desktop | Pass, 17/17 journeys | Pass |
+| WebKit desktop | Pass, 17/17 journeys | Pass |
+| Chromium mobile | Pass, 17/17 journeys | Pass |
+| WebKit mobile | Pass, 17/17 journeys | Pass |
+| Firefox desktop | Environment-blocked before test launch | Pass, 17/17 journeys |
 
-Firefox reaches `browserType.launch` but the macOS application sandbox denies its Playwright plugin-container extension before any test begins (`sandbox_extension_issue_file_to_process: Operation not permitted`). This is not an application assertion failure. The required GitHub Actions job installs and runs Firefox on `ubuntu-latest`; its result is the reference evidence and must be green before merge.
+Firefox reaches `browserType.launch` locally but the macOS application sandbox denies its Playwright plugin-container extension before any test begins (`sandbox_extension_issue_file_to_process: Operation not permitted`). This is not an application assertion failure. The required GitHub Actions job installed the browsers on `ubuntu-latest` and passed all 85 journeys across the five configured projects.
 
 ## Compose and container artifacts
 
@@ -48,11 +48,12 @@ Firefox reaches `browserType.launch` but the macOS application sandbox denies it
 - PostgreSQL 18 named volumes use `/var/lib/postgresql`, matching the current image layout.
 - `compose.prod.yaml` defaults to GHCR image references, accepts immutable `sha-<full-commit>` tags, and keeps documented local-build fallbacks.
 - `.github/workflows/container-images.yml` builds on pull requests without publishing and publishes multi-architecture API/web images with immutable revision tags only from trusted `main`, release-tag, or manual events.
+- Pull request workflow run `31213388620` successfully built both API and web images. Its publish matrix was skipped as designed for an untrusted pull-request event.
 
 Actual GHCR retrieval by this revision is pending publication from an accepted trusted event. Until then, the documented local-build fallback is the valid clean-host procedure.
 
 ## Repository protection and aggregate CI
 
-The committed `.github/rulesets/main.json` requires pull requests and the stable `quality-gate` check. The workflow aggregate fails if any install, lint, shell, type, coverage, integration, contract, Playwright, build, or container job is failed, cancelled, skipped, or missing.
+Pull request [#3](https://github.com/enzofrnt/MyOwnNotion/pull/3) ran CI workflow `31213388720`. Frozen install/toolchain, Biome, ShellCheck/shfmt, strict types, coverage, PostgreSQL/migrations, contracts, Playwright, production builds, and the production-like container smoke job all passed; the aggregate `quality-gate` also passed.
 
-Remote pull-request CI and live GitHub ruleset confirmation are pending branch publication. This section must be updated with the final PR/check result before T094 and T103 are considered complete.
+The committed `.github/rulesets/main.json` was validated to require pull requests and the stable `quality-gate` check, and the aggregate implementation fails if any required job is failed, cancelled, skipped, or missing. The connected GitHub API did not expose repository-ruleset settings for this private repository, so live settings could not be independently read from this environment. This is an explicit operational verification limitation, not a change to the required checked-in policy; the repository owner should confirm the imported ruleset in GitHub settings before merging if it is not already active.

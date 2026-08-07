@@ -216,7 +216,7 @@
 - [X] T091 [P] Add structured safe logging with private-content redaction tests in `apps/api/src/plugins/logging.ts` and `apps/api/tests/logging.spec.ts`
 - [X] T092 [P] Add CI assertion that Compose publishes only loopback ports in `tests/contract/compose-security.spec.ts`
 - [X] T093 Validate every scenario and command in `specs/001-content-foundations/quickstart.md`
-- [ ] T094 Record measured coverage, Playwright matrix, aggregate CI status, protected-main ruleset verification, and justified deviations in `specs/001-content-foundations/validation.md`
+- [X] T094 Record measured coverage, Playwright matrix, aggregate CI status, protected-main ruleset verification, and justified deviations in `specs/001-content-foundations/validation.md`
 - [X] T095 Document pnpm-only Node.js work, uv-only future Python work, Biome, ShellCheck/shfmt, test layers, local commands, and merge-blocking CI in `docs/development.md`
 
 ---
@@ -239,7 +239,7 @@
 - [X] T100 [US7] Define PostgreSQL, migration, API, and web services with named persistence, health gates, GHCR image defaults, local-build fallback, and loopback-only ports in `compose.prod.yaml` and `.env.prod.example`
 - [X] T101 [US7] Build API and web images on pull requests and publish multi-architecture immutable commit plus release aliases from trusted revisions in `.github/workflows/container-images.yml`
 - [X] T102 [US7] Document prerequisites, registry authentication, configuration, pull/build, startup, verification, logs, stop, restart, update, persistence, cleanup, and unauthenticated exposure limits in `docs/deployment.md`
-- [ ] T103 [US7] Validate the complete production-like procedure and record image build, Compose render, migration/API/web health, restart, and publication-workflow evidence in `specs/001-content-foundations/validation.md`
+- [X] T103 [US7] Validate the complete production-like procedure and record image build, Compose render, migration/API/web health, restart, and publication-workflow evidence in `specs/001-content-foundations/validation.md`
 
 **Checkpoint**: A clean host can retrieve or build the exact API and web revision, start the complete stack locally, verify it, and restart it without undocumented steps or public exposure.
 
