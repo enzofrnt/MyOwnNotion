@@ -4,8 +4,9 @@
  * One installation owns exactly one canonical workspace. The first call
  * creates it; every later call returns the same row.
  */
-import { asc } from "drizzle-orm";
+
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { asc } from "drizzle-orm";
 import type { Database } from "../client.ts";
 import { workspaces } from "../schema/index.ts";
 

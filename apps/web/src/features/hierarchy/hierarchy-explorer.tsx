@@ -6,12 +6,13 @@
  * tree is a semantic ARIA tree with complete keyboard operation, and
  * loading, empty, offline, error, and conflict states are explicit.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
-import { safeKeyBetween } from "../../services/ordering.ts";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
 import { localContent } from "../../services/local-content.ts";
+import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
 import { PageDocumentForm } from "../pages/page-document-form.tsx";
@@ -396,7 +397,6 @@ export function HierarchyExplorer() {
           The workspace is empty. Create a folder or a page to begin.
         </p>
       ) : (
-        /* biome-ignore lint/a11y/useSemanticElements: an interactive ARIA tree is the canonical pattern for hierarchical selection */
         /* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the list receives the tree role deliberately (WAI-ARIA tree over ul/li) */
         <ul role="tree" aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
           {tree.map((node) => renderNode(node, 1))}

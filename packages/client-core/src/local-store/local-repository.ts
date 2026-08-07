@@ -8,11 +8,11 @@
 import type { ItemDto } from "@myownnotion/contracts";
 import type { Uuid } from "@myownnotion/domain";
 import {
-  META_KEYS,
-  parentKeyOf,
   type LocalDatabase,
   type LocalItemRow,
   type LocalPlacementRow,
+  META_KEYS,
+  parentKeyOf,
 } from "./schema.ts";
 
 export interface ProjectedItem extends LocalItemRow {

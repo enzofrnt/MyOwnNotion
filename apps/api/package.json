@@ -7,7 +7,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch src/server.ts",
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/server.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/server.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && esbuild ../../scripts/db/migrate.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/migrate.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "start": "node dist/server.mjs"
   },
   "dependencies": {

@@ -1,11 +1,10 @@
 /**
  * Tracked Bash quality gate.
  *
- * Runs pinned ShellCheck and shfmt against every tracked shell script,
- * including managed Spec Kit workflow scripts, without rewriting any file
- * (`shfmt -d` reports diffs only). In CI the tool versions must match the
- * pinned releases exactly; locally a mismatched version fails with a clear
- * remediation message so contributors cannot silently drift.
+ * Runs pinned ShellCheck and shfmt against every first-party tracked shell
+ * script without rewriting any file (`shfmt -d` reports diffs only). Generated
+ * Spec Kit scripts are excluded by one explicit prefix: repository policy says
+ * those files must be refreshed from upstream rather than hand-edited.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
@@ -15,13 +14,17 @@ const PINNED_SHELLCHECK = "0.11.0";
 const PINNED_SHFMT = "3.12.0";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
+const managedPrefixes = [".specify/scripts/"];
 
 function trackedShellScripts(): string[] {
   const output = execFileSync("git", ["ls-files", "-z", "*.sh"], {
     cwd: repoRoot,
     encoding: "utf8",
   });
-  return output.split("\0").filter((entry) => entry.length > 0);
+  return output
+    .split("\0")
+    .filter((entry) => entry.length > 0)
+    .filter((entry) => !managedPrefixes.some((prefix) => entry.startsWith(prefix)));
 }
 
 function toolVersion(command: string, args: string[], pattern: RegExp): string | null {
@@ -34,11 +37,6 @@ function toolVersion(command: string, args: string[], pattern: RegExp): string |
 }
 
 const scripts = trackedShellScripts();
-if (scripts.length === 0) {
-  console.info("No tracked shell scripts found; shell check passed.");
-  process.exit(0);
-}
-
 const failures: string[] = [];
 
 const shellcheckVersion = toolVersion("shellcheck", ["--version"], /version: (\d+\.\d+\.\d+)/);
@@ -57,7 +55,7 @@ if (shfmtVersion === null) {
   failures.push(`shfmt version mismatch: pinned ${PINNED_SHFMT}, found ${shfmtVersion}`);
 }
 
-if (failures.length === 0) {
+if (failures.length === 0 && scripts.length > 0) {
   const shellcheckResult = spawnSync(
     "shellcheck",
     ["--severity=style", "--external-sources", ...scripts],
@@ -87,4 +85,8 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.info(`Shell quality gate passed for ${scripts.length} scripts.`);
+console.info(
+  scripts.length === 0
+    ? "Shell tool versions passed; no first-party tracked shell scripts found."
+    : `Shell quality gate passed for ${scripts.length} scripts.`,
+);

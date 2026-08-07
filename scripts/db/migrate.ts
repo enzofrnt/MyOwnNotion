@@ -10,9 +10,17 @@ import path from "node:path";
 import process from "node:process";
 import pg from "pg";
 
-const migrationsDir = path.resolve(import.meta.dirname, "../../packages/database/migrations");
+function migrationsDirectory(): string {
+  const configured = process.env["MYOWNNOTION_MIGRATIONS_DIR"];
+  return configured === undefined
+    ? path.resolve(import.meta.dirname, "../../packages/database/migrations")
+    : path.resolve(configured);
+}
 
-export async function migrate(connectionString: string): Promise<string[]> {
+export async function migrate(
+  connectionString: string,
+  migrationsDir = migrationsDirectory(),
+): Promise<string[]> {
   const client = new pg.Client({ connectionString });
   await client.connect();
   const applied: string[] = [];

@@ -3,17 +3,17 @@
  * (T049, US2, SC-009/SC-010).
  */
 import { createHash } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
 import {
   executeImportFile,
   registerContent,
   runMutation,
+  type StoredContent,
   schema,
   submitMutation,
-  type StoredContent,
 } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
 let context: IntegrationContext;

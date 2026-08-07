@@ -1,14 +1,16 @@
 /**
  * Mutation idempotency and validation rejection unit tests (T069, US4).
  */
-import { describe, expect, it } from "vitest";
+
 import {
+  asUuid,
   COMMAND_TYPES,
-  parseMutationCommand,
-  replayResult,
   generateUuidV7,
   type MutationRecord,
+  parseMutationCommand,
+  replayResult,
 } from "@myownnotion/domain";
+import { describe, expect, it } from "vitest";
 
 describe("typed mutation dispatch (T073)", () => {
   it("parses every owned command type", () => {
@@ -69,19 +71,85 @@ describe("typed mutation dispatch (T073)", () => {
     const mismatches: Array<[string, Record<string, unknown>]> = [
       ["item.create", { id: "not-a-uuid", kind: "page", name: "x" }],
       ["item.create", { id: generateUuidV7(), kind: "file", name: "x" }],
+      [
+        "item.create",
+        {
+          id: generateUuidV7(),
+          kind: "page",
+          name: "x",
+          placement: "not-an-object",
+        },
+      ],
+      [
+        "item.create",
+        {
+          id: generateUuidV7(),
+          kind: "page",
+          name: "x",
+          placement: { kind: "invalid", parentItemId: null, positionKey: "V" },
+        },
+      ],
+      [
+        "item.create",
+        {
+          id: generateUuidV7(),
+          kind: "page",
+          name: "x",
+          placement: { kind: "hierarchy", parentItemId: null, positionKey: "" },
+        },
+      ],
+      [
+        "item.create",
+        {
+          id: generateUuidV7(),
+          kind: "page",
+          name: "x",
+          placement: {
+            id: "invalid",
+            kind: "hierarchy",
+            parentItemId: null,
+            positionKey: "V",
+          },
+        },
+      ],
+      ["item.trash", { itemId: "invalid" }],
+      ["item.restore", { itemId: "invalid" }],
+      ["item.restore", { itemId: generateUuidV7(), fallbackParentItemId: "invalid" }],
       ["item.rename", { itemId: generateUuidV7() }],
       ["placement.move", { placementId: generateUuidV7(), parentItemId: 42, positionKey: "V" }],
+      ["placement.remove", { placementId: "invalid" }],
+      [
+        "file.placement.add",
+        { itemId: "invalid", kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      ],
       [
         "page.document.replace",
         { itemId: generateUuidV7(), baseRevisionId: generateUuidV7(), document: { format: "md" } },
       ],
       ["relationship.create", { id: generateUuidV7(), sourceItemId: generateUuidV7() }],
+      [
+        "relationship.create",
+        {
+          id: generateUuidV7(),
+          sourceItemId: generateUuidV7(),
+          targetItemId: generateUuidV7(),
+          relationType: "references",
+          metadata: null,
+        },
+      ],
+      ["relationship.remove", { relationshipId: "invalid" }],
       ["revision.restore", { revisionId: generateUuidV7() }],
     ];
     for (const [commandType, payload] of mismatches) {
       const parsed = parseMutationCommand(commandType, payload);
       expect(parsed.ok, `${commandType} should reject`).toBe(false);
     }
+  });
+
+  it("brands only valid UUID strings", () => {
+    const id = generateUuidV7();
+    expect(asUuid(id)).toBe(id);
+    expect(() => asUuid("invalid")).toThrow(TypeError);
   });
 
   it("restore with explicit null fallback is distinguished from no fallback", () => {

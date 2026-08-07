@@ -8,20 +8,20 @@
  * imposed by the product model.
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
+import { isValidPositionKey } from "./position-key.ts";
 import {
+  type CanonicalItem,
   canContain,
+  type DomainResult,
   err,
+  type ItemKind,
   normalizeDisplayName,
   ok,
   PAGE_DOCUMENT_FORMAT,
-  type CanonicalItem,
-  type DomainResult,
-  type ItemKind,
   type PageDocument,
   type Placement,
   type PlacementKind,
 } from "./types.ts";
-import { isValidPositionKey } from "./position-key.ts";
 
 /** Read view over the active content graph. All lookups are by stable identity. */
 export interface HierarchyView {

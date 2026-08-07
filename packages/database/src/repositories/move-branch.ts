@@ -7,16 +7,17 @@
  * it. Descendants are never touched row-by-row: an adjacency-list move only
  * rewrites the moved placement, which keeps branch moves O(1).
  */
-import { eq } from "drizzle-orm";
+
 import {
+  type DomainResult,
   err,
   generateUuidV7,
-  ok,
-  validateMovePlacement,
-  type DomainResult,
   type MovePlacementCommand,
+  ok,
   type Uuid,
+  validateMovePlacement,
 } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { items, placements } from "../schema/index.ts";
 import { getItem, getPlacement, wouldCreateCycleSql } from "./hierarchy-repository.ts";

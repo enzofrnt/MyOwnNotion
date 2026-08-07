@@ -1,0 +1,123 @@
+# Production-like integration topology.
+#
+# The application has no authentication yet. Every published port is therefore
+# loopback-only by default and must not be exposed to an untrusted network.
+name: myownnotion
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: ${MYOWNNOTION_DB_NAME:-myownnotion}
+      POSTGRES_USER: ${MYOWNNOTION_DB_USER:-myownnotion}
+      POSTGRES_PASSWORD: ${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}
+      TZ: UTC
+      PGTZ: UTC
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${MYOWNNOTION_DB_USER:-myownnotion} -d ${MYOWNNOTION_DB_NAME:-myownnotion}
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "127.0.0.1:${MYOWNNOTION_DB_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    restart: unless-stopped
+
+  migrate:
+    image: ghcr.io/enzofrnt/myownnotion-api:${MYOWNNOTION_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
+    command: ["node", "dist/migrate.mjs"]
+    environment:
+      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  api:
+    image: ghcr.io/enzofrnt/myownnotion-api:${MYOWNNOTION_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
+    environment:
+      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
+      MYOWNNOTION_API_HOST: 0.0.0.0
+      MYOWNNOTION_API_PORT: 3001
+      MYOWNNOTION_BLOB_ROOT: /var/lib/myownnotion/blobs
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "127.0.0.1:${MYOWNNOTION_API_PORT:-3001}:3001"
+    volumes:
+      - blob-data:/var/lib/myownnotion/blobs
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  web:
+    image: ghcr.io/enzofrnt/myownnotion-web:${MYOWNNOTION_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=-", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    ports:
+      - "127.0.0.1:${MYOWNNOTION_WEB_PORT:-8080}:8080"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  postgres-data:
+  blob-data:

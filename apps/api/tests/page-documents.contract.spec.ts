@@ -1,13 +1,14 @@
 /**
  * Page-document type discrimination tests (T051, US2).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 import { generateUuidV7 } from "@myownnotion/domain";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  type ApiHarness,
   createApiHarness,
   createItemViaApi,
   idempotencyHeaders,
-  type ApiHarness,
 } from "./helpers/app.ts";
 
 let harness: ApiHarness;

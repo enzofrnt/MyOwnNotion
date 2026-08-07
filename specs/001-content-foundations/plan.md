@@ -1,6 +1,6 @@
 # Implementation Plan: Canonical Content Foundations
 
-**Branch**: `codex/001-content-foundations-spec` | **Date**: 2026-08-07 | **Spec**: [spec.md](./spec.md)
+**Branch**: `codex/implement-content-foundations-7037-continue` | **Date**: 2026-08-07 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `specs/001-content-foundations/spec.md`
 
@@ -8,7 +8,7 @@
 
 Deliver the first vertical slice of the single-owner knowledge workspace: a responsive offline-capable hierarchy UI and versioned API for creating, nesting, ordering, moving, trashing, restoring, and relating pages, folders, and canonical files. Keep domain rules platform-independent, persist authoritative state and causal revision lineage transactionally in PostgreSQL, persist the browser projection and outbox transactionally in IndexedDB, store immutable file content behind a blob-store contract, and prove invariants with unit, property, integration, contract, fault-injection, and Playwright tests.
 
-This feature deliberately does not implement authentication, production exposure, rich block editing, real-time notifications, automatic conflict merging, backup execution, or encrypted volumes. It does implement the minimum local projection, outbox, cursor catch-up, and conflict capture needed for honest offline reading and editing.
+This feature deliberately does not implement authentication, public production exposure, rich block editing, real-time notifications, automatic conflict merging, backup execution, or encrypted volumes. It does implement the minimum local projection, outbox, cursor catch-up, and conflict capture needed for honest offline reading and editing, plus reproducible API and web container images published to GitHub Container Registry and a loopback-only production-like Compose topology for integrated testing.
 
 ## Technical Context
 
@@ -20,13 +20,13 @@ This feature deliberately does not implement authentication, production exposure
 
 **Testing**: Vitest with V8 coverage, fast-check property tests, Testcontainers with PostgreSQL 18, OpenAPI contract validation, Playwright across Chromium/Firefox/WebKit and desktop/mobile viewports
 
-**Target Platform**: Self-hosted Linux server through Docker Compose; current evergreen browsers for the responsive web client
+**Target Platform**: Self-hosted Linux server through Docker Compose; multi-architecture OCI images in GitHub Container Registry; current evergreen browsers for the responsive web client
 
 **Project Type**: TypeScript monorepo containing a web client, HTTP API, domain packages, persistence adapters, contracts, and end-to-end tests
 
 **Performance Goals**: Common hierarchy reads and single-item mutations complete within 150 ms p95 on the reference 10,000-item fixture; initial hierarchy navigation becomes usable within 2 seconds on the reference local deployment; randomized 1,000-operation integrity suites complete within CI limits without invariant failures
 
-**Constraints**: Permanent single owner; all maintained application and test source is TypeScript, never handwritten JavaScript; pnpm is the only Node.js package manager and its exact release plus dependency lock are committed; any future first-party Python uses only uv with a pinned interpreter and `uv.lock`; core loaded content remains readable/editable offline; local mutation state and outbox commit atomically; no fixed product nesting depth; cycle-free hierarchy; atomic multi-record mutations; 30-day trash; complete superseded revision content retained 24 hours; lineage metadata retained after content expiry; one canonical file may have many placements; independent imports never become one logical file; all service ports bind to `127.0.0.1` until authentication is complete
+**Constraints**: Permanent single owner; all maintained application and test source is TypeScript, never handwritten JavaScript; pnpm is the only Node.js package manager and its exact release plus dependency lock are committed; any future first-party Python uses only uv with a pinned interpreter and `uv.lock`; core loaded content remains readable/editable offline; local mutation state and outbox commit atomically; no fixed product nesting depth; cycle-free hierarchy; atomic multi-record mutations; 30-day trash; complete superseded revision content retained 24 hours; lineage metadata retained after content expiry; one canonical file may have many placements; independent imports never become one logical file; container images carry immutable commit tags; all service ports bind to `127.0.0.1` until authentication is complete
 
 **Scale/Scope**: One workspace, 10,000 canonical items in acceptance fixtures, at least 100 placements for one file, hierarchies deep enough to exercise iterative traversal and resource guards, and complete coverage of all containment combinations
 
@@ -39,7 +39,7 @@ This feature deliberately does not implement authentication, production exposure
 | I. User Ownership and Local Resilience | Canonical data has a durable export contract; a durable local projection and outbox keep loaded core content readable/editable without the server | Pass |
 | II. One Spec, Any Agent | All requirements, design, contracts, and tasks remain under this single feature directory | Pass |
 | III. Incremental, Verifiable Delivery | Each user story has focused lower-layer tests and every changed interactive flow has a Playwright journey | Pass |
-| IV. Privacy and Security by Default | Single-owner boundary is explicit; inputs are schema-validated; API is not production-exposed before authentication | Pass |
+| IV. Privacy and Security by Default | Single-owner boundary is explicit; inputs are schema-validated; the production-like composition remains loopback-only before authentication | Pass |
 | V. Simple, Modular Architecture | One API, one web app, one database, and focused packages; no premature sync, backup, MCP, or microservices | Pass |
 | VI. Accessible and Predictable Experience | Responsive hierarchy controls use semantic, keyboard-accessible interactions and explicit error/state feedback | Pass |
 | VII. Reproducible Toolchains and Enforced Quality | pnpm, lockfiles, Biome, strict types, layered tests, builds, and a protected-branch required check are explicit | Pass |
@@ -110,10 +110,17 @@ tests/
 └── fixtures/
 
 .github/workflows/
-└── ci.yml
+├── ci.yml
+└── container-images.yml
 
+apps/api/Dockerfile
+apps/web/Dockerfile
+apps/web/nginx.conf
+.dockerignore
 compose.yaml
 compose.override.yaml
+compose.prod.yaml
+docs/deployment.md
 ```
 
 **Structure Decision**: pnpm workspaces keep domain rules, browser-local behavior, storage, contracts, and applications independently testable without creating independent deployable services for every module. `apps/api` is the sole application service for this feature; `apps/web` is built and served for local validation. PostgreSQL is the only supporting service. Future Electron, real-time transport, backup, proxy, and scheduler components require their own specs before being added.
@@ -131,7 +138,10 @@ compose.override.yaml
 - Dexie stores the browser projection, causal revision headers, durable outbox, last applied change cursor, and conflict records in one versioned local schema. A local mutation commits projected state and outbox entry in one IndexedDB transaction.
 - The API exposes ordered durable changes by cursor plus idempotent mutation submission. Notifications are not a delivery mechanism; later WebSockets only prompt cursor catch-up.
 - A stale causal base returns a structured conflict containing competing revision identities. The local command and content remain durable until the later conflict-resolution workflow resolves them.
-- `compose.yaml` and its development override bind API, web, and database ports to loopback only. No supported production composition exists before authentication.
+- `compose.yaml` remains the development storage topology. `compose.prod.yaml` defines PostgreSQL, a one-shot migration job, the API, and a same-origin web proxy from published GHCR images, with optional local builds for pre-publication validation. Every host port remains loopback-only until authentication exists.
+- GitHub Actions builds the API and web images for pull-request validation and publishes them to GHCR from accepted `main` revisions and release tags. Each image receives an immutable `sha-<commit>` tag; `latest` and semantic-version tags are convenience aliases, never the sole reproducibility reference.
+- The API image includes the reviewed migration runner. Compose blocks API startup until PostgreSQL is healthy and the migration job completes successfully. Migration failure leaves the API stopped and preserves the existing named volumes.
+- The web image serves static Vite output through an unprivileged same-origin reverse proxy for `/v1` and `/health`, avoiding a new CORS surface.
 - Placement identities are client-generatable like every other canonical identity: `CreatePlacement` accepts an optional client UUIDv7 `id` that the server persists verbatim. Without it, an offline client that creates an item and then queues a move against its locally generated placement id would see the move rejected after reconciliation because the server had assigned a different placement identity (decision recorded 2026-08-07 during implementation).
 
 ## Development Toolchain
@@ -139,10 +149,11 @@ compose.override.yaml
 - Root `package.json` pins the supported Node.js line and an exact pnpm release through package metadata. `pnpm-lock.yaml` is committed, local and CI installs use frozen-lockfile verification, and a repository guard rejects npm, Yarn, or Bun lockfiles and install scripts.
 - This feature introduces no Python runtime or Python application source. If a later feature introduces first-party Python, it must add a uv-managed `pyproject.toml`, a pinned `.python-version`, and committed `uv.lock`; dependency changes and commands run through uv.
 - Biome is the single TypeScript/TSX/JSON/CSS formatter and linter for this feature. CI uses its read-only `ci` command; developer scripts expose separate check and write modes. TypeScript strict checking remains a separate mandatory gate because formatting and linting do not replace type analysis.
-- Tracked Bash, including Spec Kit workflow scripts, is checked with pinned ShellCheck and shfmt releases. Managed Spec Kit files are checked without rewriting them; intentional upstream incompatibilities require an explicit narrow configuration and cannot be silently ignored.
+- First-party tracked Bash is checked with pinned ShellCheck and shfmt releases. Generated Spec Kit workflow scripts are excluded by the single explicit `.specify/scripts/` prefix because project policy requires refreshing them from upstream instead of hand-editing them; any broader exception requires a recorded plan change.
 - Vitest reports V8 coverage for maintained TypeScript. Initial aggregate floors are 90% for statements, lines, and functions and 85% for branches; lowering a floor or excluding executable first-party code requires a recorded plan exception. These percentages complement rather than replace requirement, property, fault-injection, contract, and end-to-end coverage.
 - Every interactive UI behavior added by this feature has a Playwright journey. The complete suite runs against Chromium, Firefox, and WebKit with desktop and mobile-sized projects; CI forbids focused tests and retains reports and traces for failures.
 - GitHub Actions exposes one stable aggregate `quality-gate` result covering toolchain policy, frozen dependency installation, formatting, lint, strict types, all test layers, migrations, Playwright, and production builds. The `main` ruleset requires this check and a pull request, so a failing, cancelled, skipped, or missing gate prevents merge.
+- The container workflow uses GitHub's short-lived workflow token with package-write permission only on trusted push/tag events; pull requests build without publishing. BuildKit cache and OCI labels remain reproducible inputs, and published images include revision/source metadata.
 
 ## Quality Gates
 
@@ -155,6 +166,7 @@ compose.override.yaml
 - Playwright covers keyboard operation and responsive layouts on Chromium, Firefox, WebKit, and mobile-sized projects.
 - Playwright reloads the web app with the API unavailable, validates offline mutations and visible status, then reconnects against duplicate delivery and concurrent-revision fixtures.
 - The protected `main` ruleset requires the aggregate `quality-gate`; individual jobs may run in parallel, but the aggregate fails when any required job fails, is cancelled, skipped, or missing.
+- CI renders and validates both development and production-like Compose configurations, builds both container images, asserts local-only default port publishing, and smoke-tests migration ordering plus API/web health before image publication is considered valid.
 
 ## Complexity Tracking
 

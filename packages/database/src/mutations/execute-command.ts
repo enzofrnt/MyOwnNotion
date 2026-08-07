@@ -7,43 +7,43 @@
  * already-recorded mutation ID returns the prior result without side
  * effects (FR-040).
  */
-import { eq } from "drizzle-orm";
+
 import {
+  type DomainResult,
   err,
   generateUuidV7,
+  type MutationCommand,
   ok,
+  planRestoreRevision,
+  type QueuedMutationResult,
   replayResult,
+  type SafeError,
+  type Uuid,
   validateCreateItem,
   validateRenameItem,
   validateReplacePageDocument,
-  planRestoreRevision,
-  type DomainResult,
-  type MutationCommand,
-  type QueuedMutationResult,
-  type SafeError,
-  type Uuid,
 } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
-import { items, mutations, pageDocuments } from "../schema/index.ts";
-import { placements as placementsTable } from "../schema/index.ts";
+import { recordChange } from "../repositories/change-repository.ts";
+import {
+  executeAddFilePlacement,
+  executeRemovePlacement,
+} from "../repositories/file-repository.ts";
 import { getItem } from "../repositories/hierarchy-repository.ts";
+import { executeRestore, executeTrash } from "../repositories/lifecycle-repository.ts";
+import { executeMovePlacement } from "../repositories/move-branch.ts";
+import {
+  executeCreateRelationship,
+  executeRemoveRelationship,
+} from "../repositories/relationship-repository.ts";
 import {
   buildItemSnapshot,
   getRevision,
   insertRevision,
   supersedeRevision,
 } from "../repositories/revision-repository.ts";
-import { recordChange } from "../repositories/change-repository.ts";
-import { executeMovePlacement } from "../repositories/move-branch.ts";
-import { executeRestore, executeTrash } from "../repositories/lifecycle-repository.ts";
-import {
-  executeAddFilePlacement,
-  executeRemovePlacement,
-} from "../repositories/file-repository.ts";
-import {
-  executeCreateRelationship,
-  executeRemoveRelationship,
-} from "../repositories/relationship-repository.ts";
+import { items, mutations, pageDocuments, placements as placementsTable } from "../schema/index.ts";
 import { runMutation } from "./run-mutation.ts";
 
 export interface CommandExecution {

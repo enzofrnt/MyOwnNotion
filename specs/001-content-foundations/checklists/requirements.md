@@ -32,4 +32,5 @@
 ## Notes
 
 - Validation passed on the first review iteration.
+- Revalidated after adding published deployment artifacts and a documented loopback-only production-like composition; FR-045 through FR-049 and SC-015 through SC-017 are testable and keep implementation choices in the plan.
 - Future capabilities are listed only as compatibility constraints or explicit exclusions; their behavior requires separate specifications.

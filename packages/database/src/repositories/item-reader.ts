@@ -3,8 +3,9 @@
  * placements, page document, and file metadata, in the shape of the
  * OpenAPI `Item` schema.
  */
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+
 import type { Uuid } from "@myownnotion/domain";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { items, logicalFiles, pageDocuments, placements } from "../schema/index.ts";
 

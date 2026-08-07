@@ -6,9 +6,9 @@ import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { startMigratedPostgres, type DisposablePostgres } from "@myownnotion/test-utils";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import { buildApp, type BuiltApp } from "../../src/app.ts";
+import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
+import { type BuiltApp, buildApp } from "../../src/app.ts";
 
 export interface ApiHarness {
   readonly built: BuiltApp;

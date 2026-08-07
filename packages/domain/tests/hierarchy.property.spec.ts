@@ -4,21 +4,25 @@
  * SC-001: every allowed containment combination succeeds and every
  * prohibited child or cycle operation is rejected without changing state.
  */
-import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+
 import {
   canContain,
   collectActiveBranch,
+  generateUuidV7,
   ITEM_KINDS,
+  type ItemKind,
   keyBetween,
+  type PlacementKind,
+  sortSiblings,
+  type Uuid,
   validateCreateItem,
   validateMovePlacement,
+  validatePageDocument,
+  validateRenameItem,
   wouldCreateCycle,
-  generateUuidV7,
-  type ItemKind,
-  type PlacementKind,
-  type Uuid,
 } from "@myownnotion/domain";
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
 import { MemoryGraph } from "./helpers/memory-view.ts";
 
 describe("containment matrix (FR-003..FR-006)", () => {
@@ -83,6 +87,174 @@ describe("containment matrix (FR-003..FR-006)", () => {
       expect(result.error.code).toBe("containment.file-cannot-contain");
     }
     expect(graph.placements.size).toBe(before);
+  });
+
+  it("returns a precise error for every invalid create boundary", () => {
+    const graph = new MemoryGraph();
+    const duplicate = graph.addItem("page", "existing");
+    const trashedParent = graph.addItem("folder", "trashed", "trashed");
+    const valid = {
+      id: generateUuidV7(),
+      kind: "page" as const,
+      name: "page",
+      placement: { kind: "hierarchy" as const, parentItemId: null, positionKey: "V" },
+    };
+    const cases = [
+      [{ ...valid, id: "not-a-uuid" }, "validation.invalid-identifier"],
+      [{ ...valid, id: duplicate }, "mutation.duplicate"],
+      [{ ...valid, kind: "file" }, "validation.invalid-kind"],
+      [{ ...valid, name: "   " }, "validation.invalid-name"],
+      [
+        { ...valid, placement: { ...valid.placement, kind: "attachment" } },
+        "placement.cardinality-violation",
+      ],
+      [
+        { ...valid, placement: { ...valid.placement, positionKey: "" } },
+        "validation.invalid-payload",
+      ],
+      [
+        { ...valid, placement: { ...valid.placement, parentItemId: generateUuidV7() } },
+        "containment.parent-not-found",
+      ],
+      [
+        { ...valid, placement: { ...valid.placement, parentItemId: trashedParent } },
+        "item.not-active",
+      ],
+      [
+        { ...valid, placement: { ...valid.placement, id: "invalid" } },
+        "validation.invalid-identifier",
+      ],
+      [
+        {
+          ...valid,
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 2,
+            body: {},
+          },
+        },
+        "validation.unknown-format-version",
+      ],
+      [
+        {
+          ...valid,
+          kind: "folder",
+          pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+        },
+        "validation.invalid-payload",
+      ],
+    ] as const;
+
+    for (const [command, code] of cases) {
+      // Deliberately malformed runtime values exercise the untrusted boundary.
+      const result = validateCreateItem(graph, command as Parameters<typeof validateCreateItem>[1]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe(code);
+      }
+    }
+  });
+
+  it("validates page document formats and bodies without stripping data", () => {
+    const invalidDocuments = [
+      { format: "text/plain", formatVersion: 1, body: {} },
+      { format: "myownnotion.document+json", formatVersion: 0, body: {} },
+      { format: "myownnotion.document+json", formatVersion: 1.5, body: {} },
+      { format: "myownnotion.document+json", formatVersion: 1, body: [] },
+    ];
+    for (const document of invalidDocuments) {
+      expect(validatePageDocument(document as Parameters<typeof validatePageDocument>[0]).ok).toBe(
+        false,
+      );
+    }
+  });
+
+  it("validates move and rename state before returning an executable plan", () => {
+    const graph = new MemoryGraph();
+    const itemId = graph.addItem("page", "item");
+    const placementId = graph.addPlacement(itemId, null, "V");
+    const placement = graph.placements.get(placementId) as NonNullable<
+      ReturnType<MemoryGraph["getActivePlacements"]>[number]
+    >;
+    const command = { placementId, parentItemId: null, positionKey: "W" };
+
+    expect(validateMovePlacement(graph, null, command).ok).toBe(false);
+    expect(
+      validateMovePlacement(graph, { ...placement, removedAt: new Date().toISOString() }, command)
+        .ok,
+    ).toBe(false);
+
+    graph.items.delete(itemId);
+    expect(validateMovePlacement(graph, placement, command).ok).toBe(false);
+    graph.items.set(itemId, {
+      id: itemId,
+      workspaceId: graph.workspaceId,
+      kind: "page",
+      name: "item",
+      lifecycle: "trashed",
+      trashedAt: new Date().toISOString(),
+      purgeAfter: new Date().toISOString(),
+      currentRevisionId: generateUuidV7(),
+    });
+    expect(validateMovePlacement(graph, placement, command).ok).toBe(false);
+    graph.items.set(itemId, {
+      ...(graph.getItem(itemId) as NonNullable<ReturnType<MemoryGraph["getItem"]>>),
+      lifecycle: "active",
+    });
+
+    expect(validateMovePlacement(graph, placement, { ...command, positionKey: "" }).ok).toBe(false);
+    expect(
+      validateMovePlacement(graph, placement, {
+        ...command,
+        parentItemId: generateUuidV7(),
+      }).ok,
+    ).toBe(false);
+    const accepted = validateMovePlacement(graph, placement, command);
+    expect(accepted.ok && accepted.value.parentChanged).toBe(false);
+
+    const file = graph.addItem("file", "attachment");
+    const attachmentId = graph.addPlacement(file, itemId, "A", "attachment");
+    const folder = graph.addItem("folder", "folder");
+    expect(
+      validateMovePlacement(graph, graph.placements.get(attachmentId) ?? null, {
+        placementId: attachmentId,
+        parentItemId: folder,
+        positionKey: "B",
+      }).ok,
+    ).toBe(false);
+
+    expect(validateRenameItem(graph, { itemId: generateUuidV7(), name: "x" }).ok).toBe(false);
+    graph.items.set(itemId, {
+      ...(graph.getItem(itemId) as NonNullable<ReturnType<MemoryGraph["getItem"]>>),
+      lifecycle: "trashed",
+    });
+    expect(validateRenameItem(graph, { itemId, name: "x" }).ok).toBe(false);
+    graph.items.set(itemId, {
+      ...(graph.getItem(itemId) as NonNullable<ReturnType<MemoryGraph["getItem"]>>),
+      lifecycle: "active",
+    });
+    expect(validateRenameItem(graph, { itemId, name: " " }).ok).toBe(false);
+    const rename = validateRenameItem(graph, { itemId, name: "  renamed  " });
+    expect(rename.ok && rename.value.name).toBe("renamed");
+  });
+
+  it("terminates corrupted or duplicate graph walks and sorts equal keys by identity", () => {
+    const graph = new MemoryGraph();
+    const first = graph.addItem("folder", "first");
+    const second = graph.addItem("folder", "second");
+    graph.addPlacement(first, second, "A");
+    graph.addPlacement(second, first, "B");
+    expect(wouldCreateCycle(graph, generateUuidV7(), first)).toBe(true);
+
+    graph.addPlacement(second, first, "C");
+    expect(collectActiveBranch(graph, first)).toEqual([first, second]);
+
+    const placements = graph.getActivePlacements(second);
+    const sameKey = placements.map((placement) => ({ ...placement, positionKey: "K" }));
+    const sorted = sortSiblings(sameKey);
+    expect(sorted.map((entry) => entry.id)).toEqual(
+      sameKey.map((entry) => entry.id).sort((a, b) => a.localeCompare(b)),
+    );
   });
 });
 

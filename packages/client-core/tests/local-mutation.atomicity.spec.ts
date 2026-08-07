@@ -3,15 +3,17 @@
  * SC-013): success is reported only when the optimistic state AND the
  * durable outbox entry are both persisted; failures leave no partial state.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+
 import {
   applyLocalMutation,
-  LocalRepository,
-  openLocalDatabase,
-  Outbox,
   type LocalDatabase,
+  LocalRepository,
+  newLocalRevision,
+  Outbox,
+  openLocalDatabase,
 } from "@myownnotion/client-core";
+import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let db: LocalDatabase;
 let repository: LocalRepository;
@@ -185,6 +187,220 @@ describe("atomic optimistic mutation + outbox (T040)", () => {
     // The aborted transaction rolled the projection write back too.
     expect(await snapshotCounts()).toEqual(before);
   });
+
+  it("applies the complete supported offline command lifecycle", async () => {
+    const fixedNow = () => new Date("2026-08-07T12:00:00.000Z");
+    const parentId = generateUuidV7();
+    const pageId = generateUuidV7();
+    const parentPlacementId = generateUuidV7();
+    const pagePlacementId = generateUuidV7();
+
+    for (const input of [
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.create",
+        payload: {
+          id: parentId,
+          kind: "folder",
+          name: "  Parent  ",
+          placement: {
+            id: parentPlacementId,
+            kind: "hierarchy",
+            parentItemId: null,
+            positionKey: "A",
+          },
+        },
+        baseRevisionIds: [],
+      },
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.create",
+        payload: {
+          id: pageId,
+          kind: "page",
+          name: "Draft",
+          placement: {
+            id: pagePlacementId,
+            kind: "hierarchy",
+            parentItemId: parentId,
+            positionKey: "B",
+          },
+        },
+        baseRevisionIds: [],
+      },
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.rename",
+        payload: { itemId: pageId, name: "  Published  " },
+        baseRevisionIds: [],
+      },
+      {
+        mutationId: generateUuidV7(),
+        commandType: "page.document.replace",
+        payload: {
+          itemId: pageId,
+          baseRevisionId: generateUuidV7(),
+          document: {
+            format: "myownnotion.document+json",
+            formatVersion: 1,
+            body: { text: "offline" },
+          },
+        },
+        baseRevisionIds: [],
+      },
+      {
+        mutationId: generateUuidV7(),
+        commandType: "placement.move",
+        payload: { placementId: pagePlacementId, parentItemId: null, positionKey: "C" },
+        baseRevisionIds: [],
+      },
+    ]) {
+      const result = await applyLocalMutation(db, input, fixedNow);
+      expect(result.ok).toBe(true);
+    }
+
+    expect(await repository.getItem(parentId)).toMatchObject({ name: "Parent" });
+    expect(await repository.getItem(pageId)).toMatchObject({
+      name: "Published",
+      pageDocument: { body: { text: "offline" } },
+    });
+    expect(await db.placements.get(pagePlacementId)).toMatchObject({
+      parentItemId: null,
+      parentKey: "root",
+      positionKey: "C",
+    });
+
+    const relationId = generateUuidV7();
+    const createRelation = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "relationship.create",
+        payload: {
+          id: relationId,
+          sourceItemId: parentId,
+          targetItemId: pageId,
+          relationType: "references",
+        },
+        baseRevisionIds: [],
+      },
+      fixedNow,
+    );
+    expect(createRelation.ok).toBe(true);
+    expect(await db.relationships.get(relationId)).toMatchObject({ metadata: {} });
+
+    const removeRelation = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "relationship.remove",
+        payload: { relationshipId: relationId },
+        baseRevisionIds: [],
+      },
+      fixedNow,
+    );
+    expect(removeRelation.ok).toBe(true);
+    expect(await db.relationships.get(relationId)).toBeUndefined();
+
+    const trash = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.trash",
+        payload: { itemId: parentId },
+        baseRevisionIds: [],
+      },
+      fixedNow,
+    );
+    expect(trash.ok).toBe(true);
+    expect(await repository.getItem(parentId)).toMatchObject({
+      lifecycle: "trashed",
+      trashedAt: "2026-08-07T12:00:00.000Z",
+    });
+
+    const restore = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.restore",
+        payload: { itemId: parentId },
+        baseRevisionIds: [],
+      },
+      fixedNow,
+    );
+    expect(restore.ok).toBe(true);
+    expect(await repository.getItem(parentId)).toMatchObject({
+      lifecycle: "active",
+      trashedAt: null,
+      purgeAfter: null,
+    });
+  });
+
+  it("rejects unavailable local targets and server-only commands atomically", async () => {
+    const folderId = generateUuidV7();
+    const create = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "item.create",
+      payload: {
+        id: folderId,
+        kind: "folder",
+        name: "Folder",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "A" },
+      },
+      baseRevisionIds: [],
+    });
+    expect(create.ok).toBe(true);
+
+    const cases = [
+      {
+        commandType: "page.document.replace",
+        payload: {
+          itemId: folderId,
+          baseRevisionId: generateUuidV7(),
+          document: {
+            format: "myownnotion.document+json",
+            formatVersion: 1,
+            body: {},
+          },
+        },
+        code: "item.not-found",
+      },
+      {
+        commandType: "placement.move",
+        payload: {
+          placementId: generateUuidV7(),
+          parentItemId: null,
+          positionKey: "A",
+        },
+        code: "placement.not-found",
+      },
+      {
+        commandType: "relationship.remove",
+        payload: { relationshipId: generateUuidV7() },
+        code: "item.not-found",
+      },
+      {
+        commandType: "placement.remove",
+        payload: { placementId: generateUuidV7() },
+        code: "validation.invalid-payload",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const before = await snapshotCounts();
+      const result = await applyLocalMutation(db, {
+        mutationId: generateUuidV7(),
+        commandType: testCase.commandType,
+        payload: testCase.payload,
+        baseRevisionIds: [],
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe(testCase.code);
+      }
+      expect(await snapshotCounts()).toEqual(before);
+    }
+  });
 });
 
 describe("durable retry states (T041)", () => {
@@ -237,5 +453,30 @@ describe("durable retry states (T041)", () => {
     expect(conflicts[0]?.competingRevisionIds).toEqual([competing]);
     expect(conflicts[0]?.errorCode).toBe("revision.stale-base");
     expect(conflicts[0]?.payload["name"]).toBe("Conflicted");
+  });
+
+  it("exposes stable outbox lookup and the local revision helper", async () => {
+    const mutationId = generateUuidV7();
+    await applyLocalMutation(db, {
+      mutationId,
+      commandType: "item.create",
+      payload: {
+        id: generateUuidV7(),
+        kind: "folder",
+        name: "Lookup",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+      baseRevisionIds: [],
+    });
+    expect((await outbox.get(mutationId))?.mutationId).toBe(mutationId);
+    expect((await outbox.all()).map((row) => row.mutationId)).toEqual([mutationId]);
+    expect(await outbox.get(generateUuidV7())).toBeNull();
+
+    const local = newLocalRevision(db, generateUuidV7(), [], () => new Date(0));
+    await local.write();
+    expect(await db.revisionHeaders.get(local.id)).toMatchObject({
+      acceptedAt: "1970-01-01T00:00:00.000Z",
+      local: 1,
+    });
   });
 });

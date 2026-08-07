@@ -4,18 +4,19 @@
  * surviving identity, descendant placement, and relationship resolving to
  * its original logical item.
  */
-import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+
 import {
   collectActiveBranch,
+  generateUuidV7,
   keyBetween,
+  type Relationship,
+  type Uuid,
   validateMovePlacement,
   validateRenameItem,
   wouldCreateCycle,
-  type Relationship,
-  type Uuid,
-  generateUuidV7,
 } from "@myownnotion/domain";
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
 import { MemoryGraph } from "./helpers/memory-view.ts";
 
 const ITEM_COUNT = 10_000;

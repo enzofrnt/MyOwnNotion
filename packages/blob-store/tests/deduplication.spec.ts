@@ -6,9 +6,9 @@ import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ContentStore, FilesystemBlobStore, type ContentCandidate } from "@myownnotion/blob-store";
+import { type ContentCandidate, ContentStore, FilesystemBlobStore } from "@myownnotion/blob-store";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let root: string;
 let blobs: FilesystemBlobStore;

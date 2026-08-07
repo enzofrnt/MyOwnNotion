@@ -1,13 +1,14 @@
 /**
  * Create/list/reorder/move/trash/restore API contract tests (T026, US1).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 import { generateUuidV7 } from "@myownnotion/domain";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  type ApiHarness,
   createApiHarness,
   createItemViaApi,
   idempotencyHeaders,
-  type ApiHarness,
 } from "./helpers/app.ts";
 
 let harness: ApiHarness;

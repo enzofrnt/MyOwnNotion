@@ -8,18 +8,19 @@
  * Content replacement is copy-on-write: a new content row per accepted
  * update, only for the addressed logical file.
  */
-import { and, eq, isNull, sql } from "drizzle-orm";
+
 import {
+  type AddFilePlacementCommand,
+  type DomainResult,
   err,
   generateUuidV7,
   normalizeDisplayName,
   ok,
   planRemoveFilePlacement,
-  validateAddFilePlacement,
-  type AddFilePlacementCommand,
-  type DomainResult,
   type Uuid,
+  validateAddFilePlacement,
 } from "@myownnotion/domain";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { fileContents, items, lifecycleEvents, logicalFiles, placements } from "../schema/index.ts";
 import { getActivePlacements, getItem, getPlacement } from "./hierarchy-repository.ts";

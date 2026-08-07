@@ -1,8 +1,9 @@
 /**
- * Compose publishes only loopback ports (T092).
+ * Compose publishes only loopback ports (T092/T096).
  *
- * No supported production composition exists before authentication; every
- * published development port must bind to 127.0.0.1 explicitly.
+ * Authentication is not implemented yet, so every published development or
+ * production-like port must bind to 127.0.0.1 explicitly. The production-like
+ * topology must also gate API readiness on a successful migration job.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -15,6 +16,11 @@ interface ComposeDocument {
     {
       ports?: Array<string | { host_ip?: string; published?: number | string }>;
       image?: string;
+      build?: { context?: string; dockerfile?: string; target?: string } | string;
+      command?: string | string[];
+      depends_on?: Record<string, { condition?: string }> | string[];
+      healthcheck?: unknown;
+      volumes?: string[];
     }
   >;
   volumes?: Record<string, unknown>;
@@ -27,7 +33,7 @@ function loadCompose(file: string): ComposeDocument {
 }
 
 describe("compose security (loopback only)", () => {
-  it.each(["compose.yaml", "compose.override.yaml"])(
+  it.each(["compose.yaml", "compose.override.yaml", "compose.prod.yaml"])(
     "%s publishes ports only on 127.0.0.1",
     (file) => {
       const compose = loadCompose(file);
@@ -55,7 +61,7 @@ describe("compose security (loopback only)", () => {
     };
     expect(postgres).toBeDefined();
     expect(postgres.healthcheck).toBeDefined();
-    expect(postgres.volumes?.some((volume) => volume.startsWith("postgres-data:"))).toBe(true);
+    expect(postgres.volumes).toContain("postgres-data:/var/lib/postgresql");
     expect(compose.volumes).toHaveProperty("postgres-data");
   });
 
@@ -67,5 +73,45 @@ describe("compose security (loopback only)", () => {
     };
     expect(postgres.image).toBe("postgres:18");
     expect(postgres.environment?.["TZ"]).toBe("UTC");
+  });
+
+  it("production-like services use GHCR images with local build fallbacks", () => {
+    const compose = loadCompose("compose.prod.yaml");
+    const api = compose.services?.["api"];
+    const web = compose.services?.["web"];
+    const imageTagReference = "$" + "{MYOWNNOTION_IMAGE_TAG:-latest}";
+
+    expect(api?.image).toBe(`ghcr.io/enzofrnt/myownnotion-api:${imageTagReference}`);
+    expect(web?.image).toBe(`ghcr.io/enzofrnt/myownnotion-web:${imageTagReference}`);
+    expect(api?.build).toMatchObject({ context: ".", dockerfile: "apps/api/Dockerfile" });
+    expect(web?.build).toMatchObject({ context: ".", dockerfile: "apps/web/Dockerfile" });
+  });
+
+  it("production-like startup blocks API and web readiness on migrations and health", () => {
+    const compose = loadCompose("compose.prod.yaml");
+    const migrate = compose.services?.["migrate"];
+    const api = compose.services?.["api"];
+    const web = compose.services?.["web"];
+
+    expect(migrate?.command).toEqual(["node", "dist/migrate.mjs"]);
+    expect(migrate?.depends_on).toMatchObject({ postgres: { condition: "service_healthy" } });
+    expect(api?.depends_on).toMatchObject({
+      postgres: { condition: "service_healthy" },
+      migrate: { condition: "service_completed_successfully" },
+    });
+    expect(web?.depends_on).toMatchObject({ api: { condition: "service_healthy" } });
+    expect(api?.healthcheck).toBeDefined();
+    expect(web?.healthcheck).toBeDefined();
+  });
+
+  it("production-like state uses explicit named volumes", () => {
+    const compose = loadCompose("compose.prod.yaml");
+    const postgres = compose.services?.["postgres"];
+    const api = compose.services?.["api"];
+
+    expect(postgres?.volumes).toContain("postgres-data:/var/lib/postgresql");
+    expect(api?.volumes).toContain("blob-data:/var/lib/myownnotion/blobs");
+    expect(compose.volumes).toHaveProperty("postgres-data");
+    expect(compose.volumes).toHaveProperty("blob-data");
   });
 });

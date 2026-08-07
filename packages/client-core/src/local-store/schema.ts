@@ -7,8 +7,9 @@
  * The projection uses the same stable identities as the server and is never
  * a second source of truth.
  */
-import { Dexie, type EntityTable } from "dexie";
+
 import type { Uuid } from "@myownnotion/domain";
+import { Dexie, type EntityTable } from "dexie";
 
 export interface LocalItemRow {
   readonly id: Uuid;

@@ -7,8 +7,8 @@
  * the browser projection enforce identical rules.
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
-import { err, ok, type DomainResult, type PageDocument, type PlacementKind } from "./types.ts";
 import type { MutationRecord, QueuedMutationResult } from "../revisions/types.ts";
+import { type DomainResult, err, ok, type PageDocument, type PlacementKind } from "./types.ts";
 
 export const COMMAND_TYPES = [
   "item.create",

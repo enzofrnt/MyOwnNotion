@@ -3,19 +3,20 @@
  * classification uses parent edges only — deliberately skewed timestamps
  * must never change results, and pruned snapshots never affect headers.
  */
-import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+
 import {
   canPruneSnapshot,
   classifyLineage,
   commonAncestors,
-  snapshotExpiry,
-  validateNewRevision,
   generateUuidV7,
   type RevisionHeader,
   type RevisionWithSnapshot,
+  snapshotExpiry,
   type Uuid,
+  validateNewRevision,
 } from "@myownnotion/domain";
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
 
 /** Builds a random DAG of revisions for one item. */
 function arbitraryLineage() {

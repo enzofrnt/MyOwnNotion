@@ -2,7 +2,16 @@
  * Outbox retry, duplicate delivery, cursor catch-up, and conflict retention
  * tests (T036, US6, SC-014).
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  applyLocalMutation,
+  type LocalDatabase,
+  LocalRepository,
+  Outbox,
+  openLocalDatabase,
+  type ReconcileTransport,
+  reconcile,
+} from "@myownnotion/client-core";
 import type {
   CanonicalSnapshotDto,
   ChangesResponseDto,
@@ -11,15 +20,7 @@ import type {
   QueuedMutationResultDto,
 } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import {
-  applyLocalMutation,
-  LocalRepository,
-  openLocalDatabase,
-  Outbox,
-  reconcile,
-  type LocalDatabase,
-  type ReconcileTransport,
-} from "@myownnotion/client-core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let db: LocalDatabase;
 let outbox: Outbox;
@@ -71,10 +72,12 @@ class FakeTransport implements ReconcileTransport {
   submissions: QueuedMutationDto[][] = [];
   acceptedIds = new Set<string>();
   conflictIds = new Map<string, Uuid[]>();
+  rejectedIds = new Set<string>();
   changePages: ChangesResponseDto[] = [];
   snapshot: CanonicalSnapshotDto | null = null;
   compactedCursors = new Set<string>();
   failNextBatch = false;
+  failChanges = false;
 
   async submitMutationBatch(mutations: QueuedMutationDto[]) {
     if (this.failNextBatch) {
@@ -97,6 +100,12 @@ class FakeTransport implements ReconcileTransport {
           },
         };
       }
+      if (this.rejectedIds.has(mutation.mutationId)) {
+        return {
+          mutationId: mutation.mutationId,
+          status: "rejected" as const,
+        };
+      }
       // Idempotent server: a re-delivered id replays already-accepted.
       const already = this.acceptedIds.has(mutation.mutationId);
       this.acceptedIds.add(mutation.mutationId);
@@ -110,6 +119,9 @@ class FakeTransport implements ReconcileTransport {
   }
 
   async listChanges(after: string) {
+    if (this.failChanges) {
+      return { ok: false as const, offline: true };
+    }
     if (this.compactedCursors.has(after)) {
       return { ok: false as const, offline: false, compacted: true };
     }
@@ -182,6 +194,37 @@ describe("reconciliation (T044)", () => {
     expect(conflicts[0]?.competingRevisionIds).toEqual([competing]);
     // The conflicting work is not resubmitted and not lost.
     expect(await db.outbox.count()).toBe(0);
+  });
+
+  it("retains a deterministic server rejection as recoverable local work", async () => {
+    const rejected = await enqueueCreate("Rejected");
+    const transport = new FakeTransport();
+    transport.rejectedIds.add(rejected);
+
+    const outcome = await reconcile(db, transport);
+    expect(outcome.conflicts).toBe(1);
+    expect((await outbox.conflicts())[0]).toMatchObject({
+      mutationId: rejected,
+      errorCode: "mutation.rejected",
+      competingRevisionIds: [],
+    });
+  });
+
+  it("reports offline when cursor catch-up or compacted snapshot retrieval fails", async () => {
+    const offlineTransport = new FakeTransport();
+    offlineTransport.failChanges = true;
+    const offline = await reconcile(db, offlineTransport);
+    expect(offline).toMatchObject({ offline: true, usedSnapshotFallback: false });
+
+    await repository.setMeta("lastChangeCursor", "compacted");
+    const compactedTransport = new FakeTransport();
+    compactedTransport.compactedCursors.add("compacted");
+    const noSnapshot = await reconcile(db, compactedTransport);
+    expect(noSnapshot).toMatchObject({
+      offline: true,
+      caughtUpTo: "compacted",
+      usedSnapshotFallback: false,
+    });
   });
 
   it("catches up through ordered change pages and persists the cursor", async () => {

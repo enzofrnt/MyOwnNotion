@@ -6,18 +6,19 @@
  * lineage event. Listing exposes endpoint availability so unavailable
  * targets stay diagnosable instead of silently redirecting (FR-011/FR-014).
  */
-import { and, eq, isNull, or } from "drizzle-orm";
+
 import {
+  type CreateRelationshipCommand,
+  type DomainResult,
+  type EndpointAvailability,
   endpointAvailability,
   err,
   generateUuidV7,
   ok,
-  validateCreateRelationship,
-  type CreateRelationshipCommand,
-  type DomainResult,
-  type EndpointAvailability,
   type Uuid,
+  validateCreateRelationship,
 } from "@myownnotion/domain";
+import { and, eq, isNull, or } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { items, relationships } from "../schema/index.ts";
 import { getItem } from "./hierarchy-repository.ts";

@@ -7,17 +7,17 @@
  * trashes the logical file with restorable placement metadata.
  */
 import type { Uuid } from "../ids/uuid.ts";
-import {
-  err,
-  ok,
-  TRASH_RETENTION_MS,
-  type CanonicalItem,
-  type DomainResult,
-  type Placement,
-  type PlacementKind,
-} from "./types.ts";
 import type { HierarchyView } from "./hierarchy.ts";
 import { isValidPositionKey } from "./position-key.ts";
+import {
+  type CanonicalItem,
+  type DomainResult,
+  err,
+  ok,
+  type Placement,
+  type PlacementKind,
+  TRASH_RETENTION_MS,
+} from "./types.ts";
 
 export interface AddFilePlacementCommand {
   readonly itemId: Uuid;

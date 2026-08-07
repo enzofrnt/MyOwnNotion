@@ -5,11 +5,12 @@
  * import a new file, attach an existing canonical file, or remove one
  * placement (the final removal sends the file to the 30-day trash).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+
 import type { ItemDto, ProblemDto } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import { safeKeyBetween } from "../../services/ordering.ts";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
+import { safeKeyBetween } from "../../services/ordering.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 import { ReplaceFileContent } from "./replace-file-content.tsx";
 

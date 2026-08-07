@@ -18,8 +18,8 @@ import type {
   QueuedMutationResultDto,
 } from "@myownnotion/contracts";
 import type { Uuid } from "@myownnotion/domain";
-import { META_KEYS, type LocalDatabase } from "../local-store/schema.ts";
 import { LocalRepository } from "../local-store/local-repository.ts";
+import { type LocalDatabase, META_KEYS } from "../local-store/schema.ts";
 import { Outbox } from "../outbox/outbox.ts";
 
 export interface ReconcileTransport {

@@ -5,18 +5,19 @@
  * single-item mutations within 150 ms p95 on the reference fixture, and the
  * randomized integrity suite completing without invariant failures.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 import {
   createDatabase,
+  type DatabaseHandle,
   getActiveChildren,
   getOrCreateWorkspace,
   readItem,
   schema,
   submitMutation,
-  type DatabaseHandle,
 } from "@myownnotion/database";
 import { generateUuidV7, initialKeys, keyBetween, type Uuid } from "@myownnotion/domain";
-import { startMigratedPostgres, type DisposablePostgres } from "@myownnotion/test-utils";
+import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const ITEM_COUNT = 10_000;
 const OPERATIONS = 1_000;

@@ -6,14 +6,14 @@
  * its 24-hour expiry; headers and parent edges are never deleted.
  */
 import { createHash } from "node:crypto";
-import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   canonicalLineageString,
-  snapshotExpiry,
   type RevisionHeader,
   type RevisionWithSnapshot,
+  snapshotExpiry,
   type Uuid,
 } from "@myownnotion/domain";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import {
   items,

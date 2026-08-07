@@ -5,8 +5,9 @@
  * lineage, ordered catch-up, and durable conflict capture. Wall-clock
  * timestamps are metadata only and never ancestry evidence.
  */
-import type { Uuid } from "../ids/uuid.ts";
+
 import type { SafeError } from "../content/types.ts";
+import type { Uuid } from "../ids/uuid.ts";
 
 export type MutationStatus = "accepted" | "rejected";
 

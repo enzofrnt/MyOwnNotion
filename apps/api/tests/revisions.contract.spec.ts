@@ -2,15 +2,16 @@
  * Revision fetch, restore, expired snapshot, and comparison API contract
  * tests (T079, US5).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+
 import { schema } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  type ApiHarness,
   createApiHarness,
   createItemViaApi,
   idempotencyHeaders,
-  type ApiHarness,
 } from "./helpers/app.ts";
 
 let harness: ApiHarness;

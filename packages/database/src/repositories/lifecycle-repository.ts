@@ -11,16 +11,17 @@
  *   root placement is recreated at its remembered or explicitly selected
  *   parent (FR-033).
  */
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+
 import {
+  type DomainResult,
   err,
   generateUuidV7,
   ok,
   planRestore,
   planTrash,
-  type DomainResult,
   type Uuid,
 } from "@myownnotion/domain";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { items, lifecycleEvents, placements } from "../schema/index.ts";
 import {

@@ -5,8 +5,9 @@
  * the recursive CTE pair (descendant collection and ancestor walk): cycle
  * checks over an adjacency list genuinely require `WITH RECURSIVE`.
  */
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+
 import type { CanonicalItem, HierarchyView, Placement, Uuid } from "@myownnotion/domain";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { items, placements } from "../schema/index.ts";
 

@@ -3,9 +3,10 @@
  * is idempotent through the version registry, and yields the complete
  * canonical schema with its deferred constraints.
  */
+
+import { applyMigrations, startDisposablePostgres } from "@myownnotion/test-utils";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { applyMigrations, startDisposablePostgres } from "@myownnotion/test-utils";
 
 let database: Awaited<ReturnType<typeof startDisposablePostgres>>;
 

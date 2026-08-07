@@ -3,13 +3,13 @@
  * HierarchyView plus mutation helpers mirroring adapter behavior.
  */
 import {
-  generateUuidV7,
-  sortSiblings,
   type CanonicalItem,
+  generateUuidV7,
   type HierarchyView,
   type ItemKind,
   type Placement,
   type PlacementKind,
+  sortSiblings,
   type Uuid,
 } from "@myownnotion/domain";
 

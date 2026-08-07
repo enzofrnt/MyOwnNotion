@@ -2,16 +2,17 @@
  * Placement routes (T032 US1, T059 US2): move/reorder, remove, and add file
  * placements.
  */
-import type { FastifyInstance } from "fastify";
-import { Type } from "@sinclair/typebox";
+
 import {
+  type CreatePlacementDto,
   CreatePlacementSchema,
+  type MovePlacementDto,
   MovePlacementSchema,
   MutationResultSchema,
-  type CreatePlacementDto,
-  type MovePlacementDto,
 } from "@myownnotion/contracts";
 import type { Uuid } from "@myownnotion/domain";
+import { Type } from "@sinclair/typebox";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { handleMutation } from "../plugins/mutations.ts";
 

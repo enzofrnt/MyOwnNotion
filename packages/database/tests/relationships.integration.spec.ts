@@ -1,10 +1,11 @@
 /**
  * Endpoint stability and unavailable-target integration tests (T063, US3).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+
 import { listRelationships, schema, submitMutation } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
 let context: IntegrationContext;

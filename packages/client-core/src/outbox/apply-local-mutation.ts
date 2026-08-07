@@ -7,15 +7,15 @@
  * acceptance (SC-013).
  */
 import {
+  type DomainResult,
   err,
   generateUuidV7,
+  type MutationCommand,
   ok,
   parseMutationCommand,
-  type DomainResult,
-  type MutationCommand,
   type Uuid,
 } from "@myownnotion/domain";
-import { parentKeyOf, type LocalDatabase, type OutboxMutationRow } from "../local-store/schema.ts";
+import { type LocalDatabase, type OutboxMutationRow, parentKeyOf } from "../local-store/schema.ts";
 import { applyCommandToProjection } from "./apply-to-projection.ts";
 
 export interface LocalMutationInput {
