@@ -609,6 +609,12 @@ components:
       type: object
       required: [kind, parentItemId, positionKey]
       properties:
+        id:
+          allOf:
+            - { $ref: '#/components/schemas/Uuid' }
+          description: >-
+            Optional client-generated UUIDv7 placement identity, so offline
+            projections and the canonical store share one placement identity.
         kind: { $ref: '#/components/schemas/PlacementKind' }
         parentItemId:
           oneOf:

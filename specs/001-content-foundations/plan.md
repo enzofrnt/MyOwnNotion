@@ -132,6 +132,7 @@ compose.override.yaml
 - The API exposes ordered durable changes by cursor plus idempotent mutation submission. Notifications are not a delivery mechanism; later WebSockets only prompt cursor catch-up.
 - A stale causal base returns a structured conflict containing competing revision identities. The local command and content remain durable until the later conflict-resolution workflow resolves them.
 - `compose.yaml` and its development override bind API, web, and database ports to loopback only. No supported production composition exists before authentication.
+- Placement identities are client-generatable like every other canonical identity: `CreatePlacement` accepts an optional client UUIDv7 `id` that the server persists verbatim. Without it, an offline client that creates an item and then queues a move against its locally generated placement id would see the move rejected after reconciliation because the server had assigned a different placement identity (decision recorded 2026-08-07 during implementation).
 
 ## Development Toolchain
 

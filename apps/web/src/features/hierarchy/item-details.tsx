@@ -30,7 +30,9 @@ export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    // `item` identity changes on every projection refresh: endpoint
+    // availability (e.g. a freshly trashed target) must refetch too.
+  }, [refresh, item]);
 
   const createRelationship = useCallback(async () => {
     setProblem(null);
@@ -96,7 +98,11 @@ export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
               placeholder="target item UUID"
               onChange={(event) => setTargetId(event.target.value)}
             />
-            <button type="button" data-testid="create-relation" onClick={() => void createRelationship()}>
+            <button
+              type="button"
+              data-testid="create-relation"
+              onClick={() => void createRelationship()}
+            >
               Link
             </button>
           </div>

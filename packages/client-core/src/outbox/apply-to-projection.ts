@@ -121,7 +121,9 @@ export async function applyCommandToProjection(
         file: null,
       });
       await db.placements.add({
-        id: generateUuidV7(),
+        // Shared client-generated identity: the server persists the same
+        // placement id, so queued follow-up moves keep resolving after sync.
+        id: command.placement.id ?? generateUuidV7(),
         itemId: command.id,
         kind: "hierarchy",
         parentItemId: command.placement.parentItemId,

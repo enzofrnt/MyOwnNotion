@@ -25,7 +25,7 @@ const BRANCHING = 10;
 let postgres: DisposablePostgres;
 let handle: DatabaseHandle;
 let workspaceId: Uuid;
-let itemIds: Uuid[] = [];
+const itemIds: Uuid[] = [];
 const placementIds = new Map<string, Uuid>();
 
 function percentile(samples: number[], ratio: number): number {

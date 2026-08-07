@@ -33,6 +33,7 @@ export type MutationCommand =
       readonly kind: "page" | "folder";
       readonly name: string;
       readonly placement: {
+        readonly id?: Uuid;
         readonly kind: PlacementKind;
         readonly parentItemId: Uuid | null;
         readonly positionKey: string;
@@ -104,7 +105,7 @@ function optionalNullableUuid(
 
 function parsePlacementSpec(
   value: unknown,
-): { kind: PlacementKind; parentItemId: Uuid | null; positionKey: string } | null {
+): { id?: Uuid; kind: PlacementKind; parentItemId: Uuid | null; positionKey: string } | null {
   if (typeof value !== "object" || value === null) {
     return null;
   }
@@ -121,7 +122,16 @@ function parsePlacementSpec(
   if (typeof positionKey !== "string" || positionKey.length === 0) {
     return null;
   }
-  return { kind, parentItemId: parent as Uuid | null, positionKey };
+  const id = spec["id"];
+  if (id !== undefined && !isUuid(id)) {
+    return null;
+  }
+  return {
+    ...(id !== undefined ? { id } : {}),
+    kind,
+    parentItemId: parent as Uuid | null,
+    positionKey,
+  };
 }
 
 function parsePageDocument(value: unknown): PageDocument | null {

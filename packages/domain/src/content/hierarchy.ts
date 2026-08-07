@@ -37,6 +37,8 @@ export interface CreateItemCommand {
   readonly kind: Extract<ItemKind, "page" | "folder">;
   readonly name: string;
   readonly placement: {
+    /** Client-generatable placement identity (UUIDv7), server-assigned when absent. */
+    readonly id?: Uuid;
     readonly kind: PlacementKind;
     readonly parentItemId: Uuid | null;
     readonly positionKey: string;
@@ -51,6 +53,7 @@ export interface CreateItemPlan {
     readonly name: string;
   };
   readonly placement: {
+    readonly id: Uuid | null;
     readonly parentItemId: Uuid | null;
     readonly positionKey: string;
   };
@@ -153,9 +156,13 @@ export function validateCreateItem(
     return err("validation.invalid-payload", "Folders cannot carry a page document");
   }
 
+  if (command.placement.id !== undefined && !isUuid(command.placement.id)) {
+    return err("validation.invalid-identifier", "Placement id must be a UUID");
+  }
   return ok({
     item: { id: command.id, kind: command.kind, name: name.value },
     placement: {
+      id: command.placement.id ?? null,
       parentItemId: command.placement.parentItemId,
       positionKey: command.placement.positionKey,
     },

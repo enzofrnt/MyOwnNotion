@@ -8,7 +8,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProjectedItem } from "@myownnotion/client-core";
-import { generateUuidV7, keyBetween, type SafeError, type Uuid } from "@myownnotion/domain";
+import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
+import { safeKeyBetween } from "../../services/ordering.ts";
 import { SyncStatus } from "../../components/sync-status.tsx";
 import { localContent } from "../../services/local-content.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
@@ -141,12 +142,12 @@ export function HierarchyExplorer() {
     async (kind: "page" | "folder", parentItemId: Uuid | null) => {
       const name = newItemName.trim() || (kind === "page" ? "Untitled page" : "Untitled folder");
       const keys = siblingKeys(parentItemId);
-      const positionKey = keyBetween(keys[keys.length - 1] ?? null, null);
+      const positionKey = safeKeyBetween(keys[keys.length - 1] ?? null, null);
       await runCommand("item.create", {
         id: generateUuidV7(),
         kind,
         name,
-        placement: { kind: "hierarchy", parentItemId, positionKey },
+        placement: { id: generateUuidV7(), kind: "hierarchy", parentItemId, positionKey },
         ...(kind === "page"
           ? {
               pageDocument: {
@@ -197,7 +198,7 @@ export function HierarchyExplorer() {
       }
       const before = direction === -1 ? siblings[targetIndex - 1] : siblings[targetIndex];
       const after = direction === -1 ? siblings[targetIndex] : siblings[targetIndex + 1];
-      const positionKey = keyBetween(before?.positionKey ?? null, after?.positionKey ?? null);
+      const positionKey = safeKeyBetween(before?.positionKey ?? null, after?.positionKey ?? null);
       await runCommand(
         "placement.move",
         { placementId: node.placementId, parentItemId: parentId, positionKey },
@@ -210,7 +211,7 @@ export function HierarchyExplorer() {
   const moveInto = useCallback(
     async (node: TreeNode, parentItemId: Uuid | null) => {
       const keys = siblingKeys(parentItemId);
-      const positionKey = keyBetween(keys[keys.length - 1] ?? null, null);
+      const positionKey = safeKeyBetween(keys[keys.length - 1] ?? null, null);
       await runCommand(
         "placement.move",
         { placementId: node.placementId, parentItemId, positionKey },
@@ -395,7 +396,9 @@ export function HierarchyExplorer() {
           The workspace is empty. Create a folder or a page to begin.
         </p>
       ) : (
-        <ul aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
+        /* biome-ignore lint/a11y/useSemanticElements: an interactive ARIA tree is the canonical pattern for hierarchical selection */
+        /* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the list receives the tree role deliberately (WAI-ARIA tree over ul/li) */
+        <ul role="tree" aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
           {tree.map((node) => renderNode(node, 1))}
         </ul>
       )}

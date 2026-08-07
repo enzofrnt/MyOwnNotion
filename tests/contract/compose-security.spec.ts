@@ -39,9 +39,7 @@ describe("compose security (loopback only)", () => {
               `${file} service ${serviceName} port ${port} must bind 127.0.0.1`,
             ).toBe(true);
           } else {
-            expect(port.host_ip, `${file} service ${serviceName} long-form port`).toBe(
-              "127.0.0.1",
-            );
+            expect(port.host_ip, `${file} service ${serviceName} long-form port`).toBe("127.0.0.1");
           }
         }
       }

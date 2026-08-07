@@ -59,8 +59,8 @@ export function MutationStatus({ service }: { readonly service: LocalContentServ
               <span className="tree-kind">conflict</span>
               <span className="tree-name">{row.commandType}</span>
               <span className="muted" data-testid={`conflict-${row.mutationId}`}>
-                {row.errorCode} — local work kept safe with{" "}
-                {row.competingRevisionIds.length} competing revision
+                {row.errorCode} — local work kept safe with {row.competingRevisionIds.length}{" "}
+                competing revision
                 {row.competingRevisionIds.length > 1 ? "s" : ""}
               </span>
             </li>

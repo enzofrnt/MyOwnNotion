@@ -7,7 +7,8 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ItemDto, ProblemDto } from "@myownnotion/contracts";
-import { generateUuidV7, keyBetween, type Uuid } from "@myownnotion/domain";
+import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { safeKeyBetween } from "../../services/ordering.ts";
 import { ContentApi } from "../../services/content-api.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 import { ReplaceFileContent } from "./replace-file-content.tsx";
@@ -60,7 +61,7 @@ export function AttachmentPanel({
         )
         .map((placement) => placement.positionKey)
         .sort();
-      const positionKey = keyBetween(keys[keys.length - 1] ?? null, null);
+      const positionKey = safeKeyBetween(keys[keys.length - 1] ?? null, null);
       const result = await api.importFile(generateUuidV7(), file, {
         kind: "attachment",
         parentItemId: pageId,
@@ -115,8 +116,7 @@ export function AttachmentPanel({
         <ul className="tree">
           {attachments.map((item) => {
             const placement = item.placements.find(
-              (candidate) =>
-                candidate.kind === "attachment" && candidate.parentItemId === pageId,
+              (candidate) => candidate.kind === "attachment" && candidate.parentItemId === pageId,
             );
             return (
               <li key={item.id} className="tree-row" data-testid={`attachment-${item.name}`}>

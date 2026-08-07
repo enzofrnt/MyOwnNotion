@@ -13,12 +13,14 @@ const webPort = Number(process.env["MYOWNNOTION_WEB_PORT"] ?? 5173);
  */
 export default defineConfig({
   testDir: "tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
   workers: 1,
   fullyParallel: false,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : [["list"]],
   timeout: 60_000,
+  expect: { timeout: 10_000 },
   use: {
     baseURL: `http://127.0.0.1:${webPort}`,
     trace: "retain-on-failure",
@@ -39,6 +41,10 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         MYOWNNOTION_API_PORT: String(apiPort),
+        DATABASE_URL:
+          process.env["DATABASE_URL"] ??
+          "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
+        MYOWNNOTION_BLOB_ROOT: process.env["MYOWNNOTION_BLOB_ROOT"] ?? "./.dev-blobs",
       },
     },
     {

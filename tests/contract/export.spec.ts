@@ -89,9 +89,7 @@ describe("canonical export (T086/T088)", () => {
     expect(validateCanonicalExport(manifest)).toEqual([]);
 
     // The digest matches an independent recomputation of the canonical string.
-    const recomputed = createHash("sha256")
-      .update(canonicalExportString(manifest))
-      .digest("hex");
+    const recomputed = createHash("sha256").update(canonicalExportString(manifest)).digest("hex");
     expect(recomputed).toBe(digest);
   });
 
@@ -110,9 +108,7 @@ describe("canonical export (T086/T088)", () => {
     expect(trashed?.trashedAt).not.toBeNull();
     expect(trashed?.purgeAfter).not.toBeNull();
     // Lineage present for the trashed item.
-    expect(
-      manifest.revisions.some((revision) => revision.itemId === doomed.itemId),
-    ).toBe(true);
+    expect(manifest.revisions.some((revision) => revision.itemId === doomed.itemId)).toBe(true);
   });
 
   it("round-trips deterministically: same state, same canonical string", async () => {

@@ -32,7 +32,9 @@ const OFFLINE_PROBLEM: ProblemDto = {
 export class ContentApi {
   readonly #baseUrl: string;
 
-  constructor(baseUrl: string = import.meta.env["VITE_API_URL"] ?? "http://127.0.0.1:3001") {
+  constructor(baseUrl: string = import.meta.env["VITE_API_URL"] ?? "") {
+    // Default: same-origin — the dev/preview server proxies /v1 and /health
+    // to the loopback API, so no CORS surface exists.
     this.#baseUrl = baseUrl.replace(/\/$/, "");
   }
 

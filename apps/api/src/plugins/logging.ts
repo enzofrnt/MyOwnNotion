@@ -5,7 +5,14 @@
  * file bytes, item names, and payload fields are redacted. Only stable
  * identifiers, routes, status codes, and safe error codes are logged.
  */
-import type { FastifyServerOptions } from "fastify";
+export interface SafeLoggerOptions {
+  level: string;
+  redact: { paths: string[]; censor: string };
+  serializers: {
+    req(request: { method: string; url: string; id?: unknown }): Record<string, unknown>;
+    res(reply: { statusCode: number }): Record<string, unknown>;
+  };
+}
 
 export const REDACT_PATHS = [
   "req.body",
@@ -19,11 +26,11 @@ export const REDACT_PATHS = [
   "err.config",
 ];
 
-export function registerLogging(): NonNullable<FastifyServerOptions["logger"]> {
+export function registerLogging(): SafeLoggerOptions {
   return {
     level: process.env["LOG_LEVEL"] ?? "info",
     redact: {
-      paths: REDACT_PATHS,
+      paths: [...REDACT_PATHS],
       censor: "[redacted]",
     },
     serializers: {

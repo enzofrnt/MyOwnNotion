@@ -60,6 +60,7 @@ export type ItemDto = Static<typeof ItemSchema>;
 
 export const CreatePlacementSchema = Type.Object(
   {
+    id: Type.Optional(UuidSchema),
     kind: PlacementKindSchema,
     parentItemId: NullableUuid,
     positionKey: Type.String({ minLength: 1, maxLength: 255 }),

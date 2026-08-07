@@ -105,7 +105,9 @@ async function executeCreateItem(
     });
   }
   await tx.insert(placementsTable).values({
-    id: generateUuidV7(),
+    // Client-generated placement identity keeps offline projections and the
+    // canonical store referring to the same placement (UUIDv7 principle).
+    id: plan.value.placement.id ?? generateUuidV7(),
     workspaceId: context.workspaceId,
     itemId: plan.value.item.id,
     itemKind: plan.value.item.kind,
