@@ -35,7 +35,13 @@ export interface StoredContent {
   readonly reusedExisting: boolean;
 }
 
-/** Registers stored content metadata (idempotent on physical reuse). */
+/**
+ * Registers stored content metadata (idempotent on physical reuse).
+ *
+ * Concurrent identical imports both write the same content-addressed
+ * storage key: the unique key makes one insert a no-op and the surviving
+ * row is reused — physical reuse stays invisible to logical files.
+ */
 export async function registerContent(tx: Transaction, content: StoredContent): Promise<Uuid> {
   if (content.reusedExisting) {
     await tx
@@ -44,15 +50,31 @@ export async function registerContent(tx: Transaction, content: StoredContent): 
       .where(eq(fileContents.id, content.contentId));
     return content.contentId;
   }
-  await tx.insert(fileContents).values({
-    id: content.contentId,
-    sha256: content.sha256,
-    byteLength: content.byteLength,
-    storageKey: content.storageKey,
-    verifiedAt: content.verifiedAt,
-    referenceCount: 1,
-  });
-  return content.contentId;
+  await tx
+    .insert(fileContents)
+    .values({
+      id: content.contentId,
+      sha256: content.sha256,
+      byteLength: content.byteLength,
+      storageKey: content.storageKey,
+      verifiedAt: content.verifiedAt,
+      referenceCount: 0,
+    })
+    .onConflictDoNothing({ target: fileContents.storageKey });
+  const rows = await tx
+    .select()
+    .from(fileContents)
+    .where(eq(fileContents.storageKey, content.storageKey))
+    .limit(1);
+  const row = rows[0];
+  if (row === undefined) {
+    throw new Error("content registration failed");
+  }
+  await tx
+    .update(fileContents)
+    .set({ referenceCount: sql`${fileContents.referenceCount} + 1` })
+    .where(eq(fileContents.id, row.id));
+  return row.id as Uuid;
 }
 
 export interface ImportFileInput {
