@@ -1,0 +1,758 @@
+openapi: 3.1.0
+info:
+  title: MyOwnNotion Canonical Content API
+  version: 0.1.0
+  description: >-
+    Development contract for canonical pages, folders, files, placements,
+    relationships, lifecycle, lineage, and export. This feature does not make
+    the API safe for public exposure; authentication is specified separately.
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local development only
+tags:
+  - name: Health
+  - name: Items
+  - name: Placements
+  - name: Relationships
+  - name: Revisions
+  - name: Export
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service and schema are ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, schemaVersion]
+                properties:
+                  status: { const: ready }
+                  schemaVersion: { type: integer, minimum: 1 }
+  /v1/items:
+    get:
+      tags: [Items]
+      operationId: listItems
+      parameters:
+        - in: query
+          name: parentItemId
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - in: query
+          name: lifecycle
+          schema: { $ref: '#/components/schemas/Lifecycle' }
+      responses:
+        '200':
+          description: Canonical items and requested placements
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Item' }
+    post:
+      tags: [Items]
+      operationId: createItem
+      parameters:
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateItem' }
+      responses:
+        '201':
+          description: Item and initial revision created atomically
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/items/{itemId}:
+    get:
+      tags: [Items]
+      operationId: getItem
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Item with active placements
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Item' }
+        '404': { $ref: '#/components/responses/Problem' }
+    patch:
+      tags: [Items]
+      operationId: updateItem
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseRevisionId]
+              properties:
+                baseRevisionId: { $ref: '#/components/schemas/Uuid' }
+                name: { $ref: '#/components/schemas/DisplayName' }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Accepted update
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/pages/{itemId}/document:
+    put:
+      tags: [Items]
+      operationId: replacePageDocument
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [baseRevisionId, document]
+              properties:
+                baseRevisionId: { $ref: '#/components/schemas/Uuid' }
+                document: { $ref: '#/components/schemas/PageDocument' }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Page document replaced with a new revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/items/{itemId}/trash:
+    post:
+      tags: [Items]
+      operationId: trashItem
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/MutationId'
+      responses:
+        '200':
+          description: Item or branch entered the 30-day trash
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/items/{itemId}/restore:
+    post:
+      tags: [Items]
+      operationId: restoreItem
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fallbackParentItemId:
+                  oneOf:
+                    - { $ref: '#/components/schemas/Uuid' }
+                    - { type: 'null' }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Item restored with a valid placement
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/items/{itemId}/placements:
+    post:
+      tags: [Placements]
+      operationId: addFilePlacement
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePlacement' }
+      responses:
+        '201':
+          description: Placement created without copying logical file content
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/placements/{placementId}/move:
+    post:
+      tags: [Placements]
+      operationId: movePlacement
+      parameters:
+        - $ref: '#/components/parameters/PlacementId'
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parentItemId, positionKey]
+              properties:
+                parentItemId:
+                  oneOf:
+                    - { $ref: '#/components/schemas/Uuid' }
+                    - { type: 'null' }
+                positionKey: { type: string, minLength: 1, maxLength: 255 }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Placement or complete branch moved atomically
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/placements/{placementId}:
+    delete:
+      tags: [Placements]
+      operationId: removePlacement
+      parameters:
+        - $ref: '#/components/parameters/PlacementId'
+        - $ref: '#/components/parameters/MutationId'
+      responses:
+        '200':
+          description: Placement removed; final file placement also trashes the file
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/files:
+    post:
+      tags: [Items]
+      operationId: importFile
+      parameters:
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, placement]
+              properties:
+                file: { type: string, format: binary }
+                placement: { $ref: '#/components/schemas/CreatePlacement' }
+      responses:
+        '201':
+          description: Independent logical file imported; physical reuse is not observable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+  /v1/files/{itemId}/content:
+    put:
+      tags: [Items]
+      operationId: replaceFileContent
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [baseRevisionId, file]
+              properties:
+                baseRevisionId: { $ref: '#/components/schemas/Uuid' }
+                file: { type: string, format: binary }
+      responses:
+        '200':
+          description: File content replaced copy-on-write for every placement
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /v1/relationships:
+    get:
+      tags: [Relationships]
+      operationId: listRelationships
+      parameters:
+        - in: query
+          name: itemId
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Typed relationships for the workspace or selected item
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [relationships]
+                properties:
+                  relationships:
+                    type: array
+                    items: { $ref: '#/components/schemas/Relationship' }
+    post:
+      tags: [Relationships]
+      operationId: createRelationship
+      parameters:
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRelationship' }
+      responses:
+        '201':
+          description: Typed relationship created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '400': { $ref: '#/components/responses/Problem' }
+  /v1/relationships/{relationshipId}:
+    delete:
+      tags: [Relationships]
+      operationId: removeRelationship
+      parameters:
+        - $ref: '#/components/parameters/RelationshipId'
+        - $ref: '#/components/parameters/MutationId'
+      responses:
+        '200':
+          description: Relationship removed through a canonical revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /v1/revisions/{revisionId}:
+    get:
+      tags: [Revisions]
+      operationId: getRevision
+      parameters:
+        - $ref: '#/components/parameters/RevisionId'
+      responses:
+        '200':
+          description: Revision header and restorable snapshot when retained
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Revision' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410':
+          description: Header exists but the 24-hour snapshot has expired
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /v1/revisions/compare:
+    post:
+      tags: [Revisions]
+      operationId: compareRevisions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leftRevisionId, rightRevisionId]
+              properties:
+                leftRevisionId: { $ref: '#/components/schemas/Uuid' }
+                rightRevisionId: { $ref: '#/components/schemas/Uuid' }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Causal relation independent of wall-clock order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [classification]
+                properties:
+                  classification:
+                    enum: [identical, left-ancestor, right-ancestor, concurrent]
+  /v1/revisions/{revisionId}/restore:
+    post:
+      tags: [Revisions]
+      operationId: restoreRevision
+      parameters:
+        - $ref: '#/components/parameters/RevisionId'
+        - $ref: '#/components/parameters/MutationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentRevisionId]
+              properties:
+                currentRevisionId: { $ref: '#/components/schemas/Uuid' }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Retained revision content restored as a new descendant revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResult' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+  /v1/changes:
+    get:
+      tags: [Revisions]
+      operationId: listChangesAfterCursor
+      parameters:
+        - in: query
+          name: after
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 200 }
+      responses:
+        '200':
+          description: Contiguous ordered canonical changes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [changes, nextCursor, hasMore]
+                properties:
+                  changes:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChangeEnvelope' }
+                  nextCursor: { type: string }
+                  hasMore: { type: boolean }
+        '409':
+          description: Cursor compacted; a verified replacement snapshot is required
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /v1/mutations/batch:
+    post:
+      tags: [Revisions]
+      operationId: submitMutationBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mutations]
+              properties:
+                mutations:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { $ref: '#/components/schemas/QueuedMutation' }
+              additionalProperties: false
+      responses:
+        '200':
+          description: Per-mutation accepted, already-accepted, rejected, or conflict results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/QueuedMutationResult' }
+  /v1/snapshots/current:
+    get:
+      tags: [Revisions]
+      operationId: getCurrentVerifiedSnapshot
+      responses:
+        '200':
+          description: Verified replacement projection and its contiguous change cursor
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CanonicalSnapshot' }
+  /v1/export:
+    post:
+      tags: [Export]
+      operationId: createCanonicalExport
+      responses:
+        '202':
+          description: Durable export prepared for independent validation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [exportId, status]
+                properties:
+                  exportId: { $ref: '#/components/schemas/Uuid' }
+                  status: { const: pending }
+  /v1/export/{exportId}:
+    get:
+      tags: [Export]
+      operationId: getCanonicalExport
+      parameters:
+        - in: path
+          name: exportId
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Export status and verified artifact metadata when ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportStatus' }
+        '404': { $ref: '#/components/responses/Problem' }
+components:
+  parameters:
+    ItemId:
+      in: path
+      name: itemId
+      required: true
+      schema: { $ref: '#/components/schemas/Uuid' }
+    PlacementId:
+      in: path
+      name: placementId
+      required: true
+      schema: { $ref: '#/components/schemas/Uuid' }
+    RevisionId:
+      in: path
+      name: revisionId
+      required: true
+      schema: { $ref: '#/components/schemas/Uuid' }
+    RelationshipId:
+      in: path
+      name: relationshipId
+      required: true
+      schema: { $ref: '#/components/schemas/Uuid' }
+    MutationId:
+      in: header
+      name: Idempotency-Key
+      required: true
+      description: Client-generated UUIDv7 mutation identity
+      schema: { $ref: '#/components/schemas/Uuid' }
+  responses:
+    Problem:
+      description: Safe validation, conflict, or integrity error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+    DisplayName:
+      type: string
+      minLength: 1
+      maxLength: 512
+    ItemKind:
+      enum: [page, folder, file]
+    Lifecycle:
+      enum: [active, trashed, purged]
+    PlacementKind:
+      enum: [hierarchy, attachment]
+    PageDocument:
+      type: object
+      required: [format, formatVersion, body]
+      properties:
+        format: { const: myownnotion.document+json }
+        formatVersion: { type: integer, minimum: 1 }
+        body: { type: object }
+      additionalProperties: false
+    Placement:
+      type: object
+      required: [id, itemId, kind, parentItemId, positionKey]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        itemId: { $ref: '#/components/schemas/Uuid' }
+        kind: { $ref: '#/components/schemas/PlacementKind' }
+        parentItemId:
+          oneOf:
+            - { $ref: '#/components/schemas/Uuid' }
+            - { type: 'null' }
+        positionKey: { type: string }
+    Item:
+      type: object
+      required: [id, kind, name, lifecycle, currentRevisionId, placements]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        kind: { $ref: '#/components/schemas/ItemKind' }
+        name: { $ref: '#/components/schemas/DisplayName' }
+        lifecycle: { $ref: '#/components/schemas/Lifecycle' }
+        currentRevisionId: { $ref: '#/components/schemas/Uuid' }
+        trashedAt: { type: [string, 'null'], format: date-time }
+        purgeAfter: { type: [string, 'null'], format: date-time }
+        pageDocument:
+          oneOf:
+            - { $ref: '#/components/schemas/PageDocument' }
+            - { type: 'null' }
+        placements:
+          type: array
+          items: { $ref: '#/components/schemas/Placement' }
+      allOf:
+        - if:
+            properties: { kind: { const: page } }
+          then:
+            required: [pageDocument]
+        - if:
+            properties: { kind: { enum: [folder, file] } }
+          then:
+            properties: { pageDocument: { type: 'null' } }
+    CreatePlacement:
+      type: object
+      required: [kind, parentItemId, positionKey]
+      properties:
+        kind: { $ref: '#/components/schemas/PlacementKind' }
+        parentItemId:
+          oneOf:
+            - { $ref: '#/components/schemas/Uuid' }
+            - { type: 'null' }
+        positionKey: { type: string, minLength: 1, maxLength: 255 }
+      additionalProperties: false
+    CreateItem:
+      type: object
+      required: [id, kind, name, placement]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        kind: { enum: [page, folder] }
+        name: { $ref: '#/components/schemas/DisplayName' }
+        placement: { $ref: '#/components/schemas/CreatePlacement' }
+        pageDocument: { $ref: '#/components/schemas/PageDocument' }
+      additionalProperties: false
+      allOf:
+        - if:
+            properties: { kind: { const: page } }
+          then:
+            required: [pageDocument]
+        - if:
+            properties: { kind: { const: folder } }
+          then:
+            not: { required: [pageDocument] }
+    CreateRelationship:
+      type: object
+      required: [id, sourceItemId, targetItemId, relationType]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        sourceItemId: { $ref: '#/components/schemas/Uuid' }
+        targetItemId: { $ref: '#/components/schemas/Uuid' }
+        relationType: { type: string, pattern: '^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$' }
+        metadata: { type: object }
+      additionalProperties: false
+    Relationship:
+      allOf:
+        - $ref: '#/components/schemas/CreateRelationship'
+        - type: object
+          required: [createdRevisionId]
+          properties:
+            createdRevisionId: { $ref: '#/components/schemas/Uuid' }
+            removedRevisionId:
+              oneOf:
+                - { $ref: '#/components/schemas/Uuid' }
+                - { type: 'null' }
+    Revision:
+      type: object
+      required: [id, itemId, mutationId, parentRevisionIds, acceptedAt, snapshotRetained]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        itemId: { $ref: '#/components/schemas/Uuid' }
+        mutationId: { $ref: '#/components/schemas/Uuid' }
+        parentRevisionIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
+        acceptedAt: { type: string, format: date-time }
+        snapshotRetained: { type: boolean }
+        snapshot: { type: [object, 'null'] }
+        snapshotExpiresAt: { type: [string, 'null'], format: date-time }
+    MutationResult:
+      type: object
+      required: [mutationId, revisionIds]
+      properties:
+        mutationId: { $ref: '#/components/schemas/Uuid' }
+        revisionIds:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Uuid' }
+        item: { $ref: '#/components/schemas/Item' }
+    ChangeEnvelope:
+      type: object
+      required: [sequence, mutationId, revisionIds]
+      properties:
+        sequence: { type: integer, minimum: 1 }
+        mutationId: { $ref: '#/components/schemas/Uuid' }
+        revisionIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
+        changedItems:
+          type: array
+          items: { $ref: '#/components/schemas/Item' }
+    QueuedMutation:
+      type: object
+      required: [mutationId, commandType, baseRevisionIds, payload]
+      properties:
+        mutationId: { $ref: '#/components/schemas/Uuid' }
+        commandType: { type: string, minLength: 1 }
+        baseRevisionIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
+        payload: { type: object }
+      additionalProperties: false
+    QueuedMutationResult:
+      type: object
+      required: [mutationId, status]
+      properties:
+        mutationId: { $ref: '#/components/schemas/Uuid' }
+        status: { enum: [accepted, already-accepted, rejected, conflict] }
+        revisionIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
+        competingRevisionIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
+        problem: { $ref: '#/components/schemas/Problem' }
+    CanonicalSnapshot:
+      type: object
+      required: [workspaceId, schemaVersion, cursor, digest, items, relationships]
+      properties:
+        workspaceId: { $ref: '#/components/schemas/Uuid' }
+        schemaVersion: { type: integer, minimum: 1 }
+        cursor: { type: string }
+        digest: { type: string, pattern: '^[a-f0-9]{64}$' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Item' }
+        relationships:
+          type: array
+          items: { $ref: '#/components/schemas/Relationship' }
+    ExportStatus:
+      type: object
+      required: [exportId, status]
+      properties:
+        exportId: { $ref: '#/components/schemas/Uuid' }
+        status: { enum: [pending, ready, failed] }
+        digest: { type: string, pattern: '^[a-f0-9]{64}$' }
+        downloadPath: { type: string, format: uri-reference }
+        problem: { $ref: '#/components/schemas/Problem' }
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        code: { type: string }
+        detail: { type: string }
+        invalidFields:
+          type: array
+          items:
+            type: object
+            required: [field, code]
+            properties:
+              field: { type: string }
+              code: { type: string }

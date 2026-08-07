@@ -1,3 +1,6 @@
+> [!CAUTION]
+> **Ce projet est produit en très grande partie par des intelligences artificielles.** Le code, les dépendances, les migrations, les mécanismes de sécurité, les sauvegardes et les procédures de restauration peuvent contenir des erreurs. Ne déployez pas ce projet avec des données importantes sans revue humaine, tests complets et sauvegardes indépendantes vérifiées. Utilisez-le avec prudence et à vos propres risques.
+
 # Knowledge Workspace
 
 Projet d’application de gestion des connaissances combinant pages hiérarchiques, édition par blocs, liens bidirectionnels, graphe, tâches, bases structurées, canvas et intégrations.
@@ -70,32 +73,17 @@ Selon la version de Cursor, une compétence peut aussi être sélectionnée depu
 
 ## Passer d’un agent à l’autre
 
-1. Terminer l’étape Spec Kit en cours et enregistrer les fichiers modifiés.
-2. Indiquer au nouvel agent le dossier de fonctionnalité, par exemple `specs/001-core-workspace/`.
-3. Lui demander de relire `AGENTS.md`, la constitution et les trois artefacts de la fonctionnalité.
-4. Continuer l’étape suivante sans régénérer les documents déjà présents.
+1. Vérifier l’état Git et signaler les changements non commités ou non poussés ; ne jamais les réinitialiser pour changer d’agent.
+2. Terminer si possible l’étape Spec Kit en cours et enregistrer les fichiers modifiés sans régénérer les artefacts précédents.
+3. Indiquer au nouvel agent le dossier de fonctionnalité, par exemple `specs/001-core-workspace/`.
+4. Lui demander de relire `AGENTS.md`, la constitution et les artefacts existants de la fonctionnalité.
+5. Continuer l’étape suivante sans créer de copie propre à l’agent.
 
 Les conversations ne sont pas la mémoire du projet. Toute clarification ou décision durable doit être écrite dans la spec ou le plan partagé.
 
-## Structure initiale
+## Structure du produit
 
-```text
-apps/
-  api/                    API et services applicatifs
-  web/                    interface web
-packages/
-  database/               modèles et persistance
-  editor/                 éditeur par blocs
-  graph/                  liens, backlinks et graphe
-  mcp/                    intégration Model Context Protocol
-specs/                    artefacts canoniques par fonctionnalité
-docs/
-  architecture/           décisions transversales
-  product/                vision et roadmap
-docker/                   environnement self-hosted
-```
-
-Ces répertoires posent les frontières du projet sans choisir prématurément un framework ou créer des implémentations vides.
+Les dossiers de code seront créés par les plans et tâches des premières fonctionnalités, lorsqu’une architecture aura réellement été décidée. Le dépôt ne conserve donc aucun squelette vide anticipant ces choix.
 
 ## Mettre à jour Spec Kit
 
@@ -107,4 +95,4 @@ specify integration upgrade cursor-agent
 specify integration status
 ```
 
-Ne pas modifier à la main les compétences générées dans `.agents/skills/` et `.cursor/skills/`.
+Relire le diff avant de conserver une mise à jour : les artefacts canoniques sous `.specify/memory/` et `specs/` ne doivent pas être remplacés. Ne pas modifier à la main les compétences générées dans `.agents/skills/` et `.cursor/skills/`.
