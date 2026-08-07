@@ -1,3 +1,16 @@
+<!--
+Sync Impact Report
+- Version change: 1.0.0 -> 1.1.0
+- Modified principles:
+  - III. Incremental, Verifiable Delivery -> expanded test-layer and UI-journey obligations
+- Added principles:
+  - VII. Reproducible Toolchains and Enforced Quality
+- Modified sections:
+  - Product and Technical Constraints
+  - Development Workflow and Quality Gates
+- Removed sections: none
+- Follow-up TODOs: none
+-->
 # Knowledge Workspace Constitution
 
 ## Core Principles
@@ -12,7 +25,7 @@ Every feature MUST have one canonical directory under `specs/`. Its `spec.md`, `
 
 ### III. Incremental, Verifiable Delivery
 
-Features MUST be divided into independently useful user stories that can be implemented and verified incrementally. Changed behavior MUST have automated tests at the appropriate level. A task is complete only when its acceptance criteria pass, relevant checks pass, and the shared task list reflects reality.
+Features MUST be divided into independently useful user stories that can be implemented and verified incrementally. Changed behavior MUST have automated tests at the appropriate level. Domain and backend behavior MUST be covered by focused unit, property, integration, or contract tests as appropriate. Every changed user-visible interactive flow MUST have a Playwright journey covering the relevant responsive viewport and browser behavior. A task is complete only when its acceptance criteria pass, relevant checks pass, and the shared task list reflects reality. A numeric coverage target MUST NOT be treated as a substitute for testing required behavior and failure paths.
 
 ### IV. Privacy and Security by Default
 
@@ -26,6 +39,12 @@ The system MUST start with the smallest architecture that satisfies the approved
 
 Keyboard use, readable focus states, semantic structure, and assistive-technology support MUST be acceptance concerns for interactive features. Editing, navigation, saving, and synchronization states MUST be understandable and must avoid silent data loss. Performance targets MUST be measurable from a user's perspective.
 
+### VII. Reproducible Toolchains and Enforced Quality
+
+Node.js dependencies and repository scripts MUST use pnpm exclusively, with the pnpm release pinned in the root package metadata and `pnpm-lock.yaml` committed. npm, Yarn, and Bun lockfiles or install workflows MUST NOT be introduced. If first-party Python is introduced, its interpreter version MUST be pinned and uv MUST exclusively manage environments, dependencies, locking, and command execution; ad hoc pip, virtualenv, Poetry, Pipenv, or Conda project workflows are forbidden. Every other first-party language introduced later MUST likewise use a pinned, reproducible toolchain and committed dependency lock where its ecosystem supports one.
+
+Every maintained first-party language MUST have a current formatter, linter or equivalent static analyzer, and automated tests appropriate to its role. Continuous integration MUST check formatting without modifying files, lint/static analysis, types where applicable, tests, migrations where applicable, and production builds. Protected branches MUST reject pull-request merges while any required quality check fails or is missing. Generated or AI-authored code is held to the same gates as human-authored code.
+
 ## Product and Technical Constraints
 
 - The first usable release prioritizes workspaces, hierarchical pages, block editing, links, backlinks, search, and reliable persistence.
@@ -33,6 +52,7 @@ Keyboard use, readable focus states, semantic structure, and assistive-technolog
 - Tiptap is the initial editor candidate, but the selected editor architecture MUST preserve a documented internal content model and export path.
 - Self-hosting and container-based deployment are product goals; each infrastructure dependency MUST have a documented local-development path.
 - Offline and synchronization behavior MUST be specified explicitly. No feature may imply conflict-free multi-device synchronization without acceptance criteria for conflicts and recovery.
+- Maintained application and test source MUST use TypeScript rather than handwritten JavaScript unless a later constitution amendment explicitly changes this language policy.
 
 ## Development Workflow and Quality Gates
 
@@ -41,7 +61,7 @@ Keyboard use, readable focus states, semantic structure, and assistive-technolog
 3. Generate `tasks.md`; tasks MUST map back to user stories or supporting foundations.
 4. Run cross-artifact analysis before implementation and resolve high-impact inconsistencies.
 5. Implement in task order, keeping the checklist current and preserving independently testable increments.
-6. Run relevant formatting, static checks, tests, and build verification before completion.
+6. Run formatting checks, lint/static analysis, type checks, relevant automated tests, migration checks, and production builds before completion. A pull request MUST NOT merge until the same required CI checks pass.
 7. Run convergence after implementation; append and complete remaining tasks until code and artifacts agree.
 
 Any deliberate exception MUST be recorded in the active feature's plan with its scope, reason, risk, and removal or review condition.
@@ -50,4 +70,4 @@ Any deliberate exception MUST be recorded in the active feature's plan with its 
 
 This constitution overrides conflicting workflow notes and agent-specific guidance. Amendments require an explicit change to this file, a version update, and a review of affected specs and templates. Semantic versioning applies: MAJOR for incompatible governance changes, MINOR for new or materially expanded principles, and PATCH for clarifications. Every feature plan and implementation review MUST check constitution compliance.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-07
+**Version**: 1.1.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-07
