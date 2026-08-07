@@ -1,0 +1,32 @@
+# Local Codex workspace artifacts
+.codex/
+work/
+outputs/
+
+# Keep only the versioned Spec Kit skills in agent folders
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/skills/
+!.cursor/skills/**
+
+# Dependencies and build output
+node_modules/
+.turbo/
+dist/
+build/
+coverage/
+.next/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+*.swp

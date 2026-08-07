@@ -1,0 +1,14 @@
+# Architecture
+
+Les décisions transversales validées seront consignées ici sous forme de documents courts, reliés depuis le `plan.md` de la fonctionnalité qui les introduit.
+
+## Frontières envisagées
+
+- `apps/web` : expérience utilisateur web et orchestration côté client.
+- `apps/api` : API, authentification, partage et synchronisation distante éventuelle.
+- `packages/editor` : modèle et interface d’édition par blocs, avec Tiptap comme candidat initial.
+- `packages/graph` : liens, backlinks, index et projections du graphe.
+- `packages/database` : schémas, migrations et accès à la persistance.
+- `packages/mcp` : surface MCP séparée du cœur métier.
+
+Ces frontières sont provisoires. Le premier `plan.md` concerné doit les confirmer, les modifier ou les supprimer selon les besoins de la spec. Une technologie n’est considérée comme choisie que lorsqu’un plan approuvé la documente.

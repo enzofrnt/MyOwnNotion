@@ -1,0 +1,14 @@
+---
+description: Follow the repository's shared GitHub Spec Kit workflow and artifacts.
+alwaysApply: true
+---
+
+# Shared Spec Kit workflow
+
+Read and follow `AGENTS.md` before making changes.
+
+- Treat `.specify/memory/constitution.md` and `specs/<feature>/` as the only sources of truth for product specifications.
+- Use the project skills in `.cursor/skills/` for the constitution → specify → clarify → plan → tasks → analyze → implement → converge workflow.
+- Never create a Cursor-only copy of a constitution, specification, plan, or task list.
+- Persist decisions in the shared feature artifacts so Codex can continue the same work.
+- Do not edit generated skill files directly; refresh the `cursor-agent` integration with the Specify CLI.
