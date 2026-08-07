@@ -7,11 +7,7 @@ import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  ContentStore,
-  FilesystemBlobStore,
-  type ContentCandidate,
-} from "@myownnotion/blob-store";
+import { ContentStore, FilesystemBlobStore, type ContentCandidate } from "@myownnotion/blob-store";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 
 let root: string;
@@ -25,15 +21,18 @@ class Registry {
 
   lookup = async (sha256: Uint8Array, byteLength: number): Promise<ContentCandidate | null> => {
     const hex = Buffer.from(sha256).toString("hex");
-    const found = this.entries.find(
-      (entry) => entry.sha256 === hex && entry.length === byteLength,
-    );
+    const found = this.entries.find((entry) => entry.sha256 === hex && entry.length === byteLength);
     return found === undefined
       ? null
       : { contentId: found.contentId, storageKey: found.storageKey };
   };
 
-  register(result: { contentId: Uuid; storageKey: string; sha256: Uint8Array; byteLength: number }) {
+  register(result: {
+    contentId: Uuid;
+    storageKey: string;
+    sha256: Uint8Array;
+    byteLength: number;
+  }) {
     this.entries.push({
       contentId: result.contentId,
       storageKey: result.storageKey,
@@ -104,7 +103,7 @@ describe("immutable ingest (T056)", () => {
   });
 
   it("verification failure (unreadable candidate) stores separate content", async () => {
-    const registry = new Registry();
+    const _registry = new Registry();
     const phantom = async (): Promise<ContentCandidate> => ({
       contentId: generateUuidV7(),
       storageKey: "0".repeat(64), // never stored

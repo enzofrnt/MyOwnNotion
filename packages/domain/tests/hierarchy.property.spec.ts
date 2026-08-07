@@ -109,33 +109,29 @@ function arbitraryTree() {
 describe("cycle rejection property (FR-008, SC-001)", () => {
   it("moving an item beneath any of its descendants is always rejected", () => {
     fc.assert(
-      fc.property(
-        arbitraryTree(),
-        fc.nat(),
-        ({ graph, nodes, placementIds }, pick) => {
-          const rootIndex = pick % nodes.length;
-          const item = nodes[rootIndex] as Uuid;
-          const branch = collectActiveBranch(graph, item);
-          const strictDescendants = branch.filter((candidate) => candidate !== item);
-          fc.pre(strictDescendants.length > 0);
-          const target = strictDescendants[pick % strictDescendants.length] as Uuid;
+      fc.property(arbitraryTree(), fc.nat(), ({ graph, nodes, placementIds }, pick) => {
+        const rootIndex = pick % nodes.length;
+        const item = nodes[rootIndex] as Uuid;
+        const branch = collectActiveBranch(graph, item);
+        const strictDescendants = branch.filter((candidate) => candidate !== item);
+        fc.pre(strictDescendants.length > 0);
+        const target = strictDescendants[pick % strictDescendants.length] as Uuid;
 
-          const placementId = placementIds.get(item) as Uuid;
-          const placement = graph.placements.get(placementId) ?? null;
-          const before = JSON.stringify([...graph.placements.values()]);
-          const result = validateMovePlacement(graph, placement, {
-            placementId,
-            parentItemId: target,
-            positionKey: "V",
-          });
-          expect(result.ok).toBe(false);
-          if (!result.ok) {
-            expect(result.error.code).toBe("containment.cycle-rejected");
-          }
-          // Pure validation never mutates the graph.
-          expect(JSON.stringify([...graph.placements.values()])).toBe(before);
-        },
-      ),
+        const placementId = placementIds.get(item) as Uuid;
+        const placement = graph.placements.get(placementId) ?? null;
+        const before = JSON.stringify([...graph.placements.values()]);
+        const result = validateMovePlacement(graph, placement, {
+          placementId,
+          parentItemId: target,
+          positionKey: "V",
+        });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.code).toBe("containment.cycle-rejected");
+        }
+        // Pure validation never mutates the graph.
+        expect(JSON.stringify([...graph.placements.values()])).toBe(before);
+      }),
       { numRuns: 200 },
     );
   });

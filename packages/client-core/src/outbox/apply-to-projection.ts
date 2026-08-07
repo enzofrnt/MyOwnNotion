@@ -259,12 +259,7 @@ export async function applyCommandToProjection(
         .toArray();
       const revisionIds: Uuid[] = [];
       for (const member of branch) {
-        const revisionId = await writeLocalRevision(
-          db,
-          member.id,
-          [member.currentRevisionId],
-          now,
-        );
+        const revisionId = await writeLocalRevision(db, member.id, [member.currentRevisionId], now);
         await db.items.update(member.id, {
           lifecycle: "active",
           trashedAt: null,

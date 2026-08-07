@@ -2,7 +2,7 @@
  * Create/list/reorder/move/trash/restore API contract tests (T026, US1).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { generateUuidV7 } from "@myownnotion/domain";
 import {
   createApiHarness,
   createItemViaApi,

@@ -26,19 +26,16 @@ export interface ReconcileTransport {
   submitMutationBatch(
     mutations: QueuedMutationDto[],
   ): Promise<
-    | { ok: true; value: { results: QueuedMutationResultDto[] } }
-    | { ok: false; offline: boolean }
+    { ok: true; value: { results: QueuedMutationResultDto[] } } | { ok: false; offline: boolean }
   >;
   listChanges(
     after: string,
     limit?: number,
   ): Promise<
-    | { ok: true; value: ChangesResponseDto }
-    | { ok: false; offline: boolean; compacted?: boolean }
+    { ok: true; value: ChangesResponseDto } | { ok: false; offline: boolean; compacted?: boolean }
   >;
   currentSnapshot(): Promise<
-    | { ok: true; value: CanonicalSnapshotDto }
-    | { ok: false; offline: boolean }
+    { ok: true; value: CanonicalSnapshotDto } | { ok: false; offline: boolean }
   >;
 }
 

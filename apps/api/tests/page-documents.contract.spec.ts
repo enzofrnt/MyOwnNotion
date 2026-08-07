@@ -65,9 +65,7 @@ describe("page-document replacement (T058)", () => {
       },
     });
     expect(response.statusCode).toBe(400);
-    expect((response.json() as { code: string }).code).toBe(
-      "validation.unknown-format-version",
-    );
+    expect((response.json() as { code: string }).code).toBe("validation.unknown-format-version");
   });
 
   it("rejects unknown document formats at the schema boundary (400)", async () => {

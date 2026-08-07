@@ -109,11 +109,7 @@ export function HierarchyExplorer() {
   );
 
   const runCommand = useCallback(
-    async (
-      commandType: string,
-      payload: Record<string, unknown>,
-      baseRevisionIds: Uuid[] = [],
-    ) => {
+    async (commandType: string, payload: Record<string, unknown>, baseRevisionIds: Uuid[] = []) => {
       setProblem(null);
       const result = await service.mutate(commandType, payload, baseRevisionIds);
       if (!result.ok) {
@@ -393,7 +389,7 @@ export function HierarchyExplorer() {
           The workspace is empty. Create a folder or a page to begin.
         </p>
       ) : (
-        <ul role="tree" aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
+        <ul aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
           {tree.map((node) => renderNode(node, 1))}
         </ul>
       )}
@@ -416,9 +412,7 @@ export function HierarchyExplorer() {
                     type="button"
                     aria-label={`Restore ${item.name}`}
                     onClick={() =>
-                      void runCommand("item.restore", { itemId: item.id }, [
-                        item.currentRevisionId,
-                      ])
+                      void runCommand("item.restore", { itemId: item.id }, [item.currentRevisionId])
                     }
                   >
                     restore

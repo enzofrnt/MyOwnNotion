@@ -201,7 +201,8 @@ describe("one canonical file, one hundred placements (SC-009)", () => {
       .where(eq(schema.lifecycleEvents.itemId, fileId));
     const trashEvent = events.find((event) => event.eventType === "trashed");
     expect(trashEvent).toBeDefined();
-    expect((trashEvent?.placementSnapshot as unknown[]).length).toBeGreaterThan(0);
+    const snapshot = (trashEvent?.placementSnapshot ?? []) as unknown[];
+    expect(snapshot.length).toBeGreaterThan(0);
   });
 
   it("restores the file with its last removed placement (FR-033)", async () => {

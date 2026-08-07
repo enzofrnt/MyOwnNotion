@@ -79,26 +79,22 @@ export class LocalRepository {
     cursor: string;
     items: ReadonlyArray<ItemDto>;
   }): Promise<void> {
-    await this.db.transaction(
-      "rw",
-      [this.db.items, this.db.placements, this.db.meta],
-      async () => {
-        await this.db.items.clear();
-        await this.db.placements.clear();
-        for (const dto of input.items) {
-          await this.db.items.put(itemRowFrom(dto));
-          const rows = placementRowsFrom(dto);
-          if (rows.length > 0) {
-            await this.db.placements.bulkPut(rows);
-          }
+    await this.db.transaction("rw", [this.db.items, this.db.placements, this.db.meta], async () => {
+      await this.db.items.clear();
+      await this.db.placements.clear();
+      for (const dto of input.items) {
+        await this.db.items.put(itemRowFrom(dto));
+        const rows = placementRowsFrom(dto);
+        if (rows.length > 0) {
+          await this.db.placements.bulkPut(rows);
         }
-        await this.db.meta.bulkPut([
-          { key: META_KEYS.workspaceId, value: input.workspaceId },
-          { key: META_KEYS.schemaVersion, value: input.schemaVersion },
-          { key: META_KEYS.lastChangeCursor, value: input.cursor },
-        ]);
-      },
-    );
+      }
+      await this.db.meta.bulkPut([
+        { key: META_KEYS.workspaceId, value: input.workspaceId },
+        { key: META_KEYS.schemaVersion, value: input.schemaVersion },
+        { key: META_KEYS.lastChangeCursor, value: input.cursor },
+      ]);
+    });
   }
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {
@@ -136,15 +132,10 @@ export class LocalRepository {
         .equals([parentKeyOf(parentItemId), "hierarchy"])
         .toArray();
       const result: ProjectedItem[] = [];
-      for (const placement of placements.sort((a, b) =>
-        a.positionKey < b.positionKey ? -1 : 1,
-      )) {
+      for (const placement of placements.sort((a, b) => (a.positionKey < b.positionKey ? -1 : 1))) {
         const item = await this.db.items.get(placement.itemId);
         if (item !== undefined && item.lifecycle === "active") {
-          const itemPlacements = await this.db.placements
-            .where("itemId")
-            .equals(item.id)
-            .toArray();
+          const itemPlacements = await this.db.placements.where("itemId").equals(item.id).toArray();
           result.push({ ...item, placements: itemPlacements });
         }
       }

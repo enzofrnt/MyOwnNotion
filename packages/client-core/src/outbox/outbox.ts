@@ -35,8 +35,10 @@ export class Outbox {
    * Marks rows as in-flight. The mutation identity is untouched: a retry of
    * the same logical mutation always submits the same ID.
    */
-  async markSending(mutationIds: ReadonlyArray<Uuid>, now: () => Date = () => new Date()):
-    Promise<void> {
+  async markSending(
+    mutationIds: ReadonlyArray<Uuid>,
+    now: () => Date = () => new Date(),
+  ): Promise<void> {
     await this.#db.transaction("rw", [this.#db.outbox], async () => {
       for (const mutationId of mutationIds) {
         await this.#db.outbox.update(mutationId, {

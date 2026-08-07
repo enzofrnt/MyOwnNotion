@@ -4,11 +4,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { generateUuidV7 } from "@myownnotion/domain";
-import {
-  createApiHarness,
-  createItemViaApi,
-  type ApiHarness,
-} from "./helpers/app.ts";
+import { createApiHarness, createItemViaApi, type ApiHarness } from "./helpers/app.ts";
 
 let harness: ApiHarness;
 
@@ -74,8 +70,9 @@ describe("mutation batch (idempotent submission)", () => {
       url: "/v1/mutations/batch",
       payload: { mutations: [mutation] },
     });
-    const firstResult = (first.json() as { results: Array<{ status: string; revisionIds: string[] }> })
-      .results[0];
+    const firstResult = (
+      first.json() as { results: Array<{ status: string; revisionIds: string[] }> }
+    ).results[0];
     const secondResult = (
       second.json() as { results: Array<{ status: string; revisionIds: string[] }> }
     ).results[0];
@@ -189,9 +186,11 @@ describe("mutation batch (idempotent submission)", () => {
         ],
       },
     });
-    const results = (response.json() as {
-      results: Array<{ mutationId: string; status: string }>;
-    }).results;
+    const results = (
+      response.json() as {
+        results: Array<{ mutationId: string; status: string }>;
+      }
+    ).results;
     expect(results.find((result) => result.mutationId === bad)?.status).toBe("rejected");
     expect(results.find((result) => result.mutationId === good)?.status).toBe("accepted");
   });

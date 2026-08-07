@@ -20,8 +20,8 @@ const ITEM_COUNT = 10_000;
 const BRANCHING = 10;
 
 let context: IntegrationContext;
-let itemIds: Uuid[] = [];
-let placementIds = new Map<string, Uuid>();
+const itemIds: Uuid[] = [];
+const placementIds = new Map<string, Uuid>();
 
 beforeAll(async () => {
   context = await createIntegrationContext();
