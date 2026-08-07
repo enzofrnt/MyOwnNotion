@@ -11,7 +11,12 @@ import type { ProjectedItem } from "@myownnotion/client-core";
 import { generateUuidV7, keyBetween, type SafeError, type Uuid } from "@myownnotion/domain";
 import { SyncStatus } from "../../components/sync-status.tsx";
 import { localContent } from "../../services/local-content.ts";
+import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
+import { RevisionRestore } from "../history/revision-restore.tsx";
 import { PageDocumentForm } from "../pages/page-document-form.tsx";
+import { FileNode } from "./file-node.tsx";
+import { ItemDetails } from "./item-details.tsx";
+import { MutationStatus } from "./mutation-status.tsx";
 
 type LoadState = "loading" | "ready";
 
@@ -270,6 +275,7 @@ export function HierarchyExplorer() {
         >
           <span className="tree-kind">{node.item.kind}</span>
           <span className="tree-name">{node.item.name}</span>
+          {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
           <span className="tree-actions">
             {node.item.kind !== "file" ? (
               <>
@@ -394,8 +400,19 @@ export function HierarchyExplorer() {
         </ul>
       )}
 
+      <MutationStatus service={service} />
+
       {selectedItem !== null && selectedItem.kind === "page" ? (
-        <PageDocumentForm service={service} itemId={selectedItem.id} />
+        <>
+          <PageDocumentForm service={service} itemId={selectedItem.id} />
+          <AttachmentPanel pageId={selectedItem.id} onChanged={() => void refresh()} />
+        </>
+      ) : null}
+      {selectedItem !== null ? (
+        <>
+          <ItemDetails item={selectedItem} />
+          <RevisionRestore item={selectedItem} onRestored={() => void service.synchronize()} />
+        </>
       ) : null}
 
       {trashedItems.length > 0 ? (
