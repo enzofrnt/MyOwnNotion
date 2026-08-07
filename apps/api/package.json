@@ -1,0 +1,30 @@
+{
+  "name": "@myownnotion/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Canonical content HTTP API (Fastify, loopback-only until authentication)",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx watch src/server.ts",
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/server.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && esbuild ../../scripts/db/migrate.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/migrate.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "start": "node dist/server.mjs"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^9.4.0",
+    "@sinclair/typebox": "^0.34.41",
+    "@myownnotion/blob-store": "workspace:*",
+    "@myownnotion/contracts": "workspace:*",
+    "@myownnotion/database": "workspace:*",
+    "@myownnotion/domain": "workspace:*",
+    "drizzle-orm": "^0.44.7",
+    "fastify": "^5.7.4"
+  },
+  "devDependencies": {
+    "@myownnotion/test-utils": "workspace:*",
+    "esbuild": "^0.27.3",
+    "tsx": "^4.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

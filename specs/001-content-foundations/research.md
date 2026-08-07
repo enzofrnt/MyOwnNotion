@@ -103,16 +103,18 @@
 - Playwright-only testing: rejected because backend and model failures would be slow and poorly localized.
 - Mock database tests only: rejected because transaction isolation, recursive queries, and constraints require PostgreSQL.
 
-## Decision 10: Future operational boundaries
+## Decision 10: Limited production-like packaging before authentication
 
-**Decision**: This feature prepares, but does not implement, later operational concerns. Future specs should use Compose with explicit dev/production overrides, host-level encrypted storage such as LUKS for Linux deployments, separate active-data and backup failure domains, encrypted restic repositories transferred to Google Drive through rclone, and immutable image digests.
+**Decision**: Publish separate API and web OCI images to GitHub Container Registry for accepted `main` revisions and release tags. Tag every image with the exact source commit, use human-readable aliases only as conveniences, and provide a `compose.prod.yaml` topology for clean-host integration testing. The topology includes PostgreSQL, a one-shot migration job, the API, and an unprivileged same-origin web proxy. Host-published ports remain bound to `127.0.0.1` until authentication exists. Future operational specs still own public exposure, encrypted host storage, separate active-data and backup failure domains, encrypted restic repositories transferred to Google Drive through rclone, automated rollback, and immutable deployment manifests by digest.
 
-**Rationale**: Docker local volumes are not inherently encrypted. Host encryption protects offline disks; application/backup encryption provides an additional boundary. Backup validity requires coherent snapshots and isolated restore tests, not copying a live database. [Docker volumes](https://docs.docker.com/engine/storage/volumes/), [Compose production](https://docs.docker.com/compose/how-tos/production/), [Ubuntu storage encryption](https://documentation.ubuntu.com/security/security-features/storage/encryption-full-disk/), [restic design](https://github.com/restic/restic/blob/master/doc/design.rst)
+**Rationale**: Published images and a production-like composition let another maintainer test the integrated application without reproducing the source toolchain, while local-only bindings preserve the current unauthenticated security boundary. A one-shot migration dependency makes schema readiness observable and prevents the API from serving against an unprepared database. Docker local volumes are not inherently encrypted, so this topology is not presented as a complete Internet-facing production deployment. [GitHub container registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry), [Compose production](https://docs.docker.com/compose/how-tos/production/), [Compose startup order](https://docs.docker.com/compose/how-tos/startup-order/), [Docker volumes](https://docs.docker.com/engine/storage/volumes/)
 
 **Alternatives considered**:
 
 - Claim Compose encrypts local volumes: factually incorrect.
-- Implement backup/update services now: violates the approved scope and minimal-architecture principle.
+- Publish a single combined image: rejected because static web serving and the stateful API have different runtimes, health checks, and update boundaries.
+- Expose the composition on all host interfaces: rejected until authentication and authorization are implemented.
+- Implement backup/update services now: still outside the approved scope and minimal-architecture principle.
 
 ## Decision 11: Minimum browser-local persistence and catch-up
 

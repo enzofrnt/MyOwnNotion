@@ -115,10 +115,39 @@ pnpm db:test-migrations
 
 Expected result: migrations succeed from an empty PostgreSQL database and from every maintained fixture version; destructive schema changes are never applied through an unreviewed schema-push command.
 
-## Validate the local-only composition
+## Validate the development composition
 
 ```text
 docker compose config
 ```
 
-Expected result: the merged development configuration is valid, persistent paths are explicit, and API, web, and database ports bind only to `127.0.0.1`. No supported production composition is created before authentication.
+Expected result: the merged development configuration is valid, persistent paths are explicit, and the database port binds only to `127.0.0.1`.
+
+## Validate the production-like composition and published images
+
+Use the exact source-revision tag when validating published artifacts. Replace `<revision>` with `sha-` followed by the full commit identifier. If the revision has not been published yet, use the documented local-build fallback instead.
+
+```text
+cp .env.prod.example .env.prod
+MYOWNNOTION_IMAGE_TAG=sha-<revision> docker compose --env-file .env.prod -f compose.prod.yaml pull
+MYOWNNOTION_IMAGE_TAG=sha-<revision> docker compose --env-file .env.prod -f compose.prod.yaml up -d --wait
+curl --fail http://127.0.0.1:3001/health
+curl --fail http://127.0.0.1:8080/health
+docker compose --env-file .env.prod -f compose.prod.yaml ps
+```
+
+Expected result:
+
+- Both application images are retrievable from GitHub Container Registry by the immutable revision tag.
+- PostgreSQL becomes healthy, the one-shot migration service completes successfully, and only then does the API become ready.
+- The web service proxies `/health` and `/v1` to the API on the internal network.
+- Web, API, and database ports publish only on `127.0.0.1` by default.
+- A normal stop and restart preserves database and blob data in named volumes.
+
+Run the container and composition contract tests, then follow [docs/deployment.md](../../docs/deployment.md) for configuration, local-build fallback, logs, restart, update, persistence, and cleanup:
+
+```text
+pnpm test:containers
+```
+
+This composition is for secure local integration and self-hosting evaluation. Public exposure remains unsupported until authentication and authorization are implemented.

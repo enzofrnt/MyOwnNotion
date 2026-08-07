@@ -1,0 +1,9 @@
+# Development-only overrides.
+#
+# Publishing the PostgreSQL port is a development convenience and is bound to
+# the loopback interface only. The API and web dev servers run on the host
+# through `pnpm dev` and themselves listen on 127.0.0.1.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${MYOWNNOTION_DB_PORT:-5432}:5432"

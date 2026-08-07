@@ -1,10 +1,10 @@
 # Feature Specification: Canonical Content Foundations
 
-**Feature Branch**: `not-created (detached worktree)`
+**Feature Branch**: `codex/implement-content-foundations-7037-continue`
 
 **Created**: 2026-08-07
 
-**Status**: Draft
+**Status**: In Progress
 
 **Input**: User description: "Define durable foundations for a personal self-hosted knowledge workspace whose pages, folders, files, relationships, revisions, synchronization, backups, graph, sharing, and future clients can evolve without replacing the canonical content model."
 
@@ -17,6 +17,7 @@
 - Q: When the same file appears in several pages or hierarchy locations, is it stored once or copied per location? → A: It is one canonical file stored once and shown through multiple placements.
 - Q: What happens when one visible placement of a multiply placed file is removed? → A: Only that placement is removed; removing the last placement sends the canonical file to the 30-day trash.
 - Q: If identical file content is imported separately, should those imports become one logical file? → A: No; they remain independent logical files, while cautious content-verified physical deduplication is allowed.
+- Q: How must maintainers make the finished application testable without a local source build? → A: Publish versioned application container images in the repository's hosted package registry and provide a documented production-like composition that remains loopback-only until authentication is implemented.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -73,6 +74,23 @@ As the owner, I can rely on clear content types so that a page remains editable,
 5. **Given** the same file is placed in two pages and one hierarchy location, **When** any of those locations is viewed, **Then** it resolves to the same stored file while each location remains independently visible.
 6. **Given** a file with several placements, **When** one placement is removed, **Then** the file and every other placement remain active and unchanged.
 7. **Given** a file with exactly one remaining placement, **When** that placement is removed, **Then** the canonical file enters the 30-day trash together with the information required to restore its former placement.
+
+---
+
+### User Story 7 - Run the Finished Application from Published Artifacts (Priority: P2)
+
+As a maintainer or evaluator, I can start the finished application from published, versioned artifacts with one documented composition so that I can test the integrated product without reconstructing its build environment.
+
+**Why this priority**: A completed vertical slice is only independently verifiable when another person can obtain its deployable artifacts, start every required service predictably, and understand the security boundary.
+
+**Independent Test**: On a clean machine with only the documented container runtime and configuration, obtain the published application artifacts, start the production-like composition, verify database readiness, migration completion, API health, and web access, then stop and restart it without losing persisted test data.
+
+**Acceptance Scenarios**:
+
+1. **Given** an accepted release or main-branch revision, **When** the publication workflow completes, **Then** independently retrievable web and API artifacts exist with an immutable revision identifier and a documented human-readable release identifier.
+2. **Given** a clean supported host and the documented configuration, **When** the evaluator starts the production-like composition, **Then** the database becomes healthy, migrations complete before the API serves requests, and the web application can reach the API.
+3. **Given** the application has started, **When** the evaluator follows the documented verification steps, **Then** the interface, API health, artifact versions, persistent data locations, logs, stop, restart, and update procedures can all be verified without consulting chat history.
+4. **Given** authentication is not yet available, **When** the composition is rendered with default configuration, **Then** every host-published application and database port is restricted to the local machine and the documentation warns against public exposure.
 
 ---
 
@@ -142,6 +160,9 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - An operation exceeds an implementation resource limit even though the product model permits arbitrary nesting; it must fail explicitly without partial mutation.
 - Local storage becomes unavailable or reaches quota while persisting a mutation; the mutation must fail visibly and must not be reported as accepted.
 - A client reconnects after its prior change checkpoint is no longer directly available; it must rebuild from a verified snapshot without discarding its durable pending changes.
+- A published application artifact is missing, mutable-only, or built for an unsupported host architecture; publication must fail rather than advertise an incomplete release.
+- A schema migration fails while starting the production-like composition; the API must remain unavailable and existing persistent data must not be silently discarded.
+- A host changes the default bind address before authentication exists; the documentation must identify the exposure risk and must not present that configuration as supported.
 
 ## Requirements *(mandatory)*
 
@@ -191,6 +212,11 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - **FR-042**: A rejected concurrent mutation MUST remain locally recoverable with its base and competing revision identities and MUST NOT be automatically discarded or overwritten.
 - **FR-043**: The interface MUST display offline, pending, synchronizing, synchronized, and unresolved-conflict states without claiming server durability for local-only work.
 - **FR-044**: Every hierarchy placement MUST have an explicit stable sibling order that the owner can change without changing canonical item identity.
+- **FR-045**: Each accepted main-branch revision and release MUST produce independently retrievable web and API deployment artifacts in the repository's hosted package registry.
+- **FR-046**: Published deployment artifacts MUST expose an immutable revision identifier and MUST support a documented human-readable release identifier without relying on a mutable identifier as the only reproducibility mechanism.
+- **FR-047**: The repository MUST provide a production-like composition that starts persistent storage, applies required schema migrations before serving requests, starts the API and web application, reports health, and preserves test data across a normal restart.
+- **FR-048**: The repository MUST document prerequisites, configuration, artifact retrieval or local build fallback, start, health verification, logs, stop, restart, update, persistence, and security limitations for the production-like composition.
+- **FR-049**: Until authentication is implemented, the production-like composition MUST bind every published host port to the local machine by default and MUST explicitly warn that public exposure is unsupported.
 
 ### Key Entities
 
@@ -225,6 +251,9 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - **SC-012**: After initial loading, all core offline acceptance scenarios pass after a client reload with the server fully unavailable.
 - **SC-013**: Fault-injection tests at each local persistence boundary produce zero cases where the interface reports success without both the local state and matching pending-change record being durable.
 - **SC-014**: Reconnection tests submit every queued mutation exactly once logically despite repeated transport delivery and preserve 100% of rejected concurrent work as an explicit unresolved conflict.
+- **SC-015**: For every tested accepted revision, the publication workflow produces both web and API artifacts addressable by the exact source revision, and a clean host can retrieve or locally build them using only the documented procedure.
+- **SC-016**: On a clean supported host, the documented production-like startup reaches healthy storage, completed migrations, a ready API, and an accessible web application within 10 minutes without undocumented manual steps.
+- **SC-017**: Automated composition checks confirm that 100% of default published ports remain local-only before authentication, and restart validation preserves 100% of the committed test fixture data.
 
 ## Assumptions
 
@@ -239,6 +268,8 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - The 24-hour revision-content window applies to superseded content history, not to active content, trashed items, unresolved conflicts, or backup copies governed by their own retention rules.
 - Physical file-content deduplication is an implementation optimization, never a user-visible merge of independently imported files.
 - This feature implements minimum durable offline state and reconciliation foundations; real-time notifications, automatic rich-text merging, multi-device conflict-resolution UI, cache-size eviction, and complete synchronization operations remain separate specs.
+- Deployment artifacts are published through the source repository's hosted package registry; the implementation plan selects the concrete registry and image naming scheme.
+- The production-like composition is an integration and self-hosting validation path, not authorization to expose the unauthenticated application to an untrusted network.
 - Data-at-rest encryption, container volumes, authentication, synchronization protocols, backup retention, and implementation technologies belong in later plans and feature specifications.
 
 ## Scope Boundaries
@@ -252,6 +283,7 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - Revision ancestry required by future synchronization and conflict handling.
 - Durable exportability of the canonical structure.
 - Durable local state, pending changes, checkpoint-based catch-up, and non-destructive conflict capture required by constitutional offline use.
+- Versioned deployment artifacts and a documented production-like composition for secure local validation of the integrated application.
 
 ### Excluded
 
@@ -262,4 +294,5 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - Local cache quotas and eviction.
 - File preview and Draw.io editing.
 - Backup scheduling, Google Drive transfer, restoration, update orchestration, and rollback.
+- Public or untrusted-network production exposure before authentication and authorization are implemented.
 - Databases, tasks, graph visualization, whiteboards, public sharing, annotations, and MCP behaviors beyond preserving model compatibility.

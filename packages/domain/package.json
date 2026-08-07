@@ -1,0 +1,22 @@
+{
+  "name": "@myownnotion/domain",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Platform-independent canonical content rules: no Fastify, React, Drizzle, browser, or filesystem dependencies",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "fast-check": "^4.5.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "fractional-indexing": "^4.0.0"
+  }
+}

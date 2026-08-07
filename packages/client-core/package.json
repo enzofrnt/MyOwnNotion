@@ -1,0 +1,24 @@
+{
+  "name": "@myownnotion/client-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser-local projection, durable outbox, and reconciliation over Dexie/IndexedDB",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@myownnotion/contracts": "workspace:*",
+    "@myownnotion/domain": "workspace:*",
+    "dexie": "^4.2.1"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
