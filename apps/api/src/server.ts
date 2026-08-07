@@ -6,10 +6,11 @@ import process from "node:process";
 import { buildApp } from "./app.ts";
 
 const databaseUrl =
-  process.env.DATABASE_URL ?? "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion";
-const blobRoot = process.env.MYOWNNOTION_BLOB_ROOT ?? "./.dev-blobs";
-const host = process.env.MYOWNNOTION_API_HOST ?? "127.0.0.1";
-const port = Number(process.env.MYOWNNOTION_API_PORT ?? 3001);
+  process.env["DATABASE_URL"] ??
+  "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion";
+const blobRoot = process.env["MYOWNNOTION_BLOB_ROOT"] ?? "./.dev-blobs";
+const host = process.env["MYOWNNOTION_API_HOST"] ?? "127.0.0.1";
+const port = Number(process.env["MYOWNNOTION_API_PORT"] ?? 3001);
 
 const { app, close } = await buildApp({ databaseUrl, blobRoot });
 

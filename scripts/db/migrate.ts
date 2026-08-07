@@ -50,7 +50,7 @@ export async function migrate(connectionString: string): Promise<string[]> {
 const isDirectRun =
   process.argv[1] !== undefined && import.meta.filename === path.resolve(process.argv[1]);
 if (isDirectRun) {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env["DATABASE_URL"];
   if (!connectionString) {
     console.error("DATABASE_URL is required");
     process.exit(1);

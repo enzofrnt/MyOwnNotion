@@ -111,14 +111,14 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
           title: "Multipart upload requires a file part",
         });
       }
-      const placement = parsePlacementField(upload.fields.placement);
+      const placement = parsePlacementField(upload.fields["placement"]);
       if (placement === null) {
         return sendProblem(reply, {
           code: "validation.invalid-payload",
           title: "Multipart upload requires a valid placement field",
         });
       }
-      const requestedItemId = upload.fields.itemId;
+      const requestedItemId = upload.fields["itemId"];
       const itemId = isUuid(requestedItemId) ? requestedItemId : generateUuidV7();
       const acceptedAt = new Date();
 
@@ -229,7 +229,7 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
           title: "Multipart upload requires a file part",
         });
       }
-      const baseRevisionId = upload.fields.baseRevisionId;
+      const baseRevisionId = upload.fields["baseRevisionId"];
       if (!isUuid(baseRevisionId)) {
         return sendProblem(reply, {
           code: "validation.invalid-payload",

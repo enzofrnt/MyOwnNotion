@@ -81,7 +81,7 @@ export function registerErrorHandling(app: FastifyInstance): void {
         status: 400,
         code: "validation.invalid-payload",
         invalidFields: error.validation.map((failure) => ({
-          field: failure.instancePath || String(failure.params.missingProperty ?? "body"),
+          field: failure.instancePath || String(failure.params["missingProperty"] ?? "body"),
           code: failure.keyword,
         })),
       };

@@ -12,7 +12,7 @@ export default defineConfig({
   casing: "snake_case",
   dbCredentials: {
     url:
-      process.env.DATABASE_URL ??
+      process.env["DATABASE_URL"] ??
       "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
   },
   strict: true,

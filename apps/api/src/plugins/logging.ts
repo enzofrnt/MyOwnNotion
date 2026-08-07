@@ -21,7 +21,7 @@ export const REDACT_PATHS = [
 
 export function registerLogging(): NonNullable<FastifyServerOptions["logger"]> {
   return {
-    level: process.env.LOG_LEVEL ?? "info",
+    level: process.env["LOG_LEVEL"] ?? "info",
     redact: {
       paths: REDACT_PATHS,
       censor: "[redacted]",

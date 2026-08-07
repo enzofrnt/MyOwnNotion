@@ -1,9 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const isCI = process.env.CI === "true" || process.env.CI === "1";
+const isCI = process.env["CI"] === "true" || process.env["CI"] === "1";
 
-const apiPort = Number(process.env.MYOWNNOTION_API_PORT ?? 3001);
-const webPort = Number(process.env.MYOWNNOTION_WEB_PORT ?? 5173);
+const apiPort = Number(process.env["MYOWNNOTION_API_PORT"] ?? 3001);
+const webPort = Number(process.env["MYOWNNOTION_WEB_PORT"] ?? 5173);
 
 /**
  * Every changed interactive flow gets a journey here, executed against
