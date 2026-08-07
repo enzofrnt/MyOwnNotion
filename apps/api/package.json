@@ -7,8 +7,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch src/server.ts",
-    "build": "esbuild src/server.ts --bundle --platform=node --format=cjs --target=node24 --outfile=dist/server.cjs --sourcemap",
-    "start": "node dist/server.cjs"
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/server.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "start": "node dist/server.mjs"
   },
   "dependencies": {
     "@fastify/multipart": "^9.4.0",
