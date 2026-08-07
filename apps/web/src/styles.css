@@ -1,0 +1,221 @@
+:root {
+  color-scheme: dark light;
+  --bg: #101014;
+  --surface: #1a1a21;
+  --border: #2e2e3a;
+  --text: #e8e8ef;
+  --muted: #9a9aad;
+  --accent: #6c8cff;
+  --danger: #ff6c6c;
+  --ok: #58c98d;
+  --warn: #e5b567;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-shell {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.app-subtitle {
+  margin: 0.25rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+button {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button:focus-visible,
+input:focus-visible,
+[role="treeitem"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type="text"] {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--border);
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+}
+
+.tree-row:hover {
+  background: var(--surface);
+}
+
+.tree-row[aria-selected="true"] {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+}
+
+.tree-kind {
+  color: var(--muted);
+  font-size: 0.75rem;
+  min-width: 3.2rem;
+  text-transform: uppercase;
+}
+
+.tree-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tree-actions button {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+}
+
+.status-banner {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+.status-banner[data-state="error"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.status-banner[data-state="offline"] {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.status-banner[data-state="synced"] {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.status-banner[data-state="pending"],
+.status-banner[data-state="syncing"] {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.status-banner[data-state="conflict"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.empty-state,
+.loading-state {
+  color: var(--muted);
+  padding: 1.5rem;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-top: 1rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.field-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+textarea {
+  width: 100%;
+  min-height: 6rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 0.5rem;
+  }
+
+  .tree-actions {
+    flex-wrap: wrap;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

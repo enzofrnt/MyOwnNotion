@@ -1,0 +1,23 @@
+{
+  "name": "@myownnotion/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenAPI-derived request/response JSON Schemas shared by the API and clients",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@myownnotion/domain": "workspace:*",
+    "@sinclair/typebox": "^0.34.41"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
+    "yaml": "^2.8.2"
+  }
+}

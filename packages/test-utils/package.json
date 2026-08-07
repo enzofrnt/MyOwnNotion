@@ -1,0 +1,23 @@
+{
+  "name": "@myownnotion/test-utils",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Disposable PostgreSQL fixtures: Testcontainers when Docker exists, TEST_DATABASE_URL fallback otherwise",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@myownnotion/domain": "workspace:*",
+    "@testcontainers/postgresql": "^11.11.1",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6",
+    "typescript": "^5.9.3"
+  }
+}

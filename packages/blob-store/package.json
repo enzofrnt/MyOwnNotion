@@ -1,0 +1,21 @@
+{
+  "name": "@myownnotion/blob-store",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Immutable content-addressed blob storage contract with a development filesystem adapter",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@myownnotion/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

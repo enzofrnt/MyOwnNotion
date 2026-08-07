@@ -1,0 +1,28 @@
+# Development topology for the canonical content foundations feature.
+#
+# PostgreSQL is the only supporting service. No supported production
+# composition exists before authentication; every published port binds to
+# 127.0.0.1 only (asserted by tests/contract/compose-security.spec.ts).
+name: myownnotion
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: ${MYOWNNOTION_DB_NAME:-myownnotion}
+      POSTGRES_USER: ${MYOWNNOTION_DB_USER:-myownnotion}
+      POSTGRES_PASSWORD: ${MYOWNNOTION_DB_PASSWORD:-myownnotion-dev}
+      TZ: UTC
+      PGTZ: UTC
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MYOWNNOTION_DB_USER:-myownnotion} -d ${MYOWNNOTION_DB_NAME:-myownnotion}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

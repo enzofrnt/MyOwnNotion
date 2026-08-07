@@ -20,6 +20,15 @@ dist/
 build/
 coverage/
 .next/
+*.tsbuildinfo
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Development blob store and database data
+.dev-blobs/
+.postgres-data/
 
 # Local environment and secrets
 .env
