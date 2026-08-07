@@ -8,6 +8,7 @@
  * imposed by the product model.
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
+import { EDITOR_DOCUMENT_VERSION, validateEditorDocument } from "./editor-document.ts";
 import { isValidPositionKey } from "./position-key.ts";
 import {
   type CanonicalItem,
@@ -61,7 +62,7 @@ export interface CreateItemPlan {
 }
 
 /** Maximum accepted page-document format version for this slice. */
-export const SUPPORTED_PAGE_DOCUMENT_VERSION = 1;
+export const SUPPORTED_PAGE_DOCUMENT_VERSION = EDITOR_DOCUMENT_VERSION;
 
 export function validatePageDocument(document: PageDocument): DomainResult<PageDocument> {
   if (document.format !== PAGE_DOCUMENT_FORMAT) {
@@ -77,6 +78,12 @@ export function validatePageDocument(document: PageDocument): DomainResult<PageD
   }
   if (typeof document.body !== "object" || document.body === null || Array.isArray(document.body)) {
     return err("validation.invalid-payload", "Page document body must be an object");
+  }
+  if (document.formatVersion === EDITOR_DOCUMENT_VERSION) {
+    const editorDocument = validateEditorDocument(document.body);
+    if (!editorDocument.ok) {
+      return editorDocument as DomainResult<PageDocument>;
+    }
   }
   return ok(document);
 }

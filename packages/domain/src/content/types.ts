@@ -73,6 +73,7 @@ export const SAFE_ERROR_CODES = [
   "validation.invalid-kind",
   "validation.invalid-payload",
   "validation.unknown-format-version",
+  "document.unsupported-content",
   "containment.parent-not-found",
   "containment.parent-not-container",
   "containment.file-cannot-contain",

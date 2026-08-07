@@ -32,6 +32,7 @@
     "db:test-migrations": "vitest run --project database-integration packages/database/tests/migrations.integration.spec.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@biomejs/biome": "^2.3.11",
     "@myownnotion/blob-store": "workspace:*",
     "@myownnotion/contracts": "workspace:*",

@@ -79,4 +79,31 @@ describe("logging configuration (T091)", () => {
     expect(response.statusCode).toBe(500);
     expect(captured.join("\n")).not.toContain(secret);
   });
+
+  it("never logs nested editor JSON text", async () => {
+    const captured: string[] = [];
+    const app = Fastify({
+      logger: {
+        ...registerLogging(),
+        stream: { write: (line: string) => captured.push(line) },
+      },
+    });
+    app.put("/document", async () => ({ ok: true }));
+    const secret = "PrivateEditorSpan-99231";
+    await app.inject({
+      method: "PUT",
+      url: "/document",
+      payload: {
+        document: {
+          formatVersion: 2,
+          body: {
+            type: "doc",
+            content: [{ type: "paragraph", content: [{ type: "text", text: secret }] }],
+          },
+        },
+      },
+    });
+    await app.close();
+    expect(captured.join("\n")).not.toContain(secret);
+  });
 });

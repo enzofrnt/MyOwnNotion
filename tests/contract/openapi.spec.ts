@@ -11,6 +11,7 @@ import {
   CreateItemSchema,
   CreatePlacementSchema,
   CreateRelationshipSchema,
+  EditorDocumentSchema,
   ItemSchema,
   MutationResultSchema,
   PageDocumentSchema,
@@ -51,6 +52,12 @@ function runtimeRequired(schema: { required?: string[] }): string[] {
 }
 
 describe("OpenAPI ↔ runtime schema alignment", () => {
+  it("defines the strict version 2 editor JSON boundary", () => {
+    expect(EditorDocumentSchema.required).toEqual(["type", "content"]);
+    expect(EditorDocumentSchema.additionalProperties).toBe(false);
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"horizontalRule"');
+    expect(JSON.stringify(EditorDocumentSchema)).not.toContain("futureWidget");
+  });
   it("is an OpenAPI 3.1 document", () => {
     expect(openapi.openapi).toMatch(/^3\.1\./);
   });

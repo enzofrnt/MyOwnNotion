@@ -10,6 +10,8 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
+const apiPort = Number(process.env["MYOWNNOTION_API_PORT"] ?? 3001);
+
 test.describe("revision history (US5)", () => {
   test("restores retained content as a new descendant revision", async ({ page }) => {
     await openWorkspace(page);
@@ -23,9 +25,12 @@ test.describe("revision history (US5)", () => {
     const originalHead = await page.getByTestId("current-head").textContent();
 
     // Edit the document to supersede the original revision.
-    await page.getByTestId("document-body").fill('{"text":"version 2"}');
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible();
+    const saved = page.waitForResponse(
+      (response) => response.url().includes("/v1/mutations/batch") && response.ok(),
+    );
+    await page.getByRole("textbox", { name: "Page content" }).fill("Version 2 content");
+    await page.getByRole("button", { name: "Save page" }).click();
+    await saved;
     await waitForSynchronized(page);
     await selectItem(page, pageName);
 
@@ -55,8 +60,12 @@ test.describe("revision history (US5)", () => {
     const originalHead = await page.getByTestId("current-head").textContent();
 
     // Edit once so the original head is restorable history.
-    await page.getByTestId("document-body").fill('{"text":"v2"}');
-    await page.getByTestId("save-document").click();
+    const saved = page.waitForResponse(
+      (response) => response.url().includes("/v1/mutations/batch") && response.ok(),
+    );
+    await page.getByRole("textbox", { name: "Page content" }).fill("Version two");
+    await page.getByRole("button", { name: "Save page" }).click();
+    await saved;
     await waitForSynchronized(page);
     await selectItem(page, pageName);
 
@@ -66,16 +75,19 @@ test.describe("revision history (US5)", () => {
     await expect(page.getByTestId("revision-preview")).toBeVisible();
 
     // Another device advances the head between preview and restore.
-    const current = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const current = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${itemId}`);
     const currentBody = (await current.json()) as { currentRevisionId: string };
-    const competing = await request.put(`http://127.0.0.1:3001/v1/pages/${itemId}/document`, {
+    const competing = await request.put(`http://127.0.0.1:${apiPort}/v1/pages/${itemId}/document`, {
       headers: { "idempotency-key": crypto.randomUUID() },
       data: {
         baseRevisionId: currentBody.currentRevisionId,
         document: {
           format: "myownnotion.document+json",
-          formatVersion: 1,
-          body: { text: "competing edit" },
+          formatVersion: 2,
+          body: {
+            type: "doc",
+            content: [{ type: "paragraph", content: [{ type: "text", text: "Competing edit" }] }],
+          },
         },
       },
     });

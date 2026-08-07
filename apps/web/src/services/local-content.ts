@@ -18,7 +18,13 @@ import {
   reconcile,
 } from "@myownnotion/client-core";
 import type { ItemDto } from "@myownnotion/contracts";
-import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
+import {
+  type EditorDocument,
+  generateUuidV7,
+  type SafeError,
+  toPageDocument,
+  type Uuid,
+} from "@myownnotion/domain";
 import { ContentApi } from "./content-api.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
 
@@ -44,6 +50,8 @@ export class LocalContentService {
   #storagePersisted: boolean | null = null;
   #listeners = new Set<Listener>();
   #snapshot: LocalContentSnapshot;
+  #synchronization: Promise<SyncState> | null = null;
+  #synchronizeAgain = false;
 
   constructor(api: ContentApi = new ContentApi(), databaseName = "myownnotion-local") {
     this.api = api;
@@ -121,7 +129,38 @@ export class LocalContentService {
   }
 
   /** Full reconciliation pass; resolves to the resulting sync state. */
-  async synchronize(): Promise<SyncState> {
+  synchronize(): Promise<SyncState> {
+    if (this.#synchronization !== null) {
+      this.#synchronizeAgain = true;
+      return this.#synchronization;
+    }
+    const operation = this.#synchronizeUntilCurrent();
+    this.#synchronization = operation;
+    void operation.then(
+      () => {
+        if (this.#synchronization === operation) {
+          this.#synchronization = null;
+        }
+      },
+      () => {
+        if (this.#synchronization === operation) {
+          this.#synchronization = null;
+        }
+      },
+    );
+    return operation;
+  }
+
+  async #synchronizeUntilCurrent(): Promise<SyncState> {
+    let state: SyncState;
+    do {
+      this.#synchronizeAgain = false;
+      state = await this.#synchronizeOnce();
+    } while (this.#synchronizeAgain);
+    return state;
+  }
+
+  async #synchronizeOnce(): Promise<SyncState> {
     await this.#notify("syncing");
     const outcome = await reconcile(this.db, this.#transport());
     const state: SyncState = outcome.offline
@@ -170,6 +209,29 @@ export class LocalContentService {
     await this.#notify("pending");
     void this.synchronize();
     return { ok: true };
+  }
+
+  /** Saves rich page content against the latest durable local revision head. */
+  async replacePageDocument(
+    itemId: Uuid,
+    document: EditorDocument,
+  ): Promise<{ ok: true } | { ok: false; error: SafeError }> {
+    const item = await this.getItem(itemId);
+    if (item === null || item.kind !== "page") {
+      return {
+        ok: false,
+        error: { code: "item.not-found", title: "Page is not available locally" },
+      };
+    }
+    return this.mutate(
+      "page.document.replace",
+      {
+        itemId,
+        baseRevisionId: item.currentRevisionId,
+        document: toPageDocument(document),
+      },
+      [item.currentRevisionId],
+    );
   }
 
   /** Seeds the projection from the server when reachable (initial load). */

@@ -129,7 +129,7 @@ describe("containment matrix (FR-003..FR-006)", () => {
           ...valid,
           pageDocument: {
             format: "myownnotion.document+json",
-            formatVersion: 2,
+            formatVersion: 3,
             body: {},
           },
         },

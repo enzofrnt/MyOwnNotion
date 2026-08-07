@@ -24,7 +24,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await harness.close();
+  await harness?.close();
 });
 
 async function runExport(): Promise<{ manifest: CanonicalExportManifest; digest: string }> {

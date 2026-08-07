@@ -42,6 +42,59 @@ describe("page-document replacement (T058)", () => {
     expect(body.pageDocument.body.text).toBe("hello");
   });
 
+  it("accepts and returns a validated version 2 editor document", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Editor page" });
+    const editorBody = {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "Structured", marks: [{ type: "bold" }] }],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Document" }] },
+      ],
+    };
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: page.revisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: editorBody,
+        },
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${page.itemId}` });
+    expect((item.json() as { pageDocument: { body: unknown } }).pageDocument.body).toEqual(
+      editorBody,
+    );
+  });
+
+  it("rejects unsupported version 2 nodes without returning private text", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Future node page" });
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: page.revisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: { type: "doc", content: [{ type: "futureWidget", text: "private-text" }] },
+        },
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { code: string }).code).toBe("document.unsupported-content");
+    expect(response.body).not.toContain("private-text");
+  });
+
   it("rejects documents on folders (409 item.wrong-kind)", async () => {
     const folder = await createItemViaApi(harness, { kind: "folder", name: "Doc folder" });
     const response = await harness.built.app.inject({

@@ -28,9 +28,109 @@ export const PlacementKindSchema = Type.Union([
 const NullableUuid = Type.Union([UuidSchema, Type.Null()]);
 const NullableDateTime = Type.Union([Type.String({ format: "date-time" }), Type.Null()]);
 
+const EditorMarkSchema = Type.Object(
+  {
+    type: Type.Union([
+      Type.Literal("bold"),
+      Type.Literal("italic"),
+      Type.Literal("strike"),
+      Type.Literal("code"),
+    ]),
+  },
+  { additionalProperties: false },
+);
+
+const EditorTextSchema = Type.Object(
+  {
+    type: Type.Literal("text"),
+    text: Type.String({ minLength: 1 }),
+    marks: Type.Optional(Type.Array(EditorMarkSchema, { uniqueItems: true })),
+  },
+  { additionalProperties: false },
+);
+
+export const EditorDocumentNodeSchema = Type.Recursive((Node) =>
+  Type.Union([
+    EditorTextSchema,
+    Type.Object(
+      { type: Type.Literal("paragraph"), content: Type.Optional(Type.Array(EditorTextSchema)) },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        type: Type.Literal("heading"),
+        attrs: Type.Object(
+          { level: Type.Union([Type.Literal(1), Type.Literal(2), Type.Literal(3)]) },
+          { additionalProperties: false },
+        ),
+        content: Type.Optional(Type.Array(EditorTextSchema)),
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      { type: Type.Literal("blockquote"), content: Type.Array(Node, { minItems: 1 }) },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        type: Type.Literal("codeBlock"),
+        attrs: Type.Optional(
+          Type.Object(
+            { language: Type.Optional(Type.Union([Type.String(), Type.Null()])) },
+            { additionalProperties: false },
+          ),
+        ),
+        content: Type.Optional(
+          Type.Array(
+            Type.Object(
+              { type: Type.Literal("text"), text: Type.String({ minLength: 1 }) },
+              { additionalProperties: false },
+            ),
+          ),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object({ type: Type.Literal("horizontalRule") }, { additionalProperties: false }),
+    Type.Object(
+      {
+        type: Type.Union([
+          Type.Literal("listItem"),
+          Type.Literal("bulletList"),
+          Type.Literal("orderedList"),
+        ]),
+        attrs: Type.Optional(Type.Object({}, { additionalProperties: false })),
+        content: Type.Array(Node, { minItems: 1 }),
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        type: Type.Union([Type.Literal("taskList"), Type.Literal("taskItem")]),
+        attrs: Type.Optional(
+          Type.Object({ checked: Type.Optional(Type.Boolean()) }, { additionalProperties: false }),
+        ),
+        content: Type.Array(Node, { minItems: 1 }),
+      },
+      { additionalProperties: false },
+    ),
+  ]),
+);
+
+export const EditorDocumentSchema = Type.Object(
+  {
+    type: Type.Literal("doc"),
+    content: Type.Array(EditorDocumentNodeSchema, { minItems: 1 }),
+  },
+  { additionalProperties: false },
+);
+
 export const PageDocumentSchema = Type.Object(
   {
     format: Type.Literal("myownnotion.document+json"),
+    // Domain validation owns the supported-version ceiling so unknown future
+    // versions receive the stable content-safe error code rather than a
+    // generic transport rejection.
     formatVersion: Type.Integer({ minimum: 1 }),
     body: Type.Object({}, { additionalProperties: true }),
   },

@@ -24,6 +24,8 @@ pnpm db:migrate
 
 Then start the API and web client with `pnpm dev`. Copy `.env.example` only when local overrides are needed. Never commit secrets. Development ports and the production-like evaluation composition bind to `127.0.0.1` because authentication is not implemented yet.
 
+Page authoring, the version 2 document format, slash commands, Markdown shortcuts, auto-save states, offline restart, and compatibility behavior are documented in [editor.md](./editor.md).
+
 ## Formatting and static checks
 
 Biome is the formatter and linter for TypeScript, TSX, JSON, and CSS:
@@ -54,6 +56,8 @@ pnpm build
 ```
 
 Database and API suites use disposable PostgreSQL instances. Playwright starts the API and web client and exercises Chromium, Firefox, and WebKit across desktop and mobile profiles. The container smoke test builds the API and web images, verifies migrations and direct/proxied health, restarts the composition, and proves named-volume persistence.
+
+For focused block-editor work, run the web unit project, the editor Playwright files, and `tests/performance/block-editor.perf.spec.ts` before the complete gates. Browser journeys cover online/offline reload, conflicts, slash commands, Markdown input rules, keyboard focus, responsive overflow, and critical Axe findings.
 
 Coverage floors are 90% for statements, lines, and functions and 85% for branches. These numbers supplement property, contract, fault-injection, browser, and container journeys; they do not replace them.
 

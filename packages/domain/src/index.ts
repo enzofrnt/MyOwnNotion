@@ -6,6 +6,7 @@
  */
 
 export * from "./content/content-items.ts";
+export * from "./content/editor-document.ts";
 export * from "./content/file-placements.ts";
 export * from "./content/hierarchy.ts";
 export * from "./content/lifecycle.ts";
