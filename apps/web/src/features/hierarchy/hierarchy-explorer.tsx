@@ -1,29 +1,31 @@
 /**
- * Accessible hierarchy explorer (T033, US1).
+ * Accessible offline-first hierarchy explorer (T033 US1 + T045/T046 US6).
  *
- * Semantic tree with full keyboard operation: arrow keys navigate, Enter
- * selects, and every mutation is reachable through labelled buttons.
- * Loading, empty, error, and conflict states are explicit; failed mutations
- * never pretend success.
+ * Reads come from the durable local projection; every mutation is applied
+ * optimistically with a durable outbox entry and then synchronized. The
+ * tree is a semantic ARIA tree with complete keyboard operation, and
+ * loading, empty, offline, error, and conflict states are explicit.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ItemDto, ProblemDto } from "@myownnotion/contracts";
-import { generateUuidV7, keyBetween, sortSiblings, type Uuid } from "@myownnotion/domain";
-import { ContentApi } from "../../services/content-api.ts";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ProjectedItem } from "@myownnotion/client-core";
+import { generateUuidV7, keyBetween, type SafeError, type Uuid } from "@myownnotion/domain";
+import { SyncStatus } from "../../components/sync-status.tsx";
+import { localContent } from "../../services/local-content.ts";
+import { PageDocumentForm } from "../pages/page-document-form.tsx";
 
-type LoadState = "loading" | "ready" | "error";
+type LoadState = "loading" | "ready";
 
 interface TreeNode {
-  readonly item: ItemDto;
+  readonly item: ProjectedItem;
   readonly placementId: Uuid;
   readonly positionKey: string;
   readonly children: TreeNode[];
 }
 
-function buildTree(items: ItemDto[]): TreeNode[] {
-  const byParent = new Map<
+function buildTree(items: ProjectedItem[]): TreeNode[] {
+  const entriesByParent = new Map<
     string,
-    Array<{ item: ItemDto; placementId: Uuid; positionKey: string }>
+    Array<{ item: ProjectedItem; placementId: Uuid; positionKey: string }>
   >();
   for (const item of items) {
     for (const placement of item.placements) {
@@ -31,31 +33,17 @@ function buildTree(items: ItemDto[]): TreeNode[] {
         continue;
       }
       const key = placement.parentItemId ?? "root";
-      const list = byParent.get(key) ?? [];
-      list.push({
-        item,
-        placementId: placement.id as Uuid,
-        positionKey: placement.positionKey,
-      });
-      byParent.set(key, list);
+      const list = entriesByParent.get(key) ?? [];
+      list.push({ item, placementId: placement.id, positionKey: placement.positionKey });
+      entriesByParent.set(key, list);
     }
   }
   const build = (parentKey: string, guard: Set<string>): TreeNode[] => {
-    const entries = byParent.get(parentKey) ?? [];
-    const sorted = sortSiblings(
-      entries.map((entry) => ({
-        id: entry.placementId,
-        workspaceId: entry.placementId,
-        itemId: entry.item.id as Uuid,
-        itemKind: entry.item.kind,
-        kind: "hierarchy" as const,
-        parentItemId: null,
-        positionKey: entry.positionKey,
-        removedAt: null,
-      })),
-    ).map((placement) => entries.find((entry) => entry.placementId === placement.id));
-    return sorted.flatMap((entry) => {
-      if (entry === undefined || guard.has(entry.item.id)) {
+    const entries = (entriesByParent.get(parentKey) ?? []).sort((a, b) =>
+      a.positionKey < b.positionKey ? -1 : a.positionKey > b.positionKey ? 1 : 0,
+    );
+    return entries.flatMap((entry) => {
+      if (guard.has(entry.item.id)) {
         return [];
       }
       const nextGuard = new Set(guard);
@@ -78,57 +66,73 @@ function flatten(nodes: TreeNode[]): TreeNode[] {
 }
 
 export function HierarchyExplorer() {
-  const api = useMemo(() => new ContentApi(), []);
-  const [items, setItems] = useState<ItemDto[]>([]);
-  const [trashedItems, setTrashedItems] = useState<ItemDto[]>([]);
+  const service = useMemo(() => localContent(), []);
+  const [items, setItems] = useState<ProjectedItem[]>([]);
+  const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [problem, setProblem] = useState<ProblemDto | null>(null);
+  const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
   const [newItemName, setNewItemName] = useState("");
-  const treeRef = useRef<HTMLUListElement>(null);
 
   const refresh = useCallback(async () => {
-    const [activeResult, trashedResult] = await Promise.all([
-      api.listItems({ lifecycle: "active" }),
-      api.listItems({ lifecycle: "trashed" }),
-    ]);
-    if (!activeResult.ok) {
-      setLoadState("error");
-      setProblem(activeResult.problem);
-      return;
-    }
-    setItems(activeResult.value.items);
-    setTrashedItems(trashedResult.ok ? trashedResult.value.items : []);
+    setItems(await service.listActiveItems());
+    setTrashedItems(await service.listTrashedItems());
     setLoadState("ready");
-  }, [api]);
+  }, [service]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    void (async () => {
+      await service.initialize();
+      // First boot on this device: seed the projection when reachable.
+      if ((await service.listActiveItems()).length === 0) {
+        await service.seedFromServer();
+      }
+      if (!cancelled) {
+        await refresh();
+      }
+    })();
+    const unsubscribe = service.subscribe(() => {
+      void refresh();
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [service, refresh]);
 
   const tree = useMemo(() => buildTree(items), [items]);
   const visibleNodes = useMemo(() => flatten(tree), [tree]);
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedId) ?? null,
+    [items, selectedId],
+  );
 
-  const runMutation = useCallback(
-    async (work: () => Promise<{ ok: boolean; problem?: ProblemDto }>) => {
+  const runCommand = useCallback(
+    async (
+      commandType: string,
+      payload: Record<string, unknown>,
+      baseRevisionIds: Uuid[] = [],
+    ) => {
       setProblem(null);
-      const result = await work();
-      if (!result.ok && result.problem !== undefined) {
-        setProblem(result.problem);
+      const result = await service.mutate(commandType, payload, baseRevisionIds);
+      if (!result.ok) {
+        setProblem(result.error);
       }
       await refresh();
     },
-    [refresh],
+    [service, refresh],
   );
 
   const siblingKeys = useCallback(
-    (parentItemId: Uuid | null): string[] => {
-      const siblings = visibleNodes.filter((node) => {
-        const placement = node.item.placements.find((entry) => entry.kind === "hierarchy");
-        return (placement?.parentItemId ?? null) === parentItemId;
-      });
-      return siblings.map((node) => node.positionKey).sort();
-    },
+    (parentItemId: Uuid | null): string[] =>
+      visibleNodes
+        .filter((node) => {
+          const placement = node.item.placements.find((entry) => entry.kind === "hierarchy");
+          return (placement?.parentItemId ?? null) === parentItemId;
+        })
+        .map((node) => node.positionKey)
+        .sort(),
     [visibleNodes],
   );
 
@@ -137,27 +141,24 @@ export function HierarchyExplorer() {
       const name = newItemName.trim() || (kind === "page" ? "Untitled page" : "Untitled folder");
       const keys = siblingKeys(parentItemId);
       const positionKey = keyBetween(keys[keys.length - 1] ?? null, null);
-      await runMutation(async () => {
-        const result = await api.createItem(generateUuidV7(), {
-          id: generateUuidV7(),
-          kind,
-          name,
-          placement: { kind: "hierarchy", parentItemId, positionKey },
-          ...(kind === "page"
-            ? {
-                pageDocument: {
-                  format: "myownnotion.document+json" as const,
-                  formatVersion: 1,
-                  body: {},
-                },
-              }
-            : {}),
-        });
-        return result.ok ? { ok: true } : { ok: false, problem: result.problem };
+      await runCommand("item.create", {
+        id: generateUuidV7(),
+        kind,
+        name,
+        placement: { kind: "hierarchy", parentItemId, positionKey },
+        ...(kind === "page"
+          ? {
+              pageDocument: {
+                format: "myownnotion.document+json",
+                formatVersion: 1,
+                body: {},
+              },
+            }
+          : {}),
       });
       setNewItemName("");
     },
-    [api, newItemName, runMutation, siblingKeys],
+    [newItemName, runCommand, siblingKeys],
   );
 
   const renameItem = useCallback(
@@ -166,17 +167,11 @@ export function HierarchyExplorer() {
       if (name === null || name.trim().length === 0) {
         return;
       }
-      await runMutation(async () => {
-        const result = await api.renameItem(
-          generateUuidV7(),
-          node.item.id as Uuid,
-          node.item.currentRevisionId as Uuid,
-          name,
-        );
-        return result.ok ? { ok: true } : { ok: false, problem: result.problem };
-      });
+      await runCommand("item.rename", { itemId: node.item.id, name }, [
+        node.item.currentRevisionId,
+      ]);
     },
-    [api, runMutation],
+    [runCommand],
   );
 
   const reorder = useCallback(
@@ -185,7 +180,7 @@ export function HierarchyExplorer() {
       if (placement === undefined) {
         return;
       }
-      const parentId = (placement.parentItemId as Uuid | null) ?? null;
+      const parentId = placement.parentItemId;
       const siblings = visibleNodes
         .filter((candidate) => {
           const candidatePlacement = candidate.item.placements.find(
@@ -202,54 +197,26 @@ export function HierarchyExplorer() {
       const before = direction === -1 ? siblings[targetIndex - 1] : siblings[targetIndex];
       const after = direction === -1 ? siblings[targetIndex] : siblings[targetIndex + 1];
       const positionKey = keyBetween(before?.positionKey ?? null, after?.positionKey ?? null);
-      await runMutation(async () => {
-        const result = await api.movePlacement(
-          generateUuidV7(),
-          node.placementId,
-          parentId,
-          positionKey,
-        );
-        return result.ok ? { ok: true } : { ok: false, problem: result.problem };
-      });
+      await runCommand(
+        "placement.move",
+        { placementId: node.placementId, parentItemId: parentId, positionKey },
+        [node.item.currentRevisionId],
+      );
     },
-    [api, runMutation, visibleNodes],
+    [runCommand, visibleNodes],
   );
 
   const moveInto = useCallback(
     async (node: TreeNode, parentItemId: Uuid | null) => {
       const keys = siblingKeys(parentItemId);
       const positionKey = keyBetween(keys[keys.length - 1] ?? null, null);
-      await runMutation(async () => {
-        const result = await api.movePlacement(
-          generateUuidV7(),
-          node.placementId,
-          parentItemId,
-          positionKey,
-        );
-        return result.ok ? { ok: true } : { ok: false, problem: result.problem };
-      });
+      await runCommand(
+        "placement.move",
+        { placementId: node.placementId, parentItemId, positionKey },
+        [node.item.currentRevisionId],
+      );
     },
-    [api, runMutation, siblingKeys],
-  );
-
-  const trashItem = useCallback(
-    async (node: TreeNode) => {
-      await runMutation(async () => {
-        const result = await api.trashItem(generateUuidV7(), node.item.id as Uuid);
-        return result.ok ? { ok: true } : { ok: false, problem: result.problem };
-      });
-    },
-    [api, runMutation],
-  );
-
-  const restoreItem = useCallback(
-    async (item: ItemDto) => {
-      await runMutation(async () => {
-        const result = await api.restoreItem(generateUuidV7(), item.id as Uuid);
-        return result.ok ? { ok: true } : { ok: false, problem: result.problem };
-      });
-    },
-    [api, runMutation],
+    [runCommand, siblingKeys],
   );
 
   const onTreeKeyDown = useCallback(
@@ -262,13 +229,13 @@ export function HierarchyExplorer() {
         event.preventDefault();
         const next = visibleNodes[Math.min(index + 1, visibleNodes.length - 1)] ?? visibleNodes[0];
         if (next !== undefined) {
-          setSelectedId(next.item.id as Uuid);
+          setSelectedId(next.item.id);
         }
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
         const previous = visibleNodes[Math.max(index - 1, 0)] ?? visibleNodes[0];
         if (previous !== undefined) {
-          setSelectedId(previous.item.id as Uuid);
+          setSelectedId(previous.item.id);
         }
       }
     },
@@ -286,7 +253,7 @@ export function HierarchyExplorer() {
   const renderNode = (node: TreeNode, level: number): React.ReactElement => {
     const isSelected = selectedId === node.item.id;
     const parentPlacement = node.item.placements.find((entry) => entry.kind === "hierarchy");
-    const parentId = (parentPlacement?.parentItemId as Uuid | null) ?? null;
+    const parentId = parentPlacement?.parentItemId ?? null;
     return (
       <li key={node.item.id} role="none">
         <div
@@ -297,11 +264,11 @@ export function HierarchyExplorer() {
           className="tree-row"
           data-testid={`tree-item-${node.item.name}`}
           data-item-id={node.item.id}
-          onClick={() => setSelectedId(node.item.id as Uuid)}
+          onClick={() => setSelectedId(node.item.id)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              setSelectedId(node.item.id as Uuid);
+              setSelectedId(node.item.id);
             }
           }}
         >
@@ -313,14 +280,14 @@ export function HierarchyExplorer() {
                 <button
                   type="button"
                   aria-label={`New page inside ${node.item.name}`}
-                  onClick={() => void createItem("page", node.item.id as Uuid)}
+                  onClick={() => void createItem("page", node.item.id)}
                 >
                   +page
                 </button>
                 <button
                   type="button"
                   aria-label={`New folder inside ${node.item.name}`}
-                  onClick={() => void createItem("folder", node.item.id as Uuid)}
+                  onClick={() => void createItem("folder", node.item.id)}
                 >
                   +folder
                 </button>
@@ -365,7 +332,7 @@ export function HierarchyExplorer() {
                     (candidate) => candidate.item.id === selectedId,
                   );
                   if (selected !== undefined) {
-                    void moveInto(selected, node.item.id as Uuid);
+                    void moveInto(selected, node.item.id);
                   }
                 }}
               >
@@ -375,7 +342,11 @@ export function HierarchyExplorer() {
             <button
               type="button"
               aria-label={`Trash ${node.item.name}`}
-              onClick={() => void trashItem(node)}
+              onClick={() =>
+                void runCommand("item.trash", { itemId: node.item.id }, [
+                  node.item.currentRevisionId,
+                ])
+              }
             >
               trash
             </button>
@@ -391,14 +362,10 @@ export function HierarchyExplorer() {
 
   return (
     <section aria-label="Workspace hierarchy">
+      <SyncStatus service={service} />
       {problem !== null ? (
         <p className="status-banner" data-state="error" role="alert" data-testid="problem-banner">
           {problem.code}: {problem.title}
-        </p>
-      ) : null}
-      {loadState === "error" ? (
-        <p className="status-banner" data-state="offline" role="alert">
-          The server is unreachable. Loaded content stays readable offline.
         </p>
       ) : null}
 
@@ -426,10 +393,14 @@ export function HierarchyExplorer() {
           The workspace is empty. Create a folder or a page to begin.
         </p>
       ) : (
-        <ul aria-label="Content tree" className="tree" ref={treeRef} onKeyDown={onTreeKeyDown}>
+        <ul role="tree" aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
           {tree.map((node) => renderNode(node, 1))}
         </ul>
       )}
+
+      {selectedItem !== null && selectedItem.kind === "page" ? (
+        <PageDocumentForm service={service} itemId={selectedItem.id} />
+      ) : null}
 
       {trashedItems.length > 0 ? (
         <section className="panel" aria-label="Trash">
@@ -444,7 +415,11 @@ export function HierarchyExplorer() {
                   <button
                     type="button"
                     aria-label={`Restore ${item.name}`}
-                    onClick={() => void restoreItem(item)}
+                    onClick={() =>
+                      void runCommand("item.restore", { itemId: item.id }, [
+                        item.currentRevisionId,
+                      ])
+                    }
                   >
                     restore
                   </button>

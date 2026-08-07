@@ -9,14 +9,14 @@
 
 **Purpose**: Establish a TypeScript-only monorepo, reproducible local environment, and CI entry points.
 
-- [ ] T001 Create the pnpm workspace, pin Node.js and an exact pnpm release, commit frozen-lockfile policy, and add TypeScript-only root scripts in `package.json` and `pnpm-workspace.yaml`
-- [ ] T002 [P] Add strict shared compiler options with JavaScript disabled in `tsconfig.base.json`
-- [ ] T003 [P] Configure Biome, pinned ShellCheck/shfmt checks, and TypeScript-only, foreign-lockfile, and unmanaged-Python policy checks in `biome.jsonc`, `.editorconfig`, and `scripts/ci/check-toolchain.ts`
-- [ ] T004 [P] Create shared Vitest projects with V8 coverage floors of 90% statements/lines/functions and 85% branches in `vitest.workspace.ts`
-- [ ] T005 [P] Create Chromium, Firefox, WebKit, desktop, and mobile Playwright projects with CI `forbidOnly`, deterministic workers, reports, and failure traces in `playwright.config.ts`
-- [ ] T006 Define PostgreSQL development topology, healthcheck, persistent volume, shared timezone, and loopback-only port bindings in `compose.yaml` and `compose.override.yaml`
-- [ ] T007 [P] Document safe development variables without secrets in `.env.example`
-- [ ] T008 Create least-privilege CI jobs and a stable aggregate `quality-gate` for frozen pnpm install, toolchain policy, Biome, ShellCheck/shfmt, types, coverage, all tests, migrations, Playwright, and builds in `.github/workflows/ci.yml`, plus the required protected-main rule definition in `.github/rulesets/main.json`
+- [X] T001 Create the pnpm workspace, pin Node.js and an exact pnpm release, commit frozen-lockfile policy, and add TypeScript-only root scripts in `package.json` and `pnpm-workspace.yaml`
+- [X] T002 [P] Add strict shared compiler options with JavaScript disabled in `tsconfig.base.json`
+- [X] T003 [P] Configure Biome, pinned ShellCheck/shfmt checks, and TypeScript-only, foreign-lockfile, and unmanaged-Python policy checks in `biome.jsonc`, `.editorconfig`, and `scripts/ci/check-toolchain.ts`
+- [X] T004 [P] Create shared Vitest projects with V8 coverage floors of 90% statements/lines/functions and 85% branches in `vitest.workspace.ts`
+- [X] T005 [P] Create Chromium, Firefox, WebKit, desktop, and mobile Playwright projects with CI `forbidOnly`, deterministic workers, reports, and failure traces in `playwright.config.ts`
+- [X] T006 Define PostgreSQL development topology, healthcheck, persistent volume, shared timezone, and loopback-only port bindings in `compose.yaml` and `compose.override.yaml`
+- [X] T007 [P] Document safe development variables without secrets in `.env.example`
+- [X] T008 Create least-privilege CI jobs and a stable aggregate `quality-gate` for frozen pnpm install, toolchain policy, Biome, ShellCheck/shfmt, types, coverage, all tests, migrations, Playwright, and builds in `.github/workflows/ci.yml`, plus the required protected-main rule definition in `.github/rulesets/main.json`
 
 ---
 
@@ -26,20 +26,20 @@
 
 **⚠️ CRITICAL**: Complete this phase before user-story implementation.
 
-- [ ] T009 Create platform-independent domain package boundaries in `packages/domain/package.json` and `packages/domain/src/index.ts`
-- [ ] T010 [P] Define UUIDv7, item-kind, lifecycle, placement-kind, and safe-error primitives in `packages/domain/src/content/types.ts`
-- [ ] T011 [P] Define mutation, change-cursor, conflict, and revision value objects in `packages/domain/src/revisions/types.ts`
-- [ ] T012 Create OpenAPI-derived request/response schemas and baseline contract validation in `packages/contracts/src/content-api.ts` and `tests/contract/openapi.spec.ts`
-- [ ] T013 Create Drizzle PostgreSQL configuration with reviewed-SQL migration output in `drizzle.config.ts` and `packages/database/src/client.ts`
-- [ ] T014 Implement the initial canonical PostgreSQL schema in `packages/database/src/schema/`
-- [ ] T015 Generate and review constraints and indexes in `packages/database/migrations/0001_content_foundations.sql`
-- [ ] T016 [P] Create disposable PostgreSQL fixtures and Testcontainers helpers in `packages/test-utils/src/postgres.ts` and `tests/fixtures/workspace.ts`
-- [ ] T017 Create Fastify composition, redacted problem responses, and health route in `apps/api/src/app.ts`, `apps/api/src/plugins/errors.ts`, and `apps/api/src/routes/health.ts`
-- [ ] T018 [P] Create the React/Vite shell and typed API boundary in `apps/web/src/app.tsx` and `apps/web/src/services/content-api.ts`
-- [ ] T019 [P] Define immutable blob-store interface and development filesystem adapter in `packages/blob-store/src/blob-store.ts` and `packages/blob-store/src/filesystem-blob-store.ts`
-- [ ] T020 [P] Define the Dexie local schema for projections, revisions, outbox, cursors, and conflicts in `packages/client-core/src/local-store/schema.ts`
-- [ ] T021 [P] Configure Workbox to retain only the versioned application shell in `apps/web/vite.config.ts` and `apps/web/src/service-worker.ts`
-- [ ] T022 Verify empty and forward fixture migrations in `packages/database/tests/migrations.integration.spec.ts`
+- [X] T009 Create platform-independent domain package boundaries in `packages/domain/package.json` and `packages/domain/src/index.ts`
+- [X] T010 [P] Define UUIDv7, item-kind, lifecycle, placement-kind, and safe-error primitives in `packages/domain/src/content/types.ts`
+- [X] T011 [P] Define mutation, change-cursor, conflict, and revision value objects in `packages/domain/src/revisions/types.ts`
+- [X] T012 Create OpenAPI-derived request/response schemas and baseline contract validation in `packages/contracts/src/content-api.ts` and `tests/contract/openapi.spec.ts`
+- [X] T013 Create Drizzle PostgreSQL configuration with reviewed-SQL migration output in `drizzle.config.ts` and `packages/database/src/client.ts`
+- [X] T014 Implement the initial canonical PostgreSQL schema in `packages/database/src/schema/`
+- [X] T015 Generate and review constraints and indexes in `packages/database/migrations/0001_content_foundations.sql`
+- [X] T016 [P] Create disposable PostgreSQL fixtures and Testcontainers helpers in `packages/test-utils/src/postgres.ts` and `tests/fixtures/workspace.ts`
+- [X] T017 Create Fastify composition, redacted problem responses, and health route in `apps/api/src/app.ts`, `apps/api/src/plugins/errors.ts`, and `apps/api/src/routes/health.ts`
+- [X] T018 [P] Create the React/Vite shell and typed API boundary in `apps/web/src/app.tsx` and `apps/web/src/services/content-api.ts`
+- [X] T019 [P] Define immutable blob-store interface and development filesystem adapter in `packages/blob-store/src/blob-store.ts` and `packages/blob-store/src/filesystem-blob-store.ts`
+- [X] T020 [P] Define the Dexie local schema for projections, revisions, outbox, cursors, and conflicts in `packages/client-core/src/local-store/schema.ts`
+- [X] T021 [P] Configure Workbox to retain only the versioned application shell in `apps/web/vite.config.ts` and `apps/web/src/service-worker.ts`
+- [X] T022 Verify empty and forward fixture migrations in `packages/database/tests/migrations.integration.spec.ts`
 
 **Checkpoint**: Strict TypeScript builds, PostgreSQL migrates, API health is ready, the web shell loads, and the local schema opens.
 
@@ -53,19 +53,19 @@
 
 ### Tests for User Story 1
 
-- [ ] T023 [P] [US1] Add containment-matrix and cycle property tests in `packages/domain/tests/hierarchy.property.spec.ts`
-- [ ] T024 [P] [US1] Add stable sibling-order and reorder property tests in `packages/domain/tests/ordering.property.spec.ts`
-- [ ] T025 [P] [US1] Add 10,000-item recursive query and branch-move integration tests in `packages/database/tests/hierarchy.integration.spec.ts`
-- [ ] T026 [P] [US1] Add create/list/reorder/move/trash/restore API contract tests in `apps/api/tests/hierarchy.contract.spec.ts`
+- [X] T023 [P] [US1] Add containment-matrix and cycle property tests in `packages/domain/tests/hierarchy.property.spec.ts`
+- [X] T024 [P] [US1] Add stable sibling-order and reorder property tests in `packages/domain/tests/ordering.property.spec.ts`
+- [X] T025 [P] [US1] Add 10,000-item recursive query and branch-move integration tests in `packages/database/tests/hierarchy.integration.spec.ts`
+- [X] T026 [P] [US1] Add create/list/reorder/move/trash/restore API contract tests in `apps/api/tests/hierarchy.contract.spec.ts`
 - [ ] T027 [P] [US1] Add responsive keyboard hierarchy journeys in `tests/e2e/hierarchy.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T028 [US1] Implement page/folder creation, parent validation, ordering, reorder, and cycle rejection in `packages/domain/src/content/hierarchy.ts`
-- [ ] T029 [US1] Implement transactional hierarchy reads and recursive cycle checks in `packages/database/src/repositories/hierarchy-repository.ts`
-- [ ] T030 [US1] Implement atomic branch move and reorder with serializable retry in `packages/database/src/repositories/move-branch.ts`
-- [ ] T031 [US1] Implement 30-day branch trash and placement-aware restore in `packages/domain/src/content/lifecycle.ts` and `packages/database/src/repositories/lifecycle-repository.ts`
-- [ ] T032 [US1] Implement item, reorder, move, trash, and restore routes in `apps/api/src/routes/items.ts` and `apps/api/src/routes/placements.ts`
+- [X] T028 [US1] Implement page/folder creation, parent validation, ordering, reorder, and cycle rejection in `packages/domain/src/content/hierarchy.ts`
+- [X] T029 [US1] Implement transactional hierarchy reads and recursive cycle checks in `packages/database/src/repositories/hierarchy-repository.ts`
+- [X] T030 [US1] Implement atomic branch move and reorder with serializable retry in `packages/database/src/repositories/move-branch.ts`
+- [X] T031 [US1] Implement 30-day branch trash and placement-aware restore in `packages/domain/src/content/lifecycle.ts` and `packages/database/src/repositories/lifecycle-repository.ts`
+- [X] T032 [US1] Implement item, reorder, move, trash, and restore routes in `apps/api/src/routes/items.ts` and `apps/api/src/routes/placements.ts`
 - [ ] T033 [US1] Implement accessible tree creation, reorder, move, trash, restore, loading, empty, and error states in `apps/web/src/features/hierarchy/`
 
 **Checkpoint**: Recursive organization is fully demonstrable online through domain, database, API, and browser tests.
@@ -91,7 +91,7 @@
 - [ ] T039 [US6] Implement transactional Dexie projection reads and writes in `packages/client-core/src/local-store/local-repository.ts`
 - [ ] T040 [US6] Implement atomic optimistic mutation plus outbox persistence in `packages/client-core/src/outbox/apply-local-mutation.ts`
 - [ ] T041 [US6] Implement durable retry states without mutation-ID regeneration in `packages/client-core/src/outbox/outbox.ts`
-- [ ] T042 [US6] Add monotonic workspace change sequence and cursor persistence in `packages/database/src/schema/change-sequence.ts` and `packages/database/src/repositories/change-repository.ts`
+- [X] T042 [US6] Add monotonic workspace change sequence and cursor persistence in `packages/database/src/schema/change-sequence.ts` and `packages/database/src/repositories/change-repository.ts`
 - [ ] T043 [US6] Implement ordered change-cursor, verified snapshot, and idempotent mutation-batch routes in `apps/api/src/routes/changes.ts`, `apps/api/src/routes/snapshots.ts`, and `apps/api/src/routes/mutation-batch.ts`
 - [ ] T044 [US6] Implement cursor catch-up, verified snapshot fallback, acknowledgement, and conflict capture in `packages/client-core/src/reconciliation/reconcile.ts`
 - [ ] T045 [US6] Connect hierarchy and a minimal versioned page-document form to local projection reads and commands in `apps/web/src/services/local-content.ts` and `apps/web/src/features/pages/page-document-form.tsx`
