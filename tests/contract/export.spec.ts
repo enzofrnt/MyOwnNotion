@@ -15,9 +15,11 @@ import {
   createApiHarness,
   createItemViaApi,
   idempotencyHeaders,
+  importFileViaApi,
 } from "../../apps/api/tests/helpers/app.ts";
 import { buildCanvasDocument, buildCanvasFixture } from "../fixtures/canvas.ts";
 import { buildDatabaseDocument, buildDatabaseFixture } from "../fixtures/databases.ts";
+import { FILE_STORAGE_FIXTURE } from "../fixtures/files-storage.ts";
 
 let harness: ApiHarness;
 
@@ -58,6 +60,27 @@ async function runExport(): Promise<{ manifest: CanonicalExportManifest; digest:
 }
 
 describe("canonical export (T086/T088)", () => {
+  it("exports exact current file content and revision identities with its digest", async () => {
+    const fixture = FILE_STORAGE_FIXTURE.range;
+    const imported = await importFileViaApi(harness, {
+      name: fixture.name,
+      mediaType: fixture.mediaType,
+      bytes: fixture.bytes,
+    });
+    const { manifest } = await runExport();
+    const item = manifest.items.find((candidate) => candidate.id === imported.itemId);
+    expect(item?.currentRevisionId).toBe(imported.revisionId);
+    expect(item?.file).toEqual({
+      contentId: imported.contentId,
+      revisionId: imported.revisionId,
+      mediaType: fixture.mediaType,
+      originalName: fixture.name,
+      byteLength: fixture.bytes.byteLength,
+      sha256: fixture.sha256,
+    });
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+  });
+
   it("exports every entity with zero validation issues and a verifiable digest", async () => {
     const folder = await createItemViaApi(harness, { kind: "folder", name: "Export folder" });
     const page = await createItemViaApi(harness, {

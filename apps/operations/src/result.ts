@@ -12,6 +12,12 @@ export interface SafeOperationResult {
   readonly counts: Readonly<Record<string, number>>;
   readonly failureCode: string | null;
   readonly findings?: readonly SafeAuditFinding[];
+  readonly snapshots?: readonly SafeBackupSnapshot[];
+}
+
+export interface SafeBackupSnapshot {
+  readonly snapshotId: string;
+  readonly createdAt: string;
 }
 
 export interface SafeAuditFinding {
@@ -31,7 +37,44 @@ export interface SafeOperationResultInput {
   readonly counts: unknown;
   readonly failureCode: unknown;
   readonly findings?: unknown;
+  readonly snapshots?: unknown;
   readonly [privateField: string]: unknown;
+}
+
+function safeSnapshots(value: unknown): readonly SafeBackupSnapshot[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 1_000) {
+    throw new RangeError("operation snapshots are invalid");
+  }
+  const seen = new Set<string>();
+  const snapshots = value.map((snapshot) => {
+    if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) {
+      throw new TypeError("operation snapshot is invalid");
+    }
+    const candidate = snapshot as Record<string, unknown>;
+    if (
+      Object.keys(candidate).sort().join(",") !== "createdAt,snapshotId" ||
+      typeof candidate["snapshotId"] !== "string" ||
+      !/^[a-f0-9]{8,64}$/.test(candidate["snapshotId"]) ||
+      typeof candidate["createdAt"] !== "string" ||
+      !Number.isFinite(Date.parse(candidate["createdAt"]))
+    ) {
+      throw new TypeError("operation snapshot is invalid");
+    }
+    if (seen.has(candidate["snapshotId"])) {
+      throw new TypeError("operation snapshots must be unique");
+    }
+    seen.add(candidate["snapshotId"]);
+    return {
+      snapshotId: candidate["snapshotId"],
+      createdAt: new Date(candidate["createdAt"]).toISOString(),
+    };
+  });
+  return snapshots.sort((left, right) =>
+    left.createdAt === right.createdAt
+      ? left.snapshotId.localeCompare(right.snapshotId)
+      : right.createdAt.localeCompare(left.createdAt),
+  );
 }
 
 function safeFindings(value: unknown): readonly SafeAuditFinding[] | undefined {
@@ -134,6 +177,7 @@ export function createSafeOperationResult(input: SafeOperationResultInput): Safe
     throw new TypeError("snapshot identity is invalid");
   }
   const findings = safeFindings(input.findings);
+  const snapshots = safeSnapshots(input.snapshots);
   const common = {
     operationId: input.operationId,
     command: input.command,
@@ -145,5 +189,9 @@ export function createSafeOperationResult(input: SafeOperationResultInput): Safe
   };
   const result =
     input.snapshotId === undefined ? common : { ...common, snapshotId: input.snapshotId };
-  return findings === undefined ? result : { ...result, findings };
+  return {
+    ...result,
+    ...(findings === undefined ? {} : { findings }),
+    ...(snapshots === undefined ? {} : { snapshots }),
+  };
 }

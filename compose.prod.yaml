@@ -94,6 +94,7 @@ services:
       MYOWNNOTION_S3_ACCESS_KEY: ${MYOWNNOTION_S3_ACCESS_KEY:?Set MYOWNNOTION_S3_ACCESS_KEY in .env.prod}
       MYOWNNOTION_S3_SECRET_KEY: ${MYOWNNOTION_S3_SECRET_KEY:?Set MYOWNNOTION_S3_SECRET_KEY in .env.prod}
       MYOWNNOTION_S3_PREFIX: ${MYOWNNOTION_S3_PREFIX:-blobs}
+      MYOWNNOTION_RESTORE_GUARD: /var/lib/myownnotion/operations/.restore-in-progress
       NODE_ENV: production
     depends_on:
       postgres:
@@ -114,6 +115,8 @@ services:
       start_period: 10s
     ports:
       - "127.0.0.1:${MYOWNNOTION_API_PORT:-3001}:3001"
+    volumes:
+      - operations-state:/var/lib/myownnotion/operations:ro
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -168,8 +171,16 @@ services:
       MYOWNNOTION_S3_ACCESS_KEY: ${MYOWNNOTION_S3_ACCESS_KEY:?Set MYOWNNOTION_S3_ACCESS_KEY in .env.prod}
       MYOWNNOTION_S3_SECRET_KEY: ${MYOWNNOTION_S3_SECRET_KEY:?Set MYOWNNOTION_S3_SECRET_KEY in .env.prod}
       MYOWNNOTION_S3_PREFIX: ${MYOWNNOTION_S3_PREFIX:-blobs}
+      MYOWNNOTION_VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
       MYOWNNOTION_OPERATIONS_LOCK: /var/lib/myownnotion/operations/operations.lock
       MYOWNNOTION_LEGACY_BLOB_ROOT: /var/lib/myownnotion/legacy-blobs
+      MYOWNNOTION_OPERATIONS_STAGING: /var/lib/myownnotion/staging
+      MYOWNNOTION_BACKUP_STATUS: /var/lib/myownnotion/operations/backup.json
+      MYOWNNOTION_BACKUP_SCHEDULE_STATE: /var/lib/myownnotion/operations/backup-schedule.json
+      MYOWNNOTION_RESTORE_STAGING: /var/lib/myownnotion/staging
+      MYOWNNOTION_RESTORE_GUARD: /var/lib/myownnotion/operations/.restore-in-progress
+      MYOWNNOTION_POSTGRES_MAJOR: 18
+      MYOWNNOTION_MIGRATIONS_ROOT: /app/migrations
     depends_on:
       postgres:
         condition: service_healthy
@@ -189,6 +200,71 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+  backup-operations: &backup-operations
+    profiles: ["backup"]
+    image: ghcr.io/enzofrnt/myownnotion-operations:${MYOWNNOTION_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/operations/Dockerfile
+      args:
+        VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
+    environment:
+      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
+      MYOWNNOTION_STORAGE_ADAPTER: s3
+      MYOWNNOTION_S3_ENDPOINT: http://object-storage:9000
+      MYOWNNOTION_S3_REGION: ${MYOWNNOTION_S3_REGION:-us-east-1}
+      MYOWNNOTION_S3_BUCKET: ${MYOWNNOTION_S3_BUCKET:-myownnotion-private}
+      MYOWNNOTION_S3_ACCESS_KEY: ${MYOWNNOTION_S3_ACCESS_KEY:?Set MYOWNNOTION_S3_ACCESS_KEY in .env.prod}
+      MYOWNNOTION_S3_SECRET_KEY: ${MYOWNNOTION_S3_SECRET_KEY:?Set MYOWNNOTION_S3_SECRET_KEY in .env.prod}
+      MYOWNNOTION_S3_PREFIX: ${MYOWNNOTION_S3_PREFIX:-blobs}
+      MYOWNNOTION_VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
+      MYOWNNOTION_OPERATIONS_LOCK: /var/lib/myownnotion/operations/operations.lock
+      MYOWNNOTION_OPERATIONS_STAGING: /var/lib/myownnotion/staging
+      MYOWNNOTION_BACKUP_STATUS: /var/lib/myownnotion/operations/backup.json
+      MYOWNNOTION_BACKUP_SCHEDULE_STATE: /var/lib/myownnotion/operations/backup-schedule.json
+      MYOWNNOTION_RESTORE_STAGING: /var/lib/myownnotion/staging
+      MYOWNNOTION_RESTORE_GUARD: /var/lib/myownnotion/operations/.restore-in-progress
+      MYOWNNOTION_POSTGRES_MAJOR: 18
+      MYOWNNOTION_BACKUP_SCHEDULE_UTC: ${MYOWNNOTION_BACKUP_SCHEDULE_UTC:-02:00}
+      MYOWNNOTION_BACKUP_KEEP_DAILY: ${MYOWNNOTION_BACKUP_KEEP_DAILY:-7}
+      MYOWNNOTION_BACKUP_KEEP_WEEKLY: ${MYOWNNOTION_BACKUP_KEEP_WEEKLY:-4}
+      MYOWNNOTION_BACKUP_KEEP_MONTHLY: ${MYOWNNOTION_BACKUP_KEEP_MONTHLY:-12}
+      MYOWNNOTION_MIGRATIONS_ROOT: /app/migrations
+      RESTIC_REPOSITORY: ${MYOWNNOTION_RESTIC_REPOSITORY:-/var/lib/myownnotion/backup-destination}
+      RESTIC_PASSWORD_FILE: /run/secrets/restic-password
+      RCLONE_CONFIG: /run/secrets/rclone.conf
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      object-storage:
+        condition: service_healthy
+    volumes:
+      - operations-state:/var/lib/myownnotion/operations
+      - operations-staging:/var/lib/myownnotion/staging
+      - type: bind
+        source: ${MYOWNNOTION_BACKUP_SECRETS_DIR:-./.backup-secrets}
+        target: /run/secrets
+        read_only: true
+      - type: bind
+        source: ${MYOWNNOTION_BACKUP_DESTINATION:-./.backup-destination}
+        target: /var/lib/myownnotion/backup-destination
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  backup-scheduler:
+    <<: *backup-operations
+    profiles: ["backup-scheduler"]
+    command: ["backup", "schedule"]
+    restart: unless-stopped
 
 volumes:
   postgres-data:

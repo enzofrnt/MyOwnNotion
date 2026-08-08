@@ -101,18 +101,18 @@
 
 ### Tests for User Story 3
 
-- [ ] T036 [P] [US3] Add failing exact manifest schema, stable sorting, count/digest, compatibility, private-field exclusion, and round-trip cases in `apps/operations/tests/manifest.spec.ts`
-- [ ] T037 [P] [US3] Add failing exported-snapshot alignment, referenced-object selection, advisory/repository lock, dump/object/restic/remote failure, incomplete-tag, and redacted-status cases in `apps/operations/tests/backup.integration.spec.ts`
-- [ ] T038 [P] [US3] Add failing complete-only list/check, full-data check, 7/4/12 dry-run/confirmed retention, invalid policy, UTC schedule, restart status, and overlap cases in `apps/operations/tests/backup-commands.spec.ts`
+- [x] T036 [P] [US3] Add failing exact manifest schema, stable sorting, count/digest, compatibility, private-field exclusion, and round-trip cases in `apps/operations/tests/manifest.spec.ts`
+- [x] T037 [P] [US3] Add failing exported-snapshot alignment, referenced-object selection, advisory/repository lock, dump/object/restic/remote failure, incomplete-tag, and redacted-status cases in `apps/operations/tests/backup.integration.spec.ts`
+- [x] T038 [P] [US3] Add failing complete-only list/check, full-data check, 7/4/12 dry-run/confirmed retention, invalid policy, UTC schedule, restart status, and overlap cases in `apps/operations/tests/backup-commands.spec.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T039 [US3] Implement exact backup manifest validation/serialization, snapshot inventory queries, hashing, compatibility capture, process runner, atomic status, and exclusive locks in `apps/operations/src/manifest.ts`, `apps/operations/src/process-runner.ts`, `apps/operations/src/status-store.ts`, and `apps/operations/src/locks.ts`
-- [ ] T040 [US3] Implement synchronized PostgreSQL dump plus exact verified object staging, encrypted restic creation/check, complete tagging, cleanup, and safe failure paths in `apps/operations/src/backup.ts`
-- [ ] T041 [US3] Implement complete-only backup list, metadata/full-data check, and dry-run-first 7/4/12 forget/prune commands in `apps/operations/src/backup-maintenance.ts` and `apps/operations/src/cli.ts`
-- [ ] T042 [US3] Implement one-run-per-UTC-day scheduling through the same locked backup path and persistent safe status in `apps/operations/src/scheduler.ts` and `apps/operations/src/cli.ts`
-- [ ] T043 [US3] Build a least-privilege pinned operations image with Node, PostgreSQL client, restic, and rclone plus on-demand/scheduled Compose profiles and protected mounts in `apps/operations/Dockerfile`, `apps/operations/package.json`, and `compose.prod.yaml`
-- [ ] T044 [US3] Document repository initialization, protected secrets, local/rclone destinations, schedules, status, checks, full-data checks, retention dry-run/confirmation, and failure recovery in `docs/deployment.md` and `.env.prod.example`
+- [x] T039 [US3] Implement exact backup manifest validation/serialization, snapshot inventory queries, hashing, compatibility capture, process runner, atomic status, and exclusive locks in `apps/operations/src/manifest.ts`, `apps/operations/src/process-runner.ts`, `apps/operations/src/status-store.ts`, and `apps/operations/src/locks.ts`
+- [x] T040 [US3] Implement synchronized PostgreSQL dump plus exact verified object staging, encrypted restic creation/check, complete tagging, cleanup, and safe failure paths in `apps/operations/src/backup.ts`
+- [x] T041 [US3] Implement complete-only backup list, metadata/full-data check, and dry-run-first 7/4/12 forget/prune commands in `apps/operations/src/backup-maintenance.ts` and `apps/operations/src/cli.ts`
+- [x] T042 [US3] Implement one-run-per-UTC-day scheduling through the same locked backup path and persistent safe status in `apps/operations/src/scheduler.ts` and `apps/operations/src/cli.ts`
+- [x] T043 [US3] Build a least-privilege pinned operations image with Node, PostgreSQL client, restic, and rclone plus on-demand/scheduled Compose profiles and protected mounts in `apps/operations/Dockerfile`, `apps/operations/package.json`, and `compose.prod.yaml`
+- [x] T044 [US3] Document repository initialization, protected secrets, local/rclone destinations, schedules, status, checks, full-data checks, retention dry-run/confirmation, and failure recovery in `docs/deployment.md` and `.env.prod.example`
 
 **Checkpoint**: User Story 3 produces only encrypted verified complete recovery points, and every partial/failing path remains unselectable.
 
@@ -126,17 +126,17 @@
 
 ### Tests for User Story 4
 
-- [ ] T045 [P] [US4] Add failing complete-tag, decrypt, compatibility, staged dump/object/manifest, empty-target, and safe-report preflight cases in `apps/operations/tests/restore-verify.integration.spec.ts`
-- [ ] T046 [P] [US4] Add failing guard-before-mutation, database/object apply, post-apply cross-verification, interruption, preserved-guard, and no-ready API cases in `apps/operations/tests/restore-apply.integration.spec.ts` and `apps/api/tests/restore-guard.spec.ts`
-- [ ] T047 [P] [US4] Add a clean-host source/backup/empty-target/restore/restart comparison covering every canonical identity and file digest in `tests/contract/backup-restore.spec.ts`
+- [x] T045 [P] [US4] Add failing complete-tag, decrypt, compatibility, staged dump/object/manifest, empty-target, and safe-report preflight cases in `apps/operations/tests/restore-verify.integration.spec.ts`
+- [x] T046 [P] [US4] Add failing guard-before-mutation, database/object apply, post-apply cross-verification, interruption, preserved-guard, and no-ready API cases in `apps/operations/tests/restore-apply.integration.spec.ts` and `apps/api/tests/restore-guard.spec.ts`
+- [x] T047 [P] [US4] Add a clean-host source/backup/empty-target/restore/restart comparison covering every canonical identity and file digest in `tests/contract/backup-restore.spec.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T048 [US4] Implement complete snapshot staging and manifest/schema/tool/dump/object/repository verification without target mutation in `apps/operations/src/restore.ts` and `apps/operations/src/cli.ts`
-- [ ] T049 [US4] Implement explicit empty-target proof, persistent guard, PostgreSQL/object apply, post-apply comparison, success unguard, and failure preservation in `apps/operations/src/restore.ts` and `apps/operations/src/status-store.ts`
-- [ ] T050 [US4] Refuse API initialization while the shared restore guard exists and expose only redacted not-ready diagnostics in `apps/api/src/app.ts`, `apps/api/src/routes/health.ts`, and `compose.prod.yaml`
-- [ ] T051 [US4] Extend production container smoke with encrypted backup creation, clean-target restore, exact database/object comparison, wrong-secret/corruption faults, and guard verification in `scripts/ci/test-containers.ts`
-- [ ] T052 [US4] Document clean-host verify/apply/start/audit rehearsal, explicit partial-target cleanup, rollback boundary, and disaster-recovery checklist in `docs/deployment.md` and `specs/007-files-storage/quickstart.md`
+- [x] T048 [US4] Implement complete snapshot staging and manifest/schema/tool/dump/object/repository verification without target mutation in `apps/operations/src/restore.ts` and `apps/operations/src/cli.ts`
+- [x] T049 [US4] Implement explicit empty-target proof, persistent guard, PostgreSQL/object apply, post-apply comparison, success unguard, and failure preservation in `apps/operations/src/restore.ts` and `apps/operations/src/status-store.ts`
+- [x] T050 [US4] Refuse API initialization while the shared restore guard exists and expose only redacted not-ready diagnostics in `apps/api/src/app.ts`, `apps/api/src/routes/health.ts`, and `compose.prod.yaml`
+- [x] T051 [US4] Extend production container smoke with encrypted backup creation, clean-target restore, exact database/object comparison, wrong-secret/corruption faults, and guard verification in `scripts/ci/test-containers.ts`
+- [x] T052 [US4] Document clean-host verify/apply/start/audit rehearsal, explicit partial-target cleanup, rollback boundary, and disaster-recovery checklist in `docs/deployment.md` and `specs/007-files-storage/quickstart.md`
 
 **Checkpoint**: User Story 4 proves a complete recovery and prevents every tested partial restore from becoming ready.
 
@@ -145,13 +145,16 @@
 ## Phase 7: Polish and Cross-Cutting Quality
 
 - [x] T053 [P] Add one-second 10,000-object audit plus 256 MiB stream-memory and range-throughput assertions in `tests/performance/files-storage.perf.spec.ts`
-- [ ] T054 [P] Validate and merge the file-content OpenAPI fragment and backup manifest schema into canonical contract checks in `tests/contract/openapi.spec.ts`, `tests/contract/files-storage.spec.ts`, and `specs/001-content-foundations/contracts/content-api.openapi.yaml`
-- [ ] T055 [P] Add canonical export file digest/revision metadata and post-restore exact export assertions in `tests/contract/export.spec.ts`, `tests/contract/editor-export.spec.ts`, and `tests/contract/backup-restore.spec.ts`
-- [ ] T056 Add deterministic desktop/mobile attachment metadata, raster preview, reuse, cached-offline, online-only, and unavailable screenshots plus Axe and horizontal-overflow checks in `tests/e2e/files-storage.spec.ts`
-- [ ] T057 Update file use, offline quota, integrity audit, migration, backup/restore development, production, security, and troubleshooting guidance in `docs/editor.md`, `docs/development.md`, and `docs/deployment.md`
+- [x] T054 [P] Validate and merge the file-content OpenAPI fragment and backup manifest schema into canonical contract checks in `tests/contract/openapi.spec.ts`, `tests/contract/files-storage.spec.ts`, and `specs/001-content-foundations/contracts/content-api.openapi.yaml`
+- [x] T055 [P] Add canonical export file digest/revision metadata and post-restore exact export assertions in `tests/contract/export.spec.ts`, `tests/contract/editor-export.spec.ts`, and `tests/contract/backup-restore.spec.ts`
+- [x] T056 Add deterministic desktop/mobile attachment metadata, raster preview, reuse, cached-offline, online-only, and unavailable screenshots plus Axe and horizontal-overflow checks in `tests/e2e/files-storage.spec.ts`
+- [x] T057 Update file use, offline quota, integrity audit, migration, backup/restore development, production, security, and troubleshooting guidance in `docs/editor.md`, `docs/development.md`, and `docs/deployment.md`
 - [ ] T058 Run toolchain policy, shell policy, formatting, Biome CI, exact types, migration checks, focused unit/integration/contract/performance suites, and record results in `specs/007-files-storage/validation.md`
 - [ ] T059 Run full coverage, complete browser matrix, production builds, and verify GitHub artifacts retain all required images/traces; record results in `specs/007-files-storage/validation.md`
 - [ ] T060 Run the complete object-storage, backup, clean-host restore, restart, and legacy migration quickstart in isolated Compose; record exact recoverability evidence in `specs/007-files-storage/validation.md`
+- [ ] T061 [US4] Allocate and assert disjoint valid source/restore host ports in the production container smoke so both projects can run concurrently in `scripts/ci/test-containers.ts`
+- [ ] T062 [US3] Document UID-aware owner-only backup-secret permissions for the non-root operations image in `.env.prod.example`, `docs/deployment.md`, and `specs/007-files-storage/quickstart.md`
+- [ ] T063 [US3] Align backup/restore CLI exit classification with the operations contract and cover configuration, overlap, preflight, integrity, dependency, and guarded-failure outcomes in `apps/operations/src/cli.ts` and `apps/operations/tests/backup-commands.spec.ts`
 
 ## Dependencies and Execution Order
 

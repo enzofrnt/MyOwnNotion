@@ -9,9 +9,11 @@ import {
   createApiHarness,
   createItemViaApi,
   idempotencyHeaders,
+  importFileViaApi,
 } from "../../apps/api/tests/helpers/app.ts";
 import { buildCanvasDocument, buildCanvasFixture } from "../fixtures/canvas.ts";
 import { buildDatabaseDocument, buildDatabaseFixture } from "../fixtures/databases.ts";
+import { FILE_STORAGE_FIXTURE } from "../fixtures/files-storage.ts";
 
 let harness: ApiHarness;
 
@@ -24,6 +26,55 @@ afterAll(async () => {
 });
 
 describe("editor document export (US1)", () => {
+  it("exports attachment placement plus exact file content and revision identities", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Export attachment host" });
+    const fixture = FILE_STORAGE_FIXTURE.image;
+    const imported = await importFileViaApi(harness, {
+      name: fixture.name,
+      mediaType: fixture.mediaType,
+      bytes: fixture.bytes,
+      placement: {
+        kind: "attachment",
+        parentItemId: page.itemId,
+        positionKey: "attachment-export",
+      },
+    });
+
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/export",
+      headers: idempotencyHeaders(),
+    });
+    const exportId = (created.json() as { exportId: string }).exportId;
+    let status = "pending";
+    for (let attempt = 0; attempt < 50 && status === "pending"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const poll = await harness.built.app.inject({ method: "GET", url: `/v1/export/${exportId}` });
+      status = (poll.json() as { status: string }).status;
+    }
+    expect(status).toBe("ready");
+    const artifact = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${exportId}/artifact`,
+    });
+    const manifest = artifact.json() as CanonicalExportManifest;
+    const item = manifest.items.find((candidate) => candidate.id === imported.itemId);
+    expect(item?.file).toMatchObject({
+      contentId: imported.contentId,
+      revisionId: imported.revisionId,
+      byteLength: fixture.bytes.byteLength,
+      sha256: fixture.sha256,
+    });
+    expect(item?.placements).toContainEqual(
+      expect.objectContaining({
+        id: imported.placementId,
+        kind: "attachment",
+        parentItemId: page.itemId,
+      }),
+    );
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+  });
+
   it("round-trips every supported v4 block, mark, and task attribute without HTML conversion", async () => {
     const target = await createItemViaApi(harness, { kind: "page", name: "Linked export page" });
     const page = await createItemViaApi(harness, { kind: "page", name: "Editor export" });

@@ -26,4 +26,37 @@ The private object-storage and durable streaming checkpoint passes on the local 
 
 ### Remaining gates
 
-Backup, restore, full browser evidence, coverage, documentation, and the final cross-feature validation remain open in T036–T060.
+Encrypted backup implementation, restore, full browser evidence, coverage, documentation, and the final cross-feature validation remained open after this checkpoint; later sections supersede items as they are completed.
+
+## User Story 3 implementation checkpoint — 2026-08-08
+
+The encrypted backup implementation and isolated fault matrix are complete. A final real-container repository rehearsal remains required before the feature-wide validation tasks can close.
+
+| Area | Command | Result |
+| --- | --- | --- |
+| Manifest and operations foundation | `vitest` focused manifest/foundation projects | Passed: 18 tests |
+| Backup and maintenance isolation | `vitest` focused backup integration/command projects, excluding the temporarily unavailable external PostgreSQL case | Passed: 19 tests plus the manifest/foundation tests; one external snapshot test deferred |
+| Operations type safety | operations package strict TypeScript check | Passed |
+| Operations production bundle | operations package production build | Passed; bundled Node 24 CLI produced |
+| Compose contract | focused production Compose security contract | Passed |
+
+The injected matrix covers database dump failure, missing object, repository write/remote failure, snapshot lookup failure, repository check failure, completion-tag failure, overlap, invalid retention, daily scheduler restart, and redacted persistent status. No failed path returns a recoverable snapshot identity or adds a completion tag before verification.
+
+The external PostgreSQL snapshot case and a real restic/rclone/Docker run could not be repeated at this point because the execution environment temporarily refused further privileged service access after reaching its usage allowance. They remain explicit gates for T058–T060; this is not recorded as recoverability proof.
+
+## User Story 4 implementation checkpoint — 2026-08-08
+
+Restore verification, guarded apply, exact object-key reproduction, API startup refusal, Compose wiring, and the operator rehearsal are implemented. The pure canonical comparison contract is complete; its production-container execution remains open because it requires the currently unavailable Docker/PostgreSQL services.
+
+| Area | Command | Result |
+| --- | --- | --- |
+| Restore and guard isolation | focused restore verify/apply, API guard, filesystem exact-key, and Compose contract suites | Passed: 37 tests |
+| Backup/restore fault set | focused operations suite | Passed: 65 tests; the one real PostgreSQL snapshot test could not start without a container runtime |
+| Strict types | blob-store, operations, API, domain, and root TypeScript projects under Node 24 | Passed |
+| Canonical contracts | focused OpenAPI, file-storage, and backup/restore comparison suites | Passed: 30 tests |
+
+The restore preflight requires one complete-tagged encrypted snapshot and validates repository state, manifest closure, schema/PostgreSQL compatibility, archive readability, exact staged inventory, and every database/object length and digest before mutation. Apply requires an explicit empty-target confirmation, proves both targets empty, writes a persistent guard before the first mutation, restores the database in one transaction, reproduces collision-suffixed object keys exactly, and removes the guard only after count and digest cross-verification. Injected database/object interruptions and post-apply disagreement preserve the guard; the API refuses initialization with a redacted diagnostic while it exists.
+
+The documented clean-host workflow now uses a distinct Compose project and fresh named volumes, includes exact verify/apply/start/audit/restart commands, and defines whole-target deletion as the only partial-restore rollback. The production smoke now implements encrypted repository initialization, complete backup/list/full-data check, wrong-secret rejection, empty-target restore, canonical export and file-digest comparison, target restart, repository corruption rejection, and API guard rehearsal. Its TypeScript path is valid, but it has not been executed in this checkpoint because Docker is unavailable; T058–T060 therefore remain open rather than being inferred from isolated evidence.
+
+New canonical exports explicitly carry file content and revision identities beside byte length and SHA-256. Legacy version-1 exports without the two added identity fields remain valid, while the recovery comparison rejects changes to file digest/content/revision, placement, relationship, document, cursor, or any other canonical field. The isolated comparison suite passes 8 tests; the real source-versus-restored export assertions are wired into the pending container rehearsal.

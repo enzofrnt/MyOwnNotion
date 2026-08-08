@@ -39,6 +39,7 @@ async function buildManifest(context: AppContext) {
     const fileRows = await tx
       .select({
         itemId: schema.logicalFiles.itemId,
+        contentId: schema.logicalFiles.contentId,
         mediaType: schema.logicalFiles.mediaType,
         originalName: schema.logicalFiles.originalName,
         byteLength: schema.logicalFiles.byteLength,
@@ -97,6 +98,8 @@ async function buildManifest(context: AppContext) {
           file === undefined
             ? null
             : {
+                contentId: file.contentId as Uuid,
+                revisionId: model.currentRevisionId,
                 mediaType: file.mediaType,
                 originalName: file.originalName,
                 byteLength: file.byteLength,

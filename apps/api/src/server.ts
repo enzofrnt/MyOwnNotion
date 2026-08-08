@@ -12,7 +12,13 @@ const host = process.env["MYOWNNOTION_API_HOST"] ?? "127.0.0.1";
 const port = Number(process.env["MYOWNNOTION_API_PORT"] ?? 3001);
 const storage = parseStorageOptions(process.env);
 
-const { app, close } = await buildApp({ databaseUrl, storage });
+const { app, close } = await buildApp({
+  databaseUrl,
+  storage,
+  ...(process.env["MYOWNNOTION_RESTORE_GUARD"] === undefined
+    ? {}
+    : { restoreGuardPath: process.env["MYOWNNOTION_RESTORE_GUARD"] }),
+});
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {

@@ -56,6 +56,16 @@ Select a card to edit its text, size, or position with labelled controls; cards 
 
 Canvas limits are enforced at the document boundary: at most 500 cards, 1,000 directed connections, 200 strokes, and 1,000 points per stroke. Card coordinates remain bounded to ±1,000,000 canvas units. The surrounding page clips the spatial surface to avoid horizontal document overflow. Semantic card, connection, and stroke controls provide keyboard and assistive-technology paths independent of the SVG geometry.
 
+## Files and page attachments
+
+A file can appear in the hierarchy or in a page's **Attachments** panel. Importing from a page creates an attachment placement and deliberately keeps the file out of the hierarchy. Search **Attach an existing file** to place the same logical file on another page without importing another logical copy. The placement count makes this reuse visible. Removing one placement leaves every other placement intact; removing the final placement moves the logical file into the normal 30-day trash lifecycle.
+
+Each attachment exposes its media type, verified byte length, shortened SHA-256 digest, download action, and current availability. A complete download always targets the immutable current revision. Only allow-listed raster images (`image/png`, `image/jpeg`, `image/gif`, and `image/webp`) offer an inline preview; SVG, HTML, documents, and every other type remain downloads so active content cannot execute in the application. Replacing an attachment creates a new immutable content revision while preserving the logical file and all of its placements.
+
+Opening an eligible revision admits its exact bytes to the offline cache. The default per-revision ceiling is 16 MiB and the total cache is bounded; the interface distinguishes **Cached revision — available offline**, **Available online**, and **Available online only**. Cache keys contain both file and revision identities, so a retained older revision is never substituted for a replacement. A file that was not admitted before disconnection remains explicitly unavailable offline. Stale revisions, missing storage, and integrity failures also stay visible instead of returning partial or different bytes.
+
+Files and their metadata are private to the loopback-only owner boundary. Internal object locators never appear in the interface or public API. Authentication, public sharing, malware scanning, media transformation, and automatic destructive garbage collection are not part of the current feature; do not expose this deployment to an untrusted network.
+
 ## Saving and offline behavior
 
 Edits are automatically coalesced after a short pause. Only one local document replacement is written at a time; if typing continues, only the newest queued snapshot is saved next. The local page projection and outbox entry commit in one IndexedDB transaction before the editor reports a local save.
@@ -91,6 +101,9 @@ pnpm exec vitest run --project performance tests/performance/databases.perf.spec
 pnpm exec vitest run packages/domain/tests/canvas.spec.ts packages/domain/tests/editor-document.spec.ts apps/web/src/features/canvas/canvas-block.spec.ts
 pnpm exec playwright test tests/e2e/canvas-*.spec.ts tests/e2e/revision-restore.spec.ts
 pnpm exec vitest run tests/performance/canvas.perf.spec.ts
+pnpm exec vitest run packages/blob-store/tests apps/api/tests/files*.spec.ts apps/operations/tests
+pnpm exec playwright test tests/e2e/files*.spec.ts
+pnpm exec vitest run tests/contract/files-storage.spec.ts tests/performance/files-storage.perf.spec.ts
 ```
 
 The complete repository gates remain documented in [development.md](./development.md). The production-like application opens at `http://127.0.0.1:8080` when started through [deployment.md](./deployment.md); it must remain loopback-only until authentication exists.

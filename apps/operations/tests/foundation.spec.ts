@@ -9,7 +9,7 @@ import {
   canonicalizeBackupManifest,
   serializeBackupManifest,
 } from "../src/manifest.ts";
-import { runExternalProcess } from "../src/process-runner.ts";
+import { runExternalJsonProcess, runExternalProcess } from "../src/process-runner.ts";
 import { createSafeOperationResult } from "../src/result.ts";
 import { readOperationStatus, writeOperationStatus } from "../src/status-store.ts";
 
@@ -165,6 +165,27 @@ describe("operations foundation", () => {
     expect(outcome).toEqual({ ok: true, exitCode: 0 });
     expect(JSON.stringify(outcome)).not.toContain(secret);
     expect(JSON.stringify(outcome)).not.toContain("private file");
+  });
+
+  it("captures only a validated bounded JSON projection from a child process", async () => {
+    const secret = "private-value";
+    const outcome = await runExternalJsonProcess(
+      {
+        executable: process.execPath,
+        arguments: [
+          "-e",
+          `console.log(JSON.stringify({ snapshot_id: 'deadbeef', secret: '${secret}' }))`,
+        ],
+        failureCode: "external.failed",
+      },
+      (value) => {
+        const candidate = value as Record<string, unknown>;
+        if (typeof candidate["snapshot_id"] !== "string") throw new TypeError("invalid result");
+        return { snapshotId: candidate["snapshot_id"] };
+      },
+    );
+    expect(outcome).toEqual({ ok: true, exitCode: 0, value: { snapshotId: "deadbeef" } });
+    expect(JSON.stringify(outcome)).not.toContain(secret);
   });
 
   it("atomically persists a bounded status file with owner-only permissions", async () => {

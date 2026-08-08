@@ -37,6 +37,15 @@ export interface BlobListOptions {
 
 export interface BlobStore {
   put(source: BlobSource, options?: BlobWriteOptions): Promise<StoredBlob>;
+  /**
+   * Writes verified bytes at an already-canonical key. This is restricted to
+   * restore paths that must reproduce database/object identities exactly.
+   */
+  putVerifiedAt(
+    storageKey: string,
+    source: BlobSource,
+    options?: BlobWriteOptions,
+  ): Promise<StoredBlob>;
   head(storageKey: string): Promise<BlobHead | null>;
   open(storageKey: string, range?: BlobRange): Promise<OpenedBlob | null>;
   list(options?: BlobListOptions): Promise<string[]>;

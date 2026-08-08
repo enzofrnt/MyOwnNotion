@@ -51,6 +51,10 @@ Lists only `myownnotion-complete` snapshots as stable IDs, timestamps, and bound
 
 Runs repository structure verification; `--read-data` explicitly requests complete pack-data verification. Non-zero restic results become exit code 5 or 6 and a safe failure code.
 
+### `backup status`
+
+Returns the last atomically persisted backup state, snapshot identity when complete, bounded counts, and a safe failure code. It never returns repository configuration, paths, captured output, or content.
+
 ### `backup prune [--dry-run|--confirm]`
 
 `--dry-run` is the default. Computes retention for complete snapshots using 7 daily, 4 weekly, and 12 monthly groups. Only `--confirm` may execute forget and prune. It refuses ambiguous or empty policies.

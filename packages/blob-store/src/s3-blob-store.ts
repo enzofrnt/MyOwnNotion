@@ -173,6 +173,47 @@ export class S3BlobStore implements BlobStore {
     };
   }
 
+  async putVerifiedAt(
+    storageKey: string,
+    source: BlobSource,
+    options: BlobWriteOptions = {},
+  ): Promise<StoredBlob> {
+    this.#validateStorageKey(storageKey);
+    const stored = await this.put(source, options);
+    const digestHex = Buffer.from(stored.sha256).toString("hex");
+    if (storageKey !== digestHex && !storageKey.startsWith(`${digestHex}-`)) {
+      if (stored.created) await this.delete(stored.storageKey);
+      throw new Error("blob digest does not match canonical storage key");
+    }
+    if (stored.storageKey === storageKey) return stored;
+
+    const sourceKey = this.#objectKey(stored.storageKey);
+    const targetKey = this.#objectKey(storageKey);
+    let targetCreated = false;
+    try {
+      if ((await this.#headObjectKey(targetKey)) === null) {
+        await this.#client.send(
+          new CopyObjectCommand({
+            Bucket: this.#bucket,
+            Key: targetKey,
+            CopySource: copySource(this.#bucket, sourceKey),
+            ContentType: "application/octet-stream",
+            MetadataDirective: "REPLACE",
+          }),
+        );
+        targetCreated = true;
+      }
+      const copied = await this.#hashObject(targetKey);
+      if (copied.hex !== digestHex || copied.byteLength !== stored.byteLength) {
+        if (targetCreated) await this.#deleteObjectKey(targetKey);
+        throw new Error("canonical blob key contains different bytes");
+      }
+      return { ...stored, storageKey, created: targetCreated };
+    } finally {
+      if (stored.created) await this.#deleteObjectKey(sourceKey).catch(() => undefined);
+    }
+  }
+
   async head(storageKey: string): Promise<BlobHead | null> {
     this.#validateStorageKey(storageKey);
     return this.#headObjectKey(this.#objectKey(storageKey)).then((metadata) =>

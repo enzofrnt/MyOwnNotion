@@ -9,7 +9,7 @@
  */
 
 import type { CanonicalItem, PageDocument, Placement, Relationship } from "../content/types.ts";
-import type { Uuid } from "../ids/uuid.ts";
+import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { RevisionHeader } from "../revisions/types.ts";
 
 export const CANONICAL_EXPORT_FORMAT = "myownnotion.export+json";
@@ -18,6 +18,10 @@ export const CANONICAL_EXPORT_VERSION = 1;
 export interface ExportedItem extends CanonicalItem {
   readonly pageDocument: PageDocument | null;
   readonly file: {
+    /** Added to newly generated v1 exports; absent legacy v1 artifacts remain readable. */
+    readonly contentId?: Uuid;
+    /** Added to newly generated v1 exports; absent legacy v1 artifacts remain readable. */
+    readonly revisionId?: Uuid;
     readonly mediaType: string;
     readonly originalName: string;
     readonly byteLength: number;
@@ -105,6 +109,34 @@ export function canonicalExportString(manifest: CanonicalExportManifest): string
   return JSON.stringify(manifest, stableKeyOrder);
 }
 
+/** Stable recovery comparison: export creation time is evidence, not canonical workspace state. */
+export function canonicalRecoveryString(manifest: CanonicalExportManifest): string {
+  return canonicalExportString({ ...manifest, exportedAt: "<recovery-comparison>" });
+}
+
+export function validateCanonicalRecovery(
+  source: CanonicalExportManifest,
+  recovered: CanonicalExportManifest,
+): ExportValidationIssue[] {
+  const issues = [
+    ...validateCanonicalExport(source).map((issue) => ({
+      ...issue,
+      code: `source.${issue.code}`,
+    })),
+    ...validateCanonicalExport(recovered).map((issue) => ({
+      ...issue,
+      code: `recovered.${issue.code}`,
+    })),
+  ];
+  if (canonicalRecoveryString(source) !== canonicalRecoveryString(recovered)) {
+    issues.push({
+      code: "recovery.canonical-mismatch",
+      detail: "Recovered canonical workspace differs from its selected backup source",
+    });
+  }
+  return issues;
+}
+
 function stableKeyOrder(_key: string, value: unknown): unknown {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return value;
@@ -152,6 +184,29 @@ export function validateCanonicalExport(
       issues.push({
         code: "item.revision-missing",
         detail: `Item ${item.id} references missing revision ${item.currentRevisionId}`,
+      });
+    }
+    if (
+      item.file !== null &&
+      item.file.revisionId !== undefined &&
+      item.file.revisionId !== item.currentRevisionId
+    ) {
+      issues.push({
+        code: "file.revision-mismatch",
+        detail: `File ${item.id} metadata does not match its current revision`,
+      });
+    }
+    if (
+      item.file !== null &&
+      (!/^[a-f0-9]{64}$/.test(item.file.sha256) ||
+        (item.file.contentId !== undefined && !isUuid(item.file.contentId)) ||
+        (item.file.revisionId !== undefined && !isUuid(item.file.revisionId)) ||
+        !Number.isSafeInteger(item.file.byteLength) ||
+        item.file.byteLength < 0)
+    ) {
+      issues.push({
+        code: "file.content-metadata-invalid",
+        detail: `File ${item.id} has invalid canonical content metadata`,
       });
     }
     if (item.lifecycle === "trashed" && (item.trashedAt === null || item.purgeAfter === null)) {

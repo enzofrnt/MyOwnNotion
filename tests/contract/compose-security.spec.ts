@@ -20,7 +20,13 @@ interface ComposeDocument {
       command?: string | string[];
       depends_on?: Record<string, { condition?: string }> | string[];
       healthcheck?: unknown;
-      volumes?: string[];
+      environment?: Record<string, string | number>;
+      profiles?: string[];
+      read_only?: boolean;
+      restart?: string;
+      volumes?: Array<
+        string | { type?: string; source?: string; target?: string; read_only?: boolean }
+      >;
     }
   >;
   volumes?: Record<string, unknown>;
@@ -117,5 +123,47 @@ describe("compose security (loopback only)", () => {
     expect(compose.volumes).toHaveProperty("postgres-data");
     expect(compose.volumes).toHaveProperty("object-data");
     expect(compose.volumes).toHaveProperty("blob-data");
+    expect(compose.volumes).toHaveProperty("operations-state");
+    expect(compose.volumes).toHaveProperty("operations-staging");
+  });
+
+  it("shares a read-only restore guard with the API and keeps backup secrets protected", () => {
+    const compose = loadCompose("compose.prod.yaml");
+    const api = compose.services?.["api"];
+    const backup = compose.services?.["backup-operations"];
+    const scheduler = compose.services?.["backup-scheduler"];
+
+    expect(api?.environment?.["MYOWNNOTION_RESTORE_GUARD"]).toBe(
+      "/var/lib/myownnotion/operations/.restore-in-progress",
+    );
+    expect(api?.volumes).toContain("operations-state:/var/lib/myownnotion/operations:ro");
+    expect(backup).toMatchObject({
+      profiles: ["backup"],
+      read_only: true,
+      environment: {
+        MYOWNNOTION_RESTORE_GUARD: "/var/lib/myownnotion/operations/.restore-in-progress",
+        RESTIC_PASSWORD_FILE: "/run/secrets/restic-password",
+        RCLONE_CONFIG: "/run/secrets/rclone.conf",
+      },
+    });
+    expect(backup?.ports).toBeUndefined();
+    expect(backup?.volumes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "bind",
+          target: "/run/secrets",
+          read_only: true,
+        }),
+        expect.objectContaining({
+          type: "bind",
+          target: "/var/lib/myownnotion/backup-destination",
+        }),
+      ]),
+    );
+    expect(scheduler).toMatchObject({
+      profiles: ["backup-scheduler"],
+      command: ["backup", "schedule"],
+      restart: "unless-stopped",
+    });
   });
 });

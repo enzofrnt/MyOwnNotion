@@ -26,6 +26,19 @@ Then start the API and web client with `pnpm dev`. Copy `.env.example` only when
 
 Page authoring, the version 6 document format, freeform canvases, structured databases, tasks and planning views, wiki links, backlinks, graphs, slash commands, Markdown shortcuts, auto-save states, offline restart, and compatibility behavior are documented in [editor.md](./editor.md).
 
+Development uses the streaming filesystem adapter by default and stores disposable private objects under `MYOWNNOTION_BLOB_ROOT` (default `./.dev-blobs`). Do not commit that directory. To exercise production parity, use `compose.prod.yaml`: its API and operations image use the private S3-compatible service, whose object port is not published to the host. Never put S3, database, restic, or rclone secrets in source files, command arguments, test snapshots, or logs.
+
+The operations CLI shares one exclusive lock across audit, migration, backup, pruning, and restore. Useful focused commands are:
+
+```text
+docker compose --env-file .env.prod -f compose.prod.yaml --profile operations run --rm operations storage audit
+docker compose --env-file .env.prod -f compose.prod.yaml --profile operations run --rm operations storage migrate-filesystem
+docker compose --env-file .env.prod -f compose.prod.yaml --profile backup run --rm backup-operations backup check --read-data
+docker compose --env-file .env.prod -f compose.prod.yaml --profile backup run --rm backup-operations restore verify --snapshot <snapshot-id>
+```
+
+Audit is read-only. Filesystem migration is dry-run-first and requires `--confirm`; it re-hashes the destination before changing each canonical locator and leaves the legacy source mounted read-only. Backup and restore development must use disposable data plus protected secret mounts. The exact encrypted repository initialization, scheduled retention, clean-host project, guarded apply, rollback boundary, and production rehearsal are documented in [deployment.md](./deployment.md).
+
 ## Formatting and static checks
 
 Biome is the formatter and linter for TypeScript, TSX, JSON, and CSS:
@@ -88,6 +101,23 @@ pnpm exec playwright test tests/e2e/canvas-*.spec.ts tests/e2e/revision-restore.
 ```
 
 Principal canvas journeys attach deterministic desktop and mobile card, connection, page-card, and drawing screenshots to the Playwright report. GitHub retains these images with the HTML report and failure traces. Run `pnpm test:containers` after changing the version-6 envelope, canvas persistence, page-card projection, images, proxy, or Compose behavior.
+
+For focused file, object-storage, backup, or restore work, run the streaming adapters, API contracts, operations fault matrix, canonical contracts, performance bounds, and browser journeys before the full container rehearsal:
+
+```text
+pnpm exec vitest run packages/blob-store/tests apps/api/tests/files*.spec.ts apps/operations/tests
+pnpm exec vitest run --project database-integration packages/database/tests/files-storage.integration.spec.ts
+pnpm exec vitest run tests/contract/openapi.spec.ts tests/contract/files-storage.spec.ts tests/contract/export.spec.ts
+pnpm exec vitest run tests/performance/files-storage.perf.spec.ts
+pnpm exec playwright test tests/e2e/files*.spec.ts
+pnpm test:containers
+```
+
+The file browser journeys attach desktop and mobile images for metadata, safe raster preview, existing-file reuse, cached-offline, online-only, and unavailable states. The CI artifact retains those images, its HTML report, and failure traces; generated review images and private fixture bytes do not belong in Git. The 256 MiB stream-memory, ranged-read, 10,000-object audit, encrypted clean-host restore, and restart checks are independent gates rather than substitutes for one another.
+
+When debugging file content, compare the logical file ID, requested revision ID, content ID, byte length, and SHA-256 before touching storage. A missing object, mismatched digest, stale revision, or unsupported range must remain a safe explicit error and must not rewrite canonical metadata. Run `storage audit` for bounded redacted categories; never delete an unreferenced object merely because one audit observed it.
+
+When debugging backup or restore, begin with the safe JSON failure code and `backup status`; child output, repository paths, filenames, and content are intentionally absent. Confirm the restic password file, repository/rclone availability, source revision, PostgreSQL major version, and schema list without printing secrets. A retained `.restore-in-progress` guard means the disposable target may be partial: do not remove it or start the API. Recreate the whole restore project from empty volumes as described in the deployment guide.
 
 When debugging link projection, compare three identities before changing data: the source page UUID, the target page UUID, and the occurrence UUID stored in the document mark. The occurrence UUID is also the derived relationship identity. A page save, revision restore, snapshot rebuild, and incremental catch-up must always update the document and its `link:references` rows as one logical state. Conflict records deliberately preserve the local document and link projection until the owner resolves them.
 

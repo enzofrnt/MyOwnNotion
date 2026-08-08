@@ -6,6 +6,7 @@
  * The server binds to 127.0.0.1 only until authentication exists.
  */
 
+import { lstat } from "node:fs/promises";
 import multipart from "@fastify/multipart";
 import {
   type BlobStore,
@@ -36,7 +37,19 @@ export interface BuildAppOptions {
   /** Compatibility input retained for tests and dependency-light development. */
   readonly blobRoot?: string;
   readonly storage?: StorageOptions;
+  readonly restoreGuardPath?: string;
   readonly logger?: boolean;
+}
+
+export async function assertRestoreGuardClear(guardPath: string | undefined): Promise<void> {
+  if (guardPath === undefined || guardPath.length === 0) return;
+  try {
+    await lstat(guardPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw new Error("restore readiness check failed");
+  }
+  throw new Error("restore is in progress; API readiness is blocked");
 }
 
 export type StorageOptions =
@@ -142,6 +155,7 @@ export interface BuiltApp {
 }
 
 export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
+  await assertRestoreGuardClear(options.restoreGuardPath);
   const database = createDatabase(options.databaseUrl);
   const storage = options.storage ?? {
     kind: "filesystem" as const,

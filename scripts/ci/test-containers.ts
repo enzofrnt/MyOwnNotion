@@ -5,47 +5,123 @@
  * persists a canonical item across a full Compose stop/start, and removes only
  * the isolated test project's containers and volumes afterward.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
 import { isDeepStrictEqual } from "node:util";
-import { generateUuidV7 } from "@myownnotion/domain";
+import {
+  type CanonicalExportManifest,
+  generateUuidV7,
+  validateCanonicalRecovery,
+} from "@myownnotion/domain";
 
 const projectName = `myownnotion-container-smoke-${process.pid}`;
-const portOffset = process.pid % 10_000;
+const portOffset = process.pid % 5_000;
 const databasePort = Number(process.env["MYOWNNOTION_SMOKE_DB_PORT"] ?? 20_000 + portOffset);
 const apiPort = Number(process.env["MYOWNNOTION_SMOKE_API_PORT"] ?? 30_000 + portOffset);
 const webPort = Number(process.env["MYOWNNOTION_SMOKE_WEB_PORT"] ?? 40_000 + portOffset);
-const composePrefix = [
-  "compose",
-  "--project-name",
-  projectName,
-  "--env-file",
-  ".env.prod.example",
-  "-f",
-  "compose.prod.yaml",
+const restoreDatabasePort = Number(
+  process.env["MYOWNNOTION_SMOKE_RESTORE_DB_PORT"] ?? 25_000 + portOffset,
+);
+const restoreApiPort = Number(
+  process.env["MYOWNNOTION_SMOKE_RESTORE_API_PORT"] ?? 35_000 + portOffset,
+);
+const restoreWebPort = Number(
+  process.env["MYOWNNOTION_SMOKE_RESTORE_WEB_PORT"] ?? 45_000 + portOffset,
+);
+const hostPorts = [
+  databasePort,
+  apiPort,
+  webPort,
+  restoreDatabasePort,
+  restoreApiPort,
+  restoreWebPort,
 ];
+if (
+  hostPorts.some((port) => !Number.isSafeInteger(port) || port < 1_024 || port > 65_535) ||
+  new Set(hostPorts).size !== hostPorts.length
+) {
+  throw new Error("Container smoke source and restore host ports must be valid and disjoint");
+}
+const restoreProjectName = `${projectName}-restore`;
+const backupHostRoot = mkdtempSync(path.join(os.tmpdir(), "myownnotion-backup-smoke-"));
+const backupSecretsDirectory = path.join(backupHostRoot, "secrets");
+const backupDestination = path.join(backupHostRoot, "repository");
+const resticPasswordPath = path.join(backupSecretsDirectory, "restic-password");
+mkdirSync(backupSecretsDirectory, { recursive: true });
+mkdirSync(backupDestination, { recursive: true });
+chmodSync(backupHostRoot, 0o755);
+chmodSync(backupSecretsDirectory, 0o755);
+chmodSync(backupDestination, 0o777);
+writeFileSync(resticPasswordPath, "container-smoke-restic-password\n", { mode: 0o644 });
+const sourceRevision = /^[a-f0-9]{7,64}$/.test(process.env["GITHUB_SHA"] ?? "")
+  ? (process.env["GITHUB_SHA"] as string)
+  : "c".repeat(40);
 const smokeEnvironment = {
   ...process.env,
   MYOWNNOTION_IMAGE_TAG: "local",
-  MYOWNNOTION_VCS_REF: process.env["GITHUB_SHA"] ?? "container-smoke",
+  MYOWNNOTION_VCS_REF: sourceRevision,
   MYOWNNOTION_DB_PORT: String(databasePort),
   MYOWNNOTION_API_PORT: String(apiPort),
   MYOWNNOTION_WEB_PORT: String(webPort),
+  MYOWNNOTION_BACKUP_SECRETS_DIR: backupSecretsDirectory,
+  MYOWNNOTION_BACKUP_DESTINATION: backupDestination,
+  MYOWNNOTION_RESTIC_REPOSITORY: "/var/lib/myownnotion/backup-destination",
+};
+const restoreEnvironment = {
+  ...smokeEnvironment,
+  MYOWNNOTION_DB_PORT: String(restoreDatabasePort),
+  MYOWNNOTION_API_PORT: String(restoreApiPort),
+  MYOWNNOTION_WEB_PORT: String(restoreWebPort),
 };
 
-function compose(...args: string[]): void {
-  execFileSync("docker", [...composePrefix, ...args], {
-    env: smokeEnvironment,
+interface ComposeContext {
+  readonly projectName: string;
+  readonly environment: NodeJS.ProcessEnv;
+}
+
+const sourceContext: ComposeContext = { projectName, environment: smokeEnvironment };
+const restoreContext: ComposeContext = {
+  projectName: restoreProjectName,
+  environment: restoreEnvironment,
+};
+
+function composeArguments(context: ComposeContext, args: readonly string[]): string[] {
+  return [
+    "compose",
+    "--project-name",
+    context.projectName,
+    "--env-file",
+    ".env.prod.example",
+    "-f",
+    "compose.prod.yaml",
+    ...args,
+  ];
+}
+
+function composeFor(context: ComposeContext, ...args: string[]): void {
+  execFileSync("docker", composeArguments(context, args), {
+    env: context.environment,
     stdio: "inherit",
   });
 }
 
-function composeOutput(...args: string[]): string {
-  return execFileSync("docker", [...composePrefix, ...args], {
-    env: smokeEnvironment,
+function composeOutputFor(context: ComposeContext, ...args: string[]): string {
+  return execFileSync("docker", composeArguments(context, args), {
+    env: context.environment,
     encoding: "utf8",
   });
+}
+
+function compose(...args: string[]): void {
+  composeFor(sourceContext, ...args);
+}
+
+function composeOutput(...args: string[]): string {
+  return composeOutputFor(sourceContext, ...args);
 }
 
 async function expectJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -106,8 +182,79 @@ async function expectExactFile(
   }
 }
 
-function start(build: boolean): void {
-  compose("up", "--detach", ...(build ? ["--build"] : []), "--wait", "--wait-timeout", "240");
+interface SafeOperationOutput {
+  readonly status?: string;
+  readonly snapshotId?: string;
+  readonly failureCode?: string | null;
+  readonly snapshots?: Array<{ snapshotId?: string }>;
+  readonly counts?: Record<string, number>;
+}
+
+function runOperation(
+  context: ComposeContext,
+  ...args: string[]
+): {
+  readonly exitCode: number;
+  readonly result: SafeOperationOutput;
+  readonly serialized: string;
+} {
+  const executed = spawnSync("docker", composeArguments(context, ["run", "--rm", ...args]), {
+    env: context.environment,
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  if (executed.error !== undefined) throw executed.error;
+  const serialized = executed.stdout
+    .trim()
+    .split("\n")
+    .findLast((line) => line.trim().startsWith("{"));
+  if (serialized === undefined) {
+    throw new Error(`Operations command emitted no safe JSON result (exit ${executed.status})`);
+  }
+  return {
+    exitCode: executed.status ?? 1,
+    result: JSON.parse(serialized) as SafeOperationOutput,
+    serialized,
+  };
+}
+
+function expectOperationSuccess(context: ComposeContext, ...args: string[]): SafeOperationOutput {
+  const observed = runOperation(context, ...args);
+  if (observed.exitCode !== 0 || observed.result.status !== "succeeded") {
+    throw new Error(
+      `Operations command failed safely: ${observed.result.failureCode ?? "unknown"} (exit ${observed.exitCode})`,
+    );
+  }
+  return observed.result;
+}
+
+async function createCanonicalExport(baseUrl: string): Promise<CanonicalExportManifest> {
+  const created = await expectJson<{ exportId: string }>(`${baseUrl}/v1/export`, {
+    method: "POST",
+    headers: { "idempotency-key": generateUuidV7() },
+  });
+  let status = "pending";
+  for (let attempt = 0; attempt < 80 && status === "pending"; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const observed = await expectJson<{ status: string }>(
+      `${baseUrl}/v1/export/${created.exportId}`,
+    );
+    status = observed.status;
+  }
+  if (status !== "ready") throw new Error(`Canonical export ended in ${status}`);
+  return expectJson<CanonicalExportManifest>(`${baseUrl}/v1/export/${created.exportId}/artifact`);
+}
+
+function start(build: boolean, context: ComposeContext = sourceContext): void {
+  composeFor(
+    context,
+    "up",
+    "--detach",
+    ...(build ? ["--build"] : []),
+    "--wait",
+    "--wait-timeout",
+    "240",
+  );
 }
 
 try {
@@ -527,8 +674,172 @@ try {
     throw new Error("Restarted composition did not preserve the canvas page-card relationship");
   }
 
+  const sourceExport = await createCanonicalExport(webBaseUrl);
+  compose("run", "--rm", "--entrypoint", "restic", "backup-operations", "init");
+  const createdBackup = expectOperationSuccess(
+    sourceContext,
+    "backup-operations",
+    "backup",
+    "create",
+  );
+  const backupSnapshotId = createdBackup.snapshotId;
+  if (backupSnapshotId === undefined) {
+    throw new Error("Complete backup returned no snapshot identity");
+  }
+  const listedBackups = expectOperationSuccess(
+    sourceContext,
+    "backup-operations",
+    "backup",
+    "list",
+  );
+  if (
+    listedBackups.snapshots?.some((snapshot) => snapshot.snapshotId === backupSnapshotId) !== true
+  ) {
+    throw new Error("Complete backup was absent from the selectable snapshot list");
+  }
+  expectOperationSuccess(sourceContext, "backup-operations", "backup", "check", "--read-data");
+
+  writeFileSync(resticPasswordPath, "intentionally-wrong-password\n", { mode: 0o644 });
+  const wrongSecret = runOperation(
+    restoreContext,
+    "backup-operations",
+    "restore",
+    "verify",
+    "--snapshot",
+    backupSnapshotId,
+  );
+  if (
+    wrongSecret.exitCode === 0 ||
+    wrongSecret.result.status !== "failed" ||
+    /container-smoke-restic-password|intentionally-wrong-password|storageKey|DATABASE_URL/.test(
+      wrongSecret.serialized,
+    )
+  ) {
+    throw new Error("Wrong-secret restore verification did not fail safely");
+  }
+  writeFileSync(resticPasswordPath, "container-smoke-restic-password\n", { mode: 0o644 });
+
+  expectOperationSuccess(
+    restoreContext,
+    "backup-operations",
+    "restore",
+    "verify",
+    "--snapshot",
+    backupSnapshotId,
+  );
+  const appliedRestore = expectOperationSuccess(
+    restoreContext,
+    "backup-operations",
+    "restore",
+    "apply",
+    "--snapshot",
+    backupSnapshotId,
+    "--confirm-empty",
+  );
+  if (appliedRestore.counts?.["objects"] !== 1) {
+    throw new Error("Restore did not report the complete file-object inventory");
+  }
+
+  start(false, restoreContext);
+  const restoreWebBaseUrl = `http://127.0.0.1:${restoreWebPort}`;
+  const restoreApiBaseUrl = `http://127.0.0.1:${restoreApiPort}`;
+  const restoredExport = await createCanonicalExport(restoreWebBaseUrl);
+  if (validateCanonicalRecovery(sourceExport, restoredExport).length !== 0) {
+    throw new Error("Clean-target restore changed the canonical export");
+  }
+  await expectExactFile(
+    `${restoreWebBaseUrl}/v1/files/${fileItemId}/content?revisionId=${fileRevisionId}`,
+    fileBytes,
+  );
+
+  composeFor(restoreContext, "down", "--remove-orphans");
+  start(false, restoreContext);
+  const restartedRestoreExport = await createCanonicalExport(restoreWebBaseUrl);
+  if (validateCanonicalRecovery(sourceExport, restartedRestoreExport).length !== 0) {
+    throw new Error("Restored canonical export changed after target restart");
+  }
+  await expectExactFile(
+    `${restoreWebBaseUrl}/v1/files/${fileItemId}/content?revisionId=${fileRevisionId}`,
+    fileBytes,
+  );
+
+  compose(
+    "run",
+    "--rm",
+    "--entrypoint",
+    "sh",
+    "backup-operations",
+    "-c",
+    'pack=$(find /var/lib/myownnotion/backup-destination/data -type f | head -n 1); test -n "$pack"; printf \'CORRUPTED-RESTIC\' | dd of="$pack" bs=1 seek=0 conv=notrunc',
+  );
+  const corrupted = runOperation(
+    restoreContext,
+    "backup-operations",
+    "restore",
+    "verify",
+    "--snapshot",
+    backupSnapshotId,
+  );
+  if (corrupted.exitCode === 0 || corrupted.result.status !== "failed") {
+    throw new Error("Corrupted encrypted repository was accepted for restore");
+  }
+  composeFor(
+    restoreContext,
+    "run",
+    "--rm",
+    "--entrypoint",
+    "sh",
+    "operations",
+    "-c",
+    "test ! -e /var/lib/myownnotion/operations/.restore-in-progress",
+  );
+
+  composeFor(restoreContext, "stop", "api", "web");
+  composeFor(
+    restoreContext,
+    "run",
+    "--rm",
+    "--entrypoint",
+    "sh",
+    "operations",
+    "-c",
+    "touch /var/lib/myownnotion/operations/.restore-in-progress",
+  );
+  composeFor(restoreContext, "up", "--detach", "--force-recreate", "api");
+  await new Promise((resolve) => setTimeout(resolve, 2_000));
+  let guardedReady = false;
+  try {
+    guardedReady = (await fetch(`${restoreApiBaseUrl}/health`)).ok;
+  } catch {
+    guardedReady = false;
+  }
+  const guardedLogs = composeOutputFor(restoreContext, "logs", "--no-color", "api");
+  if (
+    guardedReady ||
+    !guardedLogs.includes("restore is in progress") ||
+    /\.restore-in-progress|container-smoke-restic-password|DATABASE_URL/.test(guardedLogs)
+  ) {
+    throw new Error("Restore guard did not block API readiness with a redacted diagnostic");
+  }
+  composeFor(restoreContext, "stop", "api");
+  composeFor(
+    restoreContext,
+    "run",
+    "--rm",
+    "--entrypoint",
+    "sh",
+    "operations",
+    "-c",
+    "rm /var/lib/myownnotion/operations/.restore-in-progress",
+  );
+  start(false, restoreContext);
+  const recoveredHealth = await expectJson<{ status: string }>(`${restoreApiBaseUrl}/health`);
+  if (recoveredHealth.status !== "ready") {
+    throw new Error("API did not recover after the isolated guard rehearsal");
+  }
+
   console.info(
-    "Container smoke test passed: private object storage, streamed full/range restart reads, audit, health proxy, migrations, and v6 wiki/task/database/canvas persistence.",
+    "Container smoke test passed: private object storage, encrypted backup, clean-target exact restore/restart, wrong-secret/corruption faults, restore guard, audit, health proxy, migrations, and v6 wiki/task/database/canvas persistence.",
   );
 } catch (error) {
   console.error("Container smoke test failed:", error);
@@ -536,9 +847,16 @@ try {
 } finally {
   // A failed start can still leave partial resources in this isolated project.
   try {
+    composeFor(restoreContext, "down", "--volumes", "--remove-orphans");
+  } catch (cleanupError) {
+    console.error("Restore smoke cleanup failed:", cleanupError);
+    process.exitCode = 1;
+  }
+  try {
     compose("down", "--volumes", "--remove-orphans");
   } catch (cleanupError) {
     console.error("Container smoke cleanup failed:", cleanupError);
     process.exitCode = 1;
   }
+  rmSync(backupHostRoot, { recursive: true, force: true });
 }

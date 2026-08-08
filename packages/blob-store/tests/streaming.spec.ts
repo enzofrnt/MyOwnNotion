@@ -57,6 +57,16 @@ describe("filesystem streaming blob contract", () => {
     expect(await blobs.equals(first.storageKey, new TextEncoder().encode("different"))).toBe(false);
   });
 
+  it("can reproduce a verified collision-suffixed key for exact restore", async () => {
+    const source = new TextEncoder().encode("restored bytes");
+    const digest = Buffer.from(await crypto.subtle.digest("SHA-256", source)).toString("hex");
+    const storageKey = `${digest}-00000000-0000-4000-8000-000000000001`;
+    const stored = await blobs.putVerifiedAt(storageKey, chunks("restored ", "bytes"));
+    expect(stored).toMatchObject({ storageKey, byteLength: source.byteLength, created: true });
+    expect(await blobs.list()).toEqual([storageKey]);
+    expect(await blobs.get(storageKey)).toEqual(source);
+  });
+
   it("removes temporary data when the stream exceeds its limit or aborts", async () => {
     await expect(blobs.put(chunks("1234", "5"), { maxByteLength: 4 })).rejects.toThrow(
       "blob exceeds maximum byte length",

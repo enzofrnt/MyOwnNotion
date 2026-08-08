@@ -96,6 +96,13 @@ class ZeroByteInventoryStore implements BlobStore {
   put(_source: BlobSource, _options?: BlobWriteOptions): Promise<StoredBlob> {
     throw new Error("not implemented");
   }
+  putVerifiedAt(
+    _storageKey: string,
+    _source: BlobSource,
+    _options?: BlobWriteOptions,
+  ): Promise<StoredBlob> {
+    throw new Error("not implemented");
+  }
   head(storageKey: string): Promise<BlobHead> {
     return Promise.resolve({ storageKey, byteLength: 0 });
   }

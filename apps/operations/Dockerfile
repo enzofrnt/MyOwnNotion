@@ -42,7 +42,14 @@ RUN apk add --no-cache \
 
 ENV NODE_ENV=production \
     MYOWNNOTION_OPERATIONS_LOCK=/var/lib/myownnotion/operations/operations.lock \
-    MYOWNNOTION_LEGACY_BLOB_ROOT=/var/lib/myownnotion/legacy-blobs
+    MYOWNNOTION_LEGACY_BLOB_ROOT=/var/lib/myownnotion/legacy-blobs \
+    MYOWNNOTION_OPERATIONS_STAGING=/var/lib/myownnotion/staging \
+    MYOWNNOTION_BACKUP_STATUS=/var/lib/myownnotion/operations/backup.json \
+    MYOWNNOTION_BACKUP_SCHEDULE_STATE=/var/lib/myownnotion/operations/backup-schedule.json \
+    MYOWNNOTION_RESTORE_STAGING=/var/lib/myownnotion/staging \
+    MYOWNNOTION_RESTORE_GUARD=/var/lib/myownnotion/operations/.restore-in-progress \
+    MYOWNNOTION_POSTGRES_MAJOR=18 \
+    MYOWNNOTION_MIGRATIONS_ROOT=/app/migrations
 
 WORKDIR /app
 RUN mkdir -p \

@@ -42,6 +42,7 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
     await expect(
       firstAttachment.getByRole("img", { name: `Preview of ${fileName}` }),
     ).toBeVisible();
+    await attachReviewScreenshot(page, testInfo, "files-raster-preview");
 
     const downloadEvent = page.waitForEvent("download");
     await firstAttachment.getByRole("link", { name: `Download ${fileName}` }).click();
@@ -78,6 +79,8 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
 
     await selectItem(page, secondPage);
     await page.getByLabel("Attach an existing file").fill(fileName);
+    await expect(page.getByRole("button", { name: `Attach ${fileName}` })).toBeVisible();
+    await attachReviewScreenshot(page, testInfo, "files-existing-reuse");
     await page.getByRole("button", { name: `Attach ${fileName}` }).click();
     const reused = page.getByTestId(`attachment-${fileName}`);
     await expect(reused).toBeVisible({ timeout: 15_000 });
@@ -111,7 +114,85 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
       .include('[data-testid="attachment-panel"]')
       .analyze();
     expect(axe.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
-    await attachReviewScreenshot(page, testInfo, "files-preview-reuse");
+    await attachReviewScreenshot(page, testInfo, "files-attachment-metadata");
+  });
+
+  test("labels online-only and unavailable content without overflow or critical violations", async ({
+    page,
+  }, testInfo) => {
+    await openWorkspace(page);
+    const pageName = uniqueName("AttachmentStates");
+    const onlineOnlyName = `${uniqueName("online-only")}.bin`;
+    const unavailableName = `${uniqueName("unavailable")}.bin`;
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    await selectItem(page, pageName);
+
+    for (const name of [onlineOnlyName, unavailableName]) {
+      await page.getByTestId("attachment-upload").setInputFiles({
+        name,
+        mimeType: "application/octet-stream",
+        buffer: Buffer.from(`review fixture for ${name}`),
+      });
+      await expect(page.getByTestId(`attachment-${name}`)).toBeVisible({ timeout: 15_000 });
+    }
+
+    const onlineHref = await page
+      .getByRole("link", { name: `Download ${onlineOnlyName}` })
+      .getAttribute("href");
+    const unavailableHref = await page
+      .getByRole("link", { name: `Download ${unavailableName}` })
+      .getAttribute("href");
+    const onlineItemId = /\/v1\/files\/([^/]+)\/content/.exec(onlineHref ?? "")?.[1];
+    const unavailableItemId = /\/v1\/files\/([^/]+)\/content/.exec(unavailableHref ?? "")?.[1];
+    if (onlineItemId === undefined || unavailableItemId === undefined) {
+      throw new Error("attachment content identity is unavailable");
+    }
+
+    await page.route(`**/v1/files/${onlineItemId}/content?*`, async (route) => {
+      if (route.request().method() !== "HEAD") return route.continue();
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        headers: {
+          ...response.headers(),
+          "content-length": String(17 * 1024 * 1024),
+        },
+      });
+    });
+    await page.route(`**/v1/files/${unavailableItemId}/content?*`, async (route) => {
+      if (route.request().method() !== "HEAD") return route.continue();
+      await route.fulfill({
+        status: 503,
+        contentType: "application/problem+json",
+        body: JSON.stringify({
+          type: "https://myownnotion.dev/problems/storage.unavailable",
+          title: "Private file storage is unavailable",
+          status: 503,
+          code: "storage.unavailable",
+        }),
+      });
+    });
+
+    await page.reload();
+    await selectItem(page, pageName);
+    await expect(page.getByTestId(`attachment-${onlineOnlyName}`)).toContainText(
+      "Available online only",
+      { timeout: 15_000 },
+    );
+    await expect(page.getByTestId(`attachment-${unavailableName}`)).toContainText(
+      "File content is currently unavailable",
+      { timeout: 15_000 },
+    );
+    const axe = await new AxeBuilder({ page })
+      .include('[data-testid="attachment-panel"]')
+      .analyze();
+    expect(axe.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(24);
+    await attachReviewScreenshot(page, testInfo, "files-online-only-unavailable");
   });
 
   test("reloads a previously opened immutable image revision while the API is offline", async ({

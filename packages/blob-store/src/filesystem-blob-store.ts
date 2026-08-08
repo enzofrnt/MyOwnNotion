@@ -118,6 +118,40 @@ export class FilesystemBlobStore implements BlobStore {
     };
   }
 
+  async putVerifiedAt(
+    storageKey: string,
+    source: BlobSource,
+    options: BlobWriteOptions = {},
+  ): Promise<StoredBlob> {
+    const targetPath = this.#pathFor(storageKey);
+    const stored = await this.put(source, options);
+    const digestHex = Buffer.from(stored.sha256).toString("hex");
+    if (storageKey !== digestHex && !storageKey.startsWith(`${digestHex}-`)) {
+      if (stored.created) await this.delete(stored.storageKey);
+      throw new Error("blob digest does not match canonical storage key");
+    }
+    if (stored.storageKey === storageKey) return stored;
+
+    const sourcePath = this.#pathFor(stored.storageKey);
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    let targetCreated = false;
+    try {
+      try {
+        await link(sourcePath, targetPath);
+        targetCreated = true;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
+      if (!(await this.#filesEqual(sourcePath, targetPath))) {
+        if (targetCreated) await rm(targetPath, { force: true });
+        throw new Error("canonical blob key contains different bytes");
+      }
+      return { ...stored, storageKey, created: targetCreated };
+    } finally {
+      if (stored.created) await rm(sourcePath, { force: true });
+    }
+  }
+
   async head(storageKey: string): Promise<BlobHead | null> {
     try {
       const metadata = await stat(this.#pathFor(storageKey));

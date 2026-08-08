@@ -41,36 +41,40 @@ Expected: the report shows stable counts, zero missing/mismatched objects, and n
 
 ## Encrypted backup rehearsal
 
-Configure `RESTIC_REPOSITORY`, `RESTIC_PASSWORD_FILE`, and rclone credentials through protected mounted files. Then run:
+Configure `RESTIC_REPOSITORY`, `RESTIC_PASSWORD_FILE`, and rclone credentials through protected mounted files. The mode-`0600` files must be owned by, or mapped readably to, the pinned non-root operations user (UID/GID `1000` on a rootful Linux host). Then run:
 
 ```text
-docker compose --env-file .env.prod -f compose.prod.yaml --profile operations run --rm operations backup create
-docker compose --env-file .env.prod -f compose.prod.yaml --profile operations run --rm operations backup list
-docker compose --env-file .env.prod -f compose.prod.yaml --profile operations run --rm operations backup check
-docker compose --env-file .env.prod -f compose.prod.yaml --profile operations run --rm operations backup prune --dry-run
+docker compose --env-file .env.prod -f compose.prod.yaml --profile backup run --rm backup-operations backup create
+docker compose --env-file .env.prod -f compose.prod.yaml --profile backup run --rm backup-operations backup status
+docker compose --env-file .env.prod -f compose.prod.yaml --profile backup run --rm backup-operations backup list
+docker compose --env-file .env.prod -f compose.prod.yaml --profile backup run --rm backup-operations backup check
+docker compose --env-file .env.prod -f compose.prod.yaml --profile backup run --rm backup-operations backup prune --dry-run
 ```
 
 Expected: only a snapshot that passed database/object/manifest and restic verification appears with complete status. A second simultaneous run reports `operation.already-running`. The prune command remains non-destructive until explicit confirmation.
 
 ## Empty-target restore rehearsal
 
-1. Stop the application services.
-2. Provision a separate empty test database and empty object bucket.
-3. Verify the selected complete snapshot without changing targets:
+1. Create and fully check a source backup, then stop the source project without deleting its volumes.
+2. Copy `.env.prod` to the ignored `.env.restore`, retaining the same pinned images, backup destination, and protected secret paths.
+3. Use the distinct project name `myownnotion-restore`; this provisions fresh target database, object, operations-state, and staging volumes.
+4. Verify the selected complete snapshot without changing targets:
 
 ```text
-docker compose --env-file .env.prod -f compose.prod.yaml --profile operations run --rm operations restore verify --snapshot <snapshot-id>
+docker compose --env-file .env.restore -f compose.prod.yaml -p myownnotion-restore --profile backup run --rm backup-operations restore verify --snapshot <snapshot-id>
 ```
 
-4. Apply only after verification and explicit empty-target confirmation:
+5. Apply only after verification and explicit empty-target confirmation:
 
 ```text
-docker compose --env-file .env.prod -f compose.prod.yaml --profile operations run --rm operations restore apply --snapshot <snapshot-id> --confirm-empty
+docker compose --env-file .env.restore -f compose.prod.yaml -p myownnotion-restore --profile backup run --rm backup-operations restore apply --snapshot <snapshot-id> --confirm-empty
 ```
 
-5. Start the restored application and run the audit again.
+6. Start the restored project, run the audit, restart it once, and repeat identity/digest checks.
 
 Expected: item, placement, revision, relationship, page-document, file-content, task, database, and canvas fixture identities match the source manifest; every downloaded file reproduces its source digest. Wrong passwords, non-empty targets, incompatible manifests, missing objects, and digest corruption leave the restore guard in place and prevent API readiness.
+
+After any guarded failure, preserve the safe result for diagnosis and recreate the entire disposable target with `docker compose --env-file .env.restore -f compose.prod.yaml -p myownnotion-restore down --volumes --remove-orphans`. Never remove only the guard or use the source project name for this cleanup.
 
 ## Legacy filesystem migration rehearsal
 
