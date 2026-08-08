@@ -1,6 +1,8 @@
 import {
+  createEmptyCanvasAttributes,
   createEmptyDatabaseAttributes,
   EMPTY_EDITOR_DOCUMENT,
+  extractCanvasBlocks,
   extractDatabaseBlocks,
   extractTaskOccurrences,
   extractWikiLinkOccurrences,
@@ -106,7 +108,7 @@ describe("editor document v2", () => {
     ).toEqual({ ok: true, value: completeDocument });
     expect(toPageDocument(EMPTY_EDITOR_DOCUMENT)).toEqual({
       format: "myownnotion.document+json",
-      formatVersion: 5,
+      formatVersion: 6,
       body: EMPTY_EDITOR_DOCUMENT,
     });
 
@@ -272,6 +274,50 @@ describe("editor document v2", () => {
       validatePageDocument({
         format: "myownnotion.document+json",
         formatVersion: 5,
+        body: { ...body, content: [...body.content, ...body.content] },
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("accepts version 6 canvas blocks, extracts page-card links, and rejects older or duplicate identities", () => {
+    const canvas = createEmptyCanvasAttributes(generateUuidV7());
+    const pageCard = {
+      cardId: generateUuidV7(),
+      kind: "page" as const,
+      targetItemId: generateUuidV7(),
+      x: -120,
+      y: 80,
+      width: 200,
+      height: 120,
+    };
+    const populated = { ...canvas, cards: [pageCard] };
+    const body = {
+      type: "doc",
+      content: [{ type: "canvasBlock", attrs: populated }],
+    } as const;
+
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 6,
+        body,
+      }).ok,
+    ).toBe(true);
+    expect(extractCanvasBlocks(body)).toEqual([populated]);
+    expect(extractWikiLinkOccurrences(body)).toEqual([
+      { occurrenceId: pageCard.cardId, targetItemId: pageCard.targetItemId, label: "" },
+    ]);
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 5,
+        body,
+      }).ok,
+    ).toBe(false);
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 6,
         body: { ...body, content: [...body.content, ...body.content] },
       }).ok,
     ).toBe(false);

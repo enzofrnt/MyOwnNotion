@@ -2,6 +2,7 @@ import type { Uuid } from "@myownnotion/domain";
 import { TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
+import { CanvasBlock } from "../canvas/canvas-extension.ts";
 import { DatabaseBlock } from "../databases/database-extension.ts";
 import { MarkdownShortcutUndo } from "./markdown-shortcuts.ts";
 import { SlashCommandExtension } from "./slash-command.ts";
@@ -19,6 +20,11 @@ export function createEditorExtensions(options: {
       codeBlock: { defaultLanguage: null },
     }),
     TaskList,
+    CanvasBlock.configure({
+      sourceItemId: options.sourceItemId,
+      getPageCandidates: options.getWikiLinkCandidates,
+      onNavigatePage: options.onNavigateWikiLink,
+    }),
     DatabaseBlock,
     TaskItemWithMetadata.configure({
       nested: true,
@@ -28,7 +34,7 @@ export function createEditorExtensions(options: {
       },
     }),
     Placeholder.configure({
-      placeholder: "Write something, type / for blocks, or [[ to link a page…",
+      placeholder: "Write something, type / for blocks, canvas, or [[ to link a page…",
       emptyEditorClass: "is-editor-empty",
     }),
     WikiLink.configure({

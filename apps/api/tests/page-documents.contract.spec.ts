@@ -4,6 +4,7 @@
 
 import { generateUuidV7 } from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildCanvasDocument, buildCanvasFixture } from "../../../tests/fixtures/canvas.ts";
 import { buildDatabaseDocument, buildDatabaseFixture } from "../../../tests/fixtures/databases.ts";
 import {
   type ApiHarness,
@@ -361,6 +362,165 @@ describe("page-document replacement (T058)", () => {
     expect(restored.statusCode).toBe(200);
     const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${page.itemId}` });
     expect((item.json() as { pageDocument: unknown }).pageDocument).toEqual(databaseDocument);
+  });
+
+  it("accepts version 6 canvas documents and projects page cards as canonical links", async () => {
+    const target = await createItemViaApi(harness, { kind: "page", name: "Canvas page target" });
+    const itemId = generateUuidV7();
+    const pageCardId = generateUuidV7();
+    const canvas = buildCanvasFixture(3, 2, 1);
+    const initialDocument = buildCanvasDocument({
+      ...canvas,
+      cards: [
+        ...canvas.cards,
+        {
+          cardId: pageCardId,
+          kind: "page",
+          targetItemId: target.itemId,
+          x: -300,
+          y: 240,
+          width: 220,
+          height: 120,
+        },
+      ],
+    });
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Initial canvas page",
+        placement: {
+          id: generateUuidV7(),
+          kind: "hierarchy",
+          parentItemId: null,
+          positionKey: "X",
+        },
+        pageDocument: initialDocument,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const revisionId = (created.json() as { revisionIds: string[] }).revisionIds[0];
+    if (revisionId === undefined) throw new Error("Canvas create failed");
+    const initialCanvas = initialDocument.body.content[0];
+    if (initialCanvas === undefined) throw new Error("Initial canvas fixture missing");
+    const replacedDocument = {
+      ...initialDocument,
+      body: {
+        ...initialDocument.body,
+        content: [
+          {
+            type: "canvasBlock",
+            attrs: {
+              ...initialCanvas.attrs,
+              cards: initialCanvas.attrs.cards.map((card, index) =>
+                index === 0 ? { ...card, x: -640, y: 480 } : card,
+              ),
+              viewport: { x: 120, y: -80, zoom: 1.5 },
+            },
+          },
+        ],
+      },
+    };
+    const replaced = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: revisionId, document: replacedDocument },
+    });
+    expect(replaced.statusCode).toBe(200);
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${itemId}` });
+    expect((item.json() as { pageDocument: unknown }).pageDocument).toEqual(replacedDocument);
+    const relationships = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/relationships?itemId=${itemId}`,
+    });
+    expect((relationships.json() as { relationships: unknown[] }).relationships).toContainEqual(
+      expect.objectContaining({
+        id: pageCardId,
+        sourceItemId: itemId,
+        targetItemId: target.itemId,
+        relationType: "link:references",
+      }),
+    );
+  });
+
+  it("rejects malformed version 6 canvas geometry without exposing private card text", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Invalid canvas page" });
+    const document = buildCanvasDocument(buildCanvasFixture(2, 1, 1));
+    const canvasNode = document.body.content[0];
+    if (canvasNode === undefined) throw new Error("Invalid canvas fixture missing");
+    const canvas = canvasNode.attrs;
+    const privateText = "PrivateCanvasCard-44319";
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: page.revisionId,
+        document: {
+          ...document,
+          body: {
+            ...document.body,
+            content: [
+              {
+                type: "canvasBlock",
+                attrs: {
+                  ...canvas,
+                  cards: canvas.cards.map((card, index) =>
+                    index === 0 && card.kind === "text"
+                      ? { ...card, text: privateText, width: 20 }
+                      : card,
+                  ),
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.body).not.toContain(privateText);
+  });
+
+  it("restores exact version 6 canvas cards, connections, strokes, and viewport", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Restore canvas page" });
+    const canvasDocument = buildCanvasDocument(buildCanvasFixture(3, 2, 2));
+    const saved = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: page.revisionId, document: canvasDocument },
+    });
+    expect(saved.statusCode).toBe(200);
+    const canvasRevisionId = (saved.json() as { revisionIds: string[] }).revisionIds[0];
+    if (canvasRevisionId === undefined) throw new Error("Canvas revision missing");
+    const removed = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: canvasRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 6,
+          body: { type: "doc", content: [{ type: "paragraph" }] },
+        },
+      },
+    });
+    expect(removed.statusCode).toBe(200);
+    const removedRevisionId = (removed.json() as { revisionIds: string[] }).revisionIds[0];
+    const restored = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/revisions/${canvasRevisionId}/restore`,
+      headers: idempotencyHeaders(),
+      payload: { currentRevisionId: removedRevisionId },
+    });
+    expect(restored.statusCode).toBe(200);
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${page.itemId}` });
+    expect((item.json() as { pageDocument: unknown }).pageDocument).toEqual(canvasDocument);
   });
 
   it("rejects malformed version 4 task metadata without exposing its title", async () => {

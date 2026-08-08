@@ -246,4 +246,85 @@ describe("logging configuration (T091)", () => {
       expect(output).not.toContain(secret);
     }
   });
+
+  it("never logs version 6 canvas text, labels, geometry, page targets, strokes, or viewport", async () => {
+    const captured: string[] = [];
+    const app = Fastify({
+      logger: {
+        ...registerLogging(),
+        stream: { write: (line: string) => captured.push(line) },
+      },
+    });
+    app.put("/canvas-document", async () => ({ ok: true }));
+    const secrets = [
+      "PrivateCanvasText-771",
+      "PrivateConnectionLabel-882",
+      "01900000-0000-7000-8000-000000009999",
+      "314159.265",
+      "271828.182",
+    ];
+    await app.inject({
+      method: "PUT",
+      url: "/canvas-document",
+      payload: {
+        document: {
+          formatVersion: 6,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "canvasBlock",
+                attrs: {
+                  canvasId: "01900000-0000-7000-8000-000000000200",
+                  schemaVersion: 1,
+                  cards: [
+                    {
+                      cardId: "01900000-0000-7000-8000-000000000201",
+                      kind: "text",
+                      text: secrets[0],
+                      x: 314159.265,
+                      y: -271828.182,
+                      width: 200,
+                      height: 120,
+                    },
+                    {
+                      cardId: "01900000-0000-7000-8000-000000000202",
+                      kind: "page",
+                      targetItemId: secrets[2],
+                      x: 0,
+                      y: 0,
+                      width: 220,
+                      height: 120,
+                    },
+                  ],
+                  connections: [
+                    {
+                      connectionId: "01900000-0000-7000-8000-000000000203",
+                      sourceCardId: "01900000-0000-7000-8000-000000000201",
+                      targetCardId: "01900000-0000-7000-8000-000000000202",
+                      label: secrets[1],
+                    },
+                  ],
+                  strokes: [
+                    {
+                      strokeId: "01900000-0000-7000-8000-000000000204",
+                      width: 4,
+                      points: [
+                        { x: 314159.265, y: 0 },
+                        { x: 0, y: 271828.182 },
+                      ],
+                    },
+                  ],
+                  viewport: { x: 314159.265, y: 271828.182, zoom: 1.5 },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    await app.close();
+    const output = captured.join("\n");
+    for (const secret of secrets) expect(output).not.toContain(secret);
+  });
 });

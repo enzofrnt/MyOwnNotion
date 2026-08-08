@@ -6,6 +6,7 @@ import Suggestion, {
   type SuggestionKeyDownProps,
   type SuggestionProps,
 } from "@tiptap/suggestion";
+import { insertCanvasBlock } from "../canvas/canvas-extension.ts";
 import { insertDatabaseBlock } from "../databases/database-extension.ts";
 import {
   SlashCommandMenu,
@@ -74,6 +75,16 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
     description: "Checklist with completion controls",
     keywords: ["checklist", "todo", "task"],
     run: (editor, range) => void withDeletedQuery(editor, range).toggleTaskList().run(),
+  },
+  {
+    id: "canvas",
+    label: "Canvas",
+    description: "Freeform cards, page references, connections, and drawings",
+    keywords: ["spatial", "whiteboard", "diagram", "drawing"],
+    run: (editor, range) => {
+      withDeletedQuery(editor, range).run();
+      insertCanvasBlock(editor);
+    },
   },
   {
     id: "database",

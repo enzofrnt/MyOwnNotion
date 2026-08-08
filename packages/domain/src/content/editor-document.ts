@@ -1,5 +1,6 @@
 /** Canonical, editor-independent page document contract. */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
+import { type CanvasBlockAttributes, validateCanvasBlockAttributes } from "./canvas.ts";
 import { type DatabaseBlockAttributes, validateDatabaseBlockAttributes } from "./database.ts";
 import type { DomainResult, PageDocument, SafeErrorCode } from "./types.ts";
 import { err, ok, PAGE_DOCUMENT_FORMAT } from "./types.ts";
@@ -7,7 +8,8 @@ import { err, ok, PAGE_DOCUMENT_FORMAT } from "./types.ts";
 export const LEGACY_EDITOR_DOCUMENT_VERSION = 2;
 export const WIKI_LINK_EDITOR_DOCUMENT_VERSION = 3;
 export const TASK_EDITOR_DOCUMENT_VERSION = 4;
-export const EDITOR_DOCUMENT_VERSION = 5;
+export const DATABASE_EDITOR_DOCUMENT_VERSION = 5;
+export const EDITOR_DOCUMENT_VERSION = 6;
 
 export const EDITOR_BLOCK_TYPES = [
   "paragraph",
@@ -21,6 +23,7 @@ export const EDITOR_BLOCK_TYPES = [
   "codeBlock",
   "horizontalRule",
   "databaseBlock",
+  "canvasBlock",
 ] as const;
 
 export const EDITOR_MARK_TYPES = ["bold", "italic", "strike", "code", "wikiLink"] as const;
@@ -293,6 +296,7 @@ function validateListItems(
     readonly allowWikiLinks: boolean;
     readonly taskMetadata: TaskMetadataMode;
     readonly allowDatabases: boolean;
+    readonly allowCanvas: boolean;
   },
 ): DomainResult<null> {
   if (!Array.isArray(value) || value.length === 0) {
@@ -343,6 +347,7 @@ function validateBlock(
     readonly allowWikiLinks: boolean;
     readonly taskMetadata: TaskMetadataMode;
     readonly allowDatabases: boolean;
+    readonly allowCanvas: boolean;
   },
 ): DomainResult<null> {
   if (!isRecord(value) || typeof value.type !== "string") {
@@ -447,6 +452,16 @@ function validateBlock(
       const result = validateDatabaseBlockAttributes(value.attrs, `${path}.attrs`);
       return result.ok ? ok(null) : result;
     }
+    case "canvasBlock": {
+      if (!options.allowCanvas) {
+        return structureError(`${path}.type`, "unsupported-node", "document.unsupported-content");
+      }
+      if (!hasOnlyKeys(value, ["type", "attrs"])) {
+        return structureError(path, "invalid-canvas-block");
+      }
+      const result = validateCanvasBlockAttributes(value.attrs, `${path}.attrs`);
+      return result.ok ? ok(null) : result;
+    }
     default:
       return structureError(`${path}.type`, "unsupported-node", "document.unsupported-content");
   }
@@ -463,6 +478,20 @@ export function extractWikiLinkOccurrences(document: EditorDocument): WikiLinkOc
             targetItemId: mark.attrs.targetItemId,
             label: node.text ?? "",
           });
+        }
+      }
+    }
+    if (node.type === "canvasBlock") {
+      const parsed = validateCanvasBlockAttributes(node.attrs);
+      if (parsed.ok) {
+        for (const card of parsed.value.cards) {
+          if (card.kind === "page") {
+            occurrences.push({
+              occurrenceId: card.cardId,
+              targetItemId: card.targetItemId,
+              label: "",
+            });
+          }
         }
       }
     }
@@ -545,18 +574,33 @@ export function extractDatabaseBlocks(document: EditorDocument): DatabaseBlockAt
   return databases;
 }
 
+export function extractCanvasBlocks(document: EditorDocument): CanvasBlockAttributes[] {
+  const canvases: CanvasBlockAttributes[] = [];
+  const visit = (node: EditorNode): void => {
+    if (node.type === "canvasBlock") {
+      const result = validateCanvasBlockAttributes(node.attrs);
+      if (result.ok) canvases.push(result.value);
+    }
+    for (const child of node.content ?? []) visit(child);
+  };
+  visit(document);
+  return canvases;
+}
+
 export function validateEditorDocument(
   value: unknown,
   options: {
     readonly allowWikiLinks?: boolean;
     readonly taskMetadata?: TaskMetadataMode;
     readonly allowDatabases?: boolean;
+    readonly allowCanvas?: boolean;
   } = {},
 ): DomainResult<EditorDocument> {
   const validationOptions = {
     allowWikiLinks: options.allowWikiLinks ?? true,
     taskMetadata: options.taskMetadata ?? ("either" as const),
     allowDatabases: options.allowDatabases ?? true,
+    allowCanvas: options.allowCanvas ?? true,
   };
   if (!isRecord(value) || !hasOnlyKeys(value, ["type", "content"]) || value.type !== "doc") {
     return structureError("body", "invalid-document");
@@ -591,6 +635,13 @@ export function validateEditorDocument(
       return structureError("body", "duplicate-database-identity");
     }
     databaseIds.add(database.databaseId);
+  }
+  const canvasIds = new Set<string>();
+  for (const canvas of extractCanvasBlocks(document)) {
+    if (canvasIds.has(canvas.canvasId)) {
+      return structureError("body", "duplicate-canvas-identity");
+    }
+    canvasIds.add(canvas.canvasId);
   }
   return ok(document);
 }
@@ -629,12 +680,21 @@ export function normalizePageDocumentForEditor(
     return validateEditorDocument(document.body, {
       taskMetadata: "current",
       allowDatabases: true,
+      allowCanvas: true,
+    });
+  }
+  if (document.formatVersion === DATABASE_EDITOR_DOCUMENT_VERSION) {
+    return validateEditorDocument(document.body, {
+      taskMetadata: "current",
+      allowDatabases: true,
+      allowCanvas: false,
     });
   }
   if (document.formatVersion === TASK_EDITOR_DOCUMENT_VERSION) {
     return validateEditorDocument(document.body, {
       taskMetadata: "current",
       allowDatabases: false,
+      allowCanvas: false,
     });
   }
   if (document.formatVersion === WIKI_LINK_EDITOR_DOCUMENT_VERSION) {
@@ -642,6 +702,7 @@ export function normalizePageDocumentForEditor(
       allowWikiLinks: true,
       taskMetadata: "legacy",
       allowDatabases: false,
+      allowCanvas: false,
     });
   }
   if (document.formatVersion === LEGACY_EDITOR_DOCUMENT_VERSION) {
@@ -649,6 +710,7 @@ export function normalizePageDocumentForEditor(
       allowWikiLinks: false,
       taskMetadata: "legacy",
       allowDatabases: false,
+      allowCanvas: false,
     });
   }
   if (document.formatVersion === 1 && Object.keys(document.body).length === 0) {

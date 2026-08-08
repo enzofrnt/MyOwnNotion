@@ -16,6 +16,7 @@ import {
   createItemViaApi,
   idempotencyHeaders,
 } from "../../apps/api/tests/helpers/app.ts";
+import { buildCanvasDocument, buildCanvasFixture } from "../fixtures/canvas.ts";
 import { buildDatabaseDocument, buildDatabaseFixture } from "../fixtures/databases.ts";
 
 let harness: ApiHarness;
@@ -253,6 +254,53 @@ describe("canonical export (T086/T088)", () => {
     const { manifest } = await runExport();
     expect(manifest.items.find((item) => item.id === source.itemId)?.pageDocument).toEqual(
       document,
+    );
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+    expect(
+      canonicalExportString(JSON.parse(canonicalExportString(manifest)) as CanonicalExportManifest),
+    ).toBe(canonicalExportString(manifest));
+  });
+
+  it("round-trips every version-6 canvas identity, geometry, stroke, viewport, and page occurrence", async () => {
+    const source = await createItemViaApi(harness, { kind: "page", name: "Export canvas source" });
+    const target = await createItemViaApi(harness, { kind: "page", name: "Export canvas target" });
+    const pageCardId = generateUuidV7();
+    const fixture = buildCanvasFixture(3, 2, 3);
+    const document = buildCanvasDocument({
+      ...fixture,
+      cards: [
+        ...fixture.cards,
+        {
+          cardId: pageCardId,
+          kind: "page",
+          targetItemId: target.itemId,
+          x: -999_999,
+          y: 999_999,
+          width: 800,
+          height: 600,
+        },
+      ],
+      viewport: { x: -1_000_000, y: 1_000_000, zoom: 4 },
+    });
+    const replaced = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: source.revisionId, document },
+    });
+    expect(replaced.statusCode).toBe(200);
+
+    const { manifest } = await runExport();
+    expect(manifest.items.find((item) => item.id === source.itemId)?.pageDocument).toEqual(
+      document,
+    );
+    expect(manifest.relationships).toContainEqual(
+      expect.objectContaining({
+        id: pageCardId,
+        sourceItemId: source.itemId,
+        targetItemId: target.itemId,
+        relationType: "link:references",
+      }),
     );
     expect(validateCanonicalExport(manifest)).toEqual([]);
     expect(

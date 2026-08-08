@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import type { KeyboardEvent } from "react";
+import { insertCanvasBlock } from "../canvas/canvas-extension.ts";
 import { insertDatabaseBlock } from "../databases/database-extension.ts";
 
 function activateWithKeyboard(event: KeyboardEvent<HTMLButtonElement>, action: () => void): void {
@@ -86,6 +87,15 @@ export function EditorToolbar({ editor }: { readonly editor: Editor }) {
         active={editor.isActive("taskList")}
         onClick={() => editor.chain().focus().toggleTaskList().run()}
       />
+      <button
+        type="button"
+        aria-label="Insert canvas"
+        onMouseDown={(event) => event.preventDefault()}
+        onKeyDown={(event) => activateWithKeyboard(event, () => void insertCanvasBlock(editor))}
+        onClick={() => void insertCanvasBlock(editor)}
+      >
+        Canvas
+      </button>
       <button
         type="button"
         aria-label="Insert database"

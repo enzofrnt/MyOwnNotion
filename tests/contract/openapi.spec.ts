@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  CanvasBlockAttributesSchema,
   ChangeEnvelopeSchema,
   CreateItemSchema,
   CreatePlacementSchema,
@@ -53,7 +54,7 @@ function runtimeRequired(schema: { required?: string[] }): string[] {
 }
 
 describe("OpenAPI ↔ runtime schema alignment", () => {
-  it("defines the strict version 5 editor JSON boundary", () => {
+  it("defines the strict version 6 editor JSON boundary", () => {
     expect(EditorDocumentSchema.required).toEqual(["type", "content"]);
     expect(EditorDocumentSchema.additionalProperties).toBe(false);
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"horizontalRule"');
@@ -67,6 +68,9 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"databaseBlock"');
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"databaseId"');
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"relation"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"canvasBlock"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"canvasId"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"strokeId"');
     expect(requiredOf("TaskItemAttributes")).toEqual([
       "checked",
       "taskId",
@@ -85,6 +89,17 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
     ]);
     expect(runtimeRequired(DatabaseBlockAttributesSchema)).toEqual(
       requiredOf("DatabaseBlockAttributes"),
+    );
+    expect(requiredOf("CanvasBlockAttributes")).toEqual([
+      "canvasId",
+      "schemaVersion",
+      "cards",
+      "connections",
+      "strokes",
+      "viewport",
+    ]);
+    expect(runtimeRequired(CanvasBlockAttributesSchema)).toEqual(
+      requiredOf("CanvasBlockAttributes"),
     );
     expect(JSON.stringify(EditorDocumentSchema)).not.toContain("futureWidget");
   });

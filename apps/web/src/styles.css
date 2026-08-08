@@ -1072,6 +1072,217 @@ textarea {
   border-radius: 0.65rem;
 }
 
+.canvas-block {
+  max-width: 100%;
+  margin: 1rem 0;
+  padding: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--surface);
+}
+
+.canvas-block[data-selected="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.canvas-heading,
+.canvas-create-controls,
+.canvas-mode-controls,
+.canvas-viewport-controls,
+.canvas-connection-form,
+.canvas-card-geometry {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.canvas-heading {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.canvas-heading h3,
+.canvas-heading output {
+  margin: 0;
+}
+
+.canvas-create-controls,
+.canvas-mode-controls,
+.canvas-connection-form,
+.canvas-semantic-lists,
+.canvas-card-inspector {
+  margin-top: 0.75rem;
+}
+
+.canvas-create-controls form,
+.canvas-connection-form label,
+.canvas-mode-controls label,
+.canvas-card-inspector label {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.canvas-surface {
+  position: relative;
+  width: 100%;
+  height: 30rem;
+  margin-top: 0.75rem;
+  overflow: hidden;
+  touch-action: none;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background-color: color-mix(in srgb, var(--surface) 97%, var(--accent-soft));
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.canvas-surface[data-draw-mode="true"] {
+  cursor: crosshair;
+}
+
+.canvas-origin {
+  position: absolute;
+  z-index: 0;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.canvas-world {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 1;
+  width: 1px;
+  height: 1px;
+  transform-origin: 0 0;
+}
+
+.canvas-vector-layer {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.canvas-vector-layer line,
+.canvas-vector-layer polyline {
+  fill: none;
+  stroke: var(--text);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.canvas-vector-layer line {
+  stroke-width: 2;
+}
+
+.canvas-vector-layer marker path {
+  fill: var(--text);
+}
+
+.canvas-card {
+  position: absolute;
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  box-shadow: 0 0.35rem 1rem rgb(15 23 42 / 10%);
+  color: var(--text);
+  cursor: grab;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  user-select: none;
+}
+
+.canvas-card:active {
+  cursor: grabbing;
+}
+
+.canvas-card[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.canvas-card[data-card-kind="page"] {
+  border-style: double;
+}
+
+.canvas-card[data-availability="unavailable"] {
+  border-style: dashed;
+}
+
+.canvas-card-kind {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.canvas-semantic-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.canvas-semantic-lists > div,
+.canvas-card-inspector {
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+}
+
+.canvas-semantic-lists h4,
+.canvas-card-inspector h4,
+.canvas-semantic-lists p {
+  margin: 0;
+}
+
+.canvas-semantic-lists ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.canvas-semantic-lists li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.canvas-card-inspector {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.canvas-card-inspector textarea {
+  width: min(100%, 32rem);
+  min-height: 5rem;
+}
+
+.canvas-card-inspector [data-availability="unavailable"] {
+  font-style: italic;
+}
+
 @media (max-width: 42rem) {
   .knowledge-panel-heading,
   .knowledge-links {
@@ -1148,5 +1359,21 @@ textarea {
   .database-add-record {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .canvas-heading,
+  .canvas-create-controls,
+  .canvas-create-controls form,
+  .canvas-connection-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .canvas-surface {
+    height: 22rem;
+  }
+
+  .canvas-semantic-lists {
+    grid-template-columns: 1fr;
   }
 }

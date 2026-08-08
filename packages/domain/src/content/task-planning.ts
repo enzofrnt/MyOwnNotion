@@ -1,5 +1,6 @@
 import type { Uuid } from "../ids/uuid.ts";
 import {
+  DATABASE_EDITOR_DOCUMENT_VERSION,
   EDITOR_DOCUMENT_VERSION,
   extractTaskOccurrences,
   normalizePageDocumentForEditor,
@@ -65,6 +66,7 @@ export function buildTaskProjections(
       (source) =>
         source.lifecycle !== "purged" &&
         (source.pageDocument?.formatVersion === TASK_EDITOR_DOCUMENT_VERSION ||
+          source.pageDocument?.formatVersion === DATABASE_EDITOR_DOCUMENT_VERSION ||
           source.pageDocument?.formatVersion === EDITOR_DOCUMENT_VERSION),
     )
     .sort(

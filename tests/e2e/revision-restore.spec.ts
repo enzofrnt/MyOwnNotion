@@ -3,6 +3,13 @@
  */
 import { expect, test } from "@playwright/test";
 import {
+  addCanvasPageCard,
+  addCanvasTextCard,
+  connectCanvasCards,
+  drawCanvasStroke,
+  insertCanvas,
+} from "./canvas-helpers.ts";
+import {
   addDatabaseProperty,
   addDatabaseRecord,
   addSelectOption,
@@ -157,6 +164,67 @@ test.describe("revision history (US5)", () => {
     await expect(
       restored.getByRole("button", { name: "Open record Restored Alpha" }),
     ).toBeVisible();
+  });
+
+  test("restores an exact version 6 canvas and its page-card relationship", async ({
+    page,
+    request,
+  }) => {
+    await openWorkspace(page);
+    const sourceName = uniqueName("RestoreCanvas");
+    const targetName = uniqueName("RestoreCanvasTarget");
+    await createRootItem(page, "page", targetName);
+    await createRootItem(page, "page", sourceName);
+    await waitForSynchronized(page);
+    await selectItem(page, sourceName);
+    const canvas = await insertCanvas(page);
+    const canvasId = await canvas.getAttribute("data-canvas-id");
+    const textCard = await addCanvasTextCard(canvas, "Restored spatial idea");
+    const textCardId = await textCard.getAttribute("data-card-id");
+    const pageCard = await addCanvasPageCard(canvas, targetName);
+    const pageCardId = await pageCard.getAttribute("data-card-id");
+    await connectCanvasCards(canvas, "Restored spatial idea", targetName, "explains");
+    const connectionId = await canvas
+      .locator("[data-connection-id]")
+      .getAttribute("data-connection-id");
+    await canvas.getByRole("button", { name: "Zoom canvas in" }).click();
+    await drawCanvasStroke(page, canvas, "8");
+    const strokeId = await canvas.locator("[data-stroke-id]").getAttribute("data-stroke-id");
+    await savePageAndSynchronize(page);
+    const sourceId = await page.getByTestId(`tree-item-${sourceName}`).getAttribute("data-item-id");
+    if (sourceId === null) throw new Error("Canvas restore page identity missing");
+    const withCanvas = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
+    const withCanvasBody = (await withCanvas.json()) as { currentRevisionId: string };
+
+    await page.getByRole("textbox", { name: "Page content" }).fill("Canvas temporarily removed");
+    await savePageAndSynchronize(page);
+    await selectItem(page, sourceName);
+    await page.getByTestId("revision-id-input").fill(withCanvasBody.currentRevisionId);
+    await page.getByTestId("preview-revision").click();
+    await page.getByTestId("restore-revision").click();
+    await expect(page.getByTestId("restore-feedback")).toContainText("history unchanged");
+
+    await page.reload();
+    await openWorkspace(page);
+    await selectItem(page, sourceName);
+    const restored = page.getByTestId("canvas-block");
+    await expect(restored).toHaveAttribute("data-canvas-id", canvasId ?? "");
+    await expect(
+      restored.getByRole("button", { name: "Text card: Restored spatial idea" }),
+    ).toHaveAttribute("data-card-id", textCardId ?? "");
+    await expect(
+      restored.getByRole("button", { name: `Page card: ${targetName}` }),
+    ).toHaveAttribute("data-card-id", pageCardId ?? "");
+    await expect(restored.locator(`[data-connection-id="${connectionId}"]`)).toBeVisible();
+    await expect(
+      restored.locator(`[data-connection-id="${connectionId}"]`).getByRole("textbox", {
+        name: "Connection name",
+      }),
+    ).toHaveValue("explains");
+    await expect(restored.locator(`[data-stroke-id="${strokeId}"]`)).toContainText("thick");
+    await expect(restored.getByRole("status", { name: "Canvas zoom" })).toHaveText("125%");
+    await selectItem(page, targetName);
+    await expect(page.getByRole("region", { name: "Backlinks" })).toContainText(sourceName);
   });
 
   test("restores retained content as a new descendant revision", async ({ page }) => {

@@ -14,6 +14,7 @@ import {
 } from "@myownnotion/client-core";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildCanvasDocument, buildCanvasFixture } from "../../../tests/fixtures/canvas.ts";
 import { buildDatabaseDocument, buildDatabaseFixture } from "../../../tests/fixtures/databases.ts";
 
 let db: LocalDatabase;
@@ -255,6 +256,46 @@ describe("atomic optimistic mutation + outbox (T040)", () => {
     expect(await snapshotCounts()).toEqual(before);
     expect((await repository.getItem(sourceId))?.pageDocument).toEqual(initialDocument);
     expect(await db.relationships.get(occurrenceId)).toBeUndefined();
+  });
+
+  it("rolls back a complete version 6 canvas document when outbox storage fails", async () => {
+    const itemId = generateUuidV7();
+    const created = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "item.create",
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Atomic canvas source",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+      baseRevisionIds: [],
+    });
+    expect(created.ok).toBe(true);
+    const source = await repository.getItem(itemId);
+    if (source === null) throw new Error("Atomic canvas source missing");
+    const before = await snapshotCounts();
+    const initialDocument = source.pageDocument;
+    const original = db.outbox.add.bind(db.outbox);
+    const quotaError = new Error("quota");
+    quotaError.name = "QuotaExceededError";
+    (db.outbox as { add: unknown }).add = () => Promise.reject(quotaError);
+
+    const result = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      payload: {
+        itemId,
+        baseRevisionId: source.currentRevisionId,
+        document: buildCanvasDocument(buildCanvasFixture(4, 3, 2)),
+      },
+      baseRevisionIds: [source.currentRevisionId],
+    });
+    (db.outbox as { add: unknown }).add = original;
+
+    expect(result.ok).toBe(false);
+    expect(await snapshotCounts()).toEqual(before);
+    expect((await repository.getItem(itemId))?.pageDocument).toEqual(initialDocument);
   });
 
   it("rolls back a version 4 task document and its revision when outbox storage fails", async () => {

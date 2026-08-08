@@ -189,6 +189,79 @@ export const DatabaseBlockAttributesSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const CanvasPointSchema = Type.Object(
+  {
+    x: Type.Number({ minimum: -1_000_000, maximum: 1_000_000 }),
+    y: Type.Number({ minimum: -1_000_000, maximum: 1_000_000 }),
+  },
+  { additionalProperties: false },
+);
+
+const CanvasCardGeometrySchema = {
+  cardId: UuidSchema,
+  x: Type.Number({ minimum: -1_000_000, maximum: 1_000_000 }),
+  y: Type.Number({ minimum: -1_000_000, maximum: 1_000_000 }),
+  width: Type.Number({ minimum: 160, maximum: 800 }),
+  height: Type.Number({ minimum: 96, maximum: 600 }),
+};
+
+const CanvasCardSchema = Type.Union([
+  Type.Object(
+    {
+      ...CanvasCardGeometrySchema,
+      kind: Type.Literal("text"),
+      text: Type.String({ minLength: 1, maxLength: 4_000 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...CanvasCardGeometrySchema,
+      kind: Type.Literal("page"),
+      targetItemId: UuidSchema,
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+const CanvasConnectionSchema = Type.Object(
+  {
+    connectionId: UuidSchema,
+    sourceCardId: UuidSchema,
+    targetCardId: UuidSchema,
+    label: Type.String({ maxLength: 120 }),
+  },
+  { additionalProperties: false },
+);
+
+const CanvasStrokeSchema = Type.Object(
+  {
+    strokeId: UuidSchema,
+    width: Type.Union([Type.Literal(2), Type.Literal(4), Type.Literal(8)]),
+    points: Type.Array(CanvasPointSchema, { minItems: 2, maxItems: 1_000 }),
+  },
+  { additionalProperties: false },
+);
+
+export const CanvasBlockAttributesSchema = Type.Object(
+  {
+    canvasId: UuidSchema,
+    schemaVersion: Type.Literal(1),
+    cards: Type.Array(CanvasCardSchema, { maxItems: 500 }),
+    connections: Type.Array(CanvasConnectionSchema, { maxItems: 1_000 }),
+    strokes: Type.Array(CanvasStrokeSchema, { maxItems: 200 }),
+    viewport: Type.Object(
+      {
+        x: Type.Number({ minimum: -1_000_000, maximum: 1_000_000 }),
+        y: Type.Number({ minimum: -1_000_000, maximum: 1_000_000 }),
+        zoom: Type.Number({ minimum: 0.25, maximum: 4 }),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+);
+
 const EditorTextSchema = Type.Object(
   {
     type: Type.Literal("text"),
@@ -272,6 +345,13 @@ export const EditorDocumentNodeSchema = Type.Recursive((Node) =>
       {
         type: Type.Literal("databaseBlock"),
         attrs: DatabaseBlockAttributesSchema,
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        type: Type.Literal("canvasBlock"),
+        attrs: CanvasBlockAttributesSchema,
       },
       { additionalProperties: false },
     ),

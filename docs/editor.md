@@ -4,7 +4,7 @@ The page editor stores a versioned structured document, not rendered HTML. It ap
 
 ## Supported content
 
-The editor supports paragraphs, headings 1–3, bullet and numbered lists, task lists, structured databases, quotes, code blocks, and dividers. Text supports bold, italic, strike-through, inline code, and stable links to other pages. The toolbar and all editing actions are keyboard accessible, including undo and redo.
+The editor supports paragraphs, headings 1–3, bullet and numbered lists, task lists, structured databases, freeform canvases, quotes, code blocks, and dividers. Text supports bold, italic, strike-through, inline code, and stable links to other pages. The toolbar and all editing actions are keyboard accessible, including undo and redo.
 
 Type `/` at the beginning of an empty block to open the local command menu. Continue typing to filter, use the arrow keys to move, Enter to insert, and Escape to dismiss. The menu performs no network request.
 
@@ -48,6 +48,14 @@ The search field matches record titles and readable property values. Sort by tit
 
 Database limits are enforced at the document boundary: at most 20 properties, 1,000 records, 50 options per select property, and 200 relation targets per cell. Formulas, record-as-page behavior, cross-database relations, and server-side database queries are intentionally outside this increment.
 
+## Freeform canvases
+
+Insert a canvas from the toolbar or the `/canvas` slash command. A canvas belongs to its page and stores stable identities for the canvas, every card, connection, and freehand stroke. Add text cards for short notes or page cards for active workspace pages. Page-card labels resolve from the current page name, so renaming or moving a target does not break the reference. An unavailable target stays explicit and is never silently redirected.
+
+Select a card to edit its text, size, or position with labelled controls; cards also support pointer dragging. Pan and zoom change the stored viewport without changing world geometry, and **Reset view** returns to the origin at 100%. Connections are directed, may have a readable label, follow card centers as geometry changes, and remain available in a semantic list. Draw mode commits a freehand stroke only when a complete gesture finishes; thin, medium, and thick widths are supported. Removing a card removes only its incident connections, while strokes remain independent.
+
+Canvas limits are enforced at the document boundary: at most 500 cards, 1,000 directed connections, 200 strokes, and 1,000 points per stroke. Card coordinates remain bounded to ±1,000,000 canvas units. The surrounding page clips the spatial surface to avoid horizontal document overflow. Semantic card, connection, and stroke controls provide keyboard and assistive-technology paths independent of the SVG geometry.
+
 ## Saving and offline behavior
 
 Edits are automatically coalesced after a short pause. Only one local document replacement is written at a time; if typing continues, only the newest queued snapshot is saved next. The local page projection and outbox entry commit in one IndexedDB transaction before the editor reports a local save.
@@ -58,11 +66,11 @@ A previously loaded page remains editable without the API. Reloading while offli
 
 ## Format and compatibility
 
-Canonical page content uses the `myownnotion.document+json` envelope with `formatVersion: 5`. Its body is a validated Tiptap JSON document rooted at `doc`; accepted node and mark names are allow-listed in the domain package and in the feature contracts under `specs/003-links-knowledge-graph/`, `specs/004-tasks/`, and `specs/005-databases/`. A `wikiLink` mark stores a target UUID and occurrence UUID. A current `taskItem` stores a task UUID, consistent checkbox and status, optional `YYYY-MM-DD` due date, and fixed priority. A `databaseBlock` stores its exact schema, records, typed values, relations, and current view. Versions 2–4 remain readable and upgrade only when explicitly saved.
+Canonical page content uses the `myownnotion.document+json` envelope with `formatVersion: 6`. Its body is a validated Tiptap JSON document rooted at `doc`; accepted node and mark names are allow-listed in the domain package and in the feature contracts under `specs/003-links-knowledge-graph/`, `specs/004-tasks/`, `specs/005-databases/`, and `specs/006-freeform-canvas/`. A `wikiLink` mark stores a target UUID and occurrence UUID. A current `taskItem` stores a task UUID, consistent checkbox and status, optional `YYYY-MM-DD` due date, and fixed priority. A `databaseBlock` stores its exact schema, records, typed values, relations, and current view. A `canvasBlock` stores cards, exact world geometry, directed connections, complete strokes, and its viewport as one atom. Page-card UUIDs also serve as derived `link:references` occurrence identities. Versions 2–5 remain readable and upgrade only when explicitly saved.
 
 Legacy version 1 empty pages normalize in memory to one empty paragraph and upgrade only after the owner edits and saves. Unknown future versions, blocks, marks, attributes, or malformed nesting produce a visible incompatibility state and leave stored content unchanged. They are never silently stripped.
 
-Workspace export includes the complete versioned JSON document, database schemas and records, all task identities and metadata, and every active derived `link:references` relationship, including its occurrence identity and revision lineage. The export remains canonical JSON: importing or independently validating it must preserve databases, inline tasks, link occurrences, and relationship projections. Application diagnostics redact request bodies, database names/values/queries, task titles/filters, link queries, graph labels, and nested editor text.
+Workspace export includes the complete versioned JSON document, database schemas and records, canvas identities and geometry, all task identities and metadata, and every active derived `link:references` relationship, including page-card occurrences and revision lineage. The export remains canonical JSON: importing or independently validating it must preserve databases, canvases, inline tasks, link occurrences, and relationship projections. Application diagnostics redact request bodies, database names/values/queries, canvas text/labels/geometry/page targets/strokes/viewports, task titles/filters, link queries, graph labels, and nested editor text.
 
 ## Testing
 
@@ -80,6 +88,9 @@ pnpm exec vitest run --project performance tests/performance/tasks.perf.spec.ts
 pnpm exec vitest run packages/domain/tests/database.spec.ts apps/web/src/features/databases/database-block.spec.ts
 pnpm exec playwright test tests/e2e/databases-*.spec.ts tests/e2e/revision-restore.spec.ts
 pnpm exec vitest run --project performance tests/performance/databases.perf.spec.ts
+pnpm exec vitest run packages/domain/tests/canvas.spec.ts packages/domain/tests/editor-document.spec.ts apps/web/src/features/canvas/canvas-block.spec.ts
+pnpm exec playwright test tests/e2e/canvas-*.spec.ts tests/e2e/revision-restore.spec.ts
+pnpm exec vitest run tests/performance/canvas.perf.spec.ts
 ```
 
 The complete repository gates remain documented in [development.md](./development.md). The production-like application opens at `http://127.0.0.1:8080` when started through [deployment.md](./deployment.md); it must remain loopback-only until authentication exists.

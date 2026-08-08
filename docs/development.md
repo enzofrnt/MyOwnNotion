@@ -24,7 +24,7 @@ pnpm db:migrate
 
 Then start the API and web client with `pnpm dev`. Copy `.env.example` only when local overrides are needed. Never commit secrets. Development ports and the production-like evaluation composition bind to `127.0.0.1` because authentication is not implemented yet.
 
-Page authoring, the version 5 document format, structured databases, tasks and planning views, wiki links, backlinks, graphs, slash commands, Markdown shortcuts, auto-save states, offline restart, and compatibility behavior are documented in [editor.md](./editor.md).
+Page authoring, the version 6 document format, freeform canvases, structured databases, tasks and planning views, wiki links, backlinks, graphs, slash commands, Markdown shortcuts, auto-save states, offline restart, and compatibility behavior are documented in [editor.md](./editor.md).
 
 ## Formatting and static checks
 
@@ -74,13 +74,28 @@ pnpm exec vitest run tests/performance/databases.perf.spec.ts
 pnpm exec playwright test tests/e2e/databases-*.spec.ts
 ```
 
-The principal database journeys attach desktop and mobile property, table, board, gallery, and empty-state screenshots to the Playwright report. GitHub retains those images, the HTML report, and failure traces; do not commit generated screenshot binaries. Run `pnpm test:containers` after changing the version-5 envelope, persistence, image build, proxy, or Compose behavior.
+The principal database journeys attach desktop and mobile property, table, board, gallery, and empty-state screenshots to the Playwright report. GitHub retains those images, the HTML report, and failure traces; do not commit generated screenshot binaries. Run `pnpm test:containers` after changing the current document envelope, persistence, image build, proxy, or Compose behavior.
+
+For focused freeform-canvas work, run strict domain and editor validation, immutable web commands, local fault-injection/reconciliation, API and export contracts, the canvas performance suite, and all canvas browser journeys:
+
+```text
+pnpm exec vitest run packages/domain/tests/canvas.spec.ts packages/domain/tests/editor-document.spec.ts
+pnpm exec vitest run apps/web/src/features/canvas/canvas-block.spec.ts
+pnpm exec vitest run packages/client-core/tests/editor-local-mutation.spec.ts packages/client-core/tests/local-mutation.atomicity.spec.ts packages/client-core/tests/reconciliation.spec.ts
+pnpm exec vitest run tests/contract/openapi.spec.ts tests/contract/editor-export.spec.ts tests/contract/export.spec.ts
+pnpm exec vitest run tests/performance/canvas.perf.spec.ts
+pnpm exec playwright test tests/e2e/canvas-*.spec.ts tests/e2e/revision-restore.spec.ts
+```
+
+Principal canvas journeys attach deterministic desktop and mobile card, connection, page-card, and drawing screenshots to the Playwright report. GitHub retains these images with the HTML report and failure traces. Run `pnpm test:containers` after changing the version-6 envelope, canvas persistence, page-card projection, images, proxy, or Compose behavior.
 
 When debugging link projection, compare three identities before changing data: the source page UUID, the target page UUID, and the occurrence UUID stored in the document mark. The occurrence UUID is also the derived relationship identity. A page save, revision restore, snapshot rebuild, and incremental catch-up must always update the document and its `link:references` rows as one logical state. Conflict records deliberately preserve the local document and link projection until the owner resolves them.
 
 When debugging task views, first inspect the task UUID and its source page UUID in the version-4 document. The workspace does not own a separate task database: it rebuilds task projections from durable local page documents after local saves, incremental catch-up, snapshots, and conflict retention. A missing legacy task is expected until its version-1-to-3 page is explicitly opened and saved; duplicate UUIDs or contradictory checkbox/status values are rejected instead of repaired at storage boundaries.
 
 When debugging a structured database, compare the database UUID, property UUIDs, record UUIDs, and relation target UUIDs inside the version-5 page document. Database records are embedded in their owning page and use the existing atomic document/outbox path; there is no hidden server-side database table. A removed relation target remains an explicit unavailable identity, while removing a property must remove every corresponding value and dependent sort/group setting atomically. Table, board, and gallery must derive from the same filtered and sorted record projection.
+
+When debugging a canvas, compare the canvas, card, connection, and stroke UUIDs inside the version-6 page document before inspecting pixels. Card and stroke points are world coordinates; only the stored viewport controls their screen projection. A page card uses its card UUID as the derived relationship occurrence, so the same identity must appear in the document, local relationship projection, API relationship row, export, snapshot, and restored revision. Offline writes commit the complete canvas atom and outbox entry together; a partial geometry repair at a storage boundary is a defect.
 
 Canonical export tests must assert the versioned page document and the corresponding relationship rows together. `validateCanonicalExport` checks endpoint and revision references; canonical serialization additionally proves deterministic round-trip behavior.
 

@@ -5,6 +5,7 @@
  */
 import { generateUuidV7, keyBetween, type Uuid } from "@myownnotion/domain";
 
+export * from "./canvas.ts";
 export * from "./databases.ts";
 export * from "./knowledge.ts";
 export * from "./tasks.ts";

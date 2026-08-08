@@ -9,6 +9,7 @@
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import {
+  DATABASE_EDITOR_DOCUMENT_VERSION,
   EDITOR_DOCUMENT_VERSION,
   LEGACY_EDITOR_DOCUMENT_VERSION,
   TASK_EDITOR_DOCUMENT_VERSION,
@@ -87,6 +88,7 @@ export function validatePageDocument(document: PageDocument): DomainResult<PageD
   }
   if (
     document.formatVersion === EDITOR_DOCUMENT_VERSION ||
+    document.formatVersion === DATABASE_EDITOR_DOCUMENT_VERSION ||
     document.formatVersion === TASK_EDITOR_DOCUMENT_VERSION ||
     document.formatVersion === WIKI_LINK_EDITOR_DOCUMENT_VERSION ||
     document.formatVersion === LEGACY_EDITOR_DOCUMENT_VERSION
@@ -95,10 +97,14 @@ export function validatePageDocument(document: PageDocument): DomainResult<PageD
       allowWikiLinks: document.formatVersion >= WIKI_LINK_EDITOR_DOCUMENT_VERSION,
       taskMetadata:
         document.formatVersion === EDITOR_DOCUMENT_VERSION ||
+        document.formatVersion === DATABASE_EDITOR_DOCUMENT_VERSION ||
         document.formatVersion === TASK_EDITOR_DOCUMENT_VERSION
           ? "current"
           : "legacy",
-      allowDatabases: document.formatVersion === EDITOR_DOCUMENT_VERSION,
+      allowDatabases:
+        document.formatVersion === EDITOR_DOCUMENT_VERSION ||
+        document.formatVersion === DATABASE_EDITOR_DOCUMENT_VERSION,
+      allowCanvas: document.formatVersion === EDITOR_DOCUMENT_VERSION,
     });
     if (!editorDocument.ok) {
       return editorDocument as DomainResult<PageDocument>;

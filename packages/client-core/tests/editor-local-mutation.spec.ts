@@ -14,6 +14,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildCanvasDocument, buildCanvasFixture } from "../../../tests/fixtures/canvas.ts";
 import { buildDatabaseDocument, buildDatabaseFixture } from "../../../tests/fixtures/databases.ts";
 
 const RICH_DOCUMENT: EditorDocument = {
@@ -79,6 +80,52 @@ async function createPage(
 }
 
 describe("rich editor local mutations", () => {
+  it("atomically projects a complete version 6 canvas and its page-card relationship offline", async () => {
+    const target = await createPage("Canvas local target");
+    const sourceId = generateUuidV7();
+    const pageCardId = generateUuidV7();
+    const canvas = buildCanvasFixture(3, 2, 1);
+    const canvasDocument = buildCanvasDocument({
+      ...canvas,
+      cards: [
+        ...canvas.cards,
+        {
+          cardId: pageCardId,
+          kind: "page",
+          targetItemId: target.itemId,
+          x: -200,
+          y: 300,
+          width: 220,
+          height: 120,
+        },
+      ],
+    });
+    const mutationId = generateUuidV7();
+    const created = await applyLocalMutation(db, {
+      mutationId,
+      commandType: "item.create",
+      payload: {
+        id: sourceId,
+        kind: "page",
+        name: "Offline canvas page",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "X" },
+        pageDocument: canvasDocument,
+      },
+      baseRevisionIds: [],
+    });
+    expect(created.ok).toBe(true);
+    expect((await new LocalRepository(db).getItem(sourceId))?.pageDocument).toEqual(canvasDocument);
+    expect(await db.relationships.get(pageCardId)).toMatchObject({
+      sourceItemId: sourceId,
+      targetItemId: target.itemId,
+      relationType: "link:references",
+    });
+    expect(await new Outbox(db).get(mutationId)).toMatchObject({
+      status: "pending",
+      payload: { pageDocument: canvasDocument },
+    });
+  });
+
   it("projects a complete version 5 database from an initial offline page creation", async () => {
     const itemId = generateUuidV7();
     const databaseDocument = buildDatabaseDocument(buildDatabaseFixture(3));

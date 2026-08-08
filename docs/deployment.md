@@ -94,6 +94,8 @@ For a functional task check, insert a task in either page, place the caret insid
 
 For a functional database check, insert a database in a page and add select, date, number, and relation properties. Add at least two records, relate the first to the second, then exercise search, numeric sorting, select-grouped board, and gallery. Save and reload. Disconnect the browser network, edit a record and the current view, reload once, reconnect, and wait for synchronization. The same database identity, schema, records, relation, query, sort, and view must remain present.
 
+For a functional canvas check, insert a canvas in a page, add one text card and one page card, connect and label them, then draw a thick stroke. Move and resize a card, pan and zoom the viewport, save, and reload. Open the page card and confirm its backlink. Disconnect the browser network, change geometry and the viewport, reload once, reconnect, and wait for synchronization. The same canvas/card/connection/stroke identities, geometry, page target, label, stroke points, and viewport must remain present.
+
 To verify the configured images and loopback bindings without starting services:
 
 ```text
@@ -126,7 +128,7 @@ docker compose --env-file .env.prod -f compose.prod.yaml up --detach --wait
 
 Canonical metadata and page content remain in the project-scoped `postgres-data` volume. Immutable file content remains in `blob-data`. A normal `down` or host restart does not delete either volume.
 
-After restarting, reopen the linked source and target. The inline link, backlink occurrence count, graph edge, task identity, status, due date, priority, task-workspace result, database schema, records, relation, and selected view must still be present. The automated container smoke performs the same persistence check through the same-origin web proxy using one version-5 document containing its task metadata, derived wiki relationship, and structured database.
+After restarting, reopen the linked source and target. The inline link, backlink occurrence count, graph edge, task identity, status, due date, priority, task-workspace result, database schema, records, relation, selected view, canvas cards, geometry, connection, stroke, page target, and viewport must still be present. The automated container smoke performs the same persistence check through the same-origin web proxy using one version-6 document containing its task metadata, derived wiki and canvas page-card relationships, structured database, and complete canvas atom.
 
 ## Update to another immutable revision
 

@@ -7,6 +7,7 @@
  */
 import { execFileSync } from "node:child_process";
 import process from "node:process";
+import { isDeepStrictEqual } from "node:util";
 import { generateUuidV7 } from "@myownnotion/domain";
 
 const projectName = `myownnotion-container-smoke-${process.pid}`;
@@ -100,6 +101,11 @@ try {
   const activeOptionId = generateUuidV7();
   const sourceRecordId = generateUuidV7();
   const targetRecordId = generateUuidV7();
+  const canvasId = generateUuidV7();
+  const canvasTextCardId = generateUuidV7();
+  const canvasPageCardId = generateUuidV7();
+  const canvasConnectionId = generateUuidV7();
+  const canvasStrokeId = generateUuidV7();
   await expectJson(`${webBaseUrl}/v1/items`, {
     method: "POST",
     headers: {
@@ -117,7 +123,7 @@ try {
       },
       pageDocument: {
         format: "myownnotion.document+json",
-        formatVersion: 5,
+        formatVersion: 6,
         body: {
           type: "doc",
           content: [
@@ -202,6 +208,53 @@ try {
                 },
               },
             },
+            {
+              type: "canvasBlock",
+              attrs: {
+                canvasId,
+                schemaVersion: 1,
+                cards: [
+                  {
+                    cardId: canvasTextCardId,
+                    kind: "text",
+                    text: "Container spatial idea",
+                    x: 40,
+                    y: 80,
+                    width: 240,
+                    height: 160,
+                  },
+                  {
+                    cardId: canvasPageCardId,
+                    kind: "page",
+                    targetItemId,
+                    x: 420,
+                    y: -120,
+                    width: 280,
+                    height: 180,
+                  },
+                ],
+                connections: [
+                  {
+                    connectionId: canvasConnectionId,
+                    sourceCardId: canvasTextCardId,
+                    targetCardId: canvasPageCardId,
+                    label: "documents",
+                  },
+                ],
+                strokes: [
+                  {
+                    strokeId: canvasStrokeId,
+                    width: 8,
+                    points: [
+                      { x: -40, y: 20 },
+                      { x: 10, y: 90 },
+                      { x: 180, y: 30 },
+                    ],
+                  },
+                ],
+                viewport: { x: -160, y: 240, zoom: 1.5 },
+              },
+            },
           ],
         },
       },
@@ -224,10 +277,10 @@ try {
     throw new Error("Restarted composition did not preserve the committed fixture item");
   }
   if (
-    persisted.pageDocument.formatVersion !== 5 ||
+    persisted.pageDocument.formatVersion !== 6 ||
     persisted.pageDocument.body.content[0]?.type !== "heading"
   ) {
-    throw new Error("Restarted composition did not preserve the version 5 editor document");
+    throw new Error("Restarted composition did not preserve the version 6 editor document");
   }
   const persistedTaskList = persisted.pageDocument.body.content.find(
     (node) => node.type === "taskList",
@@ -270,6 +323,63 @@ try {
   ) {
     throw new Error("Restarted composition did not preserve database schema, relation, and view");
   }
+  const persistedCanvas = persisted.pageDocument.body.content.find(
+    (node) => node.type === "canvasBlock",
+  );
+  const persistedCanvasAttrs = persistedCanvas?.attrs as
+    | {
+        canvasId?: string;
+        cards?: Array<Record<string, unknown>>;
+        connections?: Array<Record<string, unknown>>;
+        strokes?: Array<Record<string, unknown>>;
+        viewport?: Record<string, unknown>;
+      }
+    | undefined;
+  if (
+    persistedCanvasAttrs?.canvasId !== canvasId ||
+    !isDeepStrictEqual(persistedCanvasAttrs.cards, [
+      {
+        cardId: canvasTextCardId,
+        kind: "text",
+        text: "Container spatial idea",
+        x: 40,
+        y: 80,
+        width: 240,
+        height: 160,
+      },
+      {
+        cardId: canvasPageCardId,
+        kind: "page",
+        targetItemId,
+        x: 420,
+        y: -120,
+        width: 280,
+        height: 180,
+      },
+    ]) ||
+    !isDeepStrictEqual(persistedCanvasAttrs.connections, [
+      {
+        connectionId: canvasConnectionId,
+        sourceCardId: canvasTextCardId,
+        targetCardId: canvasPageCardId,
+        label: "documents",
+      },
+    ]) ||
+    !isDeepStrictEqual(persistedCanvasAttrs.strokes, [
+      {
+        strokeId: canvasStrokeId,
+        width: 8,
+        points: [
+          { x: -40, y: 20 },
+          { x: 10, y: 90 },
+          { x: 180, y: 30 },
+        ],
+      },
+    ]) ||
+    !isDeepStrictEqual(persistedCanvasAttrs.viewport, { x: -160, y: 240, zoom: 1.5 })
+  ) {
+    throw new Error("Restarted composition did not preserve the complete canvas atom");
+  }
 
   const persistedRelationships = await expectJson<{
     relationships: Array<{
@@ -289,9 +399,19 @@ try {
   ) {
     throw new Error("Restarted composition did not preserve the derived wiki relationship");
   }
+  const persistedCanvasPage = persistedRelationships.relationships.find(
+    (relationship) => relationship.id === canvasPageCardId,
+  );
+  if (
+    persistedCanvasPage?.sourceItemId !== itemId ||
+    persistedCanvasPage.targetItemId !== targetItemId ||
+    persistedCanvasPage.relationType !== "link:references"
+  ) {
+    throw new Error("Restarted composition did not preserve the canvas page-card relationship");
+  }
 
   console.info(
-    "Container smoke test passed: images, health proxy, migrations, and v5 wiki/task/database persistence.",
+    "Container smoke test passed: images, health proxy, migrations, and v6 wiki/task/database/canvas persistence.",
   );
 } catch (error) {
   console.error("Container smoke test failed:", error);

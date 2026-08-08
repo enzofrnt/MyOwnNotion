@@ -22,12 +22,14 @@ import type {
 } from "@myownnotion/contracts";
 import {
   buildTaskProjections,
+  extractCanvasBlocks,
   extractDatabaseBlocks,
   generateUuidV7,
   normalizePageDocumentForEditor,
   type Uuid,
 } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildCanvasDocument, buildCanvasFixture } from "../../../tests/fixtures/canvas.ts";
 import { buildDatabaseDocument, buildDatabaseFixture } from "../../../tests/fixtures/databases.ts";
 
 let db: LocalDatabase;
@@ -123,6 +125,15 @@ function serverDatabasePage(name: string): ItemDto {
     ...item,
     kind: "page",
     pageDocument: buildDatabaseDocument(buildDatabaseFixture(4)),
+  } as ItemDto;
+}
+
+function serverCanvasPage(name: string): ItemDto {
+  const item = serverItem(name);
+  return {
+    ...item,
+    kind: "page",
+    pageDocument: buildCanvasDocument(buildCanvasFixture(4, 3, 2)),
   } as ItemDto;
 }
 
@@ -435,6 +446,35 @@ describe("reconciliation (T044)", () => {
     expect(normalized.ok).toBe(true);
     if (!normalized.ok) throw new Error("Stored database document did not normalize");
     expect(extractDatabaseBlocks(normalized.value)).toHaveLength(1);
+  });
+
+  it("projects a complete version 6 canvas received through incremental catch-up", async () => {
+    const canvasPage = serverCanvasPage("Remote canvas");
+    const transport = new FakeTransport();
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 1,
+            mutationId: generateUuidV7(),
+            revisionIds: [canvasPage.currentRevisionId],
+            changedItems: [canvasPage],
+          },
+        ],
+        nextCursor: "canvas-1",
+        hasMore: false,
+      },
+    ];
+
+    const outcome = await reconcile(db, transport);
+    const stored = await repository.getItem(canvasPage.id as Uuid);
+    expect(outcome.caughtUpTo).toBe("canvas-1");
+    expect(stored?.pageDocument).toEqual(canvasPage.pageDocument);
+    if (stored?.pageDocument == null) throw new Error("Stored canvas document missing");
+    const normalized = normalizePageDocumentForEditor(stored.pageDocument);
+    expect(normalized.ok).toBe(true);
+    if (!normalized.ok) throw new Error("Stored canvas document did not normalize");
+    expect(extractCanvasBlocks(normalized.value)).toHaveLength(1);
   });
 
   it("replaces incremental derived relationships by source idempotently, including removal", async () => {

@@ -5,6 +5,7 @@
  * filesystem APIs. Adapters depend on the domain, never the reverse.
  */
 
+export * from "./content/canvas.ts";
 export * from "./content/content-items.ts";
 export * from "./content/database.ts";
 export * from "./content/editor-document.ts";

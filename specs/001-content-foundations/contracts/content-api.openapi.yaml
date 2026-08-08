@@ -713,6 +713,85 @@ components:
                 - { type: 'null' }
           additionalProperties: false
       additionalProperties: false
+    CanvasPoint:
+      type: object
+      required: [x, y]
+      properties:
+        x: { type: number, minimum: -1000000, maximum: 1000000 }
+        y: { type: number, minimum: -1000000, maximum: 1000000 }
+      additionalProperties: false
+    CanvasCard:
+      oneOf:
+        - type: object
+          required: [cardId, kind, x, y, width, height, text]
+          properties:
+            cardId: { $ref: '#/components/schemas/Uuid' }
+            kind: { const: text }
+            x: { type: number, minimum: -1000000, maximum: 1000000 }
+            y: { type: number, minimum: -1000000, maximum: 1000000 }
+            width: { type: number, minimum: 160, maximum: 800 }
+            height: { type: number, minimum: 96, maximum: 600 }
+            text: { type: string, minLength: 1, maxLength: 4000 }
+          additionalProperties: false
+        - type: object
+          required: [cardId, kind, x, y, width, height, targetItemId]
+          properties:
+            cardId: { $ref: '#/components/schemas/Uuid' }
+            kind: { const: page }
+            x: { type: number, minimum: -1000000, maximum: 1000000 }
+            y: { type: number, minimum: -1000000, maximum: 1000000 }
+            width: { type: number, minimum: 160, maximum: 800 }
+            height: { type: number, minimum: 96, maximum: 600 }
+            targetItemId: { $ref: '#/components/schemas/Uuid' }
+          additionalProperties: false
+    CanvasConnection:
+      type: object
+      required: [connectionId, sourceCardId, targetCardId, label]
+      properties:
+        connectionId: { $ref: '#/components/schemas/Uuid' }
+        sourceCardId: { $ref: '#/components/schemas/Uuid' }
+        targetCardId: { $ref: '#/components/schemas/Uuid' }
+        label: { type: string, maxLength: 120 }
+      additionalProperties: false
+    CanvasStroke:
+      type: object
+      required: [strokeId, width, points]
+      properties:
+        strokeId: { $ref: '#/components/schemas/Uuid' }
+        width: { enum: [2, 4, 8] }
+        points:
+          type: array
+          minItems: 2
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/CanvasPoint' }
+      additionalProperties: false
+    CanvasBlockAttributes:
+      type: object
+      required: [canvasId, schemaVersion, cards, connections, strokes, viewport]
+      properties:
+        canvasId: { $ref: '#/components/schemas/Uuid' }
+        schemaVersion: { const: 1 }
+        cards:
+          type: array
+          maxItems: 500
+          items: { $ref: '#/components/schemas/CanvasCard' }
+        connections:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/CanvasConnection' }
+        strokes:
+          type: array
+          maxItems: 200
+          items: { $ref: '#/components/schemas/CanvasStroke' }
+        viewport:
+          type: object
+          required: [x, y, zoom]
+          properties:
+            x: { type: number, minimum: -1000000, maximum: 1000000 }
+            y: { type: number, minimum: -1000000, maximum: 1000000 }
+            zoom: { type: number, minimum: 0.25, maximum: 4 }
+          additionalProperties: false
+      additionalProperties: false
     PageDocument:
       type: object
       required: [format, formatVersion, body]
