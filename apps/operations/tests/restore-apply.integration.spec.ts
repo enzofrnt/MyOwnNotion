@@ -201,6 +201,17 @@ describe("guarded restore apply", () => {
     });
     await expect(stat(test.guardPath)).rejects.toMatchObject({ code: "ENOENT" });
     expect(await test.target.list()).toHaveLength(1);
+    expect(
+      test.runtime.calls.find(
+        (call) => call.executable === "pg_restore" && call.arguments[0] !== "--list",
+      )?.arguments,
+    ).toEqual(
+      expect.arrayContaining([
+        "--data-only",
+        "--dbname=myownnotion",
+        expect.stringContaining("database/myownnotion.dump"),
+      ]),
+    );
   });
 
   it("reproduces a collision-suffixed canonical object key exactly", async () => {

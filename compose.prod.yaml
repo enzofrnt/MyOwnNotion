@@ -233,6 +233,8 @@ services:
       MYOWNNOTION_MIGRATIONS_ROOT: /app/migrations
       RESTIC_REPOSITORY: ${MYOWNNOTION_RESTIC_REPOSITORY:-/var/lib/myownnotion/backup-destination}
       RESTIC_PASSWORD_FILE: /run/secrets/restic-password
+      RESTIC_CACHE_DIR: ${RESTIC_CACHE_DIR:-/tmp/restic-cache}
+      GOMAXPROCS: ${GOMAXPROCS:-1}
       RCLONE_CONFIG: /run/secrets/rclone.conf
     depends_on:
       postgres:

@@ -94,9 +94,13 @@ export function BlockEditor({
         return;
       }
       coordinator.schedule(validated.value);
+      updatedEditor.commands.scrollIntoView();
     },
     onTransaction: () => setTransactionVersion((version) => version + 1),
-    onSelectionUpdate: () => setTransactionVersion((version) => version + 1),
+    onSelectionUpdate: ({ editor: updatedEditor }) => {
+      setTransactionVersion((version) => version + 1);
+      updatedEditor.commands.scrollIntoView();
+    },
   });
 
   useEffect(() => {

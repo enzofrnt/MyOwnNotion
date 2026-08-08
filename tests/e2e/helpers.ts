@@ -2,12 +2,36 @@
  * Shared Playwright helpers: unique names per run and common journeys.
  */
 import { expect, type Page, type TestInfo } from "@playwright/test";
+import pg from "pg";
 
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/** Clears durable content so each journey starts from an empty workspace. */
+export async function resetCanonicalContent(): Promise<void> {
+  const connectionString =
+    process.env["DATABASE_URL"] ??
+    "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion";
+  const client = new pg.Client({ connectionString });
+  await client.connect();
+  try {
+    await client.query(
+      `TRUNCATE items, placements, page_documents, logical_files, file_contents,
+        relationships, revisions, revision_parents, mutations, changes,
+        lifecycle_events, exports CASCADE`,
+    );
+  } finally {
+    await client.end();
+  }
+}
+
 export async function openWorkspace(page: Page): Promise<void> {
+  // Fresh contexts start on about:blank; reloads keep the app origin and must
+  // preserve the content the journey just wrote.
+  if (page.url() === "about:blank" || page.url() === "") {
+    await resetCanonicalContent();
+  }
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
   // Wait for the initial load (tree or empty state) to settle.

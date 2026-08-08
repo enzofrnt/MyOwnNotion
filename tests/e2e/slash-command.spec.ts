@@ -56,7 +56,7 @@ test.describe("slash block commands (US2)", () => {
     await editor.press("Enter");
     await editor.type("/");
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole("option")).toHaveCount(10);
+    await expect(menu.getByRole("option")).toHaveCount(12);
     await editor.type("task");
     await expect(menu.getByRole("option")).toHaveCount(1);
     await expect(menu.getByRole("option", { name: /Task list/ })).toHaveAttribute(

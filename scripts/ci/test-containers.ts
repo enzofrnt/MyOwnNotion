@@ -50,13 +50,49 @@ const restoreProjectName = `${projectName}-restore`;
 const backupHostRoot = mkdtempSync(path.join(os.tmpdir(), "myownnotion-backup-smoke-"));
 const backupSecretsDirectory = path.join(backupHostRoot, "secrets");
 const backupDestination = path.join(backupHostRoot, "repository");
+const backupComposeOverride = path.join(backupHostRoot, "compose.backup-volume.yaml");
+const sharedBackupVolume = `${projectName}-shared-backup`;
 const resticPasswordPath = path.join(backupSecretsDirectory, "restic-password");
 mkdirSync(backupSecretsDirectory, { recursive: true });
 mkdirSync(backupDestination, { recursive: true });
 chmodSync(backupHostRoot, 0o755);
-chmodSync(backupSecretsDirectory, 0o755);
+chmodSync(backupSecretsDirectory, 0o700);
 chmodSync(backupDestination, 0o777);
-writeFileSync(resticPasswordPath, "container-smoke-restic-password\n", { mode: 0o644 });
+writeFileSync(resticPasswordPath, "container-smoke-restic-password\n", { mode: 0o600 });
+// Share one Docker-managed volume between source and restore projects. Bind mounts of
+// the repository on Docker Desktop can stall restic exclusive locks for many minutes.
+execFileSync("docker", ["volume", "create", sharedBackupVolume], { stdio: "ignore" });
+execFileSync(
+  "docker",
+  [
+    "run",
+    "--rm",
+    "-v",
+    `${sharedBackupVolume}:/var/lib/myownnotion/backup-destination`,
+    "alpine:3.22",
+    "sh",
+    "-c",
+    "chown -R 1000:1000 /var/lib/myownnotion/backup-destination && chmod 0770 /var/lib/myownnotion/backup-destination",
+  ],
+  { stdio: "ignore" },
+);
+writeFileSync(
+  backupComposeOverride,
+  `services:
+  backup-operations:
+    volumes: !override
+      - operations-state:/var/lib/myownnotion/operations
+      - operations-staging:/var/lib/myownnotion/staging
+      - type: bind
+        source: \${MYOWNNOTION_BACKUP_SECRETS_DIR}
+        target: /run/secrets
+        read_only: true
+      - ${sharedBackupVolume}:/var/lib/myownnotion/backup-destination
+volumes:
+  ${sharedBackupVolume}:
+    external: true
+`,
+);
 const sourceRevision = /^[a-f0-9]{7,64}$/.test(process.env["GITHUB_SHA"] ?? "")
   ? (process.env["GITHUB_SHA"] as string)
   : "c".repeat(40);
@@ -70,6 +106,8 @@ const smokeEnvironment = {
   MYOWNNOTION_BACKUP_SECRETS_DIR: backupSecretsDirectory,
   MYOWNNOTION_BACKUP_DESTINATION: backupDestination,
   MYOWNNOTION_RESTIC_REPOSITORY: "/var/lib/myownnotion/backup-destination",
+  RESTIC_CACHE_DIR: "/tmp/restic-cache",
+  GOMAXPROCS: "1",
 };
 const restoreEnvironment = {
   ...smokeEnvironment,
@@ -98,6 +136,8 @@ function composeArguments(context: ComposeContext, args: readonly string[]): str
     ".env.prod.example",
     "-f",
     "compose.prod.yaml",
+    "-f",
+    backupComposeOverride,
     ...args,
   ];
 }
@@ -699,7 +739,7 @@ try {
   }
   expectOperationSuccess(sourceContext, "backup-operations", "backup", "check", "--read-data");
 
-  writeFileSync(resticPasswordPath, "intentionally-wrong-password\n", { mode: 0o644 });
+  writeFileSync(resticPasswordPath, "intentionally-wrong-password\n", { mode: 0o600 });
   const wrongSecret = runOperation(
     restoreContext,
     "backup-operations",
@@ -717,7 +757,7 @@ try {
   ) {
     throw new Error("Wrong-secret restore verification did not fail safely");
   }
-  writeFileSync(resticPasswordPath, "container-smoke-restic-password\n", { mode: 0o644 });
+  writeFileSync(resticPasswordPath, "container-smoke-restic-password\n", { mode: 0o600 });
 
   expectOperationSuccess(
     restoreContext,
@@ -770,7 +810,7 @@ try {
     "sh",
     "backup-operations",
     "-c",
-    'pack=$(find /var/lib/myownnotion/backup-destination/data -type f | head -n 1); test -n "$pack"; printf \'CORRUPTED-RESTIC\' | dd of="$pack" bs=1 seek=0 conv=notrunc',
+    'pack=$(find /var/lib/myownnotion/backup-destination/data -type f | head -n 1); test -n "$pack"; chmod u+w "$pack"; printf \'CORRUPTED-RESTIC\' | dd of="$pack" bs=1 seek=0 conv=notrunc',
   );
   const corrupted = runOperation(
     restoreContext,
@@ -856,6 +896,12 @@ try {
     compose("down", "--volumes", "--remove-orphans");
   } catch (cleanupError) {
     console.error("Container smoke cleanup failed:", cleanupError);
+    process.exitCode = 1;
+  }
+  try {
+    execFileSync("docker", ["volume", "rm", "-f", sharedBackupVolume], { stdio: "ignore" });
+  } catch (cleanupError) {
+    console.error("Shared backup volume cleanup failed:", cleanupError);
     process.exitCode = 1;
   }
   rmSync(backupHostRoot, { recursive: true, force: true });

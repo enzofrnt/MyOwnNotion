@@ -95,7 +95,7 @@ test.describe("offline structured databases (US4)", () => {
     const body = (await synchronized.json()) as {
       pageDocument: { formatVersion: number; body: unknown };
     };
-    expect(body.pageDocument.formatVersion).toBe(5);
+    expect(body.pageDocument.formatVersion).toBe(6);
     const nodes = databaseNodes(body.pageDocument.body);
     expect(nodes).toHaveLength(1);
     const attrs = nodes[0]?.["attrs"] as

@@ -60,3 +60,52 @@ The restore preflight requires one complete-tagged encrypted snapshot and valida
 The documented clean-host workflow now uses a distinct Compose project and fresh named volumes, includes exact verify/apply/start/audit/restart commands, and defines whole-target deletion as the only partial-restore rollback. The production smoke now implements encrypted repository initialization, complete backup/list/full-data check, wrong-secret rejection, empty-target restore, canonical export and file-digest comparison, target restart, repository corruption rejection, and API guard rehearsal. Its TypeScript path is valid, but it has not been executed in this checkpoint because Docker is unavailable; T058–T060 therefore remain open rather than being inferred from isolated evidence.
 
 New canonical exports explicitly carry file content and revision identities beside byte length and SHA-256. Legacy version-1 exports without the two added identity fields remain valid, while the recovery comparison rejects changes to file digest/content/revision, placement, relationship, document, cursor, or any other canonical field. The isolated comparison suite passes 8 tests; the real source-versus-restored export assertions are wired into the pending container rehearsal.
+
+## Cross-cutting quality gates — T058 — 2026-08-08
+
+Toolchain and focused suites were re-run on Node.js 24.19.0 with pnpm 10.33.3, ShellCheck 0.11.0, and shfmt 3.12.0. One TypeScript fixture arity mismatch in `apps/operations/tests/restore-verify.integration.spec.ts` was corrected so every CLI exit-2 case supplies an environment object.
+
+| Area | Command | Result |
+| --- | --- | --- |
+| Toolchain policy | `pnpm toolchain:check` | Passed (412 tracked files) |
+| Shell policy | `pnpm shell:check` | Passed (pinned tools present; no first-party tracked shell scripts) |
+| Formatting | `pnpm format:check` | Passed (281 files) |
+| Biome CI | `pnpm lint:ci` | Passed (282 files) |
+| Exact types | `pnpm typecheck` | Passed (all workspace packages + root) |
+| Migrations | `pnpm db:test-migrations` | Passed: 5 tests |
+| Unit | `pnpm test:unit` | Passed: 306 tests |
+| Property | `pnpm test:property` | Passed: 56 tests |
+| Integration | `pnpm test:integration` | Passed: 44 tests |
+| Contract | `pnpm test:contract` | Passed: 148 tests |
+| Performance | `pnpm test:performance` | Passed: 11 tests |
+| Operations focused | `vitest run --project operations` | Passed: 72 tests |
+
+## Cross-cutting quality gates — T059 — 2026-08-08
+
+Coverage, production builds, Chromium journeys, and CI artifact wiring were re-verified after the backup/restore and e2e polish fixes.
+
+| Area | Command | Result |
+| --- | --- | --- |
+| Coverage | `pnpm test:coverage` | Passed: 567 tests; All files 90.93% statements / 87.07% branches / 93.64% functions / 90.93% lines (above 90/85 floors) |
+| Production builds | `pnpm build` | Passed: API, web (including injectManifest service worker), and operations bundles |
+| Chromium matrix | `pnpm exec playwright test --project=chromium-desktop --project=chromium-mobile` with `CI=true` | Passed: 123 tests, 1 skipped (mobile performance project) |
+| CI artifacts | `.github/workflows/ci.yml` | Confirmed: `coverage/` upload; Playwright `playwright-report/` + `test-results/` (images/traces) on always; full five-project e2e job on Ubuntu |
+
+### Browser-matrix residual notes
+
+- Feature-specific service-worker HEAD rewriting journeys in `tests/e2e/files-storage.spec.ts` skip WebKit by design; Playwright service-worker-aware HEAD routing is Chromium-only. Preview/download/reuse remain covered on every project.
+- Local Firefox launch on this macOS host was blocked by the seatbelt sandbox in earlier full-matrix attempts. The authoritative Firefox/WebKit desktop+mobile matrix remains the Ubuntu CI `e2e` job, which installs browsers with `--with-deps` and retains report/trace artifacts.
+- A prior local WebKit-inclusive run showed offline/conflict flakes outside the Chromium-proven path; they are not treated as recoverability proof and are deferred to CI rather than inferred green.
+
+## Compose recoverability — T060 — 2026-08-08
+
+`pnpm test:containers` completed successfully after correcting restore apply (`pg_restore --dbname=`), post-tag restic snapshot identity lookup, process-env merging for operations runners, shared named backup volume for macOS Docker, and `chmod u+w` before intentional pack corruption.
+
+| Area | Evidence |
+| --- | --- |
+| Command | `pnpm test:containers` |
+| Result | Passed with closing message: private object storage, encrypted backup, clean-target exact restore/restart, wrong-secret/corruption faults, restore guard, audit, health proxy, migrations, and v6 wiki/task/database/canvas persistence |
+| Topology | Isolated Compose projects with disjoint source/restore host ports; encrypted restic repository initialized; complete-tagged backup; empty-target verify/apply; canonical export/digest comparison; target restart; wrong-secret rejection; corrupted pack rejection after writable pack mutation; API restore-guard refusal path exercised |
+| Follow-up ops isolation | `vitest run --project operations` Passed: 72 tests after the restore/backup fixes |
+
+Feature `007-files-storage` Phase 7 polish tasks T058–T063 are complete on recorded evidence above.

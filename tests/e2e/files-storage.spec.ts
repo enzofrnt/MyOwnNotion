@@ -119,7 +119,14 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
 
   test("labels online-only and unavailable content without overflow or critical violations", async ({
     page,
+    browserName,
   }, testInfo) => {
+    // Playwright only supports service-worker-aware and reliable HEAD routing on
+    // Chromium; WebKit journeys still cover preview/download/reuse above.
+    test.skip(
+      browserName === "webkit",
+      "HEAD response rewriting for cache eligibility requires Chromium network routing",
+    );
     await openWorkspace(page);
     const pageName = uniqueName("AttachmentStates");
     const onlineOnlyName = `${uniqueName("online-only")}.bin`;
@@ -197,7 +204,12 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
 
   test("reloads a previously opened immutable image revision while the API is offline", async ({
     page,
+    browserName,
   }, testInfo) => {
+    test.skip(
+      browserName === "webkit",
+      "Playwright service workers are Chromium-only; offline revision cache is proven there",
+    );
     await openWorkspace(page);
     await page.evaluate(async () => {
       if ("serviceWorker" in navigator) await navigator.serviceWorker.ready;

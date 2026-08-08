@@ -30,7 +30,7 @@ export async function runExternalProcess(
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-      ...(options.env === undefined ? {} : { env: { ...options.env } }),
+      ...(options.env === undefined ? {} : { env: { ...process.env, ...options.env } }),
     });
     let observedBytes = 0;
     let exceeded = false;
@@ -70,7 +70,7 @@ export async function runExternalJsonProcess<T>(
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-      ...(options.env === undefined ? {} : { env: { ...options.env } }),
+      ...(options.env === undefined ? {} : { env: { ...process.env, ...options.env } }),
     });
     const chunks: Buffer[] = [];
     let observedBytes = 0;

@@ -171,10 +171,26 @@ describe("encrypted backup creation", () => {
     expect(test.runtime.calls.find((call) => call.executable === "pg_dump")?.arguments).toContain(
       "--exclude-table-data=schema_migrations",
     );
-    expect(test.runtime.calls.at(-1)).toMatchObject({
+    expect(test.runtime.calls.at(-2)).toMatchObject({
       executable: "restic",
       arguments: ["tag", "--add", "myownnotion-complete", "deadbeef01234567"],
     });
+    expect(test.runtime.calls.at(-1)).toMatchObject({
+      executable: "restic",
+      arguments: expect.arrayContaining([
+        "snapshots",
+        "--json",
+        "--latest",
+        "1",
+        "--tag",
+        "myownnotion-complete",
+      ]),
+    });
+    expect(
+      test.runtime.calls
+        .at(-1)
+        ?.arguments.some((argument) => argument.startsWith("myownnotion-operation-")),
+    ).toBe(true);
     expect(await readOperationStatus(test.input.statusPath)).toEqual(result);
     expect(await readdir(test.input.stagingRoot)).toEqual([]);
     expect(JSON.stringify(result)).not.toMatch(/private-password|storageKey|filename|rclone:/);
@@ -192,7 +208,10 @@ describe("encrypted backup creation", () => {
     expect(result).toMatchObject({ status: "failed", failureCode });
     expect(result).not.toHaveProperty("snapshotId");
     const completeTags = test.runtime.calls.filter(
-      (call) => call.executable === "restic" && call.arguments.includes("myownnotion-complete"),
+      (call) =>
+        call.executable === "restic" &&
+        call.arguments[0] === "tag" &&
+        call.arguments.includes("myownnotion-complete"),
     );
     expect(completeTags).toHaveLength(stage === "restic:tag" ? 1 : 0);
     expect(await readOperationStatus(test.input.statusPath)).toEqual(result);

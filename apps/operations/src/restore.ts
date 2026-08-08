@@ -374,6 +374,7 @@ export async function applyVerifiedBackup(input: RestoreApplyInput): Promise<Saf
     await createRestoreGuard(input.guardPath, identity.operationId, identity.startedAt);
     guardCreated = true;
     const runtime = input.processRuntime ?? defaultRuntime;
+    const postgresEnv = createPostgresEnvironment(input.databaseUrl, input.environment);
     const databaseRestore = await runtime.run({
       executable: "pg_restore",
       arguments: [
@@ -382,9 +383,10 @@ export async function applyVerifiedBackup(input: RestoreApplyInput): Promise<Saf
         "--data-only",
         "--no-owner",
         "--no-privileges",
+        `--dbname=${postgresEnv["PGDATABASE"]}`,
         path.join(staged.directory, staged.manifest.database.path),
       ],
-      env: createPostgresEnvironment(input.databaseUrl, input.environment),
+      env: postgresEnv,
       failureCode: "restore.database-apply-failed",
     });
     if (!databaseRestore.ok) throw new RestoreFailure(databaseRestore.failureCode);

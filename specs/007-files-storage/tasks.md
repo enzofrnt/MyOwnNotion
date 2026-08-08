@@ -149,12 +149,12 @@
 - [x] T055 [P] Add canonical export file digest/revision metadata and post-restore exact export assertions in `tests/contract/export.spec.ts`, `tests/contract/editor-export.spec.ts`, and `tests/contract/backup-restore.spec.ts`
 - [x] T056 Add deterministic desktop/mobile attachment metadata, raster preview, reuse, cached-offline, online-only, and unavailable screenshots plus Axe and horizontal-overflow checks in `tests/e2e/files-storage.spec.ts`
 - [x] T057 Update file use, offline quota, integrity audit, migration, backup/restore development, production, security, and troubleshooting guidance in `docs/editor.md`, `docs/development.md`, and `docs/deployment.md`
-- [ ] T058 Run toolchain policy, shell policy, formatting, Biome CI, exact types, migration checks, focused unit/integration/contract/performance suites, and record results in `specs/007-files-storage/validation.md`
-- [ ] T059 Run full coverage, complete browser matrix, production builds, and verify GitHub artifacts retain all required images/traces; record results in `specs/007-files-storage/validation.md`
-- [ ] T060 Run the complete object-storage, backup, clean-host restore, restart, and legacy migration quickstart in isolated Compose; record exact recoverability evidence in `specs/007-files-storage/validation.md`
-- [ ] T061 [US4] Allocate and assert disjoint valid source/restore host ports in the production container smoke so both projects can run concurrently in `scripts/ci/test-containers.ts`
-- [ ] T062 [US3] Document UID-aware owner-only backup-secret permissions for the non-root operations image in `.env.prod.example`, `docs/deployment.md`, and `specs/007-files-storage/quickstart.md`
-- [ ] T063 [US3] Align backup/restore CLI exit classification with the operations contract and cover configuration, overlap, preflight, integrity, dependency, and guarded-failure outcomes in `apps/operations/src/cli.ts` and `apps/operations/tests/backup-commands.spec.ts`
+- [x] T058 Run toolchain policy, shell policy, formatting, Biome CI, exact types, migration checks, focused unit/integration/contract/performance suites, and record results in `specs/007-files-storage/validation.md`
+- [x] T059 Run full coverage, complete browser matrix, production builds, and verify GitHub artifacts retain all required images/traces; record results in `specs/007-files-storage/validation.md`
+- [x] T060 Run the complete object-storage, backup, clean-host restore, restart, and legacy migration quickstart in isolated Compose; record exact recoverability evidence in `specs/007-files-storage/validation.md`
+- [x] T061 [US4] Allocate and assert disjoint valid source/restore host ports in the production container smoke so both projects can run concurrently in `scripts/ci/test-containers.ts`
+- [x] T062 [US3] Document UID-aware owner-only backup-secret permissions for the non-root operations image in `.env.prod.example`, `docs/deployment.md`, and `specs/007-files-storage/quickstart.md`
+- [x] T063 [US3] Align backup/restore CLI exit classification with the operations contract and cover configuration, overlap, preflight, integrity, dependency, and guarded-failure outcomes in `apps/operations/src/cli.ts` and `apps/operations/tests/backup-commands.spec.ts`
 
 ## Dependencies and Execution Order
 

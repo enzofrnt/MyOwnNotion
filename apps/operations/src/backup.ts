@@ -501,6 +501,27 @@ export async function createEncryptedBackup(
       failureCode: "backup.complete-tag-failed",
     });
     if (!tag.ok) throw new BackupFailure(tag.failureCode);
+    // restic rewrites snapshot metadata as a new identity; advertise the
+    // complete-tagged id rather than the pre-tag staged identity.
+    const completeSnapshots = await processRuntime.runJson(
+      {
+        executable: "restic",
+        arguments: [
+          "snapshots",
+          "--json",
+          "--latest",
+          "1",
+          "--tag",
+          "myownnotion-complete",
+          "--tag",
+          operationTag,
+        ],
+        env: resticEnv,
+        failureCode: "backup.repository-query-failed",
+      },
+      snapshotIdFromList,
+    );
+    if (!completeSnapshots.ok) throw new BackupFailure(completeSnapshots.failureCode);
     return await persist(
       createSafeOperationResult({
         operationId,
@@ -508,7 +529,7 @@ export async function createEncryptedBackup(
         status: "succeeded",
         startedAt: startedAt.toISOString(),
         finishedAt: now().toISOString(),
-        snapshotId: snapshots.value,
+        snapshotId: completeSnapshots.value,
         counts,
         failureCode: null,
       }),

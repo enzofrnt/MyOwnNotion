@@ -131,13 +131,14 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await createRootItem(page, "page", name);
     await selectItem(page, name);
     const editor = page.getByRole("textbox", { name: "Page content" });
-    await editor.fill(
-      Array.from({ length: 45 }, (_, index) => `Viewport filler ${index}`).join("\n"),
-    );
-    await editor.press("End");
-    await editor.press("Enter");
+    await editor.click();
+    for (let index = 0; index < 45; index += 1) {
+      await page.keyboard.type(`Viewport filler ${index}`);
+      await page.keyboard.press("Enter");
+    }
     await page.keyboard.type("Active keyboard block");
     const activeBlock = page.locator(".ProseMirror p").filter({ hasText: "Active keyboard block" });
+    await expect(activeBlock).toHaveText("Active keyboard block");
     await expect(activeBlock).toBeInViewport();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

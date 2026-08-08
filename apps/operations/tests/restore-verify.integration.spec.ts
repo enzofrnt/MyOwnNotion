@@ -187,17 +187,18 @@ describe("restore verification preflight", () => {
   });
 
   it.each([
-    [["restore", "verify"], "restore.snapshot-required"],
-    [["restore", "verify", "--snapshot", "../private"], "restore.snapshot-invalid"],
+    [["restore", "verify"], "restore.snapshot-required", {}],
+    [["restore", "verify", "--snapshot", "../private"], "restore.snapshot-invalid", {}],
     [
       ["restore", "verify", "--snapshot", SNAPSHOT_ID],
       "restore.postgres-major-invalid",
       { MYOWNNOTION_POSTGRES_MAJOR: "not-a-number" },
     ],
-    [["restore", "apply", "--snapshot", SNAPSHOT_ID], "restore.confirmation-required"],
+    [["restore", "apply", "--snapshot", SNAPSHOT_ID], "restore.confirmation-required", {}],
     [
       ["restore", "apply", "--snapshot", SNAPSHOT_ID, "--confirm-empty"],
       "restore.database-required",
+      {},
     ],
   ] as const)(
     "classifies invalid CLI preflight options as exit 2",
@@ -207,7 +208,7 @@ describe("restore verification preflight", () => {
         writes.push(String(chunk));
         return true;
       });
-      expect(await main(argv, environment ?? {})).toBe(2);
+      expect(await main(argv, environment)).toBe(2);
       expect(JSON.parse(writes.at(-1) ?? "{}")).toEqual({ status: "failed", failureCode });
     },
   );
