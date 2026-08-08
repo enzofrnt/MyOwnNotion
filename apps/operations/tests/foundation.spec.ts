@@ -96,7 +96,7 @@ describe("operations foundation", () => {
       finishedAt: "2026-08-08T00:00:01.000Z",
       counts: { objects: 2, bytes: 51 },
       failureCode: "backup.repository-unavailable",
-      password: "do-not-leak",
+      unexpectedPrivateField: "do-not-leak",
       storageKey: "private/object",
       stderr: "page contents and database url",
     });

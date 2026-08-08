@@ -58,7 +58,26 @@ mkdirSync(backupDestination, { recursive: true });
 chmodSync(backupHostRoot, 0o755);
 chmodSync(backupSecretsDirectory, 0o700);
 chmodSync(backupDestination, 0o777);
-writeFileSync(resticPasswordPath, "container-smoke-restic-password\n", { mode: 0o600 });
+// Operations image runs as UID/GID 1000. Owner-only secret modes only work when the
+// bind-mounted files are owned by that same identity (Linux CI enforces this).
+function writeResticPassword(contents: string): void {
+  writeFileSync(resticPasswordPath, contents, { mode: 0o600 });
+  execFileSync(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "-v",
+      `${backupSecretsDirectory}:/run/secrets`,
+      "alpine:3.22",
+      "sh",
+      "-c",
+      "chown -R 1000:1000 /run/secrets && chmod 0700 /run/secrets && chmod 0600 /run/secrets/restic-password",
+    ],
+    { stdio: "ignore" },
+  );
+}
+writeResticPassword("container-smoke-restic-password\n");
 // Share one Docker-managed volume between source and restore projects. Bind mounts of
 // the repository on Docker Desktop can stall restic exclusive locks for many minutes.
 execFileSync("docker", ["volume", "create", sharedBackupVolume], { stdio: "ignore" });
@@ -739,7 +758,7 @@ try {
   }
   expectOperationSuccess(sourceContext, "backup-operations", "backup", "check", "--read-data");
 
-  writeFileSync(resticPasswordPath, "intentionally-wrong-password\n", { mode: 0o600 });
+  writeResticPassword("intentionally-wrong-password\n");
   const wrongSecret = runOperation(
     restoreContext,
     "backup-operations",
@@ -757,7 +776,7 @@ try {
   ) {
     throw new Error("Wrong-secret restore verification did not fail safely");
   }
-  writeFileSync(resticPasswordPath, "container-smoke-restic-password\n", { mode: 0o600 });
+  writeResticPassword("container-smoke-restic-password\n");
 
   expectOperationSuccess(
     restoreContext,

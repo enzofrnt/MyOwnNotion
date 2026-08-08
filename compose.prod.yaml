@@ -10,7 +10,7 @@ services:
     environment:
       POSTGRES_DB: ${MYOWNNOTION_DB_NAME:-myownnotion}
       POSTGRES_USER: ${MYOWNNOTION_DB_USER:-myownnotion}
-      POSTGRES_PASSWORD: ${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}
+      POSTGRES_PASSWORD: ${MYOWNNOTION_DB_PASSWORD:?required}
       TZ: UTC
       PGTZ: UTC
     healthcheck:
@@ -36,7 +36,7 @@ services:
         VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
     command: ["node", "dist/migrate.mjs"]
     environment:
-      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
+      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?required}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,7 +84,7 @@ services:
       args:
         VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
     environment:
-      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
+      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?required}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
       MYOWNNOTION_API_HOST: 0.0.0.0
       MYOWNNOTION_API_PORT: 3001
       MYOWNNOTION_STORAGE_ADAPTER: s3
@@ -163,7 +163,7 @@ services:
       args:
         VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
     environment:
-      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
+      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?required}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
       MYOWNNOTION_STORAGE_ADAPTER: s3
       MYOWNNOTION_S3_ENDPOINT: http://object-storage:9000
       MYOWNNOTION_S3_REGION: ${MYOWNNOTION_S3_REGION:-us-east-1}
@@ -210,7 +210,7 @@ services:
       args:
         VCS_REF: ${MYOWNNOTION_VCS_REF:-local}
     environment:
-      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?Set MYOWNNOTION_DB_PASSWORD in .env.prod}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
+      DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:?required}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
       MYOWNNOTION_STORAGE_ADAPTER: s3
       MYOWNNOTION_S3_ENDPOINT: http://object-storage:9000
       MYOWNNOTION_S3_REGION: ${MYOWNNOTION_S3_REGION:-us-east-1}

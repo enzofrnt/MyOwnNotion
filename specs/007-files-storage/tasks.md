@@ -156,6 +156,12 @@
 - [x] T062 [US3] Document UID-aware owner-only backup-secret permissions for the non-root operations image in `.env.prod.example`, `docs/deployment.md`, and `specs/007-files-storage/quickstart.md`
 - [x] T063 [US3] Align backup/restore CLI exit classification with the operations contract and cover configuration, overlap, preflight, integrity, dependency, and guarded-failure outcomes in `apps/operations/src/cli.ts` and `apps/operations/tests/backup-commands.spec.ts`
 
+## Phase 8: Convergence
+
+- [ ] T064 Expose labelled metadata, download, and placement actions on hierarchy file entries in `apps/web/src/features/hierarchy/file-node.tsx` and `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` per FR-001 (partial)
+- [ ] T065 Add Playwright containment assertion at 400% zoom for attachment controls in `tests/e2e/files-storage.spec.ts` per FR-025 (partial)
+- [ ] T066 Align pinned restic binary and CLI/manifest defaults to 0.19.1 in `apps/operations/Dockerfile` and `apps/operations/src/cli.ts` per plan: Primary Dependencies (partial)
+
 ## Dependencies and Execution Order
 
 ### Phase dependencies
