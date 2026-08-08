@@ -4,6 +4,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reconnectAndSynchronize,
   reloadWhileOffline,
   selectItem,
   uniqueName,
@@ -48,10 +49,7 @@ test.describe("offline wiki links (US4)", () => {
     await expect(page.locator("a[data-wiki-link]")).toContainText(targetName);
     await expect(page.getByRole("region", { name: "Outgoing links" })).toContainText(targetName);
 
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     const firstSnapshot = await request.get(`http://127.0.0.1:${apiPort}/v1/snapshots/current`);
     expect(firstSnapshot.ok()).toBe(true);
     const firstBody = (await firstSnapshot.json()) as {
@@ -77,10 +75,7 @@ test.describe("offline wiki links (US4)", () => {
       "No outgoing links",
     );
 
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     const finalSnapshot = await request.get(`http://127.0.0.1:${apiPort}/v1/snapshots/current`);
     const finalBody = (await finalSnapshot.json()) as {
       relationships: Array<{ sourceItemId: string; targetItemId: string; relationType: string }>;

@@ -7,6 +7,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reconnectAndSynchronize,
   reloadWhileOffline,
   uniqueName,
   waitForSynchronized,
@@ -29,10 +30,7 @@ test.describe("interrupted mutations (US4)", () => {
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // Recovery: reconnect and verify exactly one logical acceptance.
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     await expect(page.getByTestId(`tree-item-${name}`)).toHaveCount(1);
     await expect(page.getByTestId("mutation-status-empty")).toBeVisible();
   });

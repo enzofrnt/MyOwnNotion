@@ -72,11 +72,39 @@ export async function selectItem(page: Page, name: string): Promise<void> {
 }
 
 export async function waitForSynchronized(page: Page): Promise<void> {
-  // The queue must drain (no pending/conflict rows) and the state settle.
-  await expect(page.getByTestId("mutation-status-empty")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
-    timeout: 20_000,
-  });
+  // MutationStatus briefly renders "empty" before Dexie hydrates; never treat
+  // that flash as synchronized.
+  await expect(page.getByTestId("mutation-status-loading")).toHaveCount(0, { timeout: 20_000 });
+  await expect
+    .poll(
+      async () => {
+        const syncState = await page.getByTestId("sync-status").getAttribute("data-state");
+        const empty = await page.getByTestId("mutation-status-empty").isVisible();
+        const pending = await page.getByTestId("pending-mutations").isVisible().catch(() => false);
+        const conflict = await page.getByTestId("conflict-records").isVisible().catch(() => false);
+        if (empty && syncState === "synced" && !pending && !conflict) {
+          return "synced";
+        }
+        return syncState ?? "unknown";
+      },
+      { timeout: 45_000, intervals: [100, 250, 500, 1_000] },
+    )
+    .toBe("synced");
+}
+
+/** Reconnects after an offline journey and waits for the outbox to drain. */
+export async function reconnectAndSynchronize(page: Page): Promise<void> {
+  await goOnline(page);
+  const batch = page.waitForResponse(
+    (response) =>
+      response.url().includes("/v1/mutations/batch") &&
+      (response.ok() || response.status() === 409),
+    { timeout: 45_000 },
+  );
+  await page.reload();
+  await openWorkspace(page);
+  await batch;
+  await waitForSynchronized(page);
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reconnectAndSynchronize,
   reloadWhileOffline,
   selectItem,
   uniqueName,
@@ -79,10 +80,7 @@ test.describe("offline structured databases (US4)", () => {
     await expect(reloaded.getByRole("button", { name: "Open record Offline Alpha" })).toBeVisible();
     await expect(reloaded.getByRole("button", { name: "Open record Remove me" })).toHaveCount(0);
 
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     const synchronized = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
     expect(synchronized.ok()).toBe(true);
     const body = (await synchronized.json()) as {

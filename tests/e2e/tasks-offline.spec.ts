@@ -4,6 +4,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reconnectAndSynchronize,
   reloadWhileOffline,
   selectItem,
   uniqueName,
@@ -90,10 +91,7 @@ test.describe("offline tasks (US4)", () => {
       .fill(taskTitle);
     await expect(page.getByTestId("task-workspace").getByTestId("task-count")).toHaveText("1 task");
 
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     const synchronized = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
     expect(synchronized.ok()).toBe(true);
     const synchronizedBody = (await synchronized.json()) as {
@@ -128,10 +126,7 @@ test.describe("offline tasks (US4)", () => {
       "0 tasks",
     );
 
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     const removed = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
     const removedBody = (await removed.json()) as { pageDocument: unknown };
     expect(taskNodes(removedBody.pageDocument)).toHaveLength(0);

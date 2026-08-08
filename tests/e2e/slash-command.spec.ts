@@ -3,10 +3,12 @@ import { createRootItem, openWorkspace, selectItem, uniqueName } from "./helpers
 
 async function openSlashMenu(page: Page, query = ""): Promise<void> {
   const editor = page.getByRole("textbox", { name: "Page content" });
+  await editor.scrollIntoViewIfNeeded();
   await editor.click();
+  await expect(editor).toBeFocused({ timeout: 5_000 });
   // Character-by-character input is required so TipTap Suggestion sees "/".
-  await page.keyboard.type(`/${query}`, { delay: 20 });
-  await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible();
+  await page.keyboard.type(`/${query}`, { delay: 40 });
+  await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible({ timeout: 15_000 });
 }
 
 test.describe("slash block commands (US2)", () => {
@@ -86,10 +88,13 @@ test.describe("slash block commands (US2)", () => {
     await expect(menu).toHaveCount(0);
 
     await editor.click();
+    await expect(editor).toBeFocused();
     await editor.press("ControlOrMeta+A");
     await editor.press("Backspace");
-    await page.keyboard.type("Outside dismissal", { delay: 10 });
+    await page.keyboard.type("Outside dismissal", { delay: 15 });
     await editor.press("Enter");
+    await editor.click();
+    await expect(editor).toBeFocused();
     await openSlashMenu(page);
     await editor.press("Escape");
     await expect(menu).toHaveCount(0);

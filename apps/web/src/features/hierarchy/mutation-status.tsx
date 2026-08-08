@@ -14,17 +14,35 @@ import type { LocalContentService } from "../../services/local-content.ts";
 export function MutationStatus({ service }: { readonly service: LocalContentService }) {
   const [pending, setPending] = useState<OutboxMutationRow[]>([]);
   const [conflicts, setConflicts] = useState<ConflictRecordRow[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     const refresh = async () => {
       setPending(await service.outbox.all());
       setConflicts(await service.outbox.conflicts());
+      if (!cancelled) {
+        setHydrated(true);
+      }
     };
+    setHydrated(false);
     void refresh();
-    return service.subscribe(() => {
+    const unsubscribe = service.subscribe(() => {
       void refresh();
     });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [service]);
+
+  if (!hydrated) {
+    return (
+      <p className="muted" role="status" data-testid="mutation-status-loading">
+        Loading local changes…
+      </p>
+    );
+  }
 
   if (pending.length === 0 && conflicts.length === 0) {
     return (

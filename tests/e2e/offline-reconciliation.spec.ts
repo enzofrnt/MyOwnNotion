@@ -11,6 +11,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reconnectAndSynchronize,
   reloadWhileOffline,
   selectItem,
   uniqueName,
@@ -48,10 +49,7 @@ test.describe("offline continuity (US6)", () => {
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // 5. Reconnect: the outbox submits idempotently and drains.
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     await expect(page.getByTestId(`tree-item-${offlineItem}`)).toBeVisible();
     await expect(page.getByTestId("mutation-status-empty")).toBeVisible();
   });

@@ -4,6 +4,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reconnectAndSynchronize,
   reloadWhileOffline,
   selectItem,
   uniqueName,
@@ -36,10 +37,7 @@ test.describe("block editor offline durability (US4)", () => {
     );
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     await selectItem(page, pageName);
     await expect(page.getByRole("textbox", { name: "Page content" })).toContainText(
       "A durable offline paragraph",

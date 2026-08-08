@@ -11,6 +11,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reconnectAndSynchronize,
   reloadWhileOffline,
   selectItem,
   uniqueName,
@@ -88,10 +89,7 @@ test.describe("offline freeform canvas (US4)", () => {
     await expect(reloaded.locator("[data-stroke-id]")).toHaveCount(1);
     await expect(reloaded.getByRole("status", { name: "Canvas zoom" })).toHaveText("125%");
 
-    await goOnline(page);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
+    await reconnectAndSynchronize(page);
     const synchronized = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
     expect(synchronized.ok()).toBe(true);
     const body = (await synchronized.json()) as {
