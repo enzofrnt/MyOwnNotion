@@ -12,6 +12,7 @@ import {
   openWorkspace,
   reconnectAndSynchronize,
   reloadWhileOffline,
+  savePageLocally,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -66,8 +67,7 @@ test.describe("offline structured databases (US4)", () => {
     await database.getByRole("listbox", { name: "Related for Offline Alpha" }).selectOption(betaId);
     await database.getByRole("button", { name: "Remove record Remove me" }).click();
     await database.getByRole("button", { name: "Gallery" }).click();
-    await page.getByRole("button", { name: "Save page" }).click();
-    await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
+    await savePageLocally(page);
 
     await reloadWhileOffline(page);
     await expect(page.getByTestId(`tree-item-${pageName}`)).toBeVisible({ timeout: 15_000 });
@@ -127,8 +127,7 @@ test.describe("offline structured databases (US4)", () => {
       .getByRole("textbox", { name: "Local field for Keep local record" })
       .fill("Keep local value");
     await database.getByRole("button", { name: "Board" }).click();
-    await page.getByRole("button", { name: "Save page" }).click();
-    await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
+    await savePageLocally(page);
 
     const current = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
     const currentBody = (await current.json()) as { currentRevisionId: string };

@@ -364,6 +364,58 @@ describe("rich editor local mutations", () => {
     });
   });
 
+  it("coalesces rapid offline page edits into one durable outbox mutation", async () => {
+    const { itemId, revisionId } = await createPage();
+    const firstMutationId = generateUuidV7();
+    const first = await applyLocalMutation(db, {
+      mutationId: firstMutationId,
+      commandType: "page.document.replace",
+      payload: {
+        itemId,
+        baseRevisionId: revisionId,
+        document: toPageDocument({
+          type: "doc",
+          content: [{ type: "paragraph", content: [{ type: "text", text: "Draft one" }] }],
+        }),
+      },
+      baseRevisionIds: [revisionId],
+    });
+    expect(first.ok).toBe(true);
+    const afterFirst = await new LocalRepository(db).getItem(itemId);
+    if (afterFirst === null) throw new Error("Page projection missing after first edit");
+
+    const second = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      payload: {
+        itemId,
+        baseRevisionId: afterFirst.currentRevisionId,
+        document: toPageDocument({
+          type: "doc",
+          content: [{ type: "paragraph", content: [{ type: "text", text: "Draft two" }] }],
+        }),
+      },
+      baseRevisionIds: [afterFirst.currentRevisionId],
+    });
+    expect(second.ok).toBe(true);
+    expect(second.value?.mutationId).toBe(firstMutationId);
+    const pendingReplace = (await db.outbox.toArray()).filter(
+      (row) => row.commandType === "page.document.replace",
+    );
+    expect(pendingReplace).toHaveLength(1);
+    expect(await new Outbox(db).get(firstMutationId)).toMatchObject({
+      status: "pending",
+      baseRevisionIds: [revisionId],
+      payload: { itemId, baseRevisionId: revisionId },
+    });
+    expect((await new LocalRepository(db).getItem(itemId))?.pageDocument).toEqual(
+      toPageDocument({
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "Draft two" }] }],
+      }),
+    );
+  });
+
   it("rejects contradictory version 4 task metadata without partial local writes", async () => {
     const { itemId, revisionId } = await createPage();
     const before = await new LocalRepository(db).getItem(itemId);

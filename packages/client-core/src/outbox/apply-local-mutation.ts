@@ -49,15 +49,36 @@ export async function applyLocalMutation(
   const command: MutationCommand = parsed.value;
 
   try {
-    const localRevisionIds = await db.transaction(
+    const result = await db.transaction(
       "rw",
       [db.items, db.placements, db.relationships, db.revisionHeaders, db.outbox, db.meta],
       async () => {
         const existing = await db.outbox.get(input.mutationId);
         if (existing !== undefined) {
           // Stable mutation identity: re-submission is a no-op (FR-040).
-          return existing.localRevisionIds;
+          return { mutationId: input.mutationId, revisionIds: existing.localRevisionIds };
         }
+
+        if (command.type === "page.document.replace") {
+          const pendingRows = await db.outbox.where("status").equals("pending").toArray();
+          const coalesced = pendingRows.find(
+            (row) =>
+              row.commandType === "page.document.replace" &&
+              row.payload["itemId"] === command.itemId,
+          );
+          if (coalesced !== undefined) {
+            const revisionIds = await applyCommandToProjection(db, command, now);
+            await db.outbox.update(coalesced.mutationId, {
+              payload: {
+                ...input.payload,
+                baseRevisionId: coalesced.payload["baseRevisionId"],
+              },
+              localRevisionIds: revisionIds,
+            });
+            return { mutationId: coalesced.mutationId, revisionIds };
+          }
+        }
+
         const revisionIds = await applyCommandToProjection(db, command, now);
 
         const enqueueOrder =
@@ -74,10 +95,10 @@ export async function applyLocalMutation(
           enqueueOrder,
         };
         await db.outbox.add(row);
-        return revisionIds;
+        return { mutationId: input.mutationId, revisionIds };
       },
     );
-    return ok({ mutationId: input.mutationId, localRevisionIds });
+    return ok({ mutationId: result.mutationId, localRevisionIds: result.revisionIds });
   } catch (error) {
     if (isQuotaError(error)) {
       return err("storage.quota-exceeded", "Local storage quota prevented saving this change");

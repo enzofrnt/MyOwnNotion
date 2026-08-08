@@ -33,7 +33,16 @@ export default defineConfig({
     // Chromium (see files-storage offline skip).
     {
       name: "firefox-desktop",
-      use: { ...devices["Desktop Firefox"], serviceWorkers: "block" },
+      use: {
+        ...devices["Desktop Firefox"],
+        serviceWorkers: "block",
+        launchOptions: {
+          firefoxUserPrefs: {
+            "layers.acceleration.disabled": true,
+            "gfx.webrender.all": false,
+          },
+        },
+      },
     },
     {
       name: "webkit-desktop",

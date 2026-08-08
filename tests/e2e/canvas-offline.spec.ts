@@ -13,6 +13,7 @@ import {
   openWorkspace,
   reconnectAndSynchronize,
   reloadWhileOffline,
+  savePageLocally,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -70,8 +71,7 @@ test.describe("offline freeform canvas (US4)", () => {
     await canvas.getByRole("button", { name: "Zoom canvas in" }).click();
     await drawCanvasStroke(page, canvas);
 
-    await page.getByRole("button", { name: "Save page" }).click();
-    await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
+    await savePageLocally(page);
     await reloadWhileOffline(page);
     await expect(page.getByTestId(`tree-item-${sourceName}`)).toBeVisible({ timeout: 15_000 });
     await selectItem(page, sourceName);
@@ -162,8 +162,7 @@ test.describe("offline freeform canvas (US4)", () => {
     await goOffline(page);
     const canvas = await insertCanvas(page);
     await addCanvasTextCard(canvas, "Keep complete local canvas");
-    await page.getByRole("button", { name: "Save page" }).click();
-    await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
+    await savePageLocally(page);
 
     const current = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
     const currentBody = (await current.json()) as { currentRevisionId: string };

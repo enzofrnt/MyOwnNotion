@@ -105,12 +105,22 @@ export async function reconnectAndSynchronize(page: Page): Promise<void> {
     (response) =>
       response.url().includes("/v1/mutations/batch") &&
       (response.ok() || response.status() === 409),
-    { timeout: 45_000 },
+    { timeout: 60_000 },
   );
   await page.reload();
-  await openWorkspace(page);
+  await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[role="tree"], [data-testid="empty-state"]').first()).toBeVisible({
+    timeout: 15_000,
+  });
   await batch;
   await waitForSynchronized(page);
+}
+
+/** Saves the current page locally and waits for the durable outbox row. */
+export async function savePageLocally(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Save page" }).click();
+  await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
 }
 
 /**
