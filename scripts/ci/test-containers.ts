@@ -60,21 +60,23 @@ chmodSync(backupSecretsDirectory, 0o700);
 chmodSync(backupDestination, 0o777);
 // Operations image runs as UID/GID 1000. Owner-only secret modes only work when the
 // bind-mounted files are owned by that same identity (Linux CI enforces this).
+// Always write through Docker as root so later password rotations still work after
+// the host directory has been chowned away from the CI runner UID.
 function writeResticPassword(contents: string): void {
-  writeFileSync(resticPasswordPath, contents, { mode: 0o600 });
   execFileSync(
     "docker",
     [
       "run",
       "--rm",
+      "-i",
       "-v",
       `${backupSecretsDirectory}:/run/secrets`,
       "alpine:3.22",
       "sh",
       "-c",
-      "chown -R 1000:1000 /run/secrets && chmod 0700 /run/secrets && chmod 0600 /run/secrets/restic-password",
+      "cat > /run/secrets/restic-password && chown -R 1000:1000 /run/secrets && chmod 0700 /run/secrets && chmod 0600 /run/secrets/restic-password",
     ],
-    { stdio: "ignore" },
+    { input: contents, stdio: ["pipe", "ignore", "ignore"] },
   );
 }
 writeResticPassword("container-smoke-restic-password\n");
