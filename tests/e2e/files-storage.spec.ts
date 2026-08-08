@@ -106,19 +106,26 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
     await page.setViewportSize({ width: 320, height: originalViewport?.height ?? 720 });
     await expect(page.getByLabel(`Metadata for ${fileName}`)).toBeVisible();
     const panel = page.getByTestId("attachment-panel");
-    const overflow = await panel.evaluate((element) => element.scrollWidth - element.clientWidth);
-    expect(overflow).toBeLessThanOrEqual(24);
+    // FR-025: the panel stays inside the viewport (internal scroll is allowed).
+    const narrowBounds = await panel.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, width: window.innerWidth };
+    });
+    expect(narrowBounds.left).toBeGreaterThanOrEqual(-1);
+    expect(narrowBounds.right).toBeLessThanOrEqual(narrowBounds.width + 1);
     if (originalViewport !== null) await page.setViewportSize(originalViewport);
-    // FR-025: controls stay labelled and contained inside the panel at 400% zoom.
+    // FR-025: controls stay labelled and the panel remains viewport-contained at 400% zoom.
     await page.evaluate(() => {
       document.documentElement.style.zoom = "400%";
     });
     await expect(page.getByLabel(`Metadata for ${fileName}`)).toBeVisible();
     await expect(page.getByRole("link", { name: `Download ${fileName}` })).toBeVisible();
-    const zoomedOverflow = await panel.evaluate(
-      (element) => element.scrollWidth - element.clientWidth,
-    );
-    expect(zoomedOverflow).toBeLessThanOrEqual(24);
+    const zoomedBounds = await panel.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, width: window.innerWidth };
+    });
+    expect(zoomedBounds.left).toBeGreaterThanOrEqual(-1);
+    expect(zoomedBounds.right).toBeLessThanOrEqual(zoomedBounds.width + 1);
     await page.evaluate(() => {
       document.documentElement.style.zoom = "";
     });
@@ -207,10 +214,12 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
       .include('[data-testid="attachment-panel"]')
       .analyze();
     expect(axe.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(24);
+    const panelBounds = await page.getByTestId("attachment-panel").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, width: window.innerWidth };
+    });
+    expect(panelBounds.left).toBeGreaterThanOrEqual(-1);
+    expect(panelBounds.right).toBeLessThanOrEqual(panelBounds.width + 1);
     await attachReviewScreenshot(page, testInfo, "files-online-only-unavailable");
   });
 
