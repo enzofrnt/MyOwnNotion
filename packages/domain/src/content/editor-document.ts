@@ -1,8 +1,10 @@
 /** Canonical, editor-independent page document v2 contract. */
+import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { DomainResult, PageDocument, SafeErrorCode } from "./types.ts";
 import { err, ok, PAGE_DOCUMENT_FORMAT } from "./types.ts";
 
-export const EDITOR_DOCUMENT_VERSION = 2;
+export const LEGACY_EDITOR_DOCUMENT_VERSION = 2;
+export const EDITOR_DOCUMENT_VERSION = 3;
 
 export const EDITOR_BLOCK_TYPES = [
   "paragraph",
@@ -17,13 +19,29 @@ export const EDITOR_BLOCK_TYPES = [
   "horizontalRule",
 ] as const;
 
-export const EDITOR_MARK_TYPES = ["bold", "italic", "strike", "code"] as const;
+export const EDITOR_MARK_TYPES = ["bold", "italic", "strike", "code", "wikiLink"] as const;
 
 export type EditorBlockType = (typeof EDITOR_BLOCK_TYPES)[number];
 export type EditorMarkType = (typeof EDITOR_MARK_TYPES)[number];
 
-export interface EditorMark {
-  readonly type: EditorMarkType;
+export interface EditorStyleMark {
+  readonly type: Exclude<EditorMarkType, "wikiLink">;
+}
+
+export interface WikiLinkMark {
+  readonly type: "wikiLink";
+  readonly attrs: {
+    readonly targetItemId: Uuid;
+    readonly occurrenceId: Uuid;
+  };
+}
+
+export type EditorMark = EditorStyleMark | WikiLinkMark;
+
+export interface WikiLinkOccurrence {
+  readonly occurrenceId: Uuid;
+  readonly targetItemId: Uuid;
+  readonly label: string;
 }
 
 export interface EditorNode {
@@ -82,7 +100,7 @@ function structureError(
   );
 }
 
-function validateMarks(value: unknown, path: string): DomainResult<null> {
+function validateMarks(value: unknown, path: string, allowWikiLinks: boolean): DomainResult<null> {
   if (value === undefined) {
     return ok(null);
   }
@@ -93,11 +111,32 @@ function validateMarks(value: unknown, path: string): DomainResult<null> {
   for (let index = 0; index < value.length; index += 1) {
     const mark = value[index];
     const markPath = `${path}[${index}]`;
-    if (!isRecord(mark) || !hasOnlyKeys(mark, ["type"]) || typeof mark.type !== "string") {
+    if (!isRecord(mark) || typeof mark.type !== "string") {
       return structureError(markPath, "invalid-mark");
     }
     if (!(EDITOR_MARK_TYPES as readonly string[]).includes(mark.type)) {
       return structureError(`${markPath}.type`, "unsupported-mark", "document.unsupported-content");
+    }
+    if (mark.type === "wikiLink") {
+      if (!allowWikiLinks) {
+        return structureError(
+          `${markPath}.type`,
+          "unsupported-mark",
+          "document.unsupported-content",
+        );
+      }
+      if (!hasOnlyKeys(mark, ["type", "attrs"]) || !isRecord(mark.attrs)) {
+        return structureError(markPath, "invalid-wiki-link");
+      }
+      if (
+        !hasOnlyKeys(mark.attrs, ["targetItemId", "occurrenceId"]) ||
+        !isUuid(mark.attrs["targetItemId"]) ||
+        !isUuid(mark.attrs["occurrenceId"])
+      ) {
+        return structureError(`${markPath}.attrs`, "invalid-wiki-link-identifiers");
+      }
+    } else if (!hasOnlyKeys(mark, ["type"])) {
+      return structureError(markPath, "invalid-mark");
     }
     if (seen.has(mark.type)) {
       return structureError(markPath, "duplicate-mark");
@@ -107,7 +146,12 @@ function validateMarks(value: unknown, path: string): DomainResult<null> {
   return ok(null);
 }
 
-function validateText(value: unknown, path: string, allowMarks: boolean): DomainResult<null> {
+function validateText(
+  value: unknown,
+  path: string,
+  allowMarks: boolean,
+  allowWikiLinks: boolean,
+): DomainResult<null> {
   if (
     !isRecord(value) ||
     !hasOnlyKeys(value, allowMarks ? ["type", "text", "marks"] : ["type", "text"])
@@ -120,13 +164,14 @@ function validateText(value: unknown, path: string, allowMarks: boolean): Domain
   if (!allowMarks && "marks" in value) {
     return structureError(`${path}.marks`, "marks-not-allowed");
   }
-  return allowMarks ? validateMarks(value.marks, `${path}.marks`) : ok(null);
+  return allowMarks ? validateMarks(value.marks, `${path}.marks`, allowWikiLinks) : ok(null);
 }
 
 function validateTextContent(
   value: unknown,
   path: string,
   allowMarks: boolean,
+  allowWikiLinks: boolean,
 ): DomainResult<null> {
   if (value === undefined) {
     return ok(null);
@@ -135,7 +180,7 @@ function validateTextContent(
     return structureError(path, "expected-array");
   }
   for (let index = 0; index < value.length; index += 1) {
-    const result = validateText(value[index], `${path}[${index}]`, allowMarks);
+    const result = validateText(value[index], `${path}[${index}]`, allowMarks, allowWikiLinks);
     if (!result.ok) {
       return result;
     }
@@ -161,6 +206,7 @@ function validateListItems(
   value: unknown,
   path: string,
   expectedType: "listItem" | "taskItem",
+  allowWikiLinks: boolean,
 ): DomainResult<null> {
   if (!Array.isArray(value) || value.length === 0) {
     return structureError(path, "list-requires-items");
@@ -193,7 +239,11 @@ function validateListItems(
       return structureError(`${itemPath}.content[0]`, "item-must-start-with-paragraph");
     }
     for (let childIndex = 0; childIndex < item.content.length; childIndex += 1) {
-      const result = validateBlock(item.content[childIndex], `${itemPath}.content[${childIndex}]`);
+      const result = validateBlock(
+        item.content[childIndex],
+        `${itemPath}.content[${childIndex}]`,
+        allowWikiLinks,
+      );
       if (!result.ok) {
         return result;
       }
@@ -202,7 +252,7 @@ function validateListItems(
   return ok(null);
 }
 
-function validateBlock(value: unknown, path: string): DomainResult<null> {
+function validateBlock(value: unknown, path: string, allowWikiLinks: boolean): DomainResult<null> {
   if (!isRecord(value) || typeof value.type !== "string") {
     return structureError(path, "invalid-block");
   }
@@ -211,7 +261,7 @@ function validateBlock(value: unknown, path: string): DomainResult<null> {
       if (!hasOnlyKeys(value, ["type", "content"])) {
         return structureError(path, "invalid-paragraph");
       }
-      return validateTextContent(value.content, `${path}.content`, true);
+      return validateTextContent(value.content, `${path}.content`, true, allowWikiLinks);
     }
     case "heading": {
       if (!hasOnlyKeys(value, ["type", "attrs", "content"])) {
@@ -224,7 +274,7 @@ function validateBlock(value: unknown, path: string): DomainResult<null> {
       if (attrs.value === null || ![1, 2, 3].includes(attrs.value.level as number)) {
         return structureError(`${path}.attrs.level`, "invalid-heading-level");
       }
-      return validateTextContent(value.content, `${path}.content`, true);
+      return validateTextContent(value.content, `${path}.content`, true, allowWikiLinks);
     }
     case "blockquote": {
       if (
@@ -235,7 +285,11 @@ function validateBlock(value: unknown, path: string): DomainResult<null> {
         return structureError(path, "invalid-blockquote");
       }
       for (let index = 0; index < value.content.length; index += 1) {
-        const result = validateBlock(value.content[index], `${path}.content[${index}]`);
+        const result = validateBlock(
+          value.content[index],
+          `${path}.content[${index}]`,
+          allowWikiLinks,
+        );
         if (!result.ok) {
           return result;
         }
@@ -257,7 +311,7 @@ function validateBlock(value: unknown, path: string): DomainResult<null> {
       ) {
         return structureError(`${path}.attrs.language`, "invalid-language");
       }
-      return validateTextContent(value.content, `${path}.content`, false);
+      return validateTextContent(value.content, `${path}.content`, false, false);
     }
     case "horizontalRule":
       return hasOnlyKeys(value, ["type"])
@@ -271,7 +325,7 @@ function validateBlock(value: unknown, path: string): DomainResult<null> {
       if (!attrs.ok) {
         return attrs;
       }
-      return validateListItems(value.content, `${path}.content`, "listItem");
+      return validateListItems(value.content, `${path}.content`, "listItem", allowWikiLinks);
     }
     case "orderedList": {
       if (!hasOnlyKeys(value, ["type", "attrs", "content"])) {
@@ -288,19 +342,45 @@ function validateBlock(value: unknown, path: string): DomainResult<null> {
       ) {
         return structureError(`${path}.attrs.start`, "invalid-list-start");
       }
-      return validateListItems(value.content, `${path}.content`, "listItem");
+      return validateListItems(value.content, `${path}.content`, "listItem", allowWikiLinks);
     }
     case "taskList":
       if (!hasOnlyKeys(value, ["type", "content"])) {
         return structureError(path, "invalid-task-list");
       }
-      return validateListItems(value.content, `${path}.content`, "taskItem");
+      return validateListItems(value.content, `${path}.content`, "taskItem", allowWikiLinks);
     default:
       return structureError(`${path}.type`, "unsupported-node", "document.unsupported-content");
   }
 }
 
-export function validateEditorDocument(value: unknown): DomainResult<EditorDocument> {
+export function extractWikiLinkOccurrences(document: EditorDocument): WikiLinkOccurrence[] {
+  const occurrences: WikiLinkOccurrence[] = [];
+  const visit = (node: EditorNode): void => {
+    if (node.type === "text") {
+      for (const mark of node.marks ?? []) {
+        if (mark.type === "wikiLink") {
+          occurrences.push({
+            occurrenceId: mark.attrs.occurrenceId,
+            targetItemId: mark.attrs.targetItemId,
+            label: node.text ?? "",
+          });
+        }
+      }
+    }
+    for (const child of node.content ?? []) {
+      visit(child);
+    }
+  };
+  visit(document);
+  return occurrences;
+}
+
+export function validateEditorDocument(
+  value: unknown,
+  options: { readonly allowWikiLinks?: boolean } = {},
+): DomainResult<EditorDocument> {
+  const allowWikiLinks = options.allowWikiLinks ?? true;
   if (!isRecord(value) || !hasOnlyKeys(value, ["type", "content"]) || value.type !== "doc") {
     return structureError("body", "invalid-document");
   }
@@ -308,12 +388,44 @@ export function validateEditorDocument(value: unknown): DomainResult<EditorDocum
     return structureError("body.content", "document-requires-block");
   }
   for (let index = 0; index < value.content.length; index += 1) {
-    const result = validateBlock(value.content[index], `body.content[${index}]`);
+    const result = validateBlock(value.content[index], `body.content[${index}]`, allowWikiLinks);
     if (!result.ok) {
       return result;
     }
   }
-  return ok(value as unknown as EditorDocument);
+  const document = value as unknown as EditorDocument;
+  const occurrenceIds = new Set<string>();
+  for (const occurrence of extractWikiLinkOccurrences(document)) {
+    if (occurrenceIds.has(occurrence.occurrenceId)) {
+      return structureError("body", "duplicate-wiki-link-occurrence");
+    }
+    occurrenceIds.add(occurrence.occurrenceId);
+  }
+  return ok(document);
+}
+
+export function validateWikiLinkTargets(
+  document: EditorDocument,
+  sourceItemId: Uuid,
+  getItem: (id: Uuid) => {
+    readonly kind: "page" | "folder" | "file";
+    readonly lifecycle: "active" | "trashed" | "purged";
+  } | null,
+): DomainResult<WikiLinkOccurrence[]> {
+  const occurrences = extractWikiLinkOccurrences(document);
+  for (const occurrence of occurrences) {
+    if (occurrence.targetItemId === sourceItemId) {
+      return structureError("body", "wiki-link-self-reference");
+    }
+    const target = getItem(occurrence.targetItemId);
+    if (target === null || target.lifecycle === "purged") {
+      return err("relationship.endpoint-unavailable", "Wiki-link target is unavailable");
+    }
+    if (target.kind !== "page") {
+      return err("item.wrong-kind", "Wiki links can target pages only");
+    }
+  }
+  return ok(occurrences);
 }
 
 export function normalizePageDocumentForEditor(
@@ -324,6 +436,9 @@ export function normalizePageDocumentForEditor(
   }
   if (document.formatVersion === EDITOR_DOCUMENT_VERSION) {
     return validateEditorDocument(document.body);
+  }
+  if (document.formatVersion === LEGACY_EDITOR_DOCUMENT_VERSION) {
+    return validateEditorDocument(document.body, { allowWikiLinks: false });
   }
   if (document.formatVersion === 1 && Object.keys(document.body).length === 0) {
     return ok(EMPTY_EDITOR_DOCUMENT);

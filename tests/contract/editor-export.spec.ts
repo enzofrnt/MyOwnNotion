@@ -1,4 +1,8 @@
-import type { CanonicalExportManifest } from "@myownnotion/domain";
+import {
+  type CanonicalExportManifest,
+  generateUuidV7,
+  validateCanonicalExport,
+} from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type ApiHarness,
@@ -18,8 +22,10 @@ afterAll(async () => {
 });
 
 describe("editor document export (US1)", () => {
-  it("round-trips every supported v2 block and mark without HTML conversion", async () => {
+  it("round-trips every supported v3 block and mark without HTML conversion", async () => {
+    const target = await createItemViaApi(harness, { kind: "page", name: "Linked export page" });
     const page = await createItemViaApi(harness, { kind: "page", name: "Editor export" });
+    const occurrenceId = generateUuidV7();
     const editorBody = {
       type: "doc",
       content: [
@@ -31,6 +37,16 @@ describe("editor document export (US1)", () => {
             { type: "text", text: " italic", marks: [{ type: "italic" }] },
             { type: "text", text: " strike", marks: [{ type: "strike" }] },
             { type: "text", text: " code", marks: [{ type: "code" }] },
+            {
+              type: "text",
+              text: " linked",
+              marks: [
+                {
+                  type: "wikiLink",
+                  attrs: { targetItemId: target.itemId, occurrenceId },
+                },
+              ],
+            },
           ],
         },
         { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Level two" }] },
@@ -89,7 +105,7 @@ describe("editor document export (US1)", () => {
         baseRevisionId: page.revisionId,
         document: {
           format: "myownnotion.document+json",
-          formatVersion: 2,
+          formatVersion: 3,
           body: editorBody,
         },
       },
@@ -117,8 +133,19 @@ describe("editor document export (US1)", () => {
     const exportedPage = manifest.items.find((item) => item.id === page.itemId);
     expect(exportedPage?.pageDocument).toEqual({
       format: "myownnotion.document+json",
-      formatVersion: 2,
+      formatVersion: 3,
       body: editorBody,
     });
+    expect(manifest.relationships).toContainEqual(
+      expect.objectContaining({
+        id: occurrenceId,
+        sourceItemId: page.itemId,
+        targetItemId: target.itemId,
+        relationType: "link:references",
+        metadata: { label: " linked" },
+        removedRevisionId: null,
+      }),
+    );
+    expect(validateCanonicalExport(manifest)).toEqual([]);
   });
 });

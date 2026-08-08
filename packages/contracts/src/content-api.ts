@@ -28,7 +28,7 @@ export const PlacementKindSchema = Type.Union([
 const NullableUuid = Type.Union([UuidSchema, Type.Null()]);
 const NullableDateTime = Type.Union([Type.String({ format: "date-time" }), Type.Null()]);
 
-const EditorMarkSchema = Type.Object(
+const EditorStyleMarkSchema = Type.Object(
   {
     type: Type.Union([
       Type.Literal("bold"),
@@ -39,6 +39,22 @@ const EditorMarkSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+const WikiLinkMarkSchema = Type.Object(
+  {
+    type: Type.Literal("wikiLink"),
+    attrs: Type.Object(
+      {
+        targetItemId: UuidSchema,
+        occurrenceId: UuidSchema,
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const EditorMarkSchema = Type.Union([EditorStyleMarkSchema, WikiLinkMarkSchema]);
 
 const EditorTextSchema = Type.Object(
   {
@@ -289,6 +305,8 @@ export const ChangeEnvelopeSchema = Type.Object({
   mutationId: UuidSchema,
   revisionIds: Type.Array(UuidSchema),
   changedItems: Type.Optional(Type.Array(ItemSchema)),
+  relationshipSourceItemIds: Type.Optional(Type.Array(UuidSchema, { uniqueItems: true })),
+  changedRelationships: Type.Optional(Type.Array(RelationshipSchema)),
 });
 export type ChangeEnvelopeDto = Static<typeof ChangeEnvelopeSchema>;
 

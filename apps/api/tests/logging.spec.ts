@@ -95,15 +95,36 @@ describe("logging configuration (T091)", () => {
       url: "/document",
       payload: {
         document: {
-          formatVersion: 2,
+          formatVersion: 3,
           body: {
             type: "doc",
-            content: [{ type: "paragraph", content: [{ type: "text", text: secret }] }],
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: secret,
+                    marks: [
+                      {
+                        type: "wikiLink",
+                        attrs: {
+                          targetItemId: "01900000-0000-7000-8000-000000000001",
+                          occurrenceId: "01900000-0000-7000-8000-000000000002",
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           },
         },
+        query: "PrivateGraphQuery-711",
       },
     });
     await app.close();
     expect(captured.join("\n")).not.toContain(secret);
+    expect(captured.join("\n")).not.toContain("PrivateGraphQuery-711");
   });
 });

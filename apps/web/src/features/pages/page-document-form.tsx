@@ -1,3 +1,4 @@
+import type { ProjectedItem } from "@myownnotion/client-core";
 import {
   EDITOR_DOCUMENT_VERSION,
   type EditorDocument,
@@ -17,9 +18,13 @@ type LoadState =
 export function PageDocumentForm({
   service,
   itemId,
+  items,
+  onNavigate,
 }: {
   readonly service: LocalContentService;
   readonly itemId: Uuid;
+  readonly items: readonly ProjectedItem[];
+  readonly onNavigate: (itemId: Uuid) => void;
 }) {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [saveState, setSaveState] = useState<SaveCoordinatorState>({ status: "idle" });
@@ -90,6 +95,11 @@ export function PageDocumentForm({
             saveState={saveState}
             onSave={save}
             onSaveStateChange={setSaveState}
+            sourceItemId={itemId}
+            wikiLinkCandidates={items
+              .filter((item) => item.kind === "page" && item.lifecycle === "active")
+              .map((item) => ({ id: item.id, name: item.name }))}
+            onNavigateWikiLink={onNavigate}
           />
         </>
       ) : null}

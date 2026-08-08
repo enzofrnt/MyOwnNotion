@@ -8,7 +8,11 @@
  * imposed by the product model.
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
-import { EDITOR_DOCUMENT_VERSION, validateEditorDocument } from "./editor-document.ts";
+import {
+  EDITOR_DOCUMENT_VERSION,
+  LEGACY_EDITOR_DOCUMENT_VERSION,
+  validateEditorDocument,
+} from "./editor-document.ts";
 import { isValidPositionKey } from "./position-key.ts";
 import {
   type CanonicalItem,
@@ -79,8 +83,13 @@ export function validatePageDocument(document: PageDocument): DomainResult<PageD
   if (typeof document.body !== "object" || document.body === null || Array.isArray(document.body)) {
     return err("validation.invalid-payload", "Page document body must be an object");
   }
-  if (document.formatVersion === EDITOR_DOCUMENT_VERSION) {
-    const editorDocument = validateEditorDocument(document.body);
+  if (
+    document.formatVersion === EDITOR_DOCUMENT_VERSION ||
+    document.formatVersion === LEGACY_EDITOR_DOCUMENT_VERSION
+  ) {
+    const editorDocument = validateEditorDocument(document.body, {
+      allowWikiLinks: document.formatVersion === EDITOR_DOCUMENT_VERSION,
+    });
     if (!editorDocument.ok) {
       return editorDocument as DomainResult<PageDocument>;
     }

@@ -1,5 +1,7 @@
 import {
   EMPTY_EDITOR_DOCUMENT,
+  extractWikiLinkOccurrences,
+  generateUuidV7,
   normalizePageDocumentForEditor,
   type PageDocument,
   toPageDocument,
@@ -101,7 +103,7 @@ describe("editor document v2", () => {
     ).toEqual({ ok: true, value: completeDocument });
     expect(toPageDocument(completeDocument)).toEqual({
       format: "myownnotion.document+json",
-      formatVersion: 2,
+      formatVersion: 3,
       body: completeDocument,
     });
 
@@ -115,6 +117,94 @@ describe("editor document v2", () => {
       expect(unsupportedFormat.error.code).toBe("document.unsupported-content");
       expect(unsupportedFormat.error.invalidFields?.[0]?.field).toBe("document.format");
     }
+  });
+
+  it("accepts version 3 wiki links and preserves stable occurrence identity", () => {
+    const targetItemId = generateUuidV7();
+    const occurrenceId = generateUuidV7();
+    const document = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "Linked page",
+              marks: [{ type: "wikiLink", attrs: { targetItemId, occurrenceId } }],
+            },
+          ],
+        },
+      ],
+    } as const;
+
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 3,
+        body: document,
+      }),
+    ).toEqual({ ok: true, value: expect.objectContaining({ body: document }) });
+    expect(extractWikiLinkOccurrences(document)).toEqual([
+      { targetItemId, occurrenceId, label: "Linked page" },
+    ]);
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 2,
+        body: document,
+      }).ok,
+    ).toBe(false);
+  });
+
+  it.each([
+    ["missing attributes", { type: "wikiLink" }],
+    [
+      "invalid target",
+      { type: "wikiLink", attrs: { targetItemId: "not-a-uuid", occurrenceId: generateUuidV7() } },
+    ],
+    [
+      "invalid occurrence",
+      { type: "wikiLink", attrs: { targetItemId: generateUuidV7(), occurrenceId: "invalid" } },
+    ],
+    [
+      "unknown attribute",
+      {
+        type: "wikiLink",
+        attrs: {
+          targetItemId: generateUuidV7(),
+          occurrenceId: generateUuidV7(),
+          href: "private",
+        },
+      },
+    ],
+  ])("rejects malformed wiki-link marks: %s", (_label, mark) => {
+    const result = validateEditorDocument({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "private", marks: [mark] }] }],
+    });
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
+
+  it("rejects duplicate wiki-link occurrence identities", () => {
+    const targetItemId = generateUuidV7();
+    const occurrenceId = generateUuidV7();
+    const mark = { type: "wikiLink", attrs: { targetItemId, occurrenceId } };
+    expect(
+      validateEditorDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "first", marks: [mark] },
+              { type: "text", text: "second", marks: [mark] },
+            ],
+          },
+        ],
+      }).ok,
+    ).toBe(false);
   });
 
   it.each([

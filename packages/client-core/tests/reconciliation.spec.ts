@@ -18,6 +18,7 @@ import type {
   ItemDto,
   QueuedMutationDto,
   QueuedMutationResultDto,
+  RelationshipDto,
 } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -65,6 +66,29 @@ function serverItem(name: string): ItemDto {
       { id: generateUuidV7(), itemId: id, kind: "hierarchy", parentItemId: null, positionKey: "V" },
     ],
   } as ItemDto;
+}
+
+function serverPage(name: string): ItemDto {
+  const item = serverItem(name);
+  return {
+    ...item,
+    kind: "page",
+    pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+  };
+}
+
+function serverRelationship(sourceItemId: Uuid, targetItemId: Uuid): RelationshipDto {
+  return {
+    id: generateUuidV7(),
+    sourceItemId,
+    targetItemId,
+    relationType: "link:references",
+    metadata: {},
+    createdRevisionId: generateUuidV7(),
+    removedRevisionId: null,
+    sourceAvailability: "active",
+    targetAvailability: "active",
+  };
 }
 
 /** Scriptable in-memory server double with duplicate-delivery accounting. */
@@ -153,6 +177,44 @@ describe("reconciliation (T044)", () => {
     expect(outcome.accepted).toBe(2);
     expect(outcome.retained).toBe(0);
     expect(await db.outbox.count()).toBe(0);
+  });
+
+  it("reattaches an optimistic item head to the accepted server revision for rapid follow-up edits", async () => {
+    const itemId = generateUuidV7();
+    const mutationId = generateUuidV7();
+    const created = await applyLocalMutation(db, {
+      mutationId,
+      commandType: "item.create",
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Causal follow-up",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+      baseRevisionIds: [],
+    });
+    expect(created.ok).toBe(true);
+    const localHead = (await repository.getItem(itemId))?.currentRevisionId;
+    const acceptedHead = generateUuidV7();
+    const transport = new FakeTransport();
+    transport.submitMutationBatch = async () => ({
+      ok: true as const,
+      value: {
+        results: [
+          {
+            mutationId,
+            status: "accepted" as const,
+            revisionIds: [acceptedHead],
+          },
+        ],
+      },
+    });
+
+    await reconcile(db, transport);
+
+    expect((await repository.getItem(itemId))?.currentRevisionId).toBe(acceptedHead);
+    expect(localHead).not.toBe(acceptedHead);
+    expect(await db.revisionHeaders.get(localHead as Uuid)).toBeUndefined();
   });
 
   it("duplicate transport delivery is absorbed idempotently (SC-014)", async () => {
@@ -264,6 +326,53 @@ describe("reconciliation (T044)", () => {
     expect((await repository.getItem(itemB.id as Uuid))?.name).toBe("From changes B");
   });
 
+  it("replaces incremental derived relationships by source idempotently, including removal", async () => {
+    const source = generateUuidV7();
+    const firstTarget = generateUuidV7();
+    const nextTarget = generateUuidV7();
+    const stale = serverRelationship(source, firstTarget);
+    await repository.replaceDerivedWikiRelationships([source], [stale]);
+    const replacement = serverRelationship(source, nextTarget);
+    const transport = new FakeTransport();
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 1,
+            mutationId: generateUuidV7(),
+            revisionIds: [generateUuidV7()],
+            relationshipSourceItemIds: [source],
+            changedRelationships: [replacement],
+          },
+        ],
+        nextCursor: "1",
+        hasMore: false,
+      },
+    ];
+    await reconcile(db, transport);
+    expect(await repository.listRelationships()).toEqual([
+      expect.objectContaining({ id: replacement.id, targetItemId: nextTarget }),
+    ]);
+
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 2,
+            mutationId: generateUuidV7(),
+            revisionIds: [generateUuidV7()],
+            relationshipSourceItemIds: [source],
+            changedRelationships: [],
+          },
+        ],
+        nextCursor: "2",
+        hasMore: false,
+      },
+    ];
+    await reconcile(db, transport);
+    expect(await repository.listRelationships()).toEqual([]);
+  });
+
   it("a compacted cursor rebuilds from the verified snapshot without touching the outbox", async () => {
     // A stale local item and a pending mutation that must survive.
     await repository.applyServerItems([serverItem("Stale local")]);
@@ -271,13 +380,15 @@ describe("reconciliation (T044)", () => {
     const transport = new FakeTransport();
     transport.compactedCursors.add("old-cursor");
     const fresh = serverItem("Fresh from snapshot");
+    const snapshotTarget = serverItem("Snapshot target");
+    const snapshotRelationship = serverRelationship(fresh.id as Uuid, snapshotTarget.id as Uuid);
     transport.snapshot = {
       workspaceId: generateUuidV7(),
       schemaVersion: 1,
       cursor: "100",
       digest: "a".repeat(64),
-      items: [fresh],
-      relationships: [],
+      items: [fresh, snapshotTarget],
+      relationships: [snapshotRelationship],
     };
     // Conflict record must also survive the snapshot rebuild.
     const conflictedId = await enqueueCreate("Survivor");
@@ -287,6 +398,73 @@ describe("reconciliation (T044)", () => {
     expect(outcome.usedSnapshotFallback).toBe(true);
     expect(outcome.caughtUpTo).toBe("100");
     expect((await repository.getItem(fresh.id as Uuid))?.name).toBe("Fresh from snapshot");
+    expect(await repository.listRelationships(fresh.id as Uuid)).toEqual([
+      expect.objectContaining({ id: snapshotRelationship.id }),
+    ]);
     expect((await outbox.conflicts()).length).toBe(1);
+  });
+
+  it("preserves conflicted local wiki relationships across snapshot fallback", async () => {
+    const source = serverPage("Conflicted source");
+    const target = serverPage("Conflicted target");
+    await repository.applyServerItems([source, target]);
+    const occurrenceId = generateUuidV7();
+    const mutationId = generateUuidV7();
+    const result = await applyLocalMutation(db, {
+      mutationId,
+      commandType: "page.document.replace",
+      payload: {
+        itemId: source.id,
+        baseRevisionId: source.currentRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "Local target",
+                    marks: [
+                      {
+                        type: "wikiLink",
+                        attrs: { targetItemId: target.id, occurrenceId },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      baseRevisionIds: [source.currentRevisionId as Uuid],
+    });
+    expect(result.ok).toBe(true);
+    await outbox.captureConflict(mutationId, [generateUuidV7()], "revision.stale-base");
+    await repository.setMeta("lastChangeCursor", "compacted-links");
+    const transport = new FakeTransport();
+    transport.compactedCursors.add("compacted-links");
+    transport.snapshot = {
+      workspaceId: generateUuidV7(),
+      schemaVersion: 1,
+      cursor: "200",
+      digest: "b".repeat(64),
+      items: [source, target],
+      relationships: [],
+    };
+
+    await reconcile(db, transport);
+
+    expect(await repository.listRelationships(source.id as Uuid)).toEqual([
+      expect.objectContaining({ id: occurrenceId, targetItemId: target.id }),
+    ]);
+    expect((await repository.getItem(source.id as Uuid))?.pageDocument).toMatchObject({
+      formatVersion: 3,
+    });
+    expect(await outbox.conflicts()).toHaveLength(1);
   });
 });

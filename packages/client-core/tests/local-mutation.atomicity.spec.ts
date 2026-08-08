@@ -188,6 +188,74 @@ describe("atomic optimistic mutation + outbox (T040)", () => {
     expect(await snapshotCounts()).toEqual(before);
   });
 
+  it("rolls back a document, its derived link, and revision when outbox storage fails", async () => {
+    const sourceId = generateUuidV7();
+    const targetId = generateUuidV7();
+    for (const [id, name] of [
+      [sourceId, "Atomic source"],
+      [targetId, "Atomic target"],
+    ] as const) {
+      const created = await applyLocalMutation(db, {
+        mutationId: generateUuidV7(),
+        commandType: "item.create",
+        payload: {
+          id,
+          kind: "page",
+          name,
+          placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        },
+        baseRevisionIds: [],
+      });
+      expect(created.ok).toBe(true);
+    }
+    const source = await repository.getItem(sourceId);
+    if (source === null) {
+      throw new Error("Atomic source was not created");
+    }
+    const occurrenceId = generateUuidV7();
+    const before = await snapshotCounts();
+    const initialDocument = source.pageDocument;
+    const original = db.outbox.add.bind(db.outbox);
+    const quotaError = new Error("quota");
+    quotaError.name = "QuotaExceededError";
+    (db.outbox as { add: unknown }).add = () => Promise.reject(quotaError);
+
+    const result = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      payload: {
+        itemId: sourceId,
+        baseRevisionId: source.currentRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "Atomic target",
+                    marks: [{ type: "wikiLink", attrs: { targetItemId: targetId, occurrenceId } }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      baseRevisionIds: [source.currentRevisionId],
+    });
+    (db.outbox as { add: unknown }).add = original;
+
+    expect(result.ok).toBe(false);
+    expect(await snapshotCounts()).toEqual(before);
+    expect((await repository.getItem(sourceId))?.pageDocument).toEqual(initialDocument);
+    expect(await db.relationships.get(occurrenceId)).toBeUndefined();
+  });
+
   it("applies the complete supported offline command lifecycle", async () => {
     const fixedNow = () => new Date("2026-08-07T12:00:00.000Z");
     const parentId = generateUuidV7();

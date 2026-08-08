@@ -5,12 +5,13 @@
  * Applying server data (snapshot or change envelopes) is transactional so a
  * crash never leaves a half-applied projection.
  */
-import type { ItemDto } from "@myownnotion/contracts";
+import type { ItemDto, RelationshipDto } from "@myownnotion/contracts";
 import type { Uuid } from "@myownnotion/domain";
 import {
   type LocalDatabase,
   type LocalItemRow,
   type LocalPlacementRow,
+  type LocalRelationshipRow,
   META_KEYS,
   parentKeyOf,
 } from "./schema.ts";
@@ -51,6 +52,16 @@ function placementRowsFrom(dto: ItemDto): LocalPlacementRow[] {
   }));
 }
 
+function relationshipRowFrom(dto: RelationshipDto): LocalRelationshipRow {
+  return {
+    id: dto.id as Uuid,
+    sourceItemId: dto.sourceItemId as Uuid,
+    targetItemId: dto.targetItemId as Uuid,
+    relationType: dto.relationType,
+    metadata: (dto.metadata as Record<string, unknown> | undefined) ?? {},
+  };
+}
+
 export class LocalRepository {
   readonly db: LocalDatabase;
 
@@ -78,23 +89,120 @@ export class LocalRepository {
     schemaVersion: number;
     cursor: string;
     items: ReadonlyArray<ItemDto>;
+    relationships: ReadonlyArray<RelationshipDto>;
+    preserveRelationshipSourceItemIds?: ReadonlyArray<Uuid>;
   }): Promise<void> {
-    await this.db.transaction("rw", [this.db.items, this.db.placements, this.db.meta], async () => {
-      await this.db.items.clear();
-      await this.db.placements.clear();
-      for (const dto of input.items) {
-        await this.db.items.put(itemRowFrom(dto));
-        const rows = placementRowsFrom(dto);
-        if (rows.length > 0) {
-          await this.db.placements.bulkPut(rows);
+    await this.db.transaction(
+      "rw",
+      [this.db.items, this.db.placements, this.db.relationships, this.db.meta],
+      async () => {
+        const preservedSources = new Set(input.preserveRelationshipSourceItemIds ?? []);
+        const preservedItems =
+          preservedSources.size === 0
+            ? []
+            : (await this.db.items.bulkGet([...preservedSources])).filter(
+                (item): item is LocalItemRow => item !== undefined,
+              );
+        const preservedRelationships =
+          preservedSources.size === 0
+            ? []
+            : await this.db.relationships
+                .filter(
+                  (relationship) =>
+                    preservedSources.has(relationship.sourceItemId) &&
+                    relationship.relationType === "link:references",
+                )
+                .toArray();
+        await this.db.items.clear();
+        await this.db.placements.clear();
+        await this.db.relationships.clear();
+        for (const dto of input.items) {
+          await this.db.items.put(itemRowFrom(dto));
+          const rows = placementRowsFrom(dto);
+          if (rows.length > 0) {
+            await this.db.placements.bulkPut(rows);
+          }
         }
+        if (input.relationships.length > 0) {
+          await this.db.relationships.bulkPut(input.relationships.map(relationshipRowFrom));
+        }
+        if (preservedItems.length > 0) {
+          await this.db.items.bulkPut(preservedItems);
+        }
+        if (preservedRelationships.length > 0) {
+          const replacedSnapshotRows = await this.db.relationships
+            .filter(
+              (relationship) =>
+                preservedSources.has(relationship.sourceItemId) &&
+                relationship.relationType === "link:references",
+            )
+            .primaryKeys();
+          await this.db.relationships.bulkDelete(replacedSnapshotRows as Uuid[]);
+          await this.db.relationships.bulkPut(preservedRelationships);
+        }
+        await this.db.meta.bulkPut([
+          { key: META_KEYS.workspaceId, value: input.workspaceId },
+          { key: META_KEYS.schemaVersion, value: input.schemaVersion },
+          { key: META_KEYS.lastChangeCursor, value: input.cursor },
+        ]);
+      },
+    );
+  }
+
+  /**
+   * Replaces only document-derived wiki links for the listed source pages.
+   * Explicit relationship types and unrelated sources remain untouched.
+   */
+  async replaceDerivedWikiRelationships(
+    sourceItemIds: ReadonlyArray<Uuid>,
+    relationships: ReadonlyArray<RelationshipDto>,
+  ): Promise<void> {
+    if (sourceItemIds.length === 0) {
+      return;
+    }
+    const sources = new Set<string>(sourceItemIds);
+    await this.db.transaction("rw", this.db.relationships, async () => {
+      const existing = await this.db.relationships
+        .filter(
+          (relationship) =>
+            sources.has(relationship.sourceItemId) &&
+            relationship.relationType === "link:references",
+        )
+        .primaryKeys();
+      await this.db.relationships.bulkDelete(existing as Uuid[]);
+      const rows = relationships
+        .filter(
+          (relationship) =>
+            sources.has(relationship.sourceItemId) &&
+            relationship.relationType === "link:references",
+        )
+        .map(relationshipRowFrom);
+      if (rows.length > 0) {
+        await this.db.relationships.bulkPut(rows);
       }
-      await this.db.meta.bulkPut([
-        { key: META_KEYS.workspaceId, value: input.workspaceId },
-        { key: META_KEYS.schemaVersion, value: input.schemaVersion },
-        { key: META_KEYS.lastChangeCursor, value: input.cursor },
-      ]);
     });
+  }
+
+  async listRelationships(itemId?: Uuid): Promise<LocalRelationshipRow[]> {
+    if (itemId === undefined) {
+      return this.db.relationships.toArray();
+    }
+    return this.db.relationships
+      .filter(
+        (relationship) =>
+          relationship.sourceItemId === itemId || relationship.targetItemId === itemId,
+      )
+      .toArray();
+  }
+
+  async readKnowledgeData(): Promise<{
+    readonly items: LocalItemRow[];
+    readonly relationships: LocalRelationshipRow[];
+  }> {
+    return this.db.transaction("r", [this.db.items, this.db.relationships], async () => ({
+      items: await this.db.items.toArray(),
+      relationships: await this.db.relationships.toArray(),
+    }));
   }
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {

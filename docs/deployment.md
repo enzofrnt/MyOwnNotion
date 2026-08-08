@@ -88,6 +88,8 @@ Expected results:
 - Both health calls return `{"status":"ready","schemaVersion":1}`.
 - The application opens at `http://127.0.0.1:8080`.
 
+For a functional knowledge-network check, create two pages in the interface, type `[[` in the first page, select the second, and save. Open the second page and confirm that the first appears under **Backlinks**. Switch between **Local graph** and **Global graph**, filter by either page name, and open a page from the accessible graph list.
+
 To verify the configured images and loopback bindings without starting services:
 
 ```text
@@ -119,6 +121,8 @@ docker compose --env-file .env.prod -f compose.prod.yaml up --detach --wait
 ```
 
 Canonical metadata and page content remain in the project-scoped `postgres-data` volume. Immutable file content remains in `blob-data`. A normal `down` or host restart does not delete either volume.
+
+After restarting, reopen the linked source and target. The inline link, backlink occurrence count, and graph edge must still be present. The automated container smoke performs the same persistence check through the same-origin web proxy using a version 3 document and its derived relationship.
 
 ## Update to another immutable revision
 

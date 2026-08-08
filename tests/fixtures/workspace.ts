@@ -5,6 +5,8 @@
  */
 import { generateUuidV7, keyBetween, type Uuid } from "@myownnotion/domain";
 
+export * from "./knowledge.ts";
+
 export interface FixtureItem {
   readonly id: Uuid;
   readonly kind: "page" | "folder";

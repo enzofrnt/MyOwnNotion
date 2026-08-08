@@ -61,6 +61,187 @@ async function relate(source: Uuid, target: Uuid): Promise<Uuid> {
 }
 
 describe("relationship endpoint stability (FR-010/FR-011)", () => {
+  it("projects wiki links supplied with the initial page document", async () => {
+    const target = await createItem("page", "Initial link target");
+    const source = generateUuidV7();
+    const occurrenceId = generateUuidV7();
+    const created = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "item.create",
+      command: {
+        type: "item.create",
+        id: source,
+        kind: "page",
+        name: "Initially linked source",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "Rinitialx" },
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "Initial link target",
+                    marks: [{ type: "wikiLink", attrs: { targetItemId: target, occurrenceId } }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(created.result.status).toBe("accepted");
+    expect(
+      (
+        await context.handle.db
+          .select()
+          .from(schema.relationships)
+          .where(eq(schema.relationships.id, occurrenceId))
+      )[0],
+    ).toMatchObject({
+      sourceItemId: source,
+      targetItemId: target,
+      relationType: "link:references",
+      metadata: { label: "Initial link target" },
+    });
+  });
+
+  it("atomically projects version-3 wiki-link occurrences through removal and reactivation", async () => {
+    const source = await createItem("page", "Linked source");
+    const target = await createItem("page", "Linked target");
+    const occurrenceId = generateUuidV7();
+    const sourceRow = await context.handle.db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, source));
+    const replace = async (baseRevisionId: Uuid, linked: boolean) =>
+      submitMutation(context.handle.db, {
+        workspaceId: context.workspaceId,
+        mutationId: generateUuidV7(),
+        commandType: "page.document.replace",
+        command: {
+          type: "page.document.replace",
+          itemId: source,
+          baseRevisionId,
+          document: {
+            format: "myownnotion.document+json",
+            formatVersion: 3,
+            body: {
+              type: "doc",
+              content: [
+                {
+                  type: "paragraph",
+                  ...(linked
+                    ? {
+                        content: [
+                          {
+                            type: "text",
+                            text: "Target label",
+                            marks: [
+                              { type: "wikiLink", attrs: { targetItemId: target, occurrenceId } },
+                            ],
+                          },
+                        ],
+                      }
+                    : {}),
+                },
+              ],
+            },
+          },
+        },
+      });
+
+    const added = await replace(sourceRow[0]?.currentRevisionId as Uuid, true);
+    expect(added.result.status).toBe("accepted");
+    let row = (
+      await context.handle.db
+        .select()
+        .from(schema.relationships)
+        .where(eq(schema.relationships.id, occurrenceId))
+    )[0];
+    expect(row).toMatchObject({
+      sourceItemId: source,
+      targetItemId: target,
+      relationType: "link:references",
+      metadata: { label: "Target label" },
+      removedRevisionId: null,
+    });
+
+    const removed = await replace(added.result.revisionIds?.[0] as Uuid, false);
+    expect(removed.result.status).toBe("accepted");
+    row = (
+      await context.handle.db
+        .select()
+        .from(schema.relationships)
+        .where(eq(schema.relationships.id, occurrenceId))
+    )[0];
+    expect(row?.removedRevisionId).toBe(removed.result.revisionIds?.[0]);
+
+    const restored = await replace(removed.result.revisionIds?.[0] as Uuid, true);
+    expect(restored.result.status).toBe("accepted");
+    row = (
+      await context.handle.db
+        .select()
+        .from(schema.relationships)
+        .where(eq(schema.relationships.id, occurrenceId))
+    )[0];
+    expect(row?.removedRevisionId).toBeNull();
+  });
+
+  it("rejects invalid wiki-link targets without changing document or revision", async () => {
+    const source = await createItem("page", "Safe source");
+    const folder = await createItem("folder", "Not a page");
+    const before = (
+      await context.handle.db.select().from(schema.items).where(eq(schema.items.id, source))
+    )[0];
+    const outcome = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      command: {
+        type: "page.document.replace",
+        itemId: source,
+        baseRevisionId: before?.currentRevisionId as Uuid,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "invalid target",
+                    marks: [
+                      {
+                        type: "wikiLink",
+                        attrs: { targetItemId: folder, occurrenceId: generateUuidV7() },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(outcome.result.status).toBe("rejected");
+    expect(outcome.result.problem?.code).toBe("item.wrong-kind");
+    const after = (
+      await context.handle.db.select().from(schema.items).where(eq(schema.items.id, source))
+    )[0];
+    expect(after?.currentRevisionId).toBe(before?.currentRevisionId);
+  });
   it("survives rename and move of both endpoints", async () => {
     const source = await createItem("page", "Source");
     const target = await createItem("page", "Target");

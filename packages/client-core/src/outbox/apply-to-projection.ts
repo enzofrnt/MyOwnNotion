@@ -9,15 +9,18 @@
  */
 import {
   type CanonicalItem,
+  extractWikiLinkOccurrences,
   generateUuidV7,
   type HierarchyView,
   type MutationCommand,
+  normalizePageDocumentForEditor,
   type Placement,
   TRASH_RETENTION_MS,
   type Uuid,
+  validateWikiLinkTargets,
   wouldCreateCycle,
 } from "@myownnotion/domain";
-import { type LocalDatabase, parentKeyOf } from "../local-store/schema.ts";
+import { type LocalDatabase, type LocalItemRow, parentKeyOf } from "../local-store/schema.ts";
 import { LocalValidationError } from "./apply-local-mutation.ts";
 
 async function loadView(db: LocalDatabase): Promise<HierarchyView> {
@@ -101,6 +104,35 @@ export async function applyCommandToProjection(
           throw new LocalValidationError("item.not-found", "Parent is not an active container");
         }
       }
+      const normalizedDocument =
+        command.kind === "page" && command.pageDocument !== undefined
+          ? normalizePageDocumentForEditor(command.pageDocument)
+          : null;
+      if (normalizedDocument !== null && !normalizedDocument.ok) {
+        throw new LocalValidationError(
+          normalizedDocument.error.code,
+          normalizedDocument.error.title,
+        );
+      }
+      const occurrences = normalizedDocument?.ok
+        ? extractWikiLinkOccurrences(normalizedDocument.value)
+        : [];
+      if (normalizedDocument?.ok) {
+        const targets = new Map<string, LocalItemRow | undefined>();
+        for (const targetItemId of new Set(
+          occurrences.map((occurrence) => occurrence.targetItemId),
+        )) {
+          targets.set(targetItemId, await db.items.get(targetItemId));
+        }
+        const targetValidation = validateWikiLinkTargets(
+          normalizedDocument.value,
+          command.id,
+          (id) => targets.get(id) ?? null,
+        );
+        if (!targetValidation.ok) {
+          throw new LocalValidationError(targetValidation.error.code, targetValidation.error.title);
+        }
+      }
       const revisionId = await writeLocalRevision(db, command.id, [], now);
       await db.items.add({
         id: command.id,
@@ -130,6 +162,17 @@ export async function applyCommandToProjection(
         parentKey: parentKeyOf(command.placement.parentItemId),
         positionKey: command.placement.positionKey,
       });
+      if (occurrences.length > 0) {
+        await db.relationships.bulkPut(
+          occurrences.map((occurrence) => ({
+            id: occurrence.occurrenceId,
+            sourceItemId: command.id,
+            targetItemId: occurrence.targetItemId,
+            relationType: "link:references",
+            metadata: { label: occurrence.label },
+          })),
+        );
+      }
       return [revisionId];
     }
 
@@ -156,6 +199,30 @@ export async function applyCommandToProjection(
       if (item === undefined || item.kind !== "page") {
         throw new LocalValidationError("item.not-found", "Page is not available locally");
       }
+      const normalized =
+        command.document.formatVersion === 1
+          ? null
+          : normalizePageDocumentForEditor(command.document);
+      if (normalized !== null && !normalized.ok) {
+        throw new LocalValidationError(normalized.error.code, normalized.error.title);
+      }
+      const occurrences = normalized === null ? [] : extractWikiLinkOccurrences(normalized.value);
+      const targets = new Map<string, LocalItemRow | undefined>();
+      for (const targetItemId of new Set(
+        occurrences.map((occurrence) => occurrence.targetItemId),
+      )) {
+        targets.set(targetItemId, await db.items.get(targetItemId));
+      }
+      if (normalized !== null) {
+        const targetValidation = validateWikiLinkTargets(
+          normalized.value,
+          command.itemId,
+          (id) => targets.get(id) ?? null,
+        );
+        if (!targetValidation.ok) {
+          throw new LocalValidationError(targetValidation.error.code, targetValidation.error.title);
+        }
+      }
       const revisionId = await writeLocalRevision(
         db,
         command.itemId,
@@ -170,6 +237,25 @@ export async function applyCommandToProjection(
         },
         currentRevisionId: revisionId,
       });
+      const previousWikiLinks = await db.relationships
+        .filter(
+          (relationship) =>
+            relationship.sourceItemId === command.itemId &&
+            relationship.relationType === "link:references",
+        )
+        .primaryKeys();
+      await db.relationships.bulkDelete(previousWikiLinks as Uuid[]);
+      if (occurrences.length > 0) {
+        await db.relationships.bulkPut(
+          occurrences.map((occurrence) => ({
+            id: occurrence.occurrenceId,
+            sourceItemId: command.itemId,
+            targetItemId: occurrence.targetItemId,
+            relationType: "link:references",
+            metadata: { label: occurrence.label },
+          })),
+        );
+      }
       return [revisionId];
     }
 

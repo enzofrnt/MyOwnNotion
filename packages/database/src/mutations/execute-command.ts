@@ -34,8 +34,10 @@ import { getItem } from "../repositories/hierarchy-repository.ts";
 import { executeRestore, executeTrash } from "../repositories/lifecycle-repository.ts";
 import { executeMovePlacement } from "../repositories/move-branch.ts";
 import {
+  applyDocumentWikiRelationshipPlan,
   executeCreateRelationship,
   executeRemoveRelationship,
+  planDocumentWikiRelationships,
 } from "../repositories/relationship-repository.ts";
 import {
   buildItemSnapshot,
@@ -85,6 +87,14 @@ async function executeCreateItem(
     return plan as DomainResult<CommandExecution>;
   }
 
+  const wikiPlan =
+    plan.value.pageDocument === null
+      ? null
+      : await planDocumentWikiRelationships(tx, plan.value.item.id, plan.value.pageDocument);
+  if (wikiPlan !== null && !wikiPlan.ok) {
+    return wikiPlan as DomainResult<CommandExecution>;
+  }
+
   const revisionId = generateUuidV7();
   await tx.insert(items).values({
     id: plan.value.item.id,
@@ -125,6 +135,13 @@ async function executeCreateItem(
     snapshot,
     acceptedAt: context.acceptedAt,
   });
+  if (wikiPlan?.ok) {
+    await applyDocumentWikiRelationshipPlan(tx, {
+      workspaceId: context.workspaceId,
+      revisionId,
+      plan: wikiPlan.value,
+    });
+  }
   return ok({
     revisionIds: [revisionId],
     changedItemIds: [plan.value.item.id],
@@ -179,6 +196,10 @@ async function executeReplacePageDocument(
   if (!plan.ok) {
     return plan as DomainResult<CommandExecution>;
   }
+  const wikiPlan = await planDocumentWikiRelationships(tx, plan.value.item.id, plan.value.document);
+  if (!wikiPlan.ok) {
+    return wikiPlan as DomainResult<CommandExecution>;
+  }
   const revisionId = generateUuidV7();
   await tx
     .insert(pageDocuments)
@@ -208,6 +229,11 @@ async function executeReplacePageDocument(
     parentRevisionIds: [plan.value.parentRevisionId],
     snapshot,
     acceptedAt: context.acceptedAt,
+  });
+  await applyDocumentWikiRelationshipPlan(tx, {
+    workspaceId: context.workspaceId,
+    revisionId,
+    plan: wikiPlan.value,
   });
   await supersedeRevision(tx, plan.value.parentRevisionId, context.acceptedAt);
   return ok({
@@ -286,6 +312,17 @@ async function executeRestoreRevision(
     snapshot,
     acceptedAt: context.acceptedAt,
   });
+  if (item.kind === "page" && restoredDocument != null) {
+    const wikiPlan = await planDocumentWikiRelationships(tx, item.id, restoredDocument);
+    if (!wikiPlan.ok) {
+      return wikiPlan as DomainResult<CommandExecution>;
+    }
+    await applyDocumentWikiRelationshipPlan(tx, {
+      workspaceId: context.workspaceId,
+      revisionId,
+      plan: wikiPlan.value,
+    });
+  }
   await supersedeRevision(tx, plan.value.parentRevisionId, context.acceptedAt);
   return ok({
     revisionIds: [revisionId],

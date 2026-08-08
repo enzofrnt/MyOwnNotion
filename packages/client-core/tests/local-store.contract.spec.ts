@@ -9,7 +9,7 @@ import {
   META_KEYS,
   openLocalDatabase,
 } from "@myownnotion/client-core";
-import type { ItemDto } from "@myownnotion/contracts";
+import type { ItemDto, RelationshipDto } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -33,6 +33,25 @@ function itemDto(overrides: Partial<ItemDto> & { id: string; name: string }): It
     ],
     ...overrides,
   } as ItemDto;
+}
+
+function relationshipDto(
+  sourceItemId: Uuid,
+  targetItemId: Uuid,
+  overrides: Partial<RelationshipDto> = {},
+): RelationshipDto {
+  return {
+    id: generateUuidV7(),
+    sourceItemId,
+    targetItemId,
+    relationType: "link:references",
+    metadata: {},
+    createdRevisionId: generateUuidV7(),
+    removedRevisionId: null,
+    sourceAvailability: "active",
+    targetAvailability: "active",
+    ...overrides,
+  };
 }
 
 beforeEach(() => {
@@ -122,16 +141,72 @@ describe("projection reads and writes (T039)", () => {
     const stale = generateUuidV7();
     await repository.applyServerItems([itemDto({ id: stale, name: "Stale" })]);
     const fresh = generateUuidV7();
+    const linked = generateUuidV7();
+    const relationship = relationshipDto(fresh, linked);
     await repository.replaceFromSnapshot({
       workspaceId: generateUuidV7(),
       schemaVersion: 1,
       cursor: "42",
-      items: [itemDto({ id: fresh, name: "Fresh" })],
+      items: [itemDto({ id: fresh, name: "Fresh" }), itemDto({ id: linked, name: "Linked" })],
+      relationships: [relationship],
     });
     expect(await repository.getItem(stale as Uuid)).toBeNull();
     expect((await repository.getItem(fresh as Uuid))?.name).toBe("Fresh");
     expect(await repository.getLastChangeCursor()).toBe("42");
     expect(await repository.getMeta(META_KEYS.schemaVersion)).toBe(1);
+    expect(await repository.listRelationships(fresh)).toEqual([
+      expect.objectContaining({ id: relationship.id, targetItemId: linked }),
+    ]);
+  });
+
+  it("replaces derived wiki links per source without touching unrelated relationship types", async () => {
+    const source = generateUuidV7();
+    const otherSource = generateUuidV7();
+    const firstTarget = generateUuidV7();
+    const nextTarget = generateUuidV7();
+    const stale = relationshipDto(source, firstTarget);
+    const explicit = relationshipDto(source, firstTarget, {
+      id: generateUuidV7(),
+      relationType: "database:relation",
+    });
+    const unrelated = relationshipDto(otherSource, firstTarget);
+    await db.relationships.bulkPut(
+      [stale, explicit, unrelated].map((relationship) => ({
+        id: relationship.id as Uuid,
+        sourceItemId: relationship.sourceItemId as Uuid,
+        targetItemId: relationship.targetItemId as Uuid,
+        relationType: relationship.relationType,
+        metadata: relationship.metadata ?? {},
+      })),
+    );
+    const replacement = relationshipDto(source, nextTarget);
+
+    await repository.replaceDerivedWikiRelationships([source], [replacement]);
+
+    expect((await repository.listRelationships()).map((row) => row.id).sort()).toEqual(
+      [explicit.id, unrelated.id, replacement.id].sort(),
+    );
+    await repository.replaceDerivedWikiRelationships([source], [replacement]);
+    expect((await repository.listRelationships()).map((row) => row.id).sort()).toEqual(
+      [explicit.id, unrelated.id, replacement.id].sort(),
+    );
+  });
+
+  it("reads relationship endpoints together with their current local lifecycle", async () => {
+    const source = generateUuidV7();
+    const target = generateUuidV7();
+    await repository.applyServerItems([
+      itemDto({ id: source, name: "Source" }),
+      itemDto({ id: target, name: "Trashed target", lifecycle: "trashed" }),
+    ]);
+    const relationship = relationshipDto(source, target);
+    await repository.replaceDerivedWikiRelationships([source], [relationship]);
+
+    const knowledge = await repository.readKnowledgeData();
+    expect(knowledge.relationships).toEqual([
+      expect.objectContaining({ sourceItemId: source, targetItemId: target }),
+    ]);
+    expect(knowledge.items.find((item) => item.id === target)?.lifecycle).toBe("trashed");
   });
 
   it("keeps stable identities across projection updates (FR-037)", async () => {

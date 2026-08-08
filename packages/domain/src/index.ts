@@ -9,6 +9,7 @@ export * from "./content/content-items.ts";
 export * from "./content/editor-document.ts";
 export * from "./content/file-placements.ts";
 export * from "./content/hierarchy.ts";
+export * from "./content/knowledge-graph.ts";
 export * from "./content/lifecycle.ts";
 export * from "./content/mutations.ts";
 export * from "./content/position-key.ts";

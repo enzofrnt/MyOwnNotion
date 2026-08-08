@@ -13,6 +13,7 @@ import {
   type MutationCommand,
   ok,
   parseMutationCommand,
+  type SafeErrorCode,
   type Uuid,
 } from "@myownnotion/domain";
 import { type LocalDatabase, type OutboxMutationRow, parentKeyOf } from "../local-store/schema.ts";
@@ -89,11 +90,7 @@ export async function applyLocalMutation(
 }
 
 export class LocalValidationError extends Error {
-  readonly code:
-    | "item.not-found"
-    | "containment.cycle-rejected"
-    | "validation.invalid-payload"
-    | "placement.not-found";
+  readonly code: SafeErrorCode;
   constructor(code: LocalValidationError["code"], message: string) {
     super(message);
     this.name = "LocalValidationError";

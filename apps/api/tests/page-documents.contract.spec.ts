@@ -75,6 +75,131 @@ describe("page-document replacement (T058)", () => {
     );
   });
 
+  it("accepts version 3 wiki links and exposes their canonical relationship", async () => {
+    const source = await createItemViaApi(harness, { kind: "page", name: "Linked editor page" });
+    const target = await createItemViaApi(harness, { kind: "page", name: "Contract target" });
+    const occurrenceId = generateUuidV7();
+    const editorBody = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "Private linked label",
+              marks: [
+                {
+                  type: "wikiLink",
+                  attrs: { targetItemId: target.itemId, occurrenceId },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: source.revisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: editorBody,
+        },
+      },
+    });
+    expect(response.statusCode).toBe(200);
+
+    const listed = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/relationships?itemId=${source.itemId}`,
+    });
+    expect(listed.statusCode).toBe(200);
+    expect((listed.json() as { relationships: unknown[] }).relationships).toEqual([
+      expect.objectContaining({
+        id: occurrenceId,
+        sourceItemId: source.itemId,
+        targetItemId: target.itemId,
+        relationType: "link:references",
+      }),
+    ]);
+  });
+
+  it("rebuilds the exact wiki-link projection when a retained revision is restored", async () => {
+    const source = await createItemViaApi(harness, { kind: "page", name: "Restore link source" });
+    const target = await createItemViaApi(harness, { kind: "page", name: "Restore link target" });
+    const occurrenceId = generateUuidV7();
+    const linked = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: source.revisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "Restore link target",
+                    marks: [
+                      { type: "wikiLink", attrs: { targetItemId: target.itemId, occurrenceId } },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(linked.statusCode).toBe(200);
+    const linkedRevisionId = (linked.json() as { revisionIds: string[] }).revisionIds[0] as string;
+    const unlinked = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: linkedRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: { type: "doc", content: [{ type: "paragraph" }] },
+        },
+      },
+    });
+    expect(unlinked.statusCode).toBe(200);
+    const unlinkedRevisionId = (unlinked.json() as { revisionIds: string[] }).revisionIds[0];
+    const restored = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/revisions/${linkedRevisionId}/restore`,
+      headers: idempotencyHeaders(),
+      payload: { currentRevisionId: unlinkedRevisionId },
+    });
+    expect(restored.statusCode).toBe(200);
+
+    const listed = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/relationships?itemId=${source.itemId}`,
+    });
+    expect((listed.json() as { relationships: unknown[] }).relationships).toEqual([
+      expect.objectContaining({
+        id: occurrenceId,
+        sourceItemId: source.itemId,
+        targetItemId: target.itemId,
+      }),
+    ]);
+  });
+
   it("rejects unsupported version 2 nodes without returning private text", async () => {
     const page = await createItemViaApi(harness, { kind: "page", name: "Future node page" });
     const response = await harness.built.app.inject({

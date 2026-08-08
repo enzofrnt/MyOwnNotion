@@ -7,7 +7,12 @@
  */
 
 import { ChangesResponseSchema } from "@myownnotion/contracts";
-import { cursorToSequence, listChangesAfter, readItems } from "@myownnotion/database";
+import {
+  cursorToSequence,
+  listChangesAfter,
+  listRelationships,
+  readItems,
+} from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
@@ -44,6 +49,7 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
         ] as Uuid[];
         const items = await readItems(tx, itemIds);
         const itemsById = new Map(items.map((item) => [item.id, item]));
+        const relationships = await listRelationships(tx, context.workspaceId);
         return {
           changes: changes.changes.map((change) => ({
             sequence: change.sequence,
@@ -52,6 +58,12 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
             changedItems: change.changedItemIds
               .map((id) => itemsById.get(id))
               .filter((item) => item !== undefined),
+            relationshipSourceItemIds: change.changedItemIds,
+            changedRelationships: relationships.filter(
+              (relationship) =>
+                change.changedItemIds.includes(relationship.sourceItemId) &&
+                relationship.relationType === "link:references",
+            ),
           })),
           nextCursor: changes.nextCursor,
           hasMore: changes.hasMore,

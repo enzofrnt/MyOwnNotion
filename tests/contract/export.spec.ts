@@ -118,4 +118,48 @@ describe("canonical export (T086/T088)", () => {
       canonicalExportString({ ...manifest, exportedAt: "fixed" });
     expect(normalize(first.manifest)).toBe(normalize(second.manifest));
   });
+
+  it("round-trips duplicate version-3 link occurrences without collapsing their identities", async () => {
+    const source = await createItemViaApi(harness, { kind: "page", name: "Export link source" });
+    const target = await createItemViaApi(harness, { kind: "page", name: "Export link target" });
+    const occurrenceIds = [generateUuidV7(), generateUuidV7()];
+    const document = {
+      format: "myownnotion.document+json",
+      formatVersion: 3,
+      body: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: occurrenceIds.map((occurrenceId, index) => ({
+              type: "text",
+              text: index === 0 ? "First target" : "Second target",
+              marks: [{ type: "wikiLink", attrs: { targetItemId: target.itemId, occurrenceId } }],
+            })),
+          },
+        ],
+      },
+    };
+    const replaced = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: source.revisionId, document },
+    });
+    expect(replaced.statusCode).toBe(200);
+
+    const { manifest } = await runExport();
+    expect(manifest.items.find((item) => item.id === source.itemId)?.pageDocument).toEqual(
+      document,
+    );
+    expect(
+      manifest.relationships
+        .filter((relationship) => relationship.sourceItemId === source.itemId)
+        .map((relationship) => relationship.id),
+    ).toEqual(expect.arrayContaining(occurrenceIds));
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+    expect(
+      canonicalExportString(JSON.parse(canonicalExportString(manifest)) as CanonicalExportManifest),
+    ).toBe(canonicalExportString(manifest));
+  });
 });

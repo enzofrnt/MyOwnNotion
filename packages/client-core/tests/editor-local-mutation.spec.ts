@@ -47,7 +47,9 @@ afterEach(async () => {
   await db.delete();
 });
 
-async function createPage(): Promise<{ readonly itemId: Uuid; readonly revisionId: Uuid }> {
+async function createPage(
+  name = "Offline page",
+): Promise<{ readonly itemId: Uuid; readonly revisionId: Uuid }> {
   const itemId = generateUuidV7();
   const created = await applyLocalMutation(db, {
     mutationId: generateUuidV7(),
@@ -55,7 +57,7 @@ async function createPage(): Promise<{ readonly itemId: Uuid; readonly revisionI
     payload: {
       id: itemId,
       kind: "page",
-      name: "Offline page",
+      name,
       placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
     },
     baseRevisionIds: [],
@@ -69,6 +71,140 @@ async function createPage(): Promise<{ readonly itemId: Uuid; readonly revisionI
 }
 
 describe("rich editor local mutations", () => {
+  it("projects links included in an initial offline page creation", async () => {
+    const target = await createPage("Initial local target");
+    const sourceId = generateUuidV7();
+    const occurrenceId = generateUuidV7();
+    const created = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "item.create",
+      payload: {
+        id: sourceId,
+        kind: "page",
+        name: "Initial local source",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        pageDocument: toPageDocument({
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "Initial local target",
+                  marks: [
+                    {
+                      type: "wikiLink",
+                      attrs: { targetItemId: target.itemId, occurrenceId },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+      baseRevisionIds: [],
+    });
+
+    expect(created.ok).toBe(true);
+    expect(await db.relationships.get(occurrenceId)).toMatchObject({
+      sourceItemId: sourceId,
+      targetItemId: target.itemId,
+      relationType: "link:references",
+    });
+  });
+
+  it("atomically projects wiki-link occurrences with the document and outbox row", async () => {
+    const source = await createPage("Link source");
+    const target = await createPage("Link target");
+    const occurrenceId = generateUuidV7();
+    const mutationId = generateUuidV7();
+    const document: EditorDocument = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "Link target",
+              marks: [{ type: "wikiLink", attrs: { targetItemId: target.itemId, occurrenceId } }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const replaced = await applyLocalMutation(db, {
+      mutationId,
+      commandType: "page.document.replace",
+      payload: {
+        itemId: source.itemId,
+        baseRevisionId: source.revisionId,
+        document: toPageDocument(document),
+      },
+      baseRevisionIds: [source.revisionId],
+    });
+
+    expect(replaced.ok).toBe(true);
+    expect(await db.relationships.get(occurrenceId)).toMatchObject({
+      sourceItemId: source.itemId,
+      targetItemId: target.itemId,
+      relationType: "link:references",
+      metadata: { label: "Link target" },
+    });
+    expect((await new LocalRepository(db).getItem(source.itemId))?.pageDocument).toEqual(
+      toPageDocument(document),
+    );
+    expect(await new Outbox(db).get(mutationId)).not.toBeNull();
+  });
+
+  it("rejects an invalid wiki-link target without partial document or relationship writes", async () => {
+    const source = await createPage("Invalid source");
+    const before = await new LocalRepository(db).getItem(source.itemId);
+    const outboxCount = await db.outbox.count();
+    const revisionCount = await db.revisionHeaders.count();
+    const replaced = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      payload: {
+        itemId: source.itemId,
+        baseRevisionId: source.revisionId,
+        document: toPageDocument({
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "Missing",
+                  marks: [
+                    {
+                      type: "wikiLink",
+                      attrs: {
+                        targetItemId: generateUuidV7(),
+                        occurrenceId: generateUuidV7(),
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      },
+      baseRevisionIds: [source.revisionId],
+    });
+
+    expect(replaced.ok).toBe(false);
+    expect(await new LocalRepository(db).getItem(source.itemId)).toEqual(before);
+    expect(await db.relationships.count()).toBe(0);
+    expect(await db.outbox.count()).toBe(outboxCount);
+    expect(await db.revisionHeaders.count()).toBe(revisionCount);
+  });
+
   it("atomically advances the projection and durable outbox from the current causal head", async () => {
     const { itemId, revisionId } = await createPage();
     const mutationId = generateUuidV7();

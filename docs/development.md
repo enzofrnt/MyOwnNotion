@@ -24,7 +24,7 @@ pnpm db:migrate
 
 Then start the API and web client with `pnpm dev`. Copy `.env.example` only when local overrides are needed. Never commit secrets. Development ports and the production-like evaluation composition bind to `127.0.0.1` because authentication is not implemented yet.
 
-Page authoring, the version 2 document format, slash commands, Markdown shortcuts, auto-save states, offline restart, and compatibility behavior are documented in [editor.md](./editor.md).
+Page authoring, the version 3 document format, wiki links, backlinks, graphs, slash commands, Markdown shortcuts, auto-save states, offline restart, and compatibility behavior are documented in [editor.md](./editor.md).
 
 ## Formatting and static checks
 
@@ -58,6 +58,12 @@ pnpm build
 Database and API suites use disposable PostgreSQL instances. Playwright starts the API and web client and exercises Chromium, Firefox, and WebKit across desktop and mobile profiles. The container smoke test builds the API and web images, verifies migrations and direct/proxied health, restarts the composition, and proves named-volume persistence.
 
 For focused block-editor work, run the web unit project, the editor Playwright files, and `tests/performance/block-editor.perf.spec.ts` before the complete gates. Browser journeys cover online/offline reload, conflicts, slash commands, Markdown input rules, keyboard focus, responsive overflow, and critical Axe findings.
+
+For focused links-and-knowledge-graph work, run the domain, client-core, database-integration, API-contract, and web-unit projects before the wiki-link/backlink/graph Playwright files and `tests/performance/knowledge-graph.perf.spec.ts`. Principal browser journeys attach deterministic desktop and mobile images to the Playwright report; the CI report and traces are the GitHub review evidence rather than committed generated binaries.
+
+When debugging link projection, compare three identities before changing data: the source page UUID, the target page UUID, and the occurrence UUID stored in the document mark. The occurrence UUID is also the derived relationship identity. A page save, revision restore, snapshot rebuild, and incremental catch-up must always update the document and its `link:references` rows as one logical state. Conflict records deliberately preserve the local document and link projection until the owner resolves them.
+
+Canonical export tests must assert the versioned page document and the corresponding relationship rows together. `validateCanonicalExport` checks endpoint and revision references; canonical serialization additionally proves deterministic round-trip behavior.
 
 Coverage floors are 90% for statements, lines, and functions and 85% for branches. These numbers supplement property, contract, fault-injection, browser, and container journeys; they do not replace them.
 

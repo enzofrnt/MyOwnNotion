@@ -1,7 +1,7 @@
 /**
  * Shared Playwright helpers: unique names per run and common journeys.
  */
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, type TestInfo } from "@playwright/test";
 
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -52,5 +52,30 @@ export async function waitForSynchronized(page: Page): Promise<void> {
   await expect(page.getByTestId("mutation-status-empty")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
     timeout: 20_000,
+  });
+}
+
+/** Waits for the save's own accepted batch, avoiding a stale pre-save synced state. */
+export async function savePageAndSynchronize(page: Page): Promise<void> {
+  const accepted = page.waitForResponse(
+    (response) => response.url().includes("/v1/mutations/batch") && response.ok(),
+  );
+  await page.getByRole("button", { name: "Save page" }).click();
+  await accepted;
+  await waitForSynchronized(page);
+}
+
+/** Keeps principal review images in the Playwright HTML report/CI artifact. */
+export async function attachReviewScreenshot(
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+): Promise<void> {
+  if (!testInfo.project.name.startsWith("chromium")) {
+    return;
+  }
+  await testInfo.attach(`${name}-${testInfo.project.name}`, {
+    body: await page.screenshot({ fullPage: true, animations: "disabled" }),
+    contentType: "image/png",
   });
 }

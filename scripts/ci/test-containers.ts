@@ -76,13 +76,28 @@ try {
     throw new Error("API health was not ready through both direct and web-proxied routes");
   }
 
-  const itemId = generateUuidV7();
-  const mutationId = generateUuidV7();
+  const targetItemId = generateUuidV7();
   await expectJson(`${webBaseUrl}/v1/items`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "idempotency-key": mutationId,
+      "idempotency-key": generateUuidV7(),
+    },
+    body: JSON.stringify({
+      id: targetItemId,
+      kind: "page",
+      name: "Container link target",
+      placement: { kind: "hierarchy", parentItemId: null, positionKey: "a0" },
+    }),
+  });
+
+  const itemId = generateUuidV7();
+  const occurrenceId = generateUuidV7();
+  await expectJson(`${webBaseUrl}/v1/items`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": generateUuidV7(),
     },
     body: JSON.stringify({
       id: itemId,
@@ -95,7 +110,7 @@ try {
       },
       pageDocument: {
         format: "myownnotion.document+json",
-        formatVersion: 2,
+        formatVersion: 3,
         body: {
           type: "doc",
           content: [
@@ -106,7 +121,21 @@ try {
                 { type: "text", text: "Container editor fixture", marks: [{ type: "bold" }] },
               ],
             },
-            { type: "paragraph", content: [{ type: "text", text: "Persists after restart" }] },
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "Container link target",
+                  marks: [
+                    {
+                      type: "wikiLink",
+                      attrs: { targetItemId, occurrenceId },
+                    },
+                  ],
+                },
+              ],
+            },
           ],
         },
       },
@@ -124,14 +153,33 @@ try {
     throw new Error("Restarted composition did not preserve the committed fixture item");
   }
   if (
-    persisted.pageDocument.formatVersion !== 2 ||
+    persisted.pageDocument.formatVersion !== 3 ||
     persisted.pageDocument.body.content[0]?.type !== "heading"
   ) {
-    throw new Error("Restarted composition did not preserve the version 2 editor document");
+    throw new Error("Restarted composition did not preserve the version 3 editor document");
+  }
+
+  const persistedRelationships = await expectJson<{
+    relationships: Array<{
+      id: string;
+      sourceItemId: string;
+      targetItemId: string;
+      relationType: string;
+    }>;
+  }>(`${webBaseUrl}/v1/relationships?itemId=${itemId}`);
+  const persistedWikiLink = persistedRelationships.relationships.find(
+    (relationship) => relationship.id === occurrenceId,
+  );
+  if (
+    persistedWikiLink?.sourceItemId !== itemId ||
+    persistedWikiLink.targetItemId !== targetItemId ||
+    persistedWikiLink.relationType !== "link:references"
+  ) {
+    throw new Error("Restarted composition did not preserve the derived wiki relationship");
   }
 
   console.info(
-    "Container smoke test passed: images, health proxy, migrations, and v2 editor persistence.",
+    "Container smoke test passed: images, health proxy, migrations, and v3 wiki-link persistence.",
   );
 } catch (error) {
   console.error("Container smoke test failed:", error);

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myownnotion.dev/schemas/wiki-link-document-v3.json",
+  "title": "MyOwnNotion editor document version 3 wiki-link mark",
+  "type": "object",
+  "required": ["type", "attrs"],
+  "additionalProperties": false,
+  "properties": {
+    "type": { "const": "wikiLink" },
+    "attrs": {
+      "type": "object",
+      "required": ["targetItemId", "occurrenceId"],
+      "additionalProperties": false,
+      "properties": {
+        "targetItemId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "occurrenceId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    }
+  }
+}

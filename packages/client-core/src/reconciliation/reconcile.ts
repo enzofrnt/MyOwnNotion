@@ -101,7 +101,7 @@ export async function reconcile(
       const mutationId = result.mutationId as Uuid;
       if (result.status === "accepted" || result.status === "already-accepted") {
         accepted += 1;
-        await outbox.acknowledge(mutationId);
+        await outbox.acknowledge(mutationId, (result.revisionIds ?? []) as Uuid[]);
       } else if (result.status === "conflict") {
         conflicts += 1;
         await outbox.captureConflict(
@@ -126,6 +126,7 @@ export async function reconcile(
   let usedSnapshotFallback = false;
   let cursor = await repository.getLastChangeCursor();
   for (;;) {
+    const protectedSources = new Set(await outbox.recoverablePageDocumentSourceIds());
     const page = await transport.listChanges(cursor);
     if (!page.ok) {
       if (page.compacted === true) {
@@ -148,6 +149,8 @@ export async function reconcile(
           schemaVersion: snapshot.value.schemaVersion,
           cursor: snapshot.value.cursor,
           items: snapshot.value.items as ItemDto[],
+          relationships: snapshot.value.relationships,
+          preserveRelationshipSourceItemIds: [...protectedSources],
         });
         usedSnapshotFallback = true;
         cursor = snapshot.value.cursor;
@@ -164,9 +167,22 @@ export async function reconcile(
       };
     }
 
-    const changedItems = page.value.changes.flatMap((change) => change.changedItems ?? []);
+    const changedItems = page.value.changes
+      .flatMap((change) => change.changedItems ?? [])
+      .filter((item) => !protectedSources.has(item.id as Uuid));
     if (changedItems.length > 0) {
       await repository.applyServerItems(changedItems as ItemDto[]);
+    }
+    for (const change of page.value.changes) {
+      if (change.relationshipSourceItemIds !== undefined) {
+        const replaceableSources = (change.relationshipSourceItemIds as Uuid[]).filter(
+          (sourceItemId) => !protectedSources.has(sourceItemId),
+        );
+        await repository.replaceDerivedWikiRelationships(
+          replaceableSources,
+          change.changedRelationships ?? [],
+        );
+      }
     }
     cursor = page.value.nextCursor;
     await repository.setMeta(META_KEYS.lastChangeCursor, cursor);

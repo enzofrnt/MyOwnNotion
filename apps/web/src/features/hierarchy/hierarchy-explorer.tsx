@@ -15,6 +15,7 @@ import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
+import { KnowledgePanel } from "../knowledge/knowledge-panel.tsx";
 import { PageDocumentForm } from "../pages/page-document-form.tsx";
 import { FileNode } from "./file-node.tsx";
 import { ItemDetails } from "./item-details.tsx";
@@ -407,7 +408,17 @@ export function HierarchyExplorer() {
 
       {selectedItem !== null && selectedItem.kind === "page" ? (
         <>
-          <PageDocumentForm service={service} itemId={selectedItem.id} />
+          <PageDocumentForm
+            service={service}
+            itemId={selectedItem.id}
+            items={items}
+            onNavigate={(itemId) => setSelectedId(itemId)}
+          />
+          <KnowledgePanel
+            service={service}
+            itemId={selectedItem.id}
+            onNavigate={(itemId) => setSelectedId(itemId)}
+          />
           <AttachmentPanel pageId={selectedItem.id} onChanged={() => void refresh()} />
         </>
       ) : null}

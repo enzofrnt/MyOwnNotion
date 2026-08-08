@@ -6,7 +6,7 @@
  * `pending` after an interrupted attempt (process restart or network loss),
  * so no mutation is lost or duplicated logically.
  */
-import type { Uuid } from "@myownnotion/domain";
+import { isUuid, type Uuid } from "@myownnotion/domain";
 import type { LocalDatabase, OutboxMutationRow, OutboxStatus } from "../local-store/schema.ts";
 
 export class Outbox {
@@ -61,17 +61,35 @@ export class Outbox {
   }
 
   /** Acknowledged by the server: the durable row has served its purpose. */
-  async acknowledge(mutationId: Uuid): Promise<void> {
-    await this.#db.transaction("rw", [this.#db.outbox, this.#db.revisionHeaders], async () => {
-      const row = await this.#db.outbox.get(mutationId);
-      if (row !== undefined) {
-        // Optimistic local revision headers are superseded by server state.
-        for (const localRevisionId of row.localRevisionIds) {
-          await this.#db.revisionHeaders.delete(localRevisionId);
+  async acknowledge(
+    mutationId: Uuid,
+    acceptedRevisionIds: ReadonlyArray<Uuid> = [],
+  ): Promise<void> {
+    await this.#db.transaction(
+      "rw",
+      [this.#db.outbox, this.#db.items, this.#db.revisionHeaders],
+      async () => {
+        const row = await this.#db.outbox.get(mutationId);
+        if (row !== undefined) {
+          // Attach each optimistic projection head to the accepted canonical
+          // revision immediately. This keeps a rapid follow-up edit causal
+          // even before cursor catch-up returns the same server item.
+          for (const [index, localRevisionId] of row.localRevisionIds.entries()) {
+            const acceptedRevisionId = acceptedRevisionIds[index];
+            if (acceptedRevisionId !== undefined) {
+              const projectedItems = await this.#db.items
+                .filter((item) => item.currentRevisionId === localRevisionId)
+                .toArray();
+              for (const item of projectedItems) {
+                await this.#db.items.update(item.id, { currentRevisionId: acceptedRevisionId });
+              }
+            }
+            await this.#db.revisionHeaders.delete(localRevisionId);
+          }
         }
-      }
-      await this.#db.outbox.delete(mutationId);
-    });
+        await this.#db.outbox.delete(mutationId);
+      },
+    );
   }
 
   /** Failed attempt (network or 5xx): stays durable, back to pending. */
@@ -111,5 +129,23 @@ export class Outbox {
 
   async conflicts() {
     return this.#db.conflicts.toArray();
+  }
+
+  /**
+   * Pages whose unsynchronised document edits must survive a projection rebuild.
+   * Both queued mutations and captured conflicts are recoverable local work.
+   */
+  async recoverablePageDocumentSourceIds(): Promise<Uuid[]> {
+    const sourceIds = new Set<Uuid>();
+    const recoverableMutations = [...(await this.pending()), ...(await this.conflicts())];
+
+    for (const mutation of recoverableMutations) {
+      const sourceItemId = mutation.payload["itemId"];
+      if (mutation.commandType === "page.document.replace" && isUuid(sourceItemId)) {
+        sourceIds.add(sourceItemId);
+      }
+    }
+
+    return [...sourceIds];
   }
 }

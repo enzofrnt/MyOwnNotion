@@ -19,9 +19,13 @@ import {
 } from "@myownnotion/client-core";
 import type { ItemDto } from "@myownnotion/contracts";
 import {
+  buildKnowledgeGraph,
   type EditorDocument,
   generateUuidV7,
+  type KnowledgeGraphModel,
+  type PageKnowledgeSummary,
   type SafeError,
+  summarizePageKnowledge,
   toPageDocument,
   type Uuid,
 } from "@myownnotion/domain";
@@ -186,6 +190,24 @@ export class LocalContentService {
     return this.repository.getItem(itemId);
   }
 
+  async getPageKnowledge(itemId: Uuid): Promise<PageKnowledgeSummary> {
+    const data = await this.repository.readKnowledgeData();
+    return summarizePageKnowledge(data.items, data.relationships, itemId);
+  }
+
+  async getKnowledgeGraph(
+    mode: "local" | "global",
+    selectedItemId: Uuid | null,
+    query = "",
+  ): Promise<KnowledgeGraphModel> {
+    const data = await this.repository.readKnowledgeData();
+    return buildKnowledgeGraph(data.items, data.relationships, {
+      mode,
+      selectedItemId,
+      query,
+    });
+  }
+
   /**
    * Applies one command locally (atomic projection + outbox), then attempts
    * synchronization. Local success is reported only after durability
@@ -245,6 +267,7 @@ export class LocalContentService {
       schemaVersion: snapshot.value.schemaVersion,
       cursor: snapshot.value.cursor,
       items: snapshot.value.items as ItemDto[],
+      relationships: snapshot.value.relationships,
     });
     await this.#notify("synced");
     return true;

@@ -558,6 +558,25 @@ components:
       enum: [active, trashed, purged]
     PlacementKind:
       enum: [hierarchy, attachment]
+    EditorStyleMark:
+      type: object
+      required: [type]
+      properties:
+        type: { enum: [bold, italic, strike, code] }
+      additionalProperties: false
+    WikiLinkMark:
+      type: object
+      required: [type, attrs]
+      properties:
+        type: { const: wikiLink }
+        attrs:
+          type: object
+          required: [targetItemId, occurrenceId]
+          properties:
+            targetItemId: { $ref: '#/components/schemas/Uuid' }
+            occurrenceId: { $ref: '#/components/schemas/Uuid' }
+          additionalProperties: false
+      additionalProperties: false
     PageDocument:
       type: object
       required: [format, formatVersion, body]
@@ -698,6 +717,13 @@ components:
         changedItems:
           type: array
           items: { $ref: '#/components/schemas/Item' }
+        relationshipSourceItemIds:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Uuid' }
+        changedRelationships:
+          type: array
+          items: { $ref: '#/components/schemas/Relationship' }
     QueuedMutation:
       type: object
       required: [mutationId, commandType, baseRevisionIds, payload]

@@ -111,7 +111,7 @@ export function RevisionRestore({
               ? "none (creation)"
               : preview.parentRevisionIds.join(", ")}
           </p>
-          <pre className="muted" data-testid="revision-snapshot">
+          <pre className="muted revision-snapshot" data-testid="revision-snapshot">
             {JSON.stringify(preview.snapshot, null, 2)}
           </pre>
           <button type="button" data-testid="restore-revision" onClick={() => void restore()}>

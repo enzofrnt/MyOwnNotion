@@ -52,11 +52,24 @@ function runtimeRequired(schema: { required?: string[] }): string[] {
 }
 
 describe("OpenAPI ↔ runtime schema alignment", () => {
-  it("defines the strict version 2 editor JSON boundary", () => {
+  it("defines the strict version 3 editor JSON boundary", () => {
     expect(EditorDocumentSchema.required).toEqual(["type", "content"]);
     expect(EditorDocumentSchema.additionalProperties).toBe(false);
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"horizontalRule"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"wikiLink"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"targetItemId"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"occurrenceId"');
     expect(JSON.stringify(EditorDocumentSchema)).not.toContain("futureWidget");
+  });
+
+  it("keeps incremental relationship projection fields aligned", () => {
+    const runtime = JSON.stringify(ChangeEnvelopeSchema);
+    expect(runtime).toContain('"relationshipSourceItemIds"');
+    expect(runtime).toContain('"changedRelationships"');
+    expect(requiredOf("WikiLinkMark")).toEqual(["type", "attrs"]);
+    const changeProperties = openapi.components.schemas["ChangeEnvelope"]?.properties ?? {};
+    expect(changeProperties).toHaveProperty("relationshipSourceItemIds");
+    expect(changeProperties).toHaveProperty("changedRelationships");
   });
   it("is an OpenAPI 3.1 document", () => {
     expect(openapi.openapi).toMatch(/^3\.1\./);

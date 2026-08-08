@@ -13,12 +13,16 @@ import {
   type EndpointAvailability,
   endpointAvailability,
   err,
+  extractWikiLinkOccurrences,
   generateUuidV7,
+  normalizePageDocumentForEditor,
   ok,
+  type PageDocument,
   type Uuid,
   validateCreateRelationship,
+  validateWikiLinkTargets,
 } from "@myownnotion/domain";
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { items, relationships } from "../schema/index.ts";
 import { getItem } from "./hierarchy-repository.ts";
@@ -28,6 +32,128 @@ export interface RelationshipExecution {
   readonly revisionId: Uuid;
   readonly relationshipId: Uuid;
   readonly sourceItemId: Uuid;
+}
+
+export interface DocumentWikiRelationshipPlan {
+  readonly sourceItemId: Uuid;
+  readonly occurrences: ReadonlyArray<{
+    readonly occurrenceId: Uuid;
+    readonly targetItemId: Uuid;
+    readonly label: string;
+  }>;
+}
+
+export async function planDocumentWikiRelationships(
+  tx: Transaction,
+  sourceItemId: Uuid,
+  document: PageDocument,
+): Promise<DomainResult<DocumentWikiRelationshipPlan>> {
+  if (document.formatVersion === 1) {
+    return ok({ sourceItemId, occurrences: [] });
+  }
+  const normalized = normalizePageDocumentForEditor(document);
+  if (!normalized.ok) {
+    return normalized as DomainResult<DocumentWikiRelationshipPlan>;
+  }
+  const occurrences = extractWikiLinkOccurrences(normalized.value);
+  const targets = new Map<string, Awaited<ReturnType<typeof getItem>>>();
+  for (const targetItemId of new Set(occurrences.map((occurrence) => occurrence.targetItemId))) {
+    targets.set(targetItemId, await getItem(tx, targetItemId));
+  }
+  const targetsValid = validateWikiLinkTargets(
+    normalized.value,
+    sourceItemId,
+    (id) => targets.get(id) ?? null,
+  );
+  if (!targetsValid.ok) {
+    return targetsValid as DomainResult<DocumentWikiRelationshipPlan>;
+  }
+  if (occurrences.length > 0) {
+    const existing = await tx
+      .select()
+      .from(relationships)
+      .where(
+        inArray(
+          relationships.id,
+          occurrences.map((occurrence) => occurrence.occurrenceId),
+        ),
+      );
+    for (const row of existing) {
+      const occurrence = occurrences.find((candidate) => candidate.occurrenceId === row.id);
+      if (
+        occurrence === undefined ||
+        row.sourceItemId !== sourceItemId ||
+        row.targetItemId !== occurrence.targetItemId ||
+        row.relationType !== "link:references"
+      ) {
+        return err(
+          "validation.invalid-identifier",
+          "Wiki-link occurrence identity is already assigned",
+        );
+      }
+    }
+  }
+  return ok({ sourceItemId, occurrences });
+}
+
+export async function applyDocumentWikiRelationshipPlan(
+  tx: Transaction,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly revisionId: Uuid;
+    readonly plan: DocumentWikiRelationshipPlan;
+  },
+): Promise<void> {
+  const activeRows = await tx
+    .select()
+    .from(relationships)
+    .where(
+      and(
+        eq(relationships.sourceItemId, input.plan.sourceItemId),
+        eq(relationships.relationType, "link:references"),
+        isNull(relationships.removedRevisionId),
+      ),
+    );
+  const proposedIds = new Set(input.plan.occurrences.map((occurrence) => occurrence.occurrenceId));
+  const removedIds = activeRows
+    .filter((row) => !proposedIds.has(row.id as Uuid))
+    .map((row) => row.id as Uuid);
+  if (removedIds.length > 0) {
+    await tx
+      .update(relationships)
+      .set({ removedRevisionId: input.revisionId })
+      .where(inArray(relationships.id, removedIds));
+  }
+
+  for (const occurrence of input.plan.occurrences) {
+    const existing = await tx
+      .select()
+      .from(relationships)
+      .where(eq(relationships.id, occurrence.occurrenceId))
+      .limit(1);
+    const row = existing[0];
+    if (row === undefined) {
+      await tx.insert(relationships).values({
+        id: occurrence.occurrenceId,
+        workspaceId: input.workspaceId,
+        sourceItemId: input.plan.sourceItemId,
+        targetItemId: occurrence.targetItemId,
+        relationType: "link:references",
+        metadata: { label: occurrence.label },
+        createdRevisionId: input.revisionId,
+      });
+    } else {
+      await tx
+        .update(relationships)
+        .set({
+          metadata: { label: occurrence.label },
+          createdRevisionId:
+            row.removedRevisionId === null ? row.createdRevisionId : input.revisionId,
+          removedRevisionId: null,
+        })
+        .where(eq(relationships.id, occurrence.occurrenceId));
+    }
+  }
 }
 
 export async function executeCreateRelationship(
