@@ -7,7 +7,7 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -925,23 +925,22 @@ try {
     process.exitCode = 1;
   }
   try {
-    // Secret files were chowned to UID 1000 for the operations image; reclaim
-    // ownership before deleting the host temp tree from the CI runner.
+    // Secret files were chowned to UID 1000 for the operations image, so the CI
+    // runner cannot unlink them directly. Delete the temp tree as root in Docker.
     execFileSync(
       "docker",
       [
         "run",
         "--rm",
         "-v",
-        `${backupHostRoot}:/cleanup`,
+        `${path.dirname(backupHostRoot)}:/parent`,
         "alpine:3.22",
-        "sh",
-        "-c",
-        "chown -R 0:0 /cleanup && chmod -R u+rwX /cleanup",
+        "rm",
+        "-rf",
+        `/parent/${path.basename(backupHostRoot)}`,
       ],
       { stdio: "ignore" },
     );
-    rmSync(backupHostRoot, { recursive: true, force: true });
   } catch (cleanupError) {
     console.error("Backup host root cleanup failed:", cleanupError);
     process.exitCode = 1;
