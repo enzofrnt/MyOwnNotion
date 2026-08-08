@@ -146,6 +146,11 @@ describe("uuid v7 identities", () => {
     for (let index = 0; index < 5_000; index += 1) {
       ids.push(generateUuidV7());
     }
+    expect(
+      ids.every((id) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id),
+      ),
+    ).toBe(true);
     expect(new Set(ids).size).toBe(ids.length);
     const sorted = [...ids].sort();
     expect(ids).toEqual(sorted);

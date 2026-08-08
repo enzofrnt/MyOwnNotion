@@ -50,7 +50,7 @@ export default defineWorkspace([
       name: "web-unit",
       root: "apps/web",
       environment: "node",
-      include: ["src/**/*.spec.ts"],
+      include: ["src/**/*.spec.{ts,tsx}"],
     },
   },
   {
@@ -69,6 +69,18 @@ export default defineWorkspace([
     test: {
       name: "api-contract",
       root: "apps/api",
+      environment: "node",
+      include: ["tests/**/*.spec.ts"],
+      testTimeout: 120_000,
+      hookTimeout: 180_000,
+      pool: "forks",
+      poolOptions: { forks: { singleFork: true } },
+    },
+  },
+  {
+    test: {
+      name: "operations",
+      root: "apps/operations",
       environment: "node",
       include: ["tests/**/*.spec.ts"],
       testTimeout: 120_000,

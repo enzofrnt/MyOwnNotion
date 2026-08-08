@@ -42,11 +42,18 @@ const STATUS_BY_CODE: Partial<Record<SafeErrorCode, number>> = {
   "revision.not-found": 404,
   "revision.snapshot-expired": 410,
   "revision.stale-base": 409,
+  "file.content-unavailable": 404,
+  "file.stale-revision": 409,
+  "file.range-invalid": 400,
+  "file.range-multiple-not-supported": 400,
+  "file.range-unsatisfiable": 416,
+  "file.integrity-failed": 502,
   "mutation.duplicate": 409,
   "mutation.conflict": 409,
   "mutation.rejected": 409,
   "cursor.compacted": 409,
   "resource.limit-exceeded": 422,
+  "storage.unavailable": 502,
   "internal.unexpected": 500,
 };
 

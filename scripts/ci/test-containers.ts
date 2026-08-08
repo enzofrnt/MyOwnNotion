@@ -6,6 +6,7 @@
  * the isolated test project's containers and volumes afterward.
  */
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import process from "node:process";
 import { isDeepStrictEqual } from "node:util";
 import { generateUuidV7 } from "@myownnotion/domain";
@@ -40,6 +41,13 @@ function compose(...args: string[]): void {
   });
 }
 
+function composeOutput(...args: string[]): string {
+  return execFileSync("docker", [...composePrefix, ...args], {
+    env: smokeEnvironment,
+    encoding: "utf8",
+  });
+}
+
 async function expectJson<T>(url: string, init?: RequestInit): Promise<T> {
   let response: Response | undefined;
   let lastNetworkError: unknown;
@@ -61,12 +69,50 @@ async function expectJson<T>(url: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function expectExactFile(
+  url: string,
+  expected: Uint8Array,
+  range?: { readonly start: number; readonly endInclusive: number },
+): Promise<void> {
+  let response: Response | undefined;
+  let lastNetworkError: unknown;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      response = await fetch(url, {
+        ...(range === undefined
+          ? {}
+          : { headers: { range: `bytes=${range.start}-${range.endInclusive}` } }),
+      });
+      break;
+    } catch (error) {
+      lastNetworkError = error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+    }
+  }
+  if (response === undefined) throw lastNetworkError;
+  const expectedStatus = range === undefined ? 200 : 206;
+  if (response.status !== expectedStatus) {
+    throw new Error(`File retrieval returned HTTP ${response.status}`);
+  }
+  const observed = new Uint8Array(await response.arrayBuffer());
+  const selected =
+    range === undefined ? expected : expected.slice(range.start, range.endInclusive + 1);
+  if (
+    createHash("sha256").update(observed).digest("hex") !==
+      createHash("sha256").update(selected).digest("hex") ||
+    observed.byteLength !== selected.byteLength
+  ) {
+    throw new Error("Object-backed file retrieval changed bytes");
+  }
+}
+
 function start(build: boolean): void {
   compose("up", "--detach", ...(build ? ["--build"] : []), "--wait", "--wait-timeout", "240");
 }
 
 try {
   execFileSync("docker", ["info"], { stdio: "ignore" });
+  compose("build", "operations");
   start(true);
 
   const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
@@ -75,6 +121,17 @@ try {
   const proxiedHealth = await expectJson<{ status: string }>(`${webBaseUrl}/health`);
   if (directHealth.status !== "ready" || proxiedHealth.status !== "ready") {
     throw new Error("API health was not ready through both direct and web-proxied routes");
+  }
+  const objectContainerId = composeOutput("ps", "--quiet", "object-storage").trim();
+  const portBindings = JSON.parse(
+    execFileSync(
+      "docker",
+      ["inspect", "--format", "{{json .HostConfig.PortBindings}}", objectContainerId],
+      { encoding: "utf8" },
+    ),
+  ) as Record<string, unknown> | null;
+  if (portBindings !== null && Object.values(portBindings).some((binding) => binding !== null)) {
+    throw new Error("Private object storage unexpectedly publishes a host port");
   }
 
   const targetItemId = generateUuidV7();
@@ -261,8 +318,39 @@ try {
     }),
   });
 
+  const fileItemId = generateUuidV7();
+  const fileBytes = new TextEncoder().encode(
+    `container-object-storage-${generateUuidV7()}-0123456789`,
+  );
+  const fileUpload = new FormData();
+  fileUpload.set(
+    "placement",
+    JSON.stringify({ kind: "hierarchy", parentItemId: null, positionKey: "b0" }),
+  );
+  fileUpload.set("itemId", fileItemId);
+  fileUpload.set(
+    "file",
+    new Blob([fileBytes], { type: "application/octet-stream" }),
+    "container-private.bin",
+  );
+  const importedFile = await expectJson<{ revisionIds: string[] }>(`${webBaseUrl}/v1/files`, {
+    method: "POST",
+    headers: { "idempotency-key": generateUuidV7() },
+    body: fileUpload,
+  });
+  const fileRevisionId = importedFile.revisionIds[0];
+  if (fileRevisionId === undefined) {
+    throw new Error("Container file import returned no revision");
+  }
+  const fileUrl = `${webBaseUrl}/v1/files/${fileItemId}/content?revisionId=${fileRevisionId}`;
+  await expectExactFile(fileUrl, fileBytes);
+  await expectExactFile(fileUrl, fileBytes, { start: 10, endInclusive: 23 });
+
   compose("down", "--remove-orphans");
   start(false);
+
+  await expectExactFile(fileUrl, fileBytes);
+  await expectExactFile(fileUrl, fileBytes, { start: 10, endInclusive: 23 });
 
   const persisted = await expectJson<{
     id: string;
@@ -281,6 +369,35 @@ try {
     persisted.pageDocument.body.content[0]?.type !== "heading"
   ) {
     throw new Error("Restarted composition did not preserve the version 6 editor document");
+  }
+
+  const auditOutput = composeOutput(
+    "run",
+    "--rm",
+    "operations",
+    "storage",
+    "audit",
+    "--limit",
+    "0",
+  );
+  const auditLine = auditOutput
+    .trim()
+    .split("\n")
+    .findLast((line) => line.trim().startsWith("{"));
+  if (auditLine === undefined) {
+    throw new Error("Storage audit emitted no safe JSON result");
+  }
+  const audit = JSON.parse(auditLine) as {
+    status?: string;
+    counts?: { referenced?: number; missing?: number; mismatched?: number };
+  };
+  if (
+    audit.status !== "succeeded" ||
+    audit.counts?.referenced !== 1 ||
+    audit.counts.missing !== 0 ||
+    audit.counts.mismatched !== 0
+  ) {
+    throw new Error("Storage audit did not verify the persisted object");
   }
   const persistedTaskList = persisted.pageDocument.body.content.find(
     (node) => node.type === "taskList",
@@ -411,7 +528,7 @@ try {
   }
 
   console.info(
-    "Container smoke test passed: images, health proxy, migrations, and v6 wiki/task/database/canvas persistence.",
+    "Container smoke test passed: private object storage, streamed full/range restart reads, audit, health proxy, migrations, and v6 wiki/task/database/canvas persistence.",
   );
 } catch (error) {
   console.error("Container smoke test failed:", error);

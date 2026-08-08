@@ -9,6 +9,7 @@ export * from "./content/canvas.ts";
 export * from "./content/content-items.ts";
 export * from "./content/database.ts";
 export * from "./content/editor-document.ts";
+export * from "./content/file-content.ts";
 export * from "./content/file-placements.ts";
 export * from "./content/hierarchy.ts";
 export * from "./content/knowledge-graph.ts";

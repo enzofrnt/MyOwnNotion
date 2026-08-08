@@ -11,4 +11,6 @@ export interface AppContext {
   readonly workspaceId: Uuid;
   readonly schemaVersion: number;
   readonly contentStore: ContentStore;
+  /** Public-safe readiness metadata; credentials, endpoints, and locators stay outside context. */
+  readonly storageAdapter: "filesystem" | "s3";
 }

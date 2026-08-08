@@ -14,6 +14,8 @@ import {
   CreateRelationshipSchema,
   DatabaseBlockAttributesSchema,
   EditorDocumentSchema,
+  FileContentMetadataSchema,
+  FileMetadataSummarySchema,
   ItemSchema,
   MutationResultSchema,
   PageDocumentSchema,
@@ -130,6 +132,8 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
     ["QueuedMutationResult", QueuedMutationResultSchema],
     ["PageDocument", PageDocumentSchema],
     ["Problem", ProblemSchema],
+    ["FileContentMetadata", FileContentMetadataSchema],
+    ["FileMetadataSummary", FileMetadataSummarySchema],
   ] as const)("runtime %s requires every OpenAPI-required field", (name, schema) => {
     const contractRequired = requiredOf(name);
     const runtime = runtimeRequired(schema as { required?: string[] });

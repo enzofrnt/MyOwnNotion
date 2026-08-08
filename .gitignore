@@ -26,10 +26,14 @@ coverage/
 # Test artifacts
 playwright-report/
 test-results/
+apps/web/dev-dist/
 
 # Development blob store and database data
 .dev-blobs/
 .postgres-data/
+.operations-state/
+.backup-staging/
+.restore-staging/
 
 # Local environment and secrets
 .env

@@ -1,22 +1,11 @@
-/**
- * Immutable content ingest with cautious physical reuse (T056, US2).
- *
- * Ingest pipeline:
- * 1. Digest the incoming bytes (SHA-256 + exact length).
- * 2. Ask the registry for an already *verified* candidate with the same
- *    digest and length.
- * 3. Before reuse, compare the candidate's stored bytes byte-for-byte
- *    (FR-035). Digest, name, size, type, or preview equality is never
- *    sufficient. Verification failure falls back to storing separate
- *    content — reuse is an optimization, not a requirement.
- * 4. Otherwise store new immutable content.
- *
- * Updates are copy-on-write by construction: every ingest yields a content
- * identity; logical files repoint to new identities and never mutate bytes.
- */
-import { createHash } from "node:crypto";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import type { BlobStore } from "./blob-store.ts";
+import type {
+  BlobRange,
+  BlobSource,
+  BlobStore,
+  BlobWriteOptions,
+  OpenedBlob,
+} from "./blob-store.ts";
 
 export interface ContentCandidate {
   readonly contentId: Uuid;
@@ -29,8 +18,9 @@ export interface ContentIngestResult {
   readonly byteLength: number;
   readonly storageKey: string;
   readonly verifiedAt: Date;
-  /** True when verified byte-equal existing content was reused physically. */
   readonly reusedExisting: boolean;
+  /** True only when this ingest owns a newly created physical object. */
+  readonly createdPhysicalObject: boolean;
 }
 
 export type CandidateLookup = (
@@ -45,32 +35,38 @@ export class ContentStore {
     this.#blobs = blobs;
   }
 
-  async ingest(bytes: Uint8Array, findCandidate: CandidateLookup): Promise<ContentIngestResult> {
-    const sha256 = new Uint8Array(createHash("sha256").update(bytes).digest());
-    const byteLength = bytes.byteLength;
-
-    const candidate = await findCandidate(sha256, byteLength);
+  async ingest(
+    source: BlobSource,
+    findCandidate: CandidateLookup,
+    options: BlobWriteOptions = {},
+  ): Promise<ContentIngestResult> {
+    const stored = await this.#blobs.put(source, options);
+    const candidate = await findCandidate(stored.sha256, stored.byteLength);
     if (candidate !== null) {
-      let byteEqual = false;
-      try {
-        byteEqual = await this.#blobs.equals(candidate.storageKey, bytes);
-      } catch {
-        // Verification could not be completed: store separate content.
-        byteEqual = false;
+      let byteEqual = candidate.storageKey === stored.storageKey;
+      if (!byteEqual) {
+        try {
+          byteEqual = await this.#blobs.compare(candidate.storageKey, stored.storageKey);
+        } catch {
+          byteEqual = false;
+        }
       }
       if (byteEqual) {
+        if (stored.created && candidate.storageKey !== stored.storageKey) {
+          await this.#blobs.delete(stored.storageKey);
+        }
         return {
           contentId: candidate.contentId,
-          sha256,
-          byteLength,
+          sha256: stored.sha256,
+          byteLength: stored.byteLength,
           storageKey: candidate.storageKey,
-          verifiedAt: new Date(),
+          verifiedAt: stored.verifiedAt,
           reusedExisting: true,
+          createdPhysicalObject: false,
         };
       }
     }
 
-    const stored = await this.#blobs.put(bytes);
     return {
       contentId: generateUuidV7(),
       sha256: stored.sha256,
@@ -78,10 +74,25 @@ export class ContentStore {
       storageKey: stored.storageKey,
       verifiedAt: stored.verifiedAt,
       reusedExisting: false,
+      createdPhysicalObject: stored.created,
     };
   }
 
   async read(storageKey: string): Promise<Uint8Array | null> {
     return this.#blobs.get(storageKey);
+  }
+
+  async open(storageKey: string, range?: BlobRange): Promise<OpenedBlob | null> {
+    return this.#blobs.open(storageKey, range);
+  }
+
+  async discardUnreferenced(content: ContentIngestResult): Promise<void> {
+    if (content.createdPhysicalObject && !content.reusedExisting) {
+      await this.#blobs.delete(content.storageKey);
+    }
+  }
+
+  get blobStore(): BlobStore {
+    return this.#blobs;
   }
 }

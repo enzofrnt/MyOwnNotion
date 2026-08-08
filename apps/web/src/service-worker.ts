@@ -8,7 +8,19 @@
  * synchronized state.
  */
 /// <reference lib="WebWorker" />
+
+import {
+  OFFLINE_FILE_CACHE_MAX_AGE_SECONDS,
+  OFFLINE_FILE_CACHE_MAX_ENTRIES,
+} from "@myownnotion/domain";
+import { ExpirationPlugin } from "workbox-expiration";
 import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
+import { registerRoute } from "workbox-routing";
+import { CacheFirst } from "workbox-strategies";
+import {
+  admitCompleteFileResponse,
+  isRevisionQualifiedFileRequest,
+} from "./services/file-cache-policy.ts";
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -16,6 +28,28 @@ declare const self: ServiceWorkerGlobalScope & {
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
+
+registerRoute(
+  ({ url, request }) => isRevisionQualifiedFileRequest({ url, request }),
+  new CacheFirst({
+    cacheName: "myownnotion-file-revisions-v1",
+    plugins: [
+      {
+        cacheWillUpdate: async ({ response }) =>
+          admitCompleteFileResponse(response) ? response : null,
+      },
+      // Workbox's optional plugin hooks are not declared with
+      // exactOptionalPropertyTypes compatibility, though the runtime plugin
+      // contract is correct.
+      new ExpirationPlugin({
+        maxEntries: OFFLINE_FILE_CACHE_MAX_ENTRIES,
+        maxAgeSeconds: OFFLINE_FILE_CACHE_MAX_AGE_SECONDS,
+        purgeOnQuotaError: true,
+      }) as never,
+    ],
+  }),
+  "GET",
+);
 
 self.addEventListener("install", () => {
   void self.skipWaiting();

@@ -12,6 +12,7 @@ WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
+COPY apps/operations/package.json apps/operations/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/blob-store/package.json packages/blob-store/package.json
 COPY packages/client-core/package.json packages/client-core/package.json

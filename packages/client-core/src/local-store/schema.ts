@@ -25,9 +25,13 @@ export interface LocalItemRow {
     readonly body: Record<string, unknown>;
   } | null;
   readonly file: {
+    readonly contentId: Uuid;
     readonly mediaType: string;
     readonly originalName: string;
     readonly byteLength: number;
+    readonly sha256: string;
+    readonly verifiedAt: string;
+    readonly cacheEligibility: boolean;
   } | null;
 }
 

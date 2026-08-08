@@ -18,7 +18,7 @@ export function FileNode({ item }: { readonly item: ProjectedItem }) {
   return (
     <span className="tree-file-meta muted" data-testid={`file-meta-${item.name}`}>
       {item.file !== null
-        ? `${item.file.mediaType} · ${formatByteLength(item.file.byteLength)}`
+        ? `${item.file.mediaType} · ${formatByteLength(item.file.byteLength)} · SHA-256 ${item.file.sha256.slice(0, 10)}…`
         : "file"}
       {item.placements.length > 1 ? ` · ${item.placements.length} placements` : ""}
     </span>

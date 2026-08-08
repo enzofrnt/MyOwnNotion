@@ -21,7 +21,7 @@ import {
   validateAddFilePlacement,
 } from "@myownnotion/domain";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import type { Transaction } from "../client.ts";
+import type { Database, Transaction } from "../client.ts";
 import { fileContents, items, lifecycleEvents, logicalFiles, placements } from "../schema/index.ts";
 import { getActivePlacements, getItem, getPlacement } from "./hierarchy-repository.ts";
 import { buildItemSnapshot, insertRevision, supersedeRevision } from "./revision-repository.ts";
@@ -345,7 +345,7 @@ export async function executeReplaceFileContent(
 }
 
 export async function findVerifiedContentByDigest(
-  tx: Transaction,
+  tx: Database | Transaction,
   sha256: Uint8Array,
   byteLength: number,
 ): Promise<{ contentId: Uuid; storageKey: string } | null> {
@@ -359,4 +359,217 @@ export async function findVerifiedContentByDigest(
     return null;
   }
   return { contentId: row.id as Uuid, storageKey: row.storageKey };
+}
+
+export interface FileContentDescriptor {
+  readonly itemId: Uuid;
+  readonly revisionId: Uuid;
+  readonly contentId: Uuid;
+  readonly name: string;
+  readonly mediaType: string;
+  readonly byteLength: number;
+  readonly sha256: string;
+  /** Private adapter locator. This type is server-internal and must never be serialized publicly. */
+  readonly storageKey: string;
+  readonly verifiedAt: Date;
+}
+
+export type FileContentDescriptorResult =
+  | { readonly status: "available"; readonly value: FileContentDescriptor }
+  | { readonly status: "not-found" }
+  | { readonly status: "stale-revision"; readonly currentRevisionId: Uuid }
+  | {
+      readonly status: "unavailable";
+      readonly reason: "inactive" | "unverified" | "metadata-mismatch";
+    };
+
+function digestHex(bytes: Uint8Array): string | null {
+  if (bytes.byteLength !== 32) {
+    return null;
+  }
+  return Buffer.from(bytes).toString("hex");
+}
+
+/** Resolves the exact current file revision without exposing a public DTO. */
+export async function getFileContentDescriptor(
+  tx: Transaction,
+  itemId: Uuid,
+  revisionId: Uuid,
+): Promise<FileContentDescriptorResult> {
+  const rows = await tx
+    .select({
+      itemId: items.id,
+      revisionId: items.currentRevisionId,
+      name: items.name,
+      kind: items.kind,
+      lifecycle: items.lifecycle,
+      contentId: logicalFiles.contentId,
+      mediaType: logicalFiles.mediaType,
+      logicalByteLength: logicalFiles.byteLength,
+      contentByteLength: fileContents.byteLength,
+      sha256: fileContents.sha256,
+      storageKey: fileContents.storageKey,
+      verifiedAt: fileContents.verifiedAt,
+    })
+    .from(items)
+    .leftJoin(logicalFiles, eq(logicalFiles.itemId, items.id))
+    .leftJoin(fileContents, eq(fileContents.id, logicalFiles.contentId))
+    .where(eq(items.id, itemId))
+    .limit(1);
+  const row = rows[0];
+  if (
+    row === undefined ||
+    row.kind !== "file" ||
+    row.contentId === null ||
+    row.mediaType === null ||
+    row.logicalByteLength === null ||
+    row.contentByteLength === null ||
+    row.sha256 === null ||
+    row.storageKey === null
+  ) {
+    return { status: "not-found" };
+  }
+  if (row.revisionId !== revisionId) {
+    return { status: "stale-revision", currentRevisionId: row.revisionId as Uuid };
+  }
+  if (row.lifecycle !== "active") {
+    return { status: "unavailable", reason: "inactive" };
+  }
+  if (row.verifiedAt === null) {
+    return { status: "unavailable", reason: "unverified" };
+  }
+  const sha256 = digestHex(row.sha256);
+  if (sha256 === null || row.logicalByteLength !== row.contentByteLength) {
+    return { status: "unavailable", reason: "metadata-mismatch" };
+  }
+  return {
+    status: "available",
+    value: {
+      itemId: row.itemId as Uuid,
+      revisionId: row.revisionId as Uuid,
+      contentId: row.contentId as Uuid,
+      name: row.name,
+      mediaType: row.mediaType,
+      byteLength: row.contentByteLength,
+      sha256,
+      storageKey: row.storageKey,
+      verifiedAt: row.verifiedAt,
+    },
+  };
+}
+
+export interface ContentAuditInventoryRecord {
+  readonly contentId: Uuid;
+  readonly storageKey: string;
+  readonly sha256: string;
+  readonly byteLength: number;
+  readonly verified: boolean;
+  readonly verifiedAt: Date | null;
+  readonly storedReferenceCount: number;
+  readonly logicalReferenceCount: number;
+}
+
+/** Stable metadata-only inventory used by audit and backup selection. */
+export async function listContentAuditInventory(
+  tx: Transaction,
+): Promise<ContentAuditInventoryRecord[]> {
+  const rows = await tx
+    .select({
+      contentId: fileContents.id,
+      storageKey: fileContents.storageKey,
+      sha256: fileContents.sha256,
+      byteLength: fileContents.byteLength,
+      verifiedAt: fileContents.verifiedAt,
+      storedReferenceCount: fileContents.referenceCount,
+      logicalReferenceCount: sql<number>`count(${logicalFiles.itemId})::integer`,
+    })
+    .from(fileContents)
+    .leftJoin(logicalFiles, eq(logicalFiles.contentId, fileContents.id))
+    .groupBy(
+      fileContents.id,
+      fileContents.storageKey,
+      fileContents.sha256,
+      fileContents.byteLength,
+      fileContents.verifiedAt,
+      fileContents.referenceCount,
+    )
+    .orderBy(fileContents.id);
+  return rows.map((row) => ({
+    contentId: row.contentId as Uuid,
+    storageKey: row.storageKey,
+    sha256: digestHex(row.sha256) ?? "",
+    byteLength: row.byteLength,
+    verified: row.verifiedAt !== null && digestHex(row.sha256) !== null,
+    verifiedAt: row.verifiedAt,
+    storedReferenceCount: row.storedReferenceCount,
+    logicalReferenceCount: row.logicalReferenceCount,
+  }));
+}
+
+export async function listVerifiedReferencedContent(
+  tx: Transaction,
+): Promise<ContentAuditInventoryRecord[]> {
+  return (await listContentAuditInventory(tx)).filter(
+    (record) => record.verified && record.logicalReferenceCount > 0,
+  );
+}
+
+export interface VerifiedContentStorageKeyUpdate {
+  readonly contentId: Uuid;
+  readonly expectedStorageKey: string;
+  readonly replacementStorageKey: string;
+  readonly verifiedSha256: string;
+  readonly verifiedByteLength: number;
+  readonly verifiedAt: Date;
+}
+
+/**
+ * Moves a legacy locator only when the independently observed replacement
+ * bytes exactly match the already verified canonical metadata.
+ */
+export async function updateVerifiedContentStorageKey(
+  tx: Transaction,
+  input: VerifiedContentStorageKeyUpdate,
+): Promise<boolean> {
+  if (
+    !/^[a-f0-9]{64}$/.test(input.verifiedSha256) ||
+    !Number.isSafeInteger(input.verifiedByteLength) ||
+    input.verifiedByteLength < 0 ||
+    input.expectedStorageKey.length === 0 ||
+    input.replacementStorageKey.length === 0
+  ) {
+    return false;
+  }
+  const rows = await tx
+    .select({
+      sha256: fileContents.sha256,
+      byteLength: fileContents.byteLength,
+      storageKey: fileContents.storageKey,
+      verifiedAt: fileContents.verifiedAt,
+    })
+    .from(fileContents)
+    .where(eq(fileContents.id, input.contentId))
+    .limit(1)
+    .for("update");
+  const row = rows[0];
+  if (
+    row === undefined ||
+    row.verifiedAt === null ||
+    row.storageKey !== input.expectedStorageKey ||
+    row.byteLength !== input.verifiedByteLength ||
+    digestHex(row.sha256) !== input.verifiedSha256
+  ) {
+    return false;
+  }
+  const updated = await tx
+    .update(fileContents)
+    .set({ storageKey: input.replacementStorageKey, verifiedAt: input.verifiedAt })
+    .where(
+      and(
+        eq(fileContents.id, input.contentId),
+        eq(fileContents.storageKey, input.expectedStorageKey),
+      ),
+    )
+    .returning({ id: fileContents.id });
+  return updated.length === 1;
 }

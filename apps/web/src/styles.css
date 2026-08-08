@@ -226,6 +226,95 @@ select {
   margin-bottom: 0.5rem;
 }
 
+.existing-file-picker {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+
+.existing-file-picker input {
+  width: min(100%, 30rem);
+}
+
+.existing-file-results {
+  display: grid;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.existing-file-results li,
+.file-preview-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.attachment-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.file-preview {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+}
+
+.file-metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.file-metadata div {
+  min-width: 0;
+}
+
+.file-metadata dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.file-metadata dd {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-preview-status {
+  margin: 0;
+}
+
+.attachment-row > .file-preview,
+.attachment-row > .file-preview-status,
+.attachment-row > .field-row {
+  flex: 1 0 100%;
+}
+
+.file-raster-preview {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.file-raster-preview img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(60vh, 32rem);
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
 .revision-snapshot {
   display: block;
   width: 100%;

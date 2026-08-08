@@ -9,6 +9,7 @@ import type {
   CanonicalSnapshotDto,
   ChangesResponseDto,
   CreateItemDto,
+  FileContentMetadataDto,
   ItemDto,
   MutationResultDto,
   ProblemDto,
@@ -16,7 +17,7 @@ import type {
   QueuedMutationResultDto,
   RelationshipDto,
 } from "@myownnotion/contracts";
-import type { Uuid } from "@myownnotion/domain";
+import { isUuid, MAX_OFFLINE_FILE_BYTE_LENGTH, type Uuid } from "@myownnotion/domain";
 
 export type ApiResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -28,6 +29,69 @@ const OFFLINE_PROBLEM: ProblemDto = {
   status: 503,
   code: "network.unreachable",
 };
+
+async function problemFromResponse(response: Response): Promise<ProblemDto> {
+  try {
+    return (await response.json()) as ProblemDto;
+  } catch {
+    return {
+      type: "https://myownnotion.dev/problems/http",
+      title: response.statusText,
+      status: response.status,
+      code: `http.${response.status}`,
+    };
+  }
+}
+
+function fileNameFromDisposition(disposition: string, fallback: string): string {
+  const extended = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  if (extended !== undefined) {
+    try {
+      return decodeURIComponent(extended);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+}
+
+function metadataFromFileResponse(
+  response: Response,
+  itemId: Uuid,
+  revisionId: Uuid,
+  fallbackName: string,
+): FileContentMetadataDto | null {
+  const contentId = response.headers.get("x-content-id");
+  const sha256 = response.headers.get("x-content-sha256");
+  const lengthText = response.headers.get("content-length");
+  const dispositionHeader = response.headers.get("content-disposition") ?? "attachment";
+  const mediaType = (response.headers.get("content-type") ?? "application/octet-stream")
+    .split(";", 1)[0]
+    ?.trim();
+  const byteLength = lengthText === null ? Number.NaN : Number(lengthText);
+  if (
+    !isUuid(contentId) ||
+    sha256 === null ||
+    !/^[a-f0-9]{64}$/.test(sha256) ||
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0 ||
+    mediaType === undefined ||
+    mediaType.length < 3
+  ) {
+    return null;
+  }
+  return {
+    itemId,
+    revisionId,
+    contentId,
+    name: fileNameFromDisposition(dispositionHeader, fallbackName),
+    mediaType,
+    byteLength,
+    sha256,
+    disposition: dispositionHeader.toLowerCase().startsWith("inline;") ? "inline" : "attachment",
+    cacheEligibility: byteLength <= MAX_OFFLINE_FILE_BYTE_LENGTH,
+  };
+}
 
 export class ContentApi {
   readonly #baseUrl: string;
@@ -56,17 +120,7 @@ export class ContentApi {
       return { ok: false, problem: OFFLINE_PROBLEM, offline: true };
     }
     if (!response.ok) {
-      let problem: ProblemDto;
-      try {
-        problem = (await response.json()) as ProblemDto;
-      } catch {
-        problem = {
-          type: "https://myownnotion.dev/problems/http",
-          title: response.statusText,
-          status: response.status,
-          code: `http.${response.status}`,
-        };
-      }
+      const problem = await problemFromResponse(response);
       return { ok: false, problem, offline: false };
     }
     return { ok: true, value: (await response.json()) as T };
@@ -198,6 +252,94 @@ export class ContentApi {
       body: form,
       mutationId,
     });
+  }
+
+  fileContentUrl(itemId: Uuid, revisionId: Uuid): string {
+    const query = new URLSearchParams({ revisionId });
+    return `${this.#baseUrl}/v1/files/${itemId}/content?${query.toString()}`;
+  }
+
+  async inspectFileContent(
+    itemId: Uuid,
+    revisionId: Uuid,
+    fallbackName: string,
+  ): Promise<ApiResult<FileContentMetadataDto>> {
+    let response: Response;
+    try {
+      response = await fetch(this.fileContentUrl(itemId, revisionId), { method: "HEAD" });
+    } catch {
+      return { ok: false, problem: OFFLINE_PROBLEM, offline: true };
+    }
+    if (!response.ok) {
+      return { ok: false, problem: await problemFromResponse(response), offline: false };
+    }
+    const metadata = metadataFromFileResponse(response, itemId, revisionId, fallbackName);
+    if (metadata === null) {
+      return {
+        ok: false,
+        offline: false,
+        problem: {
+          type: "https://myownnotion.dev/problems/file.integrity-failed",
+          title: "File metadata failed integrity verification",
+          status: 502,
+          code: "file.integrity-failed",
+        },
+      };
+    }
+    return { ok: true, value: metadata };
+  }
+
+  async fetchFileContent(
+    itemId: Uuid,
+    revisionId: Uuid,
+    fallbackName: string,
+  ): Promise<
+    ApiResult<{
+      metadata: FileContentMetadataDto;
+      blob: Blob;
+      source: "network" | "offline-cache";
+    }>
+  > {
+    let response: Response;
+    try {
+      response = await fetch(this.fileContentUrl(itemId, revisionId));
+    } catch {
+      return { ok: false, problem: OFFLINE_PROBLEM, offline: true };
+    }
+    if (!response.ok) {
+      return { ok: false, problem: await problemFromResponse(response), offline: false };
+    }
+    const metadata = metadataFromFileResponse(response, itemId, revisionId, fallbackName);
+    if (metadata === null) {
+      return {
+        ok: false,
+        offline: false,
+        problem: {
+          type: "https://myownnotion.dev/problems/file.integrity-failed",
+          title: "File metadata failed integrity verification",
+          status: 502,
+          code: "file.integrity-failed",
+        },
+      };
+    }
+    const blob = await response.blob();
+    if (blob.size !== metadata.byteLength) {
+      return {
+        ok: false,
+        offline: false,
+        problem: {
+          type: "https://myownnotion.dev/problems/file.integrity-failed",
+          title: "Downloaded file length failed integrity verification",
+          status: 502,
+          code: "file.integrity-failed",
+        },
+      };
+    }
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    return {
+      ok: true,
+      value: { metadata, blob, source: offline ? "offline-cache" : "network" },
+    };
   }
 
   async listRelationships(itemId?: Uuid): Promise<ApiResult<{ relationships: RelationshipDto[] }>> {

@@ -386,6 +386,39 @@ export const PlacementSchema = Type.Object({
   positionKey: Type.String(),
 });
 
+export const Sha256DigestSchema = Type.String({ pattern: "^[a-f0-9]{64}$" });
+
+/** Public file metadata. Private adapter keys deliberately have no DTO field. */
+export const FileContentMetadataSchema = Type.Object(
+  {
+    itemId: UuidSchema,
+    revisionId: UuidSchema,
+    contentId: UuidSchema,
+    name: DisplayNameSchema,
+    mediaType: Type.String({ minLength: 3, maxLength: 255 }),
+    byteLength: Type.Integer({ minimum: 0, maximum: 268_435_456 }),
+    sha256: Sha256DigestSchema,
+    disposition: Type.Union([Type.Literal("inline"), Type.Literal("attachment")]),
+    cacheEligibility: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type FileContentMetadataDto = Static<typeof FileContentMetadataSchema>;
+
+export const FileMetadataSummarySchema = Type.Object(
+  {
+    contentId: UuidSchema,
+    mediaType: Type.String({ minLength: 3, maxLength: 255 }),
+    originalName: DisplayNameSchema,
+    byteLength: Type.Integer({ minimum: 0, maximum: 268_435_456 }),
+    sha256: Sha256DigestSchema,
+    verifiedAt: Type.String({ format: "date-time" }),
+    cacheEligibility: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type FileMetadataSummaryDto = Static<typeof FileMetadataSummarySchema>;
+
 export const ItemSchema = Type.Object({
   id: UuidSchema,
   kind: ItemKindSchema,
@@ -395,6 +428,7 @@ export const ItemSchema = Type.Object({
   trashedAt: Type.Optional(NullableDateTime),
   purgeAfter: Type.Optional(NullableDateTime),
   pageDocument: Type.Optional(Type.Union([PageDocumentSchema, Type.Null()])),
+  file: Type.Optional(Type.Union([FileMetadataSummarySchema, Type.Null()])),
   placements: Type.Array(PlacementSchema),
 });
 export type ItemDto = Static<typeof ItemSchema>;
@@ -610,6 +644,13 @@ export type CanonicalSnapshotDto = Static<typeof CanonicalSnapshotSchema>;
 export const HealthResponseSchema = Type.Object({
   status: Type.Literal("ready"),
   schemaVersion: Type.Integer({ minimum: 1 }),
+  storage: Type.Object(
+    {
+      adapter: Type.Union([Type.Literal("filesystem"), Type.Literal("s3")]),
+      status: Type.Literal("ready"),
+    },
+    { additionalProperties: false },
+  ),
 });
 
 export const ExportStatusSchema = Type.Object({

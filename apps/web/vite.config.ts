@@ -40,9 +40,10 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
       },
       devOptions: {
-        // The dev server serves the shell directly; offline journeys run
-        // against the production build in Playwright.
-        enabled: false,
+        // Exercise immutable file-revision runtime caching in Playwright;
+        // the shell itself still comes from the reachable dev server.
+        enabled: true,
+        type: "module",
       },
     }),
   ],

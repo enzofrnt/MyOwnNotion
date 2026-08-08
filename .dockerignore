@@ -15,6 +15,9 @@ playwright-report
 test-results
 .dev-blobs
 .postgres-data
+.operations-state
+.backup-staging
+.restore-staging
 .env
 .env.*
 !.env.example

@@ -58,7 +58,8 @@ export function generateUuidV7(now: () => number = Date.now): Uuid {
   bytes[6] = 0x70 | ((counter >> 8) & 0x0f);
   bytes[7] = counter & 0xff;
   // RFC 4122/9562 variant
-  bytes[8] = (bytes[8] as number & 0x3f) | 0x80;
+  const randomVariantBits = (bytes[8] ?? 0) & 0x3f;
+  bytes[8] = randomVariantBits | 0x80;
 
   const hex: string[] = [];
   for (const byte of bytes) {

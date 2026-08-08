@@ -25,7 +25,11 @@ describe("health", () => {
   it("reports readiness and schema version", async () => {
     const response = await harness.built.app.inject({ method: "GET", url: "/health" });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: "ready", schemaVersion: 1 });
+    expect(response.json()).toEqual({
+      status: "ready",
+      schemaVersion: 1,
+      storage: { adapter: "filesystem", status: "ready" },
+    });
   });
 });
 

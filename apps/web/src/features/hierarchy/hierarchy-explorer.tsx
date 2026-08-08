@@ -435,7 +435,14 @@ export function HierarchyExplorer() {
             itemId={selectedItem.id}
             onNavigate={selectContentItem}
           />
-          <AttachmentPanel pageId={selectedItem.id} onChanged={() => void refresh()} />
+          <AttachmentPanel
+            pageId={selectedItem.id}
+            workspaceItems={items}
+            onChanged={async () => {
+              await service.synchronize();
+              await refresh();
+            }}
+          />
         </>
       ) : null}
       {selectedItem !== null ? (

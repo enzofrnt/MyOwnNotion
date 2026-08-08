@@ -4,10 +4,10 @@
  * OpenAPI `Item` schema.
  */
 
-import type { Uuid } from "@myownnotion/domain";
+import { MAX_OFFLINE_FILE_BYTE_LENGTH, type Uuid } from "@myownnotion/domain";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
-import { items, logicalFiles, pageDocuments, placements } from "../schema/index.ts";
+import { fileContents, items, logicalFiles, pageDocuments, placements } from "../schema/index.ts";
 
 export interface ItemReadModel {
   readonly id: Uuid;
@@ -23,9 +23,13 @@ export interface ItemReadModel {
     readonly body: Record<string, unknown>;
   } | null;
   readonly file: {
+    readonly contentId: Uuid;
     readonly mediaType: string;
     readonly originalName: string;
     readonly byteLength: number;
+    readonly sha256: string;
+    readonly verifiedAt: string;
+    readonly cacheEligibility: boolean;
   } | null;
   readonly placements: ReadonlyArray<{
     readonly id: Uuid;
@@ -63,7 +67,19 @@ export async function readItems(
   const fileRows =
     fileIds.length === 0
       ? []
-      : await executor.select().from(logicalFiles).where(inArray(logicalFiles.itemId, fileIds));
+      : await executor
+          .select({
+            itemId: logicalFiles.itemId,
+            contentId: logicalFiles.contentId,
+            mediaType: logicalFiles.mediaType,
+            originalName: logicalFiles.originalName,
+            byteLength: logicalFiles.byteLength,
+            sha256: fileContents.sha256,
+            verifiedAt: fileContents.verifiedAt,
+          })
+          .from(logicalFiles)
+          .innerJoin(fileContents, eq(fileContents.id, logicalFiles.contentId))
+          .where(inArray(logicalFiles.itemId, fileIds));
 
   const documentsByPage = new Map(documentRows.map((row) => [row.pageId, row]));
   const filesByItem = new Map(fileRows.map((row) => [row.itemId, row]));
@@ -96,12 +112,16 @@ export async function readItems(
               }
           : null,
       file:
-        file === undefined
+        file === undefined || file.verifiedAt === null || file.sha256.byteLength !== 32
           ? null
           : {
+              contentId: file.contentId as Uuid,
               mediaType: file.mediaType,
               originalName: file.originalName,
               byteLength: file.byteLength,
+              sha256: Buffer.from(file.sha256).toString("hex"),
+              verifiedAt: file.verifiedAt.toISOString(),
+              cacheEligibility: file.byteLength <= MAX_OFFLINE_FILE_BYTE_LENGTH,
             },
       placements: (placementsByItem.get(row.id) ?? []).map((placement) => ({
         id: placement.id as Uuid,

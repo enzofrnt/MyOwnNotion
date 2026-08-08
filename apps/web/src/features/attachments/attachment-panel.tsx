@@ -6,23 +6,62 @@
  * placement (the final removal sends the file to the 30-day trash).
  */
 
-import type { ItemDto, ProblemDto } from "@myownnotion/contracts";
+import type { ProblemDto } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
+import { FilePreview } from "./file-preview.tsx";
 import { ReplaceFileContent } from "./replace-file-content.tsx";
+
+export interface AttachmentListItem {
+  readonly id: string;
+  readonly kind: "page" | "folder" | "file";
+  readonly name: string;
+  readonly lifecycle: "active" | "trashed" | "purged";
+  readonly currentRevisionId: string;
+  readonly placements: ReadonlyArray<{
+    readonly id: string;
+    readonly kind: "hierarchy" | "attachment";
+    readonly parentItemId: string | null;
+    readonly positionKey: string;
+  }>;
+}
+
+export function selectReusableFiles(
+  items: readonly AttachmentListItem[],
+  pageId: Uuid,
+  query: string,
+): AttachmentListItem[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  return items
+    .filter(
+      (item) =>
+        item.kind === "file" &&
+        item.lifecycle === "active" &&
+        !item.placements.some(
+          (placement) => placement.kind === "attachment" && placement.parentItemId === pageId,
+        ) &&
+        (normalized.length === 0 || item.name.toLocaleLowerCase().includes(normalized)),
+    )
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .slice(0, 20);
+}
 
 export function AttachmentPanel({
   pageId,
+  workspaceItems = [],
   onChanged,
 }: {
   readonly pageId: Uuid;
-  readonly onChanged?: () => void;
+  readonly workspaceItems?: readonly AttachmentListItem[];
+  readonly onChanged?: () => void | Promise<void>;
 }) {
   const api = useMemo(() => new ContentApi(), []);
-  const [attachments, setAttachments] = useState<ItemDto[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentListItem[]>([]);
+  const [allItems, setAllItems] = useState<AttachmentListItem[]>([]);
+  const [search, setSearch] = useState("");
   const [problem, setProblem] = useState<ProblemDto | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,9 +69,10 @@ export function AttachmentPanel({
     // Attachments are file items with an attachment placement on this page.
     const result = await api.listItems({ lifecycle: "active" });
     if (!result.ok) {
-      setProblem(result.problem);
+      if (workspaceItems.length === 0) setProblem(result.problem);
       return;
     }
+    setAllItems(result.value.items);
     setAttachments(
       result.value.items.filter((item) =>
         item.placements.some(
@@ -40,11 +80,24 @@ export function AttachmentPanel({
         ),
       ),
     );
-  }, [api, pageId]);
+  }, [api, pageId, workspaceItems.length]);
+
+  const reusableFiles = useMemo(
+    () => selectReusableFiles(allItems, pageId, search),
+    [allItems, pageId, search],
+  );
 
   useEffect(() => {
+    setAllItems([...workspaceItems]);
+    setAttachments(
+      workspaceItems.filter((item) =>
+        item.placements.some(
+          (placement) => placement.kind === "attachment" && placement.parentItemId === pageId,
+        ),
+      ),
+    );
     void refresh();
-  }, [refresh]);
+  }, [pageId, refresh, workspaceItems]);
 
   const importFile = useCallback(
     async (fileList: FileList | null) => {
@@ -73,7 +126,7 @@ export function AttachmentPanel({
       }
       setBusy(false);
       await refresh();
-      onChanged?.();
+      await onChanged?.();
     },
     [api, attachments, pageId, refresh, onChanged],
   );
@@ -86,9 +139,35 @@ export function AttachmentPanel({
         setProblem(result.problem);
       }
       await refresh();
-      onChanged?.();
+      await onChanged?.();
     },
     [api, refresh, onChanged],
+  );
+
+  const attachExisting = useCallback(
+    async (item: AttachmentListItem) => {
+      setBusy(true);
+      setProblem(null);
+      const keys = attachments
+        .flatMap((attachment) =>
+          attachment.placements.filter(
+            (placement) => placement.kind === "attachment" && placement.parentItemId === pageId,
+          ),
+        )
+        .map((placement) => placement.positionKey)
+        .sort();
+      const result = await api.addFilePlacement(generateUuidV7(), item.id as Uuid, {
+        kind: "attachment",
+        parentItemId: pageId,
+        positionKey: safeKeyBetween(keys[keys.length - 1] ?? null, null),
+      });
+      if (!result.ok) setProblem(result.problem);
+      setBusy(false);
+      setSearch("");
+      await refresh();
+      await onChanged?.();
+    },
+    [api, attachments, onChanged, pageId, refresh],
   );
 
   return (
@@ -109,6 +188,35 @@ export function AttachmentPanel({
           onChange={(event) => void importFile(event.target.files)}
         />
       </div>
+      <div className="existing-file-picker">
+        <label htmlFor={`existing-file-search-${pageId}`}>Attach an existing file</label>
+        <input
+          id={`existing-file-search-${pageId}`}
+          type="search"
+          value={search}
+          placeholder="Search workspace files"
+          onChange={(event) => setSearch(event.target.value)}
+          disabled={busy}
+        />
+        {search.trim().length > 0 ? (
+          reusableFiles.length > 0 ? (
+            <ul className="existing-file-results" aria-label="Reusable files">
+              {reusableFiles.map((item) => (
+                <li key={item.id}>
+                  <button type="button" disabled={busy} onClick={() => void attachExisting(item)}>
+                    Attach {item.name}
+                  </button>
+                  <span className="muted">
+                    {item.placements.length} placement{item.placements.length === 1 ? "" : "s"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">No reusable file matches this search.</p>
+          )
+        ) : null}
+      </div>
       {attachments.length === 0 ? (
         <p className="muted" data-testid="no-attachments">
           No attachments. Files attached here stay out of the hierarchy tree.
@@ -120,7 +228,11 @@ export function AttachmentPanel({
               (candidate) => candidate.kind === "attachment" && candidate.parentItemId === pageId,
             );
             return (
-              <li key={item.id} className="tree-row" data-testid={`attachment-${item.name}`}>
+              <li
+                key={item.id}
+                className="tree-row attachment-row"
+                data-testid={`attachment-${item.name}`}
+              >
                 <span className="tree-kind">file</span>
                 <span className="tree-name">{item.name}</span>
                 <span className="muted">
@@ -139,12 +251,20 @@ export function AttachmentPanel({
                     remove
                   </button>
                 </span>
+                <FilePreview
+                  itemId={item.id as Uuid}
+                  revisionId={item.currentRevisionId as Uuid}
+                  name={item.name}
+                  api={api}
+                />
                 <ReplaceFileContent
                   itemId={item.id as Uuid}
                   currentRevisionId={item.currentRevisionId as Uuid}
                   onReplaced={() => {
-                    void refresh();
-                    onChanged?.();
+                    void (async () => {
+                      await refresh();
+                      await onChanged?.();
+                    })();
                   }}
                 />
               </li>

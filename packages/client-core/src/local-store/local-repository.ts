@@ -37,7 +37,18 @@ function itemRowFrom(dto: ItemDto): LocalItemRow {
             formatVersion: dto.pageDocument.formatVersion,
             body: dto.pageDocument.body as Record<string, unknown>,
           },
-    file: null,
+    file:
+      dto.file == null
+        ? null
+        : {
+            contentId: dto.file.contentId as Uuid,
+            mediaType: dto.file.mediaType,
+            originalName: dto.file.originalName,
+            byteLength: dto.file.byteLength,
+            sha256: dto.file.sha256,
+            verifiedAt: dto.file.verifiedAt,
+            cacheEligibility: dto.file.cacheEligibility,
+          },
   };
 }
 

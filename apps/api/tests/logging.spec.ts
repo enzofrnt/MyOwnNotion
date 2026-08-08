@@ -80,6 +80,43 @@ describe("logging configuration (T091)", () => {
     expect(captured.join("\n")).not.toContain(secret);
   });
 
+  it("never logs file names, locators, digests, ranges, dispositions, or preview URLs", async () => {
+    const captured: string[] = [];
+    const app = Fastify({
+      logger: {
+        ...registerLogging(),
+        stream: { write: (line: string) => captured.push(line) },
+      },
+    });
+    const secrets = {
+      filename: "Private-Financial-Plan.png",
+      storageKey: "blobs/private-object-key",
+      sha256: "c".repeat(64),
+      digest: "d".repeat(64),
+      contentDisposition: "attachment; filename=private.txt",
+      previewUrl: "blob:https://app.local/private-preview",
+    };
+    app.get("/file", async () => {
+      const error = new Error("safe storage failure");
+      Object.assign(error, secrets);
+      throw error;
+    });
+    await app.inject({
+      method: "GET",
+      url: "/file",
+      headers: {
+        range: "bytes=31-93",
+        "content-disposition": secrets.contentDisposition,
+        "x-content-sha256": secrets.sha256,
+      },
+    });
+    await app.close();
+    const output = captured.join("\n");
+    for (const secret of Object.values(secrets)) expect(output).not.toContain(secret);
+    expect(output).not.toContain("bytes=31-93");
+    expect(output).toContain("safe storage failure");
+  });
+
   it("never logs nested editor JSON text", async () => {
     const captured: string[] = [];
     const app = Fastify({

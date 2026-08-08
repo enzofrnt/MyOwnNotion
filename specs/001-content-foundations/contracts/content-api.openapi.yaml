@@ -28,10 +28,17 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [status, schemaVersion]
+                required: [status, schemaVersion, storage]
                 properties:
                   status: { const: ready }
                   schemaVersion: { type: integer, minimum: 1 }
+                  storage:
+                    type: object
+                    required: [adapter, status]
+                    properties:
+                      adapter: { enum: [filesystem, s3] }
+                      status: { const: ready }
+                    additionalProperties: false
   /v1/items:
     get:
       tags: [Items]
@@ -263,6 +270,84 @@ paths:
               schema: { $ref: '#/components/schemas/MutationResult' }
         '400': { $ref: '#/components/responses/Problem' }
   /v1/files/{itemId}/content:
+    head:
+      tags: [Items]
+      operationId: inspectFileContent
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - in: query
+          name: revisionId
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Verified current file metadata in response headers
+          headers:
+            Accept-Ranges: { schema: { const: bytes } }
+            Cache-Control: { schema: { const: 'private, max-age=31536000, immutable' } }
+            Content-Disposition: { schema: { type: string } }
+            Content-Length: { schema: { type: integer, minimum: 0, maximum: 268435456 } }
+            Content-Type: { schema: { type: string, minLength: 3, maxLength: 255 } }
+            ETag: { schema: { type: string, pattern: '^"[a-f0-9]{64}"$' } }
+            X-Content-Id: { schema: { $ref: '#/components/schemas/Uuid' } }
+            X-Content-SHA256: { schema: { $ref: '#/components/schemas/Sha256Digest' } }
+            X-Content-Type-Options: { schema: { const: nosniff } }
+            X-File-Revision-Id: { schema: { $ref: '#/components/schemas/Uuid' } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+    get:
+      tags: [Items]
+      operationId: downloadFileContent
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - in: query
+          name: revisionId
+          required: true
+          schema: { $ref: '#/components/schemas/Uuid' }
+        - in: header
+          name: Range
+          required: false
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200':
+          description: Complete exact verified immutable content
+          headers:
+            Accept-Ranges: { schema: { const: bytes } }
+            Cache-Control: { schema: { const: 'private, max-age=31536000, immutable' } }
+            Content-Disposition: { schema: { type: string } }
+            Content-Length: { schema: { type: integer, minimum: 0, maximum: 268435456 } }
+            Content-Security-Policy: { schema: { const: "sandbox; default-src 'none'" } }
+            Content-Type: { schema: { type: string, minLength: 3, maxLength: 255 } }
+            ETag: { schema: { type: string, pattern: '^"[a-f0-9]{64}"$' } }
+            X-Content-Id: { schema: { $ref: '#/components/schemas/Uuid' } }
+            X-Content-SHA256: { schema: { $ref: '#/components/schemas/Sha256Digest' } }
+            X-Content-Type-Options: { schema: { const: nosniff } }
+            X-File-Revision-Id: { schema: { $ref: '#/components/schemas/Uuid' } }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '206':
+          description: One satisfiable byte range
+          headers:
+            Accept-Ranges: { schema: { const: bytes } }
+            Cache-Control: { schema: { const: 'private, max-age=31536000, immutable' } }
+            Content-Range: { schema: { type: string, pattern: '^bytes [0-9]+-[0-9]+/[0-9]+$' } }
+            Content-Length: { schema: { type: integer, minimum: 1, maximum: 268435456 } }
+            Content-Type: { schema: { type: string, minLength: 3, maxLength: 255 } }
+            ETag: { schema: { type: string, pattern: '^"[a-f0-9]{64}"$' } }
+            X-Content-Id: { schema: { $ref: '#/components/schemas/Uuid' } }
+            X-Content-SHA256: { schema: { $ref: '#/components/schemas/Sha256Digest' } }
+            X-Content-Type-Options: { schema: { const: nosniff } }
+            X-File-Revision-Id: { schema: { $ref: '#/components/schemas/Uuid' } }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '416': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
     put:
       tags: [Items]
       operationId: replaceFileContent
@@ -552,6 +637,35 @@ components:
       type: string
       minLength: 1
       maxLength: 512
+    Sha256Digest:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+    FileContentMetadata:
+      type: object
+      required: [itemId, revisionId, contentId, name, mediaType, byteLength, sha256, disposition, cacheEligibility]
+      properties:
+        itemId: { $ref: '#/components/schemas/Uuid' }
+        revisionId: { $ref: '#/components/schemas/Uuid' }
+        contentId: { $ref: '#/components/schemas/Uuid' }
+        name: { $ref: '#/components/schemas/DisplayName' }
+        mediaType: { type: string, minLength: 3, maxLength: 255 }
+        byteLength: { type: integer, minimum: 0, maximum: 268435456 }
+        sha256: { $ref: '#/components/schemas/Sha256Digest' }
+        disposition: { enum: [inline, attachment] }
+        cacheEligibility: { type: boolean }
+      additionalProperties: false
+    FileMetadataSummary:
+      type: object
+      required: [contentId, mediaType, originalName, byteLength, sha256, verifiedAt, cacheEligibility]
+      properties:
+        contentId: { $ref: '#/components/schemas/Uuid' }
+        mediaType: { type: string, minLength: 3, maxLength: 255 }
+        originalName: { $ref: '#/components/schemas/DisplayName' }
+        byteLength: { type: integer, minimum: 0, maximum: 268435456 }
+        sha256: { $ref: '#/components/schemas/Sha256Digest' }
+        verifiedAt: { type: string, format: date-time }
+        cacheEligibility: { type: boolean }
+      additionalProperties: false
     ItemKind:
       enum: [page, folder, file]
     Lifecycle:
@@ -826,6 +940,10 @@ components:
         pageDocument:
           oneOf:
             - { $ref: '#/components/schemas/PageDocument' }
+            - { type: 'null' }
+        file:
+          oneOf:
+            - { $ref: '#/components/schemas/FileMetadataSummary' }
             - { type: 'null' }
         placements:
           type: array

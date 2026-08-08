@@ -1,0 +1,165 @@
+openapi: 3.1.0
+info:
+  title: MyOwnNotion Private File Content
+  version: 1.0.0
+  description: Revision-qualified private full, metadata, and single-range file retrieval.
+paths:
+  /v1/files/{itemId}/content:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+      - $ref: '#/components/parameters/RevisionId'
+    head:
+      operationId: inspectFileContent
+      responses:
+        '200':
+          description: Verified current content metadata. No response body.
+          headers:
+            Accept-Ranges: { $ref: '#/components/headers/AcceptRanges' }
+            Cache-Control: { $ref: '#/components/headers/ImmutablePrivateCache' }
+            Content-Disposition: { $ref: '#/components/headers/ContentDisposition' }
+            Content-Length: { $ref: '#/components/headers/ContentLength' }
+            Content-Type: { $ref: '#/components/headers/ContentType' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Content-Id: { $ref: '#/components/headers/ContentId' }
+            X-Content-SHA256: { $ref: '#/components/headers/Sha256' }
+            X-Content-Type-Options: { $ref: '#/components/headers/NoSniff' }
+            X-File-Revision-Id: { $ref: '#/components/headers/FileRevisionId' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleRevision' }
+        '502': { $ref: '#/components/responses/StorageFailure' }
+    get:
+      operationId: downloadFileContent
+      parameters:
+        - name: Range
+          in: header
+          required: false
+          description: Zero or one RFC byte range. Multiple ranges are rejected.
+          schema: { type: string, maxLength: 128 }
+      responses:
+        '200':
+          description: Complete verified immutable content.
+          headers:
+            Accept-Ranges: { $ref: '#/components/headers/AcceptRanges' }
+            Cache-Control: { $ref: '#/components/headers/ImmutablePrivateCache' }
+            Content-Disposition: { $ref: '#/components/headers/ContentDisposition' }
+            Content-Length: { $ref: '#/components/headers/ContentLength' }
+            Content-Security-Policy: { $ref: '#/components/headers/SandboxPolicy' }
+            Content-Type: { $ref: '#/components/headers/ContentType' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Content-Id: { $ref: '#/components/headers/ContentId' }
+            X-Content-SHA256: { $ref: '#/components/headers/Sha256' }
+            X-Content-Type-Options: { $ref: '#/components/headers/NoSniff' }
+            X-File-Revision-Id: { $ref: '#/components/headers/FileRevisionId' }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+            image/avif:
+              schema: { type: string, format: binary }
+        '206':
+          description: One satisfiable byte range of the verified object.
+          headers:
+            Accept-Ranges: { $ref: '#/components/headers/AcceptRanges' }
+            Cache-Control: { $ref: '#/components/headers/ImmutablePrivateCache' }
+            Content-Range:
+              description: Inclusive returned bounds and complete object length.
+              schema: { type: string, pattern: '^bytes [0-9]+-[0-9]+/[0-9]+$' }
+            Content-Length: { $ref: '#/components/headers/ContentLength' }
+            Content-Type: { $ref: '#/components/headers/ContentType' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            X-Content-Id: { $ref: '#/components/headers/ContentId' }
+            X-Content-SHA256: { $ref: '#/components/headers/Sha256' }
+            X-Content-Type-Options: { $ref: '#/components/headers/NoSniff' }
+            X-File-Revision-Id: { $ref: '#/components/headers/FileRevisionId' }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '400': { $ref: '#/components/responses/InvalidRange' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleRevision' }
+        '416': { $ref: '#/components/responses/UnsatisfiableRange' }
+        '502': { $ref: '#/components/responses/StorageFailure' }
+components:
+  parameters:
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RevisionId:
+      name: revisionId
+      in: query
+      required: true
+      description: Immutable current file revision identity used by cache and stale-revision checks.
+      schema: { type: string, format: uuid }
+  headers:
+    AcceptRanges:
+      schema: { type: string, const: bytes }
+    ImmutablePrivateCache:
+      schema: { type: string, const: 'private, max-age=31536000, immutable' }
+    ContentDisposition:
+      schema:
+        type: string
+        description: Inline only for the safe raster allow-list; otherwise attachment with sanitized filename and filename-star.
+    ContentLength:
+      schema: { type: integer, minimum: 0, maximum: 268435456 }
+    ContentType:
+      schema: { type: string, minLength: 3, maxLength: 255 }
+    ETag:
+      schema: { type: string, pattern: '^"[a-f0-9]{64}"$' }
+    ContentId:
+      schema: { type: string, format: uuid }
+    Sha256:
+      schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    NoSniff:
+      schema: { type: string, const: nosniff }
+    SandboxPolicy:
+      schema: { type: string, const: "sandbox; default-src 'none'" }
+    FileRevisionId:
+      schema: { type: string, format: uuid }
+  schemas:
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+  responses:
+    InvalidRange:
+      description: Malformed or multiple byte range.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: File, verified content, or active lifecycle is unavailable.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    StaleRevision:
+      description: Requested revision is not the current logical-file revision.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsatisfiableRange:
+      description: Range cannot be satisfied for the current byte length.
+      headers:
+        Content-Range:
+          schema: { type: string, pattern: '^bytes \*/[0-9]+$' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    StorageFailure:
+      description: Private storage is unavailable or failed integrity verification.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }

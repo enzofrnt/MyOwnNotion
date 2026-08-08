@@ -98,6 +98,7 @@ describe("compose security (loopback only)", () => {
     expect(api?.depends_on).toMatchObject({
       postgres: { condition: "service_healthy" },
       migrate: { condition: "service_completed_successfully" },
+      "object-storage": { condition: "service_healthy" },
     });
     expect(web?.depends_on).toMatchObject({ api: { condition: "service_healthy" } });
     expect(api?.healthcheck).toBeDefined();
@@ -107,11 +108,14 @@ describe("compose security (loopback only)", () => {
   it("production-like state uses explicit named volumes", () => {
     const compose = loadCompose("compose.prod.yaml");
     const postgres = compose.services?.["postgres"];
-    const api = compose.services?.["api"];
+    const objectStorage = compose.services?.["object-storage"];
+    const operations = compose.services?.["operations"];
 
     expect(postgres?.volumes).toContain("postgres-data:/var/lib/postgresql");
-    expect(api?.volumes).toContain("blob-data:/var/lib/myownnotion/blobs");
+    expect(objectStorage?.volumes).toContain("object-data:/data");
+    expect(operations?.volumes).toContain("blob-data:/var/lib/myownnotion/legacy-blobs:ro");
     expect(compose.volumes).toHaveProperty("postgres-data");
+    expect(compose.volumes).toHaveProperty("object-data");
     expect(compose.volumes).toHaveProperty("blob-data");
   });
 });

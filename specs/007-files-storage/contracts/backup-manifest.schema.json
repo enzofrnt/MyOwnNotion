@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myownnotion.local/contracts/backup-manifest-v1.schema.json",
+  "title": "MyOwnNotion encrypted backup manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "product",
+    "createdAt",
+    "sourceRevision",
+    "databaseSchemaVersions",
+    "toolVersions",
+    "database",
+    "objects",
+    "counts",
+    "status"
+  ],
+  "properties": {
+    "manifestVersion": { "const": 1 },
+    "product": { "const": "myownnotion" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourceRevision": { "type": "string", "pattern": "^[a-f0-9]{7,64}$" },
+    "databaseSchemaVersions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9]{4}_[a-z0-9_]+$" }
+    },
+    "toolVersions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "postgres", "restic", "rclone"],
+      "properties": {
+        "node": { "type": "string", "maxLength": 64 },
+        "postgres": { "type": "string", "maxLength": 64 },
+        "restic": { "type": "string", "maxLength": 64 },
+        "rclone": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "format", "byteLength", "sha256"],
+      "properties": {
+        "path": { "const": "database/myownnotion.dump" },
+        "format": { "const": "postgresql-custom" },
+        "byteLength": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "maxItems": 1000000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["contentId", "storageKey", "path", "byteLength", "sha256"],
+        "properties": {
+          "contentId": { "$ref": "#/$defs/uuid" },
+          "storageKey": { "type": "string", "minLength": 1, "maxLength": 1024 },
+          "path": { "type": "string", "pattern": "^objects/[a-f0-9]{2}/[a-f0-9-]{36,64}$" },
+          "byteLength": { "type": "integer", "minimum": 0, "maximum": 268435456 },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaces",
+        "items",
+        "placements",
+        "revisions",
+        "relationships",
+        "pageDocuments",
+        "logicalFiles",
+        "contentObjects"
+      ],
+      "properties": {
+        "workspaces": { "$ref": "#/$defs/count" },
+        "items": { "$ref": "#/$defs/count" },
+        "placements": { "$ref": "#/$defs/count" },
+        "revisions": { "$ref": "#/$defs/count" },
+        "relationships": { "$ref": "#/$defs/count" },
+        "pageDocuments": { "$ref": "#/$defs/count" },
+        "logicalFiles": { "$ref": "#/$defs/count" },
+        "contentObjects": { "$ref": "#/$defs/count" }
+      }
+    },
+    "status": { "enum": ["staged", "complete"] }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

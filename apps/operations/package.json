@@ -1,0 +1,24 @@
+{
+  "name": "@myownnotion/operations",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Redacted storage audit, encrypted backup, and guarded restore operations",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/cli.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\""
+  },
+  "dependencies": {
+    "@myownnotion/blob-store": "workspace:*",
+    "@myownnotion/database": "workspace:*",
+    "@myownnotion/domain": "workspace:*",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@myownnotion/test-utils": "workspace:*",
+    "@types/pg": "^8.15.6",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

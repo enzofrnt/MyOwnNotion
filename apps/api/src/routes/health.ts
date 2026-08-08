@@ -17,6 +17,7 @@ export function registerHealthRoutes(app: FastifyInstance, context: AppContext):
     async () => ({
       status: "ready" as const,
       schemaVersion: context.schemaVersion,
+      storage: { adapter: context.storageAdapter, status: "ready" as const },
     }),
   );
 }
