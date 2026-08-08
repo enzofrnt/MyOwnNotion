@@ -82,6 +82,113 @@ export const TaskItemAttributesSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const DatabaseSelectOptionSchema = Type.Object(
+  { optionId: UuidSchema, name: Type.String({ minLength: 1, maxLength: 128 }) },
+  { additionalProperties: false },
+);
+
+const DatabasePropertySchema = Type.Union([
+  Type.Object(
+    {
+      propertyId: UuidSchema,
+      name: Type.String({ minLength: 1, maxLength: 128 }),
+      type: Type.Union([
+        Type.Literal("text"),
+        Type.Literal("number"),
+        Type.Literal("date"),
+        Type.Literal("checkbox"),
+        Type.Literal("relation"),
+      ]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      propertyId: UuidSchema,
+      name: Type.String({ minLength: 1, maxLength: 128 }),
+      type: Type.Literal("select"),
+      options: Type.Array(DatabaseSelectOptionSchema, { maxItems: 50 }),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+const DatabaseValueSchema = Type.Union([
+  Type.Object(
+    {
+      propertyId: UuidSchema,
+      type: Type.Literal("text"),
+      value: Type.String({ maxLength: 10_000 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      propertyId: UuidSchema,
+      type: Type.Literal("number"),
+      value: Type.Union([Type.Number(), Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      propertyId: UuidSchema,
+      type: Type.Literal("select"),
+      value: Type.Union([UuidSchema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      propertyId: UuidSchema,
+      type: Type.Literal("date"),
+      value: Type.Union([Type.String({ pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }), Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { propertyId: UuidSchema, type: Type.Literal("checkbox"), value: Type.Boolean() },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      propertyId: UuidSchema,
+      type: Type.Literal("relation"),
+      value: Type.Array(UuidSchema, { maxItems: 200, uniqueItems: true }),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+const DatabaseRecordSchema = Type.Object(
+  {
+    recordId: UuidSchema,
+    title: Type.String({ maxLength: 512 }),
+    values: Type.Array(DatabaseValueSchema, { maxItems: 20 }),
+  },
+  { additionalProperties: false },
+);
+
+export const DatabaseBlockAttributesSchema = Type.Object(
+  {
+    databaseId: UuidSchema,
+    schemaVersion: Type.Literal(1),
+    properties: Type.Array(DatabasePropertySchema, { maxItems: 20 }),
+    records: Type.Array(DatabaseRecordSchema, { maxItems: 1_000 }),
+    view: Type.Object(
+      {
+        mode: Type.Union([Type.Literal("table"), Type.Literal("board"), Type.Literal("gallery")]),
+        query: Type.String({ maxLength: 512 }),
+        sortPropertyId: Type.Union([UuidSchema, Type.Null()]),
+        sortDirection: Type.Union([Type.Literal("asc"), Type.Literal("desc")]),
+        boardGroupPropertyId: Type.Union([UuidSchema, Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+);
+
 const EditorTextSchema = Type.Object(
   {
     type: Type.Literal("text"),
@@ -158,6 +265,13 @@ export const EditorDocumentNodeSchema = Type.Recursive((Node) =>
         type: Type.Literal("taskItem"),
         attrs: Type.Union([LegacyTaskItemAttributesSchema, TaskItemAttributesSchema]),
         content: Type.Array(Node, { minItems: 1 }),
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        type: Type.Literal("databaseBlock"),
+        attrs: DatabaseBlockAttributesSchema,
       },
       { additionalProperties: false },
     ),

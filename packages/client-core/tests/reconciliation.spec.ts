@@ -20,8 +20,15 @@ import type {
   QueuedMutationResultDto,
   RelationshipDto,
 } from "@myownnotion/contracts";
-import { buildTaskProjections, generateUuidV7, type Uuid } from "@myownnotion/domain";
+import {
+  buildTaskProjections,
+  extractDatabaseBlocks,
+  generateUuidV7,
+  normalizePageDocumentForEditor,
+  type Uuid,
+} from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildDatabaseDocument, buildDatabaseFixture } from "../../../tests/fixtures/databases.ts";
 
 let db: LocalDatabase;
 let outbox: Outbox;
@@ -107,6 +114,15 @@ function serverTaskPage(name: string, taskId: Uuid, taskTitle: string): ItemDto 
         ],
       },
     },
+  } as ItemDto;
+}
+
+function serverDatabasePage(name: string): ItemDto {
+  const item = serverItem(name);
+  return {
+    ...item,
+    kind: "page",
+    pageDocument: buildDatabaseDocument(buildDatabaseFixture(4)),
   } as ItemDto;
 }
 
@@ -392,6 +408,35 @@ describe("reconciliation (T044)", () => {
     ]);
   });
 
+  it("projects a complete version 5 database received through incremental catch-up", async () => {
+    const databasePage = serverDatabasePage("Remote database");
+    const transport = new FakeTransport();
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 1,
+            mutationId: generateUuidV7(),
+            revisionIds: [databasePage.currentRevisionId],
+            changedItems: [databasePage],
+          },
+        ],
+        nextCursor: "database-1",
+        hasMore: false,
+      },
+    ];
+
+    const outcome = await reconcile(db, transport);
+    const stored = await repository.getItem(databasePage.id as Uuid);
+    expect(outcome.caughtUpTo).toBe("database-1");
+    expect(stored?.pageDocument).toEqual(databasePage.pageDocument);
+    if (stored?.pageDocument == null) throw new Error("Stored database document missing");
+    const normalized = normalizePageDocumentForEditor(stored.pageDocument);
+    expect(normalized.ok).toBe(true);
+    if (!normalized.ok) throw new Error("Stored database document did not normalize");
+    expect(extractDatabaseBlocks(normalized.value)).toHaveLength(1);
+  });
+
   it("replaces incremental derived relationships by source idempotently, including removal", async () => {
     const source = generateUuidV7();
     const firstTarget = generateUuidV7();
@@ -492,6 +537,27 @@ describe("reconciliation (T044)", () => {
     expect(buildTaskProjections(stored === null ? [] : [stored])).toEqual([
       expect.objectContaining({ taskId, title: "Recovered task" }),
     ]);
+  });
+
+  it("rebuilds a complete version 5 database from a verified snapshot", async () => {
+    await repository.setMeta("lastChangeCursor", "compacted-database");
+    const databasePage = serverDatabasePage("Snapshot database");
+    const transport = new FakeTransport();
+    transport.compactedCursors.add("compacted-database");
+    transport.snapshot = {
+      workspaceId: generateUuidV7(),
+      schemaVersion: 1,
+      cursor: "database-200",
+      digest: "e".repeat(64),
+      items: [databasePage],
+      relationships: [],
+    };
+
+    const outcome = await reconcile(db, transport);
+    expect(outcome).toMatchObject({ usedSnapshotFallback: true, caughtUpTo: "database-200" });
+    expect((await repository.getItem(databasePage.id as Uuid))?.pageDocument).toEqual(
+      databasePage.pageDocument,
+    );
   });
 
   it("preserves conflicted local wiki relationships across snapshot fallback", async () => {
@@ -630,6 +696,43 @@ describe("reconciliation (T044)", () => {
         priority: "low",
       }),
     ]);
+    expect(await outbox.conflicts()).toHaveLength(1);
+  });
+
+  it("preserves a complete conflicted local database across snapshot fallback", async () => {
+    const source = serverDatabasePage("Conflicted database");
+    await repository.applyServerItems([source]);
+    const mutationId = generateUuidV7();
+    const localDatabaseDocument = buildDatabaseDocument(buildDatabaseFixture(7));
+    const result = await applyLocalMutation(db, {
+      mutationId,
+      commandType: "page.document.replace",
+      payload: {
+        itemId: source.id,
+        baseRevisionId: source.currentRevisionId,
+        document: localDatabaseDocument,
+      },
+      baseRevisionIds: [source.currentRevisionId as Uuid],
+    });
+    expect(result.ok).toBe(true);
+    await outbox.captureConflict(mutationId, [generateUuidV7()], "revision.stale-base");
+    await repository.setMeta("lastChangeCursor", "compacted-database-conflict");
+    const transport = new FakeTransport();
+    transport.compactedCursors.add("compacted-database-conflict");
+    transport.snapshot = {
+      workspaceId: generateUuidV7(),
+      schemaVersion: 1,
+      cursor: "database-300",
+      digest: "f".repeat(64),
+      items: [source],
+      relationships: [],
+    };
+
+    await reconcile(db, transport);
+
+    expect((await repository.getItem(source.id as Uuid))?.pageDocument).toEqual(
+      localDatabaseDocument,
+    );
     expect(await outbox.conflicts()).toHaveLength(1);
   });
 });

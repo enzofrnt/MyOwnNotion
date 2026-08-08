@@ -92,6 +92,8 @@ For a functional knowledge-network check, create two pages in the interface, typ
 
 For a functional task check, insert a task in either page, place the caret inside it, and set **In progress**, a due date, and **High** priority. Save, then find it under **Tasks**. Exercise its calendar scope, text/status/priority filters, list and board views, and the action that opens the source block. Reload once with the browser network unavailable to confirm the already-loaded page and task view remain local; reconnect and wait for the workspace to report synchronization.
 
+For a functional database check, insert a database in a page and add select, date, number, and relation properties. Add at least two records, relate the first to the second, then exercise search, numeric sorting, select-grouped board, and gallery. Save and reload. Disconnect the browser network, edit a record and the current view, reload once, reconnect, and wait for synchronization. The same database identity, schema, records, relation, query, sort, and view must remain present.
+
 To verify the configured images and loopback bindings without starting services:
 
 ```text
@@ -124,7 +126,7 @@ docker compose --env-file .env.prod -f compose.prod.yaml up --detach --wait
 
 Canonical metadata and page content remain in the project-scoped `postgres-data` volume. Immutable file content remains in `blob-data`. A normal `down` or host restart does not delete either volume.
 
-After restarting, reopen the linked source and target. The inline link, backlink occurrence count, graph edge, task identity, status, due date, priority, and task-workspace result must still be present. The automated container smoke performs the same persistence check through the same-origin web proxy using one version-4 document containing both its task metadata and derived wiki relationship.
+After restarting, reopen the linked source and target. The inline link, backlink occurrence count, graph edge, task identity, status, due date, priority, task-workspace result, database schema, records, relation, and selected view must still be present. The automated container smoke performs the same persistence check through the same-origin web proxy using one version-5 document containing its task metadata, derived wiki relationship, and structured database.
 
 ## Update to another immutable revision
 

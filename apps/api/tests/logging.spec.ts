@@ -178,4 +178,72 @@ describe("logging configuration (T091)", () => {
     expect(output).not.toContain(privateFilter);
     expect(output).not.toContain("2026-08-08");
   });
+
+  it("never logs version 5 database names, values, relations, or queries", async () => {
+    const captured: string[] = [];
+    const app = Fastify({
+      logger: {
+        ...registerLogging(),
+        stream: { write: (line: string) => captured.push(line) },
+      },
+    });
+    app.put("/database-document", async () => ({ ok: true }));
+    const privateProperty = "PrivateProperty-99311";
+    const privateRecord = "PrivateRecord-21455";
+    const privateValue = "PrivateValue-77129";
+    const privateQuery = "PrivateQuery-31172";
+    await app.inject({
+      method: "PUT",
+      url: "/database-document",
+      payload: {
+        document: {
+          formatVersion: 5,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "databaseBlock",
+                attrs: {
+                  databaseId: "01900000-0000-7000-8000-000000000100",
+                  schemaVersion: 1,
+                  properties: [
+                    {
+                      propertyId: "01900000-0000-7000-8000-000000000101",
+                      type: "text",
+                      name: privateProperty,
+                    },
+                  ],
+                  records: [
+                    {
+                      recordId: "01900000-0000-7000-8000-000000000102",
+                      title: privateRecord,
+                      values: [
+                        {
+                          propertyId: "01900000-0000-7000-8000-000000000101",
+                          type: "text",
+                          value: privateValue,
+                        },
+                      ],
+                    },
+                  ],
+                  view: {
+                    mode: "table",
+                    query: privateQuery,
+                    sortPropertyId: null,
+                    sortDirection: "asc",
+                    boardGroupPropertyId: null,
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    await app.close();
+    const output = captured.join("\n");
+    for (const secret of [privateProperty, privateRecord, privateValue, privateQuery]) {
+      expect(output).not.toContain(secret);
+    }
+  });
 });

@@ -10,6 +10,7 @@ import {
   createItemViaApi,
   idempotencyHeaders,
 } from "../../apps/api/tests/helpers/app.ts";
+import { buildDatabaseDocument, buildDatabaseFixture } from "../fixtures/databases.ts";
 
 let harness: ApiHarness;
 
@@ -152,6 +153,45 @@ describe("editor document export (US1)", () => {
         metadata: { label: " linked" },
         removedRevisionId: null,
       }),
+    );
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+  });
+
+  it("round-trips version 5 database identities, schema, records, relations, and view exactly", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Database export" });
+    const fixture = buildDatabaseFixture(4);
+    const databaseDocument = buildDatabaseDocument({
+      ...fixture,
+      view: { ...fixture.view, mode: "gallery", query: "Record", sortDirection: "desc" },
+    });
+    const replaced = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: page.revisionId, document: databaseDocument },
+    });
+    expect(replaced.statusCode).toBe(200);
+
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/export",
+      headers: idempotencyHeaders(),
+    });
+    const exportId = (created.json() as { exportId: string }).exportId;
+    let status = "pending";
+    for (let attempt = 0; attempt < 50 && status === "pending"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const poll = await harness.built.app.inject({ method: "GET", url: `/v1/export/${exportId}` });
+      status = (poll.json() as { status: string }).status;
+    }
+    expect(status).toBe("ready");
+    const artifact = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${exportId}/artifact`,
+    });
+    const manifest = artifact.json() as CanonicalExportManifest;
+    expect(manifest.items.find((item) => item.id === page.itemId)?.pageDocument).toEqual(
+      databaseDocument,
     );
     expect(validateCanonicalExport(manifest)).toEqual([]);
   });

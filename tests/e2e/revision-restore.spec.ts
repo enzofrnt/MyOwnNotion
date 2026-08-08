@@ -3,6 +3,12 @@
  */
 import { expect, test } from "@playwright/test";
 import {
+  addDatabaseProperty,
+  addDatabaseRecord,
+  addSelectOption,
+  insertDatabase,
+} from "./database-helpers.ts";
+import {
   createRootItem,
   openWorkspace,
   savePageAndSynchronize,
@@ -98,6 +104,59 @@ test.describe("revision history (US5)", () => {
     const workspace = page.getByTestId("task-workspace");
     await workspace.getByPlaceholder("Title or source page").fill(taskTitle);
     await expect(workspace.getByTestId("task-count")).toHaveText("1 task");
+  });
+
+  test("restores an exact version 5 database identity, relation, and view", async ({
+    page,
+    request,
+  }) => {
+    await openWorkspace(page);
+    const pageName = uniqueName("RestoreDatabase");
+    await createRootItem(page, "page", pageName);
+    await selectItem(page, pageName);
+    const database = await insertDatabase(page);
+    const databaseId = await database.getAttribute("data-database-id");
+    await addDatabaseProperty(database, "Status", "select");
+    await addDatabaseProperty(database, "Related", "relation");
+    await addSelectOption(database, "Status", "Active");
+    await addDatabaseRecord(database, "Restored Alpha");
+    await addDatabaseRecord(database, "Restored Beta");
+    const betaId = await database
+      .getByRole("row", { name: /^Restored Beta / })
+      .getAttribute("data-record-id");
+    if (betaId === null) throw new Error("Restored relation target identity missing");
+    await database
+      .getByRole("combobox", { name: "Status for Restored Alpha" })
+      .selectOption({ label: "Active" });
+    await database
+      .getByRole("listbox", { name: "Related for Restored Alpha" })
+      .selectOption(betaId);
+    await database.getByRole("button", { name: "Gallery" }).click();
+    await savePageAndSynchronize(page);
+    const sourceId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
+    const withDatabase = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
+    const withDatabaseBody = (await withDatabase.json()) as { currentRevisionId: string };
+
+    await page.getByRole("textbox", { name: "Page content" }).fill("Database temporarily removed");
+    await savePageAndSynchronize(page);
+    await selectItem(page, pageName);
+    await page.getByTestId("revision-id-input").fill(withDatabaseBody.currentRevisionId);
+    await page.getByTestId("preview-revision").click();
+    await page.getByTestId("restore-revision").click();
+    await expect(page.getByTestId("restore-feedback")).toContainText("history unchanged");
+
+    await page.reload();
+    await openWorkspace(page);
+    await selectItem(page, pageName);
+    const restored = page.getByTestId("database-block");
+    await expect(restored).toHaveAttribute("data-database-id", databaseId ?? "");
+    await expect(restored.getByRole("button", { name: "Gallery" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(
+      restored.getByRole("button", { name: "Open record Restored Alpha" }),
+    ).toBeVisible();
   });
 
   test("restores retained content as a new descendant revision", async ({ page }) => {

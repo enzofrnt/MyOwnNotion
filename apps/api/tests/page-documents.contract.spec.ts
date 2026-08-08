@@ -4,6 +4,7 @@
 
 import { generateUuidV7 } from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildDatabaseDocument, buildDatabaseFixture } from "../../../tests/fixtures/databases.ts";
 import {
   type ApiHarness,
   createApiHarness,
@@ -225,6 +226,141 @@ describe("page-document replacement (T058)", () => {
       (response.json() as { item: { pageDocument: { formatVersion: number } } }).item.pageDocument
         .formatVersion,
     ).toBe(4);
+  });
+
+  it("accepts initial and replacement version 5 database documents without changing identities", async () => {
+    const itemId = generateUuidV7();
+    const initialDocument = buildDatabaseDocument(buildDatabaseFixture(2));
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Initial database page",
+        placement: {
+          id: generateUuidV7(),
+          kind: "hierarchy",
+          parentItemId: null,
+          positionKey: "W",
+        },
+        pageDocument: initialDocument,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const revisionId = (created.json() as { revisionIds: string[] }).revisionIds[0];
+    const database = initialDocument.body.content[0]?.attrs;
+    if (database === undefined || revisionId === undefined)
+      throw new Error("Database create failed");
+    const replacement = {
+      ...initialDocument,
+      body: {
+        ...initialDocument.body,
+        content: [
+          {
+            type: "databaseBlock",
+            attrs: {
+              ...database,
+              records: database.records.map((record, index) =>
+                index === 0 ? { ...record, title: "Renamed exact record" } : record,
+              ),
+              view: { ...database.view, mode: "gallery" as const, query: "renamed" },
+            },
+          },
+        ],
+      },
+    };
+    const replaced = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: revisionId, document: replacement },
+    });
+    expect(replaced.statusCode).toBe(200);
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${itemId}` });
+    expect((item.json() as { pageDocument: unknown }).pageDocument).toEqual(replacement);
+  });
+
+  it("rejects malformed version 5 database values without exposing private content", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Invalid database page" });
+    const document = buildDatabaseDocument(buildDatabaseFixture(1));
+    const database = document.body.content[0]?.attrs;
+    const property = database?.properties[0];
+    const record = database?.records[0];
+    if (database === undefined || property === undefined || record === undefined) {
+      throw new Error("Database fixture incomplete");
+    }
+    const privateValue = "PrivateDatabaseValue-71925";
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: page.revisionId,
+        document: {
+          ...document,
+          body: {
+            ...document.body,
+            content: [
+              {
+                type: "databaseBlock",
+                attrs: {
+                  ...database,
+                  records: [
+                    {
+                      ...record,
+                      title: privateValue,
+                      values: [{ propertyId: property.propertyId, type: "number", value: 12 }],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.body).not.toContain(privateValue);
+  });
+
+  it("restores an exact version 5 database schema, relation, and view from retained history", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Restore database page" });
+    const databaseDocument = buildDatabaseDocument(buildDatabaseFixture(3));
+    const saved = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: page.revisionId, document: databaseDocument },
+    });
+    expect(saved.statusCode).toBe(200);
+    const databaseRevisionId = (saved.json() as { revisionIds: string[] }).revisionIds[0];
+    if (databaseRevisionId === undefined) throw new Error("Database revision missing");
+    const removed = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: databaseRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 5,
+          body: { type: "doc", content: [{ type: "paragraph" }] },
+        },
+      },
+    });
+    expect(removed.statusCode).toBe(200);
+    const removedRevisionId = (removed.json() as { revisionIds: string[] }).revisionIds[0];
+    const restored = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/revisions/${databaseRevisionId}/restore`,
+      headers: idempotencyHeaders(),
+      payload: { currentRevisionId: removedRevisionId },
+    });
+    expect(restored.statusCode).toBe(200);
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${page.itemId}` });
+    expect((item.json() as { pageDocument: unknown }).pageDocument).toEqual(databaseDocument);
   });
 
   it("rejects malformed version 4 task metadata without exposing its title", async () => {

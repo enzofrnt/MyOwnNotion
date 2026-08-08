@@ -94,6 +94,12 @@ try {
   const itemId = generateUuidV7();
   const occurrenceId = generateUuidV7();
   const taskId = generateUuidV7();
+  const databaseId = generateUuidV7();
+  const statusPropertyId = generateUuidV7();
+  const relationPropertyId = generateUuidV7();
+  const activeOptionId = generateUuidV7();
+  const sourceRecordId = generateUuidV7();
+  const targetRecordId = generateUuidV7();
   await expectJson(`${webBaseUrl}/v1/items`, {
     method: "POST",
     headers: {
@@ -111,7 +117,7 @@ try {
       },
       pageDocument: {
         format: "myownnotion.document+json",
-        formatVersion: 4,
+        formatVersion: 5,
         body: {
           type: "doc",
           content: [
@@ -158,6 +164,44 @@ try {
                 },
               ],
             },
+            {
+              type: "databaseBlock",
+              attrs: {
+                databaseId,
+                schemaVersion: 1,
+                properties: [
+                  {
+                    propertyId: statusPropertyId,
+                    name: "Status",
+                    type: "select",
+                    options: [{ optionId: activeOptionId, name: "Active" }],
+                  },
+                  { propertyId: relationPropertyId, name: "Related", type: "relation" },
+                ],
+                records: [
+                  {
+                    recordId: sourceRecordId,
+                    title: "Container source record",
+                    values: [
+                      { propertyId: statusPropertyId, type: "select", value: activeOptionId },
+                      {
+                        propertyId: relationPropertyId,
+                        type: "relation",
+                        value: [targetRecordId],
+                      },
+                    ],
+                  },
+                  { recordId: targetRecordId, title: "Container target record", values: [] },
+                ],
+                view: {
+                  mode: "board",
+                  query: "Container",
+                  sortPropertyId: null,
+                  sortDirection: "desc",
+                  boardGroupPropertyId: statusPropertyId,
+                },
+              },
+            },
           ],
         },
       },
@@ -171,17 +215,19 @@ try {
     id: string;
     pageDocument: {
       formatVersion: number;
-      body: { content: Array<{ type: string; content?: unknown[] }> };
+      body: {
+        content: Array<{ type: string; attrs?: Record<string, unknown>; content?: unknown[] }>;
+      };
     };
   }>(`${webBaseUrl}/v1/items/${itemId}`);
   if (persisted.id !== itemId) {
     throw new Error("Restarted composition did not preserve the committed fixture item");
   }
   if (
-    persisted.pageDocument.formatVersion !== 4 ||
+    persisted.pageDocument.formatVersion !== 5 ||
     persisted.pageDocument.body.content[0]?.type !== "heading"
   ) {
-    throw new Error("Restarted composition did not preserve the version 4 editor document");
+    throw new Error("Restarted composition did not preserve the version 5 editor document");
   }
   const persistedTaskList = persisted.pageDocument.body.content.find(
     (node) => node.type === "taskList",
@@ -196,6 +242,33 @@ try {
     persistedTask.attrs["priority"] !== "high"
   ) {
     throw new Error("Restarted composition did not preserve task identity and metadata");
+  }
+  const persistedDatabase = persisted.pageDocument.body.content.find(
+    (node) => node.type === "databaseBlock",
+  );
+  const persistedDatabaseAttrs = persistedDatabase?.attrs as
+    | {
+        databaseId?: string;
+        records?: Array<{ recordId?: string; values?: Array<{ type?: string; value?: unknown }> }>;
+        view?: Record<string, unknown>;
+      }
+    | undefined;
+  const persistedSourceRecord = persistedDatabaseAttrs?.records?.find(
+    (record) => record.recordId === sourceRecordId,
+  );
+  if (
+    persistedDatabaseAttrs?.databaseId !== databaseId ||
+    persistedDatabaseAttrs.records?.some((record) => record.recordId === targetRecordId) !== true ||
+    persistedSourceRecord?.values?.some(
+      (value) =>
+        value.type === "relation" &&
+        JSON.stringify(value.value) === JSON.stringify([targetRecordId]),
+    ) !== true ||
+    persistedDatabaseAttrs.view?.["mode"] !== "board" ||
+    persistedDatabaseAttrs.view["query"] !== "Container" ||
+    persistedDatabaseAttrs.view["boardGroupPropertyId"] !== statusPropertyId
+  ) {
+    throw new Error("Restarted composition did not preserve database schema, relation, and view");
   }
 
   const persistedRelationships = await expectJson<{
@@ -218,7 +291,7 @@ try {
   }
 
   console.info(
-    "Container smoke test passed: images, health proxy, migrations, and v4 wiki/task persistence.",
+    "Container smoke test passed: images, health proxy, migrations, and v5 wiki/task/database persistence.",
   );
 } catch (error) {
   console.error("Container smoke test failed:", error);

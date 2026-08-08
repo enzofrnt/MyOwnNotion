@@ -1,11 +1,13 @@
 /** Canonical, editor-independent page document contract. */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
+import { type DatabaseBlockAttributes, validateDatabaseBlockAttributes } from "./database.ts";
 import type { DomainResult, PageDocument, SafeErrorCode } from "./types.ts";
 import { err, ok, PAGE_DOCUMENT_FORMAT } from "./types.ts";
 
 export const LEGACY_EDITOR_DOCUMENT_VERSION = 2;
 export const WIKI_LINK_EDITOR_DOCUMENT_VERSION = 3;
-export const EDITOR_DOCUMENT_VERSION = 4;
+export const TASK_EDITOR_DOCUMENT_VERSION = 4;
+export const EDITOR_DOCUMENT_VERSION = 5;
 
 export const EDITOR_BLOCK_TYPES = [
   "paragraph",
@@ -18,6 +20,7 @@ export const EDITOR_BLOCK_TYPES = [
   "blockquote",
   "codeBlock",
   "horizontalRule",
+  "databaseBlock",
 ] as const;
 
 export const EDITOR_MARK_TYPES = ["bold", "italic", "strike", "code", "wikiLink"] as const;
@@ -286,7 +289,11 @@ function validateListItems(
   value: unknown,
   path: string,
   expectedType: "listItem" | "taskItem",
-  options: { readonly allowWikiLinks: boolean; readonly taskMetadata: TaskMetadataMode },
+  options: {
+    readonly allowWikiLinks: boolean;
+    readonly taskMetadata: TaskMetadataMode;
+    readonly allowDatabases: boolean;
+  },
 ): DomainResult<null> {
   if (!Array.isArray(value) || value.length === 0) {
     return structureError(path, "list-requires-items");
@@ -332,7 +339,11 @@ function validateListItems(
 function validateBlock(
   value: unknown,
   path: string,
-  options: { readonly allowWikiLinks: boolean; readonly taskMetadata: TaskMetadataMode },
+  options: {
+    readonly allowWikiLinks: boolean;
+    readonly taskMetadata: TaskMetadataMode;
+    readonly allowDatabases: boolean;
+  },
 ): DomainResult<null> {
   if (!isRecord(value) || typeof value.type !== "string") {
     return structureError(path, "invalid-block");
@@ -426,6 +437,16 @@ function validateBlock(
         return structureError(path, "invalid-task-list");
       }
       return validateListItems(value.content, `${path}.content`, "taskItem", options);
+    case "databaseBlock": {
+      if (!options.allowDatabases) {
+        return structureError(`${path}.type`, "unsupported-node", "document.unsupported-content");
+      }
+      if (!hasOnlyKeys(value, ["type", "attrs"])) {
+        return structureError(path, "invalid-database-block");
+      }
+      const result = validateDatabaseBlockAttributes(value.attrs, `${path}.attrs`);
+      return result.ok ? ok(null) : result;
+    }
     default:
       return structureError(`${path}.type`, "unsupported-node", "document.unsupported-content");
   }
@@ -511,16 +532,31 @@ export function countEditorTaskItems(document: EditorDocument): number {
   return count;
 }
 
+export function extractDatabaseBlocks(document: EditorDocument): DatabaseBlockAttributes[] {
+  const databases: DatabaseBlockAttributes[] = [];
+  const visit = (node: EditorNode): void => {
+    if (node.type === "databaseBlock") {
+      const result = validateDatabaseBlockAttributes(node.attrs);
+      if (result.ok) databases.push(result.value);
+    }
+    for (const child of node.content ?? []) visit(child);
+  };
+  visit(document);
+  return databases;
+}
+
 export function validateEditorDocument(
   value: unknown,
   options: {
     readonly allowWikiLinks?: boolean;
     readonly taskMetadata?: TaskMetadataMode;
+    readonly allowDatabases?: boolean;
   } = {},
 ): DomainResult<EditorDocument> {
   const validationOptions = {
     allowWikiLinks: options.allowWikiLinks ?? true,
     taskMetadata: options.taskMetadata ?? ("either" as const),
+    allowDatabases: options.allowDatabases ?? true,
   };
   if (!isRecord(value) || !hasOnlyKeys(value, ["type", "content"]) || value.type !== "doc") {
     return structureError("body", "invalid-document");
@@ -548,6 +584,13 @@ export function validateEditorDocument(
       return structureError("body", "duplicate-task-identity");
     }
     taskIds.add(occurrence.taskId);
+  }
+  const databaseIds = new Set<string>();
+  for (const database of extractDatabaseBlocks(document)) {
+    if (databaseIds.has(database.databaseId)) {
+      return structureError("body", "duplicate-database-identity");
+    }
+    databaseIds.add(database.databaseId);
   }
   return ok(document);
 }
@@ -583,18 +626,29 @@ export function normalizePageDocumentForEditor(
     return structureError("document.format", "unsupported-format", "document.unsupported-content");
   }
   if (document.formatVersion === EDITOR_DOCUMENT_VERSION) {
-    return validateEditorDocument(document.body, { taskMetadata: "current" });
+    return validateEditorDocument(document.body, {
+      taskMetadata: "current",
+      allowDatabases: true,
+    });
+  }
+  if (document.formatVersion === TASK_EDITOR_DOCUMENT_VERSION) {
+    return validateEditorDocument(document.body, {
+      taskMetadata: "current",
+      allowDatabases: false,
+    });
   }
   if (document.formatVersion === WIKI_LINK_EDITOR_DOCUMENT_VERSION) {
     return validateEditorDocument(document.body, {
       allowWikiLinks: true,
       taskMetadata: "legacy",
+      allowDatabases: false,
     });
   }
   if (document.formatVersion === LEGACY_EDITOR_DOCUMENT_VERSION) {
     return validateEditorDocument(document.body, {
       allowWikiLinks: false,
       taskMetadata: "legacy",
+      allowDatabases: false,
     });
   }
   if (document.formatVersion === 1 && Object.keys(document.body).length === 0) {

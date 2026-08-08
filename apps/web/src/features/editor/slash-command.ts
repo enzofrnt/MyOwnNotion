@@ -6,6 +6,7 @@ import Suggestion, {
   type SuggestionKeyDownProps,
   type SuggestionProps,
 } from "@tiptap/suggestion";
+import { insertDatabaseBlock } from "../databases/database-extension.ts";
 import {
   SlashCommandMenu,
   type SlashCommandMenuHandle,
@@ -73,6 +74,16 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
     description: "Checklist with completion controls",
     keywords: ["checklist", "todo", "task"],
     run: (editor, range) => void withDeletedQuery(editor, range).toggleTaskList().run(),
+  },
+  {
+    id: "database",
+    label: "Database",
+    description: "Structured records with table, board, and gallery views",
+    keywords: ["table", "board", "gallery", "properties"],
+    run: (editor, range) => {
+      withDeletedQuery(editor, range).run();
+      insertDatabaseBlock(editor);
+    },
   },
   {
     id: "blockquote",

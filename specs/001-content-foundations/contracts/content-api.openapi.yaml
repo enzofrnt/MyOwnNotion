@@ -590,6 +590,129 @@ components:
             - { type: 'null' }
         priority: { enum: [none, low, medium, high] }
       additionalProperties: false
+    DatabaseSelectOption:
+      type: object
+      required: [optionId, name]
+      properties:
+        optionId: { $ref: '#/components/schemas/Uuid' }
+        name: { type: string, minLength: 1, maxLength: 128 }
+      additionalProperties: false
+    DatabaseProperty:
+      oneOf:
+        - type: object
+          required: [propertyId, name, type]
+          properties:
+            propertyId: { $ref: '#/components/schemas/Uuid' }
+            name: { type: string, minLength: 1, maxLength: 128 }
+            type: { enum: [text, number, date, checkbox, relation] }
+          additionalProperties: false
+        - type: object
+          required: [propertyId, name, type, options]
+          properties:
+            propertyId: { $ref: '#/components/schemas/Uuid' }
+            name: { type: string, minLength: 1, maxLength: 128 }
+            type: { const: select }
+            options:
+              type: array
+              maxItems: 50
+              items: { $ref: '#/components/schemas/DatabaseSelectOption' }
+          additionalProperties: false
+    DatabaseValue:
+      oneOf:
+        - type: object
+          required: [propertyId, type, value]
+          properties:
+            propertyId: { $ref: '#/components/schemas/Uuid' }
+            type: { const: text }
+            value: { type: string, maxLength: 10000 }
+          additionalProperties: false
+        - type: object
+          required: [propertyId, type, value]
+          properties:
+            propertyId: { $ref: '#/components/schemas/Uuid' }
+            type: { const: number }
+            value: { type: [number, 'null'] }
+          additionalProperties: false
+        - type: object
+          required: [propertyId, type, value]
+          properties:
+            propertyId: { $ref: '#/components/schemas/Uuid' }
+            type: { const: select }
+            value:
+              oneOf:
+                - { $ref: '#/components/schemas/Uuid' }
+                - { type: 'null' }
+          additionalProperties: false
+        - type: object
+          required: [propertyId, type, value]
+          properties:
+            propertyId: { $ref: '#/components/schemas/Uuid' }
+            type: { const: date }
+            value:
+              oneOf:
+                - { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
+                - { type: 'null' }
+          additionalProperties: false
+        - type: object
+          required: [propertyId, type, value]
+          properties:
+            propertyId: { $ref: '#/components/schemas/Uuid' }
+            type: { const: checkbox }
+            value: { type: boolean }
+          additionalProperties: false
+        - type: object
+          required: [propertyId, type, value]
+          properties:
+            propertyId: { $ref: '#/components/schemas/Uuid' }
+            type: { const: relation }
+            value:
+              type: array
+              maxItems: 200
+              uniqueItems: true
+              items: { $ref: '#/components/schemas/Uuid' }
+          additionalProperties: false
+    DatabaseRecord:
+      type: object
+      required: [recordId, title, values]
+      properties:
+        recordId: { $ref: '#/components/schemas/Uuid' }
+        title: { type: string, maxLength: 512 }
+        values:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/DatabaseValue' }
+      additionalProperties: false
+    DatabaseBlockAttributes:
+      type: object
+      required: [databaseId, schemaVersion, properties, records, view]
+      properties:
+        databaseId: { $ref: '#/components/schemas/Uuid' }
+        schemaVersion: { const: 1 }
+        properties:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/DatabaseProperty' }
+        records:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/DatabaseRecord' }
+        view:
+          type: object
+          required: [mode, query, sortPropertyId, sortDirection, boardGroupPropertyId]
+          properties:
+            mode: { enum: [table, board, gallery] }
+            query: { type: string, maxLength: 512 }
+            sortPropertyId:
+              oneOf:
+                - { $ref: '#/components/schemas/Uuid' }
+                - { type: 'null' }
+            sortDirection: { enum: [asc, desc] }
+            boardGroupPropertyId:
+              oneOf:
+                - { $ref: '#/components/schemas/Uuid' }
+                - { type: 'null' }
+          additionalProperties: false
+      additionalProperties: false
     PageDocument:
       type: object
       required: [format, formatVersion, body]

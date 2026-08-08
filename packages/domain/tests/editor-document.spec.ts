@@ -1,5 +1,7 @@
 import {
+  createEmptyDatabaseAttributes,
   EMPTY_EDITOR_DOCUMENT,
+  extractDatabaseBlocks,
   extractTaskOccurrences,
   extractWikiLinkOccurrences,
   generateUuidV7,
@@ -104,7 +106,7 @@ describe("editor document v2", () => {
     ).toEqual({ ok: true, value: completeDocument });
     expect(toPageDocument(EMPTY_EDITOR_DOCUMENT)).toEqual({
       format: "myownnotion.document+json",
-      formatVersion: 4,
+      formatVersion: 5,
       body: EMPTY_EDITOR_DOCUMENT,
     });
 
@@ -242,6 +244,37 @@ describe("editor document v2", () => {
         depth: 1,
       },
     ]);
+  });
+
+  it("accepts version 5 database blocks and rejects them in older documents", () => {
+    const database = createEmptyDatabaseAttributes(generateUuidV7());
+    const body = {
+      type: "doc",
+      content: [{ type: "databaseBlock", attrs: database }],
+    } as const;
+
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 5,
+        body,
+      }).ok,
+    ).toBe(true);
+    expect(extractDatabaseBlocks(body)).toEqual([database]);
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 4,
+        body,
+      }).ok,
+    ).toBe(false);
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 5,
+        body: { ...body, content: [...body.content, ...body.content] },
+      }).ok,
+    ).toBe(false);
   });
 
   it.each([

@@ -3,6 +3,7 @@ import {
   EDITOR_DOCUMENT_VERSION,
   extractTaskOccurrences,
   normalizePageDocumentForEditor,
+  TASK_EDITOR_DOCUMENT_VERSION,
   type TaskOccurrence,
   type TaskPriority,
   type TaskStatus,
@@ -63,7 +64,8 @@ export function buildTaskProjections(
     .filter(
       (source) =>
         source.lifecycle !== "purged" &&
-        source.pageDocument?.formatVersion === EDITOR_DOCUMENT_VERSION,
+        (source.pageDocument?.formatVersion === TASK_EDITOR_DOCUMENT_VERSION ||
+          source.pageDocument?.formatVersion === EDITOR_DOCUMENT_VERSION),
     )
     .sort(
       (left, right) =>

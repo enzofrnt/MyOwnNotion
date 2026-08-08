@@ -2,6 +2,7 @@ import type { Uuid } from "@myownnotion/domain";
 import { TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
+import { DatabaseBlock } from "../databases/database-extension.ts";
 import { MarkdownShortcutUndo } from "./markdown-shortcuts.ts";
 import { SlashCommandExtension } from "./slash-command.ts";
 import { TaskItemWithMetadata } from "./task-item.ts";
@@ -18,6 +19,7 @@ export function createEditorExtensions(options: {
       codeBlock: { defaultLanguage: null },
     }),
     TaskList,
+    DatabaseBlock,
     TaskItemWithMetadata.configure({
       nested: true,
       a11y: {

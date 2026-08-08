@@ -16,6 +16,7 @@ import {
   createItemViaApi,
   idempotencyHeaders,
 } from "../../apps/api/tests/helpers/app.ts";
+import { buildDatabaseDocument, buildDatabaseFixture } from "../fixtures/databases.ts";
 
 let harness: ApiHarness;
 
@@ -222,6 +223,34 @@ describe("canonical export (T086/T088)", () => {
 
     const { manifest } = await runExport();
 
+    expect(manifest.items.find((item) => item.id === source.itemId)?.pageDocument).toEqual(
+      document,
+    );
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+    expect(
+      canonicalExportString(JSON.parse(canonicalExportString(manifest)) as CanonicalExportManifest),
+    ).toBe(canonicalExportString(manifest));
+  });
+
+  it("round-trips every version-5 database identity, typed value, relation, and view", async () => {
+    const source = await createItemViaApi(harness, {
+      kind: "page",
+      name: "Export database source",
+    });
+    const fixture = buildDatabaseFixture(8, 12);
+    const document = buildDatabaseDocument({
+      ...fixture,
+      view: { ...fixture.view, mode: "board", query: "Record 000" },
+    });
+    const replaced = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: source.revisionId, document },
+    });
+    expect(replaced.statusCode).toBe(200);
+
+    const { manifest } = await runExport();
     expect(manifest.items.find((item) => item.id === source.itemId)?.pageDocument).toEqual(
       document,
     );

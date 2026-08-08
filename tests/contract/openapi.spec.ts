@@ -11,6 +11,7 @@ import {
   CreateItemSchema,
   CreatePlacementSchema,
   CreateRelationshipSchema,
+  DatabaseBlockAttributesSchema,
   EditorDocumentSchema,
   ItemSchema,
   MutationResultSchema,
@@ -52,7 +53,7 @@ function runtimeRequired(schema: { required?: string[] }): string[] {
 }
 
 describe("OpenAPI ↔ runtime schema alignment", () => {
-  it("defines the strict version 4 editor JSON boundary", () => {
+  it("defines the strict version 5 editor JSON boundary", () => {
     expect(EditorDocumentSchema.required).toEqual(["type", "content"]);
     expect(EditorDocumentSchema.additionalProperties).toBe(false);
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"horizontalRule"');
@@ -63,6 +64,9 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"in_progress"');
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"dueDate"');
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"priority"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"databaseBlock"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"databaseId"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"relation"');
     expect(requiredOf("TaskItemAttributes")).toEqual([
       "checked",
       "taskId",
@@ -70,6 +74,18 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
       "dueDate",
       "priority",
     ]);
+    expect(requiredOf("DatabaseSelectOption")).toEqual(["optionId", "name"]);
+    expect(requiredOf("DatabaseRecord")).toEqual(["recordId", "title", "values"]);
+    expect(requiredOf("DatabaseBlockAttributes")).toEqual([
+      "databaseId",
+      "schemaVersion",
+      "properties",
+      "records",
+      "view",
+    ]);
+    expect(runtimeRequired(DatabaseBlockAttributesSchema)).toEqual(
+      requiredOf("DatabaseBlockAttributes"),
+    );
     expect(JSON.stringify(EditorDocumentSchema)).not.toContain("futureWidget");
   });
 

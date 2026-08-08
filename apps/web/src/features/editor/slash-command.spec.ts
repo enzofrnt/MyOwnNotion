@@ -12,11 +12,13 @@ describe("slash command catalogue", () => {
       "bullet-list",
       "ordered-list",
       "task-list",
+      "database",
       "blockquote",
       "code-block",
       "divider",
     ]);
     expect(filterSlashCommands("task").map((command) => command.id)).toEqual(["task-list"]);
+    expect(filterSlashCommands("gallery").map((command) => command.id)).toEqual(["database"]);
     expect(filterSlashCommands("number").map((command) => command.id)).toEqual(["ordered-list"]);
     expect(filterSlashCommands("quotation").map((command) => command.id)).toEqual(["blockquote"]);
     expect(filterSlashCommands("no-such-block")).toEqual([]);

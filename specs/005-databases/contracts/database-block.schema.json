@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myownnotion.local/schemas/database-block-v1.json",
+  "title": "MyOwnNotion database block attributes v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["databaseId", "schemaVersion", "properties", "records", "view"],
+  "properties": {
+    "databaseId": { "type": "string", "format": "uuid" },
+    "schemaVersion": { "const": 1 },
+    "properties": { "type": "array", "maxItems": 20 },
+    "records": { "type": "array", "maxItems": 1000 },
+    "view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "query", "sortPropertyId", "sortDirection", "boardGroupPropertyId"],
+      "properties": {
+        "mode": { "enum": ["table", "board", "gallery"] },
+        "query": { "type": "string", "maxLength": 512 },
+        "sortPropertyId": { "type": ["string", "null"], "format": "uuid" },
+        "sortDirection": { "enum": ["asc", "desc"] },
+        "boardGroupPropertyId": { "type": ["string", "null"], "format": "uuid" }
+      }
+    }
+  },
+  "$comment": "Executable domain and transport validators enforce the exact tagged property, option, record, value, uniqueness, cross-reference, calendar, and size unions documented in data-model.md."
+}

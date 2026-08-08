@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import type { KeyboardEvent } from "react";
+import { insertDatabaseBlock } from "../databases/database-extension.ts";
 
 function activateWithKeyboard(event: KeyboardEvent<HTMLButtonElement>, action: () => void): void {
   if (event.key === "Enter" || event.key === " ") {
@@ -85,6 +86,15 @@ export function EditorToolbar({ editor }: { readonly editor: Editor }) {
         active={editor.isActive("taskList")}
         onClick={() => editor.chain().focus().toggleTaskList().run()}
       />
+      <button
+        type="button"
+        aria-label="Insert database"
+        onMouseDown={(event) => event.preventDefault()}
+        onKeyDown={(event) => activateWithKeyboard(event, () => void insertDatabaseBlock(editor))}
+        onClick={() => void insertDatabaseBlock(editor)}
+      >
+        Database
+      </button>
       <ToggleButton
         label="Quote"
         active={editor.isActive("blockquote")}

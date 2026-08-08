@@ -14,6 +14,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildDatabaseDocument, buildDatabaseFixture } from "../../../tests/fixtures/databases.ts";
 
 const RICH_DOCUMENT: EditorDocument = {
   type: "doc",
@@ -78,6 +79,30 @@ async function createPage(
 }
 
 describe("rich editor local mutations", () => {
+  it("projects a complete version 5 database from an initial offline page creation", async () => {
+    const itemId = generateUuidV7();
+    const databaseDocument = buildDatabaseDocument(buildDatabaseFixture(3));
+    const mutationId = generateUuidV7();
+    const created = await applyLocalMutation(db, {
+      mutationId,
+      commandType: "item.create",
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Offline database page",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        pageDocument: databaseDocument,
+      },
+      baseRevisionIds: [],
+    });
+    expect(created.ok).toBe(true);
+    expect((await new LocalRepository(db).getItem(itemId))?.pageDocument).toEqual(databaseDocument);
+    expect(await new Outbox(db).get(mutationId)).toMatchObject({
+      status: "pending",
+      payload: { pageDocument: databaseDocument },
+    });
+  });
+
   it("projects version 4 tasks from an initial offline page creation", async () => {
     const itemId = generateUuidV7();
     const taskId = generateUuidV7();

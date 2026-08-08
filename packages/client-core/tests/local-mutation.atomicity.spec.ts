@@ -14,6 +14,7 @@ import {
 } from "@myownnotion/client-core";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildDatabaseDocument, buildDatabaseFixture } from "../../../tests/fixtures/databases.ts";
 
 let db: LocalDatabase;
 let repository: LocalRepository;
@@ -314,6 +315,47 @@ describe("atomic optimistic mutation + outbox (T040)", () => {
             ],
           },
         },
+      },
+      baseRevisionIds: [item.currentRevisionId],
+    });
+    (db.outbox as { add: unknown }).add = original;
+
+    expect(result.ok).toBe(false);
+    expect(await snapshotCounts()).toEqual(beforeCounts);
+    expect((await repository.getItem(itemId))?.pageDocument).toEqual(beforeDocument);
+  });
+
+  it("rolls back a complete version 5 database document when outbox storage fails", async () => {
+    const itemId = generateUuidV7();
+    const created = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "item.create",
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Atomic database page",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+      baseRevisionIds: [],
+    });
+    expect(created.ok).toBe(true);
+    const item = await repository.getItem(itemId);
+    if (item === null) throw new Error("Atomic database page was not created");
+    const beforeCounts = await snapshotCounts();
+    const beforeDocument = item.pageDocument;
+    const original = db.outbox.add.bind(db.outbox);
+    const quotaError = new Error("quota");
+    quotaError.name = "QuotaExceededError";
+    (db.outbox as { add: unknown }).add = () => Promise.reject(quotaError);
+
+    const databaseDocument = buildDatabaseDocument(buildDatabaseFixture(5));
+    const result = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      payload: {
+        itemId,
+        baseRevisionId: item.currentRevisionId,
+        document: databaseDocument,
       },
       baseRevisionIds: [item.currentRevisionId],
     });
