@@ -1,5 +1,6 @@
 import {
   EMPTY_EDITOR_DOCUMENT,
+  extractTaskOccurrences,
   extractWikiLinkOccurrences,
   generateUuidV7,
   normalizePageDocumentForEditor,
@@ -101,10 +102,10 @@ describe("editor document v2", () => {
         body: completeDocument,
       }),
     ).toEqual({ ok: true, value: completeDocument });
-    expect(toPageDocument(completeDocument)).toEqual({
+    expect(toPageDocument(EMPTY_EDITOR_DOCUMENT)).toEqual({
       format: "myownnotion.document+json",
-      formatVersion: 3,
-      body: completeDocument,
+      formatVersion: 4,
+      body: EMPTY_EDITOR_DOCUMENT,
     });
 
     const unsupportedFormat = normalizePageDocumentForEditor({
@@ -153,6 +154,196 @@ describe("editor document v2", () => {
         format: "myownnotion.document+json",
         formatVersion: 2,
         body: document,
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("accepts version 4 task metadata and extracts stable tasks in document order", () => {
+    const firstTaskId = generateUuidV7();
+    const secondTaskId = generateUuidV7();
+    const targetItemId = generateUuidV7();
+    const occurrenceId = generateUuidV7();
+    const document = {
+      type: "doc",
+      content: [
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: {
+                checked: false,
+                taskId: firstTaskId,
+                status: "in_progress",
+                dueDate: "2028-02-29",
+                priority: "high",
+              },
+              content: [
+                {
+                  type: "paragraph",
+                  content: [
+                    { type: "text", text: "Plan " },
+                    {
+                      type: "text",
+                      text: "release",
+                      marks: [{ type: "wikiLink", attrs: { targetItemId, occurrenceId } }],
+                    },
+                  ],
+                },
+                {
+                  type: "taskList",
+                  content: [
+                    {
+                      type: "taskItem",
+                      attrs: {
+                        checked: true,
+                        taskId: secondTaskId,
+                        status: "completed",
+                        dueDate: null,
+                        priority: "none",
+                      },
+                      content: [{ type: "paragraph" }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } as const;
+
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 4,
+        body: document,
+      }).ok,
+    ).toBe(true);
+    expect(extractTaskOccurrences(document)).toEqual([
+      {
+        taskId: firstTaskId,
+        title: "Plan release",
+        checked: false,
+        status: "in_progress",
+        dueDate: "2028-02-29",
+        priority: "high",
+        documentOrder: 0,
+        depth: 0,
+      },
+      {
+        taskId: secondTaskId,
+        title: "",
+        checked: true,
+        status: "completed",
+        dueDate: null,
+        priority: "none",
+        documentOrder: 1,
+        depth: 1,
+      },
+    ]);
+  });
+
+  it.each([
+    ["missing metadata", { checked: false }],
+    [
+      "invalid task id",
+      {
+        checked: false,
+        taskId: "not-a-uuid",
+        status: "todo",
+        dueDate: null,
+        priority: "none",
+      },
+    ],
+    [
+      "invalid status",
+      {
+        checked: false,
+        taskId: generateUuidV7(),
+        status: "blocked",
+        dueDate: null,
+        priority: "none",
+      },
+    ],
+    [
+      "invalid priority",
+      {
+        checked: false,
+        taskId: generateUuidV7(),
+        status: "todo",
+        dueDate: null,
+        priority: "urgent",
+      },
+    ],
+    [
+      "impossible calendar date",
+      {
+        checked: false,
+        taskId: generateUuidV7(),
+        status: "todo",
+        dueDate: "2027-02-29",
+        priority: "none",
+      },
+    ],
+    [
+      "checkbox and status disagree",
+      {
+        checked: true,
+        taskId: generateUuidV7(),
+        status: "in_progress",
+        dueDate: null,
+        priority: "medium",
+      },
+    ],
+  ])("rejects version 4 task metadata: %s", (_label, attrs) => {
+    const result = validatePageDocument({
+      format: "myownnotion.document+json",
+      formatVersion: 4,
+      body: {
+        type: "doc",
+        content: [
+          {
+            type: "taskList",
+            content: [
+              {
+                type: "taskItem",
+                attrs,
+                content: [{ type: "paragraph", content: [{ type: "text", text: "private" }] }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("private");
+  });
+
+  it("rejects duplicate task identities and version-4 attributes in version 3", () => {
+    const taskId = generateUuidV7();
+    const task = {
+      type: "taskItem",
+      attrs: { checked: false, taskId, status: "todo", dueDate: null, priority: "low" },
+      content: [{ type: "paragraph" }],
+    } as const;
+    const body = {
+      type: "doc",
+      content: [{ type: "taskList", content: [task, task] }],
+    } as const;
+
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 4,
+        body,
+      }).ok,
+    ).toBe(false);
+    expect(
+      validatePageDocument({
+        format: "myownnotion.document+json",
+        formatVersion: 3,
+        body: { type: "doc", content: [{ type: "taskList", content: [task] }] },
       }).ok,
     ).toBe(false);
   });

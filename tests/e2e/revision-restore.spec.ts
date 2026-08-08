@@ -54,6 +54,52 @@ test.describe("revision history (US5)", () => {
     await expect(page.getByRole("region", { name: "Backlinks" })).toContainText(sourceName);
   });
 
+  test("restores version 4 task identity and metadata into the planning view", async ({
+    page,
+    request,
+  }) => {
+    await openWorkspace(page);
+    const pageName = uniqueName("RestoreTask");
+    const taskTitle = uniqueName("Restored task");
+    await createRootItem(page, "page", pageName);
+    await selectItem(page, pageName);
+    await page
+      .getByRole("toolbar", { name: "Page formatting" })
+      .getByRole("button", { name: "Task list" })
+      .click();
+    await page.keyboard.type(taskTitle);
+    const task = page.locator(".ProseMirror li[data-task-id]").filter({ hasText: taskTitle });
+    const taskId = await task.getAttribute("data-task-id");
+    expect(taskId).toMatch(/^[0-9a-f-]{36}$/);
+    await page.getByLabel("Task status").selectOption("in_progress");
+    await page.getByLabel("Task due date").fill("2028-02-29");
+    await page.getByLabel("Task priority").selectOption("high");
+    await savePageAndSynchronize(page);
+    const sourceId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
+    const withTask = await request.get(`http://127.0.0.1:${apiPort}/v1/items/${sourceId}`);
+    const withTaskBody = (await withTask.json()) as { currentRevisionId: string };
+
+    await page.getByRole("textbox", { name: "Page content" }).fill("Task temporarily removed");
+    await savePageAndSynchronize(page);
+    await selectItem(page, pageName);
+    await page.getByTestId("revision-id-input").fill(withTaskBody.currentRevisionId);
+    await page.getByTestId("preview-revision").click();
+    await page.getByTestId("restore-revision").click();
+    await expect(page.getByTestId("restore-feedback")).toContainText("history unchanged");
+
+    await page.reload();
+    await openWorkspace(page);
+    await selectItem(page, pageName);
+    const restored = page.locator(`.ProseMirror li[data-task-id="${taskId}"]`);
+    await expect(restored).toContainText(taskTitle);
+    await expect(restored).toHaveAttribute("data-task-status", "in_progress");
+    await expect(restored).toHaveAttribute("data-task-due-date", "2028-02-29");
+    await expect(restored).toHaveAttribute("data-task-priority", "high");
+    const workspace = page.getByTestId("task-workspace");
+    await workspace.getByPlaceholder("Title or source page").fill(taskTitle);
+    await expect(workspace.getByTestId("task-count")).toHaveText("1 task");
+  });
+
   test("restores retained content as a new descendant revision", async ({ page }) => {
     await openWorkspace(page);
     const pageName = uniqueName("HistoryPage");

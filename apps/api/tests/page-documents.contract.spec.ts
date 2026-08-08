@@ -129,6 +129,148 @@ describe("page-document replacement (T058)", () => {
     ]);
   });
 
+  it("accepts and returns version 4 task metadata without changing identity", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Task contract page" });
+    const taskId = generateUuidV7();
+    const taskBody = {
+      type: "doc",
+      content: [
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: {
+                checked: false,
+                taskId,
+                status: "in_progress",
+                dueDate: "2028-02-29",
+                priority: "high",
+              },
+              content: [
+                { type: "paragraph", content: [{ type: "text", text: "Private task title" }] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: page.revisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 4,
+          body: taskBody,
+        },
+      },
+    });
+    expect(response.statusCode).toBe(200);
+
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${page.itemId}` });
+    expect(
+      (item.json() as { pageDocument: { formatVersion: number; body: unknown } }).pageDocument,
+    ).toEqual(expect.objectContaining({ formatVersion: 4, body: taskBody }));
+  });
+
+  it("accepts an initial version 4 task document during page creation", async () => {
+    const itemId = generateUuidV7();
+    const taskId = generateUuidV7();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Initial task page",
+        placement: {
+          id: generateUuidV7(),
+          kind: "hierarchy",
+          parentItemId: null,
+          positionKey: "V",
+        },
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 4,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "taskList",
+                content: [
+                  {
+                    type: "taskItem",
+                    attrs: {
+                      checked: false,
+                      taskId,
+                      status: "todo",
+                      dueDate: null,
+                      priority: "none",
+                    },
+                    content: [{ type: "paragraph" }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(
+      (response.json() as { item: { pageDocument: { formatVersion: number } } }).item.pageDocument
+        .formatVersion,
+    ).toBe(4);
+  });
+
+  it("rejects malformed version 4 task metadata without exposing its title", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Invalid task page" });
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: page.revisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 4,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "taskList",
+                content: [
+                  {
+                    type: "taskItem",
+                    attrs: {
+                      checked: true,
+                      taskId: generateUuidV7(),
+                      status: "in_progress",
+                      dueDate: "2026-08-08",
+                      priority: "high",
+                    },
+                    content: [
+                      {
+                        type: "paragraph",
+                        content: [{ type: "text", text: "Never log this task" }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.body).not.toContain("Never log this task");
+  });
+
   it("rebuilds the exact wiki-link projection when a retained revision is restored", async () => {
     const source = await createItemViaApi(harness, { kind: "page", name: "Restore link source" });
     const target = await createItemViaApi(harness, { kind: "page", name: "Restore link target" });
@@ -198,6 +340,71 @@ describe("page-document replacement (T058)", () => {
         targetItemId: target.itemId,
       }),
     ]);
+  });
+
+  it("restores exact version 4 task identity and metadata from retained history", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Restore task page" });
+    const taskId = generateUuidV7();
+    const taskDocument = {
+      format: "myownnotion.document+json",
+      formatVersion: 4,
+      body: {
+        type: "doc",
+        content: [
+          {
+            type: "taskList",
+            content: [
+              {
+                type: "taskItem",
+                attrs: {
+                  checked: true,
+                  taskId,
+                  status: "completed",
+                  dueDate: "2028-02-29",
+                  priority: "high",
+                },
+                content: [
+                  { type: "paragraph", content: [{ type: "text", text: "Restore exact task" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const saved = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: page.revisionId, document: taskDocument },
+    });
+    expect(saved.statusCode).toBe(200);
+    const taskRevisionId = (saved.json() as { revisionIds: string[] }).revisionIds[0] as string;
+    const removed = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: taskRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 4,
+          body: { type: "doc", content: [{ type: "paragraph" }] },
+        },
+      },
+    });
+    expect(removed.statusCode).toBe(200);
+    const removedRevisionId = (removed.json() as { revisionIds: string[] }).revisionIds[0];
+
+    const restored = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/revisions/${taskRevisionId}/restore`,
+      headers: idempotencyHeaders(),
+      payload: { currentRevisionId: removedRevisionId },
+    });
+    expect(restored.statusCode).toBe(200);
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${page.itemId}` });
+    expect((item.json() as { pageDocument: unknown }).pageDocument).toEqual(taskDocument);
   });
 
   it("rejects unsupported version 2 nodes without returning private text", async () => {

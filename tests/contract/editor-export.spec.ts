@@ -22,10 +22,11 @@ afterAll(async () => {
 });
 
 describe("editor document export (US1)", () => {
-  it("round-trips every supported v3 block and mark without HTML conversion", async () => {
+  it("round-trips every supported v4 block, mark, and task attribute without HTML conversion", async () => {
     const target = await createItemViaApi(harness, { kind: "page", name: "Linked export page" });
     const page = await createItemViaApi(harness, { kind: "page", name: "Editor export" });
     const occurrenceId = generateUuidV7();
+    const taskId = generateUuidV7();
     const editorBody = {
       type: "doc",
       content: [
@@ -80,7 +81,13 @@ describe("editor document export (US1)", () => {
           content: [
             {
               type: "taskItem",
-              attrs: { checked: false },
+              attrs: {
+                checked: false,
+                taskId,
+                status: "in_progress",
+                dueDate: "2026-08-08",
+                priority: "high",
+              },
               content: [{ type: "paragraph", content: [{ type: "text", text: "Private task" }] }],
             },
           ],
@@ -105,7 +112,7 @@ describe("editor document export (US1)", () => {
         baseRevisionId: page.revisionId,
         document: {
           format: "myownnotion.document+json",
-          formatVersion: 3,
+          formatVersion: 4,
           body: editorBody,
         },
       },
@@ -133,7 +140,7 @@ describe("editor document export (US1)", () => {
     const exportedPage = manifest.items.find((item) => item.id === page.itemId);
     expect(exportedPage?.pageDocument).toEqual({
       format: "myownnotion.document+json",
-      formatVersion: 3,
+      formatVersion: 4,
       body: editorBody,
     });
     expect(manifest.relationships).toContainEqual(

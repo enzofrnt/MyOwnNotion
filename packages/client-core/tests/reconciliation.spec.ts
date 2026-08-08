@@ -20,7 +20,7 @@ import type {
   QueuedMutationResultDto,
   RelationshipDto,
 } from "@myownnotion/contracts";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { buildTaskProjections, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let db: LocalDatabase;
@@ -75,6 +75,39 @@ function serverPage(name: string): ItemDto {
     kind: "page",
     pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
   };
+}
+
+function serverTaskPage(name: string, taskId: Uuid, taskTitle: string): ItemDto {
+  const item = serverItem(name);
+  return {
+    ...item,
+    kind: "page",
+    pageDocument: {
+      format: "myownnotion.document+json",
+      formatVersion: 4,
+      body: {
+        type: "doc",
+        content: [
+          {
+            type: "taskList",
+            content: [
+              {
+                type: "taskItem",
+                attrs: {
+                  checked: false,
+                  taskId,
+                  status: "in_progress",
+                  dueDate: "2026-08-08",
+                  priority: "high",
+                },
+                content: [{ type: "paragraph", content: [{ type: "text", text: taskTitle }] }],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  } as ItemDto;
 }
 
 function serverRelationship(sourceItemId: Uuid, targetItemId: Uuid): RelationshipDto {
@@ -326,6 +359,39 @@ describe("reconciliation (T044)", () => {
     expect((await repository.getItem(itemB.id as Uuid))?.name).toBe("From changes B");
   });
 
+  it("projects a version 4 task received through incremental catch-up", async () => {
+    const taskId = generateUuidV7();
+    const taskPage = serverTaskPage("Remote tasks", taskId, "Catch up task");
+    const transport = new FakeTransport();
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 1,
+            mutationId: generateUuidV7(),
+            revisionIds: [taskPage.currentRevisionId],
+            changedItems: [taskPage],
+          },
+        ],
+        nextCursor: "tasks-1",
+        hasMore: false,
+      },
+    ];
+
+    const outcome = await reconcile(db, transport);
+    const stored = await repository.getItem(taskPage.id as Uuid);
+
+    expect(outcome.caughtUpTo).toBe("tasks-1");
+    expect(buildTaskProjections(stored === null ? [] : [stored])).toEqual([
+      expect.objectContaining({
+        taskId,
+        title: "Catch up task",
+        status: "in_progress",
+        priority: "high",
+      }),
+    ]);
+  });
+
   it("replaces incremental derived relationships by source idempotently, including removal", async () => {
     const source = generateUuidV7();
     const firstTarget = generateUuidV7();
@@ -404,6 +470,30 @@ describe("reconciliation (T044)", () => {
     expect((await outbox.conflicts()).length).toBe(1);
   });
 
+  it("rebuilds version 4 task projections from a verified snapshot", async () => {
+    await repository.setMeta("lastChangeCursor", "compacted-tasks");
+    const taskId = generateUuidV7();
+    const taskPage = serverTaskPage("Snapshot tasks", taskId, "Recovered task");
+    const transport = new FakeTransport();
+    transport.compactedCursors.add("compacted-tasks");
+    transport.snapshot = {
+      workspaceId: generateUuidV7(),
+      schemaVersion: 1,
+      cursor: "tasks-200",
+      digest: "c".repeat(64),
+      items: [taskPage],
+      relationships: [],
+    };
+
+    const outcome = await reconcile(db, transport);
+    const stored = await repository.getItem(taskPage.id as Uuid);
+
+    expect(outcome).toMatchObject({ usedSnapshotFallback: true, caughtUpTo: "tasks-200" });
+    expect(buildTaskProjections(stored === null ? [] : [stored])).toEqual([
+      expect.objectContaining({ taskId, title: "Recovered task" }),
+    ]);
+  });
+
   it("preserves conflicted local wiki relationships across snapshot fallback", async () => {
     const source = serverPage("Conflicted source");
     const target = serverPage("Conflicted target");
@@ -465,6 +555,81 @@ describe("reconciliation (T044)", () => {
     expect((await repository.getItem(source.id as Uuid))?.pageDocument).toMatchObject({
       formatVersion: 3,
     });
+    expect(await outbox.conflicts()).toHaveLength(1);
+  });
+
+  it("preserves a complete conflicted local task document across snapshot fallback", async () => {
+    const taskId = generateUuidV7();
+    const source = serverTaskPage("Conflicted tasks", taskId, "Server task");
+    await repository.applyServerItems([source]);
+    const mutationId = generateUuidV7();
+    const result = await applyLocalMutation(db, {
+      mutationId,
+      commandType: "page.document.replace",
+      payload: {
+        itemId: source.id,
+        baseRevisionId: source.currentRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 4,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "taskList",
+                content: [
+                  {
+                    type: "taskItem",
+                    attrs: {
+                      checked: true,
+                      taskId,
+                      status: "completed",
+                      dueDate: null,
+                      priority: "low",
+                    },
+                    content: [
+                      {
+                        type: "paragraph",
+                        content: [{ type: "text", text: "Keep my completed task" }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      baseRevisionIds: [source.currentRevisionId as Uuid],
+    });
+    expect(result.ok).toBe(true);
+    await outbox.captureConflict(mutationId, [generateUuidV7()], "revision.stale-base");
+    await repository.setMeta("lastChangeCursor", "compacted-task-conflict");
+    const transport = new FakeTransport();
+    transport.compactedCursors.add("compacted-task-conflict");
+    transport.snapshot = {
+      workspaceId: generateUuidV7(),
+      schemaVersion: 1,
+      cursor: "tasks-300",
+      digest: "d".repeat(64),
+      items: [source],
+      relationships: [],
+    };
+
+    await reconcile(db, transport);
+    const stored = await repository.getItem(source.id as Uuid);
+
+    expect(stored?.pageDocument).toMatchObject({ formatVersion: 4 });
+    expect(buildTaskProjections(stored === null ? [] : [stored])).toEqual([
+      expect.objectContaining({
+        taskId,
+        title: "Keep my completed task",
+        checked: true,
+        status: "completed",
+        dueDate: null,
+        priority: "low",
+      }),
+    ]);
     expect(await outbox.conflicts()).toHaveLength(1);
   });
 });

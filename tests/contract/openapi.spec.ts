@@ -52,13 +52,24 @@ function runtimeRequired(schema: { required?: string[] }): string[] {
 }
 
 describe("OpenAPI ↔ runtime schema alignment", () => {
-  it("defines the strict version 3 editor JSON boundary", () => {
+  it("defines the strict version 4 editor JSON boundary", () => {
     expect(EditorDocumentSchema.required).toEqual(["type", "content"]);
     expect(EditorDocumentSchema.additionalProperties).toBe(false);
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"horizontalRule"');
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"wikiLink"');
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"targetItemId"');
     expect(JSON.stringify(EditorDocumentSchema)).toContain('"occurrenceId"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"taskId"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"in_progress"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"dueDate"');
+    expect(JSON.stringify(EditorDocumentSchema)).toContain('"priority"');
+    expect(requiredOf("TaskItemAttributes")).toEqual([
+      "checked",
+      "taskId",
+      "status",
+      "dueDate",
+      "priority",
+    ]);
     expect(JSON.stringify(EditorDocumentSchema)).not.toContain("futureWidget");
   });
 

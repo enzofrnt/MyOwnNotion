@@ -93,6 +93,7 @@ try {
 
   const itemId = generateUuidV7();
   const occurrenceId = generateUuidV7();
+  const taskId = generateUuidV7();
   await expectJson(`${webBaseUrl}/v1/items`, {
     method: "POST",
     headers: {
@@ -110,7 +111,7 @@ try {
       },
       pageDocument: {
         format: "myownnotion.document+json",
-        formatVersion: 3,
+        formatVersion: 4,
         body: {
           type: "doc",
           content: [
@@ -119,6 +120,27 @@ try {
               attrs: { level: 2 },
               content: [
                 { type: "text", text: "Container editor fixture", marks: [{ type: "bold" }] },
+              ],
+            },
+            {
+              type: "taskList",
+              content: [
+                {
+                  type: "taskItem",
+                  attrs: {
+                    checked: false,
+                    taskId,
+                    status: "in_progress",
+                    dueDate: "2028-02-29",
+                    priority: "high",
+                  },
+                  content: [
+                    {
+                      type: "paragraph",
+                      content: [{ type: "text", text: "Container task fixture" }],
+                    },
+                  ],
+                },
               ],
             },
             {
@@ -147,16 +169,33 @@ try {
 
   const persisted = await expectJson<{
     id: string;
-    pageDocument: { formatVersion: number; body: { content: Array<{ type: string }> } };
+    pageDocument: {
+      formatVersion: number;
+      body: { content: Array<{ type: string; content?: unknown[] }> };
+    };
   }>(`${webBaseUrl}/v1/items/${itemId}`);
   if (persisted.id !== itemId) {
     throw new Error("Restarted composition did not preserve the committed fixture item");
   }
   if (
-    persisted.pageDocument.formatVersion !== 3 ||
+    persisted.pageDocument.formatVersion !== 4 ||
     persisted.pageDocument.body.content[0]?.type !== "heading"
   ) {
-    throw new Error("Restarted composition did not preserve the version 3 editor document");
+    throw new Error("Restarted composition did not preserve the version 4 editor document");
+  }
+  const persistedTaskList = persisted.pageDocument.body.content.find(
+    (node) => node.type === "taskList",
+  );
+  const persistedTask = persistedTaskList?.content?.[0] as
+    | { attrs?: Record<string, unknown> }
+    | undefined;
+  if (
+    persistedTask?.attrs?.["taskId"] !== taskId ||
+    persistedTask.attrs["status"] !== "in_progress" ||
+    persistedTask.attrs["dueDate"] !== "2028-02-29" ||
+    persistedTask.attrs["priority"] !== "high"
+  ) {
+    throw new Error("Restarted composition did not preserve task identity and metadata");
   }
 
   const persistedRelationships = await expectJson<{
@@ -179,7 +218,7 @@ try {
   }
 
   console.info(
-    "Container smoke test passed: images, health proxy, migrations, and v3 wiki-link persistence.",
+    "Container smoke test passed: images, health proxy, migrations, and v4 wiki/task persistence.",
   );
 } catch (error) {
   console.error("Container smoke test failed:", error);

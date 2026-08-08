@@ -90,6 +90,8 @@ Expected results:
 
 For a functional knowledge-network check, create two pages in the interface, type `[[` in the first page, select the second, and save. Open the second page and confirm that the first appears under **Backlinks**. Switch between **Local graph** and **Global graph**, filter by either page name, and open a page from the accessible graph list.
 
+For a functional task check, insert a task in either page, place the caret inside it, and set **In progress**, a due date, and **High** priority. Save, then find it under **Tasks**. Exercise its calendar scope, text/status/priority filters, list and board views, and the action that opens the source block. Reload once with the browser network unavailable to confirm the already-loaded page and task view remain local; reconnect and wait for the workspace to report synchronization.
+
 To verify the configured images and loopback bindings without starting services:
 
 ```text
@@ -122,7 +124,7 @@ docker compose --env-file .env.prod -f compose.prod.yaml up --detach --wait
 
 Canonical metadata and page content remain in the project-scoped `postgres-data` volume. Immutable file content remains in `blob-data`. A normal `down` or host restart does not delete either volume.
 
-After restarting, reopen the linked source and target. The inline link, backlink occurrence count, and graph edge must still be present. The automated container smoke performs the same persistence check through the same-origin web proxy using a version 3 document and its derived relationship.
+After restarting, reopen the linked source and target. The inline link, backlink occurrence count, graph edge, task identity, status, due date, priority, and task-workspace result must still be present. The automated container smoke performs the same persistence check through the same-origin web proxy using one version-4 document containing both its task metadata and derived wiki relationship.
 
 ## Update to another immutable revision
 

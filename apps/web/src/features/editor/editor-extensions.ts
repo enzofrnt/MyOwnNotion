@@ -1,9 +1,10 @@
 import type { Uuid } from "@myownnotion/domain";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TaskList } from "@tiptap/extension-list";
 import Placeholder from "@tiptap/extension-placeholder";
 import StarterKit from "@tiptap/starter-kit";
 import { MarkdownShortcutUndo } from "./markdown-shortcuts.ts";
 import { SlashCommandExtension } from "./slash-command.ts";
+import { TaskItemWithMetadata } from "./task-item.ts";
 import { WikiLink, type WikiLinkCandidate } from "./wiki-link.ts";
 
 export function createEditorExtensions(options: {
@@ -17,7 +18,7 @@ export function createEditorExtensions(options: {
       codeBlock: { defaultLanguage: null },
     }),
     TaskList,
-    TaskItem.configure({
+    TaskItemWithMetadata.configure({
       nested: true,
       a11y: {
         checkboxLabel: (_node, checked) =>

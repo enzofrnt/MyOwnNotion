@@ -256,6 +256,74 @@ describe("atomic optimistic mutation + outbox (T040)", () => {
     expect(await db.relationships.get(occurrenceId)).toBeUndefined();
   });
 
+  it("rolls back a version 4 task document and its revision when outbox storage fails", async () => {
+    const itemId = generateUuidV7();
+    const created = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "item.create",
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Atomic task page",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+      baseRevisionIds: [],
+    });
+    expect(created.ok).toBe(true);
+    const item = await repository.getItem(itemId);
+    if (item === null) {
+      throw new Error("Atomic task page was not created");
+    }
+    const beforeCounts = await snapshotCounts();
+    const beforeDocument = item.pageDocument;
+    const original = db.outbox.add.bind(db.outbox);
+    const quotaError = new Error("quota");
+    quotaError.name = "QuotaExceededError";
+    (db.outbox as { add: unknown }).add = () => Promise.reject(quotaError);
+
+    const result = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      payload: {
+        itemId,
+        baseRevisionId: item.currentRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 4,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "taskList",
+                content: [
+                  {
+                    type: "taskItem",
+                    attrs: {
+                      checked: false,
+                      taskId: generateUuidV7(),
+                      status: "in_progress",
+                      dueDate: "2026-08-08",
+                      priority: "high",
+                    },
+                    content: [
+                      { type: "paragraph", content: [{ type: "text", text: "Atomic task" }] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      baseRevisionIds: [item.currentRevisionId],
+    });
+    (db.outbox as { add: unknown }).add = original;
+
+    expect(result.ok).toBe(false);
+    expect(await snapshotCounts()).toEqual(beforeCounts);
+    expect((await repository.getItem(itemId))?.pageDocument).toEqual(beforeDocument);
+  });
+
   it("applies the complete supported offline command lifecycle", async () => {
     const fixedNow = () => new Date("2026-08-07T12:00:00.000Z");
     const parentId = generateUuidV7();

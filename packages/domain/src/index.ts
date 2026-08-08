@@ -14,6 +14,7 @@ export * from "./content/lifecycle.ts";
 export * from "./content/mutations.ts";
 export * from "./content/position-key.ts";
 export * from "./content/relationships.ts";
+export * from "./content/task-planning.ts";
 export * from "./content/types.ts";
 export * from "./export/canonical-export.ts";
 export * from "./ids/uuid.ts";

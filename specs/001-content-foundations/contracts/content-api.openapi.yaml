@@ -577,6 +577,19 @@ components:
             occurrenceId: { $ref: '#/components/schemas/Uuid' }
           additionalProperties: false
       additionalProperties: false
+    TaskItemAttributes:
+      type: object
+      required: [checked, taskId, status, dueDate, priority]
+      properties:
+        checked: { type: boolean }
+        taskId: { $ref: '#/components/schemas/Uuid' }
+        status: { enum: [todo, in_progress, completed, cancelled] }
+        dueDate:
+          oneOf:
+            - { type: string, pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }
+            - { type: 'null' }
+        priority: { enum: [none, low, medium, high] }
+      additionalProperties: false
     PageDocument:
       type: object
       required: [format, formatVersion, body]

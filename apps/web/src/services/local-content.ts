@@ -20,12 +20,17 @@ import {
 import type { ItemDto } from "@myownnotion/contracts";
 import {
   buildKnowledgeGraph,
+  buildTaskProjections,
+  countEditorTaskItems,
+  EDITOR_DOCUMENT_VERSION,
   type EditorDocument,
   generateUuidV7,
   type KnowledgeGraphModel,
+  normalizePageDocumentForEditor,
   type PageKnowledgeSummary,
   type SafeError,
   summarizePageKnowledge,
+  type TaskProjection,
   toPageDocument,
   type Uuid,
 } from "@myownnotion/domain";
@@ -206,6 +211,37 @@ export class LocalContentService {
       selectedItemId,
       query,
     });
+  }
+
+  async getTaskWorkspaceData(): Promise<{
+    readonly tasks: TaskProjection[];
+    readonly legacyPageCount: number;
+  }> {
+    const items = await this.repository.listItems();
+    const pages = items.filter((item) => item.kind === "page");
+    const tasks = buildTaskProjections(
+      pages.map((item) => ({
+        id: item.id,
+        name: item.name,
+        lifecycle: item.lifecycle,
+        pageDocument: item.pageDocument,
+      })),
+    );
+    let legacyPageCount = 0;
+    for (const page of pages) {
+      if (
+        page.lifecycle !== "active" ||
+        page.pageDocument === null ||
+        page.pageDocument.formatVersion >= EDITOR_DOCUMENT_VERSION
+      ) {
+        continue;
+      }
+      const normalized = normalizePageDocumentForEditor(page.pageDocument);
+      if (normalized.ok && countEditorTaskItems(normalized.value) > 0) {
+        legacyPageCount += 1;
+      }
+    }
+    return { tasks, legacyPageCount };
   }
 
   /**

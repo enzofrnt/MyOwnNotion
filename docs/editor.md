@@ -30,6 +30,14 @@ The selected page's **Backlinks** and **Outgoing links** sections aggregate repe
 
 The **Local graph** contains the selected page and its directly connected active pages. The **Global graph** contains all active linked pages. Both modes offer filtering, a selection summary, and an equivalent semantic list for keyboard or assistive-technology navigation. Graph positions are deterministic views, not user-owned canvas state.
 
+## Tasks and planning views
+
+Every task-list item saved in the current format receives a stable task identity. Place the caret inside a task to edit its labelled status, due-date, and priority controls. The fixed statuses are To do, In progress, Completed, and Cancelled; priorities are None, Low, Medium, and High. Due dates are calendar days without a time or time-zone conversion. Checking a task completes it, while unchecking a completed task reopens it as To do.
+
+The workspace **Tasks** surface derives its results directly from locally durable page documents. **Today**, **Upcoming**, and **Overdue** contain active dated tasks relative to the device's local calendar day; **Finished** contains completed and cancelled tasks. Text, status, and priority filters, deterministic sorting, list view, and status board all operate on the same task identities. Activating a result opens its source page and focuses the task.
+
+Task pages saved in document versions 1–3 remain readable, but legacy checklist items do not enter cross-page planning until the page is opened and explicitly saved. This assigns durable identities without a background rewrite. Trashed page tasks are omitted from active planning views and return if their page is restored.
+
 ## Saving and offline behavior
 
 Edits are automatically coalesced after a short pause. Only one local document replacement is written at a time; if typing continues, only the newest queued snapshot is saved next. The local page projection and outbox entry commit in one IndexedDB transaction before the editor reports a local save.
@@ -40,11 +48,11 @@ A previously loaded page remains editable without the API. Reloading while offli
 
 ## Format and compatibility
 
-Canonical page content uses the `myownnotion.document+json` envelope with `formatVersion: 3`. Its body is a validated Tiptap JSON document rooted at `doc`; accepted node and mark names are allow-listed in the domain package and in `specs/003-links-knowledge-graph/contracts/wiki-link-document.schema.json`. A `wikiLink` mark stores a target UUID and occurrence UUID. Version 2 documents remain readable and upgrade only when edited and saved.
+Canonical page content uses the `myownnotion.document+json` envelope with `formatVersion: 4`. Its body is a validated Tiptap JSON document rooted at `doc`; accepted node and mark names are allow-listed in the domain package and in the feature contracts under `specs/003-links-knowledge-graph/` and `specs/004-tasks/`. A `wikiLink` mark stores a target UUID and occurrence UUID. A current `taskItem` stores a task UUID, consistent checkbox and status, optional `YYYY-MM-DD` due date, and fixed priority. Versions 2 and 3 remain readable and upgrade only when explicitly saved.
 
 Legacy version 1 empty pages normalize in memory to one empty paragraph and upgrade only after the owner edits and saves. Unknown future versions, blocks, marks, attributes, or malformed nesting produce a visible incompatibility state and leave stored content unchanged. They are never silently stripped.
 
-Workspace export includes the complete versioned JSON document and every active derived `link:references` relationship, including its occurrence identity and revision lineage. The export remains canonical JSON: importing or independently validating it must preserve both the inline occurrence and relationship projection. Application diagnostics redact request bodies, link queries, graph labels, and nested editor text.
+Workspace export includes the complete versioned JSON document, all task identities and metadata, and every active derived `link:references` relationship, including its occurrence identity and revision lineage. The export remains canonical JSON: importing or independently validating it must preserve inline tasks plus link occurrences and relationship projections. Application diagnostics redact request bodies, task titles, task filters, link queries, graph labels, and nested editor text.
 
 ## Testing
 
@@ -56,6 +64,9 @@ pnpm exec playwright test tests/e2e/block-editor*.spec.ts tests/e2e/slash-comman
 pnpm exec vitest run --project performance tests/performance/block-editor.perf.spec.ts
 pnpm exec playwright test tests/e2e/wiki-links*.spec.ts tests/e2e/backlinks.spec.ts tests/e2e/knowledge-graph.spec.ts
 pnpm exec vitest run --project performance tests/performance/knowledge-graph.perf.spec.ts
+pnpm exec vitest run --project domain --project web-unit --project client-core
+pnpm exec playwright test tests/e2e/tasks-*.spec.ts
+pnpm exec vitest run --project performance tests/performance/tasks.perf.spec.ts
 ```
 
 The complete repository gates remain documented in [development.md](./development.md). The production-like application opens at `http://127.0.0.1:8080` when started through [deployment.md](./deployment.md); it must remain loopback-only until authentication exists.

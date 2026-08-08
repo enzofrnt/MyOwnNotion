@@ -1,10 +1,11 @@
-/** Canonical, editor-independent page document v2 contract. */
+/** Canonical, editor-independent page document contract. */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { DomainResult, PageDocument, SafeErrorCode } from "./types.ts";
 import { err, ok, PAGE_DOCUMENT_FORMAT } from "./types.ts";
 
 export const LEGACY_EDITOR_DOCUMENT_VERSION = 2;
-export const EDITOR_DOCUMENT_VERSION = 3;
+export const WIKI_LINK_EDITOR_DOCUMENT_VERSION = 3;
+export const EDITOR_DOCUMENT_VERSION = 4;
 
 export const EDITOR_BLOCK_TYPES = [
   "paragraph",
@@ -42,6 +43,26 @@ export interface WikiLinkOccurrence {
   readonly occurrenceId: Uuid;
   readonly targetItemId: Uuid;
   readonly label: string;
+}
+
+export const TASK_STATUSES = ["todo", "in_progress", "completed", "cancelled"] as const;
+export const TASK_PRIORITIES = ["none", "low", "medium", "high"] as const;
+
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+
+export interface TaskItemAttributes {
+  readonly checked: boolean;
+  readonly taskId: Uuid;
+  readonly status: TaskStatus;
+  readonly dueDate: string | null;
+  readonly priority: TaskPriority;
+}
+
+export interface TaskOccurrence extends TaskItemAttributes {
+  readonly title: string;
+  readonly documentOrder: number;
+  readonly depth: number;
 }
 
 export interface EditorNode {
@@ -202,11 +223,70 @@ function validateAttrs(
   return ok(value);
 }
 
+type TaskMetadataMode = "legacy" | "current" | "either";
+
+function isRealCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (match === null) {
+    return false;
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= (daysInMonth[month - 1] ?? 0);
+}
+
+export function isTaskCalendarDate(value: unknown): value is string {
+  return typeof value === "string" && isRealCalendarDate(value);
+}
+
+function validateTaskItemAttrs(
+  value: unknown,
+  path: string,
+  mode: TaskMetadataMode,
+): DomainResult<null> {
+  if (!isRecord(value)) {
+    return structureError(path, "invalid-task-attributes");
+  }
+  const hasCurrentMetadata = ["taskId", "status", "dueDate", "priority"].some(
+    (key) => key in value,
+  );
+  const validateCurrent = mode === "current" || (mode === "either" && hasCurrentMetadata);
+  if (mode === "legacy" && hasCurrentMetadata) {
+    return structureError(path, "task-metadata-not-supported");
+  }
+  if (!validateCurrent) {
+    if (!hasOnlyKeys(value, ["checked"]) || typeof value.checked !== "boolean") {
+      return structureError(`${path}.checked`, "expected-boolean");
+    }
+    return ok(null);
+  }
+  if (
+    !hasOnlyKeys(value, ["checked", "taskId", "status", "dueDate", "priority"]) ||
+    typeof value.checked !== "boolean" ||
+    !isUuid(value["taskId"]) ||
+    !(TASK_STATUSES as readonly unknown[]).includes(value["status"]) ||
+    !(TASK_PRIORITIES as readonly unknown[]).includes(value["priority"]) ||
+    !(value["dueDate"] === null || isTaskCalendarDate(value["dueDate"]))
+  ) {
+    return structureError(path, "invalid-task-metadata");
+  }
+  if (value.checked !== (value["status"] === "completed")) {
+    return structureError(path, "task-status-checkbox-mismatch");
+  }
+  return ok(null);
+}
+
 function validateListItems(
   value: unknown,
   path: string,
   expectedType: "listItem" | "taskItem",
-  allowWikiLinks: boolean,
+  options: { readonly allowWikiLinks: boolean; readonly taskMetadata: TaskMetadataMode },
 ): DomainResult<null> {
   if (!Array.isArray(value) || value.length === 0) {
     return structureError(path, "list-requires-items");
@@ -223,12 +303,9 @@ function validateListItems(
       return structureError(itemPath, "invalid-list-item");
     }
     if (expectedType === "taskItem") {
-      const attrs = validateAttrs(item.attrs, `${itemPath}.attrs`, ["checked"]);
+      const attrs = validateTaskItemAttrs(item.attrs, `${itemPath}.attrs`, options.taskMetadata);
       if (!attrs.ok) {
         return attrs;
-      }
-      if (attrs.value === null || typeof attrs.value.checked !== "boolean") {
-        return structureError(`${itemPath}.attrs.checked`, "expected-boolean");
       }
     }
     if (!Array.isArray(item.content) || item.content.length === 0) {
@@ -242,7 +319,7 @@ function validateListItems(
       const result = validateBlock(
         item.content[childIndex],
         `${itemPath}.content[${childIndex}]`,
-        allowWikiLinks,
+        options,
       );
       if (!result.ok) {
         return result;
@@ -252,7 +329,11 @@ function validateListItems(
   return ok(null);
 }
 
-function validateBlock(value: unknown, path: string, allowWikiLinks: boolean): DomainResult<null> {
+function validateBlock(
+  value: unknown,
+  path: string,
+  options: { readonly allowWikiLinks: boolean; readonly taskMetadata: TaskMetadataMode },
+): DomainResult<null> {
   if (!isRecord(value) || typeof value.type !== "string") {
     return structureError(path, "invalid-block");
   }
@@ -261,7 +342,7 @@ function validateBlock(value: unknown, path: string, allowWikiLinks: boolean): D
       if (!hasOnlyKeys(value, ["type", "content"])) {
         return structureError(path, "invalid-paragraph");
       }
-      return validateTextContent(value.content, `${path}.content`, true, allowWikiLinks);
+      return validateTextContent(value.content, `${path}.content`, true, options.allowWikiLinks);
     }
     case "heading": {
       if (!hasOnlyKeys(value, ["type", "attrs", "content"])) {
@@ -274,7 +355,7 @@ function validateBlock(value: unknown, path: string, allowWikiLinks: boolean): D
       if (attrs.value === null || ![1, 2, 3].includes(attrs.value.level as number)) {
         return structureError(`${path}.attrs.level`, "invalid-heading-level");
       }
-      return validateTextContent(value.content, `${path}.content`, true, allowWikiLinks);
+      return validateTextContent(value.content, `${path}.content`, true, options.allowWikiLinks);
     }
     case "blockquote": {
       if (
@@ -285,11 +366,7 @@ function validateBlock(value: unknown, path: string, allowWikiLinks: boolean): D
         return structureError(path, "invalid-blockquote");
       }
       for (let index = 0; index < value.content.length; index += 1) {
-        const result = validateBlock(
-          value.content[index],
-          `${path}.content[${index}]`,
-          allowWikiLinks,
-        );
+        const result = validateBlock(value.content[index], `${path}.content[${index}]`, options);
         if (!result.ok) {
           return result;
         }
@@ -325,7 +402,7 @@ function validateBlock(value: unknown, path: string, allowWikiLinks: boolean): D
       if (!attrs.ok) {
         return attrs;
       }
-      return validateListItems(value.content, `${path}.content`, "listItem", allowWikiLinks);
+      return validateListItems(value.content, `${path}.content`, "listItem", options);
     }
     case "orderedList": {
       if (!hasOnlyKeys(value, ["type", "attrs", "content"])) {
@@ -342,13 +419,13 @@ function validateBlock(value: unknown, path: string, allowWikiLinks: boolean): D
       ) {
         return structureError(`${path}.attrs.start`, "invalid-list-start");
       }
-      return validateListItems(value.content, `${path}.content`, "listItem", allowWikiLinks);
+      return validateListItems(value.content, `${path}.content`, "listItem", options);
     }
     case "taskList":
       if (!hasOnlyKeys(value, ["type", "content"])) {
         return structureError(path, "invalid-task-list");
       }
-      return validateListItems(value.content, `${path}.content`, "taskItem", allowWikiLinks);
+      return validateListItems(value.content, `${path}.content`, "taskItem", options);
     default:
       return structureError(`${path}.type`, "unsupported-node", "document.unsupported-content");
   }
@@ -376,11 +453,75 @@ export function extractWikiLinkOccurrences(document: EditorDocument): WikiLinkOc
   return occurrences;
 }
 
+function textContent(node: EditorNode | undefined): string {
+  if (node === undefined) {
+    return "";
+  }
+  if (node.type === "text") {
+    return node.text ?? "";
+  }
+  return (node.content ?? []).map((child) => textContent(child)).join("");
+}
+
+export function extractTaskOccurrences(document: EditorDocument): TaskOccurrence[] {
+  const occurrences: TaskOccurrence[] = [];
+  const visit = (node: EditorNode, taskDepth: number): void => {
+    if (node.type === "taskItem") {
+      const attrs = node.attrs;
+      if (
+        attrs !== undefined &&
+        typeof attrs["checked"] === "boolean" &&
+        isUuid(attrs["taskId"]) &&
+        (TASK_STATUSES as readonly unknown[]).includes(attrs["status"]) &&
+        (TASK_PRIORITIES as readonly unknown[]).includes(attrs["priority"]) &&
+        (attrs["dueDate"] === null || isTaskCalendarDate(attrs["dueDate"]))
+      ) {
+        occurrences.push({
+          checked: attrs["checked"],
+          taskId: attrs["taskId"],
+          status: attrs["status"] as TaskStatus,
+          dueDate: attrs["dueDate"] as string | null,
+          priority: attrs["priority"] as TaskPriority,
+          title: textContent(node.content?.[0]),
+          documentOrder: occurrences.length,
+          depth: taskDepth,
+        });
+      }
+    }
+    const childDepth = node.type === "taskItem" ? taskDepth + 1 : taskDepth;
+    for (const child of node.content ?? []) {
+      visit(child, childDepth);
+    }
+  };
+  visit(document, 0);
+  return occurrences;
+}
+
+export function countEditorTaskItems(document: EditorDocument): number {
+  let count = 0;
+  const visit = (node: EditorNode): void => {
+    if (node.type === "taskItem") {
+      count += 1;
+    }
+    for (const child of node.content ?? []) {
+      visit(child);
+    }
+  };
+  visit(document);
+  return count;
+}
+
 export function validateEditorDocument(
   value: unknown,
-  options: { readonly allowWikiLinks?: boolean } = {},
+  options: {
+    readonly allowWikiLinks?: boolean;
+    readonly taskMetadata?: TaskMetadataMode;
+  } = {},
 ): DomainResult<EditorDocument> {
-  const allowWikiLinks = options.allowWikiLinks ?? true;
+  const validationOptions = {
+    allowWikiLinks: options.allowWikiLinks ?? true,
+    taskMetadata: options.taskMetadata ?? ("either" as const),
+  };
   if (!isRecord(value) || !hasOnlyKeys(value, ["type", "content"]) || value.type !== "doc") {
     return structureError("body", "invalid-document");
   }
@@ -388,7 +529,7 @@ export function validateEditorDocument(
     return structureError("body.content", "document-requires-block");
   }
   for (let index = 0; index < value.content.length; index += 1) {
-    const result = validateBlock(value.content[index], `body.content[${index}]`, allowWikiLinks);
+    const result = validateBlock(value.content[index], `body.content[${index}]`, validationOptions);
     if (!result.ok) {
       return result;
     }
@@ -400,6 +541,13 @@ export function validateEditorDocument(
       return structureError("body", "duplicate-wiki-link-occurrence");
     }
     occurrenceIds.add(occurrence.occurrenceId);
+  }
+  const taskIds = new Set<string>();
+  for (const occurrence of extractTaskOccurrences(document)) {
+    if (taskIds.has(occurrence.taskId)) {
+      return structureError("body", "duplicate-task-identity");
+    }
+    taskIds.add(occurrence.taskId);
   }
   return ok(document);
 }
@@ -435,10 +583,19 @@ export function normalizePageDocumentForEditor(
     return structureError("document.format", "unsupported-format", "document.unsupported-content");
   }
   if (document.formatVersion === EDITOR_DOCUMENT_VERSION) {
-    return validateEditorDocument(document.body);
+    return validateEditorDocument(document.body, { taskMetadata: "current" });
+  }
+  if (document.formatVersion === WIKI_LINK_EDITOR_DOCUMENT_VERSION) {
+    return validateEditorDocument(document.body, {
+      allowWikiLinks: true,
+      taskMetadata: "legacy",
+    });
   }
   if (document.formatVersion === LEGACY_EDITOR_DOCUMENT_VERSION) {
-    return validateEditorDocument(document.body, { allowWikiLinks: false });
+    return validateEditorDocument(document.body, {
+      allowWikiLinks: false,
+      taskMetadata: "legacy",
+    });
   }
   if (document.formatVersion === 1 && Object.keys(document.body).length === 0) {
     return ok(EMPTY_EDITOR_DOCUMENT);

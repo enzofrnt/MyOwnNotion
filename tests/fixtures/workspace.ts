@@ -6,6 +6,7 @@
 import { generateUuidV7, keyBetween, type Uuid } from "@myownnotion/domain";
 
 export * from "./knowledge.ts";
+export * from "./tasks.ts";
 
 export interface FixtureItem {
   readonly id: Uuid;

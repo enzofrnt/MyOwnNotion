@@ -6,6 +6,7 @@ import {
   openLocalDatabase,
 } from "@myownnotion/client-core";
 import {
+  buildTaskProjections,
   EDITOR_DOCUMENT_VERSION,
   type EditorDocument,
   generateUuidV7,
@@ -27,7 +28,13 @@ const RICH_DOCUMENT: EditorDocument = {
       content: [
         {
           type: "taskItem",
-          attrs: { checked: false },
+          attrs: {
+            checked: false,
+            taskId: generateUuidV7(),
+            status: "in_progress",
+            dueDate: "2026-08-08",
+            priority: "high",
+          },
           content: [{ type: "paragraph", content: [{ type: "text", text: "Ship safely" }] }],
         },
       ],
@@ -71,6 +78,56 @@ async function createPage(
 }
 
 describe("rich editor local mutations", () => {
+  it("projects version 4 tasks from an initial offline page creation", async () => {
+    const itemId = generateUuidV7();
+    const taskId = generateUuidV7();
+    const document = toPageDocument({
+      type: "doc",
+      content: [
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: {
+                checked: false,
+                taskId,
+                status: "in_progress",
+                dueDate: "2026-08-08",
+                priority: "high",
+              },
+              content: [{ type: "paragraph", content: [{ type: "text", text: "Offline task" }] }],
+            },
+          ],
+        },
+      ],
+    });
+    const created = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "item.create",
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Offline task page",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        pageDocument: document,
+      },
+      baseRevisionIds: [],
+    });
+    expect(created.ok).toBe(true);
+    const item = await new LocalRepository(db).getItem(itemId);
+    expect(item).not.toBeNull();
+    expect(buildTaskProjections(item === null ? [] : [item])).toEqual([
+      expect.objectContaining({
+        taskId,
+        title: "Offline task",
+        status: "in_progress",
+        dueDate: "2026-08-08",
+        priority: "high",
+      }),
+    ]);
+  });
+
   it("projects links included in an initial offline page creation", async () => {
     const target = await createPage("Initial local target");
     const sourceId = generateUuidV7();
@@ -233,6 +290,49 @@ describe("rich editor local mutations", () => {
       baseRevisionIds: [revisionId],
       payload: { itemId, baseRevisionId: revisionId },
     });
+  });
+
+  it("rejects contradictory version 4 task metadata without partial local writes", async () => {
+    const { itemId, revisionId } = await createPage();
+    const before = await new LocalRepository(db).getItem(itemId);
+    const outboxCount = await db.outbox.count();
+    const result = await applyLocalMutation(db, {
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      payload: {
+        itemId,
+        baseRevisionId: revisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 4,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "taskList",
+                content: [
+                  {
+                    type: "taskItem",
+                    attrs: {
+                      checked: true,
+                      taskId: generateUuidV7(),
+                      status: "todo",
+                      dueDate: null,
+                      priority: "none",
+                    },
+                    content: [{ type: "paragraph" }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+      baseRevisionIds: [revisionId],
+    });
+    expect(result.ok).toBe(false);
+    expect(await new LocalRepository(db).getItem(itemId)).toEqual(before);
+    expect(await db.outbox.count()).toBe(outboxCount);
   });
 
   it("recovers an interrupted rich-document outbox row after reopening IndexedDB", async () => {

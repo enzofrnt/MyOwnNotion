@@ -17,6 +17,7 @@ import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
 import { KnowledgePanel } from "../knowledge/knowledge-panel.tsx";
 import { PageDocumentForm } from "../pages/page-document-form.tsx";
+import { TaskWorkspace } from "../tasks/task-workspace.tsx";
 import { FileNode } from "./file-node.tsx";
 import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
@@ -80,6 +81,7 @@ export function HierarchyExplorer() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  const [focusTaskId, setFocusTaskId] = useState<Uuid | null>(null);
   const [newItemName, setNewItemName] = useState("");
 
   const refresh = useCallback(async () => {
@@ -115,6 +117,11 @@ export function HierarchyExplorer() {
     () => items.find((item) => item.id === selectedId) ?? null,
     [items, selectedId],
   );
+
+  const selectContentItem = useCallback((itemId: Uuid) => {
+    setFocusTaskId(null);
+    setSelectedId(itemId);
+  }, []);
 
   const runCommand = useCallback(
     async (commandType: string, payload: Record<string, unknown>, baseRevisionIds: Uuid[] = []) => {
@@ -233,17 +240,17 @@ export function HierarchyExplorer() {
         event.preventDefault();
         const next = visibleNodes[Math.min(index + 1, visibleNodes.length - 1)] ?? visibleNodes[0];
         if (next !== undefined) {
-          setSelectedId(next.item.id);
+          selectContentItem(next.item.id);
         }
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
         const previous = visibleNodes[Math.max(index - 1, 0)] ?? visibleNodes[0];
         if (previous !== undefined) {
-          setSelectedId(previous.item.id);
+          selectContentItem(previous.item.id);
         }
       }
     },
-    [selectedId, visibleNodes],
+    [selectContentItem, selectedId, visibleNodes],
   );
 
   if (loadState === "loading") {
@@ -268,11 +275,11 @@ export function HierarchyExplorer() {
           className="tree-row"
           data-testid={`tree-item-${node.item.name}`}
           data-item-id={node.item.id}
-          onClick={() => setSelectedId(node.item.id)}
+          onClick={() => selectContentItem(node.item.id)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              setSelectedId(node.item.id);
+              selectContentItem(node.item.id);
             }
           }}
         >
@@ -406,18 +413,27 @@ export function HierarchyExplorer() {
 
       <MutationStatus service={service} />
 
+      <TaskWorkspace
+        service={service}
+        onOpenTask={(sourceItemId, taskId) => {
+          setFocusTaskId(taskId);
+          setSelectedId(sourceItemId);
+        }}
+      />
+
       {selectedItem !== null && selectedItem.kind === "page" ? (
         <>
           <PageDocumentForm
             service={service}
             itemId={selectedItem.id}
             items={items}
-            onNavigate={(itemId) => setSelectedId(itemId)}
+            onNavigate={selectContentItem}
+            focusTaskId={focusTaskId}
           />
           <KnowledgePanel
             service={service}
             itemId={selectedItem.id}
-            onNavigate={(itemId) => setSelectedId(itemId)}
+            onNavigate={selectContentItem}
           />
           <AttachmentPanel pageId={selectedItem.id} onChanged={() => void refresh()} />
         </>

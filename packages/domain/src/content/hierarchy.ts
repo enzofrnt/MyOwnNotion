@@ -12,6 +12,7 @@ import {
   EDITOR_DOCUMENT_VERSION,
   LEGACY_EDITOR_DOCUMENT_VERSION,
   validateEditorDocument,
+  WIKI_LINK_EDITOR_DOCUMENT_VERSION,
 } from "./editor-document.ts";
 import { isValidPositionKey } from "./position-key.ts";
 import {
@@ -85,10 +86,12 @@ export function validatePageDocument(document: PageDocument): DomainResult<PageD
   }
   if (
     document.formatVersion === EDITOR_DOCUMENT_VERSION ||
+    document.formatVersion === WIKI_LINK_EDITOR_DOCUMENT_VERSION ||
     document.formatVersion === LEGACY_EDITOR_DOCUMENT_VERSION
   ) {
     const editorDocument = validateEditorDocument(document.body, {
-      allowWikiLinks: document.formatVersion === EDITOR_DOCUMENT_VERSION,
+      allowWikiLinks: document.formatVersion >= WIKI_LINK_EDITOR_DOCUMENT_VERSION,
+      taskMetadata: document.formatVersion === EDITOR_DOCUMENT_VERSION ? "current" : "legacy",
     });
     if (!editorDocument.ok) {
       return editorDocument as DomainResult<PageDocument>;

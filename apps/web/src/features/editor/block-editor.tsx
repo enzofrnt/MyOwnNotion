@@ -12,6 +12,8 @@ import { EditorHelp } from "./editor-help.tsx";
 import { EditorSaveStatus } from "./editor-save-status.tsx";
 import { EditorToolbar } from "./editor-toolbar.tsx";
 import { SaveCoordinator, type SaveCoordinatorState } from "./save-coordinator.ts";
+import { TaskDetails } from "./task-details.tsx";
+import { upgradeEditorTaskItems } from "./task-item.ts";
 import type { WikiLinkCandidate } from "./wiki-link.ts";
 
 export function BlockEditor({
@@ -22,6 +24,7 @@ export function BlockEditor({
   sourceItemId,
   wikiLinkCandidates,
   onNavigateWikiLink,
+  focusTaskId = null,
 }: {
   readonly initialDocument: EditorDocument;
   readonly saveState: SaveCoordinatorState;
@@ -30,8 +33,9 @@ export function BlockEditor({
   readonly sourceItemId: Uuid;
   readonly wikiLinkCandidates: readonly WikiLinkCandidate[];
   readonly onNavigateWikiLink: (targetItemId: Uuid) => void;
+  readonly focusTaskId?: Uuid | null;
 }) {
-  const [, setTransactionVersion] = useState(0);
+  const [transactionVersion, setTransactionVersion] = useState(0);
   const [clientError, setClientError] = useState<string | null>(null);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
@@ -82,7 +86,9 @@ export function BlockEditor({
     },
     onUpdate: ({ editor: updatedEditor }) => {
       setClientError(null);
-      const validated = validateEditorDocument(updatedEditor.getJSON());
+      const validated = validateEditorDocument(updatedEditor.getJSON(), {
+        taskMetadata: "current",
+      });
       if (!validated.ok) {
         setClientError(`${validated.error.code}: ${validated.error.title}`);
         return;
@@ -93,12 +99,37 @@ export function BlockEditor({
     onSelectionUpdate: () => setTransactionVersion((version) => version + 1),
   });
 
+  useEffect(() => {
+    if (editor === null || focusTaskId === null) {
+      return;
+    }
+    let taskPosition: number | null = null;
+    editor.state.doc.descendants((node, position) => {
+      if (
+        taskPosition === null &&
+        node.type.name === "taskItem" &&
+        node.attrs["taskId"] === focusTaskId
+      ) {
+        taskPosition = position;
+      }
+    });
+    if (taskPosition === null) {
+      return;
+    }
+    editor.commands.focus(taskPosition + 1);
+    const escaped = typeof CSS === "undefined" ? focusTaskId : CSS.escape(focusTaskId);
+    editor.view.dom
+      .querySelector<HTMLElement>(`[data-task-id="${escaped}"]`)
+      ?.scrollIntoView({ block: "center" });
+  }, [editor, focusTaskId]);
+
   if (editor === null) {
     return <p role="status">Loading editor…</p>;
   }
 
   const saveNow = async () => {
-    const validated = validateEditorDocument(editor.getJSON());
+    upgradeEditorTaskItems(editor);
+    const validated = validateEditorDocument(editor.getJSON(), { taskMetadata: "current" });
     if (!validated.ok) {
       setClientError(`${validated.error.code}: ${validated.error.title}`);
       return;
@@ -122,6 +153,7 @@ export function BlockEditor({
     <div className="block-editor" data-testid="block-editor">
       <EditorToolbar editor={editor} />
       <EditorHelp />
+      <TaskDetails editor={editor} transactionVersion={transactionVersion} />
       <EditorContent editor={editor} className="editor-content" onClick={handleWikiLinkClick} />
       <div className="editor-footer">
         <button

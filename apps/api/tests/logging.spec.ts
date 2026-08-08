@@ -127,4 +127,55 @@ describe("logging configuration (T091)", () => {
     expect(captured.join("\n")).not.toContain(secret);
     expect(captured.join("\n")).not.toContain("PrivateGraphQuery-711");
   });
+
+  it("never logs version 4 task titles, dates, metadata, or private task filters", async () => {
+    const captured: string[] = [];
+    const app = Fastify({
+      logger: {
+        ...registerLogging(),
+        stream: { write: (line: string) => captured.push(line) },
+      },
+    });
+    app.put("/task-document", async () => ({ ok: true }));
+    const privateTitle = "PrivateTaskTitle-48512";
+    const privateFilter = "PrivateTaskFilter-19331";
+    await app.inject({
+      method: "PUT",
+      url: "/task-document",
+      payload: {
+        document: {
+          formatVersion: 4,
+          body: {
+            type: "doc",
+            content: [
+              {
+                type: "taskList",
+                content: [
+                  {
+                    type: "taskItem",
+                    attrs: {
+                      checked: false,
+                      taskId: "01900000-0000-7000-8000-000000000010",
+                      status: "in_progress",
+                      dueDate: "2026-08-08",
+                      priority: "high",
+                    },
+                    content: [
+                      { type: "paragraph", content: [{ type: "text", text: privateTitle }] },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        filter: privateFilter,
+      },
+    });
+    await app.close();
+    const output = captured.join("\n");
+    expect(output).not.toContain(privateTitle);
+    expect(output).not.toContain(privateFilter);
+    expect(output).not.toContain("2026-08-08");
+  });
 });

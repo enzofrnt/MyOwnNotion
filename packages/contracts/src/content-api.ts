@@ -56,6 +56,32 @@ const WikiLinkMarkSchema = Type.Object(
 
 const EditorMarkSchema = Type.Union([EditorStyleMarkSchema, WikiLinkMarkSchema]);
 
+const LegacyTaskItemAttributesSchema = Type.Object(
+  { checked: Type.Boolean() },
+  { additionalProperties: false },
+);
+
+export const TaskItemAttributesSchema = Type.Object(
+  {
+    checked: Type.Boolean(),
+    taskId: UuidSchema,
+    status: Type.Union([
+      Type.Literal("todo"),
+      Type.Literal("in_progress"),
+      Type.Literal("completed"),
+      Type.Literal("cancelled"),
+    ]),
+    dueDate: Type.Union([Type.String({ pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }), Type.Null()]),
+    priority: Type.Union([
+      Type.Literal("none"),
+      Type.Literal("low"),
+      Type.Literal("medium"),
+      Type.Literal("high"),
+    ]),
+  },
+  { additionalProperties: false },
+);
+
 const EditorTextSchema = Type.Object(
   {
     type: Type.Literal("text"),
@@ -122,10 +148,15 @@ export const EditorDocumentNodeSchema = Type.Recursive((Node) =>
     ),
     Type.Object(
       {
-        type: Type.Union([Type.Literal("taskList"), Type.Literal("taskItem")]),
-        attrs: Type.Optional(
-          Type.Object({ checked: Type.Optional(Type.Boolean()) }, { additionalProperties: false }),
-        ),
+        type: Type.Literal("taskList"),
+        content: Type.Array(Node, { minItems: 1 }),
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        type: Type.Literal("taskItem"),
+        attrs: Type.Union([LegacyTaskItemAttributesSchema, TaskItemAttributesSchema]),
         content: Type.Array(Node, { minItems: 1 }),
       },
       { additionalProperties: false },

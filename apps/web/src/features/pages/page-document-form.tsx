@@ -20,11 +20,13 @@ export function PageDocumentForm({
   itemId,
   items,
   onNavigate,
+  focusTaskId = null,
 }: {
   readonly service: LocalContentService;
   readonly itemId: Uuid;
   readonly items: readonly ProjectedItem[];
   readonly onNavigate: (itemId: Uuid) => void;
+  readonly focusTaskId?: Uuid | null;
 }) {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [saveState, setSaveState] = useState<SaveCoordinatorState>({ status: "idle" });
@@ -100,6 +102,7 @@ export function PageDocumentForm({
               .filter((item) => item.kind === "page" && item.lifecycle === "active")
               .map((item) => ({ id: item.id, name: item.name }))}
             onNavigateWikiLink={onNavigate}
+            focusTaskId={focusTaskId}
           />
         </>
       ) : null}

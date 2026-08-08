@@ -162,4 +162,72 @@ describe("canonical export (T086/T088)", () => {
       canonicalExportString(JSON.parse(canonicalExportString(manifest)) as CanonicalExportManifest),
     ).toBe(canonicalExportString(manifest));
   });
+
+  it("round-trips every version-4 task attribute and stable identity", async () => {
+    const source = await createItemViaApi(harness, { kind: "page", name: "Export task source" });
+    const taskIds = [generateUuidV7(), generateUuidV7(), generateUuidV7(), generateUuidV7()];
+    const taskMetadata = [
+      { checked: false, taskId: taskIds[0], status: "todo", dueDate: null, priority: "none" },
+      {
+        checked: false,
+        taskId: taskIds[1],
+        status: "in_progress",
+        dueDate: "2028-02-29",
+        priority: "high",
+      },
+      {
+        checked: true,
+        taskId: taskIds[2],
+        status: "completed",
+        dueDate: "2026-08-08",
+        priority: "medium",
+      },
+      {
+        checked: false,
+        taskId: taskIds[3],
+        status: "cancelled",
+        dueDate: null,
+        priority: "low",
+      },
+    ] as const;
+    const document = {
+      format: "myownnotion.document+json",
+      formatVersion: 4,
+      body: {
+        type: "doc",
+        content: [
+          {
+            type: "taskList",
+            content: taskMetadata.map((attrs, index) => ({
+              type: "taskItem",
+              attrs,
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: `Export task ${index + 1}` }],
+                },
+              ],
+            })),
+          },
+        ],
+      },
+    };
+    const replaced = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: source.revisionId, document },
+    });
+    expect(replaced.statusCode).toBe(200);
+
+    const { manifest } = await runExport();
+
+    expect(manifest.items.find((item) => item.id === source.itemId)?.pageDocument).toEqual(
+      document,
+    );
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+    expect(
+      canonicalExportString(JSON.parse(canonicalExportString(manifest)) as CanonicalExportManifest),
+    ).toBe(canonicalExportString(manifest));
+  });
 });
