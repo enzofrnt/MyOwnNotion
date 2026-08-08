@@ -4,6 +4,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reloadWhileOffline,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -27,7 +28,7 @@ test.describe("block editor offline durability (US4)", () => {
     await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "offline");
 
-    await page.reload();
+    await reloadWhileOffline(page);
     await expect(page.getByTestId(`tree-item-${pageName}`)).toBeVisible({ timeout: 15_000 });
     await selectItem(page, pageName);
     await expect(page.getByRole("textbox", { name: "Page content" })).toContainText(

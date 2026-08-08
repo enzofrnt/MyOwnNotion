@@ -7,6 +7,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reloadWhileOffline,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -23,7 +24,7 @@ test.describe("interrupted mutations (US4)", () => {
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // Simulate a process interruption: reload while the queue is pending.
-    await page.reload();
+    await reloadWhileOffline(page);
     await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 

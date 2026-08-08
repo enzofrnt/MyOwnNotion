@@ -4,6 +4,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reloadWhileOffline,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -75,7 +76,7 @@ test.describe("offline tasks (US4)", () => {
     await workspace.getByPlaceholder("Title or source page").fill(taskTitle);
     await expect(workspace.getByTestId("task-count")).toHaveText("1 task");
 
-    await page.reload();
+    await reloadWhileOffline(page);
     await expect(page.getByTestId(`tree-item-${pageName}`)).toBeVisible({ timeout: 15_000 });
     await selectItem(page, pageName);
     const reloaded = page.locator(`.ProseMirror li[data-task-id="${taskId}"]`);
@@ -118,7 +119,7 @@ test.describe("offline tasks (US4)", () => {
     await page.getByRole("textbox", { name: "Page content" }).fill("Task removed offline");
     await page.getByRole("button", { name: "Save page" }).click();
     await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
-    await page.reload();
+    await reloadWhileOffline(page);
     await page
       .getByTestId("task-workspace")
       .getByPlaceholder("Title or source page")

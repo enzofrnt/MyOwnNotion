@@ -167,20 +167,30 @@ export const SlashCommandExtension = Extension.create({
 
           const clampPortalToViewport = (element: HTMLElement) => {
             const margin = 8;
-            const maxWidth = Math.max(160, window.innerWidth - margin * 2);
-            element.style.boxSizing = "border-box";
-            element.style.width = `${maxWidth}px`;
-            element.style.maxWidth = `${maxWidth}px`;
-            element.style.right = "auto";
+            const rem =
+              Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+            const preferredWidth = Math.min(22 * rem, window.innerWidth - margin * 2);
             const rect = element.getBoundingClientRect();
             let left = rect.left;
+            let top = rect.top;
+            if (left + preferredWidth > window.innerWidth - margin) {
+              left = Math.max(margin, window.innerWidth - preferredWidth - margin);
+            }
             if (left < margin) {
               left = margin;
             }
-            if (left + maxWidth > window.innerWidth - margin) {
-              left = Math.max(margin, window.innerWidth - maxWidth - margin);
+            if (top < margin) {
+              top = margin;
             }
+            // Fixed positioning keeps Tippy's absolute portal from expanding
+            // document scrollWidth (desktop Axe/overflow journeys).
+            element.style.position = "fixed";
+            element.style.boxSizing = "border-box";
+            element.style.width = `${preferredWidth}px`;
+            element.style.maxWidth = `${preferredWidth}px`;
             element.style.left = `${left}px`;
+            element.style.top = `${top}px`;
+            element.style.right = "auto";
             element.style.transform = "none";
           };
 

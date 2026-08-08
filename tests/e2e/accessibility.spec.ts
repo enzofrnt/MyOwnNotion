@@ -160,7 +160,7 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await editor.focus();
     const outline = await editor.evaluate((element) => getComputedStyle(element).outlineStyle);
     expect(outline).not.toBe("none");
-    await editor.fill("/");
+    await page.keyboard.type("/", { delay: 20 });
     await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible();
 
     const results = await new AxeBuilder({ page })

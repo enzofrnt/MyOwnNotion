@@ -10,6 +10,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reloadWhileOffline,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -67,7 +68,7 @@ test.describe("offline structured databases (US4)", () => {
     await page.getByRole("button", { name: "Save page" }).click();
     await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
 
-    await page.reload();
+    await reloadWhileOffline(page);
     await expect(page.getByTestId(`tree-item-${pageName}`)).toBeVisible({ timeout: 15_000 });
     await selectItem(page, pageName);
     const reloaded = page.getByTestId("database-block");

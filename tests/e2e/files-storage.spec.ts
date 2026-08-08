@@ -6,6 +6,7 @@ import {
   createRootItem,
   goOffline,
   openWorkspace,
+  reloadWhileOffline,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -247,7 +248,7 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
     await expect(attachment.getByRole("img", { name: `Preview of ${fileName}` })).toBeVisible();
 
     await goOffline(page, { preserveServiceWorker: true });
-    await page.reload();
+    await reloadWhileOffline(page, { preserveServiceWorker: true });
     await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
     await selectItem(page, pageName);
     const cached = page.getByTestId(`attachment-${fileName}`);

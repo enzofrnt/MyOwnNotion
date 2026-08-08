@@ -11,6 +11,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reloadWhileOffline,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -30,7 +31,7 @@ test.describe("offline continuity (US6)", () => {
 
     // 2. Server disappears; the client reloads.
     await goOffline(page);
-    await page.reload();
+    await reloadWhileOffline(page);
     await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
     // Loaded hierarchy remains readable from the durable projection.
     await expect(page.getByTestId(`tree-item-${loaded}`)).toBeVisible({ timeout: 15_000 });

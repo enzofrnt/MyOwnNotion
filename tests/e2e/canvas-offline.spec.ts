@@ -11,6 +11,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reloadWhileOffline,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -70,7 +71,7 @@ test.describe("offline freeform canvas (US4)", () => {
 
     await page.getByRole("button", { name: "Save page" }).click();
     await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
-    await page.reload();
+    await reloadWhileOffline(page);
     await expect(page.getByTestId(`tree-item-${sourceName}`)).toBeVisible({ timeout: 15_000 });
     await selectItem(page, sourceName);
     const reloaded = page.getByTestId("canvas-block");

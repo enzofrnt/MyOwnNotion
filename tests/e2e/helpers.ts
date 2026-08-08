@@ -112,6 +112,15 @@ export async function goOnline(page: Page): Promise<void> {
   await context.unroute("**/health");
 }
 
+/** Reload while keeping the simulated API outage (routes + no service worker). */
+export async function reloadWhileOffline(
+  page: Page,
+  options: { readonly preserveServiceWorker?: boolean } = {},
+): Promise<void> {
+  await page.reload();
+  await goOffline(page, options);
+}
+
 /** Waits for the save's own accepted batch, avoiding a stale pre-save synced state. */
 export async function savePageAndSynchronize(page: Page): Promise<void> {
   const accepted = page.waitForResponse(

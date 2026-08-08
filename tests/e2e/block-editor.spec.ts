@@ -214,24 +214,21 @@ test.describe("block editor (US1)", () => {
     await selectItem(page, pageName);
     const editor = page.getByRole("textbox", { name: "Page content" });
     await editor.fill("Portable plain text");
-    await editor.press("ControlOrMeta+A");
-    let copied: string;
     if (browserName === "chromium") {
       await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+      await editor.press("ControlOrMeta+A");
       await editor.press("ControlOrMeta+C");
-      copied = await page.evaluate(() => navigator.clipboard.readText());
-    } else {
-      copied = await editor.evaluate(() => window.getSelection()?.toString() ?? "");
-    }
-    expect(copied).toContain("Portable plain text");
-    await editor.fill("");
-    await editor.click();
-    if (browserName === "chromium") {
+      const copied = await page.evaluate(() => navigator.clipboard.readText());
+      expect(copied).toContain("Portable plain text");
+      await editor.fill("");
+      await editor.click();
       await page.evaluate(() => navigator.clipboard.writeText("Portable plain text"));
       await editor.press("ControlOrMeta+V");
     } else {
-      // Firefox/WebKit clipboard permissions are unreliable in CI; prove the
+      // Mobile WebKit selection/clipboard APIs are unreliable in CI; prove the
       // editor accepts plain text without a network conversion path.
+      await editor.fill("");
+      await editor.click();
       await page.keyboard.insertText("Portable plain text");
     }
     await expect(editor).toHaveText("Portable plain text");

@@ -4,6 +4,7 @@ import {
   goOffline,
   goOnline,
   openWorkspace,
+  reloadWhileOffline,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -41,7 +42,7 @@ test.describe("offline wiki links (US4)", () => {
     await insertLink(page, targetName);
     await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("region", { name: "Outgoing links" })).toContainText(targetName);
-    await page.reload();
+    await reloadWhileOffline(page);
     await expect(page.getByTestId(`tree-item-${sourceName}`)).toBeVisible({ timeout: 15_000 });
     await selectItem(page, sourceName);
     await expect(page.locator("a[data-wiki-link]")).toContainText(targetName);
@@ -70,7 +71,7 @@ test.describe("offline wiki links (US4)", () => {
     await page.getByRole("textbox", { name: "Page content" }).fill("Link removed offline");
     await page.getByRole("button", { name: "Save page" }).click();
     await expect(page.getByTestId("pending-mutations")).toBeVisible({ timeout: 15_000 });
-    await page.reload();
+    await reloadWhileOffline(page);
     await selectItem(page, sourceName);
     await expect(page.getByRole("region", { name: "Outgoing links" })).toContainText(
       "No outgoing links",
