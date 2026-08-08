@@ -924,5 +924,26 @@ try {
     console.error("Shared backup volume cleanup failed:", cleanupError);
     process.exitCode = 1;
   }
-  rmSync(backupHostRoot, { recursive: true, force: true });
+  try {
+    // Secret files were chowned to UID 1000 for the operations image; reclaim
+    // ownership before deleting the host temp tree from the CI runner.
+    execFileSync(
+      "docker",
+      [
+        "run",
+        "--rm",
+        "-v",
+        `${backupHostRoot}:/cleanup`,
+        "alpine:3.22",
+        "sh",
+        "-c",
+        "chown -R 0:0 /cleanup && chmod -R u+rwX /cleanup",
+      ],
+      { stdio: "ignore" },
+    );
+    rmSync(backupHostRoot, { recursive: true, force: true });
+  } catch (cleanupError) {
+    console.error("Backup host root cleanup failed:", cleanupError);
+    process.exitCode = 1;
+  }
 }
