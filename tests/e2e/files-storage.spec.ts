@@ -4,6 +4,7 @@ import { DOCUMENT_BYTES, SAFE_PNG_BYTES } from "../fixtures/files-storage.ts";
 import {
   attachReviewScreenshot,
   createRootItem,
+  goOffline,
   openWorkspace,
   selectItem,
   uniqueName,
@@ -228,8 +229,8 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
     browserName,
   }, testInfo) => {
     test.skip(
-      browserName === "webkit",
-      "Playwright service workers are Chromium-only; offline revision cache is proven there",
+      browserName !== "chromium",
+      "Playwright service-worker file caching is reliably exercised on Chromium; offline revision cache is proven there",
     );
     await openWorkspace(page);
     await page.evaluate(async () => {
@@ -245,8 +246,7 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
     await attachment.getByRole("button", { name: `Preview ${fileName}` }).click();
     await expect(attachment.getByRole("img", { name: `Preview of ${fileName}` })).toBeVisible();
 
-    await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-    await page.route("**/health", (route) => route.abort("connectionrefused"));
+    await goOffline(page, { preserveServiceWorker: true });
     await page.reload();
     await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
     await selectItem(page, pageName);

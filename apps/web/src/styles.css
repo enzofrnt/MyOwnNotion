@@ -555,11 +555,29 @@ textarea {
 
 .slash-command-portal {
   z-index: 20;
-  width: min(22rem, calc(100vw - 1rem));
+  box-sizing: border-box;
+  width: min(22rem, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
+  overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .slash-command-portal {
+    position: fixed !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: none !important;
+  }
 }
 
 .slash-command-menu {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   max-height: min(24rem, 55vh);
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 0.35rem;
   border: 1px solid var(--border);

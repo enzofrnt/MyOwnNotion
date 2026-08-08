@@ -28,10 +28,22 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium-desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox-desktop", use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit-desktop", use: { ...devices["Desktop Safari"] } },
+    // Non-Chromium service workers can bypass Playwright route aborts used by
+    // offline outbox journeys. File-revision CacheFirst coverage stays on
+    // Chromium (see files-storage offline skip).
+    {
+      name: "firefox-desktop",
+      use: { ...devices["Desktop Firefox"], serviceWorkers: "block" },
+    },
+    {
+      name: "webkit-desktop",
+      use: { ...devices["Desktop Safari"], serviceWorkers: "block" },
+    },
     { name: "chromium-mobile", use: { ...devices["Pixel 7"] } },
-    { name: "webkit-mobile", use: { ...devices["iPhone 14"] } },
+    {
+      name: "webkit-mobile",
+      use: { ...devices["iPhone 14"], serviceWorkers: "block" },
+    },
   ],
   webServer: [
     {

@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
   addDatabaseProperty,
   addDatabaseRecord,
@@ -7,6 +7,8 @@ import {
 } from "./database-helpers.ts";
 import {
   createRootItem,
+  goOffline,
+  goOnline,
   openWorkspace,
   selectItem,
   uniqueName,
@@ -14,16 +16,6 @@ import {
 } from "./helpers.ts";
 
 const apiPort = Number(process.env["MYOWNNOTION_API_PORT"] ?? 3001);
-
-async function goOffline(page: Page): Promise<void> {
-  await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-  await page.route("**/health", (route) => route.abort("connectionrefused"));
-}
-
-async function goOnline(page: Page): Promise<void> {
-  await page.unroute("**/v1/**");
-  await page.unroute("**/health");
-}
 
 function databaseNodes(document: unknown): Array<Record<string, unknown>> {
   const databases: Array<Record<string, unknown>> = [];

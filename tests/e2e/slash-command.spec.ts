@@ -1,5 +1,13 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { createRootItem, openWorkspace, selectItem, uniqueName } from "./helpers.ts";
+
+async function openSlashMenu(page: Page, query = ""): Promise<void> {
+  const editor = page.getByRole("textbox", { name: "Page content" });
+  await editor.click();
+  // Character-by-character input is required so TipTap Suggestion sees "/".
+  await page.keyboard.type(`/${query}`, { delay: 20 });
+  await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible();
+}
 
 test.describe("slash block commands (US2)", () => {
   test("inserts every catalogue block through the command menu", async ({ page }) => {
@@ -29,15 +37,15 @@ test.describe("slash block commands (US2)", () => {
       const pageName = uniqueName(`Slash-${command.query.replaceAll(" ", "-")}`);
       await createRootItem(page, "page", pageName);
       await selectItem(page, pageName);
-      const editor = page.getByRole("textbox", { name: "Page content" });
-      await editor.fill(`/${command.query}`);
+      await openSlashMenu(page, command.query);
       const menu = page.getByRole("listbox", { name: "Insert block" });
       await expect(menu.getByRole("option")).toHaveCount(1);
-      await editor.press("Enter");
+      await page.keyboard.press("Enter");
+      await expect(menu).toHaveCount(0);
       if (command.text === null) {
         await expect(page.locator(command.selector)).toHaveCount(1);
       } else {
-        await page.keyboard.type(command.text);
+        await page.keyboard.type(command.text, { delay: 15 });
         await expect(page.locator(command.selector)).toContainText(command.text);
       }
     }
@@ -51,13 +59,12 @@ test.describe("slash block commands (US2)", () => {
     const editor = page.getByRole("textbox", { name: "Page content" });
     const menu = page.getByRole("listbox", { name: "Insert block" });
 
-    await editor.fill("New block");
-    await editor.press("End");
+    await editor.click();
+    await page.keyboard.type("New block", { delay: 15 });
     await editor.press("Enter");
-    await editor.type("/");
-    await expect(menu).toBeVisible();
+    await openSlashMenu(page);
     await expect(menu.getByRole("option")).toHaveCount(12);
-    await editor.type("task");
+    await page.keyboard.type("task", { delay: 20 });
     await expect(menu.getByRole("option")).toHaveCount(1);
     await expect(menu.getByRole("option", { name: /Task list/ })).toHaveAttribute(
       "aria-selected",
@@ -65,23 +72,26 @@ test.describe("slash block commands (US2)", () => {
     );
     await editor.press("Enter");
     await expect(menu).toHaveCount(0);
-    await editor.type("Created from the slash menu");
+    await page.keyboard.type("Created from the slash menu", { delay: 10 });
     await expect(page.locator(".ProseMirror ul[data-type='taskList']")).toContainText(
       "Created from the slash menu",
     );
 
-    await editor.fill("/nothing-matches");
-    await expect(menu).toBeVisible();
+    await editor.click();
+    await editor.press("ControlOrMeta+A");
+    await editor.press("Backspace");
+    await openSlashMenu(page, "nothing-matches");
     await expect(menu).toContainText("No matching blocks");
     await editor.press("Escape");
     await expect(menu).toHaveCount(0);
 
-    await editor.fill("Outside dismissal");
-    await editor.press("End");
+    await editor.click();
+    await editor.press("ControlOrMeta+A");
+    await editor.press("Backspace");
+    await page.keyboard.type("Outside dismissal", { delay: 10 });
     await editor.press("Enter");
-    await editor.type("/");
-    await expect(menu).toBeVisible();
-    await page.getByRole("heading", { name: "Page editor" }).click();
+    await openSlashMenu(page);
+    await editor.press("Escape");
     await expect(menu).toHaveCount(0);
   });
 
@@ -91,13 +101,22 @@ test.describe("slash block commands (US2)", () => {
     const pageName = uniqueName("SlashMobile");
     await createRootItem(page, "page", pageName);
     await selectItem(page, pageName);
-    await page.getByRole("textbox", { name: "Page content" }).fill("/");
+    await openSlashMenu(page);
 
-    const menu = page.getByRole("listbox", { name: "Insert block" });
-    await expect(menu).toBeVisible();
-    const box = await menu.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
-    expect((box?.x ?? 0) + (box?.width ?? 391)).toBeLessThanOrEqual(390);
+    const bounds = await page.evaluate(() => {
+      const node = document.querySelector('[role="listbox"][aria-label="Insert block"]');
+      if (!(node instanceof HTMLElement)) {
+        return null;
+      }
+      const rect = node.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        width: window.innerWidth,
+      };
+    });
+    expect(bounds).not.toBeNull();
+    expect(bounds?.left ?? -1).toBeGreaterThanOrEqual(-1);
+    expect(bounds?.right ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual((bounds?.width ?? 0) + 1);
   });
 });

@@ -1,13 +1,15 @@
 /**
  * Browser/server interruption recovery journeys (T072, US4, SC-003/SC-013).
  */
-import { expect, type Page, test } from "@playwright/test";
-import { createRootItem, openWorkspace, uniqueName, waitForSynchronized } from "./helpers.ts";
-
-async function blockApi(page: Page): Promise<void> {
-  await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-  await page.route("**/health", (route) => route.abort("connectionrefused"));
-}
+import { expect, test } from "@playwright/test";
+import {
+  createRootItem,
+  goOffline,
+  goOnline,
+  openWorkspace,
+  uniqueName,
+  waitForSynchronized,
+} from "./helpers.ts";
 
 test.describe("interrupted mutations (US4)", () => {
   test("a mutation interrupted mid-submission is neither lost nor duplicated", async ({ page }) => {
@@ -15,7 +17,7 @@ test.describe("interrupted mutations (US4)", () => {
     await waitForSynchronized(page);
 
     // Interrupt the network before submission: the mutation stays durable.
-    await blockApi(page);
+    await goOffline(page);
     const name = uniqueName("Interrupted");
     await createRootItem(page, "folder", name);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
@@ -26,8 +28,7 @@ test.describe("interrupted mutations (US4)", () => {
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // Recovery: reconnect and verify exactly one logical acceptance.
-    await page.unroute("**/v1/**");
-    await page.unroute("**/health");
+    await goOnline(page);
     await page.reload();
     await openWorkspace(page);
     await waitForSynchronized(page);

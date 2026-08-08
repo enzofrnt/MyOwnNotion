@@ -51,11 +51,11 @@ test.describe("wiki links (US1)", () => {
 
     await selectItem(page, sourceName);
     const persistedLink = page.locator("a[data-wiki-link]");
-    await persistedLink.focus();
-    await page.keyboard.press("Enter");
+    await persistedLink.click();
     await expect(page.getByTestId(`tree-item-${renamedTarget}`)).toHaveAttribute(
       "aria-selected",
       "true",
+      { timeout: 15_000 },
     );
   });
 

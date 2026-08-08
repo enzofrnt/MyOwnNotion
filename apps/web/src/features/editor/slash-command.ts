@@ -165,8 +165,36 @@ export const SlashCommandExtension = Extension.create({
           let component: ReactRenderer<SlashCommandMenuHandle, SlashCommandMenuProps> | null = null;
           let unmount: (() => void) | null = null;
 
+          const clampPortalToViewport = (element: HTMLElement) => {
+            const margin = 8;
+            const maxWidth = Math.max(160, window.innerWidth - margin * 2);
+            element.style.boxSizing = "border-box";
+            element.style.width = `${maxWidth}px`;
+            element.style.maxWidth = `${maxWidth}px`;
+            element.style.right = "auto";
+            const rect = element.getBoundingClientRect();
+            let left = rect.left;
+            if (left < margin) {
+              left = margin;
+            }
+            if (left + maxWidth > window.innerWidth - margin) {
+              left = Math.max(margin, window.innerWidth - maxWidth - margin);
+            }
+            element.style.left = `${left}px`;
+            element.style.transform = "none";
+          };
+
+          const scheduleClamp = () => {
+            if (!(component?.element instanceof HTMLElement)) {
+              return;
+            }
+            const element = component.element;
+            requestAnimationFrame(() => clampPortalToViewport(element));
+          };
+
           const update = (props: MenuSuggestionProps) => {
             component?.updateProps({ items: props.items, command: props.command });
+            scheduleClamp();
           };
 
           return {
@@ -177,6 +205,7 @@ export const SlashCommandExtension = Extension.create({
                 className: "slash-command-portal",
               });
               unmount = props.mount(component.element);
+              scheduleClamp();
             },
             onUpdate: update,
             onKeyDown: ({ event, view }: SuggestionKeyDownProps) => {

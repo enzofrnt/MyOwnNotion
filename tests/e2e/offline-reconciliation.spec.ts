@@ -2,13 +2,14 @@
  * Reload-offline, mutate-offline, reconnect, and conflict Playwright
  * journeys (T038, US6, SC-012/SC-014).
  *
- * API unavailability is simulated by aborting every /v1 and /health route;
- * the web shell itself stays reachable, matching "the server becomes
- * unreachable" from the spec.
+ * API unavailability is simulated with browser offline mode plus aborted
+ * /v1 and /health routes so the PWA service worker cannot bypass the outage.
  */
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
   createRootItem,
+  goOffline,
+  goOnline,
   openWorkspace,
   selectItem,
   uniqueName,
@@ -16,16 +17,6 @@ import {
 } from "./helpers.ts";
 
 const apiPort = Number(process.env["MYOWNNOTION_API_PORT"] ?? 3001);
-
-async function goOffline(page: Page): Promise<void> {
-  await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-  await page.route("**/health", (route) => route.abort("connectionrefused"));
-}
-
-async function goOnline(page: Page): Promise<void> {
-  await page.unroute("**/v1/**");
-  await page.unroute("**/health");
-}
 
 test.describe("offline continuity (US6)", () => {
   test("loaded content stays readable and editable offline, then reconciles once", async ({
@@ -103,7 +94,7 @@ test.describe("offline continuity (US6)", () => {
     expect(competing.status()).toBe(200);
 
     // Reconnect: the local mutation conflicts and is captured durably.
-    await page.unroute("**/v1/**");
+    await goOnline(page);
     await page.reload();
     await openWorkspace(page);
     await expect(page.getByTestId("conflict-records")).toBeVisible({ timeout: 20_000 });

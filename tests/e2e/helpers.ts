@@ -79,6 +79,39 @@ export async function waitForSynchronized(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Simulate API unavailability for offline journeys.
+ *
+ * The Vite PWA service worker can bypass Playwright `page.route` aborts on
+ * WebKit (and occasionally Firefox), so outbox offline tests unregister
+ * workers first. The document shell stays loadable from the Vite server.
+ * Pass `{ preserveServiceWorker: true }` when the journey itself exercises
+ * CacheFirst file-revision caching (Chromium).
+ */
+export async function goOffline(
+  page: Page,
+  options: { readonly preserveServiceWorker?: boolean } = {},
+): Promise<void> {
+  if (options.preserveServiceWorker !== true) {
+    await page.evaluate(async () => {
+      if (!("serviceWorker" in navigator)) {
+        return;
+      }
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    });
+  }
+  const context = page.context();
+  await context.route("**/v1/**", (route) => route.abort("connectionrefused"));
+  await context.route("**/health", (route) => route.abort("connectionrefused"));
+}
+
+export async function goOnline(page: Page): Promise<void> {
+  const context = page.context();
+  await context.unroute("**/v1/**");
+  await context.unroute("**/health");
+}
+
 /** Waits for the save's own accepted batch, avoiding a stale pre-save synced state. */
 export async function savePageAndSynchronize(page: Page): Promise<void> {
   const accepted = page.waitForResponse(
