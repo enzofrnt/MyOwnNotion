@@ -5,7 +5,6 @@ import { expect, test } from "@playwright/test";
 import {
   createRootItem,
   goOffline,
-  goOnline,
   openWorkspace,
   reconnectAndSynchronize,
   reloadWhileOffline,
