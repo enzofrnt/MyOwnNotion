@@ -162,6 +162,11 @@
 - [x] T065 Add Playwright containment assertion at 400% zoom for attachment controls in `tests/e2e/files-storage.spec.ts` per FR-025 (partial)
 - [x] T066 Align pinned restic binary and CLI/manifest defaults to 0.19.1 in `apps/operations/Dockerfile` and `apps/operations/src/cli.ts` per plan: Primary Dependencies (partial)
 
+## Phase 9: Convergence
+
+- [x] T067 CRITICAL Add a Playwright journey that creates or selects a hierarchy-placed file and exercises HierarchyFilePanel metadata, download, and placement actions with labelled keyboard-operable controls in `tests/e2e/files-storage.spec.ts` per Constitution III / FR-001 / FR-025 (missing)
+- [x] T068 Expose a labelled owner UI path to import or place an existing logical file into the hierarchy so FR-001 hierarchy file entries are reachable, wiring `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` and `apps/web/src/services/content-api.ts` per FR-001 (missing)
+
 ## Dependencies and Execution Order
 
 ### Phase dependencies

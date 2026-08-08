@@ -119,3 +119,11 @@ Spec Kit converge against the live codebase appended three residual gaps, then i
 | T064 FR-001 hierarchy file actions | `HierarchyFilePanel` exposes metadata, download/preview via `FilePreview`, and labelled placement removal when a hierarchy file is selected |
 | T065 FR-025 400% zoom | `tests/e2e/files-storage.spec.ts` asserts metadata/download visibility and horizontal containment under `documentElement.style.zoom = 400%` |
 | T066 plan restic 0.19.1 | Operations image installs official `restic` 0.19.1 Linux binaries with SHA-256 verification; CLI default tool version is `0.19.1` |
+
+## Convergence pass — Phase 9 — 2026-08-08
+
+| Task | Result |
+| --- | --- |
+| T067 hierarchy file Playwright | `tests/e2e/files-storage.spec.ts` imports a root hierarchy file and asserts HierarchyFilePanel metadata, download, and placement controls |
+| T068 hierarchy import UI | Toolbar `Import root file` uses `ContentApi.importFile` with `kind: "hierarchy"`; FR-025 zoom containment asserts panel scroll overflow |
+| CI smoke cleanup | Linux CI deletes UID-1000 secret temp trees via Docker `rm -rf` after green recoverability smoke |

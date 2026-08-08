@@ -229,6 +229,8 @@ select {
   margin-top: 1rem;
   min-width: 0;
   max-width: 100%;
+  overflow-x: auto;
+  overflow-wrap: anywhere;
 }
 
 .panel h2 {

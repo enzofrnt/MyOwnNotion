@@ -105,18 +105,18 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
     const originalViewport = page.viewportSize();
     await page.setViewportSize({ width: 320, height: originalViewport?.height ?? 720 });
     await expect(page.getByLabel(`Metadata for ${fileName}`)).toBeVisible();
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
+    const panel = page.getByTestId("attachment-panel");
+    const overflow = await panel.evaluate((element) => element.scrollWidth - element.clientWidth);
     expect(overflow).toBeLessThanOrEqual(24);
     if (originalViewport !== null) await page.setViewportSize(originalViewport);
+    // FR-025: controls stay labelled and contained inside the panel at 400% zoom.
     await page.evaluate(() => {
       document.documentElement.style.zoom = "400%";
     });
     await expect(page.getByLabel(`Metadata for ${fileName}`)).toBeVisible();
     await expect(page.getByRole("link", { name: `Download ${fileName}` })).toBeVisible();
-    const zoomedOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    const zoomedOverflow = await panel.evaluate(
+      (element) => element.scrollWidth - element.clientWidth,
     );
     expect(zoomedOverflow).toBeLessThanOrEqual(24);
     await page.evaluate(() => {
@@ -245,5 +245,29 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
     await expect(cached).toContainText("Cached revision — available offline", { timeout: 15_000 });
     await expect(cached.getByRole("img", { name: `Preview of ${fileName}` })).toBeVisible();
     await attachReviewScreenshot(page, testInfo, "files-offline-cache");
+  });
+
+  test("imports a hierarchy file and exposes labelled metadata, download, and placements", async ({
+    page,
+  }, testInfo) => {
+    await openWorkspace(page);
+    const fileName = `${uniqueName("hierarchy-file")}.png`;
+    await page.getByTestId("hierarchy-file-import").setInputFiles({
+      name: fileName,
+      mimeType: "image/png",
+      buffer: Buffer.from(SAFE_PNG_BYTES),
+    });
+    await expect(page.getByTestId(`tree-item-${fileName}`)).toBeVisible({ timeout: 15_000 });
+    await waitForSynchronized(page);
+    await selectItem(page, fileName);
+    const panel = page.getByTestId("hierarchy-file-panel");
+    await expect(panel).toBeVisible();
+    await expect(page.getByLabel(`Metadata for ${fileName}`)).toBeVisible();
+    await expect(page.getByRole("link", { name: `Download ${fileName}` })).toBeVisible();
+    await expect(page.getByRole("list", { name: `Placements for ${fileName}` })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `Remove hierarchy placement of ${fileName}` }),
+    ).toBeVisible();
+    await attachReviewScreenshot(page, testInfo, "files-hierarchy-panel");
   });
 });

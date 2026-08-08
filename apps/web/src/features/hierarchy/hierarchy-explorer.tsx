@@ -11,6 +11,7 @@ import type { ProjectedItem } from "@myownnotion/client-core";
 import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
+import { ContentApi } from "../../services/content-api.ts";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
@@ -77,6 +78,7 @@ function flatten(nodes: TreeNode[]): TreeNode[] {
 
 export function HierarchyExplorer() {
   const service = useMemo(() => localContent(), []);
+  const api = useMemo(() => new ContentApi(), []);
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -84,6 +86,7 @@ export function HierarchyExplorer() {
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
   const [focusTaskId, setFocusTaskId] = useState<Uuid | null>(null);
   const [newItemName, setNewItemName] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setItems(await service.listActiveItems());
@@ -171,6 +174,35 @@ export function HierarchyExplorer() {
       setNewItemName("");
     },
     [newItemName, runCommand, siblingKeys],
+  );
+
+  const importHierarchyFile = useCallback(
+    async (fileList: FileList | null, parentItemId: Uuid | null) => {
+      const file = fileList?.[0];
+      if (file === undefined) return;
+      setImportBusy(true);
+      setProblem(null);
+      const keys = siblingKeys(parentItemId);
+      const result = await api.importFile(generateUuidV7(), file, {
+        kind: "hierarchy",
+        parentItemId,
+        positionKey: safeKeyBetween(keys[keys.length - 1] ?? null, null),
+      });
+      if (!result.ok) {
+        setProblem({
+          code: result.problem.code as SafeError["code"],
+          title: result.problem.title,
+        });
+      } else {
+        await service.synchronize();
+        await refresh();
+        if (result.value.item !== undefined) {
+          setSelectedId(result.value.item.id as Uuid);
+        }
+      }
+      setImportBusy(false);
+    },
+    [api, refresh, service, siblingKeys],
   );
 
   const renameItem = useCallback(
@@ -399,6 +431,20 @@ export function HierarchyExplorer() {
         <button type="button" onClick={() => void createItem("page", null)}>
           New root page
         </button>
+        <label htmlFor="hierarchy-file-import" className="muted">
+          Import root file
+        </label>
+        <input
+          id="hierarchy-file-import"
+          data-testid="hierarchy-file-import"
+          type="file"
+          disabled={importBusy}
+          aria-label="Import root file into the hierarchy"
+          onChange={(event) => {
+            void importHierarchyFile(event.target.files, null);
+            event.currentTarget.value = "";
+          }}
+        />
       </div>
 
       {tree.length === 0 ? (
