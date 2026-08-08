@@ -80,8 +80,14 @@ export async function waitForSynchronized(page: Page): Promise<void> {
       async () => {
         const syncState = await page.getByTestId("sync-status").getAttribute("data-state");
         const empty = await page.getByTestId("mutation-status-empty").isVisible();
-        const pending = await page.getByTestId("pending-mutations").isVisible().catch(() => false);
-        const conflict = await page.getByTestId("conflict-records").isVisible().catch(() => false);
+        const pending = await page
+          .getByTestId("pending-mutations")
+          .isVisible()
+          .catch(() => false);
+        const conflict = await page
+          .getByTestId("conflict-records")
+          .isVisible()
+          .catch(() => false);
         if (empty && syncState === "synced" && !pending && !conflict) {
           return "synced";
         }

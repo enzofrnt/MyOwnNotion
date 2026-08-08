@@ -8,7 +8,9 @@ async function openSlashMenu(page: Page, query = ""): Promise<void> {
   await expect(editor).toBeFocused({ timeout: 5_000 });
   // Character-by-character input is required so TipTap Suggestion sees "/".
   await page.keyboard.type(`/${query}`, { delay: 40 });
-  await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("listbox", { name: "Insert block" })).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 test.describe("slash block commands (US2)", () => {
