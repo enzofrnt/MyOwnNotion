@@ -52,7 +52,6 @@ const backupSecretsDirectory = path.join(backupHostRoot, "secrets");
 const backupDestination = path.join(backupHostRoot, "repository");
 const backupComposeOverride = path.join(backupHostRoot, "compose.backup-volume.yaml");
 const sharedBackupVolume = `${projectName}-shared-backup`;
-const resticPasswordPath = path.join(backupSecretsDirectory, "restic-password");
 mkdirSync(backupSecretsDirectory, { recursive: true });
 mkdirSync(backupDestination, { recursive: true });
 chmodSync(backupHostRoot, 0o755);
