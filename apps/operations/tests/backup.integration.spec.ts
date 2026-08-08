@@ -135,7 +135,7 @@ async function fixture(failAt: string | null = null): Promise<{
       statusPath: path.join(directory, "state", "backup.json"),
       migrationsRoot,
       sourceRevision: "a".repeat(40),
-      toolVersions: { node: "24.14.0", restic: "0.18.1", rclone: "1.72.1" },
+      toolVersions: { node: "24.14.0", restic: "0.19.1", rclone: "1.72.1" },
       environment: {
         PATH: "/usr/local/bin:/usr/bin:/bin",
         RESTIC_REPOSITORY: "rclone:offsite:myownnotion",

@@ -110,6 +110,18 @@ test.describe("private file preview, reuse, and offline revision cache", () => {
     );
     expect(overflow).toBeLessThanOrEqual(24);
     if (originalViewport !== null) await page.setViewportSize(originalViewport);
+    await page.evaluate(() => {
+      document.documentElement.style.zoom = "400%";
+    });
+    await expect(page.getByLabel(`Metadata for ${fileName}`)).toBeVisible();
+    await expect(page.getByRole("link", { name: `Download ${fileName}` })).toBeVisible();
+    const zoomedOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(zoomedOverflow).toBeLessThanOrEqual(24);
+    await page.evaluate(() => {
+      document.documentElement.style.zoom = "";
+    });
     const axe = await new AxeBuilder({ page })
       .include('[data-testid="attachment-panel"]')
       .analyze();

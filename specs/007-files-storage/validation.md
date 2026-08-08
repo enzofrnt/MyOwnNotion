@@ -109,3 +109,13 @@ Coverage, production builds, Chromium journeys, and CI artifact wiring were re-v
 | Follow-up ops isolation | `vitest run --project operations` Passed: 72 tests after the restore/backup fixes |
 
 Feature `007-files-storage` Phase 7 polish tasks T058–T063 are complete on recorded evidence above.
+
+## Convergence pass — Phase 8 — 2026-08-08
+
+Spec Kit converge against the live codebase appended three residual gaps, then implement closed them:
+
+| Task | Result |
+| --- | --- |
+| T064 FR-001 hierarchy file actions | `HierarchyFilePanel` exposes metadata, download/preview via `FilePreview`, and labelled placement removal when a hierarchy file is selected |
+| T065 FR-025 400% zoom | `tests/e2e/files-storage.spec.ts` asserts metadata/download visibility and horizontal containment under `documentElement.style.zoom = 400%` |
+| T066 plan restic 0.19.1 | Operations image installs official `restic` 0.19.1 Linux binaries with SHA-256 verification; CLI default tool version is `0.19.1` |

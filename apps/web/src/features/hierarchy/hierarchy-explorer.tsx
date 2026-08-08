@@ -19,6 +19,7 @@ import { KnowledgePanel } from "../knowledge/knowledge-panel.tsx";
 import { PageDocumentForm } from "../pages/page-document-form.tsx";
 import { TaskWorkspace } from "../tasks/task-workspace.tsx";
 import { FileNode } from "./file-node.tsx";
+import { HierarchyFilePanel } from "./hierarchy-file-panel.tsx";
 import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
 
@@ -444,6 +445,15 @@ export function HierarchyExplorer() {
             }}
           />
         </>
+      ) : null}
+      {selectedItem !== null && selectedItem.kind === "file" ? (
+        <HierarchyFilePanel
+          item={selectedItem}
+          onChanged={async () => {
+            await service.synchronize();
+            await refresh();
+          }}
+        />
       ) : null}
       {selectedItem !== null ? (
         <>

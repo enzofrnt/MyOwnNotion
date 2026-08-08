@@ -86,7 +86,7 @@ class ApplyRuntime implements BackupProcessRuntime {
         createdAt: "2026-08-08T00:00:00.000Z",
         sourceRevision: "a".repeat(40),
         databaseSchemaVersions: ["0001_content_foundations"],
-        toolVersions: { node: "24.14.0", postgres: "18.4", restic: "0.18.1", rclone: "1.72.1" },
+        toolVersions: { node: "24.14.0", postgres: "18.4", restic: "0.19.1", rclone: "1.72.1" },
         database: {
           path: "database/myownnotion.dump",
           format: "postgresql-custom",

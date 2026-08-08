@@ -196,7 +196,7 @@ async function configuredBackup(
     sourceRevision: environment["MYOWNNOTION_VCS_REF"]?.trim() || "",
     toolVersions: {
       node: process.versions.node,
-      restic: environment["MYOWNNOTION_RESTIC_VERSION"]?.trim() || "0.18.1",
+      restic: environment["MYOWNNOTION_RESTIC_VERSION"]?.trim() || "0.19.1",
       rclone: environment["MYOWNNOTION_RCLONE_VERSION"]?.trim() || "1.72.1",
     },
     environment,
