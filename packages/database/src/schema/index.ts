@@ -31,11 +31,22 @@ const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   },
 });
 
-export const workspaces = pgTable("workspaces", {
-  id: uuid("id").primaryKey(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  schemaVersion: integer("schema_version").notNull(),
-});
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: uuid("id").primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    schemaVersion: integer("schema_version").notNull(),
+  },
+  (table) => [
+    // Exactly one canonical workspace per installation (FR-001): a unique
+    // index on a constant expression admits at most one row, so a concurrent
+    // second bootstrap fails loudly instead of inserting a stray workspace.
+    // Added in migration 0002_workspace_singleton.sql.
+    uniqueIndex("workspaces_singleton_idx").on(sql`(true)`),
+    check("workspaces_schema_version_check", sql`${table.schemaVersion} >= 1`),
+  ],
+);
 
 export const items = pgTable(
   "items",

@@ -1,6 +1,22 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 -> 1.1.0
+- Version change: 1.1.0 -> 1.1.1
+- Modified principles:
+  - I. User Ownership and Local Resilience -> clarified that "user" is always
+    the single owner of one installation (wording only, no new obligation)
+- Added principles: none
+- Modified sections:
+  - Product and Technical Constraints -> added the explicit single-owner
+    product constraint
+- Removed sections: none
+- Follow-up TODOs: none
+- Rationale: PATCH. This is a clarification of existing intent already
+  normative in specs/001-content-foundations/spec.md (FR-001, Assumptions) and
+  plan.md ("Permanent single owner"); it adds no new requirement. Affected
+  specs and templates reviewed: spec.md and plan.md already agree, no template
+  references multi-user behaviour.
+
+Previous: 1.0.0 -> 1.1.0
 - Modified principles:
   - III. Incremental, Verifiable Delivery -> expanded test-layer and UI-journey obligations
 - Added principles:
@@ -8,8 +24,6 @@ Sync Impact Report
 - Modified sections:
   - Product and Technical Constraints
   - Development Workflow and Quality Gates
-- Removed sections: none
-- Follow-up TODOs: none
 -->
 # Knowledge Workspace Constitution
 
@@ -18,6 +32,8 @@ Sync Impact Report
 ### I. User Ownership and Local Resilience
 
 Users MUST retain meaningful control of their knowledge. Core reading and editing flows MUST remain available without a network connection once data is present locally. Data MUST be exportable in documented, durable formats. Cloud services may enhance synchronization and sharing, but MUST NOT be the only path to a user's content.
+
+Throughout this constitution, "user" means the single owner of one installation. Plural wording refers to owners of separate installations, never to multiple accounts inside one workspace.
 
 ### II. One Spec, Any Agent
 
@@ -47,6 +63,7 @@ Every maintained first-party language MUST have a current formatter, linter or e
 
 ## Product and Technical Constraints
 
+- The product is permanently single-user: one installation has exactly one owner and exactly one canonical workspace. There are no additional accounts, no user management, no roles, and no permission model between people. Multiple authorized *devices* belonging to that one owner, and anonymous read-only access to deliberately shared content, are in scope; multi-user accounts, teams, and real-time co-editing are out of scope permanently. Any feature that would introduce a second identity with its own content requires a MAJOR amendment to this constitution before it is specified.
 - The first usable release prioritizes workspaces, hierarchical pages, block editing, links, backlinks, search, and reliable persistence.
 - Advanced databases, canvas, public sharing, plugins, MCP, Notion import, and real-time collaboration MUST be delivered as separate specs rather than folded into the core feature.
 - Tiptap is the initial editor candidate, but the selected editor architecture MUST preserve a documented internal content model and export path.
@@ -70,4 +87,4 @@ Any deliberate exception MUST be recorded in the active feature's plan with its 
 
 This constitution overrides conflicting workflow notes and agent-specific guidance. Amendments require an explicit change to this file, a version update, and a review of affected specs and templates. Semantic versioning applies: MAJOR for incompatible governance changes, MINOR for new or materially expanded principles, and PATCH for clarifications. Every feature plan and implementation review MUST check constitution compliance.
 
-**Version**: 1.1.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-07
+**Version**: 1.1.1 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-09
