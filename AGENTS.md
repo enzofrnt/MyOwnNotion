@@ -43,9 +43,9 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
 ## Agent commands
 
 - Codex uses project skills such as `$speckit-specify`, `$speckit-plan`, `$speckit-tasks`, and `$speckit-implement`.
-- Cursor uses the corresponding project skills such as `/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, and `/speckit-implement`.
+- Cursor and Claude Code use the corresponding project skills such as `/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, and `/speckit-implement`.
 
-Both command families read and write the same constitution and feature directories.
+All command families read and write the same constitution and feature directories.
 
 ## Optional output-style tooling
 

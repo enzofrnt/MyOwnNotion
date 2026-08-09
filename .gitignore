@@ -12,6 +12,9 @@ outputs/
 !.cursor/rules/**
 !.cursor/skills/
 !.cursor/skills/**
+.claude/*
+!.claude/skills/
+!.claude/skills/**
 
 # Dependencies and build output
 node_modules/

@@ -1,9 +1,10 @@
 {
-  "version": "0.16.0",
+  "version": "0.16.1",
   "integration_state_schema": 1,
   "installed_integrations": [
     "codex",
-    "cursor-agent"
+    "cursor-agent",
+    "claude"
   ],
   "integration_settings": {
     "codex": {
@@ -13,8 +14,12 @@
     "cursor-agent": {
       "script": "sh",
       "invoke_separator": "-"
+    },
+    "claude": {
+      "script": "sh",
+      "invoke_separator": "-"
     }
   },
-  "integration": "codex",
+  "integration": "claude",
   "default_integration": "codex"
 }
