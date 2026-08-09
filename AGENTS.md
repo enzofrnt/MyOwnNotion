@@ -46,3 +46,13 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
 - Cursor uses the corresponding project skills such as `/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, and `/speckit-implement`.
 
 Both command families read and write the same constitution and feature directories.
+
+## Optional output-style tooling
+
+[i-have-adhd](https://github.com/ayghri/i-have-adhd) is an optional skill that shapes agent replies to lead with the action, number steps, and cut preamble/recaps. It is opt-in only — nothing changes until it is invoked.
+
+- Claude Code: `claude plugin marketplace add ayghri/i-have-adhd && claude plugin install i-have-adhd@i-have-adhd`, then type `/i-have-adhd`.
+- Codex: `codex plugin marketplace add ayghri/i-have-adhd --ref main && codex plugin add i-have-adhd@i-have-adhd`, then type `$i-have-adhd`.
+- Cursor and other Agent Skills harnesses: `npx skills add ayghri/i-have-adhd -a cursor -y`, then type `/i-have-adhd`.
+
+See the repo's `INSTALL.md` for other harnesses and always-on options.
