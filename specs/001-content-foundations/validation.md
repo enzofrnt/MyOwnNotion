@@ -88,12 +88,13 @@ non-interactive sudo. Those three projects are verified in CI only, where the
 CI settings in force: `forbidOnly` when `CI=true`, deterministic single worker,
 HTML report retained, traces and screenshots retained on failure.
 
-### Known fragility: the e2e database is shared and never reset
+### Known fragility: the e2e database is not isolated per project
 
-All five projects run against one PostgreSQL instance that is migrated once in
-`tests/e2e/global-setup.ts` and never cleaned between projects. Items therefore
-accumulate: by the time `webkit-mobile` runs last it renders a tree of ~135
-items, on the slowest engine at the smallest viewport.
+`tests/e2e/global-setup.ts` truncates canonical content, but Playwright runs
+global setup **once per run**, not per project. All five projects then share
+that one database, so items accumulate across the whole run: by the time
+`webkit-mobile` executes last it renders a tree of ~135 items, on the slowest
+engine at the smallest viewport.
 
 This surfaced during T101. Adding one journey that created two extra root items
 per project (ten overall) pushed `webkit-mobile` past the 10 s `expect` timeout
