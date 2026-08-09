@@ -2,8 +2,7 @@
  * 24-hour retention, conflict protection, restore-as-descendant, and pruning
  * integration tests (T078, US5, SC-008).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, isNull } from "drizzle-orm";
+
 import { getRevision, loadParentEdges, schema, submitMutation } from "@myownnotion/database";
 import {
   classifyLineage,
@@ -11,6 +10,8 @@ import {
   REVISION_SNAPSHOT_RETENTION_MS,
   type Uuid,
 } from "@myownnotion/domain";
+import { eq, isNull } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
 let context: IntegrationContext;

@@ -6,7 +6,7 @@
  * diagnosable instead of being silently redirected or erased.
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
-import { err, ok, type CanonicalItem, type DomainResult } from "./types.ts";
+import { type CanonicalItem, type DomainResult, err, ok } from "./types.ts";
 
 /** Owned namespaced vocabulary, e.g. `link:references`, `embed:file`. */
 const RELATION_TYPE_PATTERN = /^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$/;

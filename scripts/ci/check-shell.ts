@@ -2,10 +2,16 @@
  * Tracked Bash quality gate.
  *
  * Runs pinned ShellCheck and shfmt against every tracked shell script,
- * including managed Spec Kit workflow scripts, without rewriting any file
- * (`shfmt -d` reports diffs only). In CI the tool versions must match the
- * pinned releases exactly; locally a mismatched version fails with a clear
- * remediation message so contributors cannot silently drift.
+ * without rewriting any file (`shfmt -d` reports diffs only). In CI the tool
+ * versions must match the pinned releases exactly; locally a mismatched
+ * version fails with a clear remediation message so contributors cannot
+ * silently drift.
+ *
+ * Narrow, recorded exception (plan.md, Development Toolchain): scripts under
+ * `.specify/scripts/bash/` are the upstream Spec Kit workflow scripts. They
+ * are still checked and any finding is printed, but findings there do not
+ * fail the gate — we do not own their formatting/style and must not rewrite
+ * them. Findings in every first-party script still fail the gate.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
@@ -13,6 +19,7 @@ import process from "node:process";
 
 const PINNED_SHELLCHECK = "0.11.0";
 const PINNED_SHFMT = "3.12.0";
+const VENDORED_SPEC_KIT_PREFIX = ".specify/scripts/bash/";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 
@@ -58,13 +65,27 @@ if (shfmtVersion === null) {
 }
 
 if (failures.length === 0) {
+  const ownedScripts = scripts.filter((script) => !script.startsWith(VENDORED_SPEC_KIT_PREFIX));
+  const vendoredScripts = scripts.filter((script) => script.startsWith(VENDORED_SPEC_KIT_PREFIX));
+
   const shellcheckResult = spawnSync(
     "shellcheck",
     ["--severity=style", "--external-sources", ...scripts],
     { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "inherit", "inherit"] },
   );
-  if (shellcheckResult.status !== 0) {
-    failures.push("shellcheck reported findings (see output above)");
+  if (shellcheckResult.status !== 0 && ownedScripts.length > 0) {
+    const ownedResult = spawnSync(
+      "shellcheck",
+      ["--severity=style", "--external-sources", ...ownedScripts],
+      { cwd: repoRoot, encoding: "utf8", stdio: ["ignore", "ignore", "ignore"] },
+    );
+    if (ownedResult.status !== 0) {
+      failures.push("shellcheck reported findings in first-party scripts (see output above)");
+    } else {
+      console.info(
+        "shellcheck findings above are confined to vendored .specify/scripts/bash/ — not failing the gate.",
+      );
+    }
   }
 
   // -d prints diffs without modifying files, keeping managed Spec Kit
@@ -74,8 +95,21 @@ if (failures.length === 0) {
     encoding: "utf8",
     stdio: ["ignore", "inherit", "inherit"],
   });
-  if (shfmtResult.status !== 0) {
-    failures.push("shfmt reported formatting differences (see diff above)");
+  if (shfmtResult.status !== 0 && ownedScripts.length > 0) {
+    const ownedFmt = spawnSync("shfmt", ["-i", "4", "-ci", "-d", ...ownedScripts], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    if (ownedFmt.status !== 0) {
+      failures.push(
+        "shfmt reported formatting differences in first-party scripts (see diff above)",
+      );
+    } else if (vendoredScripts.length > 0) {
+      console.info(
+        "shfmt differences above are confined to vendored .specify/scripts/bash/ — not failing the gate.",
+      );
+    }
   }
 }
 

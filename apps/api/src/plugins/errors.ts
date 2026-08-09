@@ -5,8 +5,9 @@
  * the safe machine-readable code, a content-free title, and optional field
  * diagnostics. Private content, SQL, and stack traces never reach clients.
  */
-import type { FastifyError, FastifyInstance, FastifyReply } from "fastify";
+
 import type { SafeError, SafeErrorCode } from "@myownnotion/domain";
+import type { FastifyError, FastifyInstance, FastifyReply } from "fastify";
 
 export interface ProblemBody {
   readonly type: string;

@@ -3,18 +3,18 @@
  * (T087, SC-005/SC-007, FR-023/FR-025).
  */
 import { createHash } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  type CanonicalExportManifest,
   canonicalExportString,
   generateUuidV7,
   validateCanonicalExport,
-  type CanonicalExportManifest,
 } from "@myownnotion/domain";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  type ApiHarness,
   createApiHarness,
   createItemViaApi,
   idempotencyHeaders,
-  type ApiHarness,
 } from "../../apps/api/tests/helpers/app.ts";
 
 let harness: ApiHarness;

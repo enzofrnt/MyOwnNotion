@@ -1,20 +1,21 @@
 /**
  * Item routes (T032, US1): create, list, get, rename, trash, restore.
  */
-import type { FastifyInstance } from "fastify";
-import { Type } from "@sinclair/typebox";
+
 import {
+  type CreateItemDto,
   CreateItemSchema,
   ItemSchema,
   ItemsListResponseSchema,
   MutationResultSchema,
-  UpdateItemSchema,
-  type CreateItemDto,
   type RestoreItemDto,
   type UpdateItemDto,
+  UpdateItemSchema,
 } from "@myownnotion/contracts";
-import { isUuid, type Uuid } from "@myownnotion/domain";
 import { listItems, readItem } from "@myownnotion/database";
+import { isUuid, type Uuid } from "@myownnotion/domain";
+import { Type } from "@sinclair/typebox";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import { handleMutation } from "../plugins/mutations.ts";

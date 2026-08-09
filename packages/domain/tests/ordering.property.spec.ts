@@ -5,17 +5,18 @@
  * `keyBetween` must always produce a strictly ordered, valid key, and
  * arbitrary reorder sequences must never exhaust the key space.
  */
-import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+
 import {
+  generateUuidV7,
   initialKeys,
   isValidPositionKey,
   keyBetween,
-  sortSiblings,
-  generateUuidV7,
   type Placement,
+  sortSiblings,
   type Uuid,
 } from "@myownnotion/domain";
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
 
 function placementWith(positionKey: string): Placement {
   return {

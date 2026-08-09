@@ -5,24 +5,25 @@
  * against contract schemas. Errors leave as redacted problem documents.
  * The server binds to 127.0.0.1 only until authentication exists.
  */
-import Fastify, { type FastifyInstance } from "fastify";
+
 import multipart from "@fastify/multipart";
 import { ContentStore, FilesystemBlobStore } from "@myownnotion/blob-store";
-import { createDatabase, getOrCreateWorkspace, type DatabaseHandle } from "@myownnotion/database";
+import { createDatabase, type DatabaseHandle, getOrCreateWorkspace } from "@myownnotion/database";
+import Fastify, { type FastifyInstance } from "fastify";
 import type { AppContext } from "./context.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
+import { registerChangeRoutes } from "./routes/changes.ts";
+import { registerExportRoutes } from "./routes/export.ts";
+import { registerFileRoutes } from "./routes/files.ts";
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerItemRoutes } from "./routes/items.ts";
-import { registerPlacementRoutes } from "./routes/placements.ts";
+import { registerMutationBatchRoutes } from "./routes/mutation-batch.ts";
 import { registerPageDocumentRoutes } from "./routes/page-documents.ts";
-import { registerFileRoutes } from "./routes/files.ts";
+import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
-import { registerChangeRoutes } from "./routes/changes.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
-import { registerMutationBatchRoutes } from "./routes/mutation-batch.ts";
-import { registerExportRoutes } from "./routes/export.ts";
 
 export interface BuildAppOptions {
   readonly databaseUrl: string;

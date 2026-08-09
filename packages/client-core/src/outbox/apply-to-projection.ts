@@ -8,16 +8,16 @@
  * partial writes.
  */
 import {
-  generateUuidV7,
-  wouldCreateCycle,
   type CanonicalItem,
+  generateUuidV7,
   type HierarchyView,
   type MutationCommand,
   type Placement,
-  type Uuid,
   TRASH_RETENTION_MS,
+  type Uuid,
+  wouldCreateCycle,
 } from "@myownnotion/domain";
-import { parentKeyOf, type LocalDatabase } from "../local-store/schema.ts";
+import { type LocalDatabase, parentKeyOf } from "../local-store/schema.ts";
 import { LocalValidationError } from "./apply-local-mutation.ts";
 
 async function loadView(db: LocalDatabase): Promise<HierarchyView> {

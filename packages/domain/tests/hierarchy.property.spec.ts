@@ -4,21 +4,22 @@
  * SC-001: every allowed containment combination succeeds and every
  * prohibited child or cycle operation is rejected without changing state.
  */
-import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+
 import {
   canContain,
   collectActiveBranch,
+  generateUuidV7,
   ITEM_KINDS,
+  type ItemKind,
   keyBetween,
+  type PlacementKind,
+  type Uuid,
   validateCreateItem,
   validateMovePlacement,
   wouldCreateCycle,
-  generateUuidV7,
-  type ItemKind,
-  type PlacementKind,
-  type Uuid,
 } from "@myownnotion/domain";
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
 import { MemoryGraph } from "./helpers/memory-view.ts";
 
 describe("containment matrix (FR-003..FR-006)", () => {

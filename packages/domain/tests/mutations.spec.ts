@@ -1,14 +1,15 @@
 /**
  * Mutation idempotency and validation rejection unit tests (T069, US4).
  */
-import { describe, expect, it } from "vitest";
+
 import {
   COMMAND_TYPES,
-  parseMutationCommand,
-  replayResult,
   generateUuidV7,
   type MutationRecord,
+  parseMutationCommand,
+  replayResult,
 } from "@myownnotion/domain";
+import { describe, expect, it } from "vitest";
 
 describe("typed mutation dispatch (T073)", () => {
   it("parses every owned command type", () => {

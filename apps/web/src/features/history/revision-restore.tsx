@@ -5,9 +5,10 @@
  * descendant of the current head. A stale head yields an explicit
  * conflict; an expired snapshot is reported as no longer retained.
  */
-import { useCallback, useMemo, useState } from "react";
-import { generateUuidV7, isUuid, type Uuid } from "@myownnotion/domain";
+
 import type { ProjectedItem } from "@myownnotion/client-core";
+import { generateUuidV7, isUuid, type Uuid } from "@myownnotion/domain";
+import { useCallback, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
 
 interface RevisionView {

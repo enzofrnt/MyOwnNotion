@@ -5,8 +5,9 @@
  * envelope is edited through a plain JSON text control wired to local
  * projection reads and offline-capable commands.
  */
-import { useCallback, useEffect, useState } from "react";
+
 import type { Uuid } from "@myownnotion/domain";
+import { useCallback, useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 
 export function PageDocumentForm({

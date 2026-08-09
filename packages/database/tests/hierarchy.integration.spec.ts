@@ -5,15 +5,16 @@
  * recursive branch collection, atomic branch move, transactional cycle
  * rejection, and the p95-oriented timing gate from the plan.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 import {
   collectBranchItemIds,
   getActiveChildren,
+  schema,
   submitMutation,
   wouldCreateCycleSql,
-  schema,
 } from "@myownnotion/database";
 import { generateUuidV7, initialKeys, type Uuid } from "@myownnotion/domain";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
 const ITEM_COUNT = 10_000;

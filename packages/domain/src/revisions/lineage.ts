@@ -6,8 +6,9 @@
  * pruned snapshots do not affect results because headers and edges survive
  * pruning.
  */
+
+import { type DomainResult, err, ok } from "../content/types.ts";
 import type { Uuid } from "../ids/uuid.ts";
-import { err, ok, type DomainResult } from "../content/types.ts";
 import type { LineageClassification, RevisionHeader } from "./types.ts";
 
 /** Parent-edge lookup; must return an empty array for creation revisions. */

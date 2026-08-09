@@ -5,11 +5,12 @@
  * the retained window yields a `cursor.compacted` conflict so the client
  * rebuilds from the verified snapshot without discarding its outbox.
  */
-import type { FastifyInstance } from "fastify";
-import { Type } from "@sinclair/typebox";
+
 import { ChangesResponseSchema } from "@myownnotion/contracts";
-import type { Uuid } from "@myownnotion/domain";
 import { cursorToSequence, listChangesAfter, readItems } from "@myownnotion/database";
+import type { Uuid } from "@myownnotion/domain";
+import { Type } from "@sinclair/typebox";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 

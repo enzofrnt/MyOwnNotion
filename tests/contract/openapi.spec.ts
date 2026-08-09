@@ -6,8 +6,6 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
 import {
   ChangeEnvelopeSchema,
   CreateItemSchema,
@@ -18,10 +16,12 @@ import {
   PageDocumentSchema,
   PlacementSchema,
   ProblemSchema,
-  QueuedMutationSchema,
   QueuedMutationResultSchema,
+  QueuedMutationSchema,
   RevisionSchema,
 } from "@myownnotion/contracts";
+import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 interface OpenApiDocument {
   openapi: string;

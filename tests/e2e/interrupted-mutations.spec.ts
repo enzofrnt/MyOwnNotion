@@ -1,7 +1,7 @@
 /**
  * Browser/server interruption recovery journeys (T072, US4, SC-003/SC-013).
  */
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { createRootItem, openWorkspace, uniqueName, waitForSynchronized } from "./helpers.ts";
 
 async function blockApi(page: Page): Promise<void> {

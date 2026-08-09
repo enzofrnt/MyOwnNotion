@@ -2,9 +2,10 @@
  * Ordered changes, verified snapshot fallback, and mutation-batch contract
  * tests (T037, US6).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 import { generateUuidV7 } from "@myownnotion/domain";
-import { createApiHarness, createItemViaApi, type ApiHarness } from "./helpers/app.ts";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { type ApiHarness, createApiHarness, createItemViaApi } from "./helpers/app.ts";
 
 let harness: ApiHarness;
 

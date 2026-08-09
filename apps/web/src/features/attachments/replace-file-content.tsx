@@ -5,8 +5,9 @@
  * feedback makes explicit that every placement now exposes the new
  * content and that independently imported files are untouched (FR-030/036).
  */
-import { useCallback, useState } from "react";
+
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { useCallback, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
 
 export function ReplaceFileContent({

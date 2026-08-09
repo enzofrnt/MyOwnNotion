@@ -7,8 +7,9 @@
  * manifest is deterministic: the same canonical state serializes to the same
  * canonical string, so adapters can digest and independently validate it.
  */
-import type { Uuid } from "../ids/uuid.ts";
+
 import type { CanonicalItem, PageDocument, Placement, Relationship } from "../content/types.ts";
+import type { Uuid } from "../ids/uuid.ts";
 import type { RevisionHeader } from "../revisions/types.ts";
 
 export const CANONICAL_EXPORT_FORMAT = "myownnotion.export+json";

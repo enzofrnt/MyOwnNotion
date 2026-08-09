@@ -6,14 +6,15 @@
  * retained window reports compaction so the client rebuilds from a verified
  * snapshot without discarding its outbox.
  */
-import { and, asc, desc, eq, gt } from "drizzle-orm";
+
 import {
   asChangeCursor,
-  INITIAL_CHANGE_CURSOR,
   type ChangeCursor,
   type ChangeEnvelope,
+  INITIAL_CHANGE_CURSOR,
   type Uuid,
 } from "@myownnotion/domain";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { changes } from "../schema/index.ts";
 

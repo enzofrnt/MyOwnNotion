@@ -3,15 +3,16 @@
  * SC-013): success is reported only when the optimistic state AND the
  * durable outbox entry are both persisted; failures leave no partial state.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+
 import {
   applyLocalMutation,
-  LocalRepository,
-  openLocalDatabase,
-  Outbox,
   type LocalDatabase,
+  LocalRepository,
+  Outbox,
+  openLocalDatabase,
 } from "@myownnotion/client-core";
+import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let db: LocalDatabase;
 let repository: LocalRepository;

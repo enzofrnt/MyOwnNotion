@@ -1,17 +1,18 @@
 /**
  * Page/folder/file type and placement cardinality property tests (T048, US2).
  */
-import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+
 import {
   allowsPageDocument,
+  generateUuidV7,
   planRemoveFilePlacement,
+  type Uuid,
   validateAddFilePlacement,
   validateCreateItem,
   validateReplacePageDocument,
-  generateUuidV7,
-  type Uuid,
 } from "@myownnotion/domain";
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
 import { MemoryGraph } from "./helpers/memory-view.ts";
 
 describe("content roles (FR-002..FR-006)", () => {

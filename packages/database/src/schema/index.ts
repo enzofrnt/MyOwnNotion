@@ -7,6 +7,8 @@
  * invariants (cycles, final-placement transitions) are enforced by domain
  * services plus recursive queries inside one transaction.
  */
+
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -22,7 +24,6 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType() {

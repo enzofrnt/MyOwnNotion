@@ -7,15 +7,15 @@
  * is no longer valid.
  */
 import type { Uuid } from "../ids/uuid.ts";
+import { collectActiveBranch, type HierarchyView, wouldCreateCycle } from "./hierarchy.ts";
 import {
-  err,
-  ok,
-  TRASH_RETENTION_MS,
   type CanonicalItem,
   type DomainResult,
+  err,
+  ok,
   type Placement,
+  TRASH_RETENTION_MS,
 } from "./types.ts";
-import { collectActiveBranch, wouldCreateCycle, type HierarchyView } from "./hierarchy.ts";
 
 export interface TrashPlan {
   readonly rootItemId: Uuid;

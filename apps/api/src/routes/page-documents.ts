@@ -2,14 +2,15 @@
  * Page-document replacement (T058, US2): only page items carry a document;
  * a stale causal base yields a structured conflict.
  */
-import type { FastifyInstance } from "fastify";
-import { Type } from "@sinclair/typebox";
+
 import {
   MutationResultSchema,
-  ReplacePageDocumentSchema,
   type ReplacePageDocumentDto,
+  ReplacePageDocumentSchema,
 } from "@myownnotion/contracts";
 import type { Uuid } from "@myownnotion/domain";
+import { Type } from "@sinclair/typebox";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { handleMutation } from "../plugins/mutations.ts";
 

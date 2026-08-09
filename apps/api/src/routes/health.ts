@@ -1,8 +1,9 @@
 /**
  * Health route (T017): reports readiness and the canonical schema version.
  */
-import type { FastifyInstance } from "fastify";
+
 import { HealthResponseSchema } from "@myownnotion/contracts";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 
 export function registerHealthRoutes(app: FastifyInstance, context: AppContext): void {

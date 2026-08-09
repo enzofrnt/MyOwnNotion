@@ -6,12 +6,13 @@
  * duplicates replay their prior result, causal conflicts return competing
  * revision identities, and validation failures return safe problems.
  */
-import type { FastifyInstance } from "fastify";
+
 import { MutationBatchResponseSchema, MutationBatchSchema } from "@myownnotion/contracts";
-import { parseMutationCommand, type Uuid } from "@myownnotion/domain";
 import { submitMutation } from "@myownnotion/database";
-import { problemFromSafeError, type ProblemBody } from "../plugins/errors.ts";
+import { parseMutationCommand, type Uuid } from "@myownnotion/domain";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
+import { type ProblemBody, problemFromSafeError } from "../plugins/errors.ts";
 
 interface BatchBody {
   mutations: Array<{

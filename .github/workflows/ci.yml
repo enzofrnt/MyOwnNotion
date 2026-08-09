@@ -140,7 +140,12 @@ jobs:
       - run: pnpm exec playwright install --with-deps
       - name: Start disposable PostgreSQL and migrate
         run: |
-          docker compose up -d --wait postgres
+          docker compose up -d --wait postgres || {
+            echo "::group::postgres logs (startup failed)"
+            docker compose logs postgres
+            echo "::endgroup::"
+            exit 1
+          }
           pnpm db:migrate
         env:
           DATABASE_URL: postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion

@@ -159,3 +159,10 @@ compose.override.yaml
 ## Complexity Tracking
 
 No constitution violations or unjustified architecture layers are present.
+
+## Recorded Exceptions
+
+- **Scope**: `apps/api/src/server.ts` is excluded from the Vitest coverage floor (`vitest.config.ts` coverage `exclude`).
+- **Reason**: it is the process entry point — it binds `SIGINT`/`SIGTERM`, calls `app.listen()` against a real port, and calls `process.exit()`. Exercising it under a unit/integration test would require starting a live bound server and sending OS signals, which the test suites deliberately do not attempt. Every behavior it wires together (`buildApp()`) is fully covered by the API contract-test suites.
+- **Risk**: a regression in the ~20 lines of bootstrap wiring (env var defaults, signal handling, listen-failure exit code) would not be caught by automated tests.
+- **Review/removal condition**: revisit this exception if `server.ts` grows beyond bootstrap wiring (e.g., gains branching business logic), or if a smoke-test harness that can bind a real port in CI is introduced.

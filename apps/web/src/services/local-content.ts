@@ -9,13 +9,13 @@
  */
 import {
   applyLocalMutation,
-  LocalRepository,
-  openLocalDatabase,
-  Outbox,
-  reconcile,
   type LocalDatabase,
+  LocalRepository,
+  Outbox,
+  openLocalDatabase,
   type ProjectedItem,
   type ReconcileTransport,
+  reconcile,
 } from "@myownnotion/client-core";
 import type { ItemDto } from "@myownnotion/contracts";
 import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";

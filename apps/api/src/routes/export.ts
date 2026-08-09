@@ -6,19 +6,7 @@
  * stored. GET reports status and returns the verified artifact when ready.
  */
 import { createHash } from "node:crypto";
-import type { FastifyInstance } from "fastify";
-import { Type } from "@sinclair/typebox";
 import { CreateExportResponseSchema, ExportStatusSchema } from "@myownnotion/contracts";
-import {
-  buildCanonicalExport,
-  canonicalExportString,
-  generateUuidV7,
-  validateCanonicalExport,
-  type ExportedItem,
-  type RevisionHeader,
-  type Uuid,
-} from "@myownnotion/domain";
-import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   currentSequence,
   listItems,
@@ -26,6 +14,18 @@ import {
   schema,
   sequenceToCursor,
 } from "@myownnotion/database";
+import {
+  buildCanonicalExport,
+  canonicalExportString,
+  type ExportedItem,
+  generateUuidV7,
+  type RevisionHeader,
+  type Uuid,
+  validateCanonicalExport,
+} from "@myownnotion/domain";
+import { Type } from "@sinclair/typebox";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 

@@ -7,9 +7,10 @@
  * already-accepted replays return the mutation result; rejections and
  * conflicts return safe problems.
  */
-import type { FastifyReply, FastifyRequest } from "fastify";
+
+import { type Database, readItem, submitMutation } from "@myownnotion/database";
 import { isUuid, type MutationCommand, type Uuid } from "@myownnotion/domain";
-import { readItem, submitMutation, type Database } from "@myownnotion/database";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { sendProblem } from "./errors.ts";
 
 export function mutationIdFrom(request: FastifyRequest): Uuid | null {

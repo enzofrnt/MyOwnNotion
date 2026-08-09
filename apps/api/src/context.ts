@@ -1,9 +1,10 @@
 /**
  * Shared application context passed to every route module.
  */
-import type { Uuid } from "@myownnotion/domain";
-import type { Database } from "@myownnotion/database";
+
 import type { ContentStore } from "@myownnotion/blob-store";
+import type { Database } from "@myownnotion/database";
+import type { Uuid } from "@myownnotion/domain";
 
 export interface AppContext {
   readonly db: Database;

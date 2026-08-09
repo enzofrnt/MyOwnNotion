@@ -6,8 +6,9 @@
  * pending on interruption), accepted (acknowledged and removed), and
  * conflict (retained durably with competing revisions).
  */
-import { useEffect, useState } from "react";
+
 import type { ConflictRecordRow, OutboxMutationRow } from "@myownnotion/client-core";
+import { useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 
 export function MutationStatus({ service }: { readonly service: LocalContentService }) {

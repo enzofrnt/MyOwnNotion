@@ -259,3 +259,16 @@ All stories → Cross-cutting validation
 ## Format Validation
 
 All tasks use the required checkbox, sequential `T###` identifier, optional `[P]`, required story label in story phases, concrete action, and explicit path.
+
+---
+
+## Phase 10: Convergence
+
+**Purpose**: Close gaps found by `/speckit-converge` between the specified intent and the current codebase.
+
+- [ ] T096 Record measured coverage, Playwright matrix results, aggregate CI status, and protected-main ruleset verification in `specs/001-content-foundations/validation.md` per Constitution VII / Workflow step 7 (missing)
+- [ ] T097 Execute and validate every scenario and command in `specs/001-content-foundations/quickstart.md`, fixing any discrepancy found, per T093 (missing)
+- [ ] T098 Document pnpm-only Node.js workflow, uv-only future Python policy, Biome, ShellCheck/shfmt, test layers, local commands, and merge-blocking CI in `docs/development.md` per T095 (missing)
+- [ ] T099 Add an explicit quota-failure `data-state` value (not only a separate banner) in `apps/web/src/components/sync-status.tsx` per FR-043 (partial)
+- [ ] T100 Render distinct rejected, retry, and recovered mutation states, not only pending/conflict lists, in `apps/web/src/features/hierarchy/mutation-status.tsx` per FR-018 (partial)
+- [ ] T101 Add responsive/viewport assertions to the relationship-diagnostic journey in `tests/e2e/relationships.spec.ts` per US3 Independent Test (partial)

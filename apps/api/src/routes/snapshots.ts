@@ -6,7 +6,6 @@
  * the client can verify independently.
  */
 import { createHash } from "node:crypto";
-import type { FastifyInstance } from "fastify";
 import { CanonicalSnapshotSchema } from "@myownnotion/contracts";
 import {
   currentSequence,
@@ -14,6 +13,7 @@ import {
   listRelationships,
   sequenceToCursor,
 } from "@myownnotion/database";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 
 export function registerSnapshotRoutes(app: FastifyInstance, context: AppContext): void {

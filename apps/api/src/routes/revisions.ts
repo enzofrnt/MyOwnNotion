@@ -1,8 +1,7 @@
 /**
  * Revision routes (T084, US5): fetch, compare, restore.
  */
-import type { FastifyInstance } from "fastify";
-import { Type } from "@sinclair/typebox";
+
 import {
   CompareRevisionsSchema,
   LineageClassificationSchema,
@@ -10,8 +9,10 @@ import {
   RestoreRevisionSchema,
   RevisionSchema,
 } from "@myownnotion/contracts";
-import { classifyLineage, type Uuid } from "@myownnotion/domain";
 import { getRevision, loadParentEdges } from "@myownnotion/database";
+import { classifyLineage, type Uuid } from "@myownnotion/domain";
+import { Type } from "@sinclair/typebox";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import { handleMutation } from "../plugins/mutations.ts";

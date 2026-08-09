@@ -7,8 +7,9 @@
  * Restoration never rewrites history: it creates a new revision whose parent
  * is the current accepted head.
  */
+
+import { type DomainResult, err, ok, REVISION_SNAPSHOT_RETENTION_MS } from "../content/types.ts";
 import type { Uuid } from "../ids/uuid.ts";
-import { err, ok, REVISION_SNAPSHOT_RETENTION_MS, type DomainResult } from "../content/types.ts";
 import type { RevisionWithSnapshot } from "./types.ts";
 
 /** Expiry instant for a snapshot superseded at `supersededAt`. */

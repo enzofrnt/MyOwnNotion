@@ -1,16 +1,17 @@
 /**
  * Local schema and projection contract tests (T034, US6, FR-037).
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ItemDto } from "@myownnotion/contracts";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+
 import {
   LOCAL_SCHEMA_VERSION,
+  type LocalDatabase,
   LocalRepository,
   META_KEYS,
   openLocalDatabase,
-  type LocalDatabase,
 } from "@myownnotion/client-core";
+import type { ItemDto } from "@myownnotion/contracts";
+import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let db: LocalDatabase;
 let repository: LocalRepository;

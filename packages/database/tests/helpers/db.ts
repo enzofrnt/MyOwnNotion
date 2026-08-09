@@ -1,9 +1,10 @@
 /**
  * Shared disposable-database helper for integration suites.
  */
-import { startMigratedPostgres, type DisposablePostgres } from "@myownnotion/test-utils";
-import { createDatabase, getOrCreateWorkspace, type DatabaseHandle } from "@myownnotion/database";
+
+import { createDatabase, type DatabaseHandle, getOrCreateWorkspace } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
+import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
 
 export interface IntegrationContext {
   readonly postgres: DisposablePostgres;

@@ -7,7 +7,7 @@
  */
 import type { Uuid } from "../ids/uuid.ts";
 import { validatePageDocument } from "./hierarchy.ts";
-import { err, ok, type CanonicalItem, type DomainResult, type PageDocument } from "./types.ts";
+import { type CanonicalItem, type DomainResult, err, ok, type PageDocument } from "./types.ts";
 
 export interface ReplacePageDocumentCommand {
   readonly itemId: Uuid;

@@ -1,13 +1,14 @@
 /**
  * Import, placement, and file-content replacement contract tests (T052, US2).
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  type ApiHarness,
   createApiHarness,
   createItemViaApi,
   idempotencyHeaders,
-  type ApiHarness,
 } from "./helpers/app.ts";
 
 let harness: ApiHarness;

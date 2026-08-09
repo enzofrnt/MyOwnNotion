@@ -1,16 +1,17 @@
 /**
  * Relationship routes (T067, US3): create, list, remove.
  */
-import type { FastifyInstance } from "fastify";
-import { Type } from "@sinclair/typebox";
+
 import {
+  type CreateRelationshipDto,
   CreateRelationshipSchema,
   MutationResultSchema,
   RelationshipsListResponseSchema,
-  type CreateRelationshipDto,
 } from "@myownnotion/contracts";
-import { isUuid, type Uuid } from "@myownnotion/domain";
 import { listRelationships } from "@myownnotion/database";
+import { isUuid, type Uuid } from "@myownnotion/domain";
+import { Type } from "@sinclair/typebox";
+import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { handleMutation } from "../plugins/mutations.ts";
 

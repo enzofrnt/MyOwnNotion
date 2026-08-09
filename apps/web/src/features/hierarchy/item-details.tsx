@@ -5,10 +5,11 @@
  * relationships with endpoint availability — unavailable targets are
  * reported explicitly, never silently redirected (FR-011/FR-014).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ProblemDto, RelationshipDto } from "@myownnotion/contracts";
+
 import type { ProjectedItem } from "@myownnotion/client-core";
+import type { ProblemDto, RelationshipDto } from "@myownnotion/contracts";
 import { generateUuidV7, isUuid, type Uuid } from "@myownnotion/domain";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
 
 export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
@@ -28,10 +29,11 @@ export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
     setRelationships(result.value.relationships);
   }, [api, item.id]);
 
+  // `item` identity changes on every projection refresh: endpoint
+  // availability (e.g. a freshly trashed target) must refetch too.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `item` is intentionally tracked though unused in the body — see comment above.
   useEffect(() => {
     void refresh();
-    // `item` identity changes on every projection refresh: endpoint
-    // availability (e.g. a freshly trashed target) must refetch too.
   }, [refresh, item]);
 
   const createRelationship = useCallback(async () => {

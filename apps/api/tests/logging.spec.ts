@@ -1,9 +1,10 @@
 /**
  * Structured safe logging with private-content redaction (T091, FR-022).
  */
-import { describe, expect, it } from "vitest";
+
 import Fastify from "fastify";
-import { registerLogging, REDACT_PATHS } from "../src/plugins/logging.ts";
+import { describe, expect, it } from "vitest";
+import { REDACT_PATHS, registerLogging } from "../src/plugins/logging.ts";
 
 describe("logging configuration (T091)", () => {
   it("redacts request bodies, auth headers, names, documents, and snapshots", () => {

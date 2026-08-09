@@ -2,7 +2,16 @@
  * Outbox retry, duplicate delivery, cursor catch-up, and conflict retention
  * tests (T036, US6, SC-014).
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import {
+  applyLocalMutation,
+  type LocalDatabase,
+  LocalRepository,
+  Outbox,
+  openLocalDatabase,
+  type ReconcileTransport,
+  reconcile,
+} from "@myownnotion/client-core";
 import type {
   CanonicalSnapshotDto,
   ChangesResponseDto,
@@ -11,15 +20,7 @@ import type {
   QueuedMutationResultDto,
 } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import {
-  applyLocalMutation,
-  LocalRepository,
-  openLocalDatabase,
-  Outbox,
-  reconcile,
-  type LocalDatabase,
-  type ReconcileTransport,
-} from "@myownnotion/client-core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let db: LocalDatabase;
 let outbox: Outbox;
