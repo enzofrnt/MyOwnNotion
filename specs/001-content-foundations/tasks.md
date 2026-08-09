@@ -57,7 +57,7 @@
 - [X] T024 [P] [US1] Add stable sibling-order and reorder property tests in `packages/domain/tests/ordering.property.spec.ts`
 - [X] T025 [P] [US1] Add 10,000-item recursive query and branch-move integration tests in `packages/database/tests/hierarchy.integration.spec.ts`
 - [X] T026 [P] [US1] Add create/list/reorder/move/trash/restore API contract tests in `apps/api/tests/hierarchy.contract.spec.ts`
-- [ ] T027 [P] [US1] Add responsive keyboard hierarchy journeys in `tests/e2e/hierarchy.spec.ts`
+- [X] T027 [P] [US1] Add responsive keyboard hierarchy journeys in `tests/e2e/hierarchy.spec.ts`
 
 ### Implementation for User Story 1
 
@@ -66,7 +66,7 @@
 - [X] T030 [US1] Implement atomic branch move and reorder with serializable retry in `packages/database/src/repositories/move-branch.ts`
 - [X] T031 [US1] Implement 30-day branch trash and placement-aware restore in `packages/domain/src/content/lifecycle.ts` and `packages/database/src/repositories/lifecycle-repository.ts`
 - [X] T032 [US1] Implement item, reorder, move, trash, and restore routes in `apps/api/src/routes/items.ts` and `apps/api/src/routes/placements.ts`
-- [ ] T033 [US1] Implement accessible tree creation, reorder, move, trash, restore, loading, empty, and error states in `apps/web/src/features/hierarchy/`
+- [X] T033 [US1] Implement accessible tree creation, reorder, move, trash, restore, loading, empty, and error states in `apps/web/src/features/hierarchy/`
 
 **Checkpoint**: Recursive organization is fully demonstrable online through domain, database, API, and browser tests.
 
@@ -80,23 +80,23 @@
 
 ### Tests for User Story 6
 
-- [ ] T034 [P] [US6] Add local schema migration and projection contract tests in `packages/client-core/tests/local-store.contract.spec.ts`
-- [ ] T035 [P] [US6] Add atomic local-state/outbox fault-injection tests in `packages/client-core/tests/local-mutation.atomicity.spec.ts`
-- [ ] T036 [P] [US6] Add outbox retry, duplicate delivery, cursor catch-up, and conflict retention tests in `packages/client-core/tests/reconciliation.spec.ts`
-- [ ] T037 [P] [US6] Add ordered changes, verified snapshot fallback, and mutation-batch API contract tests in `apps/api/tests/reconciliation.contract.spec.ts`
-- [ ] T038 [P] [US6] Add reload-offline, mutate-offline, reconnect, and conflict Playwright journeys in `tests/e2e/offline-reconciliation.spec.ts`
+- [X] T034 [P] [US6] Add local schema migration and projection contract tests in `packages/client-core/tests/local-store.contract.spec.ts`
+- [X] T035 [P] [US6] Add atomic local-state/outbox fault-injection tests in `packages/client-core/tests/local-mutation.atomicity.spec.ts`
+- [X] T036 [P] [US6] Add outbox retry, duplicate delivery, cursor catch-up, and conflict retention tests in `packages/client-core/tests/reconciliation.spec.ts`
+- [X] T037 [P] [US6] Add ordered changes, verified snapshot fallback, and mutation-batch API contract tests in `apps/api/tests/reconciliation.contract.spec.ts`
+- [X] T038 [P] [US6] Add reload-offline, mutate-offline, reconnect, and conflict Playwright journeys in `tests/e2e/offline-reconciliation.spec.ts`
 
 ### Implementation for User Story 6
 
-- [ ] T039 [US6] Implement transactional Dexie projection reads and writes in `packages/client-core/src/local-store/local-repository.ts`
-- [ ] T040 [US6] Implement atomic optimistic mutation plus outbox persistence in `packages/client-core/src/outbox/apply-local-mutation.ts`
-- [ ] T041 [US6] Implement durable retry states without mutation-ID regeneration in `packages/client-core/src/outbox/outbox.ts`
+- [X] T039 [US6] Implement transactional Dexie projection reads and writes in `packages/client-core/src/local-store/local-repository.ts`
+- [X] T040 [US6] Implement atomic optimistic mutation plus outbox persistence in `packages/client-core/src/outbox/apply-local-mutation.ts`
+- [X] T041 [US6] Implement durable retry states without mutation-ID regeneration in `packages/client-core/src/outbox/outbox.ts`
 - [X] T042 [US6] Add monotonic workspace change sequence and cursor persistence in `packages/database/src/schema/change-sequence.ts` and `packages/database/src/repositories/change-repository.ts`
-- [ ] T043 [US6] Implement ordered change-cursor, verified snapshot, and idempotent mutation-batch routes in `apps/api/src/routes/changes.ts`, `apps/api/src/routes/snapshots.ts`, and `apps/api/src/routes/mutation-batch.ts`
-- [ ] T044 [US6] Implement cursor catch-up, verified snapshot fallback, acknowledgement, and conflict capture in `packages/client-core/src/reconciliation/reconcile.ts`
-- [ ] T045 [US6] Connect hierarchy and a minimal versioned page-document form to local projection reads and commands in `apps/web/src/services/local-content.ts` and `apps/web/src/features/pages/page-document-form.tsx`
-- [ ] T046 [US6] Implement offline, pending, synchronizing, synchronized, quota-failure, and conflict indicators in `apps/web/src/components/sync-status.tsx`
-- [ ] T047 [US6] Request persistent browser storage and expose quota diagnostics in `apps/web/src/services/storage-manager.ts`
+- [X] T043 [US6] Implement ordered change-cursor, verified snapshot, and idempotent mutation-batch routes in `apps/api/src/routes/changes.ts`, `apps/api/src/routes/snapshots.ts`, and `apps/api/src/routes/mutation-batch.ts`
+- [X] T044 [US6] Implement cursor catch-up, verified snapshot fallback, acknowledgement, and conflict capture in `packages/client-core/src/reconciliation/reconcile.ts`
+- [X] T045 [US6] Connect hierarchy and a minimal versioned page-document form to local projection reads and commands in `apps/web/src/services/local-content.ts` and `apps/web/src/features/pages/page-document-form.tsx`
+- [X] T046 [US6] Implement offline, pending, synchronizing, synchronized, quota-failure, and conflict indicators in `apps/web/src/components/sync-status.tsx`
+- [X] T047 [US6] Request persistent browser storage and expose quota diagnostics in `apps/web/src/services/storage-manager.ts`
 
 **Checkpoint**: Core loaded content survives server loss and browser restart; no local success exists without matching durable outbox state.
 
@@ -110,23 +110,23 @@
 
 ### Tests for User Story 2
 
-- [ ] T048 [P] [US2] Add page/folder/file type and placement cardinality property tests in `packages/domain/tests/content-types.property.spec.ts`
-- [ ] T049 [P] [US2] Add 100-placement, final-placement trash, and restore integration tests in `packages/database/tests/file-placements.integration.spec.ts`
-- [ ] T050 [P] [US2] Add identical-import, near-match, collision simulation, and copy-on-write tests in `packages/blob-store/tests/deduplication.spec.ts`
-- [ ] T051 [P] [US2] Add page-document type discrimination tests in `apps/api/tests/page-documents.contract.spec.ts`
-- [ ] T052 [P] [US2] Add import, placement, and file-content replacement contract tests in `apps/api/tests/files.contract.spec.ts`
-- [ ] T053 [P] [US2] Add attachment-list, hierarchy-file, and replace-content Playwright journeys in `tests/e2e/files.spec.ts`
+- [X] T048 [P] [US2] Add page/folder/file type and placement cardinality property tests in `packages/domain/tests/content-types.property.spec.ts`
+- [X] T049 [P] [US2] Add 100-placement, final-placement trash, and restore integration tests in `packages/database/tests/file-placements.integration.spec.ts`
+- [X] T050 [P] [US2] Add identical-import, near-match, collision simulation, and copy-on-write tests in `packages/blob-store/tests/deduplication.spec.ts`
+- [X] T051 [P] [US2] Add page-document type discrimination tests in `apps/api/tests/page-documents.contract.spec.ts`
+- [X] T052 [P] [US2] Add import, placement, and file-content replacement contract tests in `apps/api/tests/files.contract.spec.ts`
+- [X] T053 [P] [US2] Add attachment-list, hierarchy-file, and replace-content Playwright journeys in `tests/e2e/files.spec.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T054 [US2] Implement page-document envelope and content-role validation in `packages/domain/src/content/content-items.ts`
-- [ ] T055 [US2] Implement file-placement add/remove/final-trash invariants in `packages/domain/src/content/file-placements.ts`
-- [ ] T056 [US2] Implement immutable SHA-256 ingest, byte verification, physical reuse, and copy-on-write in `packages/blob-store/src/content-store.ts`
-- [ ] T057 [US2] Implement logical-file and placement persistence without implicit logical merging in `packages/database/src/repositories/file-repository.ts`
-- [ ] T058 [US2] Implement page-document replacement only for page items in `apps/api/src/routes/page-documents.ts`
-- [ ] T059 [US2] Implement multipart import, file-placement, and copy-on-write content replacement routes in `apps/api/src/routes/files.ts`
-- [ ] T060 [US2] Implement hierarchy file nodes and the discreet per-page attachment panel in `apps/web/src/features/hierarchy/file-node.tsx` and `apps/web/src/features/attachments/attachment-panel.tsx`
-- [ ] T061 [US2] Implement file-content replacement feedback across every placement in `apps/web/src/features/attachments/replace-file-content.tsx`
+- [X] T054 [US2] Implement page-document envelope and content-role validation in `packages/domain/src/content/content-items.ts`
+- [X] T055 [US2] Implement file-placement add/remove/final-trash invariants in `packages/domain/src/content/file-placements.ts`
+- [X] T056 [US2] Implement immutable SHA-256 ingest, byte verification, physical reuse, and copy-on-write in `packages/blob-store/src/content-store.ts`
+- [X] T057 [US2] Implement logical-file and placement persistence without implicit logical merging in `packages/database/src/repositories/file-repository.ts`
+- [X] T058 [US2] Implement page-document replacement only for page items in `apps/api/src/routes/page-documents.ts`
+- [X] T059 [US2] Implement multipart import, file-placement, and copy-on-write content replacement routes in `apps/api/src/routes/files.ts`
+- [X] T060 [US2] Implement hierarchy file nodes and the discreet per-page attachment panel in `apps/web/src/features/hierarchy/file-node.tsx` and `apps/web/src/features/attachments/attachment-panel.tsx`
+- [X] T061 [US2] Implement file-content replacement feedback across every placement in `apps/web/src/features/attachments/replace-file-content.tsx`
 
 **Checkpoint**: Identical imports stay logically separate; one logical file appears in many places and copy-on-write updates only that logical file.
 
@@ -140,16 +140,16 @@
 
 ### Tests for User Story 3
 
-- [ ] T062 [P] [US3] Add randomized identity-preservation tests for 1,000 operations over 10,000 items in `packages/domain/tests/identity.property.spec.ts`
-- [ ] T063 [P] [US3] Add endpoint and unavailable-target integration tests in `packages/database/tests/relationships.integration.spec.ts`
-- [ ] T064 [P] [US3] Add relationship create/list/remove API contract tests and responsive relationship-diagnostic journeys in `apps/api/tests/relationships.contract.spec.ts` and `tests/e2e/relationships.spec.ts`
+- [X] T062 [P] [US3] Add randomized identity-preservation tests for 1,000 operations over 10,000 items in `packages/domain/tests/identity.property.spec.ts`
+- [X] T063 [P] [US3] Add endpoint and unavailable-target integration tests in `packages/database/tests/relationships.integration.spec.ts`
+- [X] T064 [P] [US3] Add relationship create/list/remove API contract tests and responsive relationship-diagnostic journeys in `apps/api/tests/relationships.contract.spec.ts` and `tests/e2e/relationships.spec.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T065 [US3] Implement typed relationship validation and unavailable-target semantics in `packages/domain/src/content/relationships.ts`
-- [ ] T066 [US3] Implement stable endpoint persistence and diagnostics in `packages/database/src/repositories/relationship-repository.ts`
-- [ ] T067 [US3] Implement relationship create/list/remove routes in `apps/api/src/routes/relationships.ts`
-- [ ] T068 [US3] Expose stable IDs and relationship diagnostics in `apps/web/src/features/hierarchy/item-details.tsx`
+- [X] T065 [US3] Implement typed relationship validation and unavailable-target semantics in `packages/domain/src/content/relationships.ts`
+- [X] T066 [US3] Implement stable endpoint persistence and diagnostics in `packages/database/src/repositories/relationship-repository.ts`
+- [X] T067 [US3] Implement relationship create/list/remove routes in `apps/api/src/routes/relationships.ts`
+- [X] T068 [US3] Expose stable IDs and relationship diagnostics in `apps/web/src/features/hierarchy/item-details.tsx`
 
 **Checkpoint**: Moves, renames, trash, restoration, duplicate names, and purged targets never silently redirect a relation.
 
@@ -163,17 +163,17 @@
 
 ### Tests for User Story 4
 
-- [ ] T069 [P] [US4] Add mutation idempotency and validation rejection unit tests in `packages/domain/tests/mutations.spec.ts`
-- [ ] T070 [P] [US4] Add server transaction fault injection for every mutation class in `packages/database/tests/atomicity.integration.spec.ts`
-- [ ] T071 [P] [US4] Add duplicate idempotency-key and safe-error API contract tests in `apps/api/tests/mutations.contract.spec.ts`
-- [ ] T072 [P] [US4] Add browser/server interruption recovery Playwright tests in `tests/e2e/interrupted-mutations.spec.ts`
+- [X] T069 [P] [US4] Add mutation idempotency and validation rejection unit tests in `packages/domain/tests/mutations.spec.ts`
+- [X] T070 [P] [US4] Add server transaction fault injection for every mutation class in `packages/database/tests/atomicity.integration.spec.ts`
+- [X] T071 [P] [US4] Add duplicate idempotency-key and safe-error API contract tests in `apps/api/tests/mutations.contract.spec.ts`
+- [X] T072 [P] [US4] Add browser/server interruption recovery Playwright tests in `tests/e2e/interrupted-mutations.spec.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T073 [US4] Implement typed mutation dispatch and idempotent results in `packages/domain/src/content/mutations.ts`
-- [ ] T074 [US4] Implement shared transactional mutation runner with serializable bounded retry in `packages/database/src/mutations/run-mutation.ts`
-- [ ] T075 [US4] Integrate mutation IDs and safe conflict responses across routes in `apps/api/src/plugins/mutations.ts`
-- [ ] T076 [US4] Add explicit pending, accepted, rejected, retry, recovered, and conflict feedback in `apps/web/src/features/hierarchy/mutation-status.tsx`
+- [X] T073 [US4] Implement typed mutation dispatch and idempotent results in `packages/domain/src/content/mutations.ts`
+- [X] T074 [US4] Implement shared transactional mutation runner with serializable bounded retry in `packages/database/src/mutations/run-mutation.ts`
+- [X] T075 [US4] Integrate mutation IDs and safe conflict responses across routes in `apps/api/src/plugins/mutations.ts`
+- [X] T076 [US4] Add explicit pending, accepted, rejected, retry, recovered, and conflict feedback in `apps/web/src/features/hierarchy/mutation-status.tsx`
 
 **Checkpoint**: Fault injection produces zero partial states and replay never duplicates side effects.
 
@@ -187,18 +187,18 @@
 
 ### Tests for User Story 5
 
-- [ ] T077 [P] [US5] Add exhaustive ancestry/concurrency graph tests in `packages/domain/tests/revision-lineage.property.spec.ts`
-- [ ] T078 [P] [US5] Add 24-hour retention, conflict protection, restore-as-descendant, and pruning integration tests in `packages/database/tests/revision-retention.integration.spec.ts`
-- [ ] T079 [P] [US5] Add revision fetch, restore, expired snapshot, and comparison API contract tests in `apps/api/tests/revisions.contract.spec.ts`
-- [ ] T080 [P] [US5] Add retained-revision restore and stale-head conflict Playwright journeys in `tests/e2e/revision-restore.spec.ts`
+- [X] T077 [P] [US5] Add exhaustive ancestry/concurrency graph tests in `packages/domain/tests/revision-lineage.property.spec.ts`
+- [X] T078 [P] [US5] Add 24-hour retention, conflict protection, restore-as-descendant, and pruning integration tests in `packages/database/tests/revision-retention.integration.spec.ts`
+- [X] T079 [P] [US5] Add revision fetch, restore, expired snapshot, and comparison API contract tests in `apps/api/tests/revisions.contract.spec.ts`
+- [X] T080 [P] [US5] Add retained-revision restore and stale-head conflict Playwright journeys in `tests/e2e/revision-restore.spec.ts`
 
 ### Implementation for User Story 5
 
-- [ ] T081 [US5] Implement immutable revision headers, parent validation, and causal classification in `packages/domain/src/revisions/lineage.ts`
-- [ ] T082 [US5] Persist revisions and parent edges atomically with mutations in `packages/database/src/repositories/revision-repository.ts`
-- [ ] T083 [US5] Implement deterministic snapshot retention and restore-as-new-descendant rules in `packages/domain/src/revisions/retention.ts`
-- [ ] T084 [US5] Implement revision retrieval, comparison, and restoration routes in `apps/api/src/routes/revisions.ts`
-- [ ] T085 [US5] Implement retained revision preview/restore feedback in `apps/web/src/features/history/revision-restore.tsx`
+- [X] T081 [US5] Implement immutable revision headers, parent validation, and causal classification in `packages/domain/src/revisions/lineage.ts`
+- [X] T082 [US5] Persist revisions and parent edges atomically with mutations in `packages/database/src/repositories/revision-repository.ts`
+- [X] T083 [US5] Implement deterministic snapshot retention and restore-as-new-descendant rules in `packages/domain/src/revisions/retention.ts`
+- [X] T084 [US5] Implement revision retrieval, comparison, and restoration routes in `apps/api/src/routes/revisions.ts`
+- [X] T085 [US5] Implement retained revision preview/restore feedback in `apps/web/src/features/history/revision-restore.tsx`
 
 **Checkpoint**: History restoration never rewrites ancestry, stale heads conflict explicitly, and classification survives content expiry.
 
@@ -208,16 +208,16 @@
 
 **Purpose**: Close specification-wide integrity, backup-input, ownership, accessibility, and operational validation.
 
-- [ ] T086 [P] Implement the versioned canonical export and backup-input manifest in `packages/domain/src/export/canonical-export.ts`
-- [ ] T087 [P] Add export completeness, 30-day trash inclusion, and round-trip tests in `tests/contract/export.spec.ts`
-- [ ] T088 Implement asynchronous export creation, status, validation, and artifact retrieval routes in `apps/api/src/routes/export.ts`
-- [ ] T089 [P] Add the 10,000-item/1,000-operation performance suite in `tests/performance/content-foundations.perf.spec.ts`
-- [ ] T090 [P] Add keyboard, focus, semantic tree, and responsive accessibility assertions in `tests/e2e/accessibility.spec.ts`
-- [ ] T091 [P] Add structured safe logging with private-content redaction tests in `apps/api/src/plugins/logging.ts` and `apps/api/tests/logging.spec.ts`
-- [ ] T092 [P] Add CI assertion that Compose publishes only loopback ports in `tests/contract/compose-security.spec.ts`
-- [ ] T093 Validate every scenario and command in `specs/001-content-foundations/quickstart.md`
-- [ ] T094 Record measured coverage, Playwright matrix, aggregate CI status, protected-main ruleset verification, and justified deviations in `specs/001-content-foundations/validation.md`
-- [ ] T095 Document pnpm-only Node.js work, uv-only future Python work, Biome, ShellCheck/shfmt, test layers, local commands, and merge-blocking CI in `docs/development.md`
+- [X] T086 [P] Implement the versioned canonical export and backup-input manifest in `packages/domain/src/export/canonical-export.ts`
+- [X] T087 [P] Add export completeness, 30-day trash inclusion, and round-trip tests in `tests/contract/export.spec.ts`
+- [X] T088 Implement asynchronous export creation, status, validation, and artifact retrieval routes in `apps/api/src/routes/export.ts`
+- [X] T089 [P] Add the 10,000-item/1,000-operation performance suite in `tests/performance/content-foundations.perf.spec.ts`
+- [X] T090 [P] Add keyboard, focus, semantic tree, and responsive accessibility assertions in `tests/e2e/accessibility.spec.ts`
+- [X] T091 [P] Add structured safe logging with private-content redaction tests in `apps/api/src/plugins/logging.ts` and `apps/api/tests/logging.spec.ts`
+- [X] T092 [P] Add CI assertion that Compose publishes only loopback ports in `tests/contract/compose-security.spec.ts`
+- [X] T093 Validate every scenario and command in `specs/001-content-foundations/quickstart.md`
+- [X] T094 Record measured coverage, Playwright matrix, aggregate CI status, protected-main ruleset verification, and justified deviations in `specs/001-content-foundations/validation.md`
+- [X] T095 Document pnpm-only Node.js work, uv-only future Python work, Biome, ShellCheck/shfmt, test layers, local commands, and merge-blocking CI in `docs/development.md`
 
 ---
 
@@ -266,9 +266,9 @@ All tasks use the required checkbox, sequential `T###` identifier, optional `[P]
 
 **Purpose**: Close gaps found by `/speckit-converge` between the specified intent and the current codebase.
 
-- [ ] T096 Record measured coverage, Playwright matrix results, aggregate CI status, and protected-main ruleset verification in `specs/001-content-foundations/validation.md` per Constitution VII / Workflow step 7 (missing)
-- [ ] T097 Execute and validate every scenario and command in `specs/001-content-foundations/quickstart.md`, fixing any discrepancy found, per T093 (missing)
-- [ ] T098 Document pnpm-only Node.js workflow, uv-only future Python policy, Biome, ShellCheck/shfmt, test layers, local commands, and merge-blocking CI in `docs/development.md` per T095 (missing)
-- [ ] T099 Add an explicit quota-failure `data-state` value (not only a separate banner) in `apps/web/src/components/sync-status.tsx` per FR-043 (partial)
-- [ ] T100 Render distinct rejected, retry, and recovered mutation states, not only pending/conflict lists, in `apps/web/src/features/hierarchy/mutation-status.tsx` per FR-018 (partial)
-- [ ] T101 Add responsive/viewport assertions to the relationship-diagnostic journey in `tests/e2e/relationships.spec.ts` per US3 Independent Test (partial)
+- [X] T096 Record measured coverage, Playwright matrix results, aggregate CI status, and protected-main ruleset verification in `specs/001-content-foundations/validation.md` per Constitution VII / Workflow step 7 (missing)
+- [X] T097 Execute and validate every scenario and command in `specs/001-content-foundations/quickstart.md`, fixing any discrepancy found, per T093 (missing)
+- [X] T098 Document pnpm-only Node.js workflow, uv-only future Python policy, Biome, ShellCheck/shfmt, test layers, local commands, and merge-blocking CI in `docs/development.md` per T095 (missing)
+- [X] T099 Add an explicit quota-failure `data-state` value (not only a separate banner) in `apps/web/src/components/sync-status.tsx` per FR-043 (partial)
+- [X] T100 Render distinct rejected, retry, and recovered mutation states, not only pending/conflict lists, in `apps/web/src/features/hierarchy/mutation-status.tsx` per FR-018 (partial)
+- [X] T101 Add responsive/viewport assertions to the relationship-diagnostic journey in `tests/e2e/relationships.spec.ts` per US3 Independent Test (partial)

@@ -15,6 +15,9 @@ const LABELS: Record<string, string> = {
   syncing: "Synchronizing…",
   synced: "Synchronized — all local changes are accepted by the server",
   conflict: "Conflict — some local work needs resolution and is kept safe",
+  // Local persistence failed: the change is not saved anywhere. This must
+  // never read like "offline", where the change IS durable locally.
+  "quota-failure": "Not saved — local storage is unavailable or full; the last change was rejected",
 };
 
 export function SyncStatus({ service }: { readonly service: LocalContentService }) {
@@ -46,7 +49,12 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
         {snapshot.storagePersisted === false ? " — durable storage was not granted" : ""}
       </p>
       {quotaWarning !== null ? (
-        <p className="status-banner" data-state="offline" role="alert" data-testid="quota-warning">
+        <p
+          className="status-banner"
+          data-state="quota-warning"
+          role="alert"
+          data-testid="quota-warning"
+        >
           {quotaWarning}
         </p>
       ) : null}

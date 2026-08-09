@@ -46,11 +46,15 @@ describe("asUuid", () => {
 
 describe("generateUuidV7", () => {
   it("stamps version 7 and the RFC 9562 variant", () => {
-    const value = generateUuidV7();
-    // Version nibble is the first character of the third group.
-    expect(value[14]).toBe("7");
-    // Variant is 10xx: the first character of the fourth group is 8, 9, a or b.
-    expect(["8", "9", "a", "b"]).toContain(value[19]);
+    // Both nibbles come from randomized bytes, so a single sample would only
+    // catch a missing variant mask about half the time. Check many.
+    for (let index = 0; index < 200; index += 1) {
+      const value = generateUuidV7();
+      // Version nibble: first character of the third group.
+      expect(value[14]).toBe("7");
+      // Variant is 10xx: first character of the fourth group is 8, 9, a or b.
+      expect(["8", "9", "a", "b"]).toContain(value[19]);
+    }
   });
 
   it("increases monotonically within a single millisecond", () => {

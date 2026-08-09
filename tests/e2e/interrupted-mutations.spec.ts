@@ -25,6 +25,12 @@ test.describe("interrupted mutations (US4)", () => {
     await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
+    // The recovered row is reported as retrying, not as a fresh pending
+    // change: the attempt happened and was interrupted (T076).
+    await expect(
+      page.locator('[data-testid="pending-mutations"] [data-mutation-state="retrying"]'),
+    ).toHaveCount(1, { timeout: 15_000 });
+
     // Recovery: reconnect and verify exactly one logical acceptance.
     await page.unroute("**/v1/**");
     await page.unroute("**/health");

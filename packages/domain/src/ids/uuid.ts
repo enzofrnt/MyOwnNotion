@@ -57,8 +57,10 @@ export function generateUuidV7(now: () => number = Date.now): Uuid {
   // version 7 in the high nibble + counter in rand_a
   bytes[6] = 0x70 | ((counter >> 8) & 0x0f);
   bytes[7] = counter & 0xff;
-  // RFC 4122/9562 variant
-  bytes[8] = (bytes[8] as number & 0x3f) | 0x80;
+  // RFC 4122/9562 variant: clear the top two bits, then set them to 10xx.
+  // The parentheses matter: `x as number & 0x3f` parses as a type assertion
+  // to `number & 0x3f`, which silently drops the mask at runtime.
+  bytes[8] = ((bytes[8] as number) & 0x3f) | 0x80;
 
   const hex: string[] = [];
   for (const byte of bytes) {

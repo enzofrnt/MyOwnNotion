@@ -4,8 +4,8 @@
  * All reads come from the durable Dexie projection; all writes are applied
  * optimistically with a durable outbox entry, then reconciled with the
  * server when reachable. The interface never claims server durability for
- * local-only work: the observable sync state distinguishes offline,
- * pending, syncing, synced, and conflict.
+ * local-only work: the observable sync state distinguishes offline, pending,
+ * syncing, synced, conflict, and quota-failure (nothing was saved at all).
  */
 import {
   applyLocalMutation,
@@ -22,7 +22,12 @@ import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
 import { ContentApi } from "./content-api.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
 
-export type SyncState = "offline" | "pending" | "syncing" | "synced" | "conflict";
+/**
+ * `quota-failure` means local persistence itself failed: the change was NOT
+ * saved anywhere. It is distinct from `offline`, where the change is durable
+ * locally and merely awaiting the server (FR-043).
+ */
+export type SyncState = "offline" | "pending" | "syncing" | "synced" | "conflict" | "quota-failure";
 
 export interface LocalContentSnapshot {
   readonly syncState: SyncState;
@@ -71,7 +76,12 @@ export class LocalContentService {
     }
     this.#pendingCount = (await this.outbox.pending()).length;
     this.#conflictCount = (await this.outbox.conflicts()).length;
-    if (this.#conflictCount > 0 && this.#syncState !== "offline") {
+    if (
+      this.#conflictCount > 0 &&
+      this.#syncState !== "offline" &&
+      // A failed local save is the more urgent truth: never mask it.
+      this.#syncState !== "quota-failure"
+    ) {
       this.#syncState = "conflict";
     }
     this.#snapshot = {
@@ -164,7 +174,12 @@ export class LocalContentService {
       baseRevisionIds,
     });
     if (!result.ok) {
-      await this.#notify();
+      // A storage failure means nothing was saved: surface it explicitly
+      // rather than leaving a stale "pending" that implies durability.
+      const storageFailed =
+        result.error.code === "storage.quota-exceeded" ||
+        result.error.code === "storage.unavailable";
+      await this.#notify(storageFailed ? "quota-failure" : undefined);
       return { ok: false, error: result.error };
     }
     await this.#notify("pending");
