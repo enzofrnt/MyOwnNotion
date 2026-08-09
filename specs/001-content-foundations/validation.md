@@ -88,6 +88,21 @@ non-interactive sudo. Those three projects are verified in CI only, where the
 CI settings in force: `forbidOnly` when `CI=true`, deterministic single worker,
 HTML report retained, traces and screenshots retained on failure.
 
+### Known fragility: the e2e database is shared and never reset
+
+All five projects run against one PostgreSQL instance that is migrated once in
+`tests/e2e/global-setup.ts` and never cleaned between projects. Items therefore
+accumulate: by the time `webkit-mobile` runs last it renders a tree of ~135
+items, on the slowest engine at the smallest viewport.
+
+This surfaced during T101. Adding one journey that created two extra root items
+per project (ten overall) pushed `webkit-mobile` past the 10 s `expect` timeout
+in unrelated tests — the failing locator was present in the post-failure
+snapshot, so it was purely timing. The journey was folded into the existing
+relationship test so it creates no additional items, which restored the margin,
+but the underlying growth is unbounded and will bite again as journeys are
+added. Isolating or resetting per project is tracked as a convergence task.
+
 ## CI aggregate status
 
 Workflow: `.github/workflows/ci.yml`. Jobs: toolchain policy, Biome, ShellCheck
