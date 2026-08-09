@@ -148,4 +148,31 @@ describe("filesystem adapter integrity", () => {
     const second = await blobs.put(bytes("stable"));
     expect(second.storageKey).toBe(first.storageKey);
   });
+
+  it("reports a missing blob as absent rather than throwing", async () => {
+    // A well-formed key that was never stored.
+    expect(await blobs.get("a".repeat(64))).toBeNull();
+  });
+
+  it("equality against a missing blob is false, never an error", async () => {
+    expect(await blobs.equals("b".repeat(64), bytes("anything"))).toBe(false);
+  });
+
+  it("deleting a blob makes it absent and is safe to repeat", async () => {
+    const stored = await blobs.put(bytes("removable"));
+    await blobs.delete(stored.storageKey);
+    expect(await blobs.get(stored.storageKey)).toBeNull();
+    // Garbage collection must be idempotent.
+    await expect(blobs.delete(stored.storageKey)).resolves.toBeUndefined();
+  });
+
+  it("reports the verified digest and length of what it stored", async () => {
+    const payload = bytes("verified payload");
+    const stored = await blobs.put(payload);
+    expect(stored.byteLength).toBe(payload.byteLength);
+    expect(Buffer.from(stored.sha256).toString("hex")).toBe(stored.storageKey);
+    expect(stored.verifiedAt.getTime()).toBeLessThanOrEqual(Date.now());
+    // The bytes read back are exactly what was handed in.
+    expect(await blobs.get(stored.storageKey)).toEqual(payload);
+  });
 });

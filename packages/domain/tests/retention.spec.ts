@@ -92,6 +92,13 @@ describe("canPruneSnapshot", () => {
       ),
     ).toBe(false);
   });
+
+  it("uses the real clock when no clock is supplied", () => {
+    const longExpired = revision({ snapshotExpiresAt: "2000-01-01T00:00:00.000Z" });
+    const farFuture = revision({ snapshotExpiresAt: "2999-01-01T00:00:00.000Z" });
+    expect(canPruneSnapshot(longExpired, UNPROTECTED)).toBe(true);
+    expect(canPruneSnapshot(farFuture, UNPROTECTED)).toBe(false);
+  });
 });
 
 describe("planRestoreRevision", () => {

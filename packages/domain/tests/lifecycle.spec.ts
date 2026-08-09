@@ -393,4 +393,29 @@ describe("isPurgeEligible", () => {
     const item = trashedItem(generateUuidV7(), { purgeAfter: null });
     expect(isPurgeEligible(item, () => deadline)).toBe(false);
   });
+
+  it("uses the real clock when no clock is supplied", () => {
+    const past = trashedItem(generateUuidV7(), { purgeAfter: "2000-01-01T00:00:00.000Z" });
+    const future = trashedItem(generateUuidV7(), { purgeAfter: "2999-01-01T00:00:00.000Z" });
+    expect(isPurgeEligible(past)).toBe(true);
+    expect(isPurgeEligible(future)).toBe(false);
+  });
+});
+
+describe("default clock", () => {
+  it("planTrash stamps the current time when no clock is supplied", () => {
+    const graph = new MemoryGraph();
+    const root = graph.addItem("folder", "Root");
+    graph.addPlacement(root, null, "V");
+
+    const before = Date.now();
+    const result = planTrash(graph, root);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const trashedAt = Date.parse(result.value.trashedAt);
+      expect(trashedAt).toBeGreaterThanOrEqual(before);
+      // The deadline is still exactly the retention window away.
+      expect(Date.parse(result.value.purgeAfter) - trashedAt).toBe(TRASH_RETENTION_MS);
+    }
+  });
 });

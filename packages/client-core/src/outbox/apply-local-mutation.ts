@@ -9,7 +9,6 @@
 import {
   type DomainResult,
   err,
-  generateUuidV7,
   type MutationCommand,
   ok,
   parseMutationCommand,
@@ -108,29 +107,6 @@ function isQuotaError(error: unknown): boolean {
     ((error as { name?: string }).name === "QuotaExceededError" ||
       (error as { inner?: { name?: string } }).inner?.name === "QuotaExceededError")
   );
-}
-
-/** Optimistic local revision helper shared with the projection applier. */
-export function newLocalRevision(
-  db: LocalDatabase,
-  itemId: Uuid,
-  parentRevisionIds: Uuid[],
-  now: () => Date,
-): { id: Uuid; write: () => Promise<void> } {
-  const id = generateUuidV7();
-  return {
-    id,
-    write: async () => {
-      await db.revisionHeaders.put({
-        id,
-        itemId,
-        mutationId: id,
-        parentRevisionIds,
-        acceptedAt: now().toISOString(),
-        local: 1,
-      });
-    },
-  };
 }
 
 export { parentKeyOf };
