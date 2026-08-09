@@ -20,7 +20,12 @@ import type { LocalContentService } from "../../services/local-content.ts";
 
 type QueueState = "pending" | "sending" | "retrying";
 
-/** Error codes that mean "a competing revision exists", not "bad command". */
+/**
+ * Error codes that always denote a competing revision even when the server
+ * did not enumerate one. Used only as a fallback: the primary signal is the
+ * presence of competing revision identities, which is what actually
+ * distinguishes the two cases (FR-042).
+ */
 const CONFLICT_CODES = new Set(["revision.stale-base", "mutation.conflict"]);
 
 function queueStateOf(row: OutboxMutationRow): QueueState {
@@ -32,8 +37,18 @@ function queueStateOf(row: OutboxMutationRow): QueueState {
   return row.lastAttemptAt !== null ? "retrying" : "pending";
 }
 
+/**
+ * A conflict is a rejection that carries competing revision identities: the
+ * owner resolves it by choosing between versions. A deterministic rejection
+ * carries none — the command itself has to change.
+ *
+ * Classifying on the recorded identities rather than on the error code matters
+ * because the code is not a reliable discriminator: the batch endpoint reports
+ * a stale base as `status: "rejected"`, and when the response carries no
+ * problem detail the client stores the generic `mutation.rejected`.
+ */
 function isConflict(row: ConflictRecordRow): boolean {
-  return CONFLICT_CODES.has(row.errorCode);
+  return row.competingRevisionIds.length > 0 || CONFLICT_CODES.has(row.errorCode);
 }
 
 const QUEUE_HINTS: Record<QueueState, string> = {
