@@ -76,6 +76,12 @@ class FakeTransport implements ReconcileTransport {
   snapshot: CanonicalSnapshotDto | null = null;
   compactedCursors = new Set<string>();
   failNextBatch = false;
+  /** Mutations the server rejects deterministically (not a conflict). */
+  rejectIds = new Set<string>();
+  /** Drops the problem detail so the client must supply a default code. */
+  omitProblemDetail = false;
+  /** Makes ordered catch-up fail as a plain transport loss. */
+  failChanges = false;
 
   async submitMutationBatch(mutations: QueuedMutationDto[]) {
     if (this.failNextBatch) {
@@ -84,6 +90,22 @@ class FakeTransport implements ReconcileTransport {
     }
     this.submissions.push(mutations);
     const results: QueuedMutationResultDto[] = mutations.map((mutation) => {
+      if (this.rejectIds.has(mutation.mutationId)) {
+        return {
+          mutationId: mutation.mutationId,
+          status: "rejected" as const,
+          ...(this.omitProblemDetail
+            ? {}
+            : {
+                problem: {
+                  type: "about:blank",
+                  title: "rejected",
+                  status: 422,
+                  code: "validation.invalid-payload",
+                },
+              }),
+        };
+      }
       const conflict = this.conflictIds.get(mutation.mutationId);
       if (conflict !== undefined) {
         return {
@@ -111,6 +133,9 @@ class FakeTransport implements ReconcileTransport {
   }
 
   async listChanges(after: string) {
+    if (this.failChanges) {
+      return { ok: false as const, offline: true };
+    }
     if (this.compactedCursors.has(after)) {
       return { ok: false as const, offline: false, compacted: true };
     }
@@ -246,5 +271,59 @@ describe("reconciliation (T044)", () => {
     expect(outcome.caughtUpTo).toBe("100");
     expect((await repository.getItem(fresh.id as Uuid))?.name).toBe("Fresh from snapshot");
     expect((await outbox.conflicts()).length).toBe(1);
+  });
+
+  it("a deterministic rejection is retained durably instead of being dropped", async () => {
+    const rejected = await enqueueCreate("Rejected");
+    const transport = new FakeTransport();
+    transport.rejectIds.add(rejected);
+
+    const outcome = await reconcile(db, transport);
+    expect(outcome.conflicts).toBe(1);
+    expect(outcome.accepted).toBe(0);
+    const conflicts = await outbox.conflicts();
+    expect(conflicts.length).toBe(1);
+    expect(conflicts[0]?.errorCode).toBe("validation.invalid-payload");
+    // The local work is recoverable, never silently discarded (FR-042).
+    expect(await db.outbox.count()).toBe(0);
+  });
+
+  it("defaults the failure code when a rejection carries no problem detail", async () => {
+    const rejected = await enqueueCreate("Bare rejection");
+    const transport = new FakeTransport();
+    transport.rejectIds.add(rejected);
+    transport.omitProblemDetail = true;
+
+    await reconcile(db, transport);
+    expect((await outbox.conflicts())[0]?.errorCode).toBe("mutation.rejected");
+  });
+
+  it("stays offline and keeps the cursor when catch-up cannot reach the server", async () => {
+    await repository.setMeta("lastChangeCursor", "42");
+    const transport = new FakeTransport();
+    transport.failChanges = true;
+
+    const outcome = await reconcile(db, transport);
+    expect(outcome.offline).toBe(true);
+    expect(outcome.usedSnapshotFallback).toBe(false);
+    // The durable cursor is preserved so the next attempt resumes in place.
+    expect(outcome.caughtUpTo).toBe("42");
+    expect(await repository.getLastChangeCursor()).toBe("42");
+  });
+
+  it("reports offline when the compacted-cursor snapshot is also unreachable", async () => {
+    await repository.setMeta("lastChangeCursor", "old-cursor");
+    const pending = await enqueueCreate("Must survive");
+    const transport = new FakeTransport();
+    transport.compactedCursors.add("old-cursor");
+    transport.snapshot = null; // snapshot request fails too
+
+    const outcome = await reconcile(db, transport);
+    expect(outcome.offline).toBe(true);
+    expect(outcome.usedSnapshotFallback).toBe(false);
+    expect(outcome.caughtUpTo).toBe("old-cursor");
+    // The mutation was accepted before catch-up, so it is no longer queued,
+    // but nothing was lost: it is acknowledged, not dropped.
+    expect(transport.acceptedIds.has(pending)).toBe(true);
   });
 });
