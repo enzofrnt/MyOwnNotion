@@ -141,4 +141,35 @@ describe("idempotent replay semantics (FR-040)", () => {
       expect(replay.status).toBe("conflict");
     }
   });
+
+  it("preserves the recorded failure code so the reason survives a replay", () => {
+    // Flattening every rejection to a generic code loses the only signal a
+    // client has for telling a competing revision from a bad command, and it
+    // classifies its durable conflict record wrongly (FR-042).
+    for (const failureCode of [
+      "revision.stale-base",
+      "mutation.conflict",
+      "validation.invalid-payload",
+      "containment.cycle-rejected",
+    ]) {
+      const replay = replayResult({
+        ...base,
+        status: "rejected",
+        resultRevisionIds: [],
+        failureCode,
+      });
+      expect(replay.problem?.code).toBe(failureCode);
+    }
+  });
+
+  it("falls back to a generic code only when none was recorded", () => {
+    const replay = replayResult({
+      ...base,
+      status: "rejected",
+      resultRevisionIds: [],
+      failureCode: null,
+    });
+    expect(replay.status).toBe("rejected");
+    expect(replay.problem?.code).toBe("mutation.rejected");
+  });
 });

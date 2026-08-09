@@ -8,7 +8,14 @@
  */
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { MutationRecord, QueuedMutationResult } from "../revisions/types.ts";
-import { type DomainResult, err, ok, type PageDocument, type PlacementKind } from "./types.ts";
+import {
+  type DomainResult,
+  err,
+  isSafeErrorCode,
+  ok,
+  type PageDocument,
+  type PlacementKind,
+} from "./types.ts";
 
 export const COMMAND_TYPES = [
   "item.create",
@@ -304,6 +311,11 @@ export function parseMutationCommand(
  * Idempotent replay semantics (FR-040): replaying an accepted mutation ID
  * returns the prior result without side effects; replaying a rejected one
  * returns the prior rejection.
+ *
+ * The replay preserves the recorded failure code rather than flattening every
+ * rejection to a generic one. A client that only ever sees the replay must
+ * still be able to tell a competing revision from a malformed command, because
+ * it keeps the local work recoverable on that basis (FR-042).
  */
 export function replayResult(prior: MutationRecord): QueuedMutationResult {
   if (prior.status === "accepted") {
@@ -319,8 +331,11 @@ export function replayResult(prior: MutationRecord): QueuedMutationResult {
     mutationId: prior.id,
     status: isConflict ? "conflict" : "rejected",
     problem: {
-      code: "mutation.rejected",
-      title: "Mutation was previously rejected",
+      // The stored code is an untrusted string: validate before surfacing it.
+      code: isSafeErrorCode(prior.failureCode) ? prior.failureCode : "mutation.rejected",
+      title: isConflict
+        ? "Mutation previously conflicted with a competing revision"
+        : "Mutation was previously rejected",
     },
   };
 }

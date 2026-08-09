@@ -154,17 +154,26 @@ CI runs the checks above as parallel jobs and aggregates them into one
 cancelled, is skipped, or is missing.
 
 `.github/rulesets/main.json` is the branch-protection definition that makes
-`quality-gate` and a pull request mandatory on `main`.
+`quality-gate` and a pull request mandatory on `main`. It is imported and
+active, and it applies to the owner too (`bypass_actors` is empty), so:
 
-> **This definition is a file, not an active setting.** It must be imported
-> into the GitHub repository's rulesets to take effect. Verify with:
->
-> ```bash
-> gh api repos/<owner>/<repo>/rulesets
-> ```
->
-> An empty array means `main` is unprotected and direct pushes are accepted.
-> See `specs/001-content-foundations/validation.md` for the current status.
+- **`main` accepts no direct pushes.** Work on a branch and open a pull request.
+- A PR cannot merge until `quality-gate` passes.
+
+```bash
+git switch -c feat/my-change
+# ... commit ...
+git push -u origin feat/my-change
+gh pr create --fill
+```
+
+The definition is a file, not automatically an active setting — if it is ever
+re-created from scratch, import it and verify:
+
+```bash
+gh api --method POST repos/<owner>/<repo>/rulesets --input .github/rulesets/main.json
+gh api repos/<owner>/<repo>/rulesets   # an empty array means main is unprotected
+```
 
 ## Specification workflow
 

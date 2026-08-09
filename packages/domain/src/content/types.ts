@@ -102,6 +102,15 @@ export const SAFE_ERROR_CODES = [
 
 export type SafeErrorCode = (typeof SAFE_ERROR_CODES)[number];
 
+/**
+ * Narrows an untrusted string to a known safe error code. Persisted failure
+ * codes and codes crossing the API boundary are plain strings, so they must be
+ * validated rather than asserted before being surfaced again.
+ */
+export function isSafeErrorCode(value: unknown): value is SafeErrorCode {
+  return typeof value === "string" && (SAFE_ERROR_CODES as ReadonlyArray<string>).includes(value);
+}
+
 export interface SafeError {
   readonly code: SafeErrorCode;
   /** Human-oriented but content-free summary. */

@@ -14,12 +14,12 @@ Measured with `pnpm test:coverage` (Vitest + V8) over `packages/*/src` and
 
 | Metric | Threshold | Measured | Result |
 | --- | --- | --- | --- |
-| Statements | 90% | **91.38%** | pass |
-| Lines | 90% | **91.38%** | pass |
+| Statements | 90% | **91.74%** | pass |
+| Lines | 90% | **91.74%** | pass |
 | Functions | 90% | **93.05%** | pass |
-| Branches | 85% | **88.71%** | pass |
+| Branches | 85% | **90.06%** | pass |
 
-**37 test files, 402 tests, 0 failures.**
+**39 test files, 420 tests, 0 failures.**
 
 No threshold was lowered to reach this. Exclusions and their justification are
 listed in `docs/development.md`; the only excluded executable first-party file
@@ -28,14 +28,33 @@ is `apps/api/src/server.ts`, recorded as an explicit exception in
 
 ### Lowest-covered files still in scope
 
-These remain above the aggregate floor but are the weakest points, all in the
-PostgreSQL adapter layer, and are the natural target for the next pass:
+T104 added failure-path integration tests for the two weakest adapters. Branch
+coverage improved substantially; statement coverage moved less, because the
+remaining gaps are happy-path code in less common configurations rather than
+rejection branches:
 
 | File | Statements | Branches | Functions |
 | --- | --- | --- | --- |
-| `packages/database/src/repositories/lifecycle-repository.ts` | 73.52% | 73.33% | 85.71% |
-| `packages/database/src/repositories/file-repository.ts` | 73.40% | 68.42% | 85.71% |
-| `packages/database/src/mutations/execute-command.ts` | 89.97% | 83.33% | 70.58% |
+| `packages/database/src/repositories/lifecycle-repository.ts` | 73.52% (was 73.52%) | **80.64%** (was 73.33%) | 85.71% |
+| `packages/database/src/repositories/file-repository.ts` | **76.24%** (was 73.40%) | **84.44%** (was 68.42%) | 85.71% |
+| `packages/database/src/mutations/execute-command.ts` | 94.20% (was 89.97%) | 80.76% | 75% |
+
+The `packages/database/src/repositories` directory as a whole went from 85.46%
+to 87.00% statements and 77.95% to 84.79% branches.
+
+## Single canonical workspace (FR-001)
+
+Migration `0002_workspace_singleton` adds a unique index on a constant
+expression, so `workspaces` admits at most one row. Before it, the invariant
+was convention only: `getOrCreateWorkspace` generates a fresh UUID per call, so
+`ON CONFLICT DO NOTHING` could not stop two concurrent bootstraps from
+inserting two distinct rows, and reads silently took the earliest.
+
+Verified in `packages/database/tests/workspace-singleton.integration.spec.ts`:
+the index exists, five concurrent bootstraps yield one workspace, a direct
+insert of a second workspace fails with SQLSTATE 23505 both standalone and
+inside a transaction, and the migration applies forward over a database that
+already holds one workspace.
 
 ## Test layers
 
@@ -69,6 +88,21 @@ non-interactive sudo. Those three projects are verified in CI only, where the
 CI settings in force: `forbidOnly` when `CI=true`, deterministic single worker,
 HTML report retained, traces and screenshots retained on failure.
 
+### Known fragility: the e2e database is shared and never reset
+
+All five projects run against one PostgreSQL instance that is migrated once in
+`tests/e2e/global-setup.ts` and never cleaned between projects. Items therefore
+accumulate: by the time `webkit-mobile` runs last it renders a tree of ~135
+items, on the slowest engine at the smallest viewport.
+
+This surfaced during T101. Adding one journey that created two extra root items
+per project (ten overall) pushed `webkit-mobile` past the 10 s `expect` timeout
+in unrelated tests — the failing locator was present in the post-failure
+snapshot, so it was purely timing. The journey was folded into the existing
+relationship test so it creates no additional items, which restored the margin,
+but the underlying growth is unbounded and will bite again as journeys are
+added. Isolating or resetting per project is tracked as a convergence task.
+
 ## CI aggregate status
 
 Workflow: `.github/workflows/ci.yml`. Jobs: toolchain policy, Biome, ShellCheck
@@ -80,33 +114,38 @@ fails, is cancelled, is skipped, or is missing.
 Last fully green run before this record: run `31328696151` on `main`, 10/10 jobs
 passing including `quality-gate`.
 
-## Protected-main ruleset — NOT ENFORCED
+## Protected-main ruleset — ENFORCED
 
-`.github/rulesets/main.json` defines the intended protection: a required
-`quality-gate` status, a required pull request, and blocked deletion and
-non-fast-forward pushes.
+`.github/rulesets/main.json` defines the protection: a required `quality-gate`
+status, a required pull request, and blocked deletion and non-fast-forward
+pushes.
 
-**That definition is not active on the repository.** Verified:
+It was imported into the repository on 2026-08-09 (T102) and is now active:
 
 ```console
 $ gh api repos/enzofrnt/MyOwnNotion/rulesets
-[]
+20610152  Protected main  active
 ```
 
-Consequences, stated plainly:
+`current_user_can_bypass` is `never` and `bypass_actors` is empty, so the rule
+applies to the owner too. Verified by attempting a direct push, which the
+remote refused:
 
-- `main` currently accepts direct pushes, including force pushes. Several were
-  made during this session.
-- Constitution VII ("Protected branches MUST reject pull-request merges while
-  any required quality check fails or is missing") is **not satisfied** by the
-  repository's live configuration, even though the CI half of it is.
-- plan.md's claim that "the `main` ruleset requires this check and a pull
-  request" describes the committed definition, not the active setting.
+```console
+$ git push origin HEAD:main
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: - Changes must be made through a pull request.
+remote: - Required status check "quality-gate" is expected.
+ ! [remote rejected] HEAD -> main (push declined due to repository rule violations)
+```
 
-The file is a definition only; it must be imported into the repository's
-rulesets to take effect. This requires repository-admin rights and changes how
-everyone pushes to `main`, so it was deliberately left to the owner rather than
-applied unilaterally. It is tracked as a convergence task.
+Constitution VII is therefore satisfied by the live configuration, not only by
+the committed definition.
+
+**History**: before this change the ruleset existed as a file but had never
+been imported, so `main` accepted direct and force pushes — several were made
+earlier in this session. That gap was found by verifying the setting instead of
+trusting the file.
 
 ## Quickstart validation (T093)
 
@@ -168,7 +207,7 @@ Running the gates rather than assuming they passed surfaced four real defects:
 
 | Item | Status | Reason |
 | --- | --- | --- |
-| Protected-main ruleset | **not enforced** | Definition committed but not imported; needs owner action (see above) |
+| Protected-main ruleset | enforced since 2026-08-09 | Imported as ruleset 20610152; direct push to `main` verified refused |
 | firefox-desktop, webkit-desktop, webkit-mobile locally | verified in CI only | `playwright install --with-deps` needs root; unavailable here |
 | `apps/api/src/server.ts` coverage | excluded | Recorded exception in plan.md |
 | `apps/web/**` coverage | excluded | Covered by Playwright journeys, not measurable under V8/node |
