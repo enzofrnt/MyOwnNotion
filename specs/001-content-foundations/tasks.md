@@ -272,3 +272,13 @@ All tasks use the required checkbox, sequential `T###` identifier, optional `[P]
 - [X] T099 Add an explicit quota-failure `data-state` value (not only a separate banner) in `apps/web/src/components/sync-status.tsx` per FR-043 (partial)
 - [X] T100 Render distinct rejected, retry, and recovered mutation states, not only pending/conflict lists, in `apps/web/src/features/hierarchy/mutation-status.tsx` per FR-018 (partial)
 - [X] T101 Add responsive/viewport assertions to the relationship-diagnostic journey in `tests/e2e/relationships.spec.ts` per US3 Independent Test (partial)
+
+---
+
+## Phase 11: Convergence
+
+**Purpose**: Close gaps found by the second `/speckit-converge` pass.
+
+- [ ] T102 CRITICAL: import `.github/rulesets/main.json` into the GitHub repository so the aggregate `quality-gate` and a pull request actually gate `main` — `gh api repos/<owner>/<repo>/rulesets` currently returns `[]`, so direct and force pushes to `main` are accepted, per Constitution VII and plan.md "Development Toolchain" (contradicts). Needs repository-admin action; verify afterwards that the ruleset is listed and that a direct push to `main` is refused.
+- [ ] T103 Enforce the single canonical workspace in storage: add a singleton constraint (e.g. a unique index on a constant expression) for `workspaces` in a new reviewed migration under `packages/database/migrations/`, and cover concurrent bootstrap in `packages/database/tests/`, per FR-001 (partial)
+- [ ] T104 Add failure-path integration tests for `packages/database/src/repositories/lifecycle-repository.ts` and `file-repository.ts`, the two weakest files in coverage (73.5%/73.4% statements, 73.3%/68.4% branches), per Constitution III (partial)
