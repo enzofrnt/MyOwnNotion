@@ -1,7 +1,7 @@
 /**
  * Retained-revision restore and stale-head conflict journeys (T080, US5).
  */
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openWorkspace,

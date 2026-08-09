@@ -181,9 +181,17 @@ export const mutations = pgTable(
     acceptedAt: timestamp("accepted_at", { withTimezone: true }),
     resultRevisionIds: uuid("result_revision_ids").array().notNull().default([]),
     failureCode: text("failure_code"),
+    // Competing revision identities of a rejected concurrent mutation, so a
+    // replay returns the same information as the first response (FR-042).
+    // Added in migration 0003_mutation_competing_revisions.sql.
+    competingRevisionIds: uuid("competing_revision_ids").array().notNull().default([]),
   },
   (table) => [
     check("mutations_status_check", sql`${table.status} IN ('accepted', 'rejected')`),
+    check(
+      "mutations_competing_only_when_rejected",
+      sql`${table.status} = 'rejected' OR cardinality(${table.competingRevisionIds}) = 0`,
+    ),
     check(
       "mutations_result_check",
       sql`(${table.status} <> 'accepted') OR (cardinality(${table.resultRevisionIds}) >= 1)`,

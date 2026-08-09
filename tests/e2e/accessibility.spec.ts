@@ -2,7 +2,7 @@
  * Keyboard, focus, semantic tree, and responsive accessibility assertions
  * (T090, constitution principle VI).
  */
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures.ts";
 import { createRootItem, openWorkspace, uniqueName } from "./helpers.ts";
 
 test.describe("accessibility (all viewports/browsers)", () => {

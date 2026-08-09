@@ -77,7 +77,10 @@ describe("migration 0002_workspace_singleton", () => {
       await client.end();
 
       const applied = await applyMigrations(upgraded.connectionString);
-      expect(applied).toEqual(["0002_workspace_singleton"]);
+      // Only assert the migration under test is applied; pinning the whole
+      // pending list would break on every future migration.
+      expect(applied).toContain("0002_workspace_singleton");
+      expect(applied).not.toContain("0001_content_foundations");
     } finally {
       await upgraded.stop();
     }

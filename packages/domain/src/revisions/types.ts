@@ -20,6 +20,12 @@ export interface MutationRecord {
   readonly acceptedAt: string | null;
   readonly resultRevisionIds: ReadonlyArray<Uuid>;
   readonly failureCode: string | null;
+  /**
+   * Competing revision identities recorded with a rejected concurrent
+   * mutation, so replaying it returns what the first response carried
+   * (FR-042). Empty for an accepted mutation.
+   */
+  readonly competingRevisionIds?: ReadonlyArray<Uuid>;
 }
 
 /** Immutable revision header; the snapshot may be pruned, the header never. */

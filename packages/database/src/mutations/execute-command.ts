@@ -468,6 +468,7 @@ export async function submitMutation(
             acceptedAt: existing.acceptedAt?.toISOString() ?? null,
             resultRevisionIds: existing.resultRevisionIds as Uuid[],
             failureCode: existing.failureCode,
+            competingRevisionIds: existing.competingRevisionIds as Uuid[],
           }),
         };
       }
@@ -523,6 +524,9 @@ export async function submitMutation(
           status: "rejected",
           submittedAt: acceptedAt,
           failureCode: error.safeError.code,
+          // Retained so a replay can return the same competing identities the
+          // first response carried (FR-042).
+          competingRevisionIds: [...(error.safeError.competingRevisionIds ?? [])],
         })
         .onConflictDoNothing();
       return {
@@ -555,6 +559,7 @@ export async function submitMutation(
             acceptedAt: record.acceptedAt?.toISOString() ?? null,
             resultRevisionIds: record.resultRevisionIds as Uuid[],
             failureCode: record.failureCode,
+            competingRevisionIds: record.competingRevisionIds as Uuid[],
           }),
         };
       }

@@ -5,6 +5,15 @@ const isCI = process.env["CI"] === "true" || process.env["CI"] === "1";
 const apiPort = Number(process.env["MYOWNNOTION_API_PORT"] ?? 3001);
 const webPort = Number(process.env["MYOWNNOTION_WEB_PORT"] ?? 5173);
 
+/** Browser/viewport matrix: Chromium, Firefox, and WebKit, desktop and mobile. */
+const BROWSER_PROJECTS = [
+  { name: "chromium-desktop", device: "Desktop Chrome" },
+  { name: "firefox-desktop", device: "Desktop Firefox" },
+  { name: "webkit-desktop", device: "Desktop Safari" },
+  { name: "chromium-mobile", device: "Pixel 7" },
+  { name: "webkit-mobile", device: "iPhone 14" },
+] as const;
+
 /**
  * Every changed interactive flow gets a journey here, executed against
  * Chromium, Firefox, and WebKit in desktop and mobile-sized projects.
@@ -26,13 +35,13 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [
-    { name: "chromium-desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox-desktop", use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit-desktop", use: { ...devices["Desktop Safari"] } },
-    { name: "chromium-mobile", use: { ...devices["Pixel 7"] } },
-    { name: "webkit-mobile", use: { ...devices["iPhone 14"] } },
-  ],
+  // Content isolation is per test, via the auto fixture in
+  // tests/e2e/fixtures.ts — Playwright project dependencies run all at once
+  // up front and so cannot isolate one project from another (T106).
+  projects: BROWSER_PROJECTS.map(({ name, device }) => ({
+    name,
+    use: { ...devices[device] },
+  })),
   webServer: [
     {
       command: "pnpm --filter @myownnotion/api run dev",

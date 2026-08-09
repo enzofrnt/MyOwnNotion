@@ -6,7 +6,8 @@
  * the web shell itself stays reachable, matching "the server becomes
  * unreachable" from the spec.
  */
-import { expect, type Page, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openWorkspace,

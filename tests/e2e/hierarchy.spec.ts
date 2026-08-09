@@ -1,7 +1,7 @@
 /**
  * Responsive keyboard hierarchy journeys (T027, US1).
  */
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures.ts";
 import {
   createChildItem,
   createRootItem,
