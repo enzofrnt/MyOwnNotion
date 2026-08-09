@@ -282,3 +282,12 @@ All tasks use the required checkbox, sequential `T###` identifier, optional `[P]
 - [X] T102 CRITICAL: import `.github/rulesets/main.json` into the GitHub repository so the aggregate `quality-gate` and a pull request actually gate `main` — `gh api repos/<owner>/<repo>/rulesets` currently returns `[]`, so direct and force pushes to `main` are accepted, per Constitution VII and plan.md "Development Toolchain" (contradicts). Needs repository-admin action; verify afterwards that the ruleset is listed and that a direct push to `main` is refused.
 - [X] T103 Enforce the single canonical workspace in storage: add a singleton constraint (e.g. a unique index on a constant expression) for `workspaces` in a new reviewed migration under `packages/database/migrations/`, and cover concurrent bootstrap in `packages/database/tests/`, per FR-001 (partial)
 - [X] T104 Add failure-path integration tests for `packages/database/src/repositories/lifecycle-repository.ts` and `file-repository.ts`, the two weakest files in coverage (73.5%/73.4% statements, 73.3%/68.4% branches), per Constitution III (partial)
+
+---
+
+## Phase 12: Convergence
+
+**Purpose**: Close gaps found by the third `/speckit-converge` pass.
+
+- [ ] T105 Persist competing revision identities with the mutation record so a replayed conflict can return them: add a column in a new reviewed migration under `packages/database/migrations/`, write it in `packages/database/src/mutations/execute-command.ts`, return it from `replayResult` in `packages/domain/src/content/mutations.ts`, and cover "first response lost, mutation replayed, competing identity still available" in `apps/api/tests/mutations.contract.spec.ts`. Today the identities live only in the in-memory error and are lost on replay, leaving the owner unable to compare versions, per FR-042 (partial)
+- [ ] T106 Isolate canonical content per Playwright project so journey evidence stops depending on how many items earlier projects created: reset content per project (or give each project its own database) around `tests/e2e/global-setup.ts` and `playwright.config.ts`. Global setup currently runs once per run, so ~135 items accumulate by `webkit-mobile` and unrelated journeys fail on a 10 s timeout alone, per Constitution III (partial)
