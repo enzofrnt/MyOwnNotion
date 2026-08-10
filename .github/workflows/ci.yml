@@ -306,27 +306,53 @@ jobs:
         # Tagged by the exact commit the gate evaluated. No moving tag: there
         # is deliberately no `latest`, so a deployment always names the commit
         # it is running.
+        #
+        # Two things beyond the push itself, both required for the images to be
+        # usable:
+        #
+        #   - `org.opencontainers.image.source` links the package to this
+        #     repository. Without it GHCR keeps the package unattached, so it
+        #     never appears under the repository's Packages tab and has no
+        #     visible provenance. The label goes on the image config *and* as an
+        #     index annotation, because a multi-architecture push publishes a
+        #     manifest list and GHCR reads the link from the index.
+        #   - Flat `myownnotion-api` / `myownnotion-web` names rather than a
+        #     nested `myownnotion/api`. A nested path creates a package literally
+        #     called `myownnotion/api`, which is awkward to address and does not
+        #     match how the repository's images are referenced elsewhere.
         run: |
           set -euo pipefail
-          registry="ghcr.io/${GITHUB_REPOSITORY,,}"
+          # `tr` rather than bash's `${VAR,,}`: the latter needs bash 4+, which
+          # the runner has but a local shell may not, and a naming rule that
+          # cannot be exercised locally is one that breaks in CI only.
+          owner=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          repo=$(printf '%s' "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')
+          registry="ghcr.io/${owner}/${repo}"
+          source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
           node_base=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)
           nginx_base=$(jq -r '.bases.nginx | "\(.ref)@\(.digest)"' docker/base-images.json)
           platforms=$(jq -r '.platforms | join(",")' docker/base-images.json)
 
-          docker buildx build --platform "$platforms" --push \
-            --file docker/api.Dockerfile \
-            --build-arg "NODE_BASE=$node_base" \
-            --provenance=true --sbom=true \
-            --metadata-file publish-api.json \
-            --tag "$registry/api:sha-${GITHUB_SHA}" .
+          publish() {
+            local target="$1"; shift
+            docker buildx build --platform "$platforms" --push \
+              --file "docker/${target}.Dockerfile" \
+              --build-arg "NODE_BASE=$node_base" \
+              "$@" \
+              --provenance=true --sbom=true \
+              --label "org.opencontainers.image.source=$source_url" \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              --label "org.opencontainers.image.licenses=AGPL-3.0-or-later" \
+              --label "org.opencontainers.image.title=myownnotion-${target}" \
+              --annotation "index:org.opencontainers.image.source=$source_url" \
+              --annotation "index:org.opencontainers.image.revision=$GITHUB_SHA" \
+              --annotation "index:org.opencontainers.image.description=MyOwnNotion ${target}" \
+              --metadata-file "publish-${target}.json" \
+              --tag "${registry}-${target}:sha-${GITHUB_SHA}" .
+          }
 
-          docker buildx build --platform "$platforms" --push \
-            --file docker/web.Dockerfile \
-            --build-arg "NODE_BASE=$node_base" \
-            --build-arg "NGINX_BASE=$nginx_base" \
-            --provenance=true --sbom=true \
-            --metadata-file publish-web.json \
-            --tag "$registry/web:sha-${GITHUB_SHA}" .
+          publish api
+          publish web --build-arg "NGINX_BASE=$nginx_base"
 
           jq -n \
             --arg sha "$GITHUB_SHA" \

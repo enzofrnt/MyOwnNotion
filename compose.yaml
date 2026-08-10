@@ -40,7 +40,7 @@ services:
     restart: unless-stopped
 
   api:
-    image: ${MYOWNNOTION_API_IMAGE:-ghcr.io/enzofrnt/myownnotion/api:v0.1.0}
+    image: ${MYOWNNOTION_API_IMAGE:-ghcr.io/enzofrnt/myownnotion-api:v0.1.0}
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,7 +79,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: ${MYOWNNOTION_WEB_IMAGE:-ghcr.io/enzofrnt/myownnotion/web:v0.1.0}
+    image: ${MYOWNNOTION_WEB_IMAGE:-ghcr.io/enzofrnt/myownnotion-web:v0.1.0}
     depends_on:
       api:
         condition: service_healthy
