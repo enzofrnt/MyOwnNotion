@@ -1,0 +1,203 @@
+/**
+ * Multi-architecture image build gate (feature 002, FR-032/FR-034).
+ *
+ * The build is part of the quality gate, not of publication: it runs on every
+ * candidate, including pull requests, and never pushes. Blocking rules:
+ *
+ *   - a base image without a pinned manifest-list digest blocks;
+ *   - a build failure on either linux/amd64 or linux/arm64 blocks;
+ *   - a missing Docker/buildx toolchain blocks (an unavailable check is never
+ *     a pass).
+ *
+ * Output artifact: `image-build.json` with the platforms and resulting digests.
+ *
+ * Usage:
+ *   pnpm images:build              build both images for both platforms
+ *   pnpm images:build --resolve    resolve and write base-image digests, then exit
+ */
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import process from "node:process";
+
+const repoRoot = path.resolve(import.meta.dirname, "..", "..");
+const baseImagesPath = path.join(repoRoot, "docker", "base-images.json");
+const artifactPath = path.join(repoRoot, "image-build.json");
+
+interface BaseImage {
+  ref: string;
+  digest: string;
+  usedBy: string[];
+}
+
+interface BaseImagesFile {
+  platforms: string[];
+  bases: Record<string, BaseImage>;
+}
+
+interface Target {
+  name: string;
+  dockerfile: string;
+  /** Build arguments naming the digest-pinned bases this target consumes. */
+  baseArgs: Record<string, string>;
+}
+
+const targets: Target[] = [
+  {
+    name: "api",
+    dockerfile: "docker/api.Dockerfile",
+    baseArgs: { NODE_BASE: "node" },
+  },
+  {
+    name: "web",
+    dockerfile: "docker/web.Dockerfile",
+    baseArgs: { NODE_BASE: "node", NGINX_BASE: "nginx" },
+  },
+];
+
+const resolveMode = process.argv.includes("--resolve");
+const baseImages = JSON.parse(readFileSync(baseImagesPath, "utf8")) as BaseImagesFile;
+
+function run(command: string, args: string[]): string {
+  return execFileSync(command, args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: resolveMode ? ["ignore", "pipe", "inherit"] : ["ignore", "pipe", "inherit"],
+    maxBuffer: 64 * 1024 * 1024,
+  });
+}
+
+function requireBuildx(): void {
+  try {
+    run("docker", ["buildx", "version"]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `Image build gate cannot run: docker buildx is unavailable (${message}).\n` +
+        "An unavailable gate is a blocking failure, not a pass.",
+    );
+    process.exit(1);
+  }
+}
+
+if (resolveMode) {
+  requireBuildx();
+  for (const [name, base] of Object.entries(baseImages.bases)) {
+    // The manifest-list digest, so both linux/amd64 and linux/arm64 resolve
+    // from one pin.
+    const digest = run("docker", [
+      "buildx",
+      "imagetools",
+      "inspect",
+      base.ref,
+      "--format",
+      "{{.Manifest.Digest}}",
+    ]).trim();
+    if (!/^sha256:[0-9a-f]{64}$/.test(digest)) {
+      console.error(`Could not resolve a manifest digest for ${base.ref} (got: ${digest})`);
+      process.exit(1);
+    }
+    base.digest = digest;
+    console.info(`resolved ${name}: ${base.ref}@${base.digest}`);
+  }
+  writeFileSync(baseImagesPath, `${JSON.stringify(baseImages, null, 2)}\n`, "utf8");
+  console.info(`Wrote ${path.relative(repoRoot, baseImagesPath)}. Commit the pinned digests.`);
+  process.exit(0);
+}
+
+// Blocking rule: no unpinned base may reach a build.
+const unpinned = Object.entries(baseImages.bases).filter(
+  ([, base]) => !/^sha256:[0-9a-f]{64}$/.test(base.digest),
+);
+if (unpinned.length > 0) {
+  console.error("Image build gate failed: unpinned base image(s).\n");
+  for (const [name, base] of unpinned) {
+    console.error(`  - ${name} (${base.ref}) has no sha256 manifest-list digest`);
+  }
+  console.error(
+    "\nRun `pnpm images:build --resolve` on a machine with a Docker daemon and commit " +
+      "docker/base-images.json.",
+  );
+  process.exit(1);
+}
+
+requireBuildx();
+
+const platforms = baseImages.platforms.join(",");
+const results: Array<{ target: string; dockerfile: string; platforms: string[]; digest: string }> =
+  [];
+
+for (const target of targets) {
+  const metadataFile = path.join(repoRoot, `.image-build-${target.name}.json`);
+  const args = [
+    "buildx",
+    "build",
+    "--platform",
+    platforms,
+    "--file",
+    target.dockerfile,
+    "--metadata-file",
+    metadataFile,
+    "--provenance=true",
+    "--sbom=true",
+  ];
+  for (const [argument, baseName] of Object.entries(target.baseArgs)) {
+    const base = baseImages.bases[baseName];
+    if (base === undefined) {
+      console.error(
+        `Image build gate failed: ${target.dockerfile} needs base \`${baseName}\`, ` +
+          "which docker/base-images.json does not declare.",
+      );
+      process.exit(1);
+    }
+    args.push("--build-arg", `${argument}=${base.ref}@${base.digest}`);
+  }
+  // No `--push` and no `--load`: the gate builds and discards.
+  args.push(".");
+
+  console.info(`Building ${target.name} for ${platforms} …`);
+  try {
+    run("docker", args);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Image build gate failed for ${target.name}: ${message}`);
+    process.exit(1);
+  }
+
+  let digest = "";
+  try {
+    const metadata = JSON.parse(readFileSync(metadataFile, "utf8")) as Record<string, string>;
+    digest = metadata["containerimage.digest"] ?? "";
+  } catch {
+    digest = "";
+  }
+  results.push({
+    target: target.name,
+    dockerfile: target.dockerfile,
+    platforms: baseImages.platforms,
+    digest,
+  });
+}
+
+writeFileSync(
+  artifactPath,
+  `${JSON.stringify(
+    {
+      status: "pass",
+      pushed: false,
+      candidateSha: process.env["GITHUB_SHA"] ?? "",
+      bases: Object.fromEntries(
+        Object.entries(baseImages.bases).map(([name, base]) => [
+          name,
+          `${base.ref}@${base.digest}`,
+        ]),
+      ),
+      images: results,
+    },
+    null,
+    2,
+  )}\n`,
+  "utf8",
+);
+
+console.info(`Image build gate passed (${results.length} images, platforms: ${platforms}).`);

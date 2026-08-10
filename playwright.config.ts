@@ -1,9 +1,20 @@
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const isCI = process.env["CI"] === "true" || process.env["CI"] === "1";
 
 const apiPort = Number(process.env["MYOWNNOTION_API_PORT"] ?? 3001);
 const webPort = Number(process.env["MYOWNNOTION_WEB_PORT"] ?? 5173);
+
+/**
+ * Security journeys run against the loopback HTTP cookie exception: the API
+ * issues the separate opaque `mn_dev_session` cookie and must never issue or
+ * accept `__Host-mn_session` over HTTP. The deployment wrapping key is a
+ * mounted file created by global setup; only its path is passed here.
+ */
+const publicOrigin = process.env["MYOWNNOTION_PUBLIC_ORIGIN"] ?? `http://127.0.0.1:${webPort}`;
+const deploymentKeyFile =
+  process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"] ?? path.resolve("secrets", "deployment-key.e2e");
 
 /** Browser/viewport matrix: Chromium, Firefox, and WebKit, desktop and mobile. */
 const BROWSER_PROJECTS = [
@@ -54,6 +65,9 @@ export default defineConfig({
           process.env["DATABASE_URL"] ??
           "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
         MYOWNNOTION_BLOB_ROOT: process.env["MYOWNNOTION_BLOB_ROOT"] ?? "./.dev-blobs",
+        MYOWNNOTION_PUBLIC_ORIGIN: publicOrigin,
+        MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
+        MYOWNNOTION_DEPLOYMENT_KEY_FILE: deploymentKeyFile,
       },
     },
     {

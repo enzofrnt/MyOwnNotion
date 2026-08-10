@@ -1,8 +1,14 @@
-# Development topology for the canonical content foundations feature.
+# Official single-owner topology (feature 002, FR-030 – FR-032).
 #
-# PostgreSQL is the only supporting service. No supported production
-# composition exists before authentication; every published port binds to
-# 127.0.0.1 only (asserted by tests/contract/compose-security.spec.ts).
+# Services: `api`, `web`, `postgres`, and the durable `file-store` volume.
+# Boundary rules enforced by tests/contract/compose-security.spec.ts and
+# `pnpm compose:check`:
+#   - every published port binds 127.0.0.1 explicitly; HTTPS termination is the
+#     hosting administrator's external reverse proxy and is NOT part of this
+#     stack (see docs/deployment/reverse-proxy.md);
+#   - no secret value appears here — secrets arrive as mounted files whose
+#     paths come from `*_FILE` variables documented in `.env.example`;
+#   - images are selected by immutable digest or exact tag, never `latest`.
 name: myownnotion
 
 services:
@@ -28,5 +34,75 @@ services:
       - postgres-data:/var/lib/postgresql
     restart: unless-stopped
 
+  api:
+    image: ${MYOWNNOTION_API_IMAGE:?set MYOWNNOTION_API_IMAGE to an immutable digest or exact tag}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      TZ: UTC
+      MYOWNNOTION_API_HOST: 0.0.0.0
+      MYOWNNOTION_API_PORT: 3001
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      MYOWNNOTION_PUBLIC_ORIGIN: ${MYOWNNOTION_PUBLIC_ORIGIN:?set MYOWNNOTION_PUBLIC_ORIGIN}
+      MYOWNNOTION_TRUSTED_PROXY_CIDRS: ${MYOWNNOTION_TRUSTED_PROXY_CIDRS:-}
+      MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: ${MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE:-0}
+      # Path only. The value lives in the mounted secret below.
+      MYOWNNOTION_DEPLOYMENT_KEY_FILE: /run/secrets/deployment-key
+      MYOWNNOTION_BLOB_ROOT: /var/lib/myownnotion/blobs
+      MYOWNNOTION_MAX_REQUEST_BYTES: ${MYOWNNOTION_MAX_REQUEST_BYTES:-1048576}
+      MYOWNNOTION_MAX_BODY_BYTES: ${MYOWNNOTION_MAX_BODY_BYTES:-1048576}
+      MYOWNNOTION_MAX_FILE_BYTES: ${MYOWNNOTION_MAX_FILE_BYTES:-104857600}
+    secrets:
+      - deployment-key
+    volumes:
+      - file-store:/var/lib/myownnotion/blobs
+    ports:
+      - "127.0.0.1:${MYOWNNOTION_API_PORT:-3001}:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  web:
+    image: ${MYOWNNOTION_WEB_IMAGE:?set MYOWNNOTION_WEB_IMAGE to an immutable digest or exact tag}
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      TZ: UTC
+    ports:
+      - "127.0.0.1:${MYOWNNOTION_WEB_PORT:-5173}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+secrets:
+  # Externally managed deployment wrapping key. The host path is supplied by the
+  # hosting administrator; it is never committed and never baked into an image.
+  deployment-key:
+    file: ${MYOWNNOTION_DEPLOYMENT_KEY_FILE:?set MYOWNNOTION_DEPLOYMENT_KEY_FILE to the host path of the deployment wrapping key}
+
 volumes:
   postgres-data:
+  file-store:

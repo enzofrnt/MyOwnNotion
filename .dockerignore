@@ -1,0 +1,73 @@
+# Build context hygiene (feature 002, FR-032).
+#
+# Nothing secret and nothing host-specific may enter an image layer. The
+# deployment wrapping key and every `.env` file are excluded here as well as by
+# .gitignore, so a stray local file cannot be baked into a published image.
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+deployment-key*
+
+# Version control and agent workspaces
+.git/
+.github/
+.gitignore
+.agents/
+.claude/
+.cursor/
+.specify/
+.codex/
+
+# Dependencies and build output rebuilt inside the image
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.turbo/
+.next/
+*.tsbuildinfo
+.pnpm-store/
+
+# Test and coverage artifacts
+coverage/
+playwright-report/
+test-results/
+**/tests/
+tests/
+
+# Local data volumes
+.dev-blobs/
+.postgres-data/
+
+# Docs, specs, and container definitions (not build inputs)
+docs/
+specs/
+README.md
+AGENTS.md
+Dockerfile*
+docker/*.Dockerfile
+.dockerignore
+compose*.yaml
+
+# Security gate artifacts
+dependency-audit.json
+secret-scan.sarif
+static-security.sarif
+container-scan.sarif
+license-policy.json
+image-build.json
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+*.swp
+*.log

@@ -38,6 +38,23 @@ test-results/
 .env.*
 !.env.example
 
+# Mounted-secret fixtures for local development (deployment wrapping key,
+# database password). Secret material never enters the repository or an image.
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+deployment-key*
+
+# Security gate artifacts produced by CI jobs
+dependency-audit.json
+secret-scan.sarif
+static-security.sarif
+container-scan.sarif
+license-policy.json
+image-build.json
+
 # Editor and operating-system files
 .DS_Store
 Thumbs.db
