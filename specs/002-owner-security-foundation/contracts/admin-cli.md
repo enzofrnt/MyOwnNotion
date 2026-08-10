@@ -85,7 +85,7 @@ creation path.
 All pre-confirmation rows are attempt-scoped and `0/0`:
 
 | Attempt state | Scope and committed counts | Allowed transition / result |
-| --- | --- |
+| --- | --- | --- |
 | `started` | Attempt only; no owner/workspace rows; `0/0`; installation `uninitialized` | Start one serialized attempt; credential challenge may run |
 | `credential-verified` | Attempt-scoped verified credential material only; no owner/workspace rows; `0/0` | Valid credential verification; provisional records may be prepared |
 | `recovery-prepared` | Attempt-scoped pending credential, kit, and download capability; no owner/workspace rows; `0/0` | Prepare one provisional kit and one 15-minute opportunity |

@@ -7,6 +7,44 @@ claim that application code, Compose, CI, or release evidence exists. Every
 row stays `pending` until a reviewer records raw evidence for the exact
 candidate. Blank cells are not passes.
 
+## Canonical column vocabulary
+
+The column names used in this file are canonical for feature 002 and override
+any other naming used to describe this ledger. Every artifact that instructs a
+reviewer to fill this ledger MUST use exactly these seven field names, in this
+order, for the functional-requirement and success-criterion ledgers:
+
+`Requirement/criterion`, `Command or test path`, `Candidate SHA`,
+`Controlled clock/configuration`, `Raw evidence/artifact`, `Reviewer/date`,
+`Status`.
+
+Supporting tables extend this set with their own scenario columns (trial,
+participant, state pair, policy/state, candidate type, fault checkpoint) but
+MUST NOT rename the seven canonical fields. `Command or test path` is the
+canonical name for the verification path; `Raw evidence/artifact` is the
+canonical name for the recorded artifact. No synonym — `Requirement(s)`,
+`Verification path`, `Criterion`, `Required raw evidence`, or `Artifact/notes`
+— is valid in this ledger.
+
+## Run metadata
+
+One block per evidence run. The ledger is not reviewable without it, and a run
+whose metadata is incomplete cannot promote any row out of `pending`.
+
+| Field | Value | Required meaning |
+| --- | --- | --- |
+| Candidate commit SHA |  | Exact commit the evidence was produced from |
+| Branch |  | Branch containing the candidate commit |
+| Dirty before run |  | `yes`/`no`; a dirty tree invalidates every row in the run |
+| Node version |  | Must satisfy `>=24.0.0 <25` |
+| pnpm version |  | Must be the pinned `10.33.3` |
+| Docker version |  | Engine version used for Compose and image evidence |
+| Compose version |  | Compose plugin version used for stack startup evidence |
+| Database/storage fixture |  | PostgreSQL fixture and durable file-store fixture identity |
+| Deployment wrapping-key fixture ID |  | Mounted-secret fixture reference; never the key material |
+| Controlled-clock version |  | Injected clock fixture version and base instant |
+| Overall status | `pending` | `pending`, `pass`, or `fail`; `pass` only when every row below is `pass` |
+
 ## Evidence record requirements
 
 Every evidence record or supporting table must contain or reference all of:
@@ -30,12 +68,12 @@ The canonical row template is:
 ## Functional-requirement ledger
 
 | Requirement/criterion | Command or test path | Candidate SHA | Controlled clock/configuration | Raw evidence/artifact | Reviewer/date | Status |
-| --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- |
 | FR-001 | `packages/database/tests/security-owner.integration.spec.ts` |  |  |  |  | `pending` |
 | FR-002 | `apps/api/tests/bootstrap.contract.spec.ts`; `packages/database/tests/bootstrap-concurrency.integration.spec.ts` |  |  |  |  | `pending` |
 | FR-003 | `apps/api/tests/authentication.contract.spec.ts` |  |  |  |  | `pending` |
-| FR-004 | `apps/api/tests/credential-management.contract.spec.ts` |  |  |  |  | `pending` |
-| FR-005 | `apps/api/tests/credential-management.contract.spec.ts`; `tests/e2e/authentication.spec.ts` |  |  |  |  | `pending` |
+| FR-004 | `apps/api/tests/authentication.contract.spec.ts` |  |  |  |  | `pending` |
+| FR-005 | `apps/api/tests/authentication.contract.spec.ts`; `tests/e2e/authentication.spec.ts` |  |  |  |  | `pending` |
 | FR-006 | `packages/database/tests/session.integration.spec.ts` |  |  |  |  | `pending` |
 | FR-007 | `apps/api/tests/session-revocation.integration.spec.ts` |  |  |  |  | `pending` |
 | FR-008 | `apps/api/tests/devices.contract.spec.ts` |  |  |  |  | `pending` |
@@ -48,7 +86,7 @@ The canonical row template is:
 | FR-015 | `packages/database/tests/recovery-kit.integration.spec.ts` |  |  |  |  | `pending` |
 | FR-016 | `apps/api/tests/bootstrap-fault-injection.integration.spec.ts` |  |  |  |  | `pending` |
 | FR-017 | `packages/database/tests/key-rotation.integration.spec.ts` |  |  |  |  | `pending` |
-| FR-018 | `packages/domain/tests/security-recovery.property.spec.ts` |  |  |  |  | `pending` |
+| FR-018 | `packages/domain/tests/recovery-artifact.property.spec.ts` |  |  |  |  | `pending` |
 | FR-019 | `packages/database/tests/administrative-recovery.integration.spec.ts` |  |  |  |  | `pending` |
 | FR-020 | `tests/contract/admin-cli.contract.spec.ts` |  |  |  |  | `pending` |
 | FR-021 | `tests/contract/admin-cli.contract.spec.ts` |  |  |  |  | `pending` |
@@ -71,16 +109,16 @@ The canonical row template is:
 
 | Requirement/criterion | Command or test path | Candidate SHA | Controlled clock/configuration | Raw evidence/artifact | Reviewer/date | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| SC-001 | `packages/database/tests/bootstrap-concurrency.integration.spec.ts`; `tests/e2e/bootstrap.spec.ts` |  | Fresh-install and interruption fixtures |  |  | `pending` |
+| SC-001 | `packages/database/tests/bootstrap-concurrency.integration.spec.ts`; `apps/api/tests/bootstrap-fault-injection.integration.spec.ts`; `tests/e2e/bootstrap.spec.ts`; SC-001 rows of this ledger |  | Fresh-install and interruption fixtures |  |  | `pending` |
 | SC-002 | 20-trial operator protocol below |  | Clean-install fixture; injected clock |  |  | `pending` |
-| SC-003 | `apps/api/tests/authentication.contract.spec.ts`; session/device revocation tests |  | Session/recent-auth configuration |  |  | `pending` |
-| SC-004 | Encryption fault and migration tests |  | Key-generation and migration fixtures |  |  | `pending` |
-| SC-005 | Recovery-kit and administrative-recovery tests |  | Seven recovery state pairs; lineage/epoch fixtures |  |  | `pending` |
-| SC-006 | Independent wrapping/data-key rotation tests |  | Rotation policy and interruption fixtures |  |  | `pending` |
-| SC-007 | Compose, admin, workflow, gate, and release tests |  | Exact candidate workflow/configuration |  |  | `pending` |
-| SC-008 | 10-participant owner-boundary protocol below |  | Implemented responsive owner/security screens |  |  | `pending` |
-| SC-009 | Controlled-clock rotation matrix below |  | Both policies; exact eight states |  |  | `pending` |
-| SC-010 | Six migration fault checkpoints below |  | Restart/fault-injection clock and config |  |  | `pending` |
+| SC-003 | `apps/api/tests/authentication.contract.spec.ts`; `packages/database/tests/session.integration.spec.ts`; `apps/api/tests/session-revocation.integration.spec.ts`; `apps/api/tests/devices.contract.spec.ts`; `tests/e2e/authentication.spec.ts`; `tests/e2e/devices.spec.ts` |  | Session/recent-auth configuration |  |  | `pending` |
+| SC-004 | `apps/api/tests/encryption-read-faults.integration.spec.ts`; `packages/database/tests/encryption-fault-injection.integration.spec.ts`; `packages/database/tests/security-migration.integration.spec.ts` |  | Key-generation and migration fixtures |  |  | `pending` |
+| SC-005 | `packages/database/tests/recovery-kit.integration.spec.ts`; `packages/database/tests/administrative-recovery.integration.spec.ts`; `apps/api/tests/administrative-recovery-fault-injection.integration.spec.ts` |  | Seven recovery state pairs; lineage/epoch fixtures |  |  | `pending` |
+| SC-006 | `packages/domain/tests/wrapping-key-rotation.property.spec.ts`; `packages/domain/tests/data-key-rotation.property.spec.ts`; `packages/database/tests/key-rotation.integration.spec.ts`; `apps/api/tests/key-rotation-fault-injection.integration.spec.ts` |  | Rotation policy and interruption fixtures |  |  | `pending` |
+| SC-007 | `tests/contract/compose-security.spec.ts`; `tests/contract/release-gates.spec.ts`; `tests/contract/release-artifacts.spec.ts` |  | Exact candidate workflow/configuration |  |  | `pending` |
+| SC-008 | 10-participant owner-boundary protocol below; `tests/e2e/bootstrap.spec.ts`; `tests/e2e/authentication.spec.ts`; `tests/e2e/devices.spec.ts`; `tests/e2e/security-rotation.spec.ts` |  | Implemented responsive owner/security screens |  |  | `pending` |
+| SC-009 | `packages/domain/tests/rotation-policy.clock.spec.ts`; controlled-clock rotation matrix below |  | Both policies; exact eight states |  |  | `pending` |
+| SC-010 | `packages/domain/tests/migration-state.property.spec.ts`; `packages/database/tests/security-migration.integration.spec.ts`; `apps/api/tests/security-migration-fault-injection.integration.spec.ts`; six migration fault checkpoints below |  | Restart/fault-injection clock and config |  |  | `pending` |
 
 ### SC-002 bootstrap usability protocol
 

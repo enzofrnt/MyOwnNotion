@@ -374,19 +374,23 @@ or evidence exist yet; their creation is implementation work in `tasks.md`.
 
 ## Verification matrix
 
-The canonical evidence fields and status vocabulary are in
-[validation.md](validation.md). That ledger has one row for every FR-001
-through FR-035 and one row for every SC-001 through SC-010; no grouped
-requirement row or five-row rotation matrix is authoritative. The FR rows use
-the following one-to-one paths:
+The canonical evidence fields, column names, run metadata, and status
+vocabulary are in [validation.md](validation.md). That ledger has one row for
+every FR-001 through FR-035 and one row for every SC-001 through SC-010; no
+grouped requirement row or five-row rotation matrix is authoritative. Its seven
+canonical column names — `Requirement/criterion`, `Command or test path`,
+`Candidate SHA`, `Controlled clock/configuration`, `Raw evidence/artifact`,
+`Reviewer/date`, `Status` — override any other naming, and its run-metadata
+block must be complete before any row leaves `pending`. The FR rows use the
+following one-to-one paths:
 
 | Requirement | Planned verification path |
 | --- | --- |
 | FR-001 | `packages/database/tests/security-owner.integration.spec.ts` |
 | FR-002 | `apps/api/tests/bootstrap.contract.spec.ts` and `packages/database/tests/bootstrap-concurrency.integration.spec.ts` |
 | FR-003 | `apps/api/tests/authentication.contract.spec.ts` |
-| FR-004 | `apps/api/tests/credential-management.contract.spec.ts` |
-| FR-005 | `apps/api/tests/credential-management.contract.spec.ts` and `tests/e2e/authentication.spec.ts` |
+| FR-004 | `apps/api/tests/authentication.contract.spec.ts` |
+| FR-005 | `apps/api/tests/authentication.contract.spec.ts` and `tests/e2e/authentication.spec.ts` |
 | FR-006 | `packages/database/tests/session.integration.spec.ts` |
 | FR-007 | `apps/api/tests/session-revocation.integration.spec.ts` |
 | FR-008 | `apps/api/tests/devices.contract.spec.ts` |
@@ -399,7 +403,7 @@ the following one-to-one paths:
 | FR-015 | `packages/database/tests/recovery-kit.integration.spec.ts` |
 | FR-016 | `apps/api/tests/bootstrap-fault-injection.integration.spec.ts` |
 | FR-017 | `packages/database/tests/key-rotation.integration.spec.ts` |
-| FR-018 | `packages/domain/tests/security-recovery.property.spec.ts` |
+| FR-018 | `packages/domain/tests/recovery-artifact.property.spec.ts` |
 | FR-019 | `packages/database/tests/administrative-recovery.integration.spec.ts` |
 | FR-020 | `tests/contract/admin-cli.contract.spec.ts` |
 | FR-021 | `tests/contract/admin-cli.contract.spec.ts` |
@@ -427,6 +431,26 @@ the following one-to-one paths:
 | SC-008 | `tests/e2e/bootstrap.spec.ts`, `tests/e2e/authentication.spec.ts`, `tests/e2e/devices.spec.ts`, `tests/e2e/security-rotation.spec.ts`, `specs/002-owner-security-foundation/validation.md` |
 | SC-009 | `packages/domain/tests/rotation-policy.clock.spec.ts`, `specs/002-owner-security-foundation/validation.md` |
 | SC-010 | `packages/domain/tests/migration-state.property.spec.ts`, `packages/database/tests/security-migration.integration.spec.ts`, `apps/api/tests/security-migration-fault-injection.integration.spec.ts`, `specs/002-owner-security-foundation/validation.md` |
+
+### Dedicated verification paths and why they exist
+
+Three rows above name test surfaces that were deliberately kept rather than
+repointed onto an existing test, because each covers behavior the other
+scheduled tests do not reach. Each is now scheduled by its own task, in the
+phase that owns the behavior, and the ledger row for that requirement cannot
+leave `pending` until that test runs:
+
+| Requirement | Dedicated file | Scheduled by | Why an existing test does not cover it |
+| --- | --- | --- | --- |
+| FR-022 | `packages/database/tests/security-audit.integration.spec.ts` | T012 (foundational) | Audit was otherwise only written, never asserted. Nothing else reads back the allowlisted event set, both recovery state-axis transitions, or redaction of persisted audit rows. Its repository is implemented in the same phase by T020. |
+| FR-026 | `apps/api/tests/key-rotation-policy.integration.spec.ts` | T075 (US5) | `packages/domain/tests/rotation-policy.clock.spec.ts` covers pure state calculation only. Startup evaluation, the at-least-daily automatic check, status/startup warnings, and explicit triggers are API-level behavior. |
+| FR-027 | `apps/api/tests/key-rotation-write-block.integration.spec.ts` | T076 (US5) | The domain clock test cannot prove that a protected write is actually refused inside a transaction at `write_block_at` while reads and resumable progress stay available. |
+
+Two further rows were repointed instead, because a scheduled test already owns
+the behavior and a second file would duplicate it: FR-004/FR-005 now resolve to
+`apps/api/tests/authentication.contract.spec.ts`, which already contracts the
+credential-management endpoints, and FR-018 now resolves to
+`packages/domain/tests/recovery-artifact.property.spec.ts`.
 
 ## Phase plan and dependency order
 
@@ -489,10 +513,22 @@ and `validation.md` entry are updated.
 
 ## Implementation handoff
 
-No implementation code is changed by this planning update. `tasks.md` is
-intentionally unchanged in this pass; implementation must consume this plan's
-corrected contracts and gate topology when tasks are next reconciled. Before
-coding, generate/refresh the task checklist from this plan if needed, then implement
-only on `codex/spec-update` in the dependency order above. Record all measured
-results in [validation.md](validation.md); an empty or pending ledger is not
-evidence of completion.
+No implementation code is changed by this planning update, and `tasks.md` is
+not edited by it. This pass corrected four design defects found by
+cross-artifact analysis: the malformed functional-requirement ledger separator,
+the missing canonical column vocabulary and run-metadata block in
+[validation.md](validation.md), the prose success-criterion rows that now carry
+exact paths, and the malformed bootstrap table in
+[admin-cli.md](contracts/admin-cli.md).
+
+`tasks.md` has since been regenerated against this plan and now agrees with it:
+each dedicated verification path above is scheduled by its own task in the
+phase that owns the behavior, every verification path named in this plan and in
+[validation.md](validation.md) resolves to a scheduled task, and the ledger
+tasks describe the evidence rows using only the seven canonical column names
+and the run-metadata block defined in [validation.md](validation.md). No
+outstanding reconciliation between this plan and the task list remains.
+
+Implement only on `codex/spec-update` in the dependency order above.
+Record all measured results in [validation.md](validation.md); an empty or
+pending ledger is not evidence of completion.

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/spec-update`
 **Created**: 2026-08-10
-**Status**: Draft
+**Status**: Ready
 **Input**: Update the existing Owner Security Foundation feature while preserving the permanent single-owner boundary, feature-001 canonical identities, product-canvas scope and exclusions, and existing requirement IDs where practical.
 
 ## Product Direction, Dependencies, and Scope
