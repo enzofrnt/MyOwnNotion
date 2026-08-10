@@ -6,7 +6,13 @@
  * diagnostics. Private content, SQL, and stack traces never reach clients.
  */
 
-import type { SafeError, SafeErrorCode } from "@myownnotion/domain";
+import {
+  type SafeError,
+  type SafeErrorCode,
+  type SafeProblem,
+  type SafeProblemCode,
+  toSafeProblem,
+} from "@myownnotion/domain";
 import type { FastifyError, FastifyInstance, FastifyReply } from "fastify";
 
 export interface ProblemBody {
@@ -124,4 +130,99 @@ export function registerErrorHandling(app: FastifyInstance): void {
     };
     return reply.status(404).header("content-type", "application/problem+json").send(problem);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Security problems (T017, feature 002)
+// ---------------------------------------------------------------------------
+
+/**
+ * Titles for the security problem codes.
+ *
+ * Deliberately coarse and content-free. `authentication_failed` covers an
+ * unknown credential, a wrong password, and a failed passkey assertion alike:
+ * distinguishing them would turn the endpoint into an oracle that tells an
+ * attacker which half of a guess was right.
+ */
+const SECURITY_PROBLEM_TITLES: Record<SafeProblemCode, { title: string; status: number }> = {
+  authentication_failed: { title: "Authentication failed", status: 401 },
+  authentication_required: { title: "Authentication required", status: 401 },
+  recent_authentication_required: { title: "Recent authentication required", status: 401 },
+  csrf_validation_failed: { title: "Request could not be validated", status: 403 },
+  rate_limited: { title: "Too many attempts", status: 429 },
+  forbidden: { title: "Not permitted", status: 403 },
+  not_found: { title: "Not found", status: 404 },
+  conflict: { title: "Conflicting concurrent operation", status: 409 },
+  validation_failed: { title: "Request does not match the API contract", status: 400 },
+  installation_not_ready: { title: "Installation is not ready", status: 409 },
+  installation_degraded: { title: "Installation is degraded", status: 503 },
+  bootstrap_unavailable: { title: "Bootstrap is not available", status: 409 },
+  bootstrap_capability_invalid: { title: "Bootstrap capability is not valid", status: 403 },
+  recovery_unavailable: { title: "Recovery material is not available", status: 409 },
+  recovery_material_invalid: { title: "Recovery material is not valid", status: 403 },
+  rotation_in_progress: { title: "A key rotation is already running", status: 409 },
+  write_blocked: { title: "Protected writes are blocked", status: 409 },
+  migration_in_progress: { title: "An encryption migration is running", status: 409 },
+  protected_read_failed: { title: "Protected record could not be read", status: 500 },
+  protected_write_failed: { title: "Protected record could not be written", status: 500 },
+  internal_error: { title: "Unexpected server error", status: 500 },
+};
+
+export interface SecurityProblemBody {
+  readonly type: string;
+  readonly title: string;
+  readonly status: number;
+  readonly code: SafeProblemCode;
+  /** Lets an operator join this response to the unredacted server log. */
+  readonly correlationId: string;
+  /** Present only when the caller marked a detail safe to disclose. */
+  readonly detail?: string;
+}
+
+/**
+ * Builds the outward-facing security problem.
+ *
+ * Note what is *absent*: no message from the underlying error, no field path,
+ * no identifier that was not already known to the caller. An unrecognised code
+ * collapses to `internal_error`, so a future code added without a title cannot
+ * escape as a raw string.
+ */
+export function securityProblem(problem: SafeProblem): SecurityProblemBody {
+  const mapped = SECURITY_PROBLEM_TITLES[problem.code] ?? {
+    title: SECURITY_PROBLEM_TITLES.internal_error.title,
+    status: 500,
+  };
+  return {
+    type: `https://myownnotion.dev/problems/${problem.code}`,
+    title: mapped.title,
+    status: mapped.status,
+    code: problem.code,
+    correlationId: problem.correlationId,
+    ...(problem.detail === undefined ? {} : { detail: problem.detail }),
+  };
+}
+
+export function sendSecurityProblem(reply: FastifyReply, problem: SafeProblem): FastifyReply {
+  const body = securityProblem(problem);
+  return reply.status(body.status).header("content-type", "application/problem+json").send(body);
+}
+
+/**
+ * Maps any thrown value to a safe problem.
+ *
+ * The default is `internal_error` with no detail. A repository error carries
+ * the code the repository already decided on; anything else is treated as
+ * unknown, because guessing a more specific code from an unrecognised error is
+ * how internal detail escapes.
+ */
+export function toSecurityProblem(error: unknown, correlationId: string): SafeProblem {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code: unknown }).code === "string"
+  ) {
+    return toSafeProblem((error as { code: string }).code, correlationId);
+  }
+  return toSafeProblem("internal_error", correlationId);
 }
