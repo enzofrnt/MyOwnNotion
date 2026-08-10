@@ -2,6 +2,13 @@
 
 Ce dossier est l’unique source de vérité pour les fonctionnalités du produit.
 
+La direction transversale du produit est définie dans
+[`docs/product/product-canvas.md`](../docs/product/product-canvas.md). Chaque
+feature doit citer les sections du canevas qu’elle concrétise, préciser ses
+dépendances et son hors-périmètre, puis transformer cette direction en critères
+d’acceptation testables. Une feature ne doit jamais contredire silencieusement
+le canevas.
+
 Chaque cycle Spec Kit crée un seul sous-dossier numéroté, par exemple :
 
 ```text

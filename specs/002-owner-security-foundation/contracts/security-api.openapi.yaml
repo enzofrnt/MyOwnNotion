@@ -1,0 +1,1390 @@
+openapi: 3.1.0
+info:
+  title: MyOwnNotion Owner Security API
+  version: 0.2.0
+  description: >-
+    Contract for bootstrap, owner authentication, devices, recovery kits,
+    independent key rotations, encryption migration status, and safe security
+    state transitions. Feature-001 canonical content contracts remain separate.
+    Bootstrap states are started, credential-verified, recovery-prepared,
+    download-consumed, confirmed, abandoned, and rejected. Every state before
+    confirmed is attempt-scoped with no committed owner/workspace rows and 0/0.
+    One successful download plus explicit offline confirmation atomically
+    promotes pending credential material, commits the sole owner, binds the
+    existing feature-001 workspace, activates/confirms the kit, sets ready, and
+    returns confirmed/ready/1/1. No combined recovery confirmation state exists.
+servers:
+  - url: http://127.0.0.1:3001
+    description: Loopback development only; production uses HTTPS behind an external proxy.
+tags:
+  - name: Bootstrap
+  - name: Authentication
+  - name: Devices
+  - name: Recovery
+  - name: Rotation
+  - name: Migration
+  - name: Operations
+x-bootstrap-transition-table:
+  - state: started
+    scopeAndCounts: Attempt only; no owner/workspace rows; 0/0; installation uninitialized
+    transition: Start one serialized attempt; credential challenge may run
+  - state: credential-verified
+    scopeAndCounts: Attempt-scoped verified credential material only; no owner/workspace rows; 0/0
+    transition: Valid credential verification; provisional records may be prepared
+  - state: recovery-prepared
+    scopeAndCounts: Attempt-scoped pending credential, kit, and download capability; no owner/workspace rows; 0/0
+    transition: Prepare one provisional kit and one 15-minute opportunity
+  - state: download-consumed
+    scopeAndCounts: Same attempt-scoped material; no owner/workspace rows; 0/0
+    transition: One successful download consumption; offline confirmation is still required
+  - state: confirmed
+    scopeAndCounts: Atomic promotion commits the sole owner credential and owner, binds the existing feature-001 workspace, activates/confirms the kit, sets installation ready, and changes counts to 1/1
+    transition: Only successful download consumption plus explicit offline confirmation
+  - state: abandoned
+    scopeAndCounts: Attempt-scoped records only; no owner/workspace rows; 0/0
+    transition: Expired/cancelled attempt that is not eligible for confirmation
+  - state: rejected
+    scopeAndCounts: Attempt-scoped rejected/expired material only; no owner/workspace rows; 0/0
+    transition: Invalid, expired, replayed, or otherwise refused attempt; regeneration remains attempt-scoped
+paths:
+  /health:
+    get:
+      tags: [Operations]
+      operationId: getHealth
+      responses:
+        '200':
+          description: Health without secrets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /v1/installation/status:
+    get:
+      tags: [Operations]
+      operationId: getInstallationStatus
+      responses:
+        '200':
+          description: Safe installation state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationStatus'
+  /v1/bootstrap:
+    post:
+      tags: [Bootstrap]
+      operationId: startBootstrap
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapStart'
+      responses:
+        '201':
+          description: Session-free bootstrap attempt capability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapStarted'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /v1/bootstrap/{attemptId}/credential:
+    post:
+      tags: [Bootstrap]
+      operationId: verifyBootstrapCredential
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/BootstrapCapability'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapCredentialVerification'
+      responses:
+        '200':
+          description: Provisional recovery is ready; no session is issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapProgress'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+  /v1/bootstrap/{attemptId}/recovery/download:
+    post:
+      tags: [Bootstrap]
+      operationId: downloadProvisionalRecoveryKit
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/BootstrapCapability'
+      responses:
+        '200':
+          description: Exactly one streamed provisional artifact
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+            X-Recovery-Download-Consumed:
+              schema:
+                const: 'true'
+          content:
+            application/json:
+              schema:
+                type: string
+                contentMediaType: application/json
+        '410':
+          $ref: '#/components/responses/Problem'
+  /v1/bootstrap/{attemptId}/recovery/regenerate:
+    post:
+      tags: [Bootstrap]
+      operationId: regenerateBootstrapRecoveryKit
+      description: >-
+        Session-free retry for the same credential-verified bootstrap attempt.
+        Requires the valid X-Bootstrap-Capability for that attempt and is allowed
+        only after the previous unconfirmed delivery is rejected/expired. It
+        issues a new provisional recovery kit and download opportunity; it never
+        revives the prior delivery and never creates an owner or workspace.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/BootstrapCapability'
+      responses:
+        '200':
+          description: New provisional recovery opportunity for the same attempt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapProgress'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+  /v1/bootstrap/{attemptId}/recovery/confirm:
+    post:
+      tags: [Bootstrap]
+      operationId: confirmBootstrapRecoveryStorage
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/BootstrapCapability'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfflineConfirmation'
+      responses:
+        '200':
+          description: Explicit atomic bootstrap confirmation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapConfirmationResult'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '410':
+          $ref: '#/components/responses/Problem'
+  /v1/auth/passkeys/enrollment/options:
+    post:
+      tags: [Authentication]
+      operationId: createPasskeyEnrollmentOptions
+      description: >-
+        Begins the existing owner passkey enrollment flow. Requires an owner
+        session cookie, X-CSRF-Token, and recent authentication; the options are
+        redacted WebAuthn ceremony data and never contain a private key.
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: WebAuthn enrollment options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebAuthnOptions'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+  /v1/auth/passkeys/enrollment/complete:
+    post:
+      tags: [Authentication]
+      operationId: completePasskeyEnrollment
+      description: >-
+        Completes the existing owner passkey enrollment flow. Requires an owner
+        session cookie, X-CSRF-Token, and recent authentication. Only the
+        redacted passkey view is returned.
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasskeyEnrollmentCompletion'
+      responses:
+        '201':
+          description: Active passkey credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasskeyView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+  /v1/auth/passkeys:
+    get:
+      tags: [Authentication]
+      operationId: listPasskeys
+      description: Owner-visible list of redacted passkey credentials.
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Redacted owner passkey inventory
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [passkeys]
+                properties:
+                  passkeys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PasskeyView'
+                additionalProperties: false
+        '401':
+          $ref: '#/components/responses/Problem'
+  /v1/auth/passkeys/{credentialId}:
+    delete:
+      tags: [Authentication]
+      operationId: removePasskey
+      description: >-
+        Removes the selected owner passkey. Requires an owner session cookie,
+        X-CSRF-Token, and recent authentication; the final usable credential
+        cannot be removed.
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CredentialId'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Selected passkey removed
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+  /v1/auth/password:
+    put:
+      tags: [Authentication]
+      operationId: setOrChangePassword
+      description: >-
+        Sets or changes the owner's password alternative. Requires an owner
+        session cookie, X-CSRF-Token, and recent authentication. Password
+        material is write-only and is never returned or logged.
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+      responses:
+        '200':
+          description: Redacted password-credential status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordView'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+  /v1/auth/login/passkey:
+    post:
+      tags: [Authentication]
+      operationId: loginWithPasskey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebAuthnAssertion'
+      responses:
+        '200':
+          description: Owner session and CSRF token
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /v1/auth/login/password:
+    post:
+      tags: [Authentication]
+      operationId: loginWithPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordLogin'
+      responses:
+        '200':
+          description: Owner session and CSRF token
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /v1/auth/session:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentSession
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Current session without the opaque secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '401':
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Authentication]
+      operationId: revokeCurrentSession
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Current session revoked
+        '401':
+          $ref: '#/components/responses/Problem'
+  /v1/auth/sessions:
+    get:
+      tags: [Authentication]
+      operationId: listSessions
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Owner-visible redacted sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessions]
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionView'
+        '401':
+          $ref: '#/components/responses/Problem'
+  /v1/auth/sessions/{sessionId}:
+    delete:
+      tags: [Authentication]
+      operationId: revokeSession
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Selected session revoked
+        '404':
+          $ref: '#/components/responses/Problem'
+  /v1/auth/sessions/revoke-all:
+    post:
+      tags: [Authentication]
+      operationId: revokeAllSessions
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: All sessions revoked
+        '428':
+          $ref: '#/components/responses/Problem'
+  /v1/devices:
+    get:
+      tags: [Devices]
+      operationId: listDevices
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Owner-visible device inventory
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [devices]
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Device'
+  /v1/devices/{deviceId}:
+    patch:
+      tags: [Devices]
+      operationId: updateDevice
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceUpdate'
+      responses:
+        '200':
+          description: Updated device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /v1/devices/{deviceId}/revoke:
+    post:
+      tags: [Devices]
+      operationId: revokeDevice
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: Device revoked; no remote-erasure guarantee
+        '428':
+          $ref: '#/components/responses/Problem'
+  /v1/security/recovery-kits:
+    get:
+      tags: [Recovery]
+      operationId: listRecoveryKits
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Readiness and redacted kit inventory
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ready, kits]
+                properties:
+                  ready:
+                    type: boolean
+                  kits:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RecoveryKitView'
+    post:
+      tags: [Recovery]
+      operationId: prepareAuthenticatedRecoveryKitReplacement
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoveryKitPrepare'
+      responses:
+        '201':
+          description: Replacement is downloadable; active kit remains valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryKitDownloadView'
+        '428':
+          $ref: '#/components/responses/Problem'
+  /v1/security/recovery-kits/{kitId}/download:
+    post:
+      tags: [Recovery]
+      operationId: downloadAuthenticatedRecoveryKit
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/KitId'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: Exactly one streamed replacement artifact
+          content:
+            application/json:
+              schema:
+                type: string
+                contentMediaType: application/json
+        '410':
+          $ref: '#/components/responses/Problem'
+  /v1/security/recovery-kits/{kitId}/confirm:
+    post:
+      tags: [Recovery]
+      operationId: confirmAuthenticatedRecoveryKitStorage
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/KitId'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfflineConfirmation'
+      responses:
+        '204':
+          description: Epoch advancement and supersession committed atomically
+        '409':
+          $ref: '#/components/responses/Problem'
+  /v1/security/rotations:
+    post:
+      tags: [Rotation]
+      operationId: startSecurityRotation
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RotationStart'
+      responses:
+        '202':
+          description: One resumable operation for the selected policy kind
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotationView'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+  /v1/security/rotations/policies:
+    get:
+      tags: [Rotation]
+      operationId: listRotationPolicies
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Both policy states without key material
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [policies]
+                properties:
+                  policies:
+                    type: array
+                    minItems: 2
+                    items:
+                      $ref: '#/components/schemas/RotationPolicyView'
+  /v1/security/rotations/{operationId}:
+    get:
+      tags: [Rotation]
+      operationId: getSecurityRotation
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/OperationId'
+      responses:
+        '200':
+          description: Rotation progress without keys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RotationView'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /v1/security/audit:
+    get:
+      tags: [Operations]
+      operationId: listSecurityAudit
+      security:
+        - sessionCookie: []
+        - devSessionCookie: []
+      responses:
+        '200':
+          description: Redacted security events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events]
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditEvent'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-mn_session
+      description: >-
+        Production-only cookie. Secure, HttpOnly, SameSite=Strict, and Path=/
+        behind HTTPS. It is never issued or accepted over HTTP.
+    devSessionCookie:
+      type: apiKey
+      in: cookie
+      name: mn_dev_session
+      description: >-
+        Development-only non-__Host- cookie. It is accepted only when
+        MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1 and both the trusted origin and
+        bound listener are loopback HTTP. It is HttpOnly, SameSite=Strict, and
+        Path=/, omits Secure for local HTTP, and is never valid elsewhere.
+  headers:
+    SessionCookie:
+      description: >-
+        Runtime-selected Set-Cookie for the opaque production
+        __Host-mn_session or, only under the documented loopback HTTP
+        development predicate, mn_dev_session. The two names are never
+        interchangeable.
+      schema:
+        type: string
+  parameters:
+    AttemptId:
+      in: path
+      name: attemptId
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    BootstrapCapability:
+      in: header
+      name: X-Bootstrap-Capability
+      required: true
+      description: >-
+        Echo of the browser-returned bootstrap response value. Never place this
+        capability in a URL, log, or persistent plaintext.
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 512
+    CsrfToken:
+      in: header
+      name: X-CSRF-Token
+      required: true
+      description: >-
+        Echo of the browser-returned authenticated-session response value. Never
+        place this token in a URL, log, or persistent plaintext.
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 43
+    SessionId:
+      in: path
+      name: sessionId
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    DeviceId:
+      in: path
+      name: deviceId
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    KitId:
+      in: path
+      name: kitId
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    CredentialId:
+      in: path
+      name: credentialId
+      required: true
+      description: Opaque identifier of the selected passkey credential.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+    OperationId:
+      in: path
+      name: operationId
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+  responses:
+    Problem:
+      description: Redacted RFC 9457-style problem
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RecentAuthenticationRequired:
+      description: Owner session exists but recent authentication is required
+      headers:
+        X-Recent-Authentication-Max-Age:
+          description: Maximum age in seconds accepted for the sensitive operation.
+          schema:
+            type: integer
+            minimum: 60
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/RecentAuthenticationProblem'
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+    Health:
+      type: object
+      required: [status, schemaVersion]
+      properties:
+        status:
+          const: ready
+        schemaVersion:
+          type: integer
+          minimum: 1
+      additionalProperties: false
+    InstallationStatus:
+      oneOf:
+        - $ref: '#/components/schemas/UninitializedInstallationStatus'
+        - $ref: '#/components/schemas/BootstrapInProgressInstallationStatus'
+        - $ref: '#/components/schemas/InitializedInstallationStatus'
+      discriminator:
+        propertyName: state
+    InstallationStatusBase:
+      type: object
+      required: [state, recoveryReady, securityReady, ownerCount, workspaceCount]
+      properties:
+        state:
+          enum: [uninitialized, bootstrap-in-progress, recovery-required, ready, migration-in-progress, degraded]
+        recoveryReady:
+          type: boolean
+        securityReady:
+          type: boolean
+        ownerCount:
+          type: integer
+          minimum: 0
+        workspaceCount:
+          type: integer
+          minimum: 0
+        wrappingPolicy:
+          $ref: '#/components/schemas/RotationPolicyView'
+        dataKeyPolicy:
+          $ref: '#/components/schemas/RotationPolicyView'
+        migration:
+          $ref: '#/components/schemas/MigrationStatus'
+      unevaluatedProperties: false
+    UninitializedInstallationStatus:
+      allOf:
+        - $ref: '#/components/schemas/InstallationStatusBase'
+        - type: object
+          properties:
+            state:
+              const: uninitialized
+            ownerCount:
+              const: 0
+            workspaceCount:
+              const: 0
+    BootstrapInProgressInstallationStatus:
+      allOf:
+        - $ref: '#/components/schemas/InstallationStatusBase'
+        - type: object
+          properties:
+            state:
+              const: bootstrap-in-progress
+            ownerCount:
+              const: 0
+            workspaceCount:
+              const: 0
+    InitializedInstallationStatus:
+      allOf:
+        - $ref: '#/components/schemas/InstallationStatusBase'
+        - type: object
+          properties:
+            state:
+              enum: [recovery-required, ready, migration-in-progress, degraded]
+            ownerCount:
+              const: 1
+            workspaceCount:
+              const: 1
+    BootstrapStart:
+      type: object
+      required: [clientNonce]
+      properties:
+        clientNonce:
+          type: string
+          minLength: 22
+          maxLength: 128
+      additionalProperties: false
+    BootstrapStarted:
+      type: object
+      required: [attemptId, capability, expiresAt, challenge, bootstrapState, installationState, ownerCount, workspaceCount]
+      properties:
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        capability:
+          type: string
+          minLength: 32
+          maxLength: 512
+          readOnly: true
+          description: >-
+            Browser-returned response-only capability. The browser may echo it
+            only in X-Bootstrap-Capability request headers; it must never appear
+            in a URL, log, or persistent plaintext.
+        expiresAt:
+          type: string
+          format: date-time
+        challenge:
+          type: string
+          minLength: 22
+        bootstrapState:
+          const: started
+        installationState:
+          const: uninitialized
+        ownerCount:
+          const: 0
+        workspaceCount:
+          const: 0
+      additionalProperties: false
+    BootstrapCredentialVerification:
+      type: object
+      required: [credential]
+      properties:
+        credential:
+          $ref: '#/components/schemas/WebAuthnAssertion'
+      additionalProperties: false
+    BootstrapProgress:
+      type: object
+      required: [attemptId, bootstrapState, recoveryKitId, authorizationState, deliveryState, downloadExpiresAt, installationState, ownerCount, workspaceCount]
+      properties:
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        bootstrapState:
+          enum: [recovery-prepared, download-consumed]
+        recoveryKitId:
+          $ref: '#/components/schemas/Uuid'
+        authorizationState:
+          const: provisional
+        deliveryState:
+          enum: [prepared, downloadable, download-consumed]
+        downloadExpiresAt:
+          type: string
+          format: date-time
+        installationState:
+          const: uninitialized
+        ownerCount:
+          const: 0
+        workspaceCount:
+          const: 0
+      oneOf:
+        - properties:
+            bootstrapState:
+              const: recovery-prepared
+            deliveryState:
+              enum: [prepared, downloadable]
+        - properties:
+            bootstrapState:
+              const: download-consumed
+            deliveryState:
+              const: download-consumed
+      additionalProperties: false
+    OfflineConfirmation:
+      type: object
+      required: [storedOffline]
+      properties:
+        storedOffline:
+          const: true
+      additionalProperties: false
+    BootstrapConfirmationResult:
+      type: object
+      required: [attemptId, bootstrapState, installationState, ownerCount, workspaceCount, authorizationState, deliveryState]
+      properties:
+        attemptId:
+          $ref: '#/components/schemas/Uuid'
+        bootstrapState:
+          const: confirmed
+        installationState:
+          const: ready
+        ownerCount:
+          const: 1
+        workspaceCount:
+          const: 1
+        authorizationState:
+          const: active
+        deliveryState:
+          const: confirmed
+      additionalProperties: false
+    WebAuthnOptions:
+      type: object
+      required: [challenge]
+      properties:
+        challenge:
+          type: string
+          minLength: 22
+      additionalProperties: true
+    WebAuthnAssertion:
+      type: object
+      required: [id, rawId, response, type]
+      properties:
+        id:
+          type: string
+        rawId:
+          type: string
+        type:
+          const: public-key
+        response:
+          type: object
+          required: [clientDataJSON, authenticatorData, signature]
+          additionalProperties: true
+      additionalProperties: true
+    PasskeyEnrollmentCompletion:
+      allOf:
+        - $ref: '#/components/schemas/WebAuthnAssertion'
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 120
+    PasswordChange:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword:
+          type: string
+          minLength: 12
+          maxLength: 1024
+          writeOnly: true
+      additionalProperties: false
+    PasswordView:
+      type: object
+      required: [configured, state, createdAt]
+      properties:
+        configured:
+          type: boolean
+        state:
+          enum: [active, superseded, revoked]
+        createdAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    PasswordLogin:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+          minLength: 12
+          maxLength: 1024
+          writeOnly: true
+      additionalProperties: false
+    AuthenticatedSession:
+      type: object
+      required: [session, csrfToken]
+      properties:
+        session:
+          $ref: '#/components/schemas/SessionView'
+        csrfToken:
+          type: string
+          minLength: 43
+          maxLength: 43
+          readOnly: true
+          description: >-
+            Browser-returned response-only CSRF value. The browser may echo it
+            only in X-CSRF-Token request headers; it must never appear in a URL,
+            log, or persistent plaintext.
+      additionalProperties: false
+    SessionView:
+      type: object
+      required: [sessionId, deviceId, authMethod, issuedAt, lastSeenAt, expiresAt, state]
+      properties:
+        sessionId:
+          $ref: '#/components/schemas/Uuid'
+        deviceId:
+          $ref: '#/components/schemas/Uuid'
+        authMethod:
+          enum: [passkey, password]
+        issuedAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        state:
+          enum: [active, revoked, expired]
+      additionalProperties: false
+    PasskeyView:
+      type: object
+      required: [credentialId, label, state, createdAt]
+      properties:
+        credentialId:
+          type: string
+        label:
+          type: string
+          minLength: 1
+          maxLength: 120
+        state:
+          enum: [pending, active, revoked]
+        createdAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    Device:
+      type: object
+      required: [deviceId, name, platform, clientType, authorizedAt, lastActivityAt, lastSyncAt, state, localStorageLimitBytes, localUsageBytes]
+      properties:
+        deviceId:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 64
+        clientType:
+          const: web
+        authorizedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: [string, 'null']
+          format: date-time
+          description: Required API field mapped from storage `last_activity_at`; null until a real device activity event commits.
+        lastSyncAt:
+          type: [string, 'null']
+          format: date-time
+          description: Required API field mapped from storage `last_sync_at`; null until a real successful synchronization event commits.
+        state:
+          enum: [pending, active, revoked, reauthorization-required]
+        localStorageLimitBytes:
+          type: integer
+          minimum: 1
+        localUsageBytes:
+          type: integer
+          minimum: 0
+        keyProtection:
+          enum: [platform-secure-storage, browser-non-exportable, unavailable]
+      additionalProperties: false
+    DeviceUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        localStorageLimitBytes:
+          type: integer
+          minimum: 1
+      additionalProperties: false
+    RecoveryKitPrepare:
+      type: object
+      required: [passphrase]
+      properties:
+        passphrase:
+          type: string
+          minLength: 12
+          maxLength: 1024
+          writeOnly: true
+      additionalProperties: false
+    RecoveryKitDownloadView:
+      type: object
+      required: [kitId, format, formatVersion, installationId, sourceLineageId, authorizationState, deliveryState, downloadExpiresAt]
+      properties:
+        kitId:
+          $ref: '#/components/schemas/Uuid'
+        format:
+          const: myownnotion.recovery+json
+        formatVersion:
+          const: 1
+        installationId:
+          $ref: '#/components/schemas/Uuid'
+        sourceLineageId:
+          $ref: '#/components/schemas/Uuid'
+        authorizationState:
+          const: provisional
+        deliveryState:
+          enum: [downloadable, download-consumed]
+        downloadExpiresAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    RecoveryKitView:
+      type: object
+      required: [kitId, recoveryEpoch, sourceLineageId, authorizationState, deliveryState, createdAt, supportedKeyGenerations]
+      properties:
+        kitId:
+          $ref: '#/components/schemas/Uuid'
+        recoveryEpoch:
+          type: integer
+          minimum: 1
+        sourceLineageId:
+          $ref: '#/components/schemas/Uuid'
+        authorizationState:
+          enum: [provisional, active, superseded, revoked, rejected]
+        deliveryState:
+          enum: [prepared, downloadable, download-consumed, confirmed, expired]
+        createdAt:
+          type: string
+          format: date-time
+        supportedKeyGenerations:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 1
+      oneOf:
+        - properties:
+            authorizationState:
+              const: provisional
+            deliveryState:
+              const: prepared
+        - properties:
+            authorizationState:
+              const: provisional
+            deliveryState:
+              const: downloadable
+        - properties:
+            authorizationState:
+              const: provisional
+            deliveryState:
+              const: download-consumed
+        - properties:
+            authorizationState:
+              const: active
+            deliveryState:
+              const: confirmed
+        - properties:
+            authorizationState:
+              const: superseded
+            deliveryState:
+              const: confirmed
+        - properties:
+            authorizationState:
+              const: revoked
+            deliveryState:
+              const: confirmed
+        - properties:
+            authorizationState:
+              const: rejected
+            deliveryState:
+              const: expired
+      additionalProperties: false
+    RotationStart:
+      type: object
+      required: [kind, mode, reason, dryRun, confirmation]
+      properties:
+        kind:
+          enum: [wrapping-key, data-key]
+        mode:
+          enum: [scheduled, emergency]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 256
+        dryRun:
+          type: boolean
+        confirmation:
+          type: boolean
+      additionalProperties: false
+    RotationPolicyView:
+      type: object
+      required: [kind, state, dueAt, writeBlockAt, lastCompletedAt, currentVersionOrGeneration, nextAction]
+      properties:
+        kind:
+          enum: [wrapping-key, data-key]
+        state:
+          enum: [pre-due, due, overdue-within-grace, emergency, write-block, in-progress, complete, failed]
+        dueAt:
+          type: string
+          format: date-time
+        writeBlockAt:
+          type: string
+          format: date-time
+        lastCompletedAt:
+          type: [string, 'null']
+          format: date-time
+        currentVersionOrGeneration:
+          type: integer
+          minimum: 1
+        nextAction:
+          type: string
+          minLength: 1
+          maxLength: 256
+      additionalProperties: false
+    RotationView:
+      type: object
+      required: [operationId, kind, mode, phase, fromVersionOrGeneration, toVersionOrGeneration, processedCount, totalCount]
+      properties:
+        operationId:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          enum: [wrapping-key, data-key]
+        mode:
+          enum: [scheduled, emergency]
+        phase:
+          enum: [planned, prepared, rewrapping, rewriting, committing, complete, failed]
+        fromVersionOrGeneration:
+          type: integer
+          minimum: 1
+        toVersionOrGeneration:
+          type: integer
+          minimum: 1
+        processedCount:
+          type: integer
+          minimum: 0
+        totalCount:
+          type: integer
+          minimum: 0
+        checkpointDigest:
+          type: [string, 'null']
+        failureCode:
+          type: [string, 'null']
+          maxLength: 128
+      additionalProperties: false
+    MigrationStatus:
+      type: object
+      required: [migrationId, state, sourceRetained, plaintextWrites, encryptedReads]
+      properties:
+        migrationId:
+          $ref: '#/components/schemas/Uuid'
+        state:
+          enum: [prepare-destinations, capture-boundary, backfill, verify, stop-plaintext-writes, encrypted-read-cutover, scrub-plaintext, complete, failed]
+        sourceRetained:
+          type: boolean
+        plaintextWrites:
+          enum: [enabled, stopped]
+        encryptedReads:
+          enum: [disabled, enabled]
+        sourceCount:
+          type: integer
+          minimum: 0
+        destinationCount:
+          type: integer
+          minimum: 0
+        identityDigest:
+          type: [string, 'null']
+        lastSafeCheckpoint:
+          type: string
+          maxLength: 128
+      additionalProperties: false
+    RecentAuthenticationProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            code:
+              const: RECENT_AUTHENTICATION_REQUIRED
+    AuditEvent:
+      type: object
+      required: [eventId, eventType, outcome, actorClass, correlationId, safeCode, occurredAt]
+      properties:
+        eventId:
+          $ref: '#/components/schemas/Uuid'
+        eventType:
+          type: string
+          maxLength: 64
+        outcome:
+          enum: [success, failure, refused, started]
+        actorClass:
+          enum: [owner, hosting-admin, system]
+        correlationId:
+          $ref: '#/components/schemas/Uuid'
+        safeCode:
+          type: string
+          maxLength: 128
+        occurredAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    Problem:
+      type: object
+      required: [type, title, status, code, correlationId]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+          maxLength: 120
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+          maxLength: 128
+        correlationId:
+          $ref: '#/components/schemas/Uuid'
+        detail:
+          type: string
+          maxLength: 256
+      additionalProperties: false

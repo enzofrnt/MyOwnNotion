@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myownnotion.local/contracts/security-artifacts.schema.json",
+  "title": "MyOwnNotion security artifacts",
+  "description": "Versioned authenticated-encryption, recovery-kit, rotation, and migration metadata. Raw keys appear only inside encrypted fields.",
+  "$comment": "Bootstrap transition reference: started, credential-verified, recovery-prepared, download-consumed, confirmed, abandoned, rejected. Every pre-confirmation state is attempt-scoped with no committed owner/workspace rows and 0/0. Successful one-time download plus explicit offline confirmation atomically promotes pending credential material, commits the sole owner, binds the existing feature-001 workspace, activates/confirms the kit, sets ready, and changes counts to 1/1. No combined recovery-confirmation state is valid. Recovery-kit authorization/delivery state pairs remain exactly the seven pairs encoded below.",
+  "x-bootstrap-transition-table": [
+    {
+      "state": "started",
+      "scopeAndCounts": "Attempt only; no owner/workspace rows; 0/0; installation uninitialized",
+      "transition": "Start one serialized attempt; credential challenge may run"
+    },
+    {
+      "state": "credential-verified",
+      "scopeAndCounts": "Attempt-scoped verified credential material only; no owner/workspace rows; 0/0",
+      "transition": "Valid credential verification; provisional records may be prepared"
+    },
+    {
+      "state": "recovery-prepared",
+      "scopeAndCounts": "Attempt-scoped pending credential, kit, and download capability; no owner/workspace rows; 0/0",
+      "transition": "Prepare one provisional kit and one 15-minute opportunity"
+    },
+    {
+      "state": "download-consumed",
+      "scopeAndCounts": "Same attempt-scoped material; no owner/workspace rows; 0/0",
+      "transition": "One successful download consumption; offline confirmation is still required"
+    },
+    {
+      "state": "confirmed",
+      "scopeAndCounts": "Atomic promotion commits the sole owner credential and owner, binds the existing feature-001 workspace, activates/confirms the kit, sets installation ready, and changes counts to 1/1",
+      "transition": "Only successful download consumption plus explicit offline confirmation"
+    },
+    {
+      "state": "abandoned",
+      "scopeAndCounts": "Attempt-scoped records only; no owner/workspace rows; 0/0",
+      "transition": "Expired/cancelled attempt that is not eligible for confirmation"
+    },
+    {
+      "state": "rejected",
+      "scopeAndCounts": "Attempt-scoped rejected/expired material only; no owner/workspace rows; 0/0",
+      "transition": "Invalid, expired, replayed, or otherwise refused attempt; regeneration remains attempt-scoped"
+    }
+  ],
+  "oneOf": [
+    { "$ref": "#/$defs/EncryptedEnvelope" },
+    { "$ref": "#/$defs/RecoveryKit" },
+    { "$ref": "#/$defs/RotationManifest" },
+    { "$ref": "#/$defs/MigrationCheckpoint" }
+  ],
+  "$defs": {
+    "Uuid": { "type": "string", "format": "uuid" },
+    "B64": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "minLength": 1 },
+    "Generation": { "type": "integer", "minimum": 1 },
+    "EncryptedEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "entityType",
+        "entityId",
+        "workspaceId",
+        "keyGeneration",
+        "recordVersion",
+        "algorithm",
+        "salt",
+        "nonce",
+        "ciphertext",
+        "tag",
+        "aadDigest"
+      ],
+      "properties": {
+        "format": { "const": "mn.enc.v1" },
+        "entityType": { "type": "string", "pattern": "^[a-z][a-z0-9._-]{1,63}$" },
+        "entityId": { "$ref": "#/$defs/Uuid" },
+        "workspaceId": { "$ref": "#/$defs/Uuid" },
+        "keyGeneration": { "$ref": "#/$defs/Generation" },
+        "recordVersion": { "type": "integer", "minimum": 1 },
+        "algorithm": { "const": "AES-256-GCM+HKDF-SHA-256" },
+        "salt": { "$ref": "#/$defs/B64", "minLength": 22, "maxLength": 22 },
+        "nonce": { "$ref": "#/$defs/B64", "minLength": 16, "maxLength": 16 },
+        "ciphertext": { "$ref": "#/$defs/B64" },
+        "tag": { "$ref": "#/$defs/B64", "minLength": 22, "maxLength": 22 },
+        "aadDigest": { "$ref": "#/$defs/B64", "minLength": 43, "maxLength": 43 },
+        "chunkIndex": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Kdf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "N", "r", "p", "keyLength", "salt"],
+      "properties": {
+        "algorithm": { "const": "scrypt" },
+        "N": { "type": "integer", "enum": [8192, 16384, 32768, 65536, 131072] },
+        "r": { "const": 8 },
+        "p": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "keyLength": { "const": 32 },
+        "salt": { "$ref": "#/$defs/B64", "minLength": 22, "maxLength": 22 }
+      }
+    },
+    "RecoveryKit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "formatVersion",
+        "installationId",
+        "sourceLineageId",
+        "kitId",
+        "recoveryEpoch",
+        "authorizationState",
+        "deliveryState",
+        "createdAt",
+        "supportedKeyGenerations",
+        "kdf",
+        "encryption"
+      ],
+      "properties": {
+        "format": { "const": "myownnotion.recovery+json" },
+        "formatVersion": { "const": 1 },
+        "installationId": { "$ref": "#/$defs/Uuid" },
+        "sourceLineageId": { "$ref": "#/$defs/Uuid" },
+        "kitId": { "$ref": "#/$defs/Uuid" },
+        "recoveryEpoch": { "type": "integer", "minimum": 1 },
+        "authorizationState": {
+          "enum": ["provisional", "active", "superseded", "revoked", "rejected"]
+        },
+        "deliveryState": {
+          "enum": ["prepared", "downloadable", "download-consumed", "confirmed", "expired"]
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "downloadExpiresAt": { "type": "string", "format": "date-time" },
+        "downloadConsumedAt": { "type": "string", "format": "date-time" },
+        "confirmedAt": { "type": "string", "format": "date-time" },
+        "supportedKeyGenerations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/Generation" }
+        },
+        "kdf": { "$ref": "#/$defs/Kdf" },
+        "encryption": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "nonce", "ciphertext", "tag"],
+          "properties": {
+            "algorithm": { "const": "AES-256-GCM" },
+            "nonce": { "$ref": "#/$defs/B64", "minLength": 16, "maxLength": 16 },
+            "ciphertext": { "$ref": "#/$defs/B64" },
+            "tag": { "$ref": "#/$defs/B64", "minLength": 22, "maxLength": 22 }
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "authorizationState": { "const": "provisional" },
+            "deliveryState": { "const": "prepared" }
+          }
+        },
+        {
+          "properties": {
+            "authorizationState": { "const": "provisional" },
+            "deliveryState": { "const": "downloadable" }
+          }
+        },
+        {
+          "properties": {
+            "authorizationState": { "const": "provisional" },
+            "deliveryState": { "const": "download-consumed" }
+          }
+        },
+        {
+          "properties": {
+            "authorizationState": { "const": "active" },
+            "deliveryState": { "const": "confirmed" }
+          }
+        },
+        {
+          "properties": {
+            "authorizationState": { "const": "superseded" },
+            "deliveryState": { "const": "confirmed" }
+          }
+        },
+        {
+          "properties": {
+            "authorizationState": { "const": "revoked" },
+            "deliveryState": { "const": "confirmed" }
+          }
+        },
+        {
+          "properties": {
+            "authorizationState": { "const": "rejected" },
+            "deliveryState": { "const": "expired" }
+          }
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "deliveryState": {
+                "enum": ["prepared", "downloadable", "download-consumed", "expired"]
+              }
+            }
+          },
+          "then": { "required": ["downloadExpiresAt"] }
+        },
+        {
+          "if": { "properties": { "deliveryState": { "const": "download-consumed" } } },
+          "then": { "required": ["downloadConsumedAt"] }
+        },
+        {
+          "if": { "properties": { "deliveryState": { "const": "confirmed" } } },
+          "then": { "required": ["confirmedAt"] }
+        }
+      ]
+    },
+    "RotationManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "formatVersion",
+        "operationId",
+        "installationId",
+        "kind",
+        "mode",
+        "fromVersionOrGeneration",
+        "toVersionOrGeneration",
+        "phase",
+        "cursor",
+        "processedCount",
+        "totalCount",
+        "checkpointDigest",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "format": { "const": "myownnotion.rotation+json" },
+        "formatVersion": { "const": 1 },
+        "operationId": { "$ref": "#/$defs/Uuid" },
+        "installationId": { "$ref": "#/$defs/Uuid" },
+        "kind": { "enum": ["wrapping-key", "data-key"] },
+        "mode": { "enum": ["scheduled", "emergency"] },
+        "fromVersionOrGeneration": { "$ref": "#/$defs/Generation" },
+        "toVersionOrGeneration": { "$ref": "#/$defs/Generation" },
+        "phase": {
+          "enum": [
+            "planned",
+            "prepared",
+            "rewrapping",
+            "rewriting",
+            "committing",
+            "complete",
+            "failed"
+          ]
+        },
+        "cursor": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "processedCount": { "type": "integer", "minimum": 0 },
+        "totalCount": { "type": "integer", "minimum": 0 },
+        "auditReason": { "type": "string", "maxLength": 256 },
+        "checkpointDigest": { "$ref": "#/$defs/B64", "minLength": 43, "maxLength": 43 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "MigrationCheckpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "formatVersion",
+        "migrationId",
+        "installationId",
+        "state",
+        "sourceCursor",
+        "destinationCursor",
+        "batchCount",
+        "sourceCount",
+        "destinationCount",
+        "identityDigest",
+        "checkpointDigest",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "format": { "const": "myownnotion.migration+json" },
+        "formatVersion": { "const": 1 },
+        "migrationId": { "$ref": "#/$defs/Uuid" },
+        "installationId": { "$ref": "#/$defs/Uuid" },
+        "state": {
+          "enum": [
+            "prepare-destinations",
+            "capture-boundary",
+            "backfill",
+            "verify",
+            "stop-plaintext-writes",
+            "encrypted-read-cutover",
+            "scrub-plaintext",
+            "complete",
+            "failed"
+          ]
+        },
+        "sourceCursor": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "destinationCursor": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "batchCount": { "type": "integer", "minimum": 0 },
+        "sourceCount": { "type": "integer", "minimum": 0 },
+        "destinationCount": { "type": "integer", "minimum": 0 },
+        "identityDigest": { "$ref": "#/$defs/B64", "minLength": 43, "maxLength": 43 },
+        "checkpointDigest": { "$ref": "#/$defs/B64", "minLength": 43, "maxLength": 43 },
+        "faultPoint": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
