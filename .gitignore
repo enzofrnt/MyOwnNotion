@@ -40,12 +40,23 @@ test-results/
 
 # Mounted-secret fixtures for local development (deployment wrapping key,
 # database password). Secret material never enters the repository or an image.
+#
+# `secrets/` is where every local fixture goes, so the patterns below only need
+# to catch a stray file dropped elsewhere. They are deliberately narrow:
+# a `deployment-key*` glob also matched `deployment-key.ts` and
+# `deployment-key.spec.ts`, which kept a source module and its 28 tests out of
+# the repository entirely — CI then reported green while those tests did not
+# exist. `scripts/ci/check-toolchain.ts` now fails if any first-party source
+# file is ignored, so this cannot recur silently.
 secrets/
 *.key
 *.pem
 *.p12
 *.pfx
-deployment-key*
+# Extensionless mounted-secret files only; a source file always has a suffix.
+deployment-key
+deployment-key.dev
+deployment-key.e2e
 
 # Security gate artifacts produced by CI jobs
 dependency-audit.json
