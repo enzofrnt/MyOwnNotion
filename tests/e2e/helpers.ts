@@ -58,6 +58,38 @@ export async function waitForSynchronized(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Reads the tree order as a list of item names.
+ *
+ * Used to assert an optimistic reorder landed in the DOM *before* waiting for
+ * synchronization. `waitForSynchronized` alone is not enough after an action:
+ * it proves "nothing is pending right now", not "the thing I just did
+ * finished". If the click has not yet reached the outbox, the queue is already
+ * empty, the wait returns instantly, and a following `page.reload()` discards
+ * the change — the assertion then fails on a correct application.
+ */
+export async function readTreeOrder(page: Page): Promise<string[]> {
+  const rows = page.locator('[data-testid^="tree-item-"]');
+  return rows.evaluateAll((nodes) =>
+    nodes.map((node) => (node.getAttribute("data-testid") ?? "").replace("tree-item-", "")),
+  );
+}
+
+/** Waits until `earlier` precedes `later` in the rendered tree. */
+export async function expectTreeOrder(page: Page, earlier: string, later: string): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const names = await readTreeOrder(page);
+        const earlierIndex = names.indexOf(earlier);
+        const laterIndex = names.indexOf(later);
+        return earlierIndex >= 0 && laterIndex >= 0 && earlierIndex < laterIndex;
+      },
+      { timeout: 15_000, message: `expected ${earlier} to precede ${later} in the tree` },
+    )
+    .toBe(true);
+}
+
 // ---------------------------------------------------------------------------
 // Security journeys (feature 002)
 // ---------------------------------------------------------------------------

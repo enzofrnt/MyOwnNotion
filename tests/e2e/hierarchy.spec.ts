@@ -5,6 +5,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createChildItem,
   createRootItem,
+  expectTreeOrder,
   openWorkspace,
   selectItem,
   uniqueName,
@@ -53,19 +54,19 @@ test.describe("hierarchy organization (US1)", () => {
 
     // Move "second" up; order persists after reload.
     await page.getByRole("button", { name: `Move ${second} up` }).click();
+    // Wait for the optimistic reorder to land before waiting for the queue to
+    // drain. `waitForSynchronized` on its own can return before the click has
+    // reached the outbox — the queue is empty, so it passes vacuously and the
+    // reload below discards the change.
+    await expectTreeOrder(page, second, first);
     await waitForSynchronized(page);
+
     await page.reload();
     await openWorkspace(page);
     await waitForSynchronized(page);
 
-    const rows = page.locator(`[data-testid^="tree-item-"]`);
-    const names = await rows.evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute("data-testid") ?? ""),
-    );
-    const firstIndex = names.indexOf(`tree-item-${first}`);
-    const secondIndex = names.indexOf(`tree-item-${second}`);
-    expect(secondIndex).toBeGreaterThanOrEqual(0);
-    expect(secondIndex).toBeLessThan(firstIndex);
+    // The order survived the reload, so it was persisted rather than optimistic.
+    await expectTreeOrder(page, second, first);
   });
 
   test("trashes a branch into the 30-day trash and restores it", async ({ page }) => {
