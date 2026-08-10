@@ -188,7 +188,7 @@ for (const [name, service] of Object.entries(base.services ?? {})) {
 const deploymentKeySecret = base.secrets?.["deployment-key"]?.file ?? "";
 if (deploymentKeySecret.includes("${") && !interpolationWithDefault.test(deploymentKeySecret)) {
   failures.push(
-    "compose.yaml secret `deployment-key` must use the `${VAR:-path}` form; the required-variable form breaks every Compose invocation",
+    "compose.yaml secret `deployment-key` must interpolate with a default fallback; the required-variable form breaks every Compose invocation",
   );
 }
 
