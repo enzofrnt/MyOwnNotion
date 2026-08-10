@@ -1,203 +1,253 @@
 # Feature Specification: Owner Security Foundation
 
 **Feature Branch**: `codex/spec-update`
-
 **Created**: 2026-08-10
-
 **Status**: Draft
-
-**Input**: User description: "Create the Owner Security Foundation feature defined by product-canvas sections 5, 8, 9, 28, 29, and 34 and roadmap entry 002."
+**Input**: Update the existing Owner Security Foundation feature while preserving the permanent single-owner boundary, feature-001 canonical identities, product-canvas scope and exclusions, and existing requirement IDs where practical.
 
 ## Product Direction, Dependencies, and Scope
 
-This feature specifies the security foundation for the single-owner installation described by product-canvas sections 5 (owner boundary), 8 (authentication and sessions), 9 (authorized devices), 28 (encryption and key management), 29 (security and privacy), and 34 (administrative commands). It is roadmap feature 002, Owner security foundation.
+This feature specifies the security foundation for the single-owner installation described by product-canvas sections 5 (owner boundary), 8 (authentication and sessions), 9 (authorized devices), 28 (encryption and key management), 29 (security and privacy), 34 (administrative commands), 36–41 (official self-hosted deployment and delivery), and roadmap feature 002.
 
-Feature 001, [Canonical Content Foundations](../001-content-foundations/spec.md), is the dependency. This feature authenticates and protects the one workspace and its existing canonical pages, folders, files, placements, relationships, revisions, and local projections. It does not redefine, duplicate, or alter that canonical content model.
+Feature 001, [Canonical Content Foundations](../001-content-foundations/spec.md), is the dependency and identity authority. This feature protects the existing canonical owner, workspace, content, history, file, mutation, hierarchy, relationship, revision, and local-projection identities; it does not redefine or duplicate them. The product remains permanently single-owner: one installation has exactly one owner identity and one canonical workspace, with no additional accounts, roles, teams, or private guests.
 
-The feature covers exactly one owner per installation, secure first-run bootstrap, passkey and password authentication, sessions, authorized devices, application-level encryption at rest on the server and local devices, external deployment key material, an encrypted offline recovery kit, key rotation and revocation, and administrative recovery. Public sharing, MCP access, desktop clients, block-editor work, backup scheduling and transfer, and application implementation are excluded.
+The feature includes secure bootstrap, passkey and password authentication, sessions, authorized devices, application-level encryption at rest, external deployment wrapping-key material, encrypted offline recovery kits, replacement-host recovery, two distinct key-rotation policies, staged migration from feature-001 plaintext storage, redacted administration and audit, and the official self-hosted delivery boundary. Hosting-administrator operations in V1 are exposed only through the protected local CLI contract; owner-facing authenticated API operations use the owner session and recent authentication where required. Public sharing, MCP behavior, desktop clients, block-editor behavior, backup scheduling or remote transfer, and application implementation remain excluded.
+
+Feature 002 owns the baseline secure Compose, environment contract, external reverse-proxy boundary, CI quality gates, GHCR publication, and immutable release foundation required by FR-030 through FR-035. Feature 007 owns the final V1 cross-feature release-readiness hardening and validation, including its own search scope, and does not duplicate this baseline foundation. Backup scheduling, backup transfer, and general restore orchestration remain owned by feature 006.
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Establish the Sole Owner Securely (Priority: P1)
 
-As the person operating a new installation, I can securely establish its one owner and protect the first access path so that no unclaimed or second identity can take ownership.
+As the person operating a new installation, I can establish its one owner and complete recovery readiness so that no unclaimed or second identity can take ownership.
 
-**Why this priority**: Every later content and security operation depends on an unambiguous owner and a recoverable initial setup.
+**Why this priority**: Every later content and security operation depends on an unambiguous owner and a usable recovery path.
 
-**Independent Test**: Start with an empty installation and valid deployment key material, complete first-run setup with a passkey and recovery-kit confirmation, then verify that the owner can sign in and that a second first-run claim is rejected.
+**Independent Test**: Start with an empty installation and valid external deployment key material, verify the uninitialized counts, complete first-run setup, verify the first credential, download the provisional recovery kit once within its window, confirm offline storage, and verify that a concurrent or repeated claim is rejected without fabricated owner or workspace counts.
 
 **Acceptance Scenarios**:
 
-1. **Given** a fresh installation with valid externally supplied key material and no owner, **when** the first-run operator completes the protected bootstrap, **then** exactly one owner identity is established and the installation is not left in an unclaimed state.
-2. **Given** first-run setup is in progress, **when** another request attempts to claim the installation or the bootstrap is interrupted, **then** no second owner is created and the installation remains either safely uninitialized or completely initialized.
-3. **Given** the owner has enrolled a passkey and exported the encrypted recovery kit, **when** the owner confirms that the kit is stored offline, **then** setup is considered ready and the owner can continue to authentication.
-4. **Given** the required deployment key material is absent or invalid, **when** first-run setup starts, **then** the installation refuses to become usable and explains the missing prerequisite without exposing key material.
+1. **Given** a fresh installation with valid externally supplied key material and no committed owner or workspace row, **when** the first-run operator verifies the bootstrap credential, **then** verification and provisional recovery preparation remain inside the same bootstrap attempt, the installation remains pre-confirmation with `ownerCount=0` and `workspaceCount=0`, and no owner or workspace row is committed.
+2. **Given** a bootstrap attempt with a verified credential and a provisional recovery kit, **when** the one-time download is successfully consumed and the operator explicitly confirms offline storage, **then** one atomic transition commits the sole owner, binds the existing feature-001 canonical workspace identity, activates the kit, marks the delivery confirmed, changes the installation to `ready`, and changes the reported counts together from `0/0` to `1/1`.
+3. **Given** an uninitialized installation or any pre-confirmation bootstrap state, **when** status is reported or another request attempts to claim the installation, **then** the status reports exactly `ownerCount=0` and `workspaceCount=0`, no status fabricates either entity, and no second owner is created.
+4. **Given** the provisional kit’s download opportunity is lost, rejected, or expires before confirmation, **when** the owner requests recovery setup again using the valid browser-held capability for the same credential-verified bootstrap attempt, **then** the prior delivery remains rejected and expired, a new provisional artifact and one new 15-minute opportunity are issued within that same `0/0` attempt, and the expired delivery is never revived.
+5. **Given** the required deployment key material is absent or invalid, **when** first-run setup starts, **then** the installation refuses to become usable and explains the missing prerequisite without exposing key material.
 
 ### User Story 2 - Authenticate and Control Sessions (Priority: P1)
 
 As the sole owner, I can sign in with a passkey by itself or with my password as an alternative, and I can control active sessions so that access remains convenient and revocable.
 
-**Why this priority**: The owner needs a strong primary sign-in path while retaining a practical alternative and an immediate response to suspected session compromise.
+**Why this priority**: The owner needs a strong primary sign-in path and an immediate response to suspected session compromise.
 
-**Independent Test**: Sign in using each supported method, exercise inactivity expiry and recent-authentication requirements, then revoke one session and all sessions and verify their access ends.
+**Independent Test**: Sign in using each supported method, exercise inactivity expiry and recent-authentication requirements with a controlled clock, then revoke one session and all sessions and verify that access and renewal end.
 
 **Acceptance Scenarios**:
 
-1. **Given** an enrolled passkey and no password entry, **when** the owner completes passkey authentication, **then** a valid owner session is created without requiring a password or another factor.
-2. **Given** a configured password alternative, **when** the owner signs in with the password, **then** a valid owner session is created; an incorrect password or failed passkey attempt does not reveal which protected account data exists.
-3. **Given** an inactive owner session, **when** its configured inactivity period elapses, **then** it can no longer access private content until the owner authenticates again. The default period is 30 days and the allowed configuration range is 1 to 90 days.
-4. **Given** an operation that changes authentication methods, recovery material, key state, or global device access, **when** the owner's latest authentication is older than 15 minutes by default, **then** the operation requires recent re-authentication before proceeding.
-5. **Given** several active sessions, **when** the owner revokes one session or all sessions, **then** the selected session or every selected session stops authorizing private access and cannot silently renew.
-6. **Given** repeated abusive authentication attempts, **when** the threshold is reached, **then** further attempts are limited and the event is recorded without recording passwords, passkeys, tokens, or private content.
+1. **Given** an enrolled passkey and no password entry, **when** the owner completes passkey authentication, **then** an owner session and its authenticated-session CSRF token are returned to the browser in the session response body or headers without placing the token in a URL, logs, or persistent plaintext; the session is created without requiring a password or another factor.
+2. **Given** a configured password alternative, **when** the owner signs in with the password, **then** an owner session is created; incorrect credentials do not reveal whether protected account data exists.
+3. **Given** an inactive owner session, **when** its configured inactivity period elapses, **then** it cannot access private content until the owner authenticates again. The default is 30 days and the allowed configuration range is 1–90 days.
+4. **Given** a sensitive operation, **when** the latest successful owner authentication is older than 15 minutes by default, **then** the operation requires reauthentication. The recent-authentication period is configurable only from 1–60 minutes.
+5. **Given** several active sessions, **when** the owner revokes one session or all sessions, **then** the selected sessions stop authorizing private access and cannot silently renew.
+6. **Given** repeated abusive authentication attempts, **when** the configured threshold is reached, **then** further attempts are limited and the event is recorded without recording credentials, tokens, or private content.
 
 ### User Story 3 - Manage Authorized Devices (Priority: P2)
 
-As the sole owner, I can see and manage the devices authorized for my installation so that I can recognize, rename, monitor, and revoke access when a device is lost or no longer trusted.
+As the sole owner, I can recognize and revoke authorized devices so that each local copy remains attributable and future access is controllable.
 
-**Why this priority**: Multiple devices are required for local-first use, but each additional copy of private data must remain attributable and revocable.
+**Why this priority**: Multiple devices support local-first use, but an authorization must not outlive the owner’s trust decision.
 
-**Independent Test**: Authorize two devices, inspect their records, rename one, change its local storage limit from that device, revoke it, and verify that it cannot reconnect or receive new data until explicitly authorized again.
+**Independent Test**: Authorize two devices, inspect their records, rename one, change its local-storage limit, revoke it, replay its old authorization, and verify that it cannot reconnect or receive new data until explicit reauthorization.
 
 **Acceptance Scenarios**:
 
-1. **Given** one or more authorized devices, **when** the owner opens device settings, **then** each device shows a name, platform, client type, authorization date, last activity, last synchronization, state, local-storage limit, and current local usage.
-2. **Given** an authorized device, **when** the owner renames it or changes its local-storage limit from that device, **then** the updated value is shown without changing the identity of the owner or any canonical content.
-3. **Given** an authorized device, **when** the owner revokes it, **then** it cannot sign in, renew a session, receive new content, or use its synchronization keys until a new authorization is completed.
-4. **Given** a device is lost and never reconnects, **when** the owner views its revoked status, **then** the owner is clearly told that data already stored on an inaccessible device cannot be guaranteed to have been remotely erased.
+1. **Given** one or more authorized devices, **when** the owner opens device settings, **then** each response record includes `lastActivityAt` and `lastSyncAt` as required fields, with either field nullable until its corresponding event occurs, alongside name, platform, client type, authorization date, state, local-storage limit, and current local usage.
+2. **Given** an authorized device, **when** the owner renames it or changes its local-storage limit from that device, **then** the value changes without changing the owner or any feature-001 canonical identity.
+3. **Given** an authorized device, **when** the owner revokes it, **then** it cannot sign in, renew a session, receive new content, or use its synchronization keys until it is explicitly reauthorized.
+4. **Given** a device is lost and never reconnects, **when** the owner views its revoked status, **then** the owner is told that data already stored on the inaccessible device cannot be guaranteed to have been erased remotely.
 
 ### User Story 4 - Protect Data and Maintain Recovery Material (Priority: P1)
 
-As the sole owner, I can trust that private data stored by the server or a local device is encrypted by the application and that I have an offline recovery path without placing key material beside the protected data.
+As the sole owner, I can trust that private server and local data is encrypted by the application and that recovery material can be stored offline without being placed beside the protected data.
 
-**Why this priority**: Encryption and recovery are prerequisites for treating self-hosted and offline copies as private rather than merely relying on host or volume protection.
+**Why this priority**: Encryption and recovery are prerequisites for treating self-hosted and offline copies as private.
 
-**Independent Test**: Store representative workspace data and local pending operations, inspect persisted representations for absence of usable plaintext, restart with missing or incorrect deployment key material, and restore access using a valid encrypted recovery kit.
+**Independent Test**: Store representative feature-001 content, files, history, indexes, and local pending operations; inspect persisted representations; restart with missing or incorrect deployment material; and verify safe failure and valid-kit recovery.
 
 **Acceptance Scenarios**:
 
 1. **Given** server-persisted workspace data, **when** it is stored at rest, **then** page and block content, sensitive properties and relationships, files, content-revealing indexes, history, annotations, and recoverable integration secrets are protected by authenticated application-level encryption.
-2. **Given** data retained by a local device, **when** it is stored at rest, **then** local content, files, indexes, and pending-operation data are protected by application-level encryption and the device-specific protection material is kept in the platform's secure storage when available.
-3. **Given** encrypted data is read with missing, invalid, or unauthorized key material, **when** access is attempted, **then** the system fails closed, reports an integrity or configuration failure, and does not present partial or silently substituted data.
-4. **Given** the installation is initialized, **when** the owner requests recovery material, **then** the system creates an encrypted kit that can be exported and stored offline, identifies its format and applicable installation, and does not automatically place it in the same storage as the encrypted workspace.
-5. **Given** a newly generated recovery kit, **when** the owner has not confirmed offline storage, **then** the installation continues to warn that recovery setup is incomplete and does not claim security readiness.
+2. **Given** data retained by a local device, **when** it is stored at rest, **then** local content, files, indexes, and pending-operation data are protected by application-level encryption, with device-specific protection material kept in platform secure storage when available.
+3. **Given** encrypted data is read with missing, invalid, corrupt, or unauthorized key material, **when** access is attempted, **then** the installation fails closed, reports an integrity or configuration failure, and presents no partial or substituted data.
+4. **Given** a recovery kit with authorization state `active` and delivery/confirmation state `confirmed`, **when** the owner stores it offline and confirms that storage, **then** recovery readiness is shown as complete and the artifact is not automatically stored with the encrypted workspace.
 
-### User Story 5 - Rotate Keys and Recover Administratively (Priority: P2)
+### User Story 5 - Recover a Replacement and Rotate Security Material (Priority: P1)
 
-As the owner or authorized hosting administrator, I can rotate or revoke security material and recover a locked installation through a documented, auditable process so that compromise and operational failure have a bounded response.
+As the owner, I can use authenticated owner-facing operations for security management, while a hosting administrator can use the protected local CLI contract for V1 recovery and operations, without creating a new lineage or losing canonical identity.
 
-**Why this priority**: Long-lived installations need a tested response to suspected compromise, lost authentication methods, unavailable devices, and server replacement.
+**Why this priority**: Host loss, suspected compromise, and long-lived encrypted data require bounded, testable recovery and rotation behavior.
 
-**Independent Test**: Perform a scheduled and an emergency key rotation, invalidate an old recovery method, interrupt and resume the operation, then use administrative recovery to restore a compatible installation while preserving the existing owner and canonical content identities.
+**Independent Test**: Prepare compatible encrypted source data and a valid source-lineage kit, recover into an empty target, compare all installation/owner/workspace/content/history/file/mutation IDs, confirm device reauthorization, then run wrapping-key and data-key rotations with interruption and controlled-clock cases.
 
 **Acceptance Scenarios**:
 
-1. **Given** active encrypted data and a valid current key set, **when** the owner performs a scheduled rotation or responds to suspected compromise, **then** new writes use the new key generation, old generations remain available only through the documented transition, and the operation is observable and resumable.
-2. **Given** a replacement recovery kit or explicitly revoked recovery method, **when** the replacement becomes active, **then** the revoked kit cannot restore access, while historical encrypted backups remain recoverable through the documented wrapping and compatibility policy.
-3. **Given** the required key material is unavailable, **when** an administrator runs a key-availability or integrity check, **then** the command reports a safe failure without displaying secrets and without marking the installation healthy.
-4. **Given** a locked, damaged, or newly provisioned compatible installation, **when** an administrator follows the documented recovery procedure with the required external deployment secret and encrypted recovery kit, **then** the owner can regain access and existing canonical content identities remain unchanged.
-5. **Given** an administrative operation that could change or destroy protected state, **when** it is requested without explicit confirmation or its simulation is not accepted, **then** no destructive action occurs.
+1. **Given** a source installation, compatible encrypted source data, a recovery kit with authorization state `active` and delivery/confirmation state `confirmed` for that source installation lineage, and an empty or uninitialized target, **when** administrative recovery is completed, **then** the target atomically adopts the source installation identity, owner identity, workspace identity, and every canonical content, history, file, and mutation ID; no new canonical identities are generated.
+2. **Given** a target that is already initialized, **when** replacement-host recovery is attempted, **then** the recovery path refuses the operation without merging or overwriting state. In particular, an initialized target with a different installation lineage rejects the kit.
+3. **Given** source devices authorized before replacement recovery, **when** the target becomes active, **then** no device silently transfers trust; every device must explicitly reauthorize before receiving protected access or new data.
+4. **Given** an active recovery kit with authorization state `active` and delivery/confirmation state `confirmed`, **when** the owner requests replacement after recent authentication, **then** the existing kit remains active and confirmed while the replacement uses authorization state `provisional` and the shared delivery/confirmation states; only after replacement download consumption and explicit offline confirmation does the replacement become active and confirmed, the prior kit become `superseded`, and the recovery epoch advance in one atomic change.
+5. **Given** an active, confirmed recovery kit, **when** time passes without revocation or epoch change, **then** it remains valid without time expiry. Expiry applies only to an unconfirmed download opportunity; a revoked, superseded, prior-epoch, malformed, or wrong-lineage kit is rejected regardless of its age.
+6. **Given** active protected data, **when** the owner starts a rotation through an authenticated owner-facing operation or a hosting administrator starts it through the protected local CLI, **then** the wrapping-key rotation rewraps workspace root keys without re-encrypting records, while the separate data-key generation rotation progressively re-encrypts protected records and file chunks; each operation is independently observable, resumable, and auditable.
+7. **Given** a rotation is interrupted at any persistence boundary, **when** the installation restarts, **then** it exposes either the complete prior state or a complete resumable state and never presents mixed, silently substituted, or unverified data.
+8. **Given** required key material is unavailable, **when** a hosting administrator runs a key-availability or integrity check through the protected local CLI, **then** the command reports safe failure without displaying secrets and without marking the installation healthy.
+9. **Given** a V1 hosting-administrator operation, **when** it is invoked, **then** it is available only through the protected local CLI contract, with no remote administrator bearer/API channel or placeholder administrator authentication scheme; owner-facing authenticated API operations continue to use the owner session and recent authentication where required.
+
+### User Story 6 - Migrate Safely and Deliver a Verifiable Installation (Priority: P1)
+
+As the owner and self-host operator, I can move feature-001 plaintext persistence to protected storage and install a complete, immutable, quality-gated release so that data and deployment remain trustworthy.
+
+**Why this priority**: Encryption cannot be considered complete while legacy plaintext remains writable or recoverable, and a secure product must be reproducibly deliverable.
+
+**Independent Test**: Run the migration from a feature-001 plaintext fixture with injected failures, verify the staged cutover and final scrub, then install the official stack from a pinned release and exercise branch, pull-request, main, and version-release gate decisions with failed and stale checks.
+
+**Acceptance Scenarios**:
+
+1. **Given** feature-001 plaintext records or file blobs, **when** encryption migration starts, **then** encrypted destinations are added and protected records are backfilled in resumable batches without deleting the source prematurely.
+2. **Given** a completed backfill, **when** verification runs, **then** counts, digests, and all canonical content, history, file, and mutation identities match between source and encrypted destinations before plaintext writes stop.
+3. **Given** verification succeeds, **when** cutover occurs, **then** plaintext writes are stopped, reads use encrypted destinations, and plaintext columns and blob remnants are scrubbed or dropped only after the verification gate passes.
+4. **Given** migration failure or interruption, **when** the installation restarts, **then** it returns to the last safe resumable state, preserves data, and never claims completion before verification and cleanup succeed.
+5. **Given** the documented required configuration and secrets, **when** the official self-hosted stack is started, **then** all services necessary for normal operation, durable structured data, durable files, health/status, and administration are available as one documented Compose deployment, with persistent data surviving replacement of its transient service instances.
+6. **Given** a normal local deployment, **when** the application is accessed without an external proxy, **then** it serves local HTTP only by default; HTTPS, public routing, and Internet exposure are provided by an administrator-managed external reverse proxy, which is outside the official application stack.
+7. **Given** a production installation, **when** an operator selects a release, **then** the Compose deployment can pin an explicit immutable commit-addressable or versioned image selection and can return to the prior compatible selection without relying on a moving channel.
+8. **Given** a branch, pull request, push to `main`, or version release, **when** required quality gates are evaluated, **then** formatting, static analysis, types where applicable, tests, migrations, build, Compose/configuration, stack-startup, security, and release checks required for that stage must pass on the exact candidate commit.
+9. **Given** a required check is failed, skipped, missing, cancelled, or stale, **when** publication or merge is requested, **then** the operation is blocked and no image or release artifact is published.
+10. **Given** all `main` gates pass, **when** the commit is published, **then** immutable commit-addressable images are produced and published to the official image registry. Given all version-release gates pass, versioned images, checksums, and release artifacts are produced for that exact release commit.
 
 ### Edge Cases
 
-- First-run setup is interrupted after an authenticator is enrolled but before recovery-kit confirmation; the installation must resume safely or roll back to an unclaimed state without leaving a usable partial owner.
-- A second first-run request arrives concurrently with the first; at most one succeeds.
-- The owner has only a passkey and loses access to the device that can use it; administrative recovery must not silently bypass encryption or create a second owner.
-- A password alternative is disabled or changed while existing sessions remain active; recent-authentication and session-revocation rules still apply.
-- A revoked device reconnects with a previously issued session or synchronization key; the connection and data delivery must be rejected.
-- A revoked device never reconnects; the owner-facing limitation about remote erasure must remain visible.
-- A local device has insufficient protected storage or loses access to its secure key store; the application must preserve existing data and explain whether local use is blocked, degraded, or awaiting reauthorization.
-- A recovery kit is malformed, from another installation, superseded, or encrypted with the wrong protection material; no partial recovery is presented as successful.
-- Rotation is interrupted at each persistence boundary; reopening must produce either the complete prior state or a complete resumable rotation state.
-- A key is missing, corrupt, or unauthorized; encrypted data must not be replaced with empty or unencrypted values.
-- Diagnostic output, audit entries, errors, and authentication-rate-limit events must not expose private content, passwords, passkeys, sessions, recovery kits, or encryption keys.
+- Installation status is reported with committed counts only: every uninitialized and pre-confirmation bootstrap state is exactly `0/0` until the single atomic ownership/workspace commit, and `ready` or recovery states are exactly `1/1`; no state fabricates an owner or workspace.
+- Bootstrap is interrupted after credential verification, during provisional recovery preparation, after download consumption, or before offline confirmation; every pre-confirmation state remains `ownerCount=0` and `workspaceCount=0` with no committed owner/workspace rows, and it never leaves a usable owner whose recovery delivery/confirmation state is falsely `confirmed`.
+- A provisional recovery kit is prepared, becomes downloadable, becomes download-consumed only after the one-time download is consumed, and is activated only by the same atomic transition as explicit offline confirmation; a lost or expired unconfirmed opportunity is regenerated within the same credential-verified bootstrap attempt, keeps `0/0`, rejects the prior delivery, and does not expire an active confirmed kit.
+- Replacement recovery is attempted with malformed, wrong-lineage, superseded, revoked, or epoch-incompatible data; no partial recovery or identity merge is presented as successful.
+- A replacement target is initialized, including one with a different lineage; the replacement path refuses it without overwriting or merging.
+- Previously authorized devices reconnect after replacement recovery; they must reauthorize and cannot use inherited trust.
+- An active confirmed recovery kit is old but not revoked; it remains valid. A superseded, revoked, rejected, wrong-lineage, or prior-epoch kit is rejected even if recently downloaded.
+- A device has not yet produced activity or synchronization; its required `lastActivityAt` and `lastSyncAt` response fields remain null rather than being omitted or fabricated.
+- A bootstrap capability or authenticated-session CSRF token is returned to the browser in its response body or headers; neither value is placed in a URL, logged, or persisted as plaintext, and neither is treated as request-only.
+- A scheduled rotation is due, overdue, emergency-triggered, paused, or interrupted; reads remain safe and available for valid data, while write policy follows the explicit threshold state.
+- The deployment wrapping key changes while data-key generation rotation is pending; root-key rewrapping and record/chunk re-encryption remain separate resumable operations.
+- A missing, corrupt, or unauthorized key must not be replaced with an empty or unencrypted value.
+- Migration fails before backfill, during backfill, after verification, after plaintext-write stop, during read cutover, or during scrub; restart returns to the last safe resumable state.
+- A required delivery check is absent, skipped, cancelled, stale, or green for a different commit; merge and publication remain blocked.
+- Hosting-administrator actions are attempted through a remote bearer/API channel or placeholder authentication scheme; the attempt is unavailable, while owner-facing authenticated API actions require the owner session and recent authentication where specified.
+- Diagnostic output, audit entries, errors, and rate-limit events must not expose private content, credentials, sessions, bootstrap capabilities, CSRF tokens, recovery kits, or encryption keys.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: The installation MUST have exactly one owner identity and exactly one owner workspace; it MUST provide no second account, team member, private guest, role, or multi-owner path.
-- **FR-002**: The installation MUST provide a protected first-run bootstrap that can be completed only once, must not be claimable concurrently by multiple requests, and must not become usable until required owner authentication and recovery readiness are complete.
+- **FR-001**: The installation MUST have exactly one owner identity and exactly one owner workspace; it MUST provide no second account, team member, private guest, role, or multi-owner path. All uninitialized and pre-confirmation bootstrap states—including credential-verified, provisional-kit prepared/downloadable/download-consumed, rejected, expired, and regeneration states—MUST have no committed owner or workspace rows and MUST report exactly `ownerCount=0` and `workspaceCount=0`. Only one atomic bootstrap transition, after successful one-time download consumption and explicit offline-storage confirmation, MAY commit the sole owner, bind the existing feature-001 canonical workspace identity, activate the recovery kit, mark the installation `ready`, and change the counts to exactly `ownerCount=1` and `workspaceCount=1`; every initialized state—`recovery-required`, `ready`, `migration-in-progress`, and `degraded`—MUST report exactly `1` and `1`.
+- **FR-002**: The installation MUST provide protected first-run bootstrap that can be completed only once, cannot be claimed concurrently, and MUST keep credential verification and provisional recovery inside one credential-verified bootstrap attempt without committing owner or workspace rows. It MUST remain `0/0` and not become ready until the successful one-time download plus explicit offline-storage confirmation atomically commits ownership, binds the existing feature-001 canonical workspace, activates the kit, and makes the installation ready. Any bootstrap capability issued to the browser MUST be returned in the bootstrap response body or headers, MUST never be placed in a URL, logs, or persistent plaintext, and MUST be treated as a browser-held value rather than a request-only value.
 - **FR-003**: The owner MUST be able to authenticate with a passkey sufficient by itself, without a password or additional factor, when a valid passkey is enrolled.
-- **FR-004**: The owner MUST be able to use a password as an alternative authentication method, change it, and use it without weakening the passkey-only path.
-- **FR-005**: The installation MUST allow the owner to add and remove passkeys and change authentication methods only after recent authentication.
-- **FR-006**: Owner sessions MUST expire after 30 days of inactivity by default, support a configured inactivity period from 1 through 90 days, and require recent authentication no older than 15 minutes by default for sensitive operations.
+- **FR-004**: The owner-facing credential-management experience MUST allow the owner to set a password alternative when none exists, change the password alternative, and authenticate with it as an alternative to passkey-only sign-in without weakening the passkey-only path. Setting or changing the password alternative MUST require recent authentication.
+- **FR-005**: The owner-facing credential-management experience MUST allow the owner to list enrolled passkeys, enroll or add a passkey, and remove a selected passkey. Listing, enrolling or adding, and removing passkeys MUST be attributable to the owner session, and every credential change—passkey enrollment/addition, selected-passkey removal, password-alternative setting, or password-alternative change—MUST require recent authentication; these owner-facing operations MUST NOT introduce a remote administrator API.
+- **FR-006**: Owner sessions MUST expire after 30 days of inactivity by default, support a configured inactivity period from 1 through 90 days, and require recent authentication no older than 15 minutes by default for sensitive operations; the recent-authentication period MUST be configurable only from 1 through 60 minutes. Any authenticated-session CSRF token issued to the browser MUST be returned in the authenticated-session response body or headers, MUST never be placed in a URL, logs, or persistent plaintext, and MUST not be treated as request-only.
 - **FR-007**: The owner MUST be able to revoke one session or all sessions, and revoked sessions MUST stop authorizing private access and renewal.
-- **FR-008**: The installation MUST maintain an owner-visible inventory of authorized devices containing name, platform, client type, authorization date, last activity, last synchronization, state, local-storage limit, and current local usage.
-- **FR-009**: The owner MUST be able to rename, inspect, and revoke authorized devices; a revoked device MUST be denied sign-in, session renewal, new data, and future use of its synchronization keys until it is newly authorized.
+- **FR-008**: The installation MUST maintain an owner-visible inventory of authorized devices containing name, platform, client type, authorization date, `lastActivityAt`, `lastSyncAt`, state, local-storage limit, and current local usage. `lastActivityAt` and `lastSyncAt` MUST be required fields in every inventory response and MUST be nullable until their corresponding events occur.
+- **FR-009**: The owner MUST be able to rename, inspect, and revoke authorized devices; a revoked device MUST be denied sign-in, session renewal, new data, and future use of its synchronization keys until it is explicitly reauthorized.
 - **FR-010**: The device-management experience MUST clearly distinguish device revocation from remote erasure and MUST state that data on a lost device that never reconnects cannot be guaranteed to be erased remotely.
 - **FR-011**: The application MUST encrypt at rest on the server all sensitive workspace data, including page and block content, sensitive properties and relationships, files and attachments, content-revealing indexes, history and versions, annotations, and recoverable integration secrets.
-- **FR-012**: The application MUST encrypt at rest on each local device the local content, files, indexes, and pending-operation data it retains; device-specific protection material MUST use the platform's secure storage when that facility is available.
-- **FR-013**: Server key-encryption material MUST be supplied as an external deployment secret, remain outside the repository, application images, persisted encrypted data, and logs, and never be exposed as plaintext configuration when a supported secret mechanism is available.
-- **FR-014**: Encrypted data MUST provide authenticated integrity protection and identify its encryption format and key generation; missing, invalid, corrupt, or unauthorized key material MUST cause a safe failure rather than partial or silently substituted data.
-- **FR-015**: The installation MUST generate an encrypted recovery kit for the owner, make it exportable for offline storage, identify its format and applicable installation, keep it separate from the encrypted workspace by default, and require confirmation that it was stored before declaring recovery setup complete.
-- **FR-016**: The owner MUST be able to replace the recovery kit after recent authentication; the installation MUST state which prior kits or recovery methods are invalidated and MUST preserve a documented path for historical encrypted backups that remain supported.
-- **FR-017**: The key-encryption material MUST support scheduled rotation at least annually and immediate rotation after suspected compromise; rotation MUST be resumable, observable, integrity-protected, and must not require unsafe simultaneous plaintext exposure of all data.
-- **FR-018**: Key revocation MUST prevent revoked key generations, device keys, sessions, and recovery methods from authorizing new access while preserving only the historical access explicitly allowed by the documented compatibility and restoration policy.
-- **FR-019**: The installation MUST provide administrative recovery for a locked, damaged, replaced, or newly provisioned compatible installation using the required external deployment secret and encrypted recovery kit, without creating a second owner or changing canonical content identities.
-- **FR-020**: The supported administrative command surface MUST include password reset, session revocation, data-integrity verification, key-availability verification without displaying keys, key rotation, documented recovery or repair, compatibility inspection, and redacted diagnostics; backup and restore operations MAY be invoked or tested only where a later backup feature provides them.
+- **FR-012**: The application MUST encrypt at rest on each local device the local content, files, indexes, and pending-operation data it retains; device-specific protection material MUST use platform secure storage when that facility is available.
+- **FR-013**: Server key-encryption material MUST be supplied as an external deployment secret and remain outside the repository, application images, persisted encrypted data, logs, and ordinary plaintext configuration where a supported secret mechanism exists.
+- **FR-014**: Encrypted data MUST provide authenticated integrity protection and identify its encryption format and key generation; missing, invalid, corrupt, or unauthorized key material MUST cause safe failure rather than partial or silently substituted data.
+- **FR-015**: The installation MUST generate an encrypted recovery kit for the owner with two separate state axes: authorization state `provisional`, `active`, `superseded`, `revoked`, or `rejected`; and delivery/confirmation state `prepared`, `downloadable`, `download-consumed`, `confirmed`, or `expired`. After successful bootstrap credential verification, it MUST create a provisional kit inside the same bootstrap attempt, use the shared delivery/confirmation vocabulary for exactly one 15-minute download opportunity, and keep the installation at `0/0` with no committed owner/workspace rows until successful one-time download consumption and explicit offline-storage confirmation. Those two final actions MUST atomically set the kit to authorization `active` and delivery/confirmation `confirmed`, commit the sole owner, bind the existing feature-001 canonical workspace identity, declare the installation `ready`, and set the counts to `1/1`. The kit MUST identify its format and source installation lineage and MUST not be placed automatically beside the encrypted workspace.
+- **FR-016**: If an unconfirmed provisional bootstrap recovery delivery is rejected or its download opportunity expires, safe regeneration MUST remain session-free, MUST require the valid browser-held bootstrap capability for the same credential-verified bootstrap attempt, MUST issue a new provisional kit and one new download opportunity, MUST leave the prior kit material rejected and its prior download opportunity expired, MUST keep the installation at `0/0` with no committed owner or workspace, and MUST never revive an expired download opportunity. After bootstrap, recovery-kit replacement MUST require recent authentication; the active confirmed kit MUST remain valid and unchanged until the replacement is downloaded, consumed, and explicitly confirmed offline, after which the replacement MUST become active and confirmed, the prior kit MUST become superseded, and the recovery epoch MUST advance atomically. Expiry MUST affect only an unconfirmed download opportunity and MUST never expire an active confirmed kit.
+- **FR-017**: Key-encryption material MUST support two distinct rotations: external deployment wrapping-key rotation MUST rewrap workspace root keys without re-encrypting records and MUST be due at least every 365 days and immediately after suspected compromise; separate workspace data-key generation rotation MUST progressively re-encrypt protected records and file chunks as its own resumable operation.
+- **FR-018**: Key revocation MUST invalidate recovery kits with authorization state `revoked`, kits from prior or explicitly revoked epochs, and MUST prevent revoked key generations, device keys, sessions, and recovery methods from authorizing new access. Active recovery kits with delivery/confirmation state `confirmed` have no time-based expiry, but every kit MUST identify its format and source installation lineage; an unconfirmed delivery opportunity may become `expired` without changing the active confirmed kit.
+- **FR-019**: Administrative recovery MUST be allowed only into an empty or uninitialized target using compatible encrypted source data and a valid recovery kit for the source installation lineage. It MUST atomically adopt the source installation identity, owner identity, workspace identity, and all canonical content, history, file, and mutation IDs. An already initialized target, including one with a different lineage, MUST reject the replacement path without merging, overwriting, or creating a second owner. Existing authorized devices MUST not silently transfer trust and MUST reauthorize on the recovered installation.
+- **FR-020**: The supported V1 hosting-administrator command surface MUST be exposed only through protected local CLI operations and MUST include password reset, session revocation, data-integrity verification, key-availability verification without displaying keys, both rotation triggers and status inspection, migration inspection, compatible recovery, a protected local CLI compatibility-inspection operation, and redacted diagnostics; there MUST be no remote administrator API, remote administrator session, remote administrator bearer channel, or placeholder administrator authentication scheme. Owner-facing authenticated API operations MUST continue to use the owner session and recent authentication where required. Backup and restore operations remain owned by feature 006.
 - **FR-021**: Administrative commands MUST provide built-in help, reliable success and failure status, and non-interactive operation where automation requires it; destructive commands MUST provide a simulation or require explicit confirmation.
-- **FR-022**: Security events MUST be auditable, including authentication successes and failures, authentication-method changes, device authorization and revocation, session revocation, recovery-kit changes, key rotation and revocation, administrative recovery, and integrity failures.
-- **FR-023**: Logs, diagnostics, errors, and audit records MUST exclude private content, passwords, passkeys, session or integration tokens, recovery kits, encryption keys, and other sensitive values unless a separate, explicit, redacted diagnostic action permits a safe summary.
-- **FR-024**: All authentication, authorization, device, encryption, recovery, and administrative operations MUST preserve the single-owner boundary and MUST protect the existing feature-001 canonical content model without redefining its entities, identities, hierarchy, relationships, revisions, or local projections.
+- **FR-022**: Security events MUST be auditable, including authentication successes and failures, authentication-method changes, device authorization and revocation, session revocation, recovery-kit creation and both recovery state-axis transitions (including download, consumption, confirmation, replacement, revocation, rejection, and expiry), recovery attempts, key state and rotation changes, migration state changes, integrity failures, and administrative actions.
+- **FR-023**: Logs, diagnostics, errors, audit records, release reports, and status output MUST exclude private content, passwords, passkeys, session or integration tokens, bootstrap capabilities, authenticated-session CSRF tokens, recovery kits, encryption keys, and other sensitive values except in a separate explicit redacted diagnostic summary; the bootstrap capability and authenticated-session CSRF token MUST not be persisted as plaintext.
+- **FR-024**: All authentication, authorization, device, encryption, recovery, rotation, migration, administrative, and delivery operations MUST preserve the single-owner boundary and MUST protect feature-001 canonical entities and identities without redefining their model.
+- **FR-025**: Each of the two key-rotation policies—the external deployment wrapping-key policy and the separate workspace data-key generation policy—MUST expose exactly these eight states, in this shared vocabulary: pre-due, due, overdue-within-grace, emergency, write-block, in-progress, complete, and failed. Each policy MUST expose its due time, last successful completion, current generation, and next action. The default wrapping-key due interval MUST be 365 days; emergency compromise rotation MUST be due immediately; the data-key generation policy MUST remain independent of wrapping-key rotation, expose its configured due time and write-block threshold, and use the same eight-state vocabulary.
+- **FR-026**: The installation MUST check rotation due state automatically at least once per day and at startup, show warnings in startup/status and owner-facing administration, preserve safe reads of valid existing protected data while a rotation is due or overdue, and allow an administrator to trigger either rotation explicitly.
+- **FR-027**: The installation MUST refuse new protected writes when a rotation is overdue beyond its configured write-block threshold or when it cannot safely meet that threshold; the default scheduled-rotation grace threshold MUST be 7 calendar days after due, and an emergency compromise rotation MUST have a zero-day write grace. Safe reads, status inspection, and resumable rotation progress MUST remain available.
+- **FR-028**: Encryption migration from feature-001 plaintext storage MUST add encrypted destinations, resumably backfill records and file blobs, verify counts, digests, and canonical content/history/file/mutation identities, stop plaintext writes, switch reads to encrypted destinations, and scrub or drop plaintext columns and blob remnants only after verification succeeds.
+- **FR-029**: Encryption migration MUST record a safe resumable state at every persistence boundary; a failure or interruption MUST return to the last safe state, preserve source data until verified, and never claim migration complete before cutover and cleanup have both succeeded.
+- **FR-030**: The official self-hosted outcome MUST be a complete documented Compose deployment that, after required configuration and external secrets are supplied, starts all services necessary for normal application operation, durable structured data, durable files, health/status, and administration; persistent data MUST survive replacement of transient service instances.
+- **FR-031**: The official application deployment MUST serve local HTTP by default. HTTPS, public routing, and Internet exposure MUST be provided by an administrator-managed external reverse proxy; the official application stack MUST neither require nor automatically provide public certificates or an Internet-facing reverse proxy.
+- **FR-032**: Production operators MUST be able to select an explicit immutable image release by commit identity or version, use the selected release in Compose, and return to a prior compatible immutable selection without relying on a moving tag or channel.
+- **FR-033**: Branch, pull-request, `main`, and version-release workflows MUST each define required quality gates appropriate to that stage, including formatting, static analysis, type checks where applicable, automated tests, migration validation, production build, Compose/configuration validation, real-stack startup, and release verification. The required security gate MUST expose and test these distinct categories: dependency vulnerability audit, secret scanning, static application/security analysis, container image vulnerability scan, and license-policy check. Each applicable category MUST produce a result for the exact candidate commit. CI MUST also provide a manually triggerable diagnostic run that executes the quality gate only, may collect diagnostic reports, and MUST never publish images, release artifacts, or any other deliverable.
+- **FR-034**: No merge or publication MUST occur when any required check—including any FR-033 security-gate category—for the exact candidate commit is failed, skipped, missing, cancelled, or stale. A failed, missing, skipped, cancelled, or stale required check MUST block merge on branch/pull-request candidates and MUST block publication on `main` or version-release candidates as applicable. A successful `main` candidate MUST produce immutable commit-addressable images in the official image registry; a successful version release MUST produce versioned images, checksums, and release artifacts for the exact release commit. The manual diagnostic run MUST never publish regardless of its result.
+- **FR-035**: Delivery and recovery state, including both recovery-kit state axes and rotation and migration state, MUST be observable without exposing secrets; release reports MUST identify the exact candidate commit and required checks.
 
 ### Key Entities *(include if feature involves data)*
 
-- **Installation**: One self-hosted product instance containing exactly one owner and one canonical workspace.
-- **Owner identity**: The sole authenticated identity permitted to access the private installation and its feature-001 workspace.
-- **Passkey credential**: An owner-controlled sign-in credential that is sufficient by itself and can be added or revoked by the owner.
-- **Password credential**: An optional alternative owner sign-in method whose protected value can be changed or reset through the defined recovery paths.
-- **Session**: A time-bounded authorization granted after owner authentication and independently revocable.
-- **Authorized device**: A named client belonging to the owner, with observable activity and local-storage state, that may receive protected workspace data until revoked.
-- **Encryption key generation**: A versioned set of protection material used to encrypt or wrap persisted server and local data, with an explicit lifecycle and revocation state.
-- **Recovery kit**: An encrypted, versioned, offline-storable artifact containing the recovery material needed to restore authorized access to protected keys for the applicable installation.
-- **Administrative recovery operation**: A controlled, auditable action performed by the hosting administrator to restore access or repair a compatible installation without introducing another owner.
-- **Security audit event**: A redacted record of an authentication, authorization, device, recovery, key, integrity, or administrative security action.
+- **Installation**: One self-hosted product instance with one owner, one canonical workspace, a stable installation identity and source-lineage identity, and a status whose committed `ownerCount` and `workspaceCount` are exactly `0/0` throughout every uninitialized or pre-confirmation bootstrap state and exactly `1/1` after the single atomic bootstrap transition and in every initialized state.
+- **Owner identity**: The sole authenticated identity permitted to access private installation data.
+- **Canonical workspace**: The feature-001 workspace whose identity is preserved through security operations and replacement recovery.
+- **Passkey credential**: An owner-controlled sign-in credential sufficient by itself.
+- **Password credential**: An optional alternative owner sign-in method.
+- **Session**: A time-bounded, independently revocable authorization granted after owner authentication.
+- **Authorized device**: A named owner device with required `lastActivityAt` and `lastSyncAt` inventory fields, each nullable until its event occurs, plus local-storage state; it must be explicitly reauthorized after replacement recovery.
+- **Recovery kit**: An encrypted, versioned, offline-storable artifact tied to an installation lineage and recovery epoch, with authorization state `provisional`, `active`, `superseded`, `revoked`, or `rejected`, and separate delivery/confirmation state `prepared`, `downloadable`, `download-consumed`, `confirmed`, or `expired`; during bootstrap it is provisional and does not imply committed ownership until the final atomic transition.
+- **Bootstrap capability**: A browser-held bootstrap value returned in the bootstrap response body or headers, never in a URL, logs, or persistent plaintext, and not request-only.
+- **Authenticated-session CSRF token**: A browser-held session-protection value returned in the authenticated-session response body or headers, never in a URL, logs, or persistent plaintext, and not request-only.
+- **Recovery-kit authorization state**: The authorization axis with exactly the values `provisional`, `active`, `superseded`, `revoked`, and `rejected`; only a kit confirmed offline after download consumption becomes `active`.
+- **Recovery delivery/confirmation state**: The delivery axis with exactly the values `prepared`, `downloadable`, `download-consumed`, `confirmed`, and `expired`; `expired` applies only to an unconfirmed download opportunity.
+- **Workspace root key**: Protection material wrapped by the external deployment wrapping key.
+- **Workspace data-key generation**: A versioned generation used to protect records and file chunks and rotated through a separate resumable operation.
+- **Rotation policy**: A policy with exactly these eight states: pre-due, due, overdue-within-grace, emergency, write-block, in-progress, complete, and failed.
+- **Encryption migration**: A staged, resumable transition from feature-001 plaintext destinations to verified encrypted destinations.
+- **Administrative recovery operation**: A controlled action restoring a source lineage into an empty/uninitialized target without creating an owner or canonical identity.
+- **Security audit event**: A redacted record of authentication, authorization, recovery, rotation, migration, integrity, administration, or delivery-gate action.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: In fresh-install acceptance tests, 100% of successful bootstraps create exactly one owner, 100% of concurrent or repeated claims create no second owner, and 100% of interrupted bootstraps leave no usable partial owner.
-- **SC-002**: At least 95% of test operators who have the required deployment secret can complete first-run owner setup, passkey enrollment, and recovery-kit export confirmation in 5 minutes or less without assistance.
-- **SC-003**: Authentication acceptance tests achieve 100% success for passkey-only login and password-alternative login, and 100% of revoked sessions and devices are denied access and renewal on their next authorization attempt.
-- **SC-004**: Encryption coverage tests find 0 usable plaintext values for every server and local data category listed in FR-011 and FR-012, and 100% of missing, incorrect, corrupt, or revoked-key cases fail closed.
-- **SC-005**: In recovery tests, 100% of valid recovery kits restore owner access to the applicable encrypted key material without changing any feature-001 canonical content identity, while 100% of invalid, superseded, or cross-installation kits are rejected without partial recovery.
-- **SC-006**: Scheduled and emergency rotation tests complete or resume successfully in 100% of injected interruption cases, use the new key generation for new protected data, and preserve 100% of data declared compatible with historical restoration.
-- **SC-007**: 100% of required administrative command scenarios provide understandable help, a reliable success or failure result, and no secret or private-content disclosure in captured output; destructive scenarios perform 0 changes without confirmation.
-- **SC-008**: In owner usability review, at least 90% of participants can identify the sole owner boundary, current sessions, authorized devices, recovery-kit readiness, and the remote-erasure limitation without facilitator explanation.
+- **SC-001**: In fresh-install acceptance tests, 100% of `uninitialized` installations and pre-commit `bootstrap-in-progress` states report `ownerCount=0` and `workspaceCount=0`; 100% of installations in each initialized state—`recovery-required`, `ready`, `migration-in-progress`, and `degraded`—report exactly `ownerCount=1` and `workspaceCount=1`; 100% of concurrent or repeated claims create no second owner, and 100% of interrupted bootstraps leave no usable partial owner or fabricated count.
+- **SC-002**: Across at least 20 clean-install trials performed by at least 5 representative self-host operators, at least 19 trials complete first-run credential verification, provisional recovery-kit download, explicit offline-storage confirmation, and the resulting atomic owner/workspace commit within 5 minutes after all prerequisites are available; every observed pre-confirmation state remains `0/0`.
+- **SC-003**: Authentication acceptance tests achieve 100% success for passkey-only and password-alternative login, and 100% of revoked sessions and devices are denied access and renewal on their next authorization attempt.
+- **SC-004**: Encryption coverage tests find 0 usable plaintext values for every server and local category in FR-011 and FR-012 after migration completion, and 100% of missing, incorrect, corrupt, or revoked-key cases fail closed.
+- **SC-005**: In recovery tests, 100% of valid source-lineage kits using the two defined recovery state axes restore access only into empty/uninitialized compatible targets while preserving 100% of source installation, owner, workspace, content, history, file, and mutation IDs; 100% of invalid, superseded, revoked, rejected, wrong-lineage, expired-unconfirmed, or initialized-target attempts are rejected without partial recovery, while active confirmed kits remain valid without time expiry.
+- **SC-006**: Scheduled and emergency wrapping-key rotations and separate data-key generation rotations complete or resume successfully in 100% of injected interruption cases, preserve safe reads throughout, and make 100% of new protected writes use the currently permitted generation until the write-block policy refuses them.
+- **SC-007**: 100% of required administrative, migration, Compose, branch, pull-request, `main`, and version-release gate scenarios provide a reliable pass/fail result for dependency vulnerability audit, secret scanning, static application/security analysis, container image vulnerability scan, license-policy check, and the other required quality categories; 0 merges or publications occur with a failed, skipped, missing, cancelled, or stale required check; 100% of manual diagnostic runs execute the quality gate without publishing; successful `main` runs produce immutable commit-addressable images, and successful version releases produce versioned images, checksums, and release artifacts.
+- **SC-008**: In an owner usability review with at least 10 representative participants, at least 9 correctly identify the single-owner boundary, active sessions/devices, recovery readiness, and the limitation that an unreachable device cannot be guaranteed to erase remotely, without facilitator explanation.
+- **SC-009**: Controlled-clock acceptance tests cover exactly these eight states—pre-due, due, overdue-within-grace, emergency, write-block, in-progress, complete, and failed—for both rotation policies; the installation shows startup/status warnings at due and overdue states, preserves valid reads, and refuses new protected writes exactly at the applicable write-block threshold.
+- **SC-010**: Encryption migration acceptance tests cover interruption before backfill, during backfill, after verification, after plaintext-write stop, during read cutover, and during cleanup; 100% of cases resume from or return to the last safe state, and no case reports completion before verified cleanup.
 
 ## Assumptions
 
-- The installation owner is a single person or household operator; the product does not identify or manage additional people as accounts.
-- Feature 001 supplies the canonical workspace and content model. This feature adds its security boundary around that model rather than replacing it.
-- The owner can access at least one passkey-capable client during initial setup; the password alternative exists for a separately configured fallback path.
-- The default session, recent-authentication, and key-rotation intervals are those stated in the product canvas unless an administrator documents a permitted configuration change.
-- A local device may already contain protected data when it is disconnected or revoked; revocation controls future authorization and delivery but cannot guarantee physical erasure from an inaccessible device.
-- Application-level encryption is required even when the host, filesystem, browser, or platform offers additional encryption.
-- The deployment environment can supply server key-encryption material through an external secret mechanism. This material is not generated from ordinary persisted workspace data.
-- Administrative recovery is an owner-installation operation performed by the hosting administrator under the documented procedure; it is not a second user identity and does not grant a separate private workspace.
-- Backup scheduling, remote backup transfer, general restore orchestration, and update rollback are owned by roadmap feature 006. This feature specifies the recovery-kit and key-management contracts that feature 006 must honor.
+- The owner is one person or household operator; the product does not identify additional people as accounts.
+- Feature 001 remains the canonical authority for workspace, content, history, file, mutation, relationship, revision, and local-projection identities.
+- The owner can access at least one passkey-capable client during initial setup; the password alternative is optional.
+- Recent authentication defaults to 15 minutes and may be configured only from 1 to 60 minutes; session inactivity defaults to 30 days and may be configured only from 1 to 90 days.
+- The scheduled wrapping-key write grace defaults to 7 calendar days; emergency compromise rotation has no write grace. The data-key generation policy exposes its configured due and write-block thresholds.
+- Application-level encryption is required even when host, filesystem, browser, or platform encryption is also available.
+- The deployment environment can supply external server key-encryption material. This material is not generated from ordinary persisted workspace data.
+- A local device may retain ciphertext when disconnected or revoked; revocation controls future authorization and delivery but cannot guarantee physical erasure from an inaccessible device.
+- Hosting-administrator operations in V1 are performed only through the protected local CLI contract; no remote administrator bearer/API channel or placeholder administrator authentication scheme exists. Owner-facing authenticated API operations use the owner session and recent authentication where required.
+- Backup scheduling, remote backup transfer, retention, and general restore orchestration remain owned by feature 006; update rollback and final cross-feature release-readiness validation belong to their later owning features. This feature defines only the recovery-kit and key-management contracts those features must honor.
+- The official self-hosted boundary is Compose with local HTTP and an external reverse proxy for public HTTPS. The application stack does not provide public certificate issuance or a mandatory Internet-facing proxy.
 - No public sharing, MCP, desktop client, block editor, or application implementation is required to validate this specification.
 
 ## Scope Boundaries
 
 ### Included
 
-- Exactly one owner and one protected workspace per installation.
-- Secure first-run bootstrap and recovery readiness.
-- Passkey-only sign-in, password alternative, passkey/password management, session expiry, recent authentication, and session revocation.
-- Authorized-device inventory, device settings, device revocation, and the honest remote-erasure limitation.
-- Application-level encryption at rest for server and local protected data.
-- External deployment secret handling, key generations, integrity failure behavior, key rotation, and key/recovery revocation.
-- Encrypted offline recovery-kit generation, export, replacement, validation, and administrative recovery.
-- Redacted security audit events and safe administrative command behavior.
-- Compatibility with feature 001's canonical content model without redefining it.
+- Exactly one owner, one installation identity, and one protected canonical workspace per installation.
+- Secure first-run bootstrap, the two-axis recovery-kit state model, recovery readiness, and replacement-host recovery.
+- Passkey-only sign-in, password alternative, credential management, session expiry, recent authentication, and session revocation.
+- Authorized-device inventory, device settings, device revocation, explicit reauthorization after recovery, and the remote-erasure limitation.
+- Application-level encryption at rest for server and local protected data, external wrapping-key custody, distinct key rotations, due/overdue enforcement, and safe reads/writes.
+- Staged encryption migration from feature-001 plaintext storage with verification, cutover, cleanup, and resumable failure handling.
+- Redacted security audit, administrative commands, Compose stack outcome, local HTTP/reverse-proxy boundary, immutable release selection, and delivery/release gates.
+- Preservation of all feature-001 canonical identities and permanent single-owner boundaries.
 
 ### Excluded
 
-- Public sharing, public annotations, and visitor access.
-- MCP authorization or MCP client behavior.
+- Public sharing, public annotations, visitor access, and MCP authorization or client behavior.
 - Windows or macOS desktop clients and native mobile clients.
 - Block-editor behavior, rich editing, content-type changes, and canonical model changes.
-- Backup scheduling, Google Drive or other remote backup transfer, general backup retention, and full update/rollback orchestration.
-- Application implementation, technology selection, data schemas, code structure, or deployment scripts.
+- Backup scheduling, Google Drive or other remote backup transfer, general backup retention, full restore orchestration, and complete update/rollback implementation.
+- Application implementation, technology selection beyond the constitution’s official deployment boundary, data schemas, code structure, CI workflow files, Compose files, and deployment scripts.

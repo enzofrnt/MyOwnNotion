@@ -1,137 +1,242 @@
-# Owner Security Foundation Validation Quickstart
+# Quickstart Validation: Owner Security Foundation
 
-This is a runnable validation guide, not an implementation recipe. It uses
-the pinned Node/pnpm toolchain and the contracts in `contracts/`.
+This is a runnable validation guide, not an implementation recipe. It records
+expected checks and points to the contracts, model, and empty evidence ledger.
+Do not mark a scenario passed until its raw evidence is recorded in
+`specs/002-owner-security-foundation/validation.md`.
 
-## Prerequisites and setup
+## Prerequisites
 
-- Node.js `>=24.0.0 <25`, pnpm `10.33.3`, Docker Compose, and a current
-  WebAuthn-capable browser.
+- Node.js `>=24.0.0 <25`, pnpm `10.33.3`, Docker Engine with Compose, and a
+  passkey-capable browser.
+- A disposable PostgreSQL and file-storage volume. Never use a real workspace
+  or real deployment secret for these checks.
+- A generated test deployment wrapping key supplied through a mounted secret;
+  do not put it in `.env`, argv, logs, or an image layer.
+- Install dependencies with `pnpm install --frozen-lockfile`.
 
-```text
-corepack enable
-corepack prepare pnpm@10.33.3 --activate
-pnpm install --frozen-lockfile
+## 1. Validate contracts and static plan artifacts
+
+```sh
+pnpm format:check
+pnpm exec tsx tests/contract/security-artifacts.schema.spec.ts
+pnpm exec vitest run tests/contract/security-api.spec.ts tests/contract/admin-cli.contract.spec.ts
+```
+
+Validate `contracts/security-api.openapi.yaml` as OpenAPI 3.1, every `$ref`,
+request/response schema, cookie rule, and error code. Validate
+`contracts/security-artifacts.schema.json` as JSON Schema 2020-12. Contract
+tests must cover bootstrap capabilities, kit download/confirmation,
+passkey-enrollment completion, recovery import, both rotation kinds, migration
+status, and safe transition errors.
+
+## 2. Start the official local stack
+
+```sh
 cp .env.example .env
-docker compose -f compose.yaml -f compose.override.yaml up -d --wait postgres
+docker compose config
+docker compose up -d --wait
 pnpm db:migrate
+curl --fail http://127.0.0.1:${MYOWNNOTION_API_PORT:-3001}/health
 ```
 
-Use only a disposable 32-byte deployment key generated outside the repository
-and the documented local secret-file fixture. Assert that it is absent from
-SQL, logs, image layers, and `.env`; never put it in argv or commit it.
+Expected: `api`, `web`, `postgres`, and durable `file-store` are healthy;
+published ports bind only to `127.0.0.1`; data survives replacing API/web
+containers. Confirm the deployment secret is mounted, absent from `docker
+inspect`, logs, image history, and `.env`.
 
-## Contract validation
+For development-only local HTTP, set the explicitly named
+`MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1`. Test that a request with both a
+loopback listener and trusted loopback HTTP origin receives only the separate
+non-`__Host-` `mn_dev_session` cookie without `Secure`; an HTTP request with a
+non-loopback listener or trusted origin must receive neither development nor
+production cookies.
+Production acceptance must run behind HTTPS and require the Secure
+`__Host-mn_session` cookie; it must never use `mn_dev_session`. See
+`docs/deployment/reverse-proxy.md` for external nginx, Caddy, and Traefik
+examples.
 
-```text
-pnpm test:contract -- security
+## 3. Validate bootstrap without a session
+
+Use this canonical transition table when recording every attempt:
+
+| Attempt state | Scope and committed counts | Allowed transition / result |
+| --- | --- | --- |
+| `started` | Attempt only; no owner/workspace rows; `0/0`; installation `uninitialized` | Start one serialized attempt; credential challenge may run |
+| `credential-verified` | Attempt-scoped verified credential material only; no owner/workspace rows; `0/0` | Valid credential verification; provisional records may be prepared |
+| `recovery-prepared` | Attempt-scoped pending credential, kit, and download capability; no owner/workspace rows; `0/0` | Prepare one provisional kit and one 15-minute opportunity |
+| `download-consumed` | Same attempt-scoped material; no owner/workspace rows; `0/0` | One successful download consumption; offline confirmation is still required |
+| `confirmed` | Atomic promotion commits the sole owner credential and owner, binds the existing feature-001 workspace, activates/confirms the kit, sets installation `ready`, and changes counts to `1/1` | Only successful download consumption plus explicit offline confirmation |
+| `abandoned` | Attempt-scoped records only; no owner/workspace rows; `0/0` | Expired/cancelled attempt that is not eligible for confirmation |
+| `rejected` | Attempt-scoped rejected/expired material only; no owner/workspace rows; `0/0` | Invalid, expired, replayed, or otherwise refused attempt; regeneration remains attempt-scoped |
+
+Do not introduce a combined recovery-confirmation state.
+
+1. Reset the disposable installation to `uninitialized` and provide the valid
+   mounted wrapping secret.
+2. Start bootstrap and complete the passkey challenge. Confirm that the
+   response contains only the opaque attempt capability and no session cookie.
+3. Complete credential verification. Record the internal transition through
+   `bootstrapState=credential-verified`; expect the response at
+   `bootstrapState=recovery-prepared`,
+   `authorizationState=provisional`, `deliveryState=downloadable`, a recovery
+   artifact reference, and a download expiry exactly 15 minutes after the
+   controlled test clock.
+4. Download once. Replay the download token and confirm it is refused.
+5. Confirm offline storage. The confirmation response must explicitly expose
+   `bootstrapState=confirmed`, `installationState=ready`, `ownerCount=1`,
+   `workspaceCount=1`, `authorizationState=active`, and
+   `deliveryState=confirmed`. This is the only ownership-commit transition.
+6. Repeat concurrently and after restart at each bootstrap checkpoint.
+7. Let a provisional download expire or simulate loss before confirmation;
+   verify the prior artifact reaches `authorizationState=rejected` and
+   `deliveryState=expired`, then call
+   `POST /v1/bootstrap/{attemptId}/recovery/regenerate` with the same valid
+   `X-Bootstrap-Capability`. Verify the new artifact is provisional with a
+   fresh 15-minute window, the prior delivery remains rejected/expired, and
+   owner/workspace counts remain zero until the original confirmation commit.
+8. Remove or corrupt the deployment secret and repeat; expect safe refusal and
+   no partial owner/workspace.
+
+The bootstrap endpoints and capability constraints are defined in
+`contracts/security-api.openapi.yaml`; state transitions are in
+`data-model.md`.
+
+## 4. Validate owner credential management
+
+1. With an owner session, call `GET /v1/auth/passkeys` and verify every result
+   is a redacted `PasskeyView`.
+2. Complete the existing passkey options/completion flow and verify both
+   mutation calls require the owner session cookie, `X-CSRF-Token`, and recent
+   authentication.
+3. Remove one selected passkey with
+   `DELETE /v1/auth/passkeys/{credentialId}`; verify the final usable
+   credential cannot be removed.
+4. Set/change the password with `PUT /v1/auth/password`; verify the response
+   is the redacted `PasswordView`, not password material or a hash.
+5. Repeat each mutation with a missing/mismatched CSRF token, no session, and
+   stale recent authentication; expect refusal. Verify no hosting-admin HTTP
+   credential operation exists and the local CLI never creates a browser/API
+   session.
+
+## 5. Validate authentication and session protection
+
+1. Complete passkey enrollment using the enrollment challenge and its explicit
+   completion endpoint. Sign in with passkey alone.
+   Verify the authenticated-session `csrfToken` is returned in the response and
+   only echoed as the CSRF request header; neither the bootstrap capability nor
+   this token appears in a URL, log, or persistent plaintext.
+2. Configure the password alternative and sign in with password; test wrong
+   credentials for identical safe failure shape.
+3. With a controlled clock, test 1-minute and 90-day inactivity bounds and the
+   default 30-day expiry. Test sensitive-operation recent-auth bounds of 1 and
+   60 minutes around the default 15-minute threshold.
+4. Revoke one session and all sessions; verify private access and renewal fail.
+5. Attempt a sensitive route with a missing/mismatched CSRF token and with a
+   non-loopback HTTP origin. Expect refusal without private-data disclosure.
+
+## 6. Validate the local CLI boundary and compatibility inspection
+
+Run the exact protected local command from the host that owns the installation:
+
+```sh
+myownnotion security compatibility inspect --target PATH --source PATH --json
+myownnotion security compatibility inspect --target PATH --source PATH --json --dry-run
 ```
 
-Expected: the OpenAPI document, JSON artifact schema, examples, safe problem
-responses, cookie/CSRF rules, and admin command parser/exit-code contract all
-validate. The feature-specific contract test must be added to the existing
-`test:contract` project rather than creating a second toolchain.
+`--target` and `--source` are required filesystem paths; `--json`,
+`--dry-run`, and root/command `--help` are supported. The command reads local
+encrypted metadata and emits only `status`, `code`, `correlationId`, source
+lineage/format/version, compatibility result, and a redacted identity digest.
+It never prints passphrases, kits, keys, content, tokens, or raw errors, never
+creates or refreshes a browser/API session, and has no HTTP or remote
+administrator equivalent. `--dry-run` performs all validation without writes;
+normal execution requires explicit confirmation for an adoption-capable
+operation and is allowed only for an empty/uninitialized target. Expect exit
+`0` for compatible, `2` for argument/schema errors, `3` for incompatible or
+protected refusal, `4` for unavailable key material, and `5` for integrity or
+recovery verification failure.
 
-## Bootstrap and single-owner validation
+## 7. Validate encrypted server/local data
 
-Against an empty migrated DB and a valid disposable deployment secret:
+1. Seed representative feature-001 pages, properties, relationships, files,
+   history, indexes, and pending local operations.
+2. Inspect PostgreSQL rows, blobs, local storage, logs, diagnostics, and image
+   layers. After migration completion, find zero usable plaintext values in all
+   FR-011/FR-012 categories.
+3. Read with missing, wrong, corrupt, revoked, and unauthorized key material.
+   Expect fail-closed errors, no partial data, and no substituted empty value.
+4. Verify envelope format, generation, AAD, nonce uniqueness, tag, and digest
+   with the JSON Schema contract.
 
-1. Read installation status: expect `uninitialized` with no owner details.
-2. Start bootstrap: expect one opaque attempt and one WebAuthn challenge.
-3. Complete the virtual-passkey registration: expect one owner, one device,
-   and `bootstrapping` state.
-4. Export a recovery kit with passphrase through protected test input, confirm
-   offline storage, and expect `ready`.
-5. Repeat the claim and race concurrent starts/completions: exactly one
-   succeeds; no second owner exists.
-6. Interrupt after passkey verification, expire the 15-minute attempt, and
-   verify no private request is authorized and a fresh claim can resume.
-7. Repeat with missing, malformed, or unauthorized deployment key material:
-   expect fail-closed readiness and no key bytes in output/logs.
+## 8. Validate devices and reauthorization
 
-## Authentication, sessions, and CSRF
+1. Authorize two devices and inspect all inventory fields. Before either event,
+   verify persisted `last_activity_at` maps to required API `lastActivityAt`,
+   and persisted `last_sync_at` maps to required API `lastSyncAt`; both API
+   fields must be explicitly `null`.
+2. Rename and change a limit; compare feature-001 local projection and outbox
+   IDs before/after.
+3. Revoke one device. Verify sign-in, renewal, new-data delivery, and sync-key
+   use are refused. Display the explicit unreachable-device erasure limit.
+4. Complete compatible recovery and verify every prior device is
+   `reauthorization-required` until an explicit new authorization succeeds.
 
-1. Authenticate with the enrolled passkey alone; expect an HttpOnly
-   `__Host-` cookie and a CSRF token only in the response body.
-2. Authenticate with the password alternative. Compare wrong-password,
-   unknown-credential, and failed-passkey responses; none may disclose account
-   state.
-3. Omit, corrupt, or cross-origin `X-CSRF-Token` on an unsafe request; expect
-   refusal and a redacted audit event.
-4. Advance the test clock past 30 days and test configured 1/90-day bounds;
-   expect expiry and no silent renewal.
-5. Advance `recent_auth_at` past 15 minutes and attempt auth-method,
-   recovery, key, or global-device changes; expect recent-authentication gate.
-6. Revoke one session and all sessions; every selected cookie must fail access
-   and renewal immediately.
-7. Exceed the authentication threshold; expect rate limiting without
-   credentials, tokens, passkeys, or private content in stored events.
+5. Record one real activity and one successful synchronization event; verify
+   the persisted `last_activity_at`/`last_sync_at` and returned
+   `lastActivityAt`/`lastSyncAt` timestamps are populated from those events and
+   are not changed by an inventory read, rename, limit update, or revocation.
 
-## Devices and local encryption
+## 9. Validate recovery-kit replacement and recovery import
 
-1. Authorize two browser devices and inspect name, platform, client type,
-   authorization/activity/sync timestamps, state, limit, usage, and key
-   protection capability.
-2. Rename one and change its limit from that device; all device and feature-001
-   canonical IDs remain unchanged.
-3. Reuse a revoked device's old session/sync proof; sign-in, renewal, key use,
-   and new-data delivery are refused.
-4. Keep a revoked device offline and verify the UI states that its existing
-   local data cannot be guaranteed remotely erased.
-5. Create local projection, file, search, outbox, and conflict records; inspect
-   IndexedDB and confirm no usable plaintext or exportable local key exists.
-6. Lock/remove the local key handle; ciphertext and pending work remain, local
-   use reports protected-storage failure, and reauthorization does not delete
-   old rows.
+1. With a recent owner session, create an authenticated replacement kit.
+2. Confirm the existing `active/confirmed` kit remains valid before
+   replacement download/confirmation. Download once; replay is refused.
+   Confirm offline storage and verify atomic epoch advancement, replacement
+   `active/confirmed`, and old-kit `superseded/confirmed`.
+3. Import a valid kit and encrypted source into an empty target. Compare
+   installation, lineage, owner, workspace, canonical content, history, file,
+   and mutation identity manifests exactly.
+4. Try malformed, wrong-lineage, revoked, prior-epoch, and initialized targets;
+   verify no merge, overwrite, second owner, or partial recovery.
 
-## Server encryption and integrity
+## 10. Validate the two rotation policies
 
-1. Persist a page name/document, relationship details, revision snapshot, file
-   bytes/metadata, and search/index payload.
-2. Inspect PostgreSQL/blob storage: no protected value is usable plaintext;
-   only the routing metadata allowed by `data-model.md` remains visible.
-3. Restart with missing, wrong, revoked, or malformed deployment key; expect
-   readiness failure or safe protected-data error, never empty/partial data.
-4. Flip an envelope byte, tag, AAD identity, or generation; expect an
-   integrity failure and redacted audit event.
+Use a controlled clock and separate operation IDs.
 
-## Recovery and rotation
+- Wrapping-key operation: due at 365 days, warning through 7 calendar days,
+  write-block at due plus 7 days, emergency at zero grace. Verify only root-key
+  wrapping changes and record ciphertext does not.
+- Data-key operation: use its configured due/write-block policy. Verify new
+  writes use the permitted generation and existing records/chunks progressively
+  re-encrypt with resumable cursors.
 
-1. Export a kit and inspect its header for format, installation, kit ID, epoch,
-   and supported generations without revealing key bytes. Confirm it is not
-   written to workspace/blob storage automatically.
-2. Restore a compatible empty/provisioned DB with the deployment secret and
-   valid kit; owner access returns and all feature-001 workspace/item/revision/
-   placement/file/mutation IDs are unchanged.
-3. Reject malformed, wrong-passphrase, cross-installation, superseded, and
-   revoked kits before presenting protected content.
-4. Replace a kit after recent authentication; old kit is revoked, epoch
-   advances, and the new kit contains only documented historical generations.
-5. Start scheduled/emergency rotation, inject interruption before preparation,
-   after each record checkpoint, during commit, and after completion. Reopen
-   and expect the prior complete state or the same resumable checkpoint.
-6. Verify new writes use the new generation, old data is decrypt-only during
-   transition, and revoked generations cannot authorize new access.
+For both: run startup and daily checks; test exactly pre-due, due,
+overdue-within-grace, emergency, write-block, in-progress, complete, and failed,
+plus interruption, restart, safe reads,
+explicit admin trigger, conflict, and unavailable-secret behavior.
 
-## Administrative commands
+## 11. Validate migration fault checkpoints
 
-See [admin-cli.md](./contracts/admin-cli.md).
+Start from a feature-001 plaintext fixture and inject a restart/failure:
 
-```text
-docker compose run --rm api admin security --help
-docker compose run --rm api admin security keys check --format json
-docker compose run --rm api admin security integrity verify --format json
-docker compose run --rm api admin security diagnostics --redacted --format json
-```
+1. before backfill;
+2. during backfill;
+3. after verification;
+4. after plaintext-write stop;
+5. during encrypted-read cutover;
+6. during scrub/drop cleanup.
 
-For each command test `--help`, valid/invalid input, JSON output, missing key,
-and captured logs. Expected: exit status matches the contract; key checks never
-print key material; destructive operations make zero changes without
-`--confirm` or when `--dry-run` is selected.
+At every checkpoint, assert a recorded safe state, preserved source until the
+verification gate, no premature `complete`, and no mixed read/write mode.
+After completion, compare counts, deterministic digests, IDs, SQL columns, and
+blob remnants.
 
-## Repository quality gates
+## 12. Validate delivery and release gates
 
-```text
+Run the complete local gate:
+
+```sh
 pnpm toolchain:check
 pnpm format:check
 pnpm lint:ci
@@ -141,11 +246,53 @@ pnpm test:unit
 pnpm test:property
 pnpm test:integration
 pnpm test:contract
+pnpm db:test-migrations
 pnpm test:e2e
 pnpm build
+docker compose config
+docker compose up -d --wait
 ```
 
-Feature tests join the existing aggregate `quality-gate`; Playwright covers
-desktop/mobile and virtual WebAuthn; migrations pass from empty and feature-001
-fixtures. This planning guide does not modify branches, application code,
-lockfiles, or existing uncommitted changes.
+Inspect `.github/workflows/ci.yml` and `.github/workflows/release.yml`. `ci.yml`
+must be the single quality-gate workflow. It exposes `workflow_call`, triggers
+directly on every `pull_request`, and directly on pushes to branches other than
+`main`; it must not trigger directly on `main` or version tags. Its aggregate
+`quality-gate` job must export `candidate_sha` equal to the called workflow's
+`github.sha`. `release.yml` must trigger directly on pushes to `main` and on
+strict `vMAJOR.MINOR.PATCH` version-tag candidates. Its first job must call
+`./.github/workflows/ci.yml` at the caller commit; publication jobs must depend
+on that `quality-gate` job. Release must verify the reusable output
+`candidate_sha == github.sha` using its own run context. Missing, skipped,
+cancelled, failed, stale, or different-SHA gate results publish nothing. Thus
+`main` and version tags run CI once through release, without a second execution
+or an indirect workflow trigger; pull requests and non-main branch pushes run
+`ci.yml` directly. The branch/PR required-check context remains the single
+`quality-gate` check.
+
+The release candidate must also retain raw output for a rollback evidence row:
+current and prior immutable image refs/digests, pre/post persisted-data digest,
+Compose image selection, health, rollback result, candidate SHA, raw artifact,
+reviewer, and date. This validates image selection and recovery of a compatible
+prior image; it is not full update orchestration.
+
+Run and record these security jobs separately for the exact candidate:
+
+| Job | Command | Blocking rule | Artifact |
+| --- | --- | --- | --- |
+| `dependency-vulnerability-audit` | `pnpm audit --audit-level=high --prod` | High/critical or unavailable audit blocks | `dependency-audit.json` |
+| `secret-scan` | `pnpm security:secrets` | Any detected secret or failure blocks | `secret-scan.sarif` |
+| `static-security-analysis` | `pnpm security:static` | High-confidence finding or failure blocks | `static-security.sarif` |
+| `container-vulnerability-scan` | `trivy image --severity HIGH,CRITICAL --exit-code 1` before publication | High/critical or failure blocks | `container-scan.sarif` |
+| `license-policy` | `pnpm security:licenses` | Denied license, missing attribution, or failure blocks | `license-policy.json` |
+
+The aggregate gate must fail on failed, missing, skipped, cancelled, stale, or
+artifact-less results. Third-party actions used for these jobs are pinned by
+full commit SHA in implementation. `workflow_dispatch` invokes this same gate
+for diagnostics only and cannot publish images or release artifacts.
+
+## Evidence handoff
+
+Record commands, commit SHA, clock values, fixtures, raw counts, digests,
+participant/operator IDs, failures, artifacts, and final status in
+`validation.md`. The acceptance formulas for SC-002 and SC-008 are normative
+there; do not substitute narrative claims.

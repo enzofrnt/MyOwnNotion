@@ -21,25 +21,27 @@ mises à jour ensemble.
 
 ### 001 — Content foundations
 
-**État** : convergence en cours
+**État** : convergence terminée
 **Dossier** : [`specs/001-content-foundations`](../../specs/001-content-foundations/)
 **Canevas** : sections 10, 11, 15, 17 à 20, 27 et 46
 
 Cette feature établit le modèle canonique, la hiérarchie, l’identité des
 contenus et fichiers, les primitives de révision, la persistance locale, la
-réconciliation hors ligne et l’export de base. Les tâches T105 et T106 restent
-à terminer avant de déclarer la convergence achevée.
+réconciliation hors ligne et l’export de base. Les tâches T105 et T106 sont
+terminées ; la convergence est donc achevée.
 
 ## V1 obligatoire
 
 ### 002 — Owner security foundation
 
-**État** : prochaine feature à spécifier
-**Canevas** : sections 5, 8, 9, 28, 29 et 34
+**État** : spécifiée et planifiée ; prête pour l’implémentation après réussite de l’analyse
+**Canevas** : sections 5, 8, 9, 28, 29, 34 et 36 à 41
 
 Authentification du propriétaire unique, passkeys, mot de passe alternatif,
 sessions, appareils autorisés, chiffrement applicatif serveur et local, secrets
-de déploiement, kit de récupération et rotation des clés.
+de déploiement, kit de récupération, rotation des clés, ainsi que la fondation
+de livraison sécurisée : Compose/env, reverse proxy externe, CI, publication
+GHCR et releases immuables requis par FR-030 à FR-035.
 
 ### 003 — Core workspace experience
 
@@ -84,9 +86,11 @@ export/import, migrations, mise à jour et retour arrière.
 **Dépendance** : 001 à 006
 **Canevas** : sections 6, 21 et 35 à 45
 
-Recherche V1, Compose de production, configuration complète, diagnostics,
-publication GHCR, installation documentée et validation de tous les critères de
-sortie V1.
+Recherche V1, puis durcissement final transversal de la readiness V1,
+validation d’intégration de toutes les features, installation documentée et
+validation de tous les critères de sortie V1. La fondation Compose/env, reverse
+proxy externe, CI, GHCR et releases immuables requise par FR-030 à FR-035 est
+portée par la feature 002 et n’est pas dupliquée ici.
 
 ## Après la V1
 

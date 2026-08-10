@@ -1,300 +1,309 @@
 # Data Model: Owner Security Foundation
 
-This model adds security ownership and protection metadata around feature 001.
-It does not replace feature-001 entities or identities. Security migrations
-must preserve every workspace, item, placement, relationship, mutation,
-revision, revision-parent edge, file logical identity, and browser projection
-identity exactly.
+This model adds security metadata around feature-001 canonical identities. It
+does not replace or duplicate feature-001's `Workspace`, `CanonicalItem`,
+`Placement`, `LogicalFile`, `FileContent`, `Mutation`, `Revision`, local
+projection, or outbox models.
 
-## Modeling rules
+## Global invariants
 
-- IDs are UUIDv7-compatible UUIDs unless a field explicitly says opaque bytes.
-- Timestamps are UTC metadata, not causal ordering; feature-001 parent edges
-  remain the source of revision lineage.
-- Protected payloads use the `mn.enc.v1` envelope in
-  [security-artifacts.schema.json](./contracts/security-artifacts.schema.json).
-- PostgreSQL stores envelope metadata/ciphertext and decrypts only in process
-  memory after key authorization succeeds.
-- Missing/corrupt protected payload is never treated as empty content; reads
-  fail closed with a safe integrity/configuration problem.
-- Plain routing metadata is limited to what existing singleton, foreign-key,
-  lifecycle, and hierarchy transactions require. Names, documents, file
-  content/metadata, snapshots, relationship details, and search payloads are
-  protected.
+1. One installation has one `Installation`, one `OwnerIdentity`, and one
+   feature-001 canonical workspace.
+2. Installation status counts are committed counts: `uninitialized` and
+   `bootstrap-in-progress` are `0/0`; `ready`, `recovery-required`,
+   `migration-in-progress`, and `degraded` are `1/1`.
+3. Every security row is scoped to the installation; workspace-scoped rows
+   reference the feature-001 workspace ID verbatim.
+4. Bootstrap is the only path that creates owner/workspace ownership, and its
+   state machine cannot depend on a session.
+5. A provisional recovery download is one-time and expires after 15 minutes;
+   active confirmed artifacts do not expire by age. The only valid recovery
+   authorization/delivery pairs are `provisional/prepared`,
+   `provisional/downloadable`, `provisional/download-consumed`,
+   `active/confirmed`, `superseded/confirmed`, `revoked/confirmed`, and
+   `rejected/expired`.
+6. Recovery-kit epoch, installation lineage, and target emptiness are checked
+   before administrative recovery; source IDs are adopted atomically.
+7. Wrapping-key versions and data-key generations are separate namespaces and
+   operation streams.
+8. Protected reads may continue for valid ciphertext in due, overdue-within-grace,
+   emergency, or write-block states; protected writes stop at the policy
+   threshold.
+9. Plaintext migration never deletes source data before verified cutover and
+   cleanup.
+10. Audit and diagnostics contain safe codes and digests, never secrets or
+   private content.
 
-## Entities
-
-### InstallationSecurity
-
-Singleton security lifecycle row.
-
-| Field | Meaning and validation |
-| --- | --- |
-| `installation_id` | Stable UUID; one row per installation; recovery binding |
-| `workspace_id` | FK to feature-001 singleton `workspaces.id`; never changed during recovery |
-| `state` | `uninitialized`, `bootstrapping`, `ready`, or `recovery-required` |
-| `schema_version` | Positive integer; checked before protected reads |
-| `active_key_generation` | FK to current `EncryptionKeyGeneration`; one write generation |
-| `recovery_epoch` | Monotonic integer; increments when recovery is replaced/revoked |
-| `session_inactivity_days` | Integer 1--90; default 30 |
-| `recent_authentication_minutes` | Integer 1--60; default 15 |
-| `created_at`, `updated_at` | UTC metadata |
-
-Transitions:
+## Relationship overview
 
 ```text
-uninitialized -> bootstrapping -> ready
-       ^              |             |
-       |              v             v
-       +------- expiration     recovery-required -> ready
+Installation 1 ── 1 OwnerIdentity ── * PasskeyCredential
+      │                         └── * PasswordCredentialVersion
+      ├── 1 feature-001 Workspace (referenced identity)
+      ├── * BootstrapAttempt
+      ├── * AuthorizedDevice ── * Session
+      ├── * RecoveryKit ── 1 RecoveryEpoch
+      ├── * WorkspaceRootKey ── 1 WrappingKeyVersion
+      ├── 1 WrappingKeyPolicy ── * WrappingRotationOperation
+      ├── 1 DataKeyPolicy ── * DataKeyGeneration
+      ├── * DataRotationOperation ── * RotationCheckpoint
+      ├── 1 EncryptionMigration ── * MigrationCheckpoint
+      └── * SecurityAuditEvent
+
+Feature-001 canonical identities ── * ProtectedEnvelope / ProtectedBlobChunk
 ```
 
-`ready` commits owner, first credential, initial key generation, recovery
-metadata, and workspace linkage atomically.
+## Installation
 
-### BootstrapAttempt
-
-| Field | Meaning and validation |
+| Field | Rules |
 | --- | --- |
-| `id` | Opaque UUID returned to bootstrap client |
-| `installation_id` | Singleton FK |
-| `challenge_hash` | SHA-256 digest of one-time WebAuthn challenge; raw challenge is transient |
-| `state` | `open`, `passkey-verified`, `completed`, `expired`, `cancelled` |
-| `expires_at` | Maximum 15 minutes from creation |
-| `request_fingerprint` | Coarse rate-limit/audit correlation, never raw credential/request |
-| `created_at`, `completed_at` | UTC metadata |
+| `id` | UUIDv7; stable installation identity and recovery-kit lineage |
+| `source_lineage_id` | UUIDv7; stable lineage adopted during compatible recovery |
+| `state` | `uninitialized`, `bootstrap-in-progress`, `recovery-required`, `ready`, `migration-in-progress`, `degraded` |
+| `owner_id` | Null only before owner creation; unique once set |
+| `workspace_id` | The exact feature-001 canonical workspace ID; never regenerated by security |
+| `schema_version` | Positive integer |
+| `created_at`, `updated_at` | UTC instants |
 
-At most one open attempt exists. Consuming it is required for completion; it
-cannot authorize private content by itself.
+Only the singleton installation transaction can set `owner_id` and
+`workspace_id`. Administrative recovery may set them once on an empty target.
+
+## OwnerIdentity, credentials, sessions
 
 ### OwnerIdentity
 
-| Field | Meaning and validation |
-| --- | --- |
-| `owner_id` | Stable UUID, unique singleton; not recreated by reset/recovery |
-| `installation_id` | Unique FK to `InstallationSecurity` |
-| `status` | `pending`, `active`, or `locked`; `active` required for private access |
-| `created_at`, `last_authenticated_at` | UTC metadata |
-
-There is intentionally no username, email, role, team, member, or second-owner
-column. Hosting administrators are audit classifications, not owner identities.
+`id`, `installation_id`, `created_at`, `state` (`active` or `recovery-required`),
+and `last_authenticated_at`. A unique installation constraint enforces one row.
 
 ### PasskeyCredential
 
-| Field | Meaning and validation |
-| --- | --- |
-| `credential_id` | Unique opaque WebAuthn credential ID bytes |
-| `owner_id` | Singleton-owner FK |
-| `public_key` | Credential public-key bytes; never logged |
-| `sign_count` | Non-negative authenticator counter, updated after verified assertion |
-| `transports` | Validated WebAuthn transport list; optional |
-| `backup_eligible`, `backup_state` | WebAuthn lifecycle flags |
-| `label` | Owner display label, length-limited |
-| `state` | `active` or `revoked` |
-| `created_at`, `last_used_at`, `revoked_at` | UTC metadata |
+`id`, `owner_id`, WebAuthn credential ID, public key, sign counter, label,
+`state` (`pending`, `active`, `revoked`), `created_at`, `last_used_at`, and
+`revoked_at`. A pending credential cannot authenticate until enrollment
+completion is verified.
 
-At least one active passkey remains required except during administrative
-recovery. Add/remove requires a recent owner authentication.
+### PasswordCredentialVersion
 
-### PasswordCredential
-
-| Field | Meaning and validation |
-| --- | --- |
-| `owner_id` | Unique singleton-owner FK |
-| `scheme` | `scrypt` for V1 |
-| `parameters` | `{N:131072,r:8,p:1,keyLength:32}` with bounded upgrades |
-| `salt` | Random 16-byte salt |
-| `verifier` | 32-byte one-way derived output |
-| `version` | Password-policy version |
-| `state` | `active` or `disabled` |
-| `created_at`, `updated_at` | UTC metadata |
+`id`, `owner_id`, password hash/parameters, `state` (`active`, `superseded`,
+`revoked`), `created_at`, and `superseded_at`. The password is never persisted
+or returned; password login is an alternative to passkey login.
 
 ### Session
 
-Raw cookie value is never stored.
+`id`, `owner_id`, `device_id`, hashed opaque session secret, `auth_method`
+(`passkey`, `password`), `issued_at`, `last_seen_at`,
+`expires_at`, `recent_auth_at`, `state` (`active`, `revoked`, `expired`), and
+`revoked_at`. Inactivity is 30 days by default, range 1–90 days; sensitive
+operations require recent auth within 15 minutes by default, range 1–60.
 
-| Field | Meaning and validation |
-| --- | --- |
-| `session_id` | UUID for UI/audit, not bearer material |
-| `token_digest` | SHA-256 digest of 32-byte random cookie token; unique |
-| `owner_id`, `device_id` | Singleton-owner and authorized-device FKs |
-| `auth_method` | `passkey`, `password`, or `admin-recovery` |
-| `csrf_token_digest` | SHA-256 digest of per-session synchronizer token |
-| `issued_at`, `last_seen_at`, `expires_at` | Expiry is last activity plus configured inactivity period |
-| `recent_auth_at` | Sensitive-operation gate |
-| `state` | `active`, `revoked`, or `expired` |
-| `revoked_at`, `revoke_reason` | UTC and safe code |
+The local CLI never creates, receives, refreshes, or revokes a browser/API
+session and is never an `auth_method`. Hosting-administrator recovery,
+migration, and rotation commands execute only as local processes; owner-facing
+API operations use the owner session boundary described in the plan.
 
-### AuthorizedDevice
+Cookie policy is not data: production is `__Host-mn_session` with `Secure`;
+the only HTTP exception requires
+`MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1`, both a loopback trusted origin and a
+loopback listener, and the separate non-`__Host-` `mn_dev_session` cookie.
+The exception never accepts or issues `__Host-mn_session` over HTTP.
 
-| Field | Meaning and validation |
-| --- | --- |
-| `device_id` | Stable UUID; reauthorization receives a new ID |
-| `owner_id` | Singleton-owner FK |
-| `name` | 1--120 Unicode characters |
-| `platform` | Controlled value such as `web-linux`, `web-macos`, `web-ios`, `unknown` |
-| `client_type` | `web` in this feature; native values reserved for later specs |
-| `device_public_key` | Optional non-exportable Web Crypto P-256 public key |
-| `key_protection` | `platform-secure-storage`, `browser-non-exportable`, or `unavailable` |
-| `authorized_at`, `last_activity_at`, `last_sync_at` | UTC metadata |
-| `state` | `active`, `revoked`, or `pending` |
-| `local_storage_limit_bytes` | Positive configurable limit; no silent truncation |
-| `local_usage_bytes` | Last verified device report |
-| `revoked_at`, `revoke_reason` | UTC and safe code |
+## BootstrapAttempt
 
-Revocation blocks session creation/renewal, synchronization, device proof, and
-key use. It cannot erase unreachable local ciphertext.
+The following is the canonical bootstrap transition table. It is intentionally
+attempt-scoped until the final row:
 
-### EncryptionKeyGeneration
-
-| Field | Meaning and validation |
-| --- | --- |
-| `generation` | Positive monotonic integer, unique per installation |
-| `installation_id` | Singleton FK |
-| `algorithm` | `AES-256-GCM+HKDF-SHA-256` for V1 |
-| `wrapped_root_key` | `mn.wrap.v1` envelope under external deployment key; never plaintext |
-| `deployment_key_reference` | Non-secret configured secret name/version |
-| `state` | `active-write`, `decrypt-only`, `revoked`, or `failed` |
-| `created_at`, `activated_at`, `revoked_at` | UTC metadata |
-| `compatibility_until` | UTC/null historical-restore policy boundary |
-
-Only one generation is `active-write`. Revoked generations cannot authorize new
-access; decrypt-only is allowed only by explicit rotation/recovery policy.
-
-### ProtectedRecordEnvelope
-
-| Field | Meaning and validation |
-| --- | --- |
-| `format` | `mn.enc.v1` |
-| `entity_type`, `entity_id` | Canonical type and stable ID, AAD-bound |
-| `workspace_id` | AAD-bound singleton workspace ID |
-| `key_generation` | Authorized `EncryptionKeyGeneration` |
-| `record_version` | Positive replacement/re-encryption version |
-| `salt` | Random HKDF salt, 16 bytes |
-| `nonce` | Random 12-byte AES-GCM nonce |
-| `ciphertext`, `tag` | Ciphertext and 16-byte authentication tag |
-| `aad_digest` | SHA-256 of canonical AAD |
-
-Bad AAD, generation, tag, format, or key authorization is an integrity/config
-failure, never empty JSON.
-
-Feature-001 mappings:
-
-| Feature-001 data | Security treatment | Identity/routing preserved |
+| `bootstrapState` | Durable scope and counts | Transition |
 | --- | --- | --- |
-| `items.name` | Encrypted envelope | item ID, kind, lifecycle, revision ID |
-| `page_documents.body` | Encrypted document payload | page ID, format/version |
-| `revisions.snapshot` | Encrypted snapshot | revision ID and parent edges |
-| relationship details/metadata | Encrypted payload | relationship ID and required scope/endpoints |
-| file bytes/content metadata | Encrypted chunked blob + manifest | logical file/item/content IDs and digest lineage |
-| search/index payloads | Encrypted index payload; no plaintext term index | index scope/version |
-| browser projection/outbox/conflicts | Client-local encrypted envelopes | UUIDs, mutation IDs, cursors, causal headers |
+| `started` | Attempt only; no owner/workspace rows; `0/0` | Start a serialized attempt |
+| `credential-verified` | Pending credential material under the attempt; no owner/workspace rows; `0/0` | Verify the bootstrap credential |
+| `recovery-prepared` | Pending credential, provisional kit, and download capability under the attempt; no owner/workspace rows; `0/0` | Prepare the one 15-minute download opportunity |
+| `download-consumed` | Same attempt-scoped records; no owner/workspace rows; `0/0` | Consume the one successful download |
+| `confirmed` | One atomic transaction promotes the pending credential to the sole owner credential, commits owner/workspace, binds feature-001 workspace, activates/confirms the kit, sets installation `ready`, and changes counts to `1/1` | Require consumed download plus explicit offline confirmation |
+| `abandoned` | Attempt only; no owner/workspace rows; `0/0` | Expire/cancel without confirmation |
+| `rejected` | Attempt only; rejected/expired material; no owner/workspace rows; `0/0` | Refuse, expire, or invalidate; regeneration remains on this attempt |
 
-### RecoveryKitRecord
+There is no combined recovery-confirmation state. `uninitialized` is the installation
+state before `started`; all pre-confirmation attempts remain `0/0`.
 
-Server metadata for an exported artifact, whose bytes remain outside workspace
-storage by default.
-
-| Field | Meaning and validation |
+| Field | Rules |
 | --- | --- |
-| `kit_id` | UUID embedded in artifact and used for revocation |
-| `installation_id` | Cross-installation import binding |
-| `recovery_epoch` | Must equal current non-revoked epoch on import |
-| `format_version` | Supported artifact version |
-| `supported_generations` | Generation IDs included for historical compatibility |
-| `state` | `active`, `revoked`, or `superseded` |
-| `created_at`, `revoked_at` | UTC metadata |
-| `artifact_digest` | Digest of exported bytes, not a secret |
+| `id` | UUIDv7 capability reference |
+| `installation_id` | Singleton target |
+| `bootstrapState` | `started`, `credential-verified`, `recovery-prepared`, `download-consumed`, `confirmed`, `abandoned`, `rejected` |
+| `client_nonce_hash` | Hash of opaque client nonce |
+| `challenge_hash` | WebAuthn/bootstrap challenge digest |
+| `download_token_hash` | Null until provisional artifact exists; consumed atomically |
+| `download_expires_at` | Credential verification + 15 minutes |
+| `download_consumed_at` | Set by the one successful download |
+| `recovery_kit_id` | Provisional kit reference, null before preparation |
+| `created_at`, `updated_at` | UTC instants |
 
-The DB stores no recovery passphrase or decrypted artifact payload.
+Transitions are serialized. `confirmed` is permitted only after credential
+verification, successful download, and explicit offline-storage confirmation.
+The linked recovery kit exposes the separate `authorizationState` and
+`deliveryState` axes; `bootstrapState` describes only the attempt workflow.
 
-### KeyRotationOperation
+### PendingBootstrapCredentialMaterial
 
-| Field | Meaning and validation |
+`attempt_id`, blinded credential handle, verified credential type, encrypted or
+hashed provisional public material, challenge binding, and expiration metadata.
+This record never requires a committed `OwnerIdentity` or an owner foreign key;
+its scope is the verified bootstrap attempt. The final confirmation transaction
+locks the attempt and singleton installation, verifies the consumed download
+and offline confirmation, creates the sole `OwnerIdentity`, promotes the
+pending credential into its committed credential table, binds the existing
+feature-001 workspace, activates/confirms the kit, and commits the `1/1` result.
+Any failure rolls back promotion and all ownership rows together. Abandonment,
+rejection, expiry, and regeneration invalidate the pending material without
+creating an owner or workspace.
+
+## AuthorizedDevice
+
+`id`, `owner_id`, stable client/device binding ID, name, platform, client type
+(`web` initially), `authorized_at`, nullable `last_activity_at`, nullable
+`last_sync_at`, state
+(`pending`, `active`, `revoked`, `reauthorization-required`), local storage
+limit/usage bytes, key-protection capability, device-key version, and
+`revoked_at`. Reauthorization after recovery creates a new trust grant without
+changing feature-001 local projection or mutation identities.
+
+Storage-to-API mapping is exact: `last_activity_at` maps to the required API
+field `lastActivityAt`, and `last_sync_at` maps to the required API field
+`lastSyncAt`. Both API fields are present and nullable until their
+corresponding real event occurs. `last_activity_at` is persisted and returned
+as `null` until the first actual authenticated device activity event; it is
+then set only by that event. `last_sync_at` is persisted and returned as
+`null` until the first successful synchronization event; it is then set only
+by that event. Registration,
+inventory reads, rename, storage-limit updates, revocation, and reauthorization
+must not synthesize either timestamp. Verification must exercise both paths:
+read a newly authorized device before activity/sync and assert both fields are
+null, then perform one real activity event and one successful sync and assert
+the persisted and returned timestamps match the event records.
+
+## RecoveryEpoch and RecoveryKit
+
+### RecoveryEpoch
+
+`installation_id`, monotonic `epoch`, `state` (`active`, `revoked`),
+`created_at`, `revoked_at`, and safe revocation code. Advancing the epoch and
+superseding an active kit is one transaction after replacement confirmation.
+
+### RecoveryKit
+
+| Field | Rules |
 | --- | --- |
-| `operation_id` | UUID/idempotency key |
-| `installation_id` | Singleton FK |
-| `mode` | `scheduled` or `emergency` |
-| `from_generation`, `to_generation` | Existing and prepared generations |
-| `phase` | `planned`, `prepared`, `rewrapping`, `committing`, `complete`, `failed` |
-| `cursor` | Opaque deterministic record/chunk cursor |
-| `processed_count`, `total_count` | Non-negative progress |
-| `audit_reason` | Bounded safe text/code; no content/secret |
-| `checkpoint_digest` | Integrity digest of metadata/cursor |
-| `created_at`, `updated_at`, `completed_at` | UTC metadata |
+| `id` | UUIDv7 |
+| `installation_id`, `source_lineage_id` | Must match source installation |
+| `recovery_epoch` | Must be current and non-revoked for import |
+| `authorizationState` | `provisional`, `active`, `superseded`, `revoked`, or `rejected` |
+| `deliveryState` | `prepared`, `downloadable`, `download-consumed`, `confirmed`, or `expired`; `expired` is valid only before confirmation |
+| `format`, `format_version` | `myownnotion.recovery+json`, version 1 |
+| `supported_key_generations` | Non-empty unique generation list |
+| `artifact_digest` | Digest only; artifact is streamed and not colocated with workspace |
+| `download_token_hash`, `download_expires_at`, `download_consumed_at` | Required for provisional/replacement download |
+| `confirmed_at`, `superseded_at`, `revoked_at` | State timestamps |
 
-At most one non-terminal rotation is active. Reopening resumes or returns to
-the last complete phase.
+Provisional and authenticated replacement downloads each have one-time
+consumption. The seven valid lifecycle pairs are exactly
+`provisional/prepared`, `provisional/downloadable`,
+`provisional/download-consumed`, `active/confirmed`, `superseded/confirmed`,
+`revoked/confirmed`, and `rejected/expired`; every other pair, including
+`provisional/expired`, is invalid. Active confirmed artifacts have no time
+expiry; revocation or epoch advancement invalidates them. Expiry applies only
+to an unconfirmed delivery.
 
-### SecurityAuditEvent
+## Wrapping keys and workspace root keys
 
-Append-only redacted event.
+### WrappingKeyVersion
 
-| Field | Meaning and validation |
-| --- | --- |
-| `event_id` | UUIDv7 |
-| `installation_id`, `owner_id`, `session_id`, `device_id` | Safe nullable references |
-| `event_type` | Auth, credential, device, session, recovery, key, integrity, or admin |
-| `outcome` | `success`, `failure`, `refused`, or `started` |
-| `actor_class` | `owner`, `hosting-admin`, or `system` |
-| `correlation_id` | Request/command correlation UUID |
-| `safe_code` | Stable redacted reason code |
-| `metadata` | Strict allowlist of numeric/enumerated fields |
-| `occurred_at` | UTC |
+`id`, `installation_id`, external secret reference (not secret bytes), version,
+algorithm metadata, `state` (`current`, `previous`, `revoked`), created/revoked
+times, and availability-check status. The secret is read from a mounted
+deployment secret at runtime.
 
-### AuthRateLimitBucket
+### WorkspaceRootKey
 
-| Field | Meaning and validation |
-| --- | --- |
-| `bucket_id` | HMAC-derived opaque identity; no raw IP |
-| `operation` | `bootstrap`, `passkey`, or `password` |
-| `failure_count` | Non-negative bounded counter |
-| `window_started_at`, `locked_until` | UTC |
-| `last_failure_code` | Safe enum/code |
+`id`, feature-001 `workspace_id`, wrapping-key version, wrapped root-key
+ciphertext, root-key version, state (`active`, `previous`, `revoked`), and
+rewrap operation reference. Root key bytes are never logged or returned.
 
-## Local browser entities
+## Data-key generations and rotation policies
 
-Feature-001 `BrowserLocalState`, projection, outbox, conflict, revision-header,
-and cursor identities remain. Their payload-bearing fields become encrypted
-`mn.enc.v1` records in Dexie.
+### DataKeyGeneration
 
-### LocalDeviceKeyState
+`id`, installation/workspace IDs, monotonic generation number, wrapped key
+material, `state` (`current`, `decrypt-only`, `revoked`), created/revoked times,
+and record/chunk counts. New protected writes use the permitted current
+generation; prior generations remain decrypt-only until policy permits revoke.
 
-| Field | Meaning |
-| --- | --- |
-| `device_id` | Server `AuthorizedDevice.device_id` |
-| `key_handle` | Non-exportable Web Crypto/IndexedDB key reference, never raw bytes |
-| `protection_capability` | `platform-secure-storage`, `browser-non-exportable`, or `unavailable` |
-| `key_version` | Local encryption format version |
-| `created_at`, `last_verified_at` | UTC/ISO metadata |
-| `state` | `available`, `locked`, `lost`, or `reauthorization-required` |
+### RotationPolicy
 
-### LocalEncryptedRecord
+One row per `wrapping-key` and `data-key` policy: policy ID, due interval,
+`due_at`, `write_block_at`, `last_completed_at`, current generation/version,
+`state` (`pre-due`, `due`, `overdue-within-grace`, `emergency`, `write-block`,
+`in-progress`, `complete`, `failed`), last operation, next action, and audit
+timestamps. Wrapping defaults: 365-day interval, 7-calendar-day grace,
+zero-day emergency grace. Data-key due/grace are configured independently.
 
-| Field | Meaning |
-| --- | --- |
-| `record_id` | Existing item/revision/mutation/conflict identity |
-| `record_type` | Existing local table/payload type |
-| `envelope` | Authenticated encrypted payload; no plaintext fallback |
-| `updated_at` | Local metadata |
+Startup and daily checks update both rows. Read/status operations are allowed
+in every state; protected write policy is evaluated transactionally at write
+acceptance.
 
-Unavailable local keys block local reads and keep ciphertext/outbox rows intact;
-reauthorization never deletes pending operations automatically.
+### RotationOperation and RotationCheckpoint
 
-## Cross-entity invariants
+`RotationOperation` has operation ID, policy kind (`wrapping-key` or `data-key`),
+mode (`scheduled` or `emergency`), from/to version or generation, phase
+(`planned`, `prepared`, `rewrapping`, `rewriting`, `committing`, `complete`,
+`failed`), reason, cursor, counts, timestamps, and failure code.
 
-1. Exactly one installation, owner, and feature-001 workspace exists.
-2. A session references an active owner/device; revocation is checked before
-   private reads, writes, sync, or renewal.
-3. Bootstrap completion, first owner/passkey, initial generation, recovery
-   metadata, and readiness commit together or not at all.
-4. Envelope entity/workspace/generation identity matches its row and AAD.
-5. No active write uses a revoked generation; revoked generation/device/
-   session/passkey/kit cannot authorize new access.
-6. A rotation checkpoint is fully committed or absent; retry is idempotent and
-   never overwrites a newer record version.
-7. Recovery never alters feature-001 canonical IDs, parents, placements,
-   logical file identities, or local mutation IDs.
-8. Audit/diagnostic serialization recursively rejects forbidden fields.
-9. No state change is exposed as GET; destructive admin commands require
-   dry-run or explicit confirmation.
+`RotationCheckpoint` stores operation ID, sequence, cursor, processed/total
+counts, checkpoint digest, transaction boundary, and idempotency key. Wrapping
+operations process root-key rows only; data-key operations process protected
+records and file chunks.
+
+## ProtectedEnvelope and ProtectedBlobChunk
+
+Both use the `mn.enc.v1` authenticated envelope. Required metadata: entity type,
+feature-001 entity ID, workspace ID, data-key generation, record version, salt,
+nonce, ciphertext, authentication tag, AAD digest, and optional chunk index.
+Missing, unauthorized, malformed, or tampered envelopes fail closed.
+
+## EncryptionMigration and MigrationCheckpoint
+
+### EncryptionMigration
+
+`id`, installation/workspace IDs, source schema/version, destination schema,
+state (`prepare-destinations`, `capture-boundary`, `backfill`, `verify`,
+`stop-plaintext-writes`, `encrypted-read-cutover`, `scrub-plaintext`,
+`complete`, `failed`), source-retention flag, source/destination counts and
+digests, identity digest, cursor, last safe checkpoint, and timestamps.
+
+### MigrationCheckpoint
+
+`migration_id`, sequence, state, source cursor, destination cursor, batch count,
+record/blob counts, canonical identity digest, checkpoint digest, fault point,
+and transaction commit marker. Valid transitions are monotonic; retries are
+idempotent. Source plaintext remains until `verify` succeeds and cleanup is
+complete.
+
+## SecurityAuditEvent
+
+`id`, installation ID, event type, outcome (`success`, `failure`, `refused`,
+`started`), actor class (`owner`, `hosting-admin`, `system`), correlation ID,
+safe code, object kind/opaque ID where safe, occurred-at time, and redacted
+metadata. It excludes content, credentials, tokens, kits, keys, and raw error
+messages.
+
+## Validation rules shared by repositories
+
+- Use serializable transactions and bounded retry for singleton bootstrap,
+  recovery adoption, epoch supersession, and policy write gates.
+- Enforce installation/workspace/lineage equality before decrypting or adopting
+  data.
+- Make all cursors and state transitions idempotent; a replay returns the prior
+  result rather than duplicating side effects.
+- Keep identity manifests sorted by stable ID and hash them deterministically
+  for migration/recovery comparisons.
+- Return safe problem codes only; never interpolate user content or secret
+  material into errors, logs, audit, JSON status, or release evidence.

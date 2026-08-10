@@ -2,307 +2,375 @@
 
 **Input**: Design documents from `specs/002-owner-security-foundation/`
 
-**Prerequisites**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, and the contracts under `specs/002-owner-security-foundation/contracts/`.
+**Prerequisites**: `.specify/memory/constitution.md`, `docs/product/product-canvas.md`, `docs/product/roadmap.md`, `spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`, `validation.md`, `contracts/admin-cli.md`, `contracts/security-api.openapi.yaml`, and `contracts/security-artifacts.schema.json`.
 
-**Scope guard**: This task list adds the security boundary around feature-001. It MUST preserve the canonical workspace, item, placement, relationship, file, revision, mutation, and browser-projection identities defined by `specs/001-content-foundations/`; it MUST NOT introduce a second owner, account, role, or workspace.
+**Scope guard**: Preserve feature-001 canonical identities and models from `specs/001-content-foundations/`; do not edit feature-001 specification artifacts, create a second owner/account/workspace, or add excluded public-sharing, MCP, desktop, backup, or editor behavior.
 
-**Test policy**: Tests are mandatory for this feature. Unit, property, integration, contract, migration/fault-injection, Compose/security, and Playwright coverage below are acceptance work, not optional follow-up.
+**Ownership guard**: Feature 002 owns the baseline Compose/env contract, external reverse-proxy boundary, CI quality gate, GHCR publication, and immutable release foundation in FR-030–FR-035. Feature 007 retains only final V1 release-readiness hardening and validation; do not duplicate this baseline in feature 007.
+
+**V1 administration boundary**: Hosting-administrator operations are the protected local CLI in `contracts/admin-cli.md` only. Do not schedule or implement remote administrator HTTP routes, bearer capabilities, API tokens, or any other administrator transport; owner-facing security API operations remain session-cookie plus CSRF protected.
+
+**Test policy**: Tests, fault injection, contract checks, browser journeys, deployment checks, and validation evidence are mandatory. Test tasks precede the implementation they verify; `pending` evidence is never a pass.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Prepare the existing pnpm TypeScript monorepo and test harness for the security feature without introducing a new service or toolchain.
+**Purpose**: Establish the pinned TypeScript/pnpm workspace, test harness, and delivery scaffolding without changing feature-001 artifacts.
 
-- [ ] T001 Update the exact WebAuthn dependency versions and security test scripts in `apps/api/package.json`, `apps/web/package.json`, `package.json`, and `pnpm-lock.yaml`, using `@simplewebauthn/server` 13.3.2 and `@simplewebauthn/browser` 13.3.0.
-- [ ] T002 [P] Add security source and test project entries to the existing exports and workspace configuration in `packages/domain/src/index.ts`, `packages/contracts/src/index.ts`, `packages/database/src/index.ts`, `packages/client-core/src/index.ts`, `packages/blob-store/src/index.ts`, `vitest.workspace.ts`, and `tsconfig.json`.
-- [ ] T003 [P] Add feature fixture, contract, integration, property, and Playwright test path conventions to `tests/fixtures/security.ts`, `tests/contract/security-api.contract.spec.ts`, `tests/e2e/global-setup.ts`, `vitest.workspace.ts`, and `playwright.config.ts` without changing the existing feature-001 projects.
-- [ ] T004 [P] Extend the safe development environment contract for the external deployment secret, loopback-only fallback, API host, and secret-file fixture in `.env.example`, `.gitignore`, `compose.yaml`, and `compose.override.yaml`.
-- [ ] T005 [P] Add the official API/web Compose services, health dependencies, local HTTP bindings, and secret-file mounts required by the plan in `compose.yaml` and `compose.override.yaml`, keeping all published ports explicitly bound to `127.0.0.1`.
-- [ ] T006 [P] Add security-specific repository commands and aggregate quality-gate wiring in `package.json`, `.github/workflows/ci.yml`, and `scripts/ci/check-toolchain.ts` for unit, property, integration, contract, e2e, migration, Compose, and security checks.
-- [ ] T007 [P] Record the feature's dependency on feature-001 and its product-canvas scope without copying feature requirements into agent files in `specs/002-owner-security-foundation/tasks.md` and `specs/002-owner-security-foundation/validation.md`.
+- [ ] T001 Pin Node.js `>=24.0.0 <25` and pnpm `10.33.3`, add security test/build scripts, and preserve the committed lockfile in `package.json` and `pnpm-lock.yaml` (FR-033, FR-035).
+- [ ] T002 [P] Register the security package entry points and TypeScript project references in `packages/domain/src/index.ts`, `packages/contracts/src/index.ts`, `packages/database/src/index.ts`, `packages/client-core/src/index.ts`, `packages/blob-store/src/index.ts`, `tsconfig.json`, and `vitest.workspace.ts` (FR-011, FR-012, FR-024, FR-033, FR-035).
+- [ ] T003 Add controlled-clock, disposable-installation, mounted-secret, feature-001 identity-fixture, virtual-WebAuthn, and fault-injection harness entry points in `tests/fixtures/security.ts`, `packages/database/tests/helpers/security-db.ts`, `tests/e2e/global-setup.ts`, `tests/e2e/helpers.ts`, and `playwright.config.ts`; fixtures must preserve feature-001 IDs without editing its specification artifacts (FR-001, FR-002, FR-006, FR-014, FR-017, FR-025, FR-027, FR-029, SC-001, SC-006, SC-009, SC-010).
+- [ ] T004 [P] Add the secret-free environment contract, mounted-secret paths, `127.0.0.1` loopback ports, trusted-origin settings, image selection, and ignored local secret fixtures in `.env.example`, `.gitignore`, `compose.yaml`, and `compose.override.yaml` (FR-013, FR-030, FR-031, FR-032).
+- [ ] T005 Add pinned API and web image build scaffolding for `linux/amd64` and `linux/arm64` with locked dependencies and non-secret build inputs in `docker/api.Dockerfile` and `docker/web.Dockerfile` (FR-032, FR-034).
+- [ ] T006 Add the security command/test inventory and exact development→local-test→branch-CI→pull-request gate script names in `package.json`, `scripts/ci/check-toolchain.ts`, and `docs/development.md`, including unit, property, integration, contract, migration, e2e, build, Compose, and release-gate checks (FR-033, FR-035).
+- [ ] T007 Record feature-002 ownership of baseline Compose/env/CI/GHCR/immutable-release work, feature-007’s final-hardening-only boundary, feature-001 identity preservation, excluded boundaries, and the no-edit guard in `specs/002-owner-security-foundation/validation.md` (FR-001, FR-024, FR-030, FR-032, FR-033, FR-034, FR-035).
+
+**Checkpoint**: The pinned workspace, test fixtures, secret-free configuration, and image-build inputs are present; no feature-001 artifact has been edited.
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Establish shared contracts, configuration, persistence boundaries, redaction, and test fixtures. No user-story implementation may begin until this phase is complete.
+**Purpose**: Build and test crypto, redaction, singleton state, persistence, contracts, and policy primitives before any user-story flow. No user-story implementation may begin until this phase passes.
 
-- [ ] T008 Define shared security request, response, problem, session, device, recovery, rotation, and audit DTO schemas in `packages/contracts/src/security-api.ts` to match `specs/002-owner-security-foundation/contracts/security-api.openapi.yaml`.
-- [ ] T009 [P] Define versioned encrypted-envelope, recovery-kit, and rotation-manifest runtime schemas in `packages/contracts/src/security-artifacts.ts` to match `specs/002-owner-security-foundation/contracts/security-artifacts.schema.json`.
-- [ ] T010 [P] Define platform-independent security entity types, lifecycle states, safe error codes, and single-owner invariants in `packages/domain/src/security/types.ts`, `packages/domain/src/security/errors.ts`, and `packages/domain/src/security/invariants.ts` from `specs/002-owner-security-foundation/data-model.md`.
-- [ ] T011 [P] Add property tests for singleton ownership, session/device/key/recovery revocation, safe state transitions, and canonical identity preservation in `packages/domain/tests/security-invariants.property.spec.ts` and `packages/domain/tests/security-canonical-identities.property.spec.ts`.
-- [ ] T012 Implement deployment-key loading, secret-file permissions, explicit loopback development fallback, configuration validation, and safe failure codes in `apps/api/src/security/deployment-key.ts` and `apps/api/src/security/security-config.ts`.
-- [ ] T013 [P] Implement recursive forbidden-field detection and redacted problem, audit, command, and logger serialization in `packages/domain/src/security/redaction.ts` and `apps/api/src/plugins/errors.ts`.
-- [ ] T014 [P] Add unit and property coverage proving that passwords, passkeys, cookies, CSRF tokens, recovery passphrases/kits, encryption keys, private content, and integration tokens cannot cross the redaction boundary in `packages/domain/tests/redaction.property.spec.ts` and `apps/api/tests/redaction.spec.ts`.
-- [ ] T015 Add the shared security request context, correlation ID handling, and authentication hook interfaces in `apps/api/src/context.ts`, `apps/api/src/security/request-context.ts`, and `apps/api/src/security/authentication-hook.ts`.
-- [ ] T016 Create the reviewed forward migration for installation security, bootstrap attempts, owner credentials, sessions, devices, key generations, recovery kits, rotations, audit events, rate limits, and encrypted feature-001 payload columns in `packages/database/migrations/0003_owner_security_foundation.sql` and `packages/database/src/schema/security/index.ts`.
-- [ ] T017 Register the security tables and encrypted payload columns alongside—not instead of—the feature-001 schema in `packages/database/src/schema/index.ts`, preserving every existing primary key, foreign key, workspace singleton, revision edge, mutation ID, logical file ID, and browser projection ID.
-- [ ] T018 [P] Add migration integration coverage from an empty database and from a feature-001 fixture, including rollback/failure assertions and exact identity snapshots, in `packages/database/tests/migrations.integration.spec.ts` and `packages/database/tests/security-migration.integration.spec.ts`.
-- [ ] T019 [P] Build reusable disposable installation, deployment-key, feature-001 canonical-content, WebAuthn virtual-authenticator, and clock-control fixtures in `tests/fixtures/security.ts`, `packages/database/tests/helpers/security-db.ts`, and `tests/e2e/helpers.ts`.
-- [ ] T020 Add shared security repository interfaces and transaction helpers for atomic state changes, idempotent retries, row locking, and fail-closed reads in `packages/database/src/repositories/security/repository-types.ts`, `packages/database/src/repositories/security/transaction.ts`, and `packages/database/src/index.ts`.
-- [ ] T021 [P] Add the OpenAPI, JSON Schema, and shared-runtime-schema validation harness for this feature in `tests/contract/security-api.contract.spec.ts`, `tests/contract/security-artifacts.contract.spec.ts`, and `packages/contracts/tests/security-schema.spec.ts`.
-- [ ] T022 [P] Add baseline security assertions for cookie, CSRF, redacted problem, HTTP method, and canonical feature-001 route protection requirements in `tests/contract/security-api.contract.spec.ts` and `tests/contract/openapi.spec.ts`.
-- [ ] T023 Implement the shared private-route authorization adapter and safe readiness gate interfaces used by all existing content routes in `apps/api/src/security/private-route-guard.ts`, `apps/api/src/plugins/security.ts`, and `apps/api/src/app.ts`.
-- [ ] T024 [P] Add the foundational security test command documentation and expected failure semantics to `specs/002-owner-security-foundation/quickstart.md` and `specs/002-owner-security-foundation/contracts/admin-cli.md` only where implementation behavior requires clarification.
+### Foundational tests first
 
-## Phase 3: User Story 4 - Protect Data and Maintain Recovery Material (Priority: P1)
+- [ ] T008 [P] Add OpenAPI 3.1, JSON Schema 2020-12, `$ref`, cookie, problem-code, and protected-local-CLI contract tests in `tests/contract/security-api.spec.ts`, `tests/contract/security-artifacts.schema.spec.ts`, `tests/contract/admin-cli.contract.spec.ts`, and `packages/contracts/tests/security-schema.spec.ts` (FR-020, FR-021, FR-023, FR-035).
+- [ ] T009 [P] Add failing crypto-envelope, recovery-artifact, rotation-manifest, and migration-checkpoint contract fixtures in `packages/domain/tests/encryption.property.spec.ts`, `packages/domain/tests/recovery-artifact.property.spec.ts`, `packages/domain/tests/rotation-manifest.property.spec.ts`, and `packages/domain/tests/migration-state.property.spec.ts` (FR-011, FR-014, FR-015, FR-017, FR-028).
+- [ ] T010 [P] Add failing tests for singleton installation/workspace ownership, canonical identity preservation, safe problem codes, and redaction invariants in `packages/domain/tests/security-owner-device.property.spec.ts`, `packages/domain/tests/security-canonical-identities.property.spec.ts`, and `packages/domain/tests/redaction.property.spec.ts` (FR-001, FR-023, FR-024).
+- [ ] T011 [P] Add failing persistence tests for serializable transactions, idempotent cursors, installation/workspace scoping, safe failure, and forward migration registration in `packages/database/tests/security-owner.integration.spec.ts`, `packages/database/tests/security-crypto.integration.spec.ts`, and `packages/database/tests/migrations.integration.spec.ts` (FR-001, FR-014, FR-024, FR-029).
 
-**Goal**: Encrypt server and browser-local protected data with authenticated, versioned envelopes, keep deployment key material external, and provide an exportable encrypted recovery kit whose readiness is explicit.
+### Foundational implementation
 
-**Independent Test**: Seed representative feature-001 content and local pending work, inspect PostgreSQL/blob/IndexedDB persistence for absence of usable plaintext, fail reads with missing/wrong/corrupt key material, export and validate a recovery kit, and restore access with a valid kit without changing canonical identities.
+- [ ] T012 Define shared security DTOs, safe problem envelopes, cookie metadata, response-only `X-Bootstrap-Capability` and `X-CSRF-Token` handling, explicit pending-credential/bootstrap-confirmation response types, nullable device timestamp mapping types, and runtime request/response validators in `packages/contracts/src/security-api.ts` to match `specs/002-owner-security-foundation/contracts/security-api.openapi.yaml` (FR-002, FR-003, FR-006, FR-008, FR-015, FR-019, FR-025, FR-028, FR-035).
+- [ ] T013 Define versioned `mn.enc.v1`, pending-bootstrap-credential, recovery-kit, rotation-manifest, and migration-checkpoint schemas in `packages/contracts/src/security-artifacts.ts` to match `specs/002-owner-security-foundation/contracts/security-artifacts.schema.json`; encode exactly the seven recovery pairs `provisional/prepared`, `provisional/downloadable`, `provisional/download-consumed`, `active/confirmed`, `superseded/confirmed`, `revoked/confirmed`, and `rejected/expired`, with no mixed recovery `state` field (FR-014, FR-015, FR-016, FR-017, FR-028).
+- [ ] T014 Implement AES-256-GCM envelopes, HKDF-SHA-256 per-record derivation, AAD/digest validation, nonce rules, scrypt recovery wrapping, and generation authorization in `packages/domain/src/security/crypto.ts`, `packages/domain/src/security/envelopes.ts`, and `packages/domain/src/security/recovery-artifacts.ts` (FR-011, FR-013, FR-014, FR-015, FR-018).
+- [ ] T015 Implement external deployment-key loading, mounted-secret permission checks, unavailable/invalid-key safe failure, and explicit loopback configuration validation in `apps/api/src/security/deployment-key.ts` and `apps/api/src/security/security-config.ts` (FR-013, FR-014, FR-023, FR-035).
+- [ ] T016 Implement forbidden-field traversal, redacted diagnostics/audit serialization, safe error mapping, correlation IDs, and allowlisted security events in `packages/domain/src/security/redaction.ts`, `packages/domain/src/security/audit.ts`, `apps/api/src/plugins/errors.ts`, and `apps/api/src/security/audit-service.ts` (FR-022, FR-023, FR-035).
+- [ ] T017 Implement platform-independent entity states, committed installation-count invariants (`ownerCount=0`/`workspaceCount=0` for uninitialized/bootstrap-in-progress and `ownerCount=1`/`workspaceCount=1` for ready/recovery states), policy state vocabulary, due/write-block calculations, and canonical identity manifest hashing in `packages/domain/src/security/types.ts`, `packages/domain/src/security/invariants.ts`, `packages/domain/src/security/rotation-policy.ts`, and `packages/domain/src/security/identity-manifest.ts` (FR-001, FR-018, FR-024, FR-025, FR-026, FR-027).
+- [ ] T018 Add the security schema and reviewed forward migration for installation, attempt-scoped pending credential material, owner credentials, bootstrap attempts, sessions, devices, epochs, keys, policies, envelopes, migration checkpoints, rate limits, and audit rows in `packages/database/src/schema/security/index.ts`, `packages/database/src/schema/index.ts`, and `packages/database/migrations/0003_owner_security_foundation.sql`; enforce no committed owner/workspace rows and `0/0` before confirmation (FR-001, FR-011, FR-014, FR-017, FR-022, FR-024, FR-028).
+- [ ] T019 Implement serializable transaction helpers, singleton installation guards, scoped repositories, idempotency keys, and fail-closed repository errors in `packages/database/src/repositories/security/repository-types.ts`, `packages/database/src/repositories/security/transaction.ts`, and `packages/database/src/repositories/security/installation-repository.ts` (FR-001, FR-014, FR-019, FR-024, FR-029).
+- [ ] T020 Implement shared request context, safe authentication-hook interfaces, and private-route readiness interfaces in `apps/api/src/security/request-context.ts`, `apps/api/src/security/authentication-hook.ts`, `apps/api/src/security/private-route-guard.ts`, and `apps/api/src/app.ts` (FR-002, FR-006, FR-007, FR-024).
+- [ ] T021 Add the contract-validation runner and exact artifact links used by later story checks in `tests/contract/security-api.spec.ts`, `tests/contract/security-artifacts.schema.spec.ts`, and `tests/contract/admin-cli.contract.spec.ts` for the local CLI only (FR-020, FR-021, FR-035).
+- [ ] T022 Run the foundational contract, crypto, redaction, migration, and repository tests; record raw commands, candidate SHA, fixture IDs, and pass/fail/blocked status in `specs/002-owner-security-foundation/validation.md`, keeping unrun rows `pending` (FR-013, FR-014, FR-023, FR-024, FR-035).
 
-### Tests for User Story 4
+**Checkpoint**: Crypto/state primitives, contracts, scoped persistence, redaction, and validation evidence rules pass before bootstrap or session-dependent work starts.
 
-- [ ] T025 [P] [US4] Add contract tests for recovery-kit listing, one-time creation, offline confirmation, rotation views, redacted audit responses, envelope formats, and safe problem responses in `tests/contract/security-recovery.contract.spec.ts` and `tests/contract/security-artifacts.contract.spec.ts`.
-- [ ] T026 [P] [US4] Add unit and property tests for AES-256-GCM envelopes, HKDF domain separation, random nonce/salt requirements, AAD binding, key-generation authorization, tamper detection, and chunked 4 MiB blob manifests in `packages/domain/tests/security-envelope.property.spec.ts` and `packages/domain/tests/encrypted-blob-manifest.spec.ts`.
-- [ ] T027 [P] [US4] Add unit and property tests for external-key wrapping, asynchronous scrypt password/recovery derivation, recovery-kit format/version/installation binding, passphrase handling, epoch revocation, and historical-generation compatibility in `packages/domain/tests/recovery-kit.property.spec.ts` and `packages/domain/tests/key-wrapping.spec.ts`.
-- [ ] T028 [P] [US4] Add PostgreSQL/Testcontainers integration tests proving that page names/documents, relationship metadata, revision snapshots, file metadata/bytes, and search payloads are encrypted while allowed routing metadata and feature-001 identities remain stable in `packages/database/tests/encrypted-content.integration.spec.ts`.
-- [ ] T029 [P] [US4] Add migration and fault-injection tests for missing, malformed, wrong, revoked, and unauthorized deployment keys plus flipped ciphertext, tag, AAD, format, and generation values in `packages/database/tests/encryption-fault-injection.integration.spec.ts` and `apps/api/tests/encryption-read-faults.integration.spec.ts`.
-- [ ] T030 [P] [US4] Add unit and IndexedDB integration tests for non-exportable local AES-GCM keys, encrypted items/files/indexes/outbox/conflict payloads, locked-key behavior, storage limits, and preservation of ciphertext and pending work during reauthorization in `packages/client-core/tests/local-encryption.spec.ts` and `packages/client-core/tests/local-encryption.integration.spec.ts`.
-- [ ] T031 [P] [US4] Add Playwright coverage for responsive recovery readiness, kit export/format metadata, offline-local encryption state, protected-storage failure, and honest recovery/error messaging in `tests/e2e/security-recovery.spec.ts` across the configured desktop and mobile projects.
+## Phase 3: User Story 1 — Establish the Sole Owner Securely (Priority: P1)
 
-### Implementation for User Story 4
+**Goal**: Establish exactly one owner and one feature-001 workspace through a session-free bootstrap capability, then require a one-time 15-minute provisional recovery download and offline confirmation before readiness.
 
-- [ ] T032 [P] [US4] Implement versioned AES-256-GCM envelopes, HKDF-derived record keys, external deployment-key wrapping, authenticated chunk manifests, and key-generation authorization in `packages/domain/src/security/crypto.ts`, `packages/domain/src/security/envelopes.ts`, `packages/domain/src/security/key-generations.ts`, and `packages/domain/src/security/blob-manifests.ts`.
-- [ ] T033 [P] [US4] Implement the encrypted blob-store adapter and preserve content-addressed logical file identity, digest lineage, and immutable blob semantics in `packages/blob-store/src/encrypted-blob-store.ts`, `packages/blob-store/src/content-store.ts`, and `packages/blob-store/src/index.ts`.
-- [ ] T034 Implement security repositories for installation state, key generations, protected record envelopes, and redacted integrity failures in `packages/database/src/repositories/security/installation-security-repository.ts`, `packages/database/src/repositories/security/key-generation-repository.ts`, `packages/database/src/repositories/security/protected-record-repository.ts`, and `packages/database/src/repositories/security/integrity-repository.ts`.
-- [ ] T035 [US4] Migrate feature-001 content persistence and export handling to encrypt payload-bearing fields while retaining only approved routing metadata and every canonical identity in `packages/database/src/repositories/item-reader.ts`, `packages/database/src/repositories/revision-repository.ts`, `packages/database/src/repositories/relationship-repository.ts`, `packages/database/src/repositories/file-repository.ts`, `apps/api/src/routes/export.ts`, and `apps/api/src/routes/snapshots.ts`.
-- [ ] T036 [US4] Implement browser-local key state, encrypted Dexie payload serialization, durable local-key failure states, and schema versioning without deleting existing feature-001 projection, cursor, mutation, or conflict identities in `packages/client-core/src/security/local-encryption.ts`, `packages/client-core/src/security/local-key-state.ts`, `packages/client-core/src/local-store/schema.ts`, and `packages/client-core/src/local-store/local-repository.ts`.
-- [ ] T037 [US4] Implement encrypted recovery-kit creation, one-time artifact delivery, header inspection, offline confirmation, epoch tracking, and kit metadata persistence in `apps/api/src/security/recovery-kit-service.ts`, `packages/database/src/repositories/security/recovery-kit-repository.ts`, and `apps/api/src/routes/security-recovery.ts`.
-- [ ] T038 [US4] Add recovery-kit DTOs, download handling, readiness state, and fail-closed error mapping to `packages/contracts/src/security-api.ts`, `apps/api/src/routes/security-recovery.ts`, `apps/api/src/plugins/errors.ts`, and `apps/api/src/app.ts`.
-- [ ] T039 [US4] Implement responsive security/recovery settings, kit export confirmation, format/install binding display, and protected-storage failure states in `apps/web/src/features/security/recovery-kit-panel.tsx`, `apps/web/src/features/security/security-settings.tsx`, `apps/web/src/services/security-api.ts`, `apps/web/src/app.tsx`, and `apps/web/src/styles.css`.
-- [ ] T040 [US4] Wire external deployment-key loading, encrypted content stores, browser security state, and fail-closed readiness into the API and web application composition in `apps/api/src/app.ts`, `apps/api/src/context.ts`, `apps/web/src/services/local-content.ts`, and `apps/web/src/services/storage-manager.ts`.
-- [ ] T041 [US4] Add server and client security audit events for encryption failures, recovery-kit creation/replacement/confirmation, local-key loss, and readiness changes using the allowlisted event model in `packages/database/src/repositories/security/audit-repository.ts`, `apps/api/src/security/audit-service.ts`, and `packages/domain/src/security/audit.ts`.
-- [ ] T042 [US4] Verify representative encrypted persistence, recovery-kit export separation, missing-key failure, tamper failure, and feature-001 identity preservation against the complete scenarios in `specs/002-owner-security-foundation/quickstart.md` and record results in `specs/002-owner-security-foundation/validation.md`.
+**Independent Test**: From an empty installation with a valid mounted key, complete bootstrap with a virtual passkey, consume and confirm the provisional kit, then race/replay/interruption-test claims and invalid-key paths.
 
-**Checkpoint**: All protected server/local payloads fail closed, a valid encrypted recovery kit can be exported and confirmed, and no feature-001 canonical identity changes.
+### Tests for User Story 1 (write first and make them fail)
 
-## Phase 4: User Story 1 - Establish the Sole Owner Securely (Priority: P1)
-
-**Goal**: Complete a single transactional first-run claim with a passkey, optional password, initial protected state, and confirmed recovery readiness; reject concurrent, repeated, interrupted, or invalid-key claims.
-
-**Independent Test**: Start from an empty migrated database with a valid external key, complete virtual-passkey bootstrap and recovery confirmation, verify one owner/one device/ready state, then repeat and race the claim and test expiry/invalid-key paths.
-
-### Tests for User Story 1
-
-- [ ] T043 [P] [US1] Add contract tests for `getInstallationSecurityStatus`, `startBootstrap`, `getBootstrapPasskeyOptions`, `completeBootstrapPasskey`, and `completeBootstrap` in `tests/contract/bootstrap.contract.spec.ts` against `specs/002-owner-security-foundation/contracts/security-api.openapi.yaml`.
-- [ ] T044 [P] [US1] Add domain property tests for bootstrap state transitions, one-open-attempt invariant, 15-minute expiry, one-time challenge consumption, and atomic readiness prerequisites in `packages/domain/tests/bootstrap-state.property.spec.ts`.
-- [ ] T045 [P] [US1] Add database concurrency and singleton integration tests for competing bootstrap starts/completions, repeated claims, interrupted completion, owner/workspace uniqueness, and preserved feature-001 workspace identity in `packages/database/tests/bootstrap-concurrency.integration.spec.ts`.
-- [ ] T046 [P] [US1] Add fault-injection coverage at bootstrap start, passkey verification, recovery-kit creation, readiness commit, transaction retry, and deployment-key validation boundaries in `apps/api/tests/bootstrap-fault-injection.integration.spec.ts`.
-- [ ] T047 [P] [US1] Add the fresh-install, interrupted-bootstrap, concurrent-claim, invalid-key, and responsive accessibility journey in `tests/e2e/bootstrap.spec.ts`, using Playwright virtual WebAuthn authenticators across desktop and mobile projects.
+- [ ] T023 [P] [US1] Add OpenAPI contract tests for installation status, session-free bootstrap start, credential verification, one-time download, regeneration, and offline confirmation in `apps/api/tests/bootstrap.contract.spec.ts` against `specs/002-owner-security-foundation/contracts/security-api.openapi.yaml` (FR-001, FR-002, FR-015, FR-016).
+- [ ] T024 [P] [US1] Add bootstrap state-machine property tests for no-session capability scope, one open attempt, `0/0` before the atomic ownership/workspace commit, `1/1` only in initialized states, 15-minute expiry, one download, replay rejection, same verified `attemptId` plus browser-held capability on regeneration, rejection/expiry of the old material without resurrection, interruption recovery, and readiness prerequisites in `packages/domain/tests/bootstrap-state.property.spec.ts` (FR-001, FR-002, FR-015, FR-016, FR-024, SC-001).
+- [ ] T025 [P] [US1] Add serializable concurrency and identity tests for repeated/concurrent claims, committed `ownerCount=0`/`workspaceCount=0` before the atomic commit, `ownerCount=1`/`workspaceCount=1` only after it, restart checkpoints, and no partial owner in `packages/database/tests/bootstrap-concurrency.integration.spec.ts` (FR-001, FR-002, FR-024, SC-001).
+- [ ] T026 [P] [US1] Add bootstrap fault-injection tests at credential verification, kit creation, download consumption, confirmation, retry, and unavailable-key boundaries in `apps/api/tests/bootstrap-fault-injection.integration.spec.ts` (FR-002, FR-013, FR-014, FR-015, FR-016).
+- [ ] T027 [P] [US1] Add responsive Playwright bootstrap journeys using virtual WebAuthn for fresh, concurrent, repeated, interrupted, expired/lost provisional-kit, invalid-key, keyboard, and focus states in `tests/e2e/bootstrap.spec.ts` (FR-001, FR-002, FR-015, FR-016, SC-001).
 
 ### Implementation for User Story 1
 
-- [ ] T048 [US1] Implement singleton bootstrap state transitions, attempt expiry, one-time challenge storage, coarse rate limiting, and atomic owner/workspace readiness operations in `packages/domain/src/security/bootstrap.ts`, `packages/database/src/repositories/security/bootstrap-repository.ts`, and `packages/database/src/repositories/security/installation-security-repository.ts`.
-- [ ] T049 [US1] Implement discoverable WebAuthn registration with exact origin/RP ID/challenge/user-handle checks, required user verification, `attestation: none`, and sign-count persistence in `apps/api/src/security/webauthn-service.ts`, `apps/api/src/security/bootstrap-service.ts`, and `packages/database/src/repositories/security/passkey-repository.ts`.
-- [ ] T050 [US1] Implement transactional bootstrap completion that creates exactly one owner, first passkey, optional password credential, authorized initial device, initial key generation, recovery metadata, and ready workspace linkage in `apps/api/src/security/bootstrap-service.ts`, `packages/database/src/repositories/security/owner-repository.ts`, and `packages/database/src/repositories/security/device-repository.ts`.
-- [ ] T051 [US1] Implement installation-status and bootstrap endpoints with safe uninitialized/bootstrapping/ready/recovery-required responses and no owner or key disclosure in `apps/api/src/routes/bootstrap.ts`, `apps/api/src/routes/installation.ts`, `apps/api/src/app.ts`, and `packages/contracts/src/security-api.ts`.
-- [ ] T052 [US1] Implement the first-run bootstrap UI, passkey ceremony, optional password setup, recovery-kit handoff, readiness confirmation, expiry/resume messaging, and accessible keyboard/focus states in `apps/web/src/features/auth/bootstrap-page.tsx`, `apps/web/src/features/auth/passkey-client.ts`, `apps/web/src/features/security/recovery-kit-panel.tsx`, `apps/web/src/services/security-api.ts`, and `apps/web/src/app.tsx`.
-- [ ] T053 [US1] Add redacted bootstrap success/failure/rate-limit audit events and ensure interrupted attempts never authorize feature-001 private routes in `apps/api/src/security/audit-service.ts`, `apps/api/src/security/private-route-guard.ts`, `apps/api/src/routes/bootstrap.ts`, and `apps/api/src/plugins/logging.ts`.
-- [ ] T054 [US1] Validate the complete bootstrap quickstart including status, virtual passkey, recovery confirmation, repeat/race, interruption/expiry, and missing/malformed/unauthorized deployment-key cases in `specs/002-owner-security-foundation/quickstart.md` and `specs/002-owner-security-foundation/validation.md`.
+- [ ] T028 [US1] Implement the session-free bootstrap state machine with attempt-scoped pending credential material, committed-count states (`0/0` until one atomic ownership/workspace promotion and `1/1` for every initialized state), attempt capability hashing, same-attempt capability verification for regeneration, origin/device binding, one-time download window, old-kit rejection/expiry without resurrection, and atomic confirmation in `packages/domain/src/security/bootstrap.ts` and `packages/database/src/repositories/security/bootstrap-repository.ts` (FR-001, FR-002, FR-015, FR-016, FR-024, SC-001).
+- [ ] T029 [US1] Implement bootstrap WebAuthn challenge creation and credential verification with origin/RP ID/user-verification/sign-count checks without issuing a session cookie in `apps/api/src/security/bootstrap-webauthn-service.ts` and `apps/api/src/security/webauthn-service.ts` (FR-002, FR-003, FR-023).
+- [ ] T030 [US1] Implement attempt-scoped persistence of `PendingBootstrapCredentialMaterial`, provisional kit metadata, and the browser-held capability; implement the single serializable promotion transaction that only after consumed download plus explicit offline confirmation creates the owner credential/owner, binds the canonical feature-001 workspace, creates the initial device/key generation, activates/confirms the kit, sets `ready`, and changes counts from `0/0` to `1/1` in `apps/api/src/security/bootstrap-service.ts`, `packages/database/src/repositories/security/bootstrap-repository.ts`, `packages/database/src/repositories/security/owner-repository.ts`, and `packages/database/src/repositories/security/workspace-binding-repository.ts` (FR-001, FR-002, FR-015, FR-024, SC-001).
+- [ ] T031 [US1] Implement safe installation-status, bootstrap, credential-verification, download, regeneration, and explicit offline-confirmation routes with no session dependency; return pending progress at `0/0` and the browser-held bootstrap capability only in response body/headers, accept it only through `X-Bootstrap-Capability` with the same verified `attemptId`, return the explicit `BootstrapConfirmationResult` (`confirmed/ready/1/1`, `active/confirmed`), reject a different attempt or any old `rejected/expired` kit, and never place capability or kit material in a URL, log, or persistent plaintext in `apps/api/src/routes/installation.ts`, `apps/api/src/routes/bootstrap.ts`, and `apps/api/src/app.ts` (FR-001, FR-002, FR-015, FR-016, FR-023, FR-035).
+- [ ] T032 [US1] Implement first-run owner/bootstrap UI with passkey ceremony, optional password handoff, recovery-kit download/confirmation, expiry/resume messaging, and accessible responsive states in `apps/web/src/features/auth/bootstrap-page.tsx`, `apps/web/src/features/auth/passkey-client.ts`, `apps/web/src/features/security/recovery-kit-panel.tsx`, and `apps/web/src/services/security-api.ts` (FR-002, FR-004, FR-015, FR-016, SC-008).
+- [ ] T033 [US1] Add bootstrap rate-limit and audit events for claim conflicts, credential verification, kit creation/download/confirmation/regeneration, and interrupted attempts in `apps/api/src/security/rate-limit-service.ts`, `apps/api/src/security/audit-service.ts`, and `packages/database/src/repositories/security/audit-repository.ts` (FR-022, FR-023).
+- [ ] T034 [US1] Execute exactly 20 clean-install trials with at least 5 representative operators `O01`–`O05`, recording start/end clocks, duration, credential verification, one download, offline confirmation, `authorizationState=active`, `deliveryState=confirmed`, `ownerCount=1`, `workspaceCount=1`, and raw failures in `specs/002-owner-security-foundation/validation.md`; accept SC-002 only when at least 19 trials finish within 300 seconds and every operator has a trial (SC-002).
+- [ ] T035 [US1] Run the independent bootstrap matrix and record `ownerCount=0`/`workspaceCount=0` before the atomic commit, `ownerCount=1`/`workspaceCount=1` for every initialized state (`recovery-required`, `ready`, `migration-in-progress`, `degraded`), same-attempt capability regeneration, old-kit rejection/expiry, concurrent/repeated/interrupted counts, invalid-key results, and candidate evidence in `specs/002-owner-security-foundation/validation.md`; do not replace `pending` with `pass` without raw evidence (FR-001, FR-002, FR-013, FR-014, FR-015, FR-016, SC-001).
 
-**Checkpoint**: A fresh installation has exactly one owner and workspace, cannot be claimed twice, and becomes usable only after authentication and recovery readiness are committed together.
+**Checkpoint**: US1 is complete and validated without a session: exactly one owner/workspace exists, readiness requires confirmed offline recovery, and no bootstrap path creates a usable partial or second owner.
 
-## Phase 5: User Story 2 - Authenticate and Control Sessions (Priority: P1)
+## Phase 4: User Story 2 — Authenticate and Control Sessions (Priority: P1)
 
-**Goal**: Support passkey-only and password-alternative login with hashed opaque sessions, CSRF protection, inactivity/recent-authentication policy, rate limits, and immediate one/all-session revocation.
+**Goal**: Add passkey-only and password-alternative authentication, production and loopback cookie policies, recent-authentication, inactivity expiry, CSRF, rate limits, and revocation.
 
-**Independent Test**: Authenticate with passkey alone and password, compare invalid-attempt responses, advance the clock through inactivity/recent-authentication limits, then revoke one and all sessions and verify access and renewal stop.
+**Dependency**: Starts only after the US1 checkpoint; no session-dependent owner flow may be used to complete bootstrap.
 
-### Tests for User Story 2
+**Independent Test**: Sign in by passkey alone and by password alternative, test controlled-clock bounds and recent authentication, then revoke one/all sessions and verify access and renewal stop.
 
-- [ ] T055 [P] [US2] Add contract tests for passkey options/completion, password authentication/change, passkey list/enrollment/revocation, current session, session list/revocation, and revoke-all operations in `tests/contract/auth-sessions.contract.spec.ts`.
-- [ ] T056 [P] [US2] Add unit and property tests for NFC password normalization, scrypt parameter bounds, opaque-token digesting, cookie attributes, session expiry, recent-authentication gates, CSRF synchronizer tokens, origin checks, and rate-limit buckets in `packages/domain/tests/authentication.property.spec.ts`, `packages/domain/tests/session.property.spec.ts`, and `packages/domain/tests/csrf.property.spec.ts`.
-- [ ] T057 [P] [US2] Add API/database integration tests for passkey/password authentication, uniform unknown-credential errors, configured 1/90-day bounds, 30-day default inactivity, 15-minute sensitive-operation gates, CSRF rejection, and one/all-session revocation in `apps/api/tests/authentication.integration.spec.ts` and `packages/database/tests/session-revocation.integration.spec.ts`.
-- [ ] T058 [P] [US2] Add fault-injection and log-capture tests for failed WebAuthn/password attempts, rate-limit threshold behavior, sign-counter errors, token-digest lookup failures, and session revocation races in `apps/api/tests/authentication-fault-injection.integration.spec.ts` and `apps/api/tests/logging.spec.ts`.
-- [ ] T059 [P] [US2] Add Playwright passkey-only, password-alternative, session settings, recent-authentication prompt, CSRF-safe mutation, inactivity-expiry, and one/all-session revocation journeys in `tests/e2e/authentication.spec.ts` across configured desktop/mobile browser projects.
+### Tests for User Story 2 (write first and make them fail)
+
+- [ ] T036 [P] [US2] Add contract tests for the exact owner endpoints `POST /v1/auth/passkeys/enrollment/options`, `POST /v1/auth/passkeys/enrollment/complete`, `GET /v1/auth/passkeys`, `DELETE /v1/auth/passkeys/{credentialId}`, `PUT /v1/auth/password`, passkey/password login, session listing/revocation, session+CSRF+recent-auth requirements, redacted responses, and safe authentication failures in `apps/api/tests/authentication.contract.spec.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, FR-023, FR-035).
+- [ ] T037 [P] [US2] Add controlled-clock unit/property tests for 1–90 day inactivity, default 30-day expiry, 1–60 minute recent-authentication, default 15-minute sensitive-operation reauthentication, and rate-limit transitions in `packages/domain/tests/session-policy.clock.spec.ts` (FR-006, FR-007).
+- [ ] T038 [P] [US2] Add production cookie tests requiring `__Host-mn_session; Secure; HttpOnly; SameSite=Strict; Path=/` under HTTPS and rejecting it over HTTP, plus distinct `mn_dev_session` loopback-only HTTP exception tests in `apps/api/tests/session-cookie.policy.spec.ts` and `apps/api/tests/loopback-cookie-exception.spec.ts` (FR-006, FR-023).
+- [ ] T039 [P] [US2] Add session/revocation integration tests for passkey-only login, password alternative, wrong-credential indistinguishability, one-session revoke, revoke-all, renewal denial, CSRF failure, and non-loopback HTTP refusal in `packages/database/tests/session.integration.spec.ts` and `apps/api/tests/session-revocation.integration.spec.ts` (FR-003, FR-004, FR-006, FR-007, FR-023).
+- [ ] T040 [P] [US2] Add responsive Playwright authentication journeys for passkey-only login, password alternative, reauthentication prompts, session management, revocation, safe errors, keyboard/focus, and cookie behavior in `tests/e2e/authentication.spec.ts` (FR-003, FR-004, FR-005, FR-006, FR-007).
 
 ### Implementation for User Story 2
 
-- [ ] T060 [US2] Implement versioned asynchronous scrypt password credentials with NFC normalization, bounded derivation concurrency, timing-safe comparison, and disabled/changed credential states in `packages/domain/src/security/passwords.ts`, `apps/api/src/security/password-service.ts`, and `packages/database/src/repositories/security/password-repository.ts`.
-- [ ] T061 [US2] Implement opaque 32-byte session tokens, SHA-256 token/CSRF digests, inactivity expiry, recent-authentication tracking, device binding, revocation, and no-renewal behavior in `packages/domain/src/security/sessions.ts`, `apps/api/src/security/session-service.ts`, and `packages/database/src/repositories/security/session-repository.ts`.
-- [ ] T062 [US2] Implement WebAuthn authentication and recent-authenticated passkey enrollment/revocation using `@simplewebauthn/server` in `apps/api/src/security/webauthn-service.ts`, `apps/api/src/security/authentication-service.ts`, and `packages/database/src/repositories/security/passkey-repository.ts`.
-- [ ] T063 [US2] Implement cookie, CSRF, Origin/Referer, unsafe-method, session/device-state, and private-route enforcement in `apps/api/src/security/session-cookie.ts`, `apps/api/src/security/csrf.ts`, `apps/api/src/security/private-route-guard.ts`, `apps/api/src/plugins/security.ts`, and `apps/api/src/app.ts`.
-- [ ] T064 [US2] Implement authentication/session endpoints matching all operation IDs in the contract in `apps/api/src/routes/authentication.ts`, `apps/api/src/routes/sessions.ts`, `apps/api/src/routes/passkeys.ts`, `apps/api/src/app.ts`, and `packages/contracts/src/security-api.ts`.
-- [ ] T065 [US2] Protect all feature-001 content, mutation, sync, export, snapshot, and file routes with the shared session/device guard while preserving their request/response contracts in `apps/api/src/routes/items.ts`, `apps/api/src/routes/page-documents.ts`, `apps/api/src/routes/files.ts`, `apps/api/src/routes/relationships.ts`, `apps/api/src/routes/revisions.ts`, `apps/api/src/routes/mutation-batch.ts`, `apps/api/src/routes/changes.ts`, `apps/api/src/routes/export.ts`, and `apps/api/src/routes/snapshots.ts`.
-- [ ] T066 [US2] Implement responsive authentication, passkey management, password alternative, session inventory, revocation controls, recent-authentication prompts, and uniform error states in `apps/web/src/features/auth/login-page.tsx`, `apps/web/src/features/auth/passkey-client.ts`, `apps/web/src/features/auth/session-settings.tsx`, `apps/web/src/services/security-api.ts`, and `apps/web/src/app.tsx`.
-- [ ] T067 [US2] Add redacted audit events for authentication success/failure, credential changes, CSRF refusal, session expiry, one-session revocation, and revoke-all in `apps/api/src/security/audit-service.ts`, `packages/database/src/repositories/security/audit-repository.ts`, and `apps/api/src/security/rate-limit-service.ts`.
-- [ ] T068 [US2] Validate the authentication/session quickstart and confirm feature-001 canonical APIs reject unauthenticated, expired, revoked, cross-device, and CSRF-invalid access in `specs/002-owner-security-foundation/quickstart.md`, `tests/contract/openapi.spec.ts`, and `specs/002-owner-security-foundation/validation.md`.
+- [ ] T041 [US2] Implement the exact passkey credential-management endpoints `POST /v1/auth/passkeys/enrollment/options`, `POST /v1/auth/passkeys/enrollment/complete`, `GET /v1/auth/passkeys`, and selected `DELETE /v1/auth/passkeys/{credentialId}` with owner-session attribution, CSRF validation, recent-authentication on enrollment/completion and selected removal, redacted list/response fields, and no remote administrator API in `apps/api/src/security/webauthn-service.ts`, `apps/api/src/security/passkey-service.ts`, `apps/api/src/routes/authentication.ts`, and `packages/database/src/repositories/security/passkey-repository.ts` (FR-003, FR-005, FR-006, FR-023, FR-035).
+- [ ] T042 [US2] Implement `PUT /v1/auth/password` for setting and changing the password alternative, require owner session+CSRF+recent authentication, preserve passkey-only login, use versioned password hashing, keep password reset out of the owner API, and return indistinguishable redacted credential failures in `apps/api/src/security/password-service.ts`, `apps/api/src/routes/authentication.ts`, and `packages/database/src/repositories/security/password-repository.ts` (FR-004, FR-005, FR-006, FR-023).
+- [ ] T043 [US2] Implement opaque server-side sessions, inactivity expiry, recent-authentication checks, device binding, independent revocation, renewal denial, and controlled-clock policy evaluation in `apps/api/src/security/session-service.ts`, `packages/database/src/repositories/security/session-repository.ts`, and `packages/domain/src/security/session-policy.ts` (FR-006, FR-007).
+- [ ] T044 [US2] Implement CSRF protection using the browser-returned `X-CSRF-Token` value only as the CSRF request header, never in a URL, log, or persistent plaintext, plus the production `__Host-mn_session` versus loopback-only `mn_dev_session` issuance/acceptance predicate in `apps/api/src/security/cookie-policy.ts`, `apps/api/src/security/csrf.ts`, and `apps/api/src/security/authentication-hook.ts` (FR-006, FR-007, FR-023).
+- [ ] T045 [US2] Implement authentication/session routes, browser-returned CSRF response handling, owner-visible redacted session and credential inventories, one-session revoke, revoke-all, recent-authentication failures, and rate-limited safe errors in `apps/api/src/routes/authentication.ts`, `apps/api/src/routes/sessions.ts`, and `apps/api/src/app.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, FR-022, FR-023).
+- [ ] T046 [US2] Implement responsive sign-in, credential-management, recent-authentication, session-inventory, and revocation UI states in `apps/web/src/features/auth/login-page.tsx`, `apps/web/src/features/security/session-panel.tsx`, `apps/web/src/features/security/security-settings.tsx`, and `apps/web/src/services/security-api.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, SC-008).
+- [ ] T047 [US2] Record authentication successes/failures, method changes, rate limits, session revocations, and cookie-policy refusals through the redacted audit path in `apps/api/src/security/audit-service.ts` and `packages/database/src/repositories/security/audit-repository.ts` (FR-022, FR-023).
+- [ ] T048 [US2] Run the authentication/session evidence matrix and update `specs/002-owner-security-foundation/validation.md` with exact passkey/password counts, expiry clocks, revocation denials, cookie headers, CSRF failures, and candidate SHA (FR-003, FR-004, FR-005, FR-006, FR-007, SC-003).
 
-**Checkpoint**: Passkey-only and password-alternative access work through the same sole-owner boundary, and all selected sessions stop authorizing or renewing immediately after revocation.
+**Checkpoint**: US2 provides coherent authenticated owner flows and secure session control; production never uses the development cookie, and loopback HTTP never receives the production cookie.
 
-## Phase 6: User Story 3 - Manage Authorized Devices (Priority: P2)
+## Phase 5: User Story 4 — Protect Data and Maintain Recovery Material (Priority: P1)
 
-**Goal**: Give the owner an attributable device inventory with editable metadata, protected local-key capability, synchronization authorization, revocation, and an explicit remote-erasure limitation.
+**Goal**: Encrypt server and local protected data with authenticated envelopes, retain external key custody, fail closed on invalid material, and preserve feature-001 identities.
 
-**Independent Test**: Authorize two browser devices, inspect all required fields, rename and change a storage limit, revoke one device, replay its old proof/session, and confirm it cannot reconnect or receive new content while canonical identities remain unchanged.
+**Independent Test**: Seed page/block content, sensitive properties/relationships, files, indexes, history, annotations, integration secrets, local pending operations, and browser storage; inspect ciphertext and fail closed for missing, wrong, corrupt, or revoked keys.
 
-### Tests for User Story 3
+### Tests for User Story 4 (write first and make them fail)
 
-- [ ] T069 [P] [US3] Add contract tests for device listing, update, revocation, device schema fields, CSRF requirements, and revocation problem responses in `tests/contract/devices.contract.spec.ts`.
-- [ ] T070 [P] [US3] Add unit and property tests for device-name/limit validation, device lifecycle, reauthorization receiving a new ID, session/device binding, and revocation denial decisions in `packages/domain/tests/devices.property.spec.ts`.
-- [ ] T071 [P] [US3] Add database integration tests for two-device inventory, activity/sync updates, rename/limit changes, concurrent revocation, old-session/key rejection, and unchanged feature-001 workspace/content identities in `packages/database/tests/devices.integration.spec.ts`.
-- [ ] T072 [P] [US3] Add fault-injection coverage for device revocation during session renewal, synchronization authorization, local-key proof, and new-data delivery in `apps/api/tests/device-revocation-fault-injection.integration.spec.ts`.
-- [ ] T073 [P] [US3] Add Playwright responsive device-management coverage for inventory fields, rename/limit updates, revoke confirmation, revoked state, keyboard access, and the unreachable-device remote-erasure warning in `tests/e2e/devices.spec.ts`.
+- [ ] T049 [P] [US4] Add server encryption integration tests covering page/block content, sensitive properties/relationships, files/chunks, content-revealing indexes, history, annotations, and recoverable integration secrets while preserving feature-001 identity manifests in `packages/database/tests/security-crypto.integration.spec.ts` (FR-011, FR-014, FR-024).
+- [ ] T050 [P] [US4] Add encrypted blob chunk tests for authenticated 4 MiB chunk envelopes, digest/content addressing, nonce uniqueness, tamper detection, and chunk-index AAD in `packages/blob-store/tests/encrypted-chunks.spec.ts` (FR-011, FR-014, FR-017).
+- [ ] T051 [P] [US4] Add local encryption tests for content, files, indexes, pending operations, device-secure-storage behavior, lock/key-loss states, and preserved local projection/mutation identities in `packages/client-core/tests/local-encryption.spec.ts` and `packages/client-core/tests/local-encryption.integration.spec.ts` (FR-012, FR-014, FR-024).
+- [ ] T052 [P] [US4] Add missing/wrong/corrupt/unauthorized/revoked-key and flipped-ciphertext/tag/AAD/generation fault tests proving no partial or substituted data in `apps/api/tests/encryption-read-faults.integration.spec.ts` and `packages/database/tests/encryption-fault-injection.integration.spec.ts` (FR-013, FR-014, FR-023).
+- [ ] T053 [P] [US4] Add responsive Playwright recovery-readiness, protected-storage failure, encrypted-local-state, and honest error journeys in `tests/e2e/security-recovery.spec.ts` (FR-011, FR-012, FR-014, FR-015, FR-016).
+
+### Implementation for User Story 4
+
+- [ ] T054 [US4] Implement protected-record repositories and generation-aware encrypted reads/writes for feature-001 payload-bearing fields while retaining approved routing metadata and every canonical ID in `packages/database/src/repositories/security/protected-record-repository.ts`, `packages/database/src/repositories/item-repository.ts`, `packages/database/src/repositories/revision-repository.ts`, and `packages/database/src/repositories/relationship-repository.ts` (FR-011, FR-014, FR-024).
+- [ ] T055 [US4] Implement encrypted file metadata/chunk storage and content-addressed ciphertext without changing logical file identity or digest lineage in `packages/blob-store/src/encryption/encrypted-chunk-store.ts`, `packages/blob-store/src/encrypted-blob-store.ts`, and `packages/blob-store/src/index.ts` (FR-011, FR-014, FR-024).
+- [ ] T056 [US4] Integrate protected repositories with feature-001 page, file, relationship, revision, search, export, and snapshot routes without editing feature-001 artifacts in `apps/api/src/routes/pages.ts`, `apps/api/src/routes/files.ts`, `apps/api/src/routes/relationships.ts`, `apps/api/src/routes/revisions.ts`, `apps/api/src/routes/search.ts`, `apps/api/src/routes/export.ts`, and `apps/api/src/routes/snapshots.ts` (FR-011, FR-024).
+- [ ] T057 [US4] Implement device-bound encrypted local storage for content, files, indexes, pending operations, and conflicts using platform secure storage when available in `packages/client-core/src/security/local-encryption.ts`, `packages/client-core/src/security/local-key-state.ts`, `packages/client-core/src/local-store/schema.ts`, and `packages/client-core/src/local-store/local-repository.ts` (FR-012, FR-014, FR-024).
+- [ ] T058 [US4] Implement encrypted recovery-kit artifact creation, format/version/lineage metadata, supported generations, offline separation, readiness persistence, and the canonical `authorizationState`/`deliveryState` valid-pair transitions for provisional and active kits in `apps/api/src/security/recovery-kit-service.ts`, `packages/database/src/repositories/security/recovery-kit-repository.ts`, and `packages/domain/src/security/recovery-artifacts.ts` (FR-015, FR-016, FR-018).
+- [ ] T059 [US4] Enforce fail-closed reads, generation authorization, external-secret boundaries, and redacted integrity failures through `apps/api/src/security/integrity-service.ts`, `packages/database/src/repositories/security/integrity-repository.ts`, and `apps/api/src/plugins/errors.ts` (FR-013, FR-014, FR-023).
+- [ ] T060 [US4] Add encryption/recovery audit events and status projections without logging plaintext, keys, credentials, tokens, or artifacts in `apps/api/src/security/audit-service.ts`, `packages/database/src/repositories/security/audit-repository.ts`, and `packages/domain/src/security/audit.ts` (FR-022, FR-023, FR-035).
+- [ ] T061 [US4] Run the complete server/local encryption and recovery-readiness evidence suite, record category-by-category usable plaintext counts and fail-closed counts in `specs/002-owner-security-foundation/validation.md`, and mark SC-004 only from raw evidence after migration-compatible storage is verified (FR-011, FR-012, FR-014, FR-015, FR-016, SC-004).
+
+**Checkpoint**: All FR-011/FR-012 categories are application-encrypted, invalid material fails closed, external key custody is preserved, and recovery artifacts are not colocated with workspace ciphertext.
+
+## Phase 6: User Story 3 — Manage Authorized Devices (Priority: P2)
+
+**Goal**: Provide an owner-visible device inventory, rename/limit controls, explicit revocation, local-key binding, and reauthorization after recovery.
+
+**Dependency**: Starts after US2 sessions and US4 local encryption are complete.
+
+**Independent Test**: Authorize two devices, inspect and edit metadata, revoke one, replay its authorization, and verify sign-in/renewal/new-data/synchronization-key use is denied until explicit reauthorization.
+
+### Tests for User Story 3 (write first and make them fail)
+
+- [ ] T062 [P] [US3] Add device inventory/update/revoke/reauthorize contract tests requiring `lastActivityAt` and `lastSyncAt` in every response, explicitly `null` before activity/sync events, populated only by their corresponding real events, and mapped from database `last_activity_at`/`last_sync_at` to API `lastActivityAt`/`lastSyncAt`, plus all other required fields and safe remote-erasure wording in `apps/api/tests/devices.contract.spec.ts` (FR-008, FR-009, FR-010, FR-023).
+- [ ] T063 [P] [US3] Add device state and local-identity property tests for authorization, rename, storage-limit validation, revocation, key denial, and reauthorization-required transitions in `packages/domain/tests/device-state.property.spec.ts` (FR-008, FR-009, FR-024).
+- [ ] T064 [P] [US3] Add database integration tests for two-device inventory, before-event `lastActivityAt=null`/`lastSyncAt=null`, after-event timestamps sourced only from an activity event and a successful sync event, unchanged timestamps across inventory reads/rename/limit/revocation, stable feature-001 local projection/outbox IDs, revocation cascades, and post-recovery trust reset in `packages/database/tests/device-management.integration.spec.ts` (FR-008, FR-009, FR-024, SC-003).
+- [ ] T065 [P] [US3] Add responsive Playwright device-settings journeys for inventory, rename, limit change, revoke, explicit reauthorize, keyboard/focus, and unreachable-device erasure limitation in `tests/e2e/devices.spec.ts` (FR-008, FR-009, FR-010, SC-008).
 
 ### Implementation for User Story 3
 
-- [ ] T074 [US3] Implement authorized-device entity validation, activity/sync accounting, local-storage-limit rules, key-protection capability states, and revocation decisions in `packages/domain/src/security/devices.ts` and `packages/database/src/repositories/security/device-repository.ts`.
-- [ ] T075 [US3] Implement owner-visible device inventory, update, revocation, and active-device authorization checks in `apps/api/src/routes/devices.ts`, `apps/api/src/security/device-service.ts`, `apps/api/src/security/private-route-guard.ts`, and `packages/contracts/src/security-api.ts`.
-- [ ] T076 [US3] Bind sessions and feature-001 synchronization/change delivery to active device state and reject revoked-device session renewal, device proof, key use, and new-data delivery in `apps/api/src/routes/changes.ts`, `apps/api/src/routes/mutation-batch.ts`, `apps/api/src/security/session-service.ts`, and `apps/api/src/security/device-service.ts`.
-- [ ] T077 [US3] Implement device settings, local usage/limit reporting, key-protection capability display, revoke confirmation, and the remote-erasure limitation in `apps/web/src/features/devices/device-list.tsx`, `apps/web/src/features/devices/device-settings.tsx`, `apps/web/src/features/devices/revocation-warning.tsx`, `apps/web/src/services/security-api.ts`, and `apps/web/src/app.tsx`.
-- [ ] T078 [US3] Preserve existing browser-local feature-001 device/projection/mutation identities when a device is renamed, limited, revoked, or reauthorized in `packages/client-core/src/security/device-binding.ts`, `packages/client-core/src/local-store/schema.ts`, `apps/web/src/services/local-content.ts`, and `packages/client-core/tests/local-store.contract.spec.ts`.
-- [ ] T079 [US3] Add redacted audit events for device authorization, rename, storage-limit change, revocation, rejected reconnect, and remote-erasure limitation display in `apps/api/src/security/audit-service.ts`, `packages/database/src/repositories/security/audit-repository.ts`, and `apps/web/src/features/devices/revocation-warning.tsx`.
-- [ ] T080 [US3] Validate the device and local-encryption quickstart scenarios and record that revocation controls future authorization but cannot guarantee erasure from an unreachable device in `specs/002-owner-security-foundation/quickstart.md` and `specs/002-owner-security-foundation/validation.md`.
+- [ ] T066 [US3] Implement authorized-device inventory, stable device binding, required nullable `lastActivityAt`/`lastSyncAt` persistence, event-only timestamp updates, local limits/usage, state, and key-version persistence in `packages/database/src/repositories/security/device-repository.ts` and `packages/database/src/schema/security/device.ts`; retain nullable database `last_activity_at`/`last_sync_at` until real events commit (FR-008, FR-024).
+- [ ] T067 [US3] Implement authenticated device inspection, rename, storage-limit update, revocation, synchronization-key denial, and explicit reauthorization service rules in `apps/api/src/security/device-service.ts` and `packages/domain/src/security/device-policy.ts` (FR-009, FR-010, FR-024).
+- [ ] T068 [US3] Implement device inventory/update/revoke/reauthorize routes with mandatory nullable timestamp fields, explicit database-to-API mapping from `last_activity_at`/`last_sync_at` to `lastActivityAt`/`lastSyncAt`, event-only timestamp writes, recent-authentication, CSRF, safe errors, and no remote-erasure overclaim in `apps/api/src/routes/devices.ts`, `apps/api/src/routes/reauthorization.ts`, and `apps/api/src/security/device-service.ts` (FR-008, FR-009, FR-010, FR-023).
+- [ ] T069 [US3] Bind local encrypted-store access and synchronization delivery to the current device trust grant and preserve local projection/mutation identities during reauthorization in `packages/client-core/src/security/device-key-binding.ts`, `packages/client-core/src/security/reauthorization.ts`, and `apps/api/src/security/synchronization-authorization.ts` (FR-009, FR-012, FR-024).
+- [ ] T070 [US3] Implement accessible responsive device inventory, edit, revoke, reauthorize, usage-limit, and unreachable-device explanation views in `apps/web/src/features/security/device-panel.tsx`, `apps/web/src/features/security/security-settings.tsx`, and `apps/web/src/services/security-api.ts` (FR-008, FR-009, FR-010, SC-008).
+- [ ] T071 [US3] Record device authorization, rename, revocation, reauthorization, synchronization-denial, before-event null timestamp, and after-event populated timestamp evidence in `apps/api/src/security/audit-service.ts`, `packages/database/src/repositories/security/audit-repository.ts`, and `specs/002-owner-security-foundation/validation.md` (FR-008, FR-009, FR-010, FR-022, SC-003).
 
-**Checkpoint**: The owner can identify and revoke every authorized device, and revoked devices cannot authorize future access or data delivery without claiming that unreachable ciphertext was erased.
+**Checkpoint**: Devices are attributable and revocable, revoked devices cannot renew or receive protected data, and inaccessible local erasure is described honestly.
 
-## Phase 7: User Story 5 - Rotate Keys and Recover Administratively (Priority: P2)
+## Phase 7: User Story 5 — Recover a Replacement and Rotate Security Material (Priority: P1)
 
-**Goal**: Provide observable, resumable scheduled/emergency key rotation, recovery-kit replacement/revocation, compatible administrative recovery, integrity/key checks, redacted diagnostics, and explicit destructive-operation safeguards.
+**Goal**: Replace kits only after recent authentication, recover compatible encrypted source data into an empty target while preserving all canonical identities, and operate independent wrapping-key and data-key rotation state machines.
 
-**Independent Test**: Run scheduled and emergency rotations with injected interruptions, verify generation and recovery-kit revocation behavior, run administrative checks with missing keys, and recover a compatible installation without changing feature-001 identities.
+**Dependency**: Starts after US2, US3, and US4; replacement recovery must reset device trust and never create a new lineage or owner.
 
-### Tests for User Story 5
+### Tests for User Story 5 (write first and make them fail)
 
-- [ ] T081 [P] [US5] Add contract tests for rotation start/status, recovery-kit replacement/import/inspect, compatibility, integrity/key checks, password/session administration, repair, diagnostics, fixed exit codes, JSON/text output, dry-run, and confirmation behavior in `tests/contract/admin-cli.contract.spec.ts`, `tests/contract/security-rotation.contract.spec.ts`, and `specs/002-owner-security-foundation/contracts/admin-cli.md`.
-- [ ] T082 [P] [US5] Add unit and property tests for the planned/prepared/rewrapping/committing/complete/failed rotation state machine, monotonic generations, checkpoint digests, idempotent cursors, conflict refusal, and decrypt-only compatibility policy in `packages/domain/tests/key-rotation.property.spec.ts`.
-- [ ] T083 [P] [US5] Add CLI parser and redaction tests for help, validation, protected stdin/Tty/file-descriptor input, JSON/text envelopes, correlation IDs, exit codes 0/2/3/4/5/6/7, and forbidden output fields in `apps/api/tests/admin-cli.spec.ts` and `packages/domain/tests/admin-command-redaction.property.spec.ts`.
-- [ ] T084 [P] [US5] Add integration tests for scheduled/emergency rotation, new-write generation switching, old-generation decrypt-only behavior, kit epoch replacement, malformed/wrong/cross-installation/superseded/revoked kit rejection, and compatible recovery preserving all feature-001 IDs in `packages/database/tests/key-rotation.integration.spec.ts` and `packages/database/tests/administrative-recovery.integration.spec.ts`.
-- [ ] T085 [P] [US5] Add fault-injection tests before preparation, after preparation, at every record/chunk checkpoint, during commit, after completion, during recovery import, and during integrity repair in `apps/api/tests/key-rotation-fault-injection.integration.spec.ts` and `apps/api/tests/administrative-recovery-fault-injection.integration.spec.ts`.
-- [ ] T086 [P] [US5] Add Playwright coverage for rotation progress/failure/resume, recovery-kit replacement/revocation, recovery readiness, integrity failure messaging, and accessible responsive security settings in `tests/e2e/security-rotation.spec.ts`.
+- [ ] T072 [P] [US5] Add protected-local-CLI contract tests only for status, password/session administration, key check, integrity verify, recovery inspect/import, device reauthorization, both rotation commands/statuses, migration inspection, the exact `security compatibility inspect --target PATH --source PATH [--json] [--dry-run]` command, diagnostics, fixed exit codes, dry-run, confirmation, and help in `tests/contract/admin-cli.contract.spec.ts` against `specs/002-owner-security-foundation/contracts/admin-cli.md`; assert there is no session-based admin-recovery method, no remote administrator bearer/API channel, no API token, and no placeholder administrator authentication, while owner API remains session+CSRF protected (FR-019, FR-020, FR-021, FR-023, FR-035).
+- [ ] T073 [P] [US5] Add controlled-clock policy tests for exactly these eight states—pre-due, due, overdue-within-grace, emergency, write-block, in-progress, complete, and failed—for both independent policies, including 365-day wrapping due interval, 7-day scheduled grace, immediate emergency due, independent data-key due/write-block configuration, safe reads, and blocked writes in `packages/domain/tests/rotation-policy.clock.spec.ts` (FR-025, FR-026, FR-027, SC-009).
+- [ ] T074 [P] [US5] Add separate wrapping-key tests proving root-key rewrap changes without record/chunk ciphertext changes and separate data-key tests proving progressive record/chunk re-encryption, generation switching, cursors, and decrypt-only compatibility; assert each policy exposes all eight states and independent operation IDs in `packages/domain/tests/wrapping-key-rotation.property.spec.ts`, `packages/domain/tests/data-key-rotation.property.spec.ts`, and `packages/database/tests/key-rotation.integration.spec.ts` (FR-017, FR-018, FR-025, SC-006, SC-009).
+- [ ] T075 [P] [US5] Add recovery replacement/import integration tests for one-time download, active-kit continuity, atomic supersession/epoch advance, old/revoked/prior-epoch/wrong-lineage/malformed rejection, empty-target requirement, exact identity manifest preservation, and device reauthorization in `packages/database/tests/recovery-kit.integration.spec.ts` and `packages/database/tests/administrative-recovery.integration.spec.ts` (FR-016, FR-018, FR-019, FR-024, SC-005).
+- [ ] T076 [P] [US5] Add interruption, restart, unavailable-secret, rotation-conflict, and recovery-import fault tests at every persistence boundary in `apps/api/tests/key-rotation-fault-injection.integration.spec.ts` and `apps/api/tests/administrative-recovery-fault-injection.integration.spec.ts` (FR-013, FR-017, FR-018, FR-019, FR-025, SC-006).
+- [ ] T077 [P] [US5] Add responsive Playwright rotation/recovery journeys for due warnings, write blocks, progress/resume, safe failures, kit replacement, import rejection, reauthorization, and accessible confirmation in `tests/e2e/security-rotation.spec.ts` (FR-017, FR-019, FR-025, FR-026, FR-027).
 
 ### Implementation for User Story 5
 
-- [ ] T087 [US5] Implement resumable rotation domain transitions, deterministic checkpoint/cursor processing, digest validation, one-active-operation conflict rules, old-generation compatibility, and revoked-generation denial in `packages/domain/src/security/key-rotation.ts`, `packages/database/src/repositories/security/key-rotation-repository.ts`, and `packages/database/src/repositories/security/protected-record-repository.ts`.
-- [ ] T088 [US5] Implement owner key-rotation start/status endpoints with scheduled/emergency mode, recent-authentication gate, dry-run support, progress DTOs, and safe conflict/failure responses in `apps/api/src/routes/security-rotation.ts`, `apps/api/src/security/key-rotation-service.ts`, and `packages/contracts/src/security-api.ts`.
-- [ ] T089 [US5] Implement recovery-kit replacement, epoch advancement, prior-kit revocation/supersession, compatible historical-generation selection, header inspection, and passphrase-protected import in `apps/api/src/security/recovery-kit-service.ts`, `packages/database/src/repositories/security/recovery-kit-repository.ts`, and `apps/api/src/routes/security-recovery.ts`.
-- [ ] T090 [US5] Implement administrative command dispatch, protected input sources, fixed exit codes, JSON/text output, dry-run/confirmation policy, and command help in `apps/api/src/admin/security-cli.ts`, `apps/api/src/admin/command-parser.ts`, `apps/api/src/admin/command-output.ts`, `apps/api/src/admin/security-commands.ts`, and `apps/api/src/app.ts`.
-- [ ] T091 [US5] Implement `security status`, password reset, session revocation, key check, integrity verify, rotate, rotation inspect, recovery inspect/import, repair, compatibility, and redacted diagnostics exactly as specified in `apps/api/src/admin/security-commands.ts`, `apps/api/src/security/integrity-service.ts`, `apps/api/src/security/administrative-recovery-service.ts`, and `specs/002-owner-security-foundation/contracts/admin-cli.md`.
-- [ ] T092 [US5] Implement recovery of locked/damaged/replaced compatible installations without owner recreation or feature-001 ID regeneration in `apps/api/src/security/administrative-recovery-service.ts`, `packages/database/src/repositories/security/installation-security-repository.ts`, `packages/database/src/repositories/security/owner-repository.ts`, and `packages/database/src/repositories/security/integrity-repository.ts`.
-- [ ] T093 [US5] Implement append-only redacted audit events for key generation changes, rotation checkpoints/failures, kit replacement/revocation/import, integrity failures, administrative recovery, repair, and diagnostics in `packages/domain/src/security/audit.ts`, `apps/api/src/security/audit-service.ts`, and `packages/database/src/repositories/security/audit-repository.ts`.
-- [ ] T094 [US5] Add rotation/recovery progress, replacement-kit status, compatible-recovery messaging, safe integrity failure, and accessible confirmation UI in `apps/web/src/features/security/key-rotation-panel.tsx`, `apps/web/src/features/security/recovery-kit-panel.tsx`, `apps/web/src/features/security/security-settings.tsx`, and `apps/web/src/services/security-api.ts`.
-- [ ] T095 [US5] Validate every administrative command with `--help`, valid/invalid input, JSON output, missing key, captured logs, dry-run, confirmation, and failure exit status, then record measured results in `specs/002-owner-security-foundation/quickstart.md` and `specs/002-owner-security-foundation/validation.md`.
+- [ ] T078 [US5] Implement authenticated recovery-kit replacement, one-time download/confirmation, active-kit continuity, epoch advance, supersession/revocation, and recent-authentication gates in `apps/api/src/security/recovery-kit-service.ts`, `packages/database/src/repositories/security/recovery-kit-repository.ts`, and `apps/api/src/routes/security-recovery.ts` (FR-016, FR-018).
+- [ ] T079 [US5] Implement compatible administrative recovery only as a protected local-CLI operation (never a session admin-recovery route) into an empty/uninitialized target with atomic source-lineage, installation, owner, workspace, content, history, file, and mutation identity adoption plus device trust reset in `apps/api/src/security/administrative-recovery-service.ts`, `apps/api/src/admin/security-commands.ts`, `packages/database/src/repositories/security/recovery-import-repository.ts`, and `packages/database/src/repositories/security/identity-adoption-repository.ts` (FR-001, FR-019, FR-020, FR-024, SC-005).
+- [ ] T080 [US5] Implement the independent external wrapping-key rotation state machine across exactly the eight policy states, root-key-only rewrap operation, operation ID, checkpoint cursor, due/emergency mode, 365-day/7-day policy, and command handler in `packages/domain/src/security/wrapping-key-rotation.ts`, `packages/database/src/repositories/security/wrapping-key-rotation-repository.ts`, and `apps/api/src/admin/commands/rotation-wrapping-key.ts` (FR-017, FR-025, FR-027).
+- [ ] T081 [US5] Implement the independent workspace data-key generation rotation state machine across exactly the same eight policy states, progressive record/file-chunk rewriting, generation status, resumable checkpoints, configured due/write-block thresholds, and command handler in `packages/domain/src/security/data-key-rotation.ts`, `packages/database/src/repositories/security/data-key-rotation-repository.ts`, and `apps/api/src/admin/commands/rotation-data-key.ts` (FR-017, FR-018, FR-025, FR-027).
+- [ ] T082 [US5] Implement startup and automated daily evaluation of both policies, due/overdue/emergency/write-block warnings, safe reads, transactional protected-write blocking, and explicit triggers in `apps/api/src/security/rotation-scheduler.ts`, `apps/api/src/security/rotation-policy-service.ts`, and `apps/api/src/routes/security-rotation.ts` (FR-025, FR-026, FR-027, SC-009).
+- [ ] T083 [US5] Implement the supported redacted local CLI with help, JSON/text envelopes, protected stdin/file-descriptor input, dry-run/`--yes`, exit codes 0/2/3/4/5/6/7, key/integrity checks, local-only compatible recovery import, exact local-only `security compatibility inspect --target PATH --source PATH [--json] [--dry-run]` inspection without session creation or writes in dry-run, both rotation commands, migration status, and diagnostics in `apps/api/src/admin/security-cli.ts`, `apps/api/src/admin/command-parser.ts`, `apps/api/src/admin/command-output.ts`, and `apps/api/src/admin/security-commands.ts`; reject any session admin-recovery method, remote admin bearer/API route, API token, or placeholder admin auth (FR-019, FR-020, FR-021, FR-023, FR-035).
+- [ ] T084 [US5] Record recovery attempts, epoch changes, rotation policy/operation/checkpoint changes, integrity failures, admin actions, and safe status output through `packages/domain/src/security/audit.ts`, `apps/api/src/security/audit-service.ts`, and `packages/database/src/repositories/security/audit-repository.ts` (FR-022, FR-023, FR-035).
+- [ ] T085 [US5] Implement owner-facing recovery-kit replacement, rotation policy/progress, write-block, safe failure, and compatible-recovery status views in `apps/web/src/features/security/recovery-kit-panel.tsx`, `apps/web/src/features/security/key-rotation-panel.tsx`, `apps/web/src/features/security/security-settings.tsx`, and `apps/web/src/services/security-api.ts` (FR-016, FR-025, FR-026, FR-027, SC-008).
+- [ ] T086 [US5] Run the independent recovery/rotation matrix and update `specs/002-owner-security-foundation/validation.md` with exact identity digests, valid/invalid import counts, separate wrapping/data-key operation IDs, ciphertext comparisons, interruption resumes, all sixteen rotation rows (eight states for each policy), safe-read results, write-block results, and SC-005/SC-006/SC-009 formulas (FR-017, FR-018, FR-019, FR-025, FR-026, FR-027, SC-005, SC-006, SC-009).
 
-**Checkpoint**: Rotation and recovery are resumable and auditable, revoked material cannot authorize new access, and no destructive administrative change occurs without dry-run or explicit confirmation.
+**Checkpoint**: Recovery and the two key axes are independently observable, resumable, auditable, and fail closed; replacement preserves identity and requires explicit device reauthorization.
 
-## Phase 8: Polish & Cross-Cutting Quality Gates
+## Phase 8: User Story 6 — Migrate Safely and Deliver a Verifiable Installation (Priority: P1)
 
-**Purpose**: Close integration, documentation, security, performance, Compose, migration, and release-quality obligations across all stories.
+**Goal**: Complete staged plaintext migration and provide the official local Compose stack, reverse-proxy boundary, immutable image selection, single CI quality gate, and exact-SHA release publication.
 
-- [ ] T096 [P] Extend the existing feature-001 route, repository, export, and browser projection tests to assert authenticated access, encrypted payload handling, and unchanged canonical IDs in `apps/api/tests/files.contract.spec.ts`, `apps/api/tests/page-documents.contract.spec.ts`, `apps/api/tests/mutations.contract.spec.ts`, `apps/api/tests/relationships.contract.spec.ts`, `apps/api/tests/revisions.contract.spec.ts`, `apps/api/tests/reconciliation.contract.spec.ts`, `packages/database/tests/atomicity.integration.spec.ts`, `packages/database/tests/file-placements.integration.spec.ts`, `packages/database/tests/revision-retention.integration.spec.ts`, `packages/client-core/tests/local-store.contract.spec.ts`, `packages/client-core/tests/outbox.spec.ts`, `packages/client-core/tests/reconciliation.spec.ts`, `tests/e2e/hierarchy.spec.ts`, `tests/e2e/files.spec.ts`, `tests/e2e/relationships.spec.ts`, `tests/e2e/revision-restore.spec.ts`, and `tests/e2e/offline-reconciliation.spec.ts`.
-- [ ] T097 [P] Add end-to-end security regression coverage for responsive keyboard/focus behavior, safe error copy, private-content non-disclosure, session/device/recovery readiness indicators, and all changed interactive flows in `tests/e2e/accessibility.spec.ts`, `tests/e2e/bootstrap.spec.ts`, `tests/e2e/authentication.spec.ts`, `tests/e2e/devices.spec.ts`, and `tests/e2e/security-recovery.spec.ts`.
-- [ ] T098 [P] Add Compose/security tests for secret-file mounting, absence of deployment keys from argv/logs/image layers/`.env`, loopback-only ports, healthchecks, UTC configuration, least-privilege services, and real stack startup in `tests/contract/compose-security.spec.ts`, `compose.yaml`, `compose.override.yaml`, and `.env.example`.
-- [ ] T099 [P] Add security scan and shell/toolchain checks for dependency lock integrity, no forbidden package manager artifacts, no secret literals, redacted logs, Compose configuration, and container image configuration in `scripts/ci/check-toolchain.ts`, `scripts/ci/check-shell.ts`, `.github/workflows/ci.yml`, and `.github/rulesets/main.json`.
-- [ ] T100 [P] Add encryption-inclusive performance and resource tests for common feature-001 operations, asynchronous scrypt concurrency, encrypted blob chunks, and resumable rotation progress against the plan's targets in `tests/performance/owner-security.perf.spec.ts` and `tests/fixtures/security.ts`.
-- [ ] T101 [P] Add a complete migration/fault-injection matrix from empty and feature-001 fixtures, asserting complete prior state or resumable state after every persistence boundary in `packages/database/tests/migrations.integration.spec.ts`, `packages/database/tests/security-migration.integration.spec.ts`, `apps/api/tests/bootstrap-fault-injection.integration.spec.ts`, and `apps/api/tests/key-rotation-fault-injection.integration.spec.ts`.
-- [ ] T102 [P] Update the official environment, Compose, external-secret, local HTTP, reverse-proxy, recovery-kit, rotation, and administrative-operation documentation in `.env.example`, `compose.yaml`, `compose.override.yaml`, `specs/002-owner-security-foundation/quickstart.md`, and `specs/002-owner-security-foundation/contracts/admin-cli.md`.
-- [ ] T103 Run and fix the complete local quality gate—`pnpm toolchain:check`, `pnpm format:check`, `pnpm lint:ci`, `pnpm shell:check`, `pnpm typecheck`, `pnpm test:unit`, `pnpm test:property`, `pnpm test:integration`, `pnpm test:contract`, `pnpm db:test-migrations`, `pnpm test:e2e`, and `pnpm build`—with results recorded in `specs/002-owner-security-foundation/validation.md` and workflow parity maintained in `.github/workflows/ci.yml`.
-- [ ] T104 Verify the official Compose stack starts with the documented secret fixture, the API/web health checks pass, the database migrates from empty and feature-001 states, and the image/security checks pass in `tests/contract/compose-security.spec.ts`, `compose.yaml`, `compose.override.yaml`, and `specs/002-owner-security-foundation/validation.md`.
-- [ ] T105 Review all implementation and test diffs for accidental feature-001 identity/model duplication, second-owner paths, plaintext persistence, secret logging, unsafe admin mutation, branch changes, and unrelated worktree modifications in `specs/002-owner-security-foundation/tasks.md`, `specs/002-owner-security-foundation/validation.md`, and the repository worktree.
+**Dependency**: Starts after encrypted storage and recovery primitives are available; migration and delivery must preserve identities and never publish on incomplete evidence.
+
+### Tests for User Story 6 (write first and make them fail)
+
+- [ ] T087 [P] [US6] Add migration state-machine/property tests for capture boundary, resumable backfill, counts/digests/identity verification, plaintext-write stop, encrypted-read cutover, scrub/drop, monotonic checkpoints, and no premature completion in `packages/domain/tests/migration-state.property.spec.ts` (FR-028, FR-029, SC-010).
+- [ ] T088 [P] [US6] Add database/API fault-injection tests for failures before backfill, during backfill, after verification, after plaintext-write stop, during encrypted-read cutover, and during scrub/drop in `packages/database/tests/security-migration.integration.spec.ts` and `apps/api/tests/security-migration-fault-injection.integration.spec.ts` (FR-028, FR-029, SC-010).
+- [ ] T089 [P] [US6] Add Compose contract tests for `api`, `web`, `postgres`, durable `file-store`, health checks, startup dependencies, mounted secrets, loopback-only HTTP, persistent volumes, `.env.example`, local-build override, feature-002 baseline ownership, and feature-007 non-duplication in `tests/contract/compose-security.spec.ts` (FR-030, FR-031, FR-032, FR-035).
+- [ ] T090 [P] [US6] Add negative delivery-gate tests proving failed, skipped, missing, cancelled, stale, and different-SHA checks block merge/publication, manual diagnostics never publish, the five named security jobs are individually observable and artifact-bearing, and positive paths cover branch/PR/main/version-tag candidates in `tests/contract/release-gates.spec.ts` (FR-033, FR-034, FR-035, SC-007).
+- [ ] T091 [P] [US6] Add image/release inspection tests for immutable commit-SHA and semantic-version tags, `linux/amd64`/`linux/arm64`, GHCR references, checksums, SBOM, provenance/attestation, least-privilege permissions, and no moving publication channel in `tests/contract/release-artifacts.spec.ts` (FR-032, FR-034, SC-007).
+
+### Implementation for User Story 6
+
+- [ ] T092 [US6] Implement the durable migration state machine and capture boundary in `packages/domain/src/security/migration.ts`, `packages/database/src/repositories/security/migration-repository.ts`, and `packages/database/src/repositories/security/migration-checkpoint-repository.ts` (FR-028, FR-029).
+- [ ] T093 [US6] Implement resumable encrypted backfill of records and file blobs, deterministic counts/digests, and feature-001 canonical identity verification in `apps/api/src/security/migration-backfill-service.ts`, `packages/database/src/repositories/security/migration-source-repository.ts`, and `packages/blob-store/src/migration/encrypted-backfill.ts` (FR-024, FR-028, FR-029).
+- [ ] T094 [US6] Implement verified plaintext-write stop, encrypted-read cutover, scrub/drop cleanup, restart recovery, and safe completion reporting in `apps/api/src/security/migration-orchestrator.ts`, `packages/database/src/repositories/security/migration-cutover-repository.ts`, and `packages/blob-store/src/migration/plaintext-cleanup.ts` (FR-028, FR-029, SC-010).
+- [ ] T095 [US6] Implement feature 002’s official baseline Compose stack with `api`, `web`, `postgres`, durable `file-store`, health checks, dependency conditions, `127.0.0.1`-bound local HTTP, persistent volumes, mounted deployment secret, explicit immutable image selection, and no feature-007 duplicate in `compose.yaml` and `compose.override.yaml` (FR-030, FR-031, FR-032).
+- [ ] T096 [US6] Document local HTTP, external HTTPS/reverse-proxy responsibility, trusted proxy/public origin headers, nginx/Caddy/Traefik examples, immutable image pinning, and rollback selection in `docs/deployment/reverse-proxy.md` and `.env.example` (FR-030, FR-031, FR-032).
+- [ ] T097 [US6] Update the existing `.github/workflows/ci.yml` in place as feature 002’s single reusable `quality-gate`: expose `workflow_call`, direct `pull_request`, direct non-main branch push, and direct `workflow_dispatch` diagnostic triggers only; keep diagnostics gate-only with no publish job/package-write permission; run formatting, Biome, lint/static analysis, types, tests, migrations, production build, Compose/configuration, real-stack startup, and five separately observable blocking security jobs (`dependency-vulnerability-audit`→`dependency-audit.json`, `secret-scan`→`secret-scan.sarif`, `static-security-analysis`→`static-security.sarif`, `container-vulnerability-scan`→`container-scan.sarif`, `license-policy`→`license-policy.json`) on the exact candidate SHA, and make the aggregate fail for failed/skipped/missing/cancelled/stale/artifact-less jobs (FR-033, FR-034, FR-035).
+- [ ] T098 [US6] Add `.github/workflows/release.yml` with direct triggers only for pushes to `main` and strict `^v[0-9]+\.[0-9]+\.[0-9]+$` tags; make its first `quality-gate` job call `./.github/workflows/ci.yml` at the caller commit, export reusable `candidate_sha = github.sha`, compare it to release `github.sha`, and make every publication job depend on a successful, non-stale, exact-SHA gate plus all five security artifacts, with failed/skipped/missing/cancelled/mismatched gates blocking all publication, without an indirect workflow-completion trigger or a second logical gate (FR-032, FR-033, FR-034, FR-035).
+- [ ] T099 [US6] Configure protected-branch required-check and stale/missing-check enforcement for the single aggregate gate in `.github/rulesets/main.json`, without adding a duplicate quality-gate workflow (FR-033, FR-034).
+- [ ] T100 [US6] Run the six migration fault checkpoints and update `specs/002-owner-security-foundation/validation.md` with source retention, last safe state, read/write mode, cleanup, identity digest, and completion evidence; accept SC-010 only after verified cleanup (FR-028, FR-029, SC-010).
+- [ ] T101 [US6] Execute the exact SC-008 usability protocol with exactly 10 pseudonymous participants `P01`–`P10`: show the implemented security screens, give identical task wording without facilitator explanation, score owner/no-second-account, sessions/devices and revocation, recovery readiness, and unreachable-device erasure limitation, record facilitator-explanation yes/no and each 0–4 result, and accept only at least 9 independent four-of-four successes in `specs/002-owner-security-foundation/validation.md` (FR-001, FR-008, FR-010, FR-015, SC-008).
+- [ ] T102 [US6] Run Compose, migration, development/local-test/branch-CI/pull-request/main/tag, manual-diagnostic, exact-SHA, negative-gate, five-security-job/artifact, image, checksum, SBOM/provenance, GHCR, and rollback evidence: pin a prior compatible immutable image, restore it through Compose, verify health and persisted data, and fill every delivery/release ledger field in `specs/002-owner-security-foundation/validation.md`—candidate type/SHA, required checks, failed/skipped/missing/cancelled/stale result, exact-SHA result, publication result, all five security artifacts, artifact digests/checksums/SBOM/provenance, current/prior image refs and digests, pre/post persisted-data digests, Compose image selection, pre/post health, rollback result, raw artifact, reviewer, date, and status—keeping SC-007 pending unless every required result and artifact is recorded (FR-030, FR-031, FR-032, FR-033, FR-034, FR-035, SC-007).
+
+**Checkpoint**: Plaintext is scrubbed only after verified cutover, the official stack is complete and loopback-bound, and release publication is impossible without the exact successful single quality gate.
+
+## Phase 9: Polish, Full Gates, Analysis, and Convergence
+
+**Purpose**: Run the complete repository-quality and evidence handoff checks after all user stories.
+
+- [ ] T103 [P] Run cross-feature integration/regression tests for authenticated content access, encrypted payloads, files, relationships, revisions, mutations, reconciliation, offline local projection, and canonical identity preservation in `tests/integration/security-content-regression.spec.ts`, `tests/e2e/security-content-regression.spec.ts`, and `tests/e2e/offline-reconciliation.spec.ts` (FR-011, FR-012, FR-024, SC-004, SC-005).
+- [ ] T104 [P] Run Biome formatting/checking without modifying files and validate TypeScript, shell, contract, migration, Compose, and release artifacts using `package.json`, `biome.jsonc`, `scripts/ci/check-shell.ts`, `tests/contract/security-api.spec.ts`, `tests/contract/compose-security.spec.ts`, and `tests/contract/release-gates.spec.ts` (FR-033, FR-035, SC-007).
+- [ ] T105 Run the complete local gate—`pnpm toolchain:check`, `pnpm format:check`, `pnpm lint:ci`, `pnpm shell:check`, `pnpm typecheck`, `pnpm test:unit`, `pnpm test:property`, `pnpm test:integration`, `pnpm test:contract`, `pnpm db:test-migrations`, `pnpm test:e2e`, `pnpm build`, `docker compose config`, and `docker compose up -d --wait`—and record every raw result in `specs/002-owner-security-foundation/validation.md` (FR-030, FR-033, FR-035, SC-007).
+- [ ] T106 Run the exact SpecKit Analyze workflow from `.agents/skills/speckit-analyze/SKILL.md` against `specs/002-owner-security-foundation/spec.md`, `specs/002-owner-security-foundation/plan.md`, and `specs/002-owner-security-foundation/tasks.md`; resolve high-impact inconsistencies without editing feature-001 artifacts (FR-024, FR-035).
+- [ ] T107 Run the convergence workflow from `.agents/skills/speckit-converge/SKILL.md` against `specs/002-owner-security-foundation/spec.md`, `specs/002-owner-security-foundation/plan.md`, `specs/002-owner-security-foundation/tasks.md`, and `specs/002-owner-security-foundation/validation.md`; append and complete only genuinely remaining work (FR-035, SC-001, SC-007, SC-010).
+- [ ] T108 Review `specs/002-owner-security-foundation/validation.md` for one normalized row for each FR-001–FR-035 and SC-001–SC-010, require the documented evidence fields, raw command/configuration/SHA/artifact/reviewer/date evidence, exactly seven recovery pairs, exactly sixteen rotation rows, and leave any unrun criterion `pending` or `blocked`, never `pass` (FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, FR-014, FR-015, FR-016, FR-017, FR-018, FR-019, FR-020, FR-021, FR-022, FR-023, FR-024, FR-025, FR-026, FR-027, FR-028, FR-029, FR-030, FR-031, FR-032, FR-033, FR-034, FR-035, SC-001, SC-002, SC-003, SC-004, SC-005, SC-006, SC-007, SC-008, SC-009, SC-010).
+- [ ] T109 Verify the final worktree and task checklist contain no scheduled edits to feature-001 specification artifacts, and record the review in `specs/002-owner-security-foundation/validation.md` (FR-001, FR-024).
+- [ ] T110 Complete the normalized validation-ledger handoff in `specs/002-owner-security-foundation/validation.md`: populate run metadata (`Candidate commit SHA`, branch, dirty-before-run flag, Node/pnpm versions, Docker/Compose versions, database/storage fixture, deployment wrapping-key fixture ID, controlled-clock version, overall status), exactly one functional row for each FR-001–FR-035 with `Requirement(s)`, `Verification path`, `Status`, `Raw evidence/artifact`, and `Reviewer/date`, exactly one success-criteria row for each SC-001–SC-010 with `Criterion`, `Required raw evidence`, `Status`, `Artifact/notes`, and `Reviewer/date`, the 20-trial/5-operator SC-002 table, the 10-participant SC-008 table, all seven recovery state-axis pairs, exactly sixteen rotation rows (eight states for each policy), all six migration fault rows, all four delivery candidates, the full image-selection/rollback row, and the evidence-review row with raw command/configuration/SHA/artifact/reviewer/date/status fields; leave unrun evidence `pending` or `blocked`, never `pass` (FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, FR-014, FR-015, FR-016, FR-017, FR-018, FR-019, FR-020, FR-021, FR-022, FR-023, FR-024, FR-025, FR-026, FR-027, FR-028, FR-029, FR-030, FR-031, FR-032, FR-033, FR-034, FR-035, SC-001, SC-002, SC-003, SC-004, SC-005, SC-006, SC-007, SC-008, SC-009, SC-010).
 
 ## Dependencies & Execution Order
 
-### Phase Dependencies
+### Phase dependencies
 
-- **Setup (Phase 1)**: No dependencies; establishes package, Compose, and test-harness prerequisites.
-- **Foundational (Phase 2)**: Depends on Setup and blocks every story; establishes schemas, migrations, fixtures, redaction, route-guard interfaces, and contract validation.
-- **User Story 4 (Phase 3, P1)**: First story after the foundation because bootstrap readiness and all later stories depend on authenticated application encryption, external key handling, and recovery-kit primitives.
-- **User Story 1 (Phase 4, P1)**: Depends on foundational persistence and US4 encryption/recovery services; establishes the sole owner and initial authorized device.
-- **User Story 2 (Phase 5, P1)**: Depends on US1's owner/passkey/device records and US4's protected persistence; its session guard then protects feature-001 routes.
-- **User Story 3 (Phase 6, P2)**: Depends on US2's sessions and US4's local-key state; it extends device authorization and synchronization denial.
-- **User Story 5 (Phase 7, P2)**: Depends on US2 session/recent-authentication controls, US3 device revocation, and US4 encrypted generations/recovery artifacts.
-- **Polish (Phase 8)**: Depends on all required stories and validates the complete quickstart, quality gate, Compose/security contract, and release readiness.
+- **Setup (Phase 1)** has no feature dependency and prepares the pinned toolchain, fixtures, configuration, and delivery scaffolding.
+- **Foundational (Phase 2)** depends on Setup and blocks every story; crypto, redaction, singleton, repository, contract, and policy primitives must pass first.
+- **US1 (Phase 3)** depends only on the foundation and is deliberately session-free; it must establish owner/workspace/recovery readiness before any session-dependent flow.
+- **US2 (Phase 4)** depends on US1 and provides the coherent authenticated session boundary.
+- **US4 (Phase 5)** depends on US2 for protected owner operations and uses the foundation/US1 recovery primitives; it protects server/local content.
+- **US3 (Phase 6)** depends on US2 and US4 for authenticated device and local-key behavior.
+- **US5 (Phase 7)** depends on US2, US3, and US4 for recent authentication, device reset, encrypted generations, and kits.
+- **US6 (Phase 8)** depends on US4 and US5 for encrypted destinations, migration identity checks, and delivery/recovery contracts.
+- **Polish (Phase 9)** depends on all six stories and is the final local-gate, Biome, contract, SpecKit Analyze, convergence, and evidence phase.
 
-### User Story Dependencies
+### Task-ID dependency gates
+
+- `T001–T007 → T008–T022`: setup artifacts and fixtures precede foundational tests and implementations.
+- `T008–T022 → T023–T035`: contracts, crypto, redaction, scoped persistence, and policy primitives precede session-free bootstrap.
+- `T023–T035 → T036–T048`: US1 must establish confirmed recovery readiness before any session-dependent owner flow.
+- `T036–T048 → T049–T061`: authenticated owner operations precede protected server/local data and recovery-material integration.
+- `T049–T061 → T062–T071`: encrypted local storage precedes device-key binding and device reauthorization.
+- `T062–T071 → T072–T086`: device trust reset, recent authentication, encrypted generations, and kit primitives precede recovery import and rotations.
+- `T072–T086 → T087–T102`: recovery/rotation contracts and implementations precede migration, Compose, CI, GHCR, and rollback evidence.
+- `T023–T102 → T103–T110`: all six story checkpoints precede cross-feature regression, full gates, analysis, convergence, and final ledger review.
+
+### User-story dependency graph
 
 ```text
 Foundational
     ↓
-US4 Protect data/recovery ──┐
-                            ├──> US1 Bootstrap ──> US2 Auth/sessions ──> US3 Devices ──┐
-                            └────────────────────────────────────────────────────────────┤
-                                                                                         └──> US5 Rotation/admin recovery ──> Polish
+US1 session-free bootstrap/recovery readiness
+    ↓
+US2 authentication/sessions
+    ↓
+US4 content/local protection
+    ↓
+US3 devices
+    ↓
+US5 authenticated recovery + independent rotations
+    ↓
+US6 staged migration + Compose + CI/release delivery
+    ↓
+Full gates + Analyze + convergence/evidence
 ```
 
-- **US4** is independently testable with a seeded feature-001 installation and is the security prerequisite for bootstrap.
-- **US1** must complete before authentication journeys can use a real owner, but it must not redefine feature-001 identities.
-- **US2** depends on US1 for owner credentials and on US4 for protected session/security metadata.
-- **US3** depends on US2 for session/device authorization and on US4 for local encrypted state.
-- **US5** depends on all preceding security state machines and must preserve the same owner, workspace, and feature-001 canonical IDs during recovery.
+### Parallel opportunities
 
-### Within Each User Story
-
-- Contract, unit, property, integration, fault-injection, and Playwright tests are written before the corresponding implementation tasks and must fail for the missing behavior.
-- Domain rules and schemas precede repositories/services; repositories/services precede routes/CLI; API behavior precedes web journeys.
-- A story is complete only when its independent test criteria pass, its audit/redaction behavior is covered, and the checkpoint is verified.
-
-## Parallel Execution Examples
-
-### User Story 4
-
-```text
-Parallel: T025, T026, T027, T028, T029, T030, T031
-Then: T032/T033 (crypto and blob adapters) in parallel with T034 (security repositories)
-Then: T035/T036, followed by T037–T042
-```
-
-### User Story 1
-
-```text
-Parallel: T043, T044, T045, T046, T047
-Then: T048 and T049 in parallel
-Then: T050/T051, followed by T052/T053/T054
-```
-
-### User Story 2
-
-```text
-Parallel: T055, T056, T057, T058, T059
-Then: T060, T061, and T062 in parallel
-Then: T063/T064/T065, followed by T066–T068
-```
-
-### User Story 3
-
-```text
-Parallel: T069, T070, T071, T072, T073
-Then: T074 and T075 in parallel
-Then: T076/T077/T078/T079, followed by T080
-```
-
-### User Story 5
-
-```text
-Parallel: T081, T082, T083, T084, T085, T086
-Then: T087/T088, T089/T090, and T093 in parallel where repository boundaries permit
-Then: T091/T092/T094/T095
-```
+- Setup tasks T002–T005 are parallel only across their distinct file boundaries; T006 follows the script/configuration decisions.
+- Foundational tests T008–T011 can run in parallel, then T012–T020 proceed in dependency order.
+- Within each story, the marked test tasks can run in parallel; implementation follows tests and is ordered domain → repository/service → route/CLI → web → evidence.
+- US5 wrapping-key and data-key tests/implementations (T074/T080 and T081) are parallel across separate state machines, while T082 and T086 depend on both.
+- US6 migration tests and Compose/release contract tests (T087–T091) can run in parallel before their separate implementations.
+- T103 and T104 can run in parallel after all story checkpoints; T105–T110 are sequential evidence and governance gates.
 
 ## Implementation Strategy
 
-### MVP First
+### MVP first
 
-The smallest useful release is **Foundational + US4 + US1**: protected persistence and recovery material plus a complete single-owner bootstrap. Stop at the US1 checkpoint and verify a fresh installation, one-owner invariant, recovery readiness, fail-closed key behavior, and preserved feature-001 identities before expanding the authenticated content surface.
+1. Complete Setup and Foundational.
+2. Complete US1 and stop at its checkpoint.
+3. Validate exactly one owner/workspace, session-free bootstrap, provisional recovery, SC-001, and the exact SC-002 20-trial/5-operator protocol before expanding the authenticated surface.
 
-### Incremental Delivery
+### Incremental delivery
 
-1. Complete Setup and Foundational; run migration, contract, unit, and property checks.
-2. Complete US4; validate encrypted persistence, local encryption, recovery-kit export, and fail-closed reads.
-3. Complete US1; validate fresh-install bootstrap and deliver the owner-security MVP.
-4. Complete US2; protect all existing feature-001 routes and deliver revocable authentication sessions.
-5. Complete US3; deliver attributable device management and revocation semantics.
-6. Complete US5; deliver rotation, compatible recovery, and administrative operations.
-7. Complete Polish; run the full quickstart, Compose/security checks, Playwright matrix, migration/fault matrix, and CI-equivalent quality gate.
+1. Add US2 for passkey/password authentication and revocable sessions.
+2. Add US4 for server/local encryption and fail-closed protected content.
+3. Add US3 for device inventory, revocation, and explicit reauthorization.
+4. Add US5 for authenticated recovery, separate wrapping/data-key rotation, due/overdue/emergency/write-block policy, and admin commands.
+5. Add US6 for migration, Compose, external reverse-proxy documentation, exact-SHA CI, and multi-architecture GHCR release publication.
+6. Complete the full local gate, Biome, contract validation, SpecKit Analyze, convergence, and evidence review.
 
-### Independent Test Criteria by Story
+### Independent test criteria by story
 
-- **US1**: Valid fresh-install bootstrap produces exactly one owner/workspace/device and ready state; repeated/concurrent/interrupted/invalid-key claims never create a usable second or partial owner.
-- **US2**: Passkey-only and password-alternative authentication succeed; inactivity, recent-authentication, CSRF, rate limiting, one-session revocation, and revoke-all behavior are enforced without disclosure.
-- **US3**: Two devices are inventoried with all required metadata; rename/limit changes preserve identities; revoked devices cannot renew, sync, or receive data; unreachable local erasure is described honestly.
-- **US4**: Every listed server/local protected category has no usable persisted plaintext; invalid/tampered key/envelope cases fail closed; valid recovery export/import works without colocating secrets or changing feature-001 IDs.
-- **US5**: Scheduled/emergency rotation completes or resumes across every injected checkpoint; replacement/revoked kits are enforced; admin commands are redacted, deterministic, confirmation-safe, and compatible recovery preserves canonical identities.
+- **US1**: Fresh bootstrap succeeds without a session; repeated/concurrent/interrupted/invalid-key attempts cannot create a second or usable partial owner; provisional recovery is one-time and readiness requires confirmation (FR-001, FR-002, FR-015, FR-016, SC-001, SC-002).
+- **US2**: Passkey-only and password-alternative login succeed; bounds, recent auth, cookies, CSRF, rate limits, and one/all-session revocation are enforced without disclosure (FR-003–FR-007, FR-022, FR-023, SC-003).
+- **US3**: Required device fields are visible; rename/limit changes preserve canonical identities; revoked devices cannot renew/sync/receive data and unreachable erasure is stated honestly (FR-008–FR-010, FR-024, SC-003, SC-008).
+- **US4**: Every FR-011/FR-012 category is encrypted at rest; invalid material fails closed; external key custody, artifact separation, and feature-001 identity preservation hold (FR-011–FR-016, FR-023, FR-024, SC-004).
+- **US5**: Valid recovery preserves all IDs only into an empty target; invalid kits/targets fail; wrapping and data-key rotations remain separate and resumable with policy enforcement (FR-017–FR-027, SC-005, SC-006, SC-009).
+- **US6**: Migration reaches verified cleanup through all fault checkpoints; Compose is complete and loopback-bound; exact-SHA gates block unsafe merge/publication and publish only immutable required artifacts (FR-028–FR-035, SC-007, SC-010).
 
 ## Notes
 
-- `[P]` means the task touches a distinct file boundary and has no dependency on incomplete work within its phase.
-- Story labels map to the five user stories in `specs/002-owner-security-foundation/spec.md`; setup, foundational, and polish tasks intentionally have no story label.
-- All task lines use the required checklist format: checkbox, sequential ID, optional `[P]`, required story label in story phases, and at least one exact repository file path.
-- Do not switch branches, rewrite existing uncommitted changes, or introduce a second dependency/toolchain while implementing these tasks.
+- Every task is a checkbox with a sequential ID; `[P]` appears only where the task has a distinct file boundary and no dependency on incomplete work.
+- `[US1]`–`[US6]` labels map to the six stories in `specs/002-owner-security-foundation/spec.md`; setup, foundational, and polish tasks intentionally have no story label.
+- Every actionable task names one or more exact repository-relative file paths. Feature-001 identities are referenced, tested, and preserved; feature-001 artifacts are never scheduled for editing.
+
+## Requirement traceability (FR-001..FR-035 and SC-001..SC-010)
+
+Each row below is an explicit reference to the normative requirement in
+`specs/002-owner-security-foundation/spec.md` and to the validation ledger in
+`specs/002-owner-security-foundation/validation.md`. The task IDs resolve to
+the exact implementation, test, workflow, or evidence paths above.
+
+| Requirement | Normative source | Traceable task IDs |
+| --- | --- | --- |
+| FR-001 | `spec.md` §Requirements; `validation.md` FR-001 | T007, T010, T017, T018, T025, T028, T030, T031, T035, T079, T101, T109, T110 |
+| FR-002 | `spec.md` §Requirements; `validation.md` FR-002 | T012, T020, T023, T024, T026, T027, T028, T029, T031, T033, T035, T110 |
+| FR-003 | `spec.md` §Requirements; `validation.md` FR-003 | T012, T029, T036, T039, T040, T041, T045, T046, T110 |
+| FR-004 | `spec.md` §Requirements; `validation.md` FR-004 | T032, T036, T039, T040, T042, T045, T046, T110 |
+| FR-005 | `spec.md` §Requirements; `validation.md` FR-005 | T036, T041, T042, T045, T046, T110 |
+| FR-006 | `spec.md` §Requirements; `validation.md` FR-006 | T012, T020, T036, T037, T038, T039, T040, T041, T042, T043, T044, T045, T046, T110 |
+| FR-007 | `spec.md` §Requirements; `validation.md` FR-007 | T020, T036, T037, T039, T040, T043, T044, T045, T110 |
+| FR-008 | `spec.md` §Requirements; `validation.md` FR-008 | T012, T062, T063, T064, T065, T066, T068, T070, T071, T110 |
+| FR-009 | `spec.md` §Requirements; `validation.md` FR-009 | T062, T063, T064, T065, T067, T068, T069, T070, T071, T110 |
+| FR-010 | `spec.md` §Requirements; `validation.md` FR-010 | T062, T065, T067, T068, T070, T071, T110 |
+| FR-011 | `spec.md` §Requirements; `validation.md` FR-011 | T009, T014, T018, T049, T050, T053, T054, T055, T056, T061, T103, T110 |
+| FR-012 | `spec.md` §Requirements; `validation.md` FR-012 | T002, T051, T053, T057, T061, T103, T110 |
+| FR-013 | `spec.md` §Requirements; `validation.md` FR-013 | T004, T015, T026, T052, T059, T061, T076, T110 |
+| FR-014 | `spec.md` §Requirements; `validation.md` FR-014 | T009, T011, T013, T014, T015, T017, T019, T022, T026, T035, T049, T050, T051, T052, T054, T055, T057, T059, T061, T076, T110 |
+| FR-015 | `spec.md` §Requirements; `validation.md` FR-015 | T009, T013, T023, T024, T026, T027, T028, T030, T031, T032, T033, T035, T058, T075, T078, T110 |
+| FR-016 | `spec.md` §Requirements; `validation.md` FR-016 | T013, T023, T024, T026, T027, T028, T031, T032, T035, T053, T058, T075, T078, T085, T110 |
+| FR-017 | `spec.md` §Requirements; `validation.md` FR-017 | T003, T009, T013, T014, T018, T050, T074, T076, T080, T081, T086, T110 |
+| FR-018 | `spec.md` §Requirements; `validation.md` FR-018 | T013, T014, T017, T074, T075, T076, T078, T080, T081, T110 |
+| FR-019 | `spec.md` §Requirements; `validation.md` FR-019 | T012, T019, T072, T075, T076, T079, T083, T110 |
+| FR-020 | `spec.md` §Requirements; `validation.md` FR-020 | T008, T021, T072, T079, T083, T110 |
+| FR-021 | `spec.md` §Requirements; `validation.md` FR-021 | T008, T021, T072, T083, T110 |
+| FR-022 | `spec.md` §Requirements; `validation.md` FR-022 | T016, T018, T033, T047, T060, T071, T084, T110 |
+| FR-023 | `spec.md` §Requirements; `validation.md` FR-023 | T008, T012, T014, T015, T016, T031, T036, T038, T039, T041, T042, T044, T045, T052, T059, T060, T068, T072, T083, T110 |
+| FR-024 | `spec.md` §Requirements; `validation.md` FR-024 | T002, T007, T010, T011, T017, T018, T019, T020, T028, T030, T054, T056, T057, T058, T063, T064, T066, T067, T069, T079, T103, T106, T109, T110 |
+| FR-025 | `spec.md` §Requirements; `validation.md` FR-025 | T003, T012, T017, T073, T080, T081, T082, T085, T086, T110 |
+| FR-026 | `spec.md` §Requirements; `validation.md` FR-026 | T017, T073, T077, T082, T085, T086, T110 |
+| FR-027 | `spec.md` §Requirements; `validation.md` FR-027 | T003, T017, T073, T077, T080, T081, T082, T085, T086, T110 |
+| FR-028 | `spec.md` §Requirements; `validation.md` FR-028 | T009, T012, T018, T087, T088, T092, T093, T094, T100, T110 |
+| FR-029 | `spec.md` §Requirements; `validation.md` FR-029 | T003, T011, T087, T088, T092, T093, T094, T100, T110 |
+| FR-030 | `spec.md` §Requirements; `validation.md` FR-030 | T004, T007, T089, T095, T096, T102, T105, T110 |
+| FR-031 | `spec.md` §Requirements; `validation.md` FR-031 | T004, T089, T095, T096, T102, T110 |
+| FR-032 | `spec.md` §Requirements; `validation.md` FR-032 | T004, T005, T007, T089, T091, T095, T096, T098, T102, T110 |
+| FR-033 | `spec.md` §Requirements; `validation.md` FR-033 | T001, T002, T005, T006, T007, T090, T097, T098, T099, T102, T104, T105, T110 |
+| FR-034 | `spec.md` §Requirements; `validation.md` FR-034 | T005, T007, T090, T091, T097, T098, T099, T102, T110 |
+| FR-035 | `spec.md` §Requirements; `validation.md` FR-035 | T001, T002, T003, T006, T007, T008, T012, T015, T016, T021, T031, T036, T041, T045, T060, T072, T083, T084, T089, T090, T097, T098, T102, T104, T105, T106, T107, T108, T110 |
+| SC-001 | `spec.md` §Success Criteria; `validation.md` SC-001 | T003, T024, T025, T027, T028, T030, T035, T110 |
+| SC-002 | `spec.md` §Success Criteria; `validation.md` SC-002 | T034, T110 |
+| SC-003 | `spec.md` §Success Criteria; `validation.md` SC-003 | T039, T048, T064, T071, T110 |
+| SC-004 | `spec.md` §Success Criteria; `validation.md` SC-004 | T051, T052, T061, T103, T110 |
+| SC-005 | `spec.md` §Success Criteria; `validation.md` SC-005 | T075, T079, T086, T103, T110 |
+| SC-006 | `spec.md` §Success Criteria; `validation.md` SC-006 | T003, T074, T076, T080, T081, T086, T110 |
+| SC-007 | `spec.md` §Success Criteria; `validation.md` SC-007 | T089, T090, T091, T102, T104, T105, T110 |
+| SC-008 | `spec.md` §Success Criteria; `validation.md` SC-008 | T032, T040, T065, T070, T077, T085, T101, T110 |
+| SC-009 | `spec.md` §Success Criteria; `validation.md` SC-009 | T003, T073, T074, T082, T086, T110 |
+| SC-010 | `spec.md` §Success Criteria; `validation.md` SC-010 | T003, T087, T088, T094, T100, T110 |
