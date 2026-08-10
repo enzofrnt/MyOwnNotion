@@ -168,16 +168,44 @@ export function isRecoveryKitUsable(pair: RecoveryStatePair): boolean {
 // Key hierarchy
 // ---------------------------------------------------------------------------
 
+/**
+ * Two independent policies, deliberately not merged:
+ *
+ * - `wrapping-key` tracks the external deployment wrapping-key version. A
+ *   rotation unwraps and rewraps workspace root keys only; it never rewrites a
+ *   record or a chunk.
+ * - `data-key` tracks the workspace data-key generation. A rotation creates a
+ *   new generation and progressively rewrites envelopes and chunks behind
+ *   resumable cursors.
+ */
 export const KEY_KINDS = ["wrapping-key", "data-key"] as const;
 export type KeyKind = (typeof KEY_KINDS)[number];
 
 /**
- * Policy state for a key generation. `due` and `overdue` are advisory;
- * `write-blocked` is enforced, and is how an unrotated installation is stopped
- * from accumulating more data under a key that should have been retired.
+ * The complete policy-state vocabulary. `pre-due` through `emergency` are
+ * advisory and leave reads and writes working; `write-block` is the only
+ * enforced state, and it refuses *new protected writes* while leaving reads of
+ * valid existing ciphertext available. Locking an owner out of their own data
+ * because a rotation is late would be a worse outcome than the late rotation.
  */
-export const KEY_POLICY_STATES = ["current", "due", "overdue", "write-blocked", "retired"] as const;
+export const KEY_POLICY_STATES = [
+  "pre-due",
+  "due",
+  "overdue-within-grace",
+  "emergency",
+  "write-block",
+  "in-progress",
+  "complete",
+  "failed",
+] as const;
 export type KeyPolicyState = (typeof KEY_POLICY_STATES)[number];
+
+/** Scheduled rotations get a grace period; emergency rotations get none. */
+export const ROTATION_MODES = ["scheduled", "emergency"] as const;
+export type RotationMode = (typeof ROTATION_MODES)[number];
+
+/** Calendar days between `dueAt` and `writeBlockAt` for a scheduled rotation. */
+export const SCHEDULED_ROTATION_GRACE_DAYS = 7;
 
 // ---------------------------------------------------------------------------
 // Migration

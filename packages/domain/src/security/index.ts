@@ -10,5 +10,9 @@
 
 export * from "./crypto.ts";
 export * from "./envelopes.ts";
+export * from "./identity-manifest.ts";
+export * from "./invariants.ts";
 export * from "./recovery-artifacts.ts";
+export * from "./redaction.ts";
+export * from "./rotation-policy.ts";
 export * from "./types.ts";
