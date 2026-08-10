@@ -1,0 +1,146 @@
+{
+  "buildx.build.provenance/linux/amd64": {
+    "builder": {
+      "id": ""
+    },
+    "buildType": "https://mobyproject.org/buildkit@v1",
+    "materials": [
+      {
+        "uri": "pkg:docker/docker/buildkit-syft-scanner@stable-1",
+        "digest": {
+          "sha256": "79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68"
+        }
+      },
+      {
+        "uri": "pkg:docker/docker/dockerfile@1.9",
+        "digest": {
+          "sha256": "fe40cf4e92cd0c467be2cfc30657a680ae2398318afd50b0c80585784c604f28"
+        }
+      },
+      {
+        "uri": "pkg:docker/node@24.11.1-bookworm-slim?digest=sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57\u0026platform=linux%2Famd64",
+        "digest": {
+          "sha256": "48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57"
+        }
+      },
+      {
+        "uri": "pkg:docker/node@24.11.1-bookworm-slim?digest=sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57\u0026platform=linux%2Farm64",
+        "digest": {
+          "sha256": "48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57"
+        }
+      }
+    ],
+    "invocation": {
+      "configSource": {
+        "entryPoint": "api.Dockerfile"
+      },
+      "parameters": {
+        "frontend": "gateway.v0",
+        "args": {
+          "build-arg:NODE_BASE": "node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57",
+          "cmdline": "docker/dockerfile:1.9",
+          "source": "docker/dockerfile:1.9"
+        },
+        "locals": [
+          {
+            "name": "context"
+          },
+          {
+            "name": "dockerfile"
+          }
+        ],
+        "root": {
+          "configSource": {
+            "path": "api.Dockerfile"
+          },
+          "request": {
+            "args": {
+              "build-arg:NODE_BASE": "node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57",
+              "vcs:localdir:context": ".",
+              "vcs:localdir:dockerfile": "docker",
+              "vcs:revision": "4f8dbf950a50d672b691a15748eba2a8ba17c724",
+              "vcs:source": "https://github.com/enzofrnt/MyOwnNotion.git"
+            }
+          }
+        },
+        "compatibilityVersion": 30
+      },
+      "environment": {
+        "platform": "linux/arm64"
+      }
+    }
+  },
+  "buildx.build.provenance/linux/arm64": {
+    "builder": {
+      "id": ""
+    },
+    "buildType": "https://mobyproject.org/buildkit@v1",
+    "materials": [
+      {
+        "uri": "pkg:docker/docker/buildkit-syft-scanner@stable-1",
+        "digest": {
+          "sha256": "79e7b013cbec16bbb436f312819a49a4a57752b2270c1a9332ae1a10fcc82a68"
+        }
+      },
+      {
+        "uri": "pkg:docker/docker/dockerfile@1.9",
+        "digest": {
+          "sha256": "fe40cf4e92cd0c467be2cfc30657a680ae2398318afd50b0c80585784c604f28"
+        }
+      },
+      {
+        "uri": "pkg:docker/node@24.11.1-bookworm-slim?digest=sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57\u0026platform=linux%2Farm64",
+        "digest": {
+          "sha256": "48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57"
+        }
+      }
+    ],
+    "invocation": {
+      "configSource": {
+        "entryPoint": "api.Dockerfile"
+      },
+      "parameters": {
+        "frontend": "gateway.v0",
+        "args": {
+          "build-arg:NODE_BASE": "node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57",
+          "cmdline": "docker/dockerfile:1.9",
+          "source": "docker/dockerfile:1.9"
+        },
+        "locals": [
+          {
+            "name": "context"
+          },
+          {
+            "name": "dockerfile"
+          }
+        ],
+        "root": {
+          "configSource": {
+            "path": "api.Dockerfile"
+          },
+          "request": {
+            "args": {
+              "build-arg:NODE_BASE": "node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57",
+              "vcs:localdir:context": ".",
+              "vcs:localdir:dockerfile": "docker",
+              "vcs:revision": "4f8dbf950a50d672b691a15748eba2a8ba17c724",
+              "vcs:source": "https://github.com/enzofrnt/MyOwnNotion.git"
+            }
+          }
+        },
+        "compatibilityVersion": 30
+      },
+      "environment": {
+        "platform": "linux/arm64"
+      }
+    }
+  },
+  "buildx.build.ref": "desktop-linux/desktop-linux/kqfq0x7xy1jumka2fv5f54r8m",
+  "containerimage.descriptor": {
+    "mediaType": "application/vnd.oci.image.index.v1+json",
+    "digest": "sha256:efb929540ab20d20feff3df966565e77b4985f53f14c466215f2a822c032e06a",
+    "size": 1609
+  },
+  "containerimage.digest": "sha256:efb929540ab20d20feff3df966565e77b4985f53f14c466215f2a822c032e06a",
+  "image.name": "moby-dangling@sha256:efb929540ab20d20feff3df966565e77b4985f53f14c466215f2a822c032e06a"
+}
