@@ -159,22 +159,42 @@ export async function runConcurrently<T>(
   }
 }
 
+/**
+ * Drizzle wraps a driver error in a `Failed query: …` message and keeps the
+ * PostgreSQL error as `cause`, so the constraint name is not in `message`.
+ * Asserting on the message alone silently passes for the wrong reason —
+ * a query that fails for *any* reason looks like a constraint doing its job.
+ */
+function pgError(reason: unknown): { code?: string; constraint?: string } | null {
+  let current: unknown = reason;
+  for (let depth = 0; depth < 5 && current !== null && current !== undefined; depth += 1) {
+    if (typeof current === "object" && "code" in current) {
+      return current as { code?: string; constraint?: string };
+    }
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
+/**
+ * Builds a matcher for `expect(...).rejects.toSatisfy(...)` that requires the
+ * *named* constraint to have rejected the write.
+ */
+export function violatesConstraint(name: string): (reason: unknown) => boolean {
+  return (reason) => pgError(reason)?.constraint === name;
+}
+
 /** PostgreSQL raises 40001 when a `SERIALIZABLE` transaction cannot commit. */
 export function isSerializationFailure(reason: unknown): boolean {
-  return (
-    typeof reason === "object" &&
-    reason !== null &&
-    "code" in reason &&
-    (reason as { code?: unknown }).code === "40001"
-  );
+  return pgError(reason)?.code === "40001";
 }
 
 /** PostgreSQL raises 23505 when a unique index rejects a second singleton row. */
 export function isUniqueViolation(reason: unknown): boolean {
-  return (
-    typeof reason === "object" &&
-    reason !== null &&
-    "code" in reason &&
-    (reason as { code?: unknown }).code === "23505"
-  );
+  return pgError(reason)?.code === "23505";
+}
+
+/** PostgreSQL raises 23514 when a check constraint rejects a row. */
+export function isCheckViolation(reason: unknown): boolean {
+  return pgError(reason)?.code === "23514";
 }
