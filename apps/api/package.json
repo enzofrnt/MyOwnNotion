@@ -12,11 +12,12 @@
   },
   "dependencies": {
     "@fastify/multipart": "^9.4.0",
-    "@sinclair/typebox": "^0.34.41",
     "@myownnotion/blob-store": "workspace:*",
     "@myownnotion/contracts": "workspace:*",
     "@myownnotion/database": "workspace:*",
     "@myownnotion/domain": "workspace:*",
+    "@simplewebauthn/server": "^13.3.2",
+    "@sinclair/typebox": "^0.34.41",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.7.4"
   },

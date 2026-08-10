@@ -12,3 +12,5 @@ export * from "./repositories/revision-repository.ts";
 export * from "./repositories/security/index.ts";
 export * from "./repositories/workspace-repository.ts";
 export * as schema from "./schema/index.ts";
+// Re-exported for the API rate limiter, which writes this table directly.
+export { securityRateLimits } from "./schema/security/index.ts";
