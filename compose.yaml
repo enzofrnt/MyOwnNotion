@@ -9,6 +9,11 @@
 #   - no secret value appears here — secrets arrive as mounted files whose
 #     paths come from `*_FILE` variables documented in `.env.example`;
 #   - images are selected by immutable digest or exact tag, never `latest`.
+#
+# Every variable carries a default. Compose interpolates the whole file before
+# it selects services, so a required-variable `${VAR:?…}` here would break
+# `docker compose up -d postgres` — the documented local command. Overriding
+# the defaults is a deployment concern; `.env.example` documents each one.
 name: myownnotion
 
 services:
@@ -35,7 +40,7 @@ services:
     restart: unless-stopped
 
   api:
-    image: ${MYOWNNOTION_API_IMAGE:?set MYOWNNOTION_API_IMAGE to an immutable digest or exact tag}
+    image: ${MYOWNNOTION_API_IMAGE:-ghcr.io/enzofrnt/myownnotion/api:v0.1.0}
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,8 +49,8 @@ services:
       TZ: UTC
       MYOWNNOTION_API_HOST: 0.0.0.0
       MYOWNNOTION_API_PORT: 3001
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-      MYOWNNOTION_PUBLIC_ORIGIN: ${MYOWNNOTION_PUBLIC_ORIGIN:?set MYOWNNOTION_PUBLIC_ORIGIN}
+      DATABASE_URL: ${DATABASE_URL:-postgres://myownnotion:myownnotion-dev@postgres:5432/myownnotion}
+      MYOWNNOTION_PUBLIC_ORIGIN: ${MYOWNNOTION_PUBLIC_ORIGIN:-http://127.0.0.1:5173}
       MYOWNNOTION_TRUSTED_PROXY_CIDRS: ${MYOWNNOTION_TRUSTED_PROXY_CIDRS:-}
       MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: ${MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE:-0}
       # Path only. The value lives in the mounted secret below.
@@ -74,7 +79,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: ${MYOWNNOTION_WEB_IMAGE:?set MYOWNNOTION_WEB_IMAGE to an immutable digest or exact tag}
+    image: ${MYOWNNOTION_WEB_IMAGE:-ghcr.io/enzofrnt/myownnotion/web:v0.1.0}
     depends_on:
       api:
         condition: service_healthy
@@ -101,7 +106,7 @@ secrets:
   # Externally managed deployment wrapping key. The host path is supplied by the
   # hosting administrator; it is never committed and never baked into an image.
   deployment-key:
-    file: ${MYOWNNOTION_DEPLOYMENT_KEY_FILE:?set MYOWNNOTION_DEPLOYMENT_KEY_FILE to the host path of the deployment wrapping key}
+    file: ${MYOWNNOTION_DEPLOYMENT_KEY_FILE:-./secrets/deployment-key}
 
 volumes:
   postgres-data:

@@ -146,17 +146,50 @@ if (apiService !== undefined) {
 }
 
 // 4. Immutable image selection in the official stack.
+//
+// Compose interpolates the whole file before it selects services, so the
+// required-variable form `${VAR:?message}` would break `docker compose up -d
+// postgres` — the documented local command and the one CI uses. Every variable
+// therefore carries a default, and the pin is checked on that default rather
+// than on the raw `${…}` string.
+const interpolationWithDefault = /^\$\{[A-Z0-9_]+:-(?<fallback>.*)\}$/;
+
+/** The value Compose resolves when the environment supplies nothing. */
+function resolvedDefault(value: string): string {
+  const match = interpolationWithDefault.exec(value.trim());
+  return match?.groups?.["fallback"] ?? value.trim();
+}
+
 for (const [name, service] of Object.entries(base.services ?? {})) {
   const image = service.image ?? "";
   if (image.length === 0) {
     failures.push(`compose.yaml service \`${name}\` must select an image`);
     continue;
   }
-  if (/(^|[:@/])latest\b/.test(image) || (!image.includes(":") && !image.includes("@"))) {
+  if (image.includes("${") && !interpolationWithDefault.test(image.trim())) {
     failures.push(
-      `compose.yaml service \`${name}\` must pin an image digest or exact tag (found: ${image})`,
+      `compose.yaml service \`${name}\` selects its image through \`${image}\`; use the \`\${VAR:-pinned-default}\` form so \`docker compose up -d postgres\` still interpolates`,
+    );
+    continue;
+  }
+  const pinned = resolvedDefault(image);
+  if (pinned.length === 0) {
+    failures.push(`compose.yaml service \`${name}\` must supply a pinned default image`);
+    continue;
+  }
+  if (/(^|[:@/])latest\b/.test(pinned) || (!pinned.includes(":") && !pinned.includes("@"))) {
+    failures.push(
+      `compose.yaml service \`${name}\` must pin an image digest or exact tag (resolves to: ${pinned})`,
     );
   }
+}
+
+// The mounted-secret source must interpolate too, for the same reason.
+const deploymentKeySecret = base.secrets?.["deployment-key"]?.file ?? "";
+if (deploymentKeySecret.includes("${") && !interpolationWithDefault.test(deploymentKeySecret)) {
+  failures.push(
+    "compose.yaml secret `deployment-key` must use the `${VAR:-path}` form; the required-variable form breaks every Compose invocation",
+  );
 }
 
 // 5. The loopback cookie exception belongs to the development override only.
