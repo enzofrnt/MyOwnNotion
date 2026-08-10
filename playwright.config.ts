@@ -35,6 +35,10 @@ export default defineConfig({
   testDir: "tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
   forbidOnly: isCI,
+  // One retry absorbs genuine infrastructure noise, but `pnpm test:e2e` passes
+  // `--fail-on-flaky-tests`: a journey that only passes on retry still fails
+  // the gate. A green run built on retries hides real defects — that is how a
+  // stranded-outbox race survived several merges.
   retries: isCI ? 1 : 0,
   workers: 1,
   fullyParallel: false,

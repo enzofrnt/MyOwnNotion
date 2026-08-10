@@ -47,6 +47,15 @@ export default defineWorkspace([
   },
   {
     test: {
+      name: "web",
+      root: "apps/web",
+      environment: "node",
+      include: ["tests/**/*.spec.ts"],
+      setupFiles: ["tests/setup/indexeddb.ts"],
+    },
+  },
+  {
+    test: {
       name: "database-integration",
       root: "packages/database",
       environment: "node",
