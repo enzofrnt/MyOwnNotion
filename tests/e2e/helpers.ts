@@ -1,5 +1,8 @@
 /**
  * Shared Playwright helpers: unique names per run and common journeys.
+ *
+ * The security section at the bottom adds the virtual-authenticator, mounted
+ * secret, and readiness helpers the feature-002 journeys need (T003).
  */
 import { expect, type Page } from "@playwright/test";
 
@@ -53,4 +56,127 @@ export async function waitForSynchronized(page: Page): Promise<void> {
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
     timeout: 20_000,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Security journeys (feature 002)
+// ---------------------------------------------------------------------------
+
+/**
+ * A virtual WebAuthn authenticator attached over CDP, so passkey ceremonies
+ * run without a real platform authenticator.
+ *
+ * CDP is Chromium-only. Journeys that need a passkey must therefore either run
+ * on a Chromium project or use the password alternative; `supported` lets a
+ * journey skip cleanly on Firefox and WebKit instead of failing.
+ */
+export interface VirtualAuthenticatorHandle {
+  readonly supported: boolean;
+  readonly authenticatorId: string | null;
+  /** Credentials the authenticator currently holds. */
+  credentials(): Promise<Array<{ credentialId: string; signCount: number }>>;
+  /** Forces the next assertion to be rejected by the site's replay checks. */
+  setUserVerified(verified: boolean): Promise<void>;
+  remove(): Promise<void>;
+}
+
+const NO_AUTHENTICATOR: VirtualAuthenticatorHandle = {
+  supported: false,
+  authenticatorId: null,
+  credentials: async () => [],
+  setUserVerified: async () => {},
+  remove: async () => {},
+};
+
+export async function attachVirtualAuthenticator(
+  page: Page,
+  options: { userVerified?: boolean; hasResidentKey?: boolean } = {},
+): Promise<VirtualAuthenticatorHandle> {
+  const browserName = page.context().browser()?.browserType().name();
+  if (browserName !== "chromium") {
+    return NO_AUTHENTICATOR;
+  }
+
+  const session = await page.context().newCDPSession(page);
+  await session.send("WebAuthn.enable");
+  const { authenticatorId } = await session.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: options.hasResidentKey ?? true,
+      hasUserVerification: true,
+      isUserVerified: options.userVerified ?? true,
+      automaticPresenceSimulation: true,
+    },
+  });
+
+  return {
+    supported: true,
+    authenticatorId,
+    credentials: async () => {
+      const result = await session.send("WebAuthn.getCredentials", { authenticatorId });
+      return result.credentials.map((credential) => ({
+        credentialId: credential.credentialId,
+        signCount: credential.signCount,
+      }));
+    },
+    setUserVerified: async (verified) => {
+      await session.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: verified });
+    },
+    remove: async () => {
+      await session.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId });
+      await session.detach();
+    },
+  };
+}
+
+/** Waits for the installation-status banner to report a specific state. */
+export async function waitForInstallationState(
+  page: Page,
+  state:
+    | "uninitialized"
+    | "bootstrap-in-progress"
+    | "recovery-required"
+    | "ready"
+    | "migration-in-progress"
+    | "degraded",
+): Promise<void> {
+  await expect(page.getByTestId("installation-status")).toHaveAttribute("data-state", state, {
+    timeout: 30_000,
+  });
+}
+
+/**
+ * Asserts the committed owner/workspace counts the bootstrap journeys hinge
+ * on: `0/0` before the atomic promotion, `1/1` for every initialized state.
+ */
+export async function expectCommittedCounts(
+  page: Page,
+  expected: { ownerCount: 0 | 1; workspaceCount: 0 | 1 },
+): Promise<void> {
+  const status = page.getByTestId("installation-status");
+  await expect(status).toHaveAttribute("data-owner-count", String(expected.ownerCount));
+  await expect(status).toHaveAttribute("data-workspace-count", String(expected.workspaceCount));
+}
+
+/**
+ * Reads the session cookie the API issued, so a journey can assert the
+ * production `__Host-mn_session` policy or the loopback `mn_dev_session`
+ * exception rather than trusting the UI.
+ */
+export async function readSessionCookie(
+  page: Page,
+): Promise<{ name: string; secure: boolean; httpOnly: boolean; sameSite: string } | null> {
+  const cookies = await page.context().cookies();
+  const session = cookies.find(
+    (cookie) => cookie.name === "__Host-mn_session" || cookie.name === "mn_dev_session",
+  );
+  return session === undefined
+    ? null
+    : {
+        name: session.name,
+        secure: session.secure,
+        httpOnly: session.httpOnly,
+        sameSite: session.sameSite,
+      };
 }

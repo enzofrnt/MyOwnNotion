@@ -7,7 +7,7 @@
   "packageManager": "pnpm@10.33.3",
   "engines": {
     "node": ">=24.0.0 <25",
-    "pnpm": ">=10.33.3"
+    "pnpm": "10.33.3"
   },
   "scripts": {
     "toolchain:check": "tsx scripts/ci/check-toolchain.ts",
@@ -21,9 +21,19 @@
     "test:property": "vitest run --project domain --project contracts --project blob-store --project client-core property",
     "test:integration": "vitest run --project database-integration",
     "test:contract": "vitest run --project api-contract --project workspace-contract",
+    "test:migration": "vitest run --project database-integration packages/database/tests/migrations.integration.spec.ts",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:performance": "vitest run --project performance",
+    "test:security": "vitest run --project domain --project contracts --project database-integration --project api-contract --project workspace-contract security",
+    "security:audit": "pnpm audit --audit-level=high --prod",
+    "security:secrets": "tsx scripts/ci/scan-secrets.ts",
+    "security:static": "tsx scripts/ci/static-security.ts",
+    "security:licenses": "tsx scripts/ci/license-policy.ts",
+    "compose:check": "tsx scripts/ci/check-compose.ts",
+    "images:build": "tsx scripts/ci/build-images.ts",
+    "release:gate": "tsx scripts/ci/check-release-gate.ts",
+    "checks:local": "pnpm toolchain:check && pnpm shell:check && pnpm format:check && pnpm lint:ci && pnpm typecheck && pnpm test:unit && pnpm test:property && pnpm test:integration && pnpm test:contract && pnpm test:migration && pnpm build && pnpm compose:check",
     "build": "pnpm -r run build",
     "dev": "pnpm -r --parallel run dev",
     "db:migrate": "tsx scripts/db/migrate.ts",

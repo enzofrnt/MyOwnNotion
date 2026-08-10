@@ -1,0 +1,16 @@
+{
+  "$comment": "Pinned base images for reproducible multi-arch builds (feature 002, FR-032/FR-034). `digest` must be a multi-platform manifest-list digest covering linux/amd64 and linux/arm64. `pnpm images:build` refuses to build while any digest is empty; run `pnpm images:build --resolve` on a machine with a Docker daemon to fill them from the registry, then commit the result.",
+  "platforms": ["linux/amd64", "linux/arm64"],
+  "bases": {
+    "node": {
+      "ref": "node:24.11.1-bookworm-slim",
+      "digest": "",
+      "usedBy": ["docker/api.Dockerfile", "docker/web.Dockerfile"]
+    },
+    "nginx": {
+      "ref": "nginxinc/nginx-unprivileged:1.29-alpine",
+      "digest": "",
+      "usedBy": ["docker/web.Dockerfile"]
+    }
+  }
+}

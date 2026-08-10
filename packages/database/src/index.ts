@@ -9,5 +9,6 @@ export * from "./repositories/lifecycle-repository.ts";
 export * from "./repositories/move-branch.ts";
 export * from "./repositories/relationship-repository.ts";
 export * from "./repositories/revision-repository.ts";
+export * from "./repositories/security/index.ts";
 export * from "./repositories/workspace-repository.ts";
 export * as schema from "./schema/index.ts";

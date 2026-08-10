@@ -7,6 +7,58 @@ claim that application code, Compose, CI, or release evidence exists. Every
 row stays `pending` until a reviewer records raw evidence for the exact
 candidate. Blank cells are not passes.
 
+## Scope and ownership boundaries (T007)
+
+Recorded once here so a reviewer can tell, without reading the plan, which
+feature owns a row and which changes are forbidden while producing evidence.
+
+**Feature 002 owns** the baseline that FR-030 – FR-035 describe: the
+Compose/env contract (`compose.yaml`, `compose.override.yaml`, `.env.example`),
+the external reverse-proxy boundary, the CI quality gate and its named script
+inventory, GHCR publication of immutable commit-addressable images, and the
+immutable release foundation.
+
+**Feature 007 owns only** final V1 release-readiness hardening and validation.
+It does not re-specify or duplicate the baseline above. A row belonging to that
+baseline is evidenced here, not in feature 007.
+
+**Feature 001 remains the identity authority.** The canonical workspace,
+content items, revisions, and file contents keep their existing IDs. Security
+work binds to them through guards and adapters; it never mints a second
+workspace, never rewrites a canonical ID, and never edits an artifact under
+`specs/001-content-foundations/`. Evidence for any row that touches persisted
+content MUST include a before/after canonical-identity snapshot
+(`snapshotCanonicalIdentities` / `diffCanonicalIdentities` in
+`tests/fixtures/security.ts`) showing an empty difference.
+
+**Excluded from this feature**, and therefore never a valid evidence row here:
+public sharing, MCP, the desktop application, backup orchestration, and editor
+behavior. A second owner, account, or workspace is excluded by construction.
+
+**V1 administration boundary.** Hosting-administrator operations are the
+protected local CLI in `contracts/admin-cli.md` only. No remote administrator
+HTTP route, bearer capability, or API token exists; owner-facing security API
+operations are session-cookie plus CSRF protected. Evidence claiming an
+administrator action MUST cite a local CLI invocation, never an HTTP request.
+
+**No-edit guard.** Producing evidence must not modify `spec.md`, `plan.md`,
+`research.md`, `data-model.md`, `quickstart.md`, `contracts/`, or any
+feature-001 artifact. If evidence contradicts a specification, record the row
+as `fail` and raise the discrepancy; do not adjust the specification to match
+the run.
+
+### Delivery gate inventory owned by this feature
+
+Named scripts are contractual: `scripts/ci/check-toolchain.ts` fails when one is
+missing from `package.json`, and `docs/development.md` documents the same list.
+
+| Stage | Scripts |
+| --- | --- |
+| Local checks (pre-push, no automated gate on a branch push) | `checks:local` — `toolchain:check`, `shell:check`, `format:check`, `lint:ci`, `typecheck`, `test:unit`, `test:property`, `test:integration`, `test:contract`, `test:migration`, `build`, `compose:check` |
+| Pull request (first automated gate) | all local checks plus `test:e2e`, `test:security`, `security:audit`, `security:secrets`, `security:static`, `security:licenses`, `images:build` (built and discarded; no `packages: write`) |
+| `main` | the identical gate, plus `publish-commit-images` in the same run for the exact candidate SHA |
+| Version tag `v[0-9]+.[0-9]+.[0-9]+` | the reusable gate at the tag commit, then `release:gate` verifying `candidate_sha == github.sha` before any publication |
+
 ## Canonical column vocabulary
 
 The column names used in this file are canonical for feature 002 and override

@@ -234,6 +234,9 @@ export const revisionParents = pgTable(
 );
 
 export { changes } from "./change-sequence.ts";
+// Owner security foundation tables (feature 002). Kept in their own module so
+// the canonical content schema above stays readable and untouched.
+export * from "./security/index.ts";
 
 export const relationships = pgTable(
   "relationships",

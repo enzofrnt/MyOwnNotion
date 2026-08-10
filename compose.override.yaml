@@ -1,9 +1,32 @@
-# Development-only overrides.
+# Development-only overrides (feature 002, FR-030 – FR-032).
 #
-# Publishing the PostgreSQL port is a development convenience and is bound to
-# the loopback interface only. The API and web dev servers run on the host
-# through `pnpm dev` and themselves listen on 127.0.0.1.
+# This override builds `api` and `web` locally instead of pulling immutable
+# published images, publishes PostgreSQL on the loopback interface, and enables
+# the explicitly named loopback-HTTP cookie exception
+# (`MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1`). It is never used in production:
+# the official stack in compose.yaml selects published images and issues the
+# `__Host-mn_session` Secure cookie behind the administrator's HTTPS proxy.
 services:
   postgres:
     ports:
       - "127.0.0.1:${MYOWNNOTION_DB_PORT:-5432}:5432"
+
+  api:
+    image: myownnotion/api:dev
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      NODE_ENV: development
+      MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1"
+      MYOWNNOTION_PUBLIC_ORIGIN: ${MYOWNNOTION_PUBLIC_ORIGIN:-http://127.0.0.1:5173}
+    read_only: false
+
+  web:
+    image: myownnotion/web:dev
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+      args:
+        MYOWNNOTION_API_URL: ${MYOWNNOTION_API_URL:-http://127.0.0.1:3001}
+    read_only: false

@@ -18,3 +18,4 @@ export * from "./ids/uuid.ts";
 export * from "./revisions/lineage.ts";
 export * from "./revisions/retention.ts";
 export * from "./revisions/types.ts";
+export * from "./security/index.ts";
