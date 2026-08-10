@@ -55,6 +55,21 @@ ENV NODE_ENV=production \
     MYOWNNOTION_API_HOST=0.0.0.0 \
     MYOWNNOTION_API_PORT=3001
 
+# Attack-surface reduction, measured against the container scan:
+#   - apply the distribution's security point releases, which is where the
+#     fixable OS findings actually get fixed;
+#   - delete npm, npx, and corepack. The runtime executes `node dist/server.mjs`
+#     and never installs anything, yet npm's own bundled dependency tree
+#     (glob, minimatch, picomatch, brace-expansion, tar, sigstore) accounts for
+#     most of the fixable JavaScript findings in the image.
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+ && rm -rf /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
 # Durable blob volume and mounted-secret directory are provided by Compose.
 RUN mkdir -p /var/lib/myownnotion/blobs \
  && chown -R node:node /var/lib/myownnotion

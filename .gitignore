@@ -65,6 +65,11 @@ static-security.sarif
 container-scan.sarif
 license-policy.json
 image-build.json
+# buildx --metadata-file output, one per target
+.image-build-*.json
+publish-*.json
+published-images.json
+container-scan-*.sarif
 
 # Editor and operating-system files
 .DS_Store

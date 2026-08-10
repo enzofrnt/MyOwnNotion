@@ -1,9 +1,43 @@
+# Single quality gate for the repository (feature 002, T100–T102).
+#
+# One logical gate, four invocation paths, all running the same aggregate
+# `quality-gate` job:
+#
+#   - `pull_request`  — the first automated gate. Pushing a work branch runs
+#     nothing, matching constitution v1.3.0; there is deliberately no non-main
+#     branch push trigger.
+#   - `push` to `main` — the same gate, plus commit-image publication in the
+#     same run.
+#   - `workflow_dispatch` — diagnostics only. It has no publication job and no
+#     package-write permission, so it cannot publish even by accident.
+#   - `workflow_call` — used by release.yml at a version tag; exports
+#     `candidate_sha` so the caller can prove the gate ran on its own commit.
+#
+# Permissions are least-privilege: `contents: read` at workflow level, and
+# `packages: write` granted to the publication job alone. On a pull request an
+# attempted registry write therefore fails for lack of permission rather than
+# succeeding silently.
+#
+# Deliberately absent for now: the vulnerability-scanning jobs T100 and T101
+# also describe — dependency audit, secret scan, static security analysis,
+# license policy, and the container scan. They are deferred until the
+# application is functionally complete, so they land against something worth
+# auditing rather than blocking construction. The scripts already exist
+# (`pnpm security:audit|secrets|static|licenses`) and can be run by hand in the
+# meantime; only their wiring into the gate is postponed. T100 and T101 stay
+# unchecked in tasks.md until they are wired in.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      candidate_sha:
+        description: The commit the quality gate evaluated.
+        value: ${{ jobs.quality-gate.outputs.candidate_sha }}
 
 permissions:
   contents: read
@@ -175,9 +209,46 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
+
+
+
+
+  build-images:
+    name: Multi-architecture image build
+    runs-on: ubuntu-latest
+    needs: install
+    # No `packages: write`. This job runs on every candidate including pull
+    # requests and publishes nothing; an attempted registry write fails on
+    # permission rather than succeeding silently.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build linux/amd64 and linux/arm64 from pinned base digests
+        # `pnpm images:build` refuses to run while any base digest in
+        # docker/base-images.json is empty, so an unpinned base blocks here.
+        run: pnpm images:build
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-build
+          path: image-build.json
+          if-no-files-found: error
+
   quality-gate:
     name: quality-gate
     runs-on: ubuntu-latest
+    outputs:
+      # Exported for release.yml, which compares it to its own `github.sha`.
+      # Stale or foreign-commit gate evidence is therefore detectable.
+      candidate_sha: ${{ github.sha }}
     needs:
       - install
       - lint
@@ -188,6 +259,7 @@ jobs:
       - contract
       - e2e
       - build
+      - build-images
     if: always()
     steps:
       - name: Fail unless every required job succeeded
@@ -201,3 +273,77 @@ jobs:
             exit 1
           fi
           echo "All required jobs succeeded."
+
+  publish-commit-images:
+    name: Publish commit-addressable images
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    # Publication lives in the same workflow and the same run as the gate, and
+    # is guarded on both the branch and the gate result. No `workflow_run` or
+    # other indirect completion trigger is involved, so stale or foreign-commit
+    # gate evidence is structurally impossible on this path. A
+    # `workflow_dispatch` diagnostic run never satisfies the ref condition.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.quality-gate.result == 'success'
+    # The only job in this workflow granted package writes.
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish immutable commit-addressable images
+        # Tagged by the exact commit the gate evaluated. No moving tag: there
+        # is deliberately no `latest`, so a deployment always names the commit
+        # it is running.
+        run: |
+          set -euo pipefail
+          registry="ghcr.io/${GITHUB_REPOSITORY,,}"
+          node_base=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)
+          nginx_base=$(jq -r '.bases.nginx | "\(.ref)@\(.digest)"' docker/base-images.json)
+          platforms=$(jq -r '.platforms | join(",")' docker/base-images.json)
+
+          docker buildx build --platform "$platforms" --push \
+            --file docker/api.Dockerfile \
+            --build-arg "NODE_BASE=$node_base" \
+            --provenance=true --sbom=true \
+            --metadata-file publish-api.json \
+            --tag "$registry/api:sha-${GITHUB_SHA}" .
+
+          docker buildx build --platform "$platforms" --push \
+            --file docker/web.Dockerfile \
+            --build-arg "NODE_BASE=$node_base" \
+            --build-arg "NGINX_BASE=$nginx_base" \
+            --provenance=true --sbom=true \
+            --metadata-file publish-web.json \
+            --tag "$registry/web:sha-${GITHUB_SHA}" .
+
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg platforms "$platforms" \
+            --slurpfile api publish-api.json \
+            --slurpfile web publish-web.json \
+            '{
+               candidateSha: $sha,
+               platforms: ($platforms | split(",")),
+               images: {
+                 api: $api[0]["containerimage.digest"],
+                 web: $web[0]["containerimage.digest"]
+               }
+             }' > published-images.json
+          cat published-images.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: published-images
+          path: published-images.json
+          if-no-files-found: error

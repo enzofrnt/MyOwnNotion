@@ -4,12 +4,12 @@
   "bases": {
     "node": {
       "ref": "node:24.11.1-bookworm-slim",
-      "digest": "",
+      "digest": "sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57",
       "usedBy": ["docker/api.Dockerfile", "docker/web.Dockerfile"]
     },
     "nginx": {
       "ref": "nginxinc/nginx-unprivileged:1.29-alpine",
-      "digest": "",
+      "digest": "sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6",
       "usedBy": ["docker/web.Dockerfile"]
     }
   }
