@@ -117,6 +117,66 @@ The canonical row template is:
 | --- | --- | --- | --- | --- | --- | --- |
 |  |  |  |  |  |  | `pending` |
 
+## Foundational battery evidence (T023)
+
+Raw run of the Phase 2 battery. Every row below is a command that was actually
+executed against the candidate commit on a clean worktree; no row is promoted
+from `pending` without a recorded count.
+
+| Field | Value |
+| --- | --- |
+| Candidate commit SHA | `573eb40f834a00e0ebb3b1dd774e38c49e68fe4b` |
+| Branch | `feat/002-close-phase-2` |
+| Dirty before run | `no` (verified with `git status --porcelain`) |
+| Node version | `v24.19.0` |
+| pnpm version | `10.33.3` |
+| Docker version | `29.6.2` |
+| Compose version | Docker Compose plugin bundled with Docker `29.6.2` |
+| Database fixture | `postgres:18` via Compose on `127.0.0.1:5432`; each suite acquires a uniquely named database |
+| Deployment wrapping-key fixture ID | `createMountedDeploymentKey` in `tests/fixtures/security.ts`; per-trial 32-byte fixture at mode `0600`, never key material |
+| Controlled-clock version | `createControlledClock`, base instant `2026-01-01T00:00:00.000Z` |
+| Overall status | `pass` for the eight suites below; every other ledger row stays `pending` |
+
+| Suite | Command | Result |
+| --- | --- | --- |
+| Security contracts | `pnpm exec vitest run --project workspace-contract tests/contract/security-api.spec.ts tests/contract/security-artifacts.schema.spec.ts tests/contract/admin-cli.contract.spec.ts` | 71 passed |
+| Crypto and recovery | `pnpm exec vitest run --project domain tests/encryption.property.spec.ts tests/recovery-artifact.property.spec.ts` | 40 passed |
+| Domain invariants | `pnpm exec vitest run --project domain tests/security-owner-device.property.spec.ts tests/security-canonical-identities.property.spec.ts` | 38 passed |
+| Redaction | `pnpm exec vitest run --project domain tests/redaction.property.spec.ts` | 18 passed |
+| Rotation and migration | `pnpm exec vitest run --project domain tests/rotation-manifest.property.spec.ts tests/migration-state.property.spec.ts` | 30 passed |
+| Repositories and schema | `pnpm exec vitest run --project database-integration packages/database/tests/security-owner.integration.spec.ts packages/database/tests/security-audit.integration.spec.ts packages/database/tests/security-schema.integration.spec.ts` | 74 passed |
+| Forward migrations | `pnpm test:migration` | 5 passed |
+| API security surface | `pnpm exec vitest run --project api-contract tests/deployment-key.spec.ts tests/security-audit-service.spec.ts tests/request-guards.spec.ts` | 80 passed |
+
+**Total: 356 passed, 0 failed.**
+
+Recorded during the run, because an evidence ledger that hides them is worth
+less than no ledger:
+
+- The repository suite first failed with `Timed out after 10000ms while waiting
+  for container ports to be bound to the host` — a Testcontainers limitation on
+  the run host, not a defect. It was re-run against the already-running
+  PostgreSQL through `TEST_DATABASE_URL`, the path `docs/development.md`
+  documents for exactly this case, and passed 74/74. Both invocations are
+  reproducible; the second is the one recorded above.
+- `pnpm shell:check` is **not** part of this battery and currently fails on the
+  run host with `shfmt version mismatch: pinned 3.12.0, found 3.13.1`. That is
+  local toolchain drift, not a candidate defect; CI uses the pinned version.
+
+Scope of this evidence: it covers the Phase 2 foundation only — contracts,
+crypto, domain invariants, redaction, repositories, schema, and the API
+security surface. It makes no claim about bootstrap, authentication, devices,
+recovery, rotation, migration, Compose startup, or release, all of which remain
+`pending` in the ledgers below.
+
+**No functional-requirement row is promoted by this battery.** Each row below
+declares its own `Command or test path`, and several of those files do not exist
+yet — `packages/database/tests/security-crypto.integration.spec.ts` among them.
+A row may only move to `pass` when *its declared command* runs and passes. The
+suites above are real evidence of the foundation, not of any individual
+requirement, and recording them as such would be the exact false pass this
+ledger exists to prevent.
+
 ## Functional-requirement ledger
 
 | Requirement/criterion | Command or test path | Candidate SHA | Controlled clock/configuration | Raw evidence/artifact | Reviewer/date | Status |
