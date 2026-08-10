@@ -160,7 +160,7 @@ const sarif = {
       tool: {
         driver: {
           name: "myownnotion-static-security",
-          informationUri: "https://github.com/enzofournet/MyOwnNotion",
+          informationUri: "https://github.com/enzofrnt/MyOwnNotion",
           rules: rules.map((rule) => ({
             id: rule.id,
             shortDescription: { text: rule.description },
