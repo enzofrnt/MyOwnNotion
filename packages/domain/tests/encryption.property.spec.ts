@@ -28,7 +28,7 @@ import {
   randomSalt,
   sealEnvelope,
   toBase64Url,
-} from "@myownnotion/domain";
+} from "@myownnotion/domain/security";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
