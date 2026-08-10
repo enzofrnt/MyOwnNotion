@@ -1,25 +1,138 @@
-# Roadmap produit initiale
+# Roadmap produit pilotée par Spec Kit
 
-Cette roadmap organise la vision issue des échanges initiaux. Elle ne remplace pas les spécifications : le périmètre réel et les critères d’acceptation de chaque élément seront définis dans son futur dossier `specs/<fonctionnalité>/`.
+Cette roadmap traduit le
+[`product-canvas.md`](product-canvas.md) en une séquence de features Spec Kit.
+Le canevas reste la référence produit globale ; chaque dossier `specs/` définit
+le périmètre testable d’une seule étape.
 
-## Première fondation utilisable
+## Règles de progression
 
-1. `core-workspace` — espaces de travail, pages, sous-pages et navigation.
-2. `block-editor` — Tiptap, blocs, commande `/`, Markdown et contenus intégrés.
-3. `links-and-knowledge-graph` — liens de type wiki, backlinks, graphe local et global.
-4. `tasks` — cases à cocher, statut, échéance, priorité et vues de tâches.
+Une étape peut être spécifiée et planifiée en avance, mais son implémentation ne
+commence que lorsque ses dépendances sont terminées ou explicitement isolées.
+Chaque feature suit : spécification, clarification si nécessaire, plan, tâches,
+analyse, implémentation, convergence, tests locaux, CI de branche et pull
+request.
 
-## Organisation avancée
+La numérotation ci-dessous fixe l’ordre prévu. Si une urgence impose un nouvel
+élément intermédiaire, la roadmap et les dépendances concernées doivent être
+mises à jour ensemble.
 
-5. `databases` — propriétés, relations, filtres, tris, vues table, Kanban et galerie.
-6. `freeform-canvas` — canvas infini, cartes, dessins, liens et inclusion de pages.
-7. `files-and-storage` — pièces jointes, stockage objet, sauvegarde et restauration.
+## Fondation en cours
 
-## Partage et écosystème
+### 001 — Content foundations
 
-8. `sharing` — liens publics, permissions et partage de pages.
-9. `plugins` — API, hooks, commandes et blocs personnalisés.
-10. `mcp` — recherche, lecture, création et modification via un serveur MCP.
-11. `notion-import` — import de pages, bases de données et médias.
+**État** : convergence en cours
+**Dossier** : [`specs/001-content-foundations`](../../specs/001-content-foundations/)
+**Canevas** : sections 10, 11, 15, 17 à 20, 27 et 46
 
-La synchronisation multi-appareil, le mobile, la collaboration temps réel et l’édition depuis VS Code sont des initiatives distinctes. Elles nécessitent chacune une exploration et une spec dédiée avant engagement.
+Cette feature établit le modèle canonique, la hiérarchie, l’identité des
+contenus et fichiers, les primitives de révision, la persistance locale, la
+réconciliation hors ligne et l’export de base. Les tâches T105 et T106 restent
+à terminer avant de déclarer la convergence achevée.
+
+## V1 obligatoire
+
+### 002 — Owner security foundation
+
+**État** : prochaine feature à spécifier
+**Canevas** : sections 5, 8, 9, 28, 29 et 34
+
+Authentification du propriétaire unique, passkeys, mot de passe alternatif,
+sessions, appareils autorisés, chiffrement applicatif serveur et local, secrets
+de déploiement, kit de récupération et rotation des clés.
+
+### 003 — Core workspace experience
+
+**État** : prévue
+**Dépendance** : 001, 002
+**Canevas** : sections 7 et 11 à 14
+
+Navigation responsive, barre latérale, pages et dossiers utilisables, éditeur
+par blocs, raccourcis, états de sauvegarde et accessibilité des parcours cœur.
+
+### 004 — Files and local storage
+
+**État** : prévue
+**Dépendance** : 001 à 003
+**Canevas** : sections 15 à 18
+
+Expérience complète des fichiers et pièces jointes, prévisualisations,
+Draw.io, quotas locaux, disponibilité hors ligne et déchargement sûr.
+
+### 005 — Multi-device synchronization
+
+**État** : prévue
+**Dépendance** : 001 à 004
+**Canevas** : sections 9 et 17 à 20
+
+Transport temps réel, rattrapage, compatibilité client-serveur, synchronisation
+des fichiers, révocation d’appareil, historique et résolution visuelle des
+conflits.
+
+### 006 — Backup, recovery and updates
+
+**État** : prévue
+**Dépendance** : 002, 004, 005
+**Canevas** : sections 27 à 34
+
+Sauvegardes chiffrées vers Google Drive, vérification, restauration isolée,
+export/import, migrations, mise à jour et retour arrière.
+
+### 007 — Search and V1 release readiness
+
+**État** : prévue
+**Dépendance** : 001 à 006
+**Canevas** : sections 6, 21 et 35 à 45
+
+Recherche V1, Compose de production, configuration complète, diagnostics,
+publication GHCR, installation documentée et validation de tous les critères de
+sortie V1.
+
+## Après la V1
+
+### 008 — Databases and structured tasks
+
+Propriétés, relations, filtres, tris, vues table, Kanban, galerie, liste et
+calendrier. Canevas : section 14.
+
+### 009 — Knowledge graph
+
+Graphe local et global, périmètres, profondeur et filtres combinables. Canevas :
+section 22.
+
+### 010 — Whiteboards
+
+Tableaux blancs, cartes, dessins, connexions et références canoniques. Canevas :
+section 23.
+
+### 011 — Public sharing and annotations
+
+Liens publics, descendants, pièces jointes, annotations, confidentialité et
+modération. Canevas : sections 24 et 25.
+
+### 012 — MCP access
+
+Autorisation, permissions granulaires, révocation et audit MCP. Canevas :
+section 26.
+
+### 013 — Desktop clients
+
+Applications Electron Windows et macOS, stockage sécurisé et mises à jour.
+Canevas : section 7.
+
+### 014 — iOS experience
+
+Web app iOS avancée puis application native uniquement si les limites de la Web
+app empêchent de satisfaire les exigences produit. Canevas : section 7.
+
+## Condition de passage entre étapes
+
+Une feature ne passe à l’état terminé que lorsque :
+
+- sa checklist de spécification est complète ;
+- `spec.md`, `plan.md` et `tasks.md` sont cohérents avec le canevas et la
+  constitution ;
+- toutes ses tâches sont terminées ;
+- l’analyse et la convergence ne trouvent plus de travail bloquant ;
+- les contrôles locaux et la CI réussissent ;
+- la documentation et les preuves de validation sont à jour.

@@ -1,0 +1,322 @@
+openapi: 3.1.0
+info:
+  title: MyOwnNotion Owner Security API
+  version: 0.1.0
+  description: >-
+    Single-owner bootstrap, authentication, sessions, devices, recovery, key
+    rotation, and redacted security status. Feature-001 content endpoints use
+    the same session security scheme after this contract is enabled.
+servers:
+  - url: http://127.0.0.1:3001
+    description: Loopback development only
+tags: [{name: Installation}, {name: Bootstrap}, {name: Authentication}, {name: Sessions}, {name: Devices}, {name: Security}]
+paths:
+  /v1/installation/status:
+    get:
+      tags: [Installation]
+      operationId: getInstallationSecurityStatus
+      responses:
+        '200': {description: Safe readiness status, content: {application/json: {schema: {$ref: '#/components/schemas/InstallationStatus'}}}}
+  /v1/bootstrap/start:
+    post:
+      tags: [Bootstrap]
+      operationId: startBootstrap
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BootstrapStart'}}}}
+      responses:
+        '201': {description: Short-lived attempt and challenge, content: {application/json: {schema: {$ref: '#/components/schemas/BootstrapStarted'}}}}
+        '409': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+  /v1/bootstrap/passkey/options:
+    post:
+      tags: [Bootstrap]
+      operationId: getBootstrapPasskeyOptions
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [attemptId], properties: {attemptId: {$ref: '#/components/schemas/Uuid'}}, additionalProperties: false}}}}
+      responses:
+        '200': {description: WebAuthn registration options, content: {application/json: {schema: {$ref: '#/components/schemas/WebAuthnOptions'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+  /v1/bootstrap/passkey/complete:
+    post:
+      tags: [Bootstrap]
+      operationId: completeBootstrapPasskey
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [attemptId, response], properties: {attemptId: {$ref: '#/components/schemas/Uuid'}, response: {$ref: '#/components/schemas/RegistrationResponse'}}, additionalProperties: false}}}}
+      responses:
+        '200': {description: Passkey verified; recovery confirmation remains, content: {application/json: {schema: {$ref: '#/components/schemas/BootstrapProgress'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /v1/bootstrap/complete:
+    post:
+      tags: [Bootstrap]
+      operationId: completeBootstrap
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/BootstrapComplete'}}}}
+      responses:
+        '200': {description: Ready installation and initial session, headers: {Set-Cookie: {$ref: '#/components/headers/SessionCookie'}}, content: {application/json: {schema: {$ref: '#/components/schemas/AuthenticatedSession'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /v1/auth/passkey/options:
+    post:
+      tags: [Authentication]
+      operationId: getPasskeyAuthenticationOptions
+      responses:
+        '200': {description: Usernameless WebAuthn options, content: {application/json: {schema: {$ref: '#/components/schemas/WebAuthnOptions'}}}}
+        '429': {$ref: '#/components/responses/Problem'}
+  /v1/auth/passkey/complete:
+    post:
+      tags: [Authentication]
+      operationId: completePasskeyAuthentication
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [response], properties: {response: {$ref: '#/components/schemas/AuthenticationResponse'}}, additionalProperties: false}}}}
+      responses:
+        '200': {description: Session issued, headers: {Set-Cookie: {$ref: '#/components/headers/SessionCookie'}}, content: {application/json: {schema: {$ref: '#/components/schemas/AuthenticatedSession'}}}}
+        '401': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/Problem'}
+  /v1/auth/passkeys:
+    get:
+      tags: [Authentication]
+      operationId: listPasskeys
+      security: [{sessionCookie: []}]
+      responses:
+        '200': {description: Owner-visible passkey labels and metadata, content: {application/json: {schema: {type: object, required: [passkeys], properties: {passkeys: {type: array, items: {$ref: '#/components/schemas/PasskeyView'}}}, additionalProperties: false}}}}
+        '401': {$ref: '#/components/responses/Problem'}
+    post:
+      tags: [Authentication]
+      operationId: startPasskeyEnrollment
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CsrfToken'}]
+      responses:
+        '200': {description: Recent-authenticated WebAuthn registration options, content: {application/json: {schema: {$ref: '#/components/schemas/WebAuthnOptions'}}}}
+        '401': {$ref: '#/components/responses/Problem'}
+        '428': {$ref: '#/components/responses/Problem'}
+  /v1/auth/passkeys/{credentialId}:
+    delete:
+      tags: [Authentication]
+      operationId: revokePasskey
+      security: [{sessionCookie: []}]
+      parameters: [{in: path, name: credentialId, required: true, schema: {type: string}}, {$ref: '#/components/parameters/CsrfToken'}]
+      responses:
+        '204': {description: Passkey revoked; the last active passkey cannot be removed without a replacement method}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '428': {$ref: '#/components/responses/Problem'}
+  /v1/auth/password:
+    post:
+      tags: [Authentication]
+      operationId: authenticateWithPassword
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [password], properties: {password: {type: string, minLength: 1, maxLength: 1024, writeOnly: true}}, additionalProperties: false}}}}
+      responses:
+        '200': {description: Session issued, headers: {Set-Cookie: {$ref: '#/components/headers/SessionCookie'}}, content: {application/json: {schema: {$ref: '#/components/schemas/AuthenticatedSession'}}}}
+        '401': {$ref: '#/components/responses/Problem'}
+        '429': {$ref: '#/components/responses/Problem'}
+    put:
+      tags: [Authentication]
+      operationId: changePassword
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CsrfToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [newPassword], properties: {newPassword: {type: string, minLength: 12, maxLength: 1024, writeOnly: true}}, additionalProperties: false}}}}
+      responses:
+        '204': {description: Password alternative changed; session policy follows recent-authentication/revocation rules}
+        '401': {$ref: '#/components/responses/Problem'}
+        '428': {$ref: '#/components/responses/Problem'}
+  /v1/auth/session:
+    get:
+      tags: [Sessions]
+      operationId: getCurrentSession
+      security: [{sessionCookie: []}]
+      responses: {'200': {description: Current session and CSRF token, content: {application/json: {schema: {$ref: '#/components/schemas/AuthenticatedSession'}}}}, '401': {$ref: '#/components/responses/Problem'}}
+    delete:
+      tags: [Sessions]
+      operationId: signOutCurrentSession
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CsrfToken'}]
+      responses: {'204': {description: Session revoked}, '401': {$ref: '#/components/responses/Problem'}}
+  /v1/auth/sessions:
+    get:
+      tags: [Sessions]
+      operationId: listSessions
+      security: [{sessionCookie: []}]
+      responses:
+        '200': {description: Owner-visible sessions without bearer material, content: {application/json: {schema: {type: object, required: [sessions], properties: {sessions: {type: array, items: {$ref: '#/components/schemas/SessionView'}}}, additionalProperties: false}}}}
+        '401': {$ref: '#/components/responses/Problem'}
+  /v1/auth/sessions/{sessionId}:
+    delete:
+      tags: [Sessions]
+      operationId: revokeSession
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/SessionId'}, {$ref: '#/components/parameters/CsrfToken'}]
+      responses: {'204': {description: Selected session revoked}, '401': {$ref: '#/components/responses/Problem'}, '404': {$ref: '#/components/responses/Problem'}}
+  /v1/auth/sessions/revoke-all:
+    post:
+      tags: [Sessions]
+      operationId: revokeAllSessions
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CsrfToken'}]
+      responses: {'204': {description: All sessions revoked}, '401': {$ref: '#/components/responses/Problem'}, '428': {$ref: '#/components/responses/Problem'}}
+  /v1/devices:
+    get:
+      tags: [Devices]
+      operationId: listDevices
+      security: [{sessionCookie: []}]
+      responses:
+        '200': {description: Owner device inventory, content: {application/json: {schema: {type: object, required: [devices], properties: {devices: {type: array, items: {$ref: '#/components/schemas/Device'}}}, additionalProperties: false}}}}
+        '401': {$ref: '#/components/responses/Problem'}
+  /v1/devices/{deviceId}:
+    patch:
+      tags: [Devices]
+      operationId: updateDevice
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/DeviceId'}, {$ref: '#/components/parameters/CsrfToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {name: {type: string, minLength: 1, maxLength: 120}, localStorageLimitBytes: {type: integer, minimum: 1}}, minProperties: 1, additionalProperties: false}}}}
+      responses: {'200': {description: Updated device, content: {application/json: {schema: {$ref: '#/components/schemas/Device'}}}}, '401': {$ref: '#/components/responses/Problem'}, '404': {$ref: '#/components/responses/Problem'}}
+  /v1/devices/{deviceId}/revoke:
+    post:
+      tags: [Devices]
+      operationId: revokeDevice
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/DeviceId'}, {$ref: '#/components/parameters/CsrfToken'}]
+      responses: {'204': {description: Device revoked; no remote-erasure guarantee}, '401': {$ref: '#/components/responses/Problem'}, '428': {$ref: '#/components/responses/Problem'}}
+  /v1/security/recovery-kits:
+    get:
+      tags: [Security]
+      operationId: listRecoveryKits
+      security: [{sessionCookie: []}]
+      responses: {'200': {description: Readiness and redacted kit history, content: {application/json: {schema: {type: object, required: [ready, kits], properties: {ready: {type: boolean}, kits: {type: array, items: {$ref: '#/components/schemas/RecoveryKitView'}}}, additionalProperties: false}}}}, '401': {$ref: '#/components/responses/Problem'}}
+    post:
+      tags: [Security]
+      operationId: createRecoveryKit
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CsrfToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [passphrase], properties: {passphrase: {type: string, minLength: 12, maxLength: 1024, writeOnly: true}}, additionalProperties: false}}}}
+      responses: {'201': {description: Kit metadata and one-time artifact reference, content: {application/json: {schema: {$ref: '#/components/schemas/RecoveryKitCreated'}}}}, '401': {$ref: '#/components/responses/Problem'}, '428': {$ref: '#/components/responses/Problem'}}
+  /v1/security/recovery-kits/{kitId}/confirm:
+    post:
+      tags: [Security]
+      operationId: confirmRecoveryKitOfflineStorage
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/KitId'}, {$ref: '#/components/parameters/CsrfToken'}]
+      responses: {'204': {description: Recovery readiness confirmed}, '401': {$ref: '#/components/responses/Problem'}, '404': {$ref: '#/components/responses/Problem'}}
+  /v1/security/rotations:
+    post:
+      tags: [Security]
+      operationId: startKeyRotation
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CsrfToken'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [mode, reason], properties: {mode: {enum: [scheduled, emergency]}, reason: {type: string, minLength: 1, maxLength: 256}, dryRun: {type: boolean, default: false}}, additionalProperties: false}}}}
+      responses: {'202': {description: Resumable rotation, content: {application/json: {schema: {$ref: '#/components/schemas/RotationView'}}}}, '401': {$ref: '#/components/responses/Problem'}, '409': {$ref: '#/components/responses/Problem'}, '428': {$ref: '#/components/responses/Problem'}}
+  /v1/security/rotations/{operationId}:
+    get:
+      tags: [Security]
+      operationId: getKeyRotation
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/OperationId'}]
+      responses: {'200': {description: Rotation progress without keys, content: {application/json: {schema: {$ref: '#/components/schemas/RotationView'}}}}, '404': {$ref: '#/components/responses/Problem'}}
+  /v1/security/audit:
+    get:
+      tags: [Security]
+      operationId: listSecurityAudit
+      security: [{sessionCookie: []}]
+      responses: {'200': {description: Redacted events, content: {application/json: {schema: {type: object, required: [events], properties: {events: {type: array, items: {$ref: '#/components/schemas/AuditEvent'}}}, additionalProperties: false}}}}, '401': {$ref: '#/components/responses/Problem'}}
+components:
+  securitySchemes:
+    sessionCookie: {type: apiKey, in: cookie, name: __Host-mn_session}
+  headers:
+    SessionCookie:
+      description: HttpOnly SameSite=Strict __Host- cookie; Secure is mandatory for HTTPS/non-loopback.
+      schema: {type: string}
+  parameters:
+    CsrfToken: {in: header, name: X-CSRF-Token, required: true, schema: {type: string, minLength: 43, maxLength: 43}}
+    SessionId: {in: path, name: sessionId, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    DeviceId: {in: path, name: deviceId, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    KitId: {in: path, name: kitId, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+    OperationId: {in: path, name: operationId, required: true, schema: {$ref: '#/components/schemas/Uuid'}}
+  responses:
+    Problem:
+      description: Redacted RFC 9457-style problem
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}
+  schemas:
+    Uuid: {type: string, format: uuid}
+    Nonce: {type: string, pattern: '^[A-Za-z0-9_-]{22}$'}
+    BootstrapStart: {type: object, required: [clientNonce], properties: {clientNonce: {$ref: '#/components/schemas/Nonce'}}, additionalProperties: false}
+    BootstrapComplete:
+      type: object
+      required: [attemptId, recoveryKitId, offlineStorageConfirmed]
+      properties:
+        attemptId: {$ref: '#/components/schemas/Uuid'}
+        recoveryKitId: {$ref: '#/components/schemas/Uuid'}
+        password: {type: string, minLength: 12, maxLength: 1024, writeOnly: true}
+        offlineStorageConfirmed: {const: true}
+      additionalProperties: false
+    InstallationStatus:
+      type: object
+      required: [state, schemaVersion, recoveryReady, securityReady]
+      properties:
+        state: {enum: [uninitialized, bootstrapping, ready, recovery-required]}
+        schemaVersion: {type: integer, minimum: 1}
+        recoveryReady: {type: boolean}
+        securityReady: {type: boolean}
+        activeKeyGeneration: {type: integer, minimum: 1}
+        rotation: {$ref: '#/components/schemas/RotationView'}
+      additionalProperties: false
+    BootstrapStarted:
+      type: object
+      required: [attemptId, expiresAt, challenge]
+      properties: {attemptId: {$ref: '#/components/schemas/Uuid'}, expiresAt: {type: string, format: date-time}, challenge: {type: string, minLength: 22}}
+      additionalProperties: false
+    BootstrapProgress:
+      type: object
+      required: [attemptId, passkeyVerified, recoveryRequired]
+      properties: {attemptId: {$ref: '#/components/schemas/Uuid'}, passkeyVerified: {const: true}, recoveryRequired: {const: true}, recoveryKitId: {$ref: '#/components/schemas/Uuid'}}
+      additionalProperties: false
+    WebAuthnOptions: {type: object, required: [challenge], properties: {challenge: {type: string, minLength: 22}}, additionalProperties: true}
+    RegistrationResponse:
+      type: object
+      required: [id, rawId, response, type]
+      properties: {id: {type: string}, rawId: {type: string}, type: {const: public-key}, response: {type: object, required: [clientDataJSON, attestationObject], additionalProperties: true}}
+      additionalProperties: true
+    AuthenticationResponse:
+      type: object
+      required: [id, rawId, response, type]
+      properties: {id: {type: string}, rawId: {type: string}, type: {const: public-key}, response: {type: object, required: [clientDataJSON, authenticatorData, signature], additionalProperties: true}}
+      additionalProperties: true
+    AuthenticatedSession:
+      type: object
+      required: [session, csrfToken]
+      properties: {session: {$ref: '#/components/schemas/SessionView'}, csrfToken: {type: string, minLength: 43, maxLength: 43, writeOnly: true}}
+      additionalProperties: false
+    SessionView:
+      type: object
+      required: [sessionId, deviceId, authMethod, issuedAt, lastSeenAt, expiresAt, state]
+      properties: {sessionId: {$ref: '#/components/schemas/Uuid'}, deviceId: {$ref: '#/components/schemas/Uuid'}, authMethod: {enum: [passkey, password, admin-recovery]}, issuedAt: {type: string, format: date-time}, lastSeenAt: {type: string, format: date-time}, expiresAt: {type: string, format: date-time}, state: {enum: [active, revoked, expired]}}
+      additionalProperties: false
+    PasskeyView:
+      type: object
+      required: [credentialId, label, state, createdAt]
+      properties: {credentialId: {type: string}, label: {type: string, minLength: 1, maxLength: 120}, state: {enum: [active, revoked]}, createdAt: {type: string, format: date-time}, lastUsedAt: {type: [string, 'null'], format: date-time}}
+      additionalProperties: false
+    Device:
+      type: object
+      required: [deviceId, name, platform, clientType, authorizedAt, state, localStorageLimitBytes, localUsageBytes]
+      properties: {deviceId: {$ref: '#/components/schemas/Uuid'}, name: {type: string, minLength: 1, maxLength: 120}, platform: {type: string, minLength: 1, maxLength: 64}, clientType: {const: web}, authorizedAt: {type: string, format: date-time}, lastActivityAt: {type: [string, 'null'], format: date-time}, lastSyncAt: {type: [string, 'null'], format: date-time}, state: {enum: [active, revoked, pending]}, localStorageLimitBytes: {type: integer, minimum: 1}, localUsageBytes: {type: integer, minimum: 0}, keyProtection: {enum: [platform-secure-storage, browser-non-exportable, unavailable]}}
+      additionalProperties: false
+    RecoveryKitCreated:
+      type: object
+      required: [kitId, format, formatVersion, installationId, downloadOnce, expiresAt]
+      properties: {kitId: {$ref: '#/components/schemas/Uuid'}, format: {const: myownnotion.recovery+json}, formatVersion: {const: 1}, installationId: {$ref: '#/components/schemas/Uuid'}, downloadOnce: {const: true}, expiresAt: {type: string, format: date-time}}
+      additionalProperties: false
+    RecoveryKitView:
+      type: object
+      required: [kitId, recoveryEpoch, state, createdAt, supportedKeyGenerations]
+      properties: {kitId: {$ref: '#/components/schemas/Uuid'}, recoveryEpoch: {type: integer, minimum: 1}, state: {enum: [active, revoked, superseded]}, createdAt: {type: string, format: date-time}, supportedKeyGenerations: {type: array, items: {type: integer, minimum: 1}}}
+      additionalProperties: false
+    RotationView:
+      type: object
+      required: [operationId, mode, phase, fromGeneration, toGeneration, processedCount, totalCount]
+      properties: {operationId: {$ref: '#/components/schemas/Uuid'}, mode: {enum: [scheduled, emergency]}, phase: {enum: [planned, prepared, rewrapping, committing, complete, failed]}, fromGeneration: {type: integer, minimum: 1}, toGeneration: {type: integer, minimum: 1}, processedCount: {type: integer, minimum: 0}, totalCount: {type: integer, minimum: 0}, failureCode: {type: [string, 'null'], maxLength: 128}}
+      additionalProperties: false
+    AuditEvent:
+      type: object
+      required: [eventId, eventType, outcome, actorClass, correlationId, safeCode, occurredAt]
+      properties: {eventId: {$ref: '#/components/schemas/Uuid'}, eventType: {type: string, maxLength: 64}, outcome: {enum: [success, failure, refused, started]}, actorClass: {enum: [owner, hosting-admin, system]}, correlationId: {$ref: '#/components/schemas/Uuid'}, safeCode: {type: string, maxLength: 128}, occurredAt: {type: string, format: date-time}}
+      additionalProperties: false
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties: {type: {type: string, format: uri-reference}, title: {type: string, maxLength: 160}, status: {type: integer, minimum: 400, maximum: 599}, code: {type: string, maxLength: 128}, detail: {type: string, maxLength: 512}, correlationId: {$ref: '#/components/schemas/Uuid'}}
+      additionalProperties: false

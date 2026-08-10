@@ -7,11 +7,17 @@ This repository uses GitHub Spec Kit for specification-driven development. These
 Use this precedence order when sources disagree:
 
 1. `.specify/memory/constitution.md` — non-negotiable project principles.
-2. `specs/<feature>/spec.md` — required behavior and scope.
-3. `specs/<feature>/plan.md` — approved technical approach.
-4. `specs/<feature>/tasks.md` — implementation sequence and progress.
-5. Supporting documents under the same feature directory, then `docs/`.
-6. Existing implementation.
+2. `docs/product/product-canvas.md` — canonical cross-feature product direction,
+   permanent boundaries, release scope, and delivery trajectory.
+3. `specs/<feature>/spec.md` — required behavior and scope for one feature.
+4. `specs/<feature>/plan.md` — approved technical approach.
+5. `specs/<feature>/tasks.md` — implementation sequence and progress.
+6. Supporting documents under the same feature directory, then other `docs/`.
+7. Existing implementation.
+
+Feature specifications refine the product canvas into testable behavior. They
+must not silently contradict it. When product direction changes, update the
+canvas and every directly affected active feature artifact in the same change.
 
 Never copy feature requirements into agent-specific files. `.agents/` and `.cursor/` contain only generated workflow skills or thin pointers to the shared artifacts.
 
@@ -32,6 +38,8 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
 ## Working conventions
 
 - Read the constitution and the active feature artifacts before editing code.
+- Read `docs/product/product-canvas.md` before specifying or planning a feature,
+  and record the relevant canvas sections in that feature's artifacts.
 - Keep product requirements technology-agnostic in `spec.md`; put technical choices in `plan.md`.
 - Keep each feature in exactly one `specs/<feature>/` directory.
 - Record decisions and clarifications in the active feature artifacts so another agent can continue without relying on chat history.
