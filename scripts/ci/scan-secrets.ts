@@ -27,6 +27,8 @@ interface Rule {
    * Format-based rules below stay active everywhere, including tests.
    */
   shippedSourceOnly?: boolean;
+  /** Limits the rule to files whose path matches, when the form is format-specific. */
+  appliesTo?: RegExp;
 }
 
 const testPathPattern = /(?:^|\/)tests?\//;
@@ -63,13 +65,24 @@ const rules: Rule[] = [
     pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/,
   },
   {
-    id: "generic-assigned-secret",
-    description: "Secret-looking assignment with a literal high-entropy value",
-    // Matches `password = "…"`, `apiKey: '…'`, `SECRET=…` — but not `*_FILE`
-    // path variables and not empty or `${…}` interpolated values.
+    id: "generic-assigned-secret-literal",
+    description: "Secret-looking name assigned a quoted literal value",
+    // Code: only a *quoted* value can be a hard-coded secret. An unquoted
+    // right-hand side is an identifier, a call, or a type reference —
+    // `credentialIdDigest: Base64UrlOfBytes(...)` is a schema, not a secret.
     pattern:
-      /\b(?!\w*_FILE\b)\w*(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)\w*\s*[:=]\s*["']?(?!\s*$)(?!process\.env)[A-Za-z0-9+/=_-]{16,}["']?/i,
+      /\b(?!\w*_FILE\b)\w*(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)\w*\s*[:=]\s*(["'`])(?!\s*\1)[A-Za-z0-9+/=_-]{16,}\1/i,
     shippedSourceOnly: true,
+    appliesTo: /\.(?:ts|tsx|js|jsx|mjs|cjs)$/,
+  },
+  {
+    id: "generic-assigned-secret-env",
+    description: "Secret-looking environment assignment with a literal value",
+    // Configuration: `SECRET=value` with no quotes is the normal form, so the
+    // value is matched bare. `${…}` interpolation is stripped before matching.
+    pattern:
+      /^\s*(?:-\s*)?(?!\w*_FILE\b)\w*(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)\w*\s*[:=]\s*["']?(?!\s*$)[A-Za-z0-9+/=_-]{16,}["']?\s*$/i,
+    appliesTo: /\.(?:env|ya?ml|example|toml|ini|cfg|conf|properties)$|(?:^|\/)\.env/,
   },
   {
     id: "postgres-url-with-password",
@@ -198,6 +211,9 @@ for (const file of trackedFiles()) {
     const scannable = line.replaceAll(/\$\{[^}]*\}/g, "<interpolated>");
     for (const rule of rules) {
       if (rule.shippedSourceOnly && isTestFile) {
+        continue;
+      }
+      if (rule.appliesTo && !rule.appliesTo.test(file)) {
         continue;
       }
       if (rule.pattern.test(scannable)) {

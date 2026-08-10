@@ -48,6 +48,10 @@ export class LocalContentService {
   #conflictCount = 0;
   #storagePersisted: boolean | null = null;
   #listeners = new Set<Listener>();
+  /** The reconciliation pass currently running, if any. See `synchronize`. */
+  #inFlightSync: Promise<SyncState> | null = null;
+  /** Set when a caller arrives mid-pass; triggers exactly one follow-up pass. */
+  #resyncRequested = false;
   #snapshot: LocalContentSnapshot;
 
   constructor(api: ContentApi = new ContentApi(), databaseName = "myownnotion-local") {
@@ -130,8 +134,43 @@ export class LocalContentService {
     await this.synchronize();
   }
 
-  /** Full reconciliation pass; resolves to the resulting sync state. */
+  /**
+   * Full reconciliation pass; resolves to the resulting sync state.
+   *
+   * Passes are serialized and coalesced. Two concurrent passes used to be
+   * possible — `mutate()` fires one per mutation and does not await it — and
+   * they corrupt each other: `reconcile()` starts with
+   * `outbox.recoverInterrupted()`, which resets every `sending` row to
+   * `pending`, and it cannot tell "interrupted by a reload" from "in flight
+   * right now in the other pass". A row could therefore be handed to a pass
+   * that had already drained past it and be left `pending` with nobody to
+   * resubmit it — the workspace then sits on "1 pending" indefinitely.
+   *
+   * While a pass is running, callers join it. A caller that arrives during a
+   * pass also sets `#resyncRequested`, so exactly one follow-up pass runs
+   * afterwards and drains anything enqueued in the meantime. One extra pass is
+   * enough regardless of how many callers arrived, because the follow-up
+   * observes the queue as it stands when it starts.
+   */
   async synchronize(): Promise<SyncState> {
+    if (this.#inFlightSync !== null) {
+      this.#resyncRequested = true;
+      return this.#inFlightSync;
+    }
+    const pass = this.#runSynchronize().finally(() => {
+      this.#inFlightSync = null;
+    });
+    this.#inFlightSync = pass;
+
+    let state = await pass;
+    while (this.#resyncRequested) {
+      this.#resyncRequested = false;
+      state = await this.synchronize();
+    }
+    return state;
+  }
+
+  async #runSynchronize(): Promise<SyncState> {
     await this.#notify("syncing");
     const outcome = await reconcile(this.db, this.#transport());
     const state: SyncState = outcome.offline

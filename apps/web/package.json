@@ -22,9 +22,11 @@
     "@types/react": "^19.2.13",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "^5.9.3",
     "vite": "^7.3.4",
     "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^3.2.4",
     "workbox-precaching": "^7.3.0"
   }
 }

@@ -5,7 +5,8 @@
   "description": "Platform-independent canonical content rules: no Fastify, React, Drizzle, browser, or filesystem dependencies",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./security": "./src/security/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
