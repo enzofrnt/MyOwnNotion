@@ -159,6 +159,70 @@ describe("mutation batch (idempotent submission)", () => {
     expect(conflictResult?.problem?.code).toBe("revision.stale-base");
   });
 
+  it("replaying a conflict returns the same competing identities and reason (FR-042)", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Replayed conflict" });
+    const edit = (mutationId: string, body: string) => ({
+      mutations: [
+        {
+          mutationId,
+          commandType: "page.document.replace",
+          baseRevisionIds: [page.revisionId],
+          payload: {
+            itemId: page.itemId,
+            baseRevisionId: page.revisionId,
+            document: {
+              format: "myownnotion.document+json",
+              formatVersion: 1,
+              body: { text: body },
+            },
+          },
+        },
+      ],
+    });
+
+    // Advance the head so the next edit from the original base is stale.
+    await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/mutations/batch",
+      payload: edit(generateUuidV7(), "advances the head"),
+    });
+
+    type ConflictBody = {
+      results: Array<{
+        status: string;
+        competingRevisionIds?: string[];
+        problem?: { code: string };
+      }>;
+    };
+
+    // The client submits and the server records the rejection, but the
+    // response never arrives; the client retries the same mutation ID.
+    const staleMutationId = generateUuidV7();
+    const first = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/mutations/batch",
+      payload: edit(staleMutationId, "lost response"),
+    });
+    const replay = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/mutations/batch",
+      payload: edit(staleMutationId, "lost response"),
+    });
+
+    const firstResult = (first.json() as ConflictBody).results[0];
+    const replayedResult = (replay.json() as ConflictBody).results[0];
+
+    expect(firstResult?.status).toBe("conflict");
+    expect(firstResult?.competingRevisionIds?.length).toBe(1);
+
+    // The replay must be as resolvable as the original response: same status,
+    // same competing identity, same reason. Anything less leaves the owner
+    // holding local work with nothing to compare it against.
+    expect(replayedResult?.status).toBe("conflict");
+    expect(replayedResult?.competingRevisionIds).toEqual(firstResult?.competingRevisionIds);
+    expect(replayedResult?.problem?.code).toBe("revision.stale-base");
+  });
+
   it("malformed queued payloads are rejected per-mutation, not per-batch", async () => {
     const good = generateUuidV7();
     const bad = generateUuidV7();

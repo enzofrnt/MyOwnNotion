@@ -14,12 +14,12 @@ Measured with `pnpm test:coverage` (Vitest + V8) over `packages/*/src` and
 
 | Metric | Threshold | Measured | Result |
 | --- | --- | --- | --- |
-| Statements | 90% | **91.74%** | pass |
-| Lines | 90% | **91.74%** | pass |
-| Functions | 90% | **93.05%** | pass |
-| Branches | 85% | **90.06%** | pass |
+| Statements | 90% | **91.75%** | pass |
+| Lines | 90% | **91.75%** | pass |
+| Functions | 90% | **93.08%** | pass |
+| Branches | 85% | **90.17%** | pass |
 
-**39 test files, 420 tests, 0 failures.**
+**39 test files, 425 tests, 0 failures.**
 
 No threshold was lowered to reach this. Exclusions and their justification are
 listed in `docs/development.md`; the only excluded executable first-party file
@@ -41,6 +41,24 @@ rejection branches:
 
 The `packages/database/src/repositories` directory as a whole went from 85.46%
 to 87.00% statements and 77.95% to 84.79% branches.
+
+## Competing revision identities survive a replay (FR-042, T105)
+
+Migration `0003_mutation_competing_revisions` adds
+`mutations.competing_revision_ids`, constrained to be empty unless the mutation
+was rejected. `replayResult` now returns the recorded identities and the
+recorded failure code instead of a generic one.
+
+Before this, the identities existed only in the in-memory `SafeError` and were
+delivered on the first response. If that response was lost and the client
+retried the same mutation ID, the server replayed a rejection with no competing
+set, and the client's durable conflict record ended up empty: the local work
+survived, but the owner had nothing to compare it against.
+
+Verified in `apps/api/tests/reconciliation.contract.spec.ts` ("replaying a
+conflict returns the same competing identities and reason"), which drives the
+real lost-response sequence through the batch endpoint. The test was confirmed
+to fail against the previous implementation, so it is not vacuous.
 
 ## Single canonical workspace (FR-001)
 
@@ -88,21 +106,27 @@ non-interactive sudo. Those three projects are verified in CI only, where the
 CI settings in force: `forbidOnly` when `CI=true`, deterministic single worker,
 HTML report retained, traces and screenshots retained on failure.
 
-### Known fragility: the e2e database is not isolated per project
+### Content isolation (T106, resolved)
 
-`tests/e2e/global-setup.ts` truncates canonical content, but Playwright runs
-global setup **once per run**, not per project. All five projects then share
-that one database, so items accumulate across the whole run: by the time
-`webkit-mobile` executes last it renders a tree of ~135 items, on the slowest
-engine at the smallest viewport.
+Journeys start from empty canonical content, enforced per test by the auto
+fixture in `tests/e2e/fixtures.ts`. Specs import `test` and `expect` from that
+module rather than from `@playwright/test`, so a new journey cannot silently
+opt out.
 
-This surfaced during T101. Adding one journey that created two extra root items
-per project (ten overall) pushed `webkit-mobile` past the 10 s `expect` timeout
-in unrelated tests — the failing locator was present in the post-failure
-snapshot, so it was purely timing. The journey was folded into the existing
-relationship test so it creates no additional items, which restored the margin,
-but the underlying growth is unbounded and will bite again as journeys are
-added. Isolating or resetting per project is tracked as a convergence task.
+Playwright project `dependencies` were tried first and do not work for this:
+Playwright runs every dependency project up front rather than immediately
+before its dependent project, so content still accumulated across the matrix.
+
+Measured effect over a two-project run: 56 rows in `items` before, **1 after**,
+with the run also finishing faster (39.1 s → 29.9 s).
+
+**History**: previously `global-setup.ts` truncated once per *run*, so all five
+projects shared one accumulating database — ~135 items by the time
+`webkit-mobile` ran last, on the slowest engine at the smallest viewport. During
+T101 a single new journey creating two extra root items per project was enough
+to push two *unrelated* tests past the 10 s `expect` timeout. The supposedly
+missing locator was present in the post-failure snapshot, confirming render time
+rather than a defect. Journey evidence is no longer size-sensitive.
 
 ## CI aggregate status
 
