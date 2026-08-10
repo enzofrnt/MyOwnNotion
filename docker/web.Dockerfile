@@ -43,6 +43,11 @@ RUN pnpm --filter @myownnotion/web... run build
 
 FROM ${NGINX_BASE} AS runtime
 ENV TZ=UTC
+# Apply the distribution's security updates. The web runtime is Alpine nginx
+# serving static files: it has no Node.js and no package manager to strip.
+USER root
+RUN apk upgrade --no-cache
+USER 101
 COPY docker/web-nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
