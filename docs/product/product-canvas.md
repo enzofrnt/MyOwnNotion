@@ -1209,16 +1209,17 @@ Toute modification fonctionnelle suit ce processus :
 4. exécuter localement tous les contrôles obligatoires ;
 5. corriger jusqu'à ce que les contrôles locaux réussissent ;
 6. pousser la branche sur GitHub ;
-7. attendre que la CI de branche réussisse ;
-8. ouvrir seulement ensuite une pull request ;
-9. laisser la CI de pull request rejouer les contrôles dans un environnement propre ;
-10. corriger tout échec et obtenir une nouvelle CI réussie ;
-11. effectuer la revue requise ;
-12. fusionner uniquement lorsque toutes les conditions obligatoires sont satisfaites.
+7. ouvrir une pull request — le push d'une branche de travail ne déclenche aucune CI par lui-même ;
+8. laisser la CI de pull request exécuter les contrôles dans un environnement propre ;
+9. corriger tout échec et obtenir une nouvelle CI réussie ;
+10. effectuer la revue requise ;
+11. fusionner uniquement lorsque toutes les conditions obligatoires sont satisfaites.
 
 La séquence de référence est donc :
 
-`développement → tests locaux réussis → push → CI de branche réussie → pull request → CI de PR réussie → revue → fusion`
+`développement → contrôles locaux réussis → push → pull request → CI de PR réussie → revue → fusion`
+
+Les contrôles locaux sont donc la porte avant la pull request ; la pull request est la première porte automatisée.
 
 Les règles suivantes sont obligatoires :
 
@@ -1241,11 +1242,14 @@ GitHub Actions est la plateforme CI officielle.
 
 Les workflows doivent s'exécuter :
 
-- sur chaque push d'une branche de travail ;
 - sur chaque ouverture, mise à jour ou réouverture de pull request ;
 - sur chaque push vers `main` ;
 - sur chaque tag de version ;
 - manuellement pour les diagnostics et opérations prévues.
+
+Le push d'une branche de travail ne doit déclencher aucun contrôle requis ;
+les contrôles locaux exécutés avant le push en tiennent lieu, et la pull
+request est la première porte automatisée.
 
 ### 40.2 Contrôles requis
 
@@ -1469,7 +1473,7 @@ Une fonctionnalité ou modification n'est terminée que si :
 - les cas d'erreur, hors ligne et reprise sont couverts ou marqués non applicables avec justification ;
 - les impacts sur données, synchronisation, permissions, chiffrement, sauvegarde et migration sont traités ;
 - les tests appropriés sont ajoutés et réussissent localement ;
-- la CI de branche et la CI de pull request réussissent ;
+- la CI de pull request réussit ;
 - la documentation utilisateur et d'exploitation est mise à jour ;
 - les changements de configuration et migrations sont documentés ;
 - aucun secret ou contenu utilisateur n'apparaît dans les artefacts et journaux ;

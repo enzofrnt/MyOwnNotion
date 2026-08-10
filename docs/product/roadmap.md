@@ -10,8 +10,7 @@ le périmètre testable d’une seule étape.
 Une étape peut être spécifiée et planifiée en avance, mais son implémentation ne
 commence que lorsque ses dépendances sont terminées ou explicitement isolées.
 Chaque feature suit : spécification, clarification si nécessaire, plan, tâches,
-analyse, implémentation, convergence, tests locaux, CI de branche et pull
-request.
+analyse, implémentation, convergence, contrôles locaux, puis pull request.
 
 La numérotation ci-dessous fixe l’ordre prévu. Si une urgence impose un nouvel
 élément intermédiaire, la roadmap et les dépendances concernées doivent être

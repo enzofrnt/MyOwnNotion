@@ -210,16 +210,18 @@ global `COOKIE_SECURE=false` (rejected: weakens non-loopback deployments).
 **Decision**: Official Compose includes API, web, PostgreSQL, durable file
 storage, health checks, mounted secrets, loopback HTTP, trusted-proxy/public-
 origin/size settings, and a local-build override. The existing
-`.github/workflows/ci.yml` is the only quality-gate workflow. It exposes
-`workflow_call`, triggers directly on every `pull_request`, directly only on
-pushes to branches other than `main`, and directly on `workflow_dispatch` for
-diagnostics; it has no direct `main` or version-tag push trigger. Manual
+`.github/workflows/ci.yml` is the only quality-gate workflow. It triggers
+directly on every `pull_request` and every `push` to `main`, directly on
+`workflow_dispatch` for diagnostics, and exposes `workflow_call` for version
+tags; it has no non-`main` branch push trigger. The gate includes a blocking
+multi-architecture image build on every candidate, and commit-image publication
+to GHCR runs in the same workflow run on `main` only. Manual
 diagnostics run the gate only and cannot publish. The same aggregate
 `quality-gate` job is used for direct and reusable invocations, so there is one
-logical gate and no duplicate gate. `.github/workflows/release.yml` triggers directly on pushes to
-`main` and on version-tag candidates, with an exact guard for
+logical gate and no duplicate gate. `.github/workflows/release.yml` triggers
+only on version-tag candidates, with an exact guard for
 `^v[0-9]+\.[0-9]+\.[0-9]+$`. Its first job calls the local reusable
-`./.github/workflows/ci.yml` at the caller commit and is itself the
+`./.github/workflows/ci.yml` at the tag commit and is itself the
 `quality-gate` dependency for publication. The reusable workflow exports
 `candidate_sha` equal to its `github.sha` (the caller SHA), and release
 requires that output to equal its own `github.sha`. Missing, skipped,
@@ -229,17 +231,31 @@ publication job.
 **Rationale**: The constitution requires actual stack validation and exact
 candidate enforcement, not documentation-only claims.
 
-**Trigger semantics**: `ci.yml` runs directly on pull requests, non-main
-branch pushes, and `workflow_dispatch` diagnostics. Release runs directly on
-`main` pushes and strict version-tag
-pushes, and its first job invokes `ci.yml` once at the caller commit. Therefore
-`main` and version tags receive CI through release without a second execution or
-an indirect workflow trigger; non-main branches and pull requests receive CI
-from `ci.yml` directly. The called gate is usable only when its result is
-successful, present, current, and its `candidate_sha` equals release's
-`github.sha`; any missing, skipped, cancelled, failed, stale, or mismatched
-result is a no-publication result. Required branch/PR check context is the
-single aggregate `quality-gate` check from `ci.yml`.
+**Trigger semantics**: `ci.yml` runs directly on pull requests, on pushes to
+`main`, and on `workflow_dispatch` diagnostics, and exposes `workflow_call`.
+A non-`main` branch push starts no run, matching constitution v1.3.0, which
+makes the required local checks the pre-push gate and the pull request the first
+automated gate. The image build is part of the gate on every candidate: a pull
+request builds and scans both platforms and publishes nothing, holding no
+`packages: write` permission. Commit-image publication for `main` lives in the
+same workflow and the same run as the gate, in a job that depends on the
+aggregate `quality-gate` and is guarded by the `main` ref plus gate success, so
+a passing gate and its publication can never belong to different commits.
+Release runs only on strict version-tag pushes and invokes `ci.yml` once at the
+tag commit, so the tag path also executes the gate exactly once. The called gate
+is usable only when its result is successful, present, current, and its
+`candidate_sha` equals release's `github.sha`; any missing, skipped, cancelled,
+failed, stale, or mismatched result is a no-publication result. The required
+protected-branch check context is the single aggregate `quality-gate` check from
+`ci.yml`.
+
+**Alternatives considered for the `main` publication path**: a `release.yml`
+triggered on `main` that re-calls `ci.yml` (rejected: with `ci.yml` triggering
+directly on `main`, the gate would execute twice per commit), and a
+`workflow_run` trigger chained to the completed CI run (rejected: an indirect
+trigger reintroduces stale and foreign-commit gate evidence, which FR-034
+forbids). Publishing from inside the gate run is the only topology that
+satisfies both the direct `main` trigger and the single-gate-execution rule.
 
 **Alternatives considered**: Publish only source (rejected: not a self-hosted
 release); floating `latest` (rejected: non-reproducible); a separate duplicate

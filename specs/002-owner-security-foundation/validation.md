@@ -226,7 +226,8 @@ artifact-less results.
 | FR-033/FR-034/SC-007 | `dependency-vulnerability-audit`: `pnpm audit --audit-level=high --prod` |  |  | High/critical, failure, or unavailable audit blocks | `dependency-audit.json` |  | `pending` |
 | FR-033/FR-034/SC-007 | `secret-scan`: `pnpm security:secrets` or full-SHA-pinned scanner action |  |  | Any detected secret or failure blocks | `secret-scan.sarif` |  | `pending` |
 | FR-033/FR-034/SC-007 | `static-security-analysis`: `pnpm security:static` or full-SHA-pinned CodeQL/Semgrep action |  |  | High-confidence finding or failure blocks | `static-security.sarif` |  | `pending` |
-| FR-033/FR-034/SC-007 | `container-vulnerability-scan`: `trivy image --severity HIGH,CRITICAL --exit-code 1` before publication |  |  | High/critical finding or failure blocks | `container-scan.sarif` |  | `pending` |
+| FR-033/FR-034/SC-007 | `build-images`: multi-architecture build of `docker/api.Dockerfile` and `docker/web.Dockerfile`, no push |  |  | Build failure, unlocked dependency, or unpinned base digest blocks; runs on every candidate including pull requests | `image-build.json` |  | `pending` |
+| FR-033/FR-034/SC-007 | `container-vulnerability-scan`: `trivy image --severity HIGH,CRITICAL --exit-code 1` after `build-images`, before publication |  |  | High/critical finding or failure blocks | `container-scan.sarif` |  | `pending` |
 | FR-033/FR-034/SC-007 | `license-policy`: `pnpm security:licenses` |  |  | Denied license, missing attribution, or failure blocks | `license-policy.json` |  | `pending` |
 
 Third-party actions must be pinned by full commit SHA in implementation.
@@ -237,10 +238,12 @@ publish.
 
 | Requirement/criterion | Candidate type | Command or test path | Candidate SHA | Controlled clock/configuration | Required checks and failure behavior | Raw evidence/artifact | Reviewer/date | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| FR-033/FR-034/SC-007 | branch | `.github/workflows/ci.yml` push to non-main |  |  | Single aggregate gate; any missing/skipped/cancelled/failed/stale result blocks merge |  |  | `pending` |
-| FR-033/FR-034/SC-007 | pull request | `.github/workflows/ci.yml` pull_request |  |  | Single aggregate gate; no duplicate gate |  |  | `pending` |
+| FR-033/FR-034/SC-007 | work-branch push | `git push` of a branch with no pull request |  |  | No required gate runs for the push itself; nothing is built or published from it |  |  | `pending` |
+| FR-033/FR-034/SC-007 | pull request | `.github/workflows/ci.yml` `pull_request` |  |  | Single aggregate gate; no duplicate gate; any missing/skipped/cancelled/failed/stale result blocks merge |  |  | `pending` |
+| FR-033/FR-034/SC-007 | pull request — image build | `build-images` and `container-vulnerability-scan` jobs in `.github/workflows/ci.yml` |  |  | Blocking build for `linux/amd64` and `linux/arm64` from locked dependencies and pinned base digests; nothing published; no `packages: write` on this path, so an attempted registry write fails on permission |  |  | `pending` |
 | FR-033/FR-034/SC-007 | manual diagnostic | `.github/workflows/ci.yml` `workflow_dispatch` |  |  | Gate-only; publication is impossible regardless of result |  |  | `pending` |
-| FR-033/FR-034/SC-007 | main/version tag | `.github/workflows/release.yml` reusable call to local `ci.yml` |  |  | Verify `candidate_sha == github.sha`; publication requires successful current gate |  |  | `pending` |
+| FR-033/FR-034/SC-007 | push to `main` — publication | `publish-commit-images` job in `.github/workflows/ci.yml` |  |  | `needs: quality-gate`, guarded by `github.ref == 'refs/heads/main'` and gate success; publishes immutable commit-addressable images to GHCR in the same run as the gate; no second gate execution and no indirect completion trigger; sole holder of `packages: write` |  |  | `pending` |
+| FR-033/FR-034/SC-007 | version tag | `.github/workflows/release.yml` reusable call to local `ci.yml` at the tag commit |  |  | Strict `^v[0-9]+\.[0-9]+\.[0-9]+$` guard; verify `candidate_sha == github.sha`; publication requires successful current gate; no `main` trigger |  |  | `pending` |
 
 ## Migration fault evidence
 
