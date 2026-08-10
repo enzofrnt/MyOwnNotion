@@ -13,8 +13,21 @@
     "B64": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "minLength": 1 },
     "Generation": { "type": "integer", "minimum": 1 },
     "EncryptedEnvelope": {
-      "type": "object", "additionalProperties": false,
-      "required": ["format", "entityType", "entityId", "workspaceId", "keyGeneration", "recordVersion", "salt", "nonce", "ciphertext", "tag", "aadDigest"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "entityType",
+        "entityId",
+        "workspaceId",
+        "keyGeneration",
+        "recordVersion",
+        "salt",
+        "nonce",
+        "ciphertext",
+        "tag",
+        "aadDigest"
+      ],
       "properties": {
         "format": { "const": "mn.enc.v1" },
         "entityType": { "type": "string", "pattern": "^[a-z][a-z0-9._-]{1,63}$" },
@@ -32,19 +45,32 @@
       }
     },
     "Kdf": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": ["algorithm", "N", "r", "p", "keyLength", "salt"],
       "properties": {
         "algorithm": { "const": "scrypt" },
         "N": { "type": "integer", "enum": [8192, 16384, 32768, 65536, 131072] },
-        "r": { "const": 8 }, "p": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "r": { "const": 8 },
+        "p": { "type": "integer", "minimum": 1, "maximum": 10 },
         "keyLength": { "const": 32 },
         "salt": { "$ref": "#/$defs/B64", "minLength": 22, "maxLength": 22 }
       }
     },
     "RecoveryKit": {
-      "type": "object", "additionalProperties": false,
-      "required": ["format", "formatVersion", "installationId", "kitId", "recoveryEpoch", "createdAt", "supportedKeyGenerations", "kdf", "encryption"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "formatVersion",
+        "installationId",
+        "kitId",
+        "recoveryEpoch",
+        "createdAt",
+        "supportedKeyGenerations",
+        "kdf",
+        "encryption"
+      ],
       "properties": {
         "format": { "const": "myownnotion.recovery+json" },
         "formatVersion": { "const": 1 },
@@ -52,10 +78,16 @@
         "kitId": { "$ref": "#/$defs/Uuid" },
         "recoveryEpoch": { "type": "integer", "minimum": 1 },
         "createdAt": { "type": "string", "format": "date-time" },
-        "supportedKeyGenerations": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/Generation" } },
+        "supportedKeyGenerations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/Generation" }
+        },
         "kdf": { "$ref": "#/$defs/Kdf" },
         "encryption": {
-          "type": "object", "additionalProperties": false,
+          "type": "object",
+          "additionalProperties": false,
           "required": ["algorithm", "nonce", "ciphertext", "tag"],
           "properties": {
             "algorithm": { "const": "AES-256-GCM" },
@@ -67,19 +99,42 @@
       }
     },
     "RotationManifest": {
-      "type": "object", "additionalProperties": false,
-      "required": ["format", "formatVersion", "operationId", "installationId", "mode", "fromGeneration", "toGeneration", "phase", "cursor", "processedCount", "totalCount", "checkpointDigest", "createdAt", "updatedAt"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "formatVersion",
+        "operationId",
+        "installationId",
+        "mode",
+        "fromGeneration",
+        "toGeneration",
+        "phase",
+        "cursor",
+        "processedCount",
+        "totalCount",
+        "checkpointDigest",
+        "createdAt",
+        "updatedAt"
+      ],
       "properties": {
-        "format": { "const": "myownnotion.rotation+json" }, "formatVersion": { "const": 1 },
-        "operationId": { "$ref": "#/$defs/Uuid" }, "installationId": { "$ref": "#/$defs/Uuid" },
+        "format": { "const": "myownnotion.rotation+json" },
+        "formatVersion": { "const": 1 },
+        "operationId": { "$ref": "#/$defs/Uuid" },
+        "installationId": { "$ref": "#/$defs/Uuid" },
         "mode": { "enum": ["scheduled", "emergency"] },
-        "fromGeneration": { "$ref": "#/$defs/Generation" }, "toGeneration": { "$ref": "#/$defs/Generation" },
-        "phase": { "enum": ["planned", "prepared", "rewrapping", "committing", "complete", "failed"] },
+        "fromGeneration": { "$ref": "#/$defs/Generation" },
+        "toGeneration": { "$ref": "#/$defs/Generation" },
+        "phase": {
+          "enum": ["planned", "prepared", "rewrapping", "committing", "complete", "failed"]
+        },
         "cursor": { "type": "string", "minLength": 1, "maxLength": 512 },
-        "processedCount": { "type": "integer", "minimum": 0 }, "totalCount": { "type": "integer", "minimum": 0 },
+        "processedCount": { "type": "integer", "minimum": 0 },
+        "totalCount": { "type": "integer", "minimum": 0 },
         "auditReason": { "type": "string", "maxLength": 256 },
         "checkpointDigest": { "$ref": "#/$defs/B64", "minLength": 43, "maxLength": 43 },
-        "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       }
     }
   }
