@@ -171,6 +171,44 @@ for (const script of requiredGateScripts) {
   }
 }
 
+// Policy 5: no first-party source file is silently ignored.
+//
+// A broad `.gitignore` glob can swallow a source file and its tests without
+// any signal: the build still passes, the tests still pass locally, and CI
+// reports green because the code it would have exercised is not in the
+// repository at all. That happened with `deployment-key*`, which matched
+// `deployment-key.ts` and kept a module plus 28 tests out of the tree.
+const sourceRoots = ["apps", "packages", "scripts", "tests"];
+const sourceExtensions = /\.(ts|tsx)$/;
+const ignoredSources: string[] = [];
+try {
+  // `--others --ignored --exclude-standard` lists exactly the files git is
+  // hiding, which is the set that would otherwise disappear unnoticed.
+  const output = execFileSync(
+    "git",
+    ["ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", ...sourceRoots],
+    { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+  );
+  for (const file of output.split("\0").filter((entry) => entry.length > 0)) {
+    if (!sourceExtensions.test(file)) {
+      continue;
+    }
+    if (file.includes("node_modules/") || file.includes("/dist/") || file.startsWith("dist/")) {
+      continue;
+    }
+    ignoredSources.push(file);
+  }
+} catch {
+  // A git failure here is itself a problem worth surfacing rather than
+  // skipping the policy.
+  failures.push("could not enumerate ignored files to verify no source is hidden");
+}
+for (const file of ignoredSources) {
+  failures.push(
+    `first-party source file is excluded by .gitignore and would never reach the repository: ${file}`,
+  );
+}
+
 if (failures.length > 0) {
   console.error("Toolchain policy check failed:\n");
   for (const failure of failures) {
