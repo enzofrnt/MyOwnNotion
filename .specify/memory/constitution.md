@@ -1,5 +1,28 @@
 <!--
 Sync Impact Report
+- Version change: 1.2.0 -> 1.3.0
+- Modified principles:
+  - III. Incremental, Verifiable Delivery -> removed the branch-CI step from the
+    mandatory delivery sequence; the pull request is now the first automated
+    gate and required local checks are the pre-push gate
+  - VII. Reproducible Toolchains and Enforced Quality -> made the CI trigger
+    policy normative: CI runs on every pull request and every push to `main`,
+    and MUST NOT be required on a work-branch push
+- Modified sections:
+  - Development Workflow and Quality Gates -> step 7 no longer waits for
+    branch CI before opening a pull request
+- Added principles: none
+- Removed sections: none
+- Follow-up TODOs:
+  - Feature 002 artifacts (spec.md FR-033/FR-034, plan.md CI topology,
+    tasks.md, quickstart.md, research.md, validation.md) still describe a
+    branch-triggered gate and must be realigned in the same change
+- Rationale: MINOR. Principle III is retained and still mandates a blocking
+  automated gate before merge; only the intermediate branch-CI step is removed.
+  No previously compliant workflow becomes non-compliant, so this is not a
+  MAJOR redefinition, but a normative requirement changed, so it is not a PATCH.
+
+Previous report (1.1.1 -> 1.2.0)
 - Version change: 1.1.1 -> 1.2.0
 - Modified principles:
   - II. One Spec, Any Agent -> added the product-canvas authority and
@@ -54,10 +77,13 @@ updated in the same change.
 Features MUST be divided into independently useful user stories that can be implemented and verified incrementally. Changed behavior MUST have automated tests at the appropriate level. Domain and backend behavior MUST be covered by focused unit, property, integration, or contract tests as appropriate. Every changed user-visible interactive flow MUST have a Playwright journey covering the relevant responsive viewport and browser behavior. A task is complete only when its acceptance criteria pass, relevant checks pass, and the shared task list reflects reality. A numeric coverage target MUST NOT be treated as a substitute for testing required behavior and failure paths.
 
 Every change MUST follow this delivery sequence: implementation on a dedicated
-branch, required local checks passing, branch push, branch CI passing, pull
-request creation, pull-request CI passing, review, and merge. An emergency
-exception MUST be documented with its scope, risk, approver, and immediate
-follow-up verification.
+branch, required local checks passing, branch push, pull request creation,
+pull-request CI passing, review, and merge. Continuous integration runs on pull
+requests and on pushes to `main`; pushing a work branch MUST NOT be expected to
+trigger its own CI run, so the required local checks are the pre-push gate and
+the pull request is the first automated gate. An emergency exception MUST be
+documented with its scope, risk, approver, and immediate follow-up
+verification.
 
 ### IV. Privacy and Security by Default
 
@@ -85,7 +111,7 @@ Keyboard use, readable focus states, semantic structure, and assistive-technolog
 
 Node.js dependencies and repository scripts MUST use pnpm exclusively, with the pnpm release pinned in the root package metadata and `pnpm-lock.yaml` committed. npm, Yarn, and Bun lockfiles or install workflows MUST NOT be introduced. If first-party Python is introduced, its interpreter version MUST be pinned and uv MUST exclusively manage environments, dependencies, locking, and command execution; ad hoc pip, virtualenv, Poetry, Pipenv, or Conda project workflows are forbidden. Every other first-party language introduced later MUST likewise use a pinned, reproducible toolchain and committed dependency lock where its ecosystem supports one.
 
-Every maintained first-party language MUST have a current formatter, linter or equivalent static analyzer, and automated tests appropriate to its role. Continuous integration MUST check formatting without modifying files, lint/static analysis, types where applicable, tests, migrations where applicable, and production builds. Protected branches MUST reject pull-request merges while any required quality check fails or is missing. Generated or AI-authored code is held to the same gates as human-authored code.
+Every maintained first-party language MUST have a current formatter, linter or equivalent static analyzer, and automated tests appropriate to its role. Continuous integration MUST check formatting without modifying files, lint/static analysis, types where applicable, tests, migrations where applicable, and production builds. Continuous integration MUST execute on every pull request and on every push to `main`, and MUST NOT be required on the push of a work branch. Protected branches MUST reject pull-request merges while any required quality check fails or is missing. Generated or AI-authored code is held to the same gates as human-authored code.
 
 Continuous integration MUST also validate the official Compose configuration,
 its documented environment-variable contract, a real stack startup, and
@@ -138,7 +164,7 @@ than letting documentation drift behind the code.
 4. Run cross-artifact analysis before implementation and resolve high-impact inconsistencies.
 5. Implement in task order, keeping the checklist current and preserving independently testable increments.
 6. Run formatting checks, lint/static analysis, type checks, relevant automated tests, migration checks, Compose validation, and production builds locally before pushing.
-7. Push the feature branch and wait for its required CI checks to pass before opening a pull request.
+7. Push the feature branch. Continuous integration does not run on a work-branch push; opening the pull request is what executes the required quality gate.
 8. Open a pull request and require the same or stricter checks on the exact proposed merge commit. A pull request MUST NOT merge until every required check passes and review is complete.
 9. Run convergence after implementation; append and complete remaining tasks until code and artifacts agree.
 10. On `main` and release tags, publish only after the complete release gate succeeds, then verify that images and artifacts are addressable by commit or version.
@@ -155,4 +181,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 1.2.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-10
+**Version**: 1.3.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-10

@@ -111,10 +111,10 @@ logs, `.env.example`, and ordinary configuration; keep local default ports on
 | --- | --- | --- | --- |
 | I. Ownership/local resilience | One owner/workspace; encrypted local projection and documented export remain feature-001 identities | Feature-001 baseline is completed; security implementation is not yet present | PASS for design; implementation pending |
 | II/VIII. Shared spec/product direction | This plan references the revised spec and product-canvas sections and does not edit feature 001 | Artifacts are on `codex/spec-update`; feature-001 files untouched | PASS |
-| III. Incremental verification | Foundational → bootstrap → authenticated operations, with independent encryption/devices/recovery/migration/delivery increments and validation ledger | Tasks and current implementation do not yet provide all increments | PASS for plan; implementation pending |
+| III. Incremental verification | Foundational → bootstrap → authenticated operations, with independent encryption/devices/recovery/migration/delivery increments and validation ledger; delivery follows constitution v1.3.0 (local checks pre-push, pull request as first automated gate, no branch-CI step) | Tasks and current implementation do not yet provide all increments | PASS for plan; implementation pending |
 | IV. Privacy/security | Application encryption, external mounted wrapping secret, offline kit, fail-closed reads, redaction, rotation and migration gates | Current code and Compose are feature-001 baseline and still lack this foundation | PASS for design; implementation pending |
 | VI. Predictable access | Keyboard/focus/error-state Playwright journeys and explicit readiness/write-block states are planned | No security UI exists yet | PASS for plan; implementation pending |
-| VII. Reproducibility/release | Frozen pnpm, complete Compose validation, branch/PR/main/tag gates, immutable multi-arch images, checksums and SBOM/provenance | Existing workflow lacks the complete stack and release publication topology | PASS for design; implementation/release evidence pending |
+| VII. Reproducibility/release | Frozen pnpm, complete Compose validation, PR/`main`/tag gates with no branch-push gate, blocking multi-arch image build on every candidate, immutable images published from the same run as the passing gate, checksums and SBOM/provenance | Existing `ci.yml` already triggers on `pull_request` and `push` to `main`; it still lacks the image-build job and the commit-image publication job | PASS for design; implementation/release evidence pending |
 
 No design violation is accepted. The words “pending” and “blocked” above are
 deliberate status statements: this plan does not claim that missing workflows,
@@ -126,11 +126,11 @@ Compose services, encrypted persistence, or release evidence already pass.
 | --- | --- | --- |
 | I. Ownership/local resilience | Bootstrap creates one owner/workspace; server and local projections are encrypted; feature-001 identities and export boundaries remain authoritative | PASS for design; implementation pending |
 | II/VIII. Shared spec/product direction | The design traces to the product canvas and revised feature spec, keeps feature 001 as the identity authority, and records no cross-feature change | PASS |
-| III. Incremental verification | The phase order gives each security axis an independently testable increment, with contract, unit/property, integration, and Playwright paths plus the validation ledger | PASS for plan; implementation pending |
+| III. Incremental verification | The phase order gives each security axis an independently testable increment, with contract, unit/property, integration, and Playwright paths plus the validation ledger; no design element depends on a branch-triggered CI run | PASS for plan; implementation pending |
 | IV. Privacy/security | Production and loopback cookie names are separate; encryption uses an external mounted secret; recovery, redaction, rotation, migration, and fail-closed boundaries are explicit | PASS for design; implementation pending |
 | V. Simple/modular architecture | Domain, database, blob, API, web, and client boundaries are explicit; no additional service or canonical identity authority is introduced | PASS |
 | VI. Predictable experience | Bootstrap, recovery, readiness, write-block, error, keyboard/focus, and responsive browser journeys are planned | PASS for plan; implementation pending |
-| VII. Reproducible toolchains/release | Existing `ci.yml` remains the single complete quality gate; planned `release.yml` publishes only after exact-SHA gate success, with Compose and artifact checks | PASS for design; implementation/release evidence pending |
+| VII. Reproducible toolchains/release | Existing `ci.yml` remains the single complete quality gate and gains the blocking image build plus the `main`-only commit-image publication job in the same run; `release.yml` narrows to version tags and publishes only after exact-SHA gate success | PASS for design; implementation/release evidence pending |
 
 No post-design exception or unresolved clarification remains. Pending gates are
 implementation and evidence statuses, not design violations.
@@ -319,32 +319,50 @@ making a proxy part of the official stack.
 Images are built by `docker/api.Dockerfile` and `docker/web.Dockerfile` for
 `linux/amd64` and `linux/arm64`, with pinned base image digests and locked
 dependencies. The existing `.github/workflows/ci.yml` is updated in place as
-the single quality-gate workflow. It exposes `workflow_call`, triggers directly
-on every `pull_request`, directly on pushes to branches other than `main`, and
-directly through `workflow_dispatch` for diagnostics (with no direct `main` or
-version-tag push trigger). A manual diagnostic invocation runs the quality gate
-only and has no publication job or publication permission. Direct and reusable
-invocations execute the same aggregate `quality-gate` job; there is one logical
-gate and no duplicate gate.
+the single quality-gate workflow. It triggers directly on every `pull_request`
+and on every `push` to `main`, directly through `workflow_dispatch` for
+diagnostics, and exposes `workflow_call` for version tags. There is no
+non-`main` branch push trigger: pushing a work branch runs no gate, and the
+pull request is the first automated gate, matching constitution v1.3.0. A
+manual diagnostic invocation runs the quality gate only and has no publication
+job or publication permission. Every invocation path executes the same
+aggregate `quality-gate` job; there is one logical gate and no duplicate gate.
 
-`.github/workflows/release.yml` triggers directly on pushes to `main` and on
-version-tag candidates. The tag eligibility guard must accept only the strict
+The image build is part of the gate, not of publication. On every candidate,
+including a pull request, `build-images` builds `docker/api.Dockerfile` and
+`docker/web.Dockerfile` for `linux/amd64` and `linux/arm64` from locked
+dependencies and pinned base digests, and `container-vulnerability-scan`
+scans the built images. On a pull-request candidate the images are scanned and
+discarded: nothing is pushed, and the workflow holds no `packages: write`
+permission on that path, so an attempted registry write fails for lack of
+permission rather than succeeding silently.
+
+Publication lives in the same workflow and the same run as the gate. A
+`publish-commit-images` job in `ci.yml` declares `needs: quality-gate`, is
+guarded by `if: github.ref == 'refs/heads/main' && needs.quality-gate.result ==
+'success'`, and is the only job granted `packages: write`. It publishes
+immutable commit-addressable images to GHCR for exactly the commit the gate ran
+on, so no second gate execution and no `workflow_run` or other indirect
+completion trigger is involved, and stale or foreign-commit gate evidence is
+structurally impossible on this path.
+
+`.github/workflows/release.yml` triggers only on version tags; it no longer
+triggers on `main`. The tag eligibility guard must accept only the strict
 pattern `^v[0-9]+\.[0-9]+\.[0-9]+$`. Its first job is the reusable-workflow job
-`quality-gate`, using `./.github/workflows/ci.yml`; the local call therefore
-uses the caller commit. The reusable workflow exports `candidate_sha` equal to
-the called workflow's `github.sha`, which is the caller SHA, and release
-verifies `candidate_sha == github.sha` in its own run. Every publication job
-depends on that first job and is eligible only when the gate result is
-successful and the SHA check passes. Missing, skipped, cancelled, failed,
-stale, or different-SHA gate evidence blocks every publication job. Main
-produces a commit-SHA tag; version tags produce `vMAJOR.MINOR.PATCH` images.
-Both produce checksums, an SBOM, provenance/attestation equivalent, and release
-artifacts. Thus `main` and version tags execute CI once through `release.yml`,
-without a second CI execution or an indirect workflow trigger; pull requests
-and non-main branch pushes execute `ci.yml` directly. The required branch/PR
-check context is the single `ci.yml / quality-gate` check. Workflow permissions are
-minimal: contents read, packages write only in publication, attestations write
-only in attestation steps, and id-token write only when provenance requires it.
+`quality-gate`, using `./.github/workflows/ci.yml` at the tag commit. The
+reusable workflow exports `candidate_sha` equal to the called workflow's
+`github.sha`, and release verifies `candidate_sha == github.sha` in its own
+run. Every publication job depends on that first job and is eligible only when
+the gate result is successful and the SHA check passes; missing, skipped,
+cancelled, failed, stale, or different-SHA gate evidence blocks every
+publication job. Version tags produce `vMAJOR.MINOR.PATCH` images, checksums,
+an SBOM, provenance/attestation equivalent, and release artifacts. Because tags
+do not trigger `ci.yml` directly, the tag path also executes the gate exactly
+once. The required protected-branch check context remains the single
+`ci.yml / quality-gate` check. Workflow permissions are minimal: contents read
+at workflow level, `packages: write` only on the publication jobs, attestations
+write only in attestation steps, and id-token write only when provenance
+requires it.
 
 The aggregate gate has separately evidenced blocking jobs. The implementation
 must use pinned full-commit SHAs for third-party actions; the planned commands
@@ -355,7 +373,8 @@ and policies are:
 | `dependency-vulnerability-audit` | `pnpm audit --audit-level=high --prod` | Any high/critical vulnerability, command failure, or unavailable audit blocks | `dependency-audit.json` |
 | `secret-scan` | `pnpm security:secrets` (or a full-SHA-pinned scanner action) | Any detected secret or scanner failure blocks | `secret-scan.sarif` |
 | `static-security-analysis` | `pnpm security:static` (or full-SHA-pinned CodeQL/Semgrep action) | Any high-confidence security finding or analyzer failure blocks | `static-security.sarif` |
-| `container-vulnerability-scan` | `trivy image --severity HIGH,CRITICAL --exit-code 1` after image build and before publication | Any high/critical image finding or scan failure blocks; never runs after publication | `container-scan.sarif` |
+| `build-images` | `docker buildx build --platform linux/amd64,linux/arm64` for `docker/api.Dockerfile` and `docker/web.Dockerfile`, no `--push` | Any build failure, unlocked dependency, or unpinned base digest blocks; runs on every candidate including pull requests and publishes nothing | `image-build.json` (digests and platforms) |
+| `container-vulnerability-scan` | `trivy image --severity HIGH,CRITICAL --exit-code 1` after `build-images` and before any publication | Any high/critical image finding or scan failure blocks; never runs after publication | `container-scan.sarif` |
 | `license-policy` | `pnpm security:licenses` | Any denied license, missing attribution, or policy-check failure blocks | `license-policy.json` |
 
 Each job emits its result for the exact candidate SHA. The aggregate
@@ -363,7 +382,7 @@ Each job emits its result for the exact candidate SHA. The aggregate
 missing, skipped, cancelled, stale, or lacks its declared artifact. Manual
 `workflow_dispatch` diagnostics may collect these artifacts but have no
 publication path or package-write permission. Release publication cannot start
-unless all five security jobs and the remaining quality jobs are successful.
+unless the image build, all five security jobs, and the remaining quality jobs are successful for the exact candidate commit.
 
 Rollback evidence records current and prior immutable image refs/digests,
 pre/post persisted-data digests, Compose image selection, pre/post health,

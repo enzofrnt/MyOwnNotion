@@ -254,20 +254,31 @@ docker compose up -d --wait
 ```
 
 Inspect `.github/workflows/ci.yml` and `.github/workflows/release.yml`. `ci.yml`
-must be the single quality-gate workflow. It exposes `workflow_call`, triggers
-directly on every `pull_request`, and directly on pushes to branches other than
-`main`; it must not trigger directly on `main` or version tags. Its aggregate
-`quality-gate` job must export `candidate_sha` equal to the called workflow's
-`github.sha`. `release.yml` must trigger directly on pushes to `main` and on
-strict `vMAJOR.MINOR.PATCH` version-tag candidates. Its first job must call
-`./.github/workflows/ci.yml` at the caller commit; publication jobs must depend
-on that `quality-gate` job. Release must verify the reusable output
-`candidate_sha == github.sha` using its own run context. Missing, skipped,
-cancelled, failed, stale, or different-SHA gate results publish nothing. Thus
-`main` and version tags run CI once through release, without a second execution
-or an indirect workflow trigger; pull requests and non-main branch pushes run
-`ci.yml` directly. The branch/PR required-check context remains the single
-`quality-gate` check.
+must be the single quality-gate workflow. It triggers directly on every
+`pull_request` and every `push` to `main`, on `workflow_dispatch` for
+diagnostics, and exposes `workflow_call` for version tags; it must not trigger
+on a non-`main` branch push. Verify that pushing a work branch with no pull
+request starts no run at all.
+
+On a pull-request candidate, confirm that `build-images` builds both
+`linux/amd64` and `linux/arm64` from locked dependencies and pinned base
+digests, that `container-vulnerability-scan` runs on the result, that nothing is
+pushed to any registry, and that the run holds no `packages: write` permission.
+
+On a `push` to `main`, confirm that the same gate jobs run and that
+`publish-commit-images` declares `needs: quality-gate`, is guarded by
+`github.ref == 'refs/heads/main'` and gate success, is the only job granted
+`packages: write`, and publishes immutable commit-addressable images to GHCR in
+the same run as the gate — so no second gate execution and no `workflow_run`
+trigger is involved.
+
+`release.yml` must trigger only on strict `vMAJOR.MINOR.PATCH` version tags and
+no longer on `main`. Its first job must call `./.github/workflows/ci.yml` at the
+tag commit; publication jobs must depend on that `quality-gate` job, and release
+must verify the reusable output `candidate_sha == github.sha` using its own run
+context. Missing, skipped, cancelled, failed, stale, or different-SHA gate
+results publish nothing. The protected-branch required-check context remains the
+single `quality-gate` check.
 
 The release candidate must also retain raw output for a rollback evidence row:
 current and prior immutable image refs/digests, pre/post persisted-data digest,
