@@ -24,6 +24,7 @@ import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
+import { attachRequestContext, createRequestContext } from "./security/request-context.ts";
 
 export interface BuildAppOptions {
   readonly databaseUrl: string;
@@ -57,6 +58,15 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   await app.register(multipart, {
     limits: { fileSize: 256 * 1024 * 1024, files: 1 },
   });
+  // Every request gets a security context before any route runs, including
+  // anonymous and rejected ones: the correlation ID it carries is the only
+  // bridge between a redacted client problem and the unredacted server log,
+  // and creating it lazily would leave exactly the failures an operator most
+  // needs to trace without one.
+  app.addHook("onRequest", async (request) => {
+    attachRequestContext(request, createRequestContext());
+  });
+
   registerErrorHandling(app);
   registerHealthRoutes(app, context);
   registerItemRoutes(app, context);
