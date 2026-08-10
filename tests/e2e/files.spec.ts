@@ -1,7 +1,7 @@
 /**
  * Attachment-list, hierarchy-file, and replace-content journeys (T053, US2).
  */
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openWorkspace,

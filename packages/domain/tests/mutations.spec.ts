@@ -162,6 +162,33 @@ describe("idempotent replay semantics (FR-040)", () => {
     }
   });
 
+  it("returns the recorded competing identities so a replay can still be resolved", () => {
+    // Without these, a client whose first response was lost keeps the local
+    // work but has nothing to compare it against (FR-042).
+    const competing = [generateUuidV7(), generateUuidV7()];
+    const replay = replayResult({
+      ...base,
+      status: "rejected",
+      resultRevisionIds: [],
+      failureCode: "revision.stale-base",
+      competingRevisionIds: competing,
+    });
+    expect(replay.status).toBe("conflict");
+    expect(replay.competingRevisionIds).toEqual(competing);
+    expect(replay.problem?.competingRevisionIds).toEqual(competing);
+  });
+
+  it("omits competing identities when none were recorded", () => {
+    const replay = replayResult({
+      ...base,
+      status: "rejected",
+      resultRevisionIds: [],
+      failureCode: "validation.invalid-payload",
+      competingRevisionIds: [],
+    });
+    expect(replay.competingRevisionIds).toBeUndefined();
+  });
+
   it("falls back to a generic code only when none was recorded", () => {
     const replay = replayResult({
       ...base,

@@ -1,7 +1,7 @@
 /**
  * Responsive relationship-diagnostic journeys (T064, US3).
  */
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openWorkspace,

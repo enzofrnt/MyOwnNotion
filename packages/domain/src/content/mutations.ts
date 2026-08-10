@@ -327,15 +327,21 @@ export function replayResult(prior: MutationRecord): QueuedMutationResult {
   }
   const isConflict =
     prior.failureCode === "mutation.conflict" || prior.failureCode === "revision.stale-base";
+  const competingRevisionIds = prior.competingRevisionIds ?? [];
   return {
     mutationId: prior.id,
     status: isConflict ? "conflict" : "rejected",
+    // Returning the recorded identities makes a replay as informative as the
+    // first response, so a client that only ever sees the replay can still
+    // resolve the conflict (FR-042).
+    ...(competingRevisionIds.length > 0 ? { competingRevisionIds } : {}),
     problem: {
       // The stored code is an untrusted string: validate before surfacing it.
       code: isSafeErrorCode(prior.failureCode) ? prior.failureCode : "mutation.rejected",
       title: isConflict
         ? "Mutation previously conflicted with a competing revision"
         : "Mutation was previously rejected",
+      ...(competingRevisionIds.length > 0 ? { competingRevisionIds } : {}),
     },
   };
 }
