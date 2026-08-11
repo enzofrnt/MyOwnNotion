@@ -8,7 +8,12 @@
 
 import multipart from "@fastify/multipart";
 import { ContentStore, FilesystemBlobStore } from "@myownnotion/blob-store";
-import { createDatabase, type DatabaseHandle, getOrCreateWorkspace } from "@myownnotion/database";
+import {
+  createDatabase,
+  createInstallation,
+  type DatabaseHandle,
+  getOrCreateWorkspace,
+} from "@myownnotion/database";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AppContext } from "./context.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
@@ -105,6 +110,17 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   // routes alone rather than a partially wired security layer.
   const securityConfig = options.security ?? tryLoadSecurityConfig();
   if (securityConfig !== null) {
+    // The installation row must exist before anything can claim a bootstrap
+    // attempt against it. Creating it here mirrors how feature 001 ensures the
+    // canonical workspace, and it is idempotent: a restart, or two processes
+    // starting at once, both find the existing row rather than minting a
+    // second installation. It creates no owner, so the installation is still
+    // `uninitialized` and still reports `0/0`.
+    await createInstallation(database.db, {
+      id: INSTALLATION_ID,
+      sourceLineageId: INSTALLATION_ID,
+      schemaVersion: workspace.schemaVersion,
+    });
     registerInstallationRoutes(app, { db: database.db, config: securityConfig });
     const audit = new AuditService(database.db, { logger: app.log });
     const bootstrap = new BootstrapService({

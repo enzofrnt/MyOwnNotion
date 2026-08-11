@@ -16,9 +16,11 @@
  */
 
 import {
+  abandonAttempt,
   type BootstrapAttempt,
   type BootstrapState,
   countsForBootstrapState,
+  isAttemptStale,
 } from "@myownnotion/domain";
 import { and, eq, inArray } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
@@ -115,10 +117,24 @@ export class BootstrapClaimConflictError extends SecurityRepositoryError {
  * wins and the rest are told they lost. Returning the existing attempt instead
  * would hand a second browser a capability it never proved it owned.
  */
+/**
+ * Claims the single open bootstrap attempt.
+ *
+ * Reports which attempt it superseded, if any, so the caller can record the
+ * interruption. Returning it rather than auditing here keeps the repository
+ * free of audit concerns while still making the supersession impossible to
+ * miss: the type says it happened.
+ */
+export interface ClaimResult {
+  readonly attempt: BootstrapAttempt;
+  readonly supersededAttemptId: string | null;
+}
+
 export async function claimAttempt(
   db: Database,
   attempt: BootstrapAttempt,
-): Promise<BootstrapAttempt> {
+  now: Date,
+): Promise<ClaimResult> {
   try {
     return await runSecurityTransaction(db, async (tx) => {
       const installation = await requireInstallation(tx);
@@ -133,6 +149,20 @@ export async function claimAttempt(
           "this installation already has an owner",
         );
       }
+
+      // An attempt that was claimed and then abandoned holds the only open
+      // slot. Left alone it holds it forever, and the installation can never
+      // be set up without direct database access — a first-run lockout with no
+      // way out for the person who owns the machine. A stale one is abandoned
+      // here so the new claim can proceed; a live one still conflicts, which
+      // is what protects a setup actually in progress in another browser.
+      const open = await findOpenAttempt(tx, { installationId: attempt.installationId });
+      let supersededAttemptId: string | null = null;
+      if (open !== null && isAttemptStale(open, now)) {
+        await persistAttempt(tx, abandonAttempt(open, now));
+        supersededAttemptId = open.attemptId;
+      }
+
       await tx.insert(bootstrapAttempts).values({
         id: attempt.attemptId,
         installationId: attempt.installationId,
@@ -146,7 +176,7 @@ export async function claimAttempt(
         .update(installations)
         .set({ state: "bootstrap-in-progress", updatedAt: attempt.createdAt })
         .where(eq(installations.id, installation.id));
-      return attempt;
+      return { attempt, supersededAttemptId };
     });
   } catch (error) {
     if (isUniqueViolation(error, "bootstrap_attempts_open_unique")) {
@@ -263,6 +293,26 @@ export async function prepareProvisionalKit(
     createdAt: kit.createdAt,
   });
   await persistAttempt(tx, attempt);
+}
+
+/**
+ * Reads the provisional kit a download is about.
+ *
+ * The download token lives here rather than in the client: the attempt and the
+ * kit it prepared each carry the same hash, written in one transaction, so a
+ * mismatch means the two rows disagree about which preparation is current —
+ * which is exactly what a regeneration racing a download would produce.
+ */
+export async function findProvisionalKit(
+  tx: Transaction,
+  kitId: string,
+): Promise<{ readonly downloadTokenHash: string | null } | null> {
+  const [row] = await tx
+    .select({ downloadTokenHash: recoveryKits.downloadTokenHash })
+    .from(recoveryKits)
+    .where(eq(recoveryKits.id, kitId))
+    .limit(1);
+  return row ?? null;
 }
 
 /** Marks the kit's one-time download as consumed. */

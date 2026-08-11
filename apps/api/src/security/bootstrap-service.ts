@@ -21,6 +21,7 @@ import {
   type Database,
   findAttempt,
   findOpenAttempt,
+  findProvisionalKit,
   prepareProvisionalKit,
   promoteBootstrap,
   recordKitDownloaded,
@@ -149,8 +150,9 @@ export class BootstrapService {
       now,
     });
 
+    let supersededAttemptId: string | null = null;
     try {
-      await claimAttempt(this.#deps.db, attempt);
+      ({ supersededAttemptId } = await claimAttempt(this.#deps.db, attempt, now));
     } catch (error) {
       if (error instanceof BootstrapClaimConflictError) {
         await this.#deps.audit.record(this.#auditContext(input.correlationId), {
@@ -164,6 +166,21 @@ export class BootstrapService {
 
     const challenge = createChallenge(now);
     this.#deps.challenges.set(attemptId, challenge);
+
+    if (supersededAttemptId !== null) {
+      // Recorded before the new attempt's own event, so the log reads in the
+      // order things happened. An operator investigating a lockout needs to
+      // see that an attempt was taken over, not just that a new one began.
+      await this.#deps.audit.record(this.#auditContext(input.correlationId), {
+        eventType: "bootstrap.interrupted",
+        // `success` describes the supersession, not the abandoned attempt:
+        // taking over a stale slot is the outcome we wanted. The event type
+        // already says what happened to the old attempt.
+        outcome: "success",
+        objectKind: "bootstrap-attempt",
+        objectId: supersededAttemptId,
+      });
+    }
 
     await this.#deps.audit.record(this.#auditContext(input.correlationId), {
       eventType: "bootstrap.started",
@@ -209,7 +226,7 @@ export class BootstrapService {
     capability: string;
     response: unknown;
     correlationId: string;
-  }): Promise<{ attempt: BootstrapAttempt; kitId: string; downloadToken: string }> {
+  }): Promise<{ attempt: BootstrapAttempt; kitId: string }> {
     await this.#rateLimit("bootstrap.credential", input.attemptId);
     const attempt = await this.#authorize(input.attemptId, input.capability);
     const now = this.#deps.now();
@@ -243,11 +260,12 @@ export class BootstrapService {
       challengeHash: digest("challenge", challenge.challenge),
       now,
     });
-    const downloadToken = newSecret();
+    // Never leaves the server: it binds the attempt to the kit it prepared.
+    const downloadBinding = newSecret();
     const kitId = randomUUID();
     const prepared = prepareRecovery(verified, {
       recoveryKitId: kitId,
-      downloadTokenHash: digest("download", downloadToken),
+      downloadTokenHash: digest("download", downloadBinding),
       now,
     });
 
@@ -274,7 +292,7 @@ export class BootstrapService {
           sourceLineageId: this.#deps.installationId,
           recoveryEpoch: 1,
           artifactDigest: digest("artifact", kitId),
-          downloadTokenHash: digest("download", downloadToken),
+          downloadTokenHash: digest("download", downloadBinding),
           downloadExpiresAt: prepared.downloadExpiresAt ?? now,
           supportedKeyGenerations: [1],
           createdAt: now,
@@ -293,7 +311,7 @@ export class BootstrapService {
       });
     });
 
-    return { attempt: prepared, kitId, downloadToken };
+    return { attempt: prepared, kitId };
   }
 
   /**
@@ -307,17 +325,18 @@ export class BootstrapService {
     attemptId: string;
     capability: string;
     correlationId: string;
-  }): Promise<{ attempt: BootstrapAttempt; kitId: string; downloadToken: string }> {
+  }): Promise<{ attempt: BootstrapAttempt; kitId: string }> {
     await this.#rateLimit("bootstrap.download", input.attemptId);
     const attempt = await this.#authorize(input.attemptId, input.capability);
     const now = this.#deps.now();
 
     const superseded = regenerationSupersedes(attempt);
-    const downloadToken = newSecret();
+    // Never leaves the server: it binds the attempt to the kit it prepared.
+    const downloadBinding = newSecret();
     const kitId = randomUUID();
     const prepared = prepareRecovery(attempt, {
       recoveryKitId: kitId,
-      downloadTokenHash: digest("download", downloadToken),
+      downloadTokenHash: digest("download", downloadBinding),
       now,
     });
 
@@ -331,7 +350,7 @@ export class BootstrapService {
           sourceLineageId: this.#deps.installationId,
           recoveryEpoch: 1,
           artifactDigest: digest("artifact", kitId),
-          downloadTokenHash: digest("download", downloadToken),
+          downloadTokenHash: digest("download", downloadBinding),
           downloadExpiresAt: prepared.downloadExpiresAt ?? now,
           supportedKeyGenerations: [1],
           createdAt: now,
@@ -354,39 +373,52 @@ export class BootstrapService {
       }
     });
 
-    return { attempt: prepared, kitId, downloadToken };
+    return { attempt: prepared, kitId };
   }
 
-  /** Consumes the one-time download. A second call finds nothing to consume. */
+  /**
+   * Consumes the one-time download.
+   *
+   * The client presents nothing but its capability — the normative contract
+   * gives this route no request body. One-time-ness is enforced entirely
+   * server-side: the domain refuses a second consumption, refuses a closed
+   * window, and refuses an attempt whose stored binding disagrees with the kit
+   * being downloaded. That last one is what a regeneration racing a download
+   * produces, and it is the case a client-held token could not have caught
+   * any better.
+   */
   async consumeKitDownload(input: {
     attemptId: string;
     capability: string;
-    downloadToken: string;
     correlationId: string;
   }): Promise<BootstrapAttempt> {
     await this.#rateLimit("bootstrap.download", input.attemptId);
     const attempt = await this.#authorize(input.attemptId, input.capability);
     const now = this.#deps.now();
 
-    const consumedAttempt = consumeDownload(attempt, {
-      downloadTokenHash: digest("download", input.downloadToken),
-      now,
-    });
-
-    await this.#deps.db.transaction(async (tx) => {
-      if (consumedAttempt.recoveryKitId === null) {
+    return await this.#deps.db.transaction(async (tx) => {
+      const kitId = attempt.recoveryKitId;
+      if (kitId === null) {
         throw new BootstrapTransitionError(attempt.state, "download-consumed", "no kit prepared");
       }
-      await recordKitDownloaded(tx, consumedAttempt, consumedAttempt.recoveryKitId, now);
+      const kit = await findProvisionalKit(tx, kitId);
+      if (kit === null) {
+        throw new BootstrapTransitionError(attempt.state, "download-consumed", "kit not found");
+      }
+      // A null hash on either side fails the comparison rather than skipping it.
+      const consumedAttempt = consumeDownload(attempt, {
+        downloadTokenHash: kit.downloadTokenHash ?? "",
+        now,
+      });
+      await recordKitDownloaded(tx, consumedAttempt, kitId, now);
       await this.#deps.audit.recordInTransaction(tx, this.#auditContext(input.correlationId), {
         eventType: "bootstrap.kit-downloaded",
         outcome: "success",
         objectKind: "recovery-kit",
-        objectId: consumedAttempt.recoveryKitId,
+        objectId: kitId,
       });
+      return consumedAttempt;
     });
-
-    return consumedAttempt;
   }
 
   /**

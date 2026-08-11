@@ -377,3 +377,35 @@ describe("audit and problems", () => {
     expect(schema("Problem").additionalProperties).toBe(false);
   });
 });
+
+describe("the one-time recovery download", () => {
+  const download = document.paths["/v1/bootstrap/{attemptId}/recovery/download"]?.["post"] as
+    | {
+        requestBody?: unknown;
+        parameters?: { $ref?: string }[];
+        responses?: Record<string, unknown>;
+      }
+    | undefined;
+
+  it("is specified with no request body", () => {
+    // The client holds exactly one secret for the whole ceremony: the
+    // capability. A second client-held token would have to be stored
+    // somewhere, and the only storage a browser has outlives the attempt.
+    expect(download).toBeDefined();
+    expect(download?.requestBody).toBeUndefined();
+  });
+
+  it("is authorized by the capability header alone", () => {
+    const refs = (download?.parameters ?? []).map((parameter) => parameter.$ref);
+    expect(refs).toContain("#/components/parameters/BootstrapCapability");
+  });
+
+  it("tells the client the download is spent, in the response that carries it", () => {
+    // Otherwise a client that fails to save the file retries the download,
+    // gets a refusal, and has no way to know regeneration is the way forward.
+    const ok = download?.responses?.["200"] as
+      | { headers?: Record<string, { schema?: { const?: unknown } }> }
+      | undefined;
+    expect(ok?.headers?.["X-Recovery-Download-Consumed"]?.schema?.const).toBe("true");
+  });
+});

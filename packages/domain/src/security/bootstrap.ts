@@ -28,6 +28,7 @@
  */
 
 import {
+  BOOTSTRAP_CLAIM_WINDOW_MINUTES,
   BOOTSTRAP_KIT_WINDOW_MINUTES,
   type BootstrapState,
   INITIALIZED_COUNTS,
@@ -35,7 +36,7 @@ import {
   UNINITIALIZED_COUNTS,
 } from "./types.ts";
 
-export { BOOTSTRAP_KIT_WINDOW_MINUTES };
+export { BOOTSTRAP_CLAIM_WINDOW_MINUTES, BOOTSTRAP_KIT_WINDOW_MINUTES };
 
 /** States in which the attempt is still live and can progress. */
 export const OPEN_BOOTSTRAP_STATES = [
@@ -315,6 +316,28 @@ export function confirmOfflineStorage(
     );
   }
   return { ...attempt, state: "confirmed", updatedAt: input.now };
+}
+
+/**
+ * Whether an open attempt has sat long enough that a new claim may take over.
+ *
+ * Two deadlines, because an attempt has two stages. Once a kit is prepared the
+ * download window governs. Before that there is no kit and no download
+ * deadline, so the claim window governs — and that earlier stage is precisely
+ * where an abandoned attempt used to be immortal, holding the installation's
+ * only bootstrap slot with nothing to expire it.
+ *
+ * A terminal attempt is never stale: it is already finished, and the partial
+ * unique index does not count it as open.
+ */
+export function isAttemptStale(attempt: BootstrapAttempt, now: Date): boolean {
+  if (isTerminalBootstrapState(attempt.state)) {
+    return false;
+  }
+  const deadline =
+    attempt.downloadExpiresAt ??
+    new Date(attempt.createdAt.getTime() + BOOTSTRAP_CLAIM_WINDOW_MINUTES * 60_000);
+  return now.getTime() > deadline.getTime();
 }
 
 export function abandonAttempt(attempt: BootstrapAttempt, now: Date): BootstrapAttempt {

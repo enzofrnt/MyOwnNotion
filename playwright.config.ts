@@ -12,7 +12,18 @@ const webPort = Number(process.env["MYOWNNOTION_WEB_PORT"] ?? 5173);
  * accept `__Host-mn_session` over HTTP. The deployment wrapping key is a
  * mounted file created by global setup; only its path is passed here.
  */
-const publicOrigin = process.env["MYOWNNOTION_PUBLIC_ORIGIN"] ?? `http://127.0.0.1:${webPort}`;
+/**
+ * `localhost`, not `127.0.0.1`.
+ *
+ * WebAuthn requires the relying-party id to be a registrable domain, and an IP
+ * address is not one — a passkey ceremony against `127.0.0.1` fails with
+ * `SecurityError` before it reaches the authenticator. `localhost` is both a
+ * valid relying-party id and a secure context, so the bootstrap journeys can
+ * drive a real ceremony. It is also loopback, which the API's HTTP-cookie
+ * exception requires.
+ */
+const webHost = process.env["MYOWNNOTION_WEB_HOST"] ?? "localhost";
+const publicOrigin = process.env["MYOWNNOTION_PUBLIC_ORIGIN"] ?? `http://${webHost}:${webPort}`;
 const deploymentKeyFile =
   process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"] ?? path.resolve("secrets", "deployment-key.e2e");
 
@@ -46,7 +57,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: `http://127.0.0.1:${webPort}`,
+    baseURL: `http://${webHost}:${webPort}`,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -76,10 +87,11 @@ export default defineConfig({
     },
     {
       command: "pnpm --filter @myownnotion/web run dev",
-      url: `http://127.0.0.1:${webPort}`,
+      url: `http://${webHost}:${webPort}`,
       reuseExistingServer: !isCI,
       timeout: 120_000,
       env: {
+        MYOWNNOTION_WEB_HOST: webHost,
         MYOWNNOTION_WEB_PORT: String(webPort),
         MYOWNNOTION_API_URL: `http://127.0.0.1:${apiPort}`,
       },

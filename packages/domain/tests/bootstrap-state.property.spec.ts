@@ -17,6 +17,7 @@
 import {
   abandonAttempt,
   allowedBootstrapTransitions,
+  BOOTSTRAP_CLAIM_WINDOW_MINUTES,
   BOOTSTRAP_KIT_WINDOW_MINUTES,
   BOOTSTRAP_STATES,
   type BootstrapAttempt,
@@ -29,6 +30,7 @@ import {
   countsForBootstrapState,
   downloadWindowEnd,
   expireAttemptIfDue,
+  isAttemptStale,
   isDownloadWindowOpen,
   isOpenBootstrapState,
   isTerminalBootstrapState,
@@ -38,6 +40,7 @@ import {
   regenerationSupersedes,
   rejectAttempt,
   startAttempt,
+  TERMINAL_BOOTSTRAP_STATES,
   verifyAttemptCapability,
 } from "@myownnotion/domain";
 import fc from "fast-check";
@@ -437,5 +440,57 @@ describe("interruption and expiry", () => {
     const attempt = prepared(at(2));
     expect(isDownloadWindowOpen(attempt, at(3))).toBe(true);
     expect(isDownloadWindowOpen(attempt, at(100))).toBe(false);
+  });
+});
+
+describe("staleness: the property that keeps a first run recoverable", () => {
+  // An abandoned attempt used to hold the installation's only open slot
+  // forever, which made the installation impossible to set up without direct
+  // database access. These pin the boundary in both directions: too eager and
+  // a real setup in another browser gets stolen; too lax and the lockout
+  // returns.
+
+  it("a freshly claimed attempt is not stale", () => {
+    const attempt = startAttempt({
+      attemptId: ATTEMPT_ID,
+      installationId: INSTALLATION_ID,
+      capabilityHash: "capability",
+      clientNonceHash: "nonce",
+      now: at(0),
+    });
+    expect(isAttemptStale(attempt, at(0))).toBe(false);
+    // Right up to the deadline it is still someone's live setup.
+    expect(isAttemptStale(attempt, at(BOOTSTRAP_CLAIM_WINDOW_MINUTES))).toBe(false);
+  });
+
+  it("an attempt claimed and then left alone becomes stale", () => {
+    const attempt = startAttempt({
+      attemptId: ATTEMPT_ID,
+      installationId: INSTALLATION_ID,
+      capabilityHash: "capability",
+      clientNonceHash: "nonce",
+      now: at(0),
+    });
+    expect(isAttemptStale(attempt, at(BOOTSTRAP_CLAIM_WINDOW_MINUTES + 1))).toBe(true);
+  });
+
+  it("once a kit exists the download window governs instead", () => {
+    // The two stages have different deadlines, and the later one must not be
+    // cut short by the earlier one.
+    const attempt = prepared();
+    expect(attempt.downloadExpiresAt).not.toBeNull();
+    expect(isAttemptStale(attempt, at(BOOTSTRAP_CLAIM_WINDOW_MINUTES + 1))).toBe(
+      at(BOOTSTRAP_CLAIM_WINDOW_MINUTES + 1).getTime() >
+        (attempt.downloadExpiresAt?.getTime() ?? 0),
+    );
+  });
+
+  it("never reports a terminal attempt as stale", () => {
+    // A finished attempt holds no slot: the partial unique index does not
+    // count it as open, so calling it stale would be meaningless.
+    for (const state of TERMINAL_BOOTSTRAP_STATES) {
+      const attempt = { ...prepared(), state };
+      expect(isAttemptStale(attempt, at(10_000))).toBe(false);
+    }
   });
 });

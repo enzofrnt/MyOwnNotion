@@ -213,30 +213,38 @@ describe("resumable cursors and counts", () => {
   });
 });
 
+/**
+ * A real instant, never `Invalid Date`.
+ *
+ * `fc.date()` injects `Invalid Date` as a special value even when `min` and
+ * `max` are given, and every arithmetic on it yields `NaN` — so the property
+ * fails on a comparison of `NaN` to `NaN` rather than on anything about
+ * rotation. A due date reaches this code from a `timestamptz` column or from
+ * the injected clock, and neither can produce one. Defending against it in
+ * `computeWriteBlockAt` would be dead code guarding a state the system cannot
+ * be in; excluding it from the generator keeps the property about rotation.
+ */
+const dueDate = fc.date({
+  min: new Date("2026-01-01"),
+  max: new Date("2030-01-01"),
+  noInvalidDate: true,
+});
+
 describe("write-block derivation", () => {
   it("gives an emergency rotation no grace at all", () => {
     fc.assert(
-      fc.property(
-        fc.date({ min: new Date("2026-01-01"), max: new Date("2030-01-01") }),
-        (dueAt) => {
-          expect(computeWriteBlockAt(dueAt, "emergency").getTime()).toBe(dueAt.getTime());
-        },
-      ),
+      fc.property(dueDate, (dueAt) => {
+        expect(computeWriteBlockAt(dueAt, "emergency").getTime()).toBe(dueAt.getTime());
+      }),
       { numRuns: 60 },
     );
   });
 
   it("never places the write block before the due date, in either mode", () => {
     fc.assert(
-      fc.property(
-        fc.date({ min: new Date("2026-01-01"), max: new Date("2030-01-01") }),
-        fc.constantFrom<RotationMode>(...ROTATION_MODES),
-        (dueAt, mode) => {
-          expect(computeWriteBlockAt(dueAt, mode).getTime()).toBeGreaterThanOrEqual(
-            dueAt.getTime(),
-          );
-        },
-      ),
+      fc.property(dueDate, fc.constantFrom<RotationMode>(...ROTATION_MODES), (dueAt, mode) => {
+        expect(computeWriteBlockAt(dueAt, mode).getTime()).toBeGreaterThanOrEqual(dueAt.getTime());
+      }),
       { numRuns: 100 },
     );
   });
