@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
-import { type BuiltApp, buildApp } from "../../src/app.ts";
+import { type BuildAppOptions, type BuiltApp, buildApp } from "../../src/app.ts";
 
 export interface ApiHarness {
   readonly built: BuiltApp;
@@ -17,13 +17,24 @@ export interface ApiHarness {
   close(): Promise<void>;
 }
 
-export async function createApiHarness(): Promise<ApiHarness> {
+export interface ApiHarnessOptions {
+  /**
+   * Security configuration. Omitted by the feature-001 suites, which exercise
+   * content routes only and must not depend on a security surface.
+   */
+  readonly security?: BuildAppOptions["security"];
+  readonly now?: BuildAppOptions["now"];
+}
+
+export async function createApiHarness(options: ApiHarnessOptions = {}): Promise<ApiHarness> {
   const postgres = await startMigratedPostgres();
   const blobRoot = mkdtempSync(path.join(os.tmpdir(), "mon-blobs-"));
   const built = await buildApp({
     databaseUrl: postgres.connectionString,
     blobRoot,
     logger: false,
+    ...(options.security === undefined ? {} : { security: options.security }),
+    ...(options.now === undefined ? {} : { now: options.now }),
   });
   return {
     built,

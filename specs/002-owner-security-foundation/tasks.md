@@ -62,7 +62,7 @@
 
 ### Tests for User Story 1 (write first and make them fail)
 
-- [ ] T024 [P] [US1] Add OpenAPI contract tests for installation status, session-free bootstrap start, credential verification, one-time download, regeneration, and offline confirmation in `apps/api/tests/bootstrap.contract.spec.ts` against `specs/002-owner-security-foundation/contracts/security-api.openapi.yaml` (FR-001, FR-002, FR-015, FR-016).
+- [X] T024 [P] [US1] Add OpenAPI contract tests for installation status, session-free bootstrap start, credential verification, one-time download, regeneration, and offline confirmation in `apps/api/tests/bootstrap.contract.spec.ts` against `specs/002-owner-security-foundation/contracts/security-api.openapi.yaml` (FR-001, FR-002, FR-015, FR-016).
 - [X] T025 [P] [US1] Add bootstrap state-machine property tests for no-session capability scope, one open attempt, `0/0` before the atomic ownership/workspace commit, `1/1` only in initialized states, 15-minute expiry, one download, replay rejection, same verified `attemptId` plus browser-held capability on regeneration, rejection/expiry of the old material without resurrection, interruption recovery, and readiness prerequisites in `packages/domain/tests/bootstrap-state.property.spec.ts` (FR-001, FR-002, FR-015, FR-016, FR-024, SC-001).
 - [X] T026 [P] [US1] Add serializable concurrency and identity tests for repeated/concurrent claims, committed `ownerCount=0`/`workspaceCount=0` before the atomic commit, `ownerCount=1`/`workspaceCount=1` only after it, restart checkpoints, and no partial owner in `packages/database/tests/bootstrap-concurrency.integration.spec.ts` (FR-001, FR-002, FR-024, SC-001).
 - [ ] T027 [P] [US1] Add bootstrap fault-injection tests at credential verification, kit creation, download consumption, confirmation, retry, and unavailable-key boundaries in `apps/api/tests/bootstrap-fault-injection.integration.spec.ts` (FR-002, FR-013, FR-014, FR-015, FR-016).
@@ -72,21 +72,21 @@
 
 - [X] T029 [US1] Implement the session-free bootstrap state machine with attempt-scoped pending credential material, committed-count states (`0/0` until one atomic ownership/workspace promotion and `1/1` for every initialized state), attempt capability hashing, same-attempt capability verification for regeneration, origin/device binding, one-time download window, old-kit rejection/expiry without resurrection, and atomic confirmation in `packages/domain/src/security/bootstrap.ts` and `packages/database/src/repositories/security/bootstrap-repository.ts` (FR-001, FR-002, FR-015, FR-016, FR-024, SC-001).
 - [ ] T030 [US1] Implement bootstrap WebAuthn challenge creation and credential verification with origin/RP ID/user-verification/sign-count checks without issuing a session cookie in `apps/api/src/security/bootstrap-webauthn-service.ts` and `apps/api/src/security/webauthn-service.ts` (FR-002, FR-003, FR-023).
-- [ ] T031 [US1] Implement attempt-scoped persistence of `PendingBootstrapCredentialMaterial`, provisional kit metadata, and the browser-held capability; implement the single serializable promotion transaction that only after consumed download plus explicit offline confirmation creates the owner credential/owner, binds the canonical feature-001 workspace, creates the initial device/key generation, activates/confirms the kit, sets `ready`, and changes counts from `0/0` to `1/1` in `apps/api/src/security/bootstrap-service.ts`, `packages/database/src/repositories/security/bootstrap-repository.ts`, `packages/database/src/repositories/security/owner-repository.ts`, and `packages/database/src/repositories/security/workspace-binding-repository.ts` (FR-001, FR-002, FR-015, FR-024, SC-001).
-- [ ] T032 [US1] Implement safe installation-status, bootstrap, credential-verification, download, regeneration, and explicit offline-confirmation routes with no session dependency; return pending progress at `0/0` and the browser-held bootstrap capability only in response body/headers, accept it only through `X-Bootstrap-Capability` with the same verified `attemptId`, return the explicit `BootstrapConfirmationResult` (`confirmed/ready/1/1`, `active/confirmed`), reject a different attempt or any old `rejected/expired` kit, and never place capability or kit material in a URL, log, or persistent plaintext in `apps/api/src/routes/installation.ts`, `apps/api/src/routes/bootstrap.ts`, and `apps/api/src/app.ts` (FR-001, FR-002, FR-015, FR-016, FR-023, FR-035).
+- [X] T031 [US1] Implement attempt-scoped persistence of `PendingBootstrapCredentialMaterial`, provisional kit metadata, and the browser-held capability; implement the single serializable promotion transaction that only after consumed download plus explicit offline confirmation creates the owner credential/owner, binds the canonical feature-001 workspace, creates the initial device/key generation, activates/confirms the kit, sets `ready`, and changes counts from `0/0` to `1/1` in `apps/api/src/security/bootstrap-service.ts`, `packages/database/src/repositories/security/bootstrap-repository.ts`, `packages/database/src/repositories/security/owner-repository.ts`, and `packages/database/src/repositories/security/workspace-binding-repository.ts` (FR-001, FR-002, FR-015, FR-024, SC-001).
+- [X] T032 [US1] Implement safe installation-status, bootstrap, credential-verification, download, regeneration, and explicit offline-confirmation routes with no session dependency; return pending progress at `0/0` and the browser-held bootstrap capability only in response body/headers, accept it only through `X-Bootstrap-Capability` with the same verified `attemptId`, return the explicit `BootstrapConfirmationResult` (`confirmed/ready/1/1`, `active/confirmed`), reject a different attempt or any old `rejected/expired` kit, and never place capability or kit material in a URL, log, or persistent plaintext in `apps/api/src/routes/installation.ts`, `apps/api/src/routes/bootstrap.ts`, and `apps/api/src/app.ts` (FR-001, FR-002, FR-015, FR-016, FR-023, FR-035).
 - [ ] T033 [US1] Implement first-run owner/bootstrap UI with passkey ceremony, optional password handoff, recovery-kit download/confirmation, expiry/resume messaging, and accessible responsive states in `apps/web/src/features/auth/bootstrap-page.tsx`, `apps/web/src/features/auth/passkey-client.ts`, `apps/web/src/features/security/recovery-kit-panel.tsx`, and `apps/web/src/services/security-api.ts` (FR-002, FR-004, FR-015, FR-016, SC-008).
 - [ ] T034 [US1] Add bootstrap rate-limit and audit events for claim conflicts, credential verification, kit creation/download/confirmation/regeneration, and interrupted attempts in `apps/api/src/security/rate-limit-service.ts`, `apps/api/src/security/audit-service.ts`, and `packages/database/src/repositories/security/audit-repository.ts` (FR-022, FR-023).
 - [ ] T035 [US1] Execute exactly 20 clean-install trials with at least 5 representative operators `O01`–`O05`, recording start/end clocks, duration, credential verification, one download, offline confirmation, `authorizationState=active`, `deliveryState=confirmed`, `ownerCount=1`, `workspaceCount=1`, and raw failures in `specs/002-owner-security-foundation/validation.md`; accept SC-002 only when at least 19 trials finish within 300 seconds and every operator has a trial (SC-002).
 - [ ] T036 [US1] Run the independent bootstrap matrix and record `ownerCount=0`/`workspaceCount=0` before the atomic commit, `ownerCount=1`/`workspaceCount=1` for every initialized state (`recovery-required`, `ready`, `migration-in-progress`, `degraded`), same-attempt capability regeneration, old-kit rejection/expiry, concurrent/repeated/interrupted counts, invalid-key results, and candidate evidence in `specs/002-owner-security-foundation/validation.md`; do not replace `pending` with `pass` without raw evidence (FR-001, FR-002, FR-013, FR-014, FR-015, FR-016, SC-001).
 
-> **Phase 3 partial (in progress)**: landed so far — the domain bootstrap state
+> **Phase 3 partial (in progress)**: landed — the domain bootstrap state
 > machine (T029), its 35 property tests (T025), attempt-scoped persistence with
-> the atomic `0/0` → `1/1` promotion and its 17 concurrency tests (T026 and the
-> persistence half of T031), WebAuthn ceremony verification (T030), and rate
-> limiting with 13 tests (the rate-limit half of T034). Still open: the
-> bootstrap routes (T032), the first-run UI (T033), the audit half of T034, and
-> the contract, fault-injection, and Playwright suites (T024, T027, T028).
-> T031 and T034 stay unchecked until their remaining halves land.
+> the atomic `0/0` → `1/1` promotion (T031) and its 17 concurrency tests (T026),
+> WebAuthn ceremony verification (T030), rate limiting (the rate-limit half of
+> T034), the session-free bootstrap and installation-status routes (T032), and
+> 19 route contract tests (T024). Still open: the first-run UI (T033), the audit
+> half of T034, and the fault-injection and Playwright suites (T027, T028).
+> T034 stays unchecked until its audit half lands.
 >
 > **T035 cannot be executed by an automated contributor.** It requires 20 real
 > clean-install trials with at least five human operators `O01`–`O05`, timed,
@@ -94,6 +94,17 @@
 > application; the measurements cannot be simulated or synthesised. The same
 > applies to T106 in Phase 8 (10 usability participants). Both need a human to
 > run them and record the raw results in `validation.md`.
+>
+> **Why the count joins instead of trusting the column (recorded here).** `installations.workspace_id` carries no foreign key, by the deliberate decision recorded at the head of migration `0004`: protected records must survive a migration that scrubs plaintext rows. That leaves the column free to point at a workspace that does not exist. The join is what keeps the decision safe — a dangling binding counts zero, the singleton invariant breaks, and `/v1/installation/status` fails closed rather than reporting a workspace nobody can open. Pinned by `a binding that points at no workspace` in `bootstrap.contract.spec.ts`.
+
+**Committed-count definition (decided here).** `workspaceCount` counts
+> workspaces the installation is *bound* to, via a join, not raw `workspaces`
+> rows. Feature 001 creates the canonical workspace eagerly at API startup, so
+> counting rows reported `workspaceCount = 1` on a pristine installation and
+> made the `0/0` invariant unsatisfiable. A workspace nobody owns is not a
+> committed workspace. The join keeps the check falsifiable both ways: a binding
+> pointing at a workspace that does not exist counts as 0 and fails, exactly as
+> a missing binding does.
 
 **Checkpoint**: US1 is complete and validated without a session: exactly one owner/workspace exists, readiness requires confirmed offline recovery, and no bootstrap path creates a usable partial or second owner.
 

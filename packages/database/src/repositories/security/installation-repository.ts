@@ -80,15 +80,29 @@ export async function requireInstallation(executor: Executor): Promise<Installat
 }
 
 /**
- * Counts committed owner and workspace rows.
+ * Counts committed owner and *bound* workspace rows.
  *
- * Reads the real tables, not `installations.owner_id`: the column records
- * intent, the rows record what actually committed, and only the second can
- * detect a broken promotion.
+ * `ownerCount` counts rows in `owners`, never `installations.owner_id`: the
+ * column records intent, the rows record what actually committed, and only the
+ * second detects a broken promotion.
+ *
+ * `workspaceCount` counts workspaces the installation is actually bound to,
+ * via a join rather than the column alone. That distinction matters because
+ * feature 001 creates the canonical workspace eagerly at API startup, long
+ * before any bootstrap: counting raw `workspaces` rows would report
+ * `workspaceCount = 1` on a pristine installation and make the `0/0` invariant
+ * unsatisfiable. A workspace nobody owns is not a committed workspace.
+ *
+ * The join keeps the check falsifiable in both directions: a binding that
+ * points at a workspace which does not exist counts as 0 and fails the
+ * invariant, exactly as a missing binding does.
  */
 export async function readCounts(executor: Executor): Promise<InstallationCounts> {
   const [ownerRows] = await executor.select({ value: count() }).from(owners);
-  const [workspaceRows] = await executor.select({ value: count() }).from(workspaces);
+  const [workspaceRows] = await executor
+    .select({ value: count() })
+    .from(workspaces)
+    .innerJoin(installations, eq(installations.workspaceId, workspaces.id));
   const ownerCount = ownerRows?.value ?? 0;
   const workspaceCount = workspaceRows?.value ?? 0;
 
