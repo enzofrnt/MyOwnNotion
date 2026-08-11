@@ -289,3 +289,60 @@ describe("content and its envelope commit together", () => {
     await harness.built.database.db.execute(sql`UPDATE data_key_generations SET state = 'current'`);
   });
 });
+
+describe("history is sealed too", () => {
+  it("seals the snapshot of every revision a mutation produces", async () => {
+    // A snapshot is the whole record as it stood. Sealing only the current
+    // title and body would leave every previous state of every page readable
+    // in the clear, and a scrub of the current rows would then remove nothing
+    // that mattered.
+    const pageId = await createPage("Historique");
+    await replaceBody(pageId, { text: SECRET_BODY });
+
+    const revisions = await harness.built.database.db.execute(
+      sql`SELECT count(*)::int AS n FROM revisions WHERE item_id = ${pageId}::uuid`,
+    );
+    const revisionCount = (revisions as unknown as { rows: { n: number }[] }).rows[0]?.n ?? 0;
+    expect(revisionCount).toBeGreaterThanOrEqual(2);
+
+    const sealed = await harness.built.database.db.execute(
+      sql`SELECT count(*)::int AS n FROM protected_envelopes
+          WHERE entity_type = 'revision.snapshot'`,
+    );
+    expect((sealed as unknown as { rows: { n: number }[] }).rows[0]?.n).toBe(revisionCount);
+  });
+
+  it("leaves no plaintext body in any envelope, including the historical ones", async () => {
+    const pageId = await createPage("Notes");
+    await replaceBody(pageId, { text: SECRET_BODY });
+    await replaceBody(pageId, { text: "a later draft" });
+    const raw = await envelopeText();
+    expect(raw).not.toContain(SECRET_BODY);
+    expect(raw).not.toContain("a later draft");
+  });
+
+  it("seals each revision once and never rewrites it", async () => {
+    // A revision is immutable. Two envelopes for one, or a rewritten one,
+    // would mean history had been edited.
+    const pageId = await createPage("Immutable");
+    await replaceBody(pageId, { text: "first" });
+    await replaceBody(pageId, { text: "second" });
+
+    const versions = await harness.built.database.db.execute(
+      sql`SELECT record_version FROM protected_envelopes WHERE entity_type = 'revision.snapshot'`,
+    );
+    expect(
+      (versions as unknown as { rows: { record_version: number }[] }).rows.every(
+        (row) => row.record_version === 1,
+      ),
+    ).toBe(true);
+
+    const distinct = await harness.built.database.db.execute(
+      sql`SELECT count(DISTINCT entity_id)::int AS distinct_ids, count(*)::int AS total
+          FROM protected_envelopes WHERE entity_type = 'revision.snapshot'`,
+    );
+    const row = (distinct as unknown as { rows: { distinct_ids: number; total: number }[] })
+      .rows[0];
+    expect(row?.distinct_ids).toBe(row?.total);
+  });
+});

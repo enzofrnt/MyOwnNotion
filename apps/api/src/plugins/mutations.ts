@@ -12,6 +12,7 @@ import {
   type Database,
   readItem,
   readItemName,
+  readRevisionSnapshots,
   submitMutation,
   type Transaction,
 } from "@myownnotion/database";
@@ -48,7 +49,21 @@ async function sealPayloads(
   tx: Transaction,
   command: MutationCommand,
   primaryItemId: string | undefined,
+  revisionIds: readonly string[],
 ): Promise<void> {
+  // **The snapshots first, because they are the largest exposure.** A snapshot
+  // is the whole record as it stood, so sealing only the current title and
+  // body would leave every previous state of every page readable in the
+  // clear — and a scrub of the current rows would then remove nothing that
+  // mattered.
+  //
+  // A revision is immutable, so each snapshot is sealed once, at record
+  // version 1, and never rewritten.
+  const snapshots = await readRevisionSnapshots(tx, revisionIds);
+  for (const [revisionId, snapshot] of snapshots) {
+    await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot });
+  }
+
   if (command.type === "page.document.replace") {
     await protectedContent.writePageBody(tx, {
       pageId: command.itemId,
@@ -111,8 +126,17 @@ export async function handleMutation(input: {
     ...(protectedContent === undefined
       ? {}
       : {
-          onAccepted: async (tx: Transaction, accepted: { primaryItemId?: Uuid }) => {
-            await sealPayloads(protectedContent, tx, command, accepted.primaryItemId);
+          onAccepted: async (
+            tx: Transaction,
+            accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
+          ) => {
+            await sealPayloads(
+              protectedContent,
+              tx,
+              command,
+              accepted.primaryItemId,
+              accepted.revisionIds,
+            );
           },
         }),
   });

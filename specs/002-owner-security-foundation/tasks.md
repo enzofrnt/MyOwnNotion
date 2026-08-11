@@ -380,8 +380,12 @@
 > waited on locks that mutation already held, and surfaced as a 500 on the very
 > first page anyone created.
 >
-> Revision snapshots are named in `ProtectedContent` but not yet sealed — they
-> carry the whole record as it stood, so they are the next thing that matters.
+> **Revision snapshots are sealed too**, and they were the largest exposure:
+> a snapshot is the whole record as it stood, so sealing only the current title
+> and body would have left every previous state of every page readable in the
+> clear — and a later scrub of the current rows would then have removed nothing
+> that mattered. Each is sealed once, at record version 1, because a revision
+> is immutable; a second envelope for one would mean history had been edited.
 >
 > **Deliberately not in this batch.** T052 and T058 (local encryption in the
 > client), T054 (recovery journeys), T057 (feature-001 route integration), T059
