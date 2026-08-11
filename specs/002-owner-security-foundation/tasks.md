@@ -307,21 +307,28 @@
 > something the owner never wrote, with no error anywhere. Each of those three
 > manipulations has its own test.
 >
-> **The chunk size is injectable, and the reason is worth recording.** The
-> first version of the tests proved every index property — ordering,
-> duplication, gaps, splicing — at the production 4 MiB chunk size, moving
-> 12 MiB per assertion. That suite took nineteen seconds locally and exhausted
-> the heap on a CI runner outright. The properties are about the chunk
-> *index*, not the chunk size, so the store now takes `chunkBytes` with the
-> 4 MiB constant as its default and the index tests run at 64 bytes. One test
-> still runs at the real size so the production path is exercised, and another
-> pins the constant.
+> **A slow suite and a CI heap exhaustion, both from one line of test code.**
+> The chunk tests compared multi-megabyte payloads with `expect(a).toEqual(b)`.
+> On a Buffer that size, the matcher compares element by element and builds a
+> diff of millions of entries: the suite took nineteen seconds locally and
+> exhausted a 2 GB heap outright. Replacing it with `Buffer.compare`, falling
+> back to a digest comparison only when the bytes actually differ, took the
+> suite to under a second.
 >
-> An earlier note here called the nineteen seconds a throughput problem, at
-> roughly 1.3 MB/s. That was wrong: it was the suite doing 12 MiB six times
-> over, not a slow cipher. The real-size path has still not been profiled, and
-> should be before files are wired into the routes — but there is no evidence
-> of a throughput defect, and the earlier claim should not be repeated.
+> Two things worth recording about how that was found. First, the store itself
+> was never implicated — a single 4 MiB chunk write was measured at 15 MB of
+> heap before and after, which is what ruled it out. Second, this note
+> previously said the nineteen seconds were a throughput problem at roughly
+> 1.3 MB/s and asked for the cipher to be profiled. That was wrong twice over,
+> and it is corrected here rather than quietly deleted: a measurement left in a
+> spec sends someone looking for a defect, and this one would have sent them to
+> the wrong module.
+>
+> The chunk size is now injectable all the same, defaulting to the 4 MiB
+> constant, because the index properties — ordering, duplication, gaps,
+> splicing — are about the chunk *index* and have no reason to move megabytes
+> per assertion. One test still runs at the real size, and another pins the
+> constant.
 >
 > **Deliberately not in this batch.** T052 and T058 (local encryption in the
 > client), T054 (recovery journeys), T057 (feature-001 route integration), T059

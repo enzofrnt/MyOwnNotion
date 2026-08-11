@@ -9,6 +9,7 @@
  * those manipulations gets its own test.
  */
 
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -56,6 +57,26 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
+/**
+ * Asserts two payloads are byte-identical.
+ *
+ * Deliberately not `expect(a).toEqual(b)`: on a multi-megabyte Buffer that
+ * compares element by element and builds a diff of millions of entries, which
+ * exhausts the heap long before it reports anything useful. `Buffer.compare`
+ * is one memcmp, and on failure the digests say "these differ" without trying
+ * to render eight million bytes.
+ */
+function expectSameBytes(actual: Uint8Array, expected: Uint8Array): void {
+  expect(actual.byteLength).toBe(expected.byteLength);
+  const identical = Buffer.compare(Buffer.from(actual), Buffer.from(expected)) === 0;
+  if (!identical) {
+    expect(createHash("sha256").update(actual).digest("hex")).toBe(
+      createHash("sha256").update(expected).digest("hex"),
+    );
+  }
+  expect(identical).toBe(true);
+}
+
 /** A payload spanning several chunks, with recognisable content per chunk. */
 function multiChunkPayload(chunks: number, chunkBytes: number = SMALL_CHUNK): Uint8Array {
   const bytes = Buffer.alloc(chunkBytes * chunks);
@@ -100,28 +121,20 @@ describe("the round trip", () => {
     const payload = new Uint8Array(Buffer.from("a modest attachment", "utf8"));
     const envelopes = await store.write(payload, BINDING);
     expect(envelopes).toHaveLength(1);
-    expect(Buffer.from(await store.read(envelopes, BINDING))).toEqual(Buffer.from(payload));
+    expectSameBytes(await store.read(envelopes, BINDING), payload);
   });
 
-  // A generous timeout, because this genuinely moves 12 MiB through the cipher
-  // and the filesystem twice. It also currently takes far longer than it should
-  // — see the throughput note in tasks.md — and the timeout is set so the
-  // correctness assertion still stands while that is investigated, rather than
-  // to hide it.
+  // A generous timeout because this moves 8 MiB through the cipher and the
+  // filesystem twice. It is fast in practice — the whole file runs in well
+  // under a second — and the margin is there for a loaded CI runner.
   it("returns a multi-chunk file at the real 4 MiB chunk size", async () => {
     // The one test that pays the production cost, so the real path is
     // exercised rather than only the shrunken one.
     const payload = multiChunkPayload(2, CHUNK_BYTES);
-    const envelopes = await fullSizeStore.write(payload, {
-      ...BINDING,
-      contentId: contentId("full-size"),
-    });
+    const binding = { ...BINDING, contentId: contentId("full-size") };
+    const envelopes = await fullSizeStore.write(payload, binding);
     expect(envelopes).toHaveLength(2);
-    expect(
-      Buffer.from(
-        await fullSizeStore.read(envelopes, { ...BINDING, contentId: contentId("full-size") }),
-      ),
-    ).toEqual(Buffer.from(payload));
+    expectSameBytes(await fullSizeStore.read(envelopes, binding), payload);
   }, 60_000);
 
   it("records the plaintext length of each chunk", async () => {
