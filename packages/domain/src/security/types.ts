@@ -239,3 +239,29 @@ export const MIGRATION_STATES = [
   "failed",
 ] as const;
 export type MigrationState = (typeof MIGRATION_STATES)[number];
+
+// ---------------------------------------------------------------------------
+// Session lifetimes (FR-006)
+// ---------------------------------------------------------------------------
+
+/**
+ * Session inactivity, in days: 30 by default, configurable from 1 to 90.
+ *
+ * The bounds are part of the requirement rather than a safety rail. A
+ * deployment that asks for something outside them is told so, because a policy
+ * silently clamped to a different value is a policy nobody knows is in force.
+ */
+export const DEFAULT_SESSION_INACTIVITY_DAYS = 30;
+export const MIN_SESSION_INACTIVITY_DAYS = 1;
+export const MAX_SESSION_INACTIVITY_DAYS = 90;
+
+/**
+ * Recent authentication, in minutes: 15 by default, configurable from 1 to 60.
+ *
+ * Deliberately much shorter than the session. A sensitive operation must be
+ * backed by proof of possession now, not by a session that has been valid for
+ * a month.
+ */
+export const DEFAULT_RECENT_AUTH_MINUTES = 15;
+export const MIN_RECENT_AUTH_MINUTES = 1;
+export const MAX_RECENT_AUTH_MINUTES = 60;

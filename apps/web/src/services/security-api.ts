@@ -19,12 +19,16 @@
  */
 
 import {
+  type AuthenticatedSessionDto,
   BOOTSTRAP_CAPABILITY_HEADER,
   type BootstrapConfirmationResultDto,
   type BootstrapProgressDto,
   type BootstrapStartedDto,
+  CSRF_TOKEN_HEADER,
   type InstallationStatusDto,
+  type PasskeyViewDto,
   type SecurityProblemDto,
+  type SessionViewDto,
 } from "@myownnotion/contracts";
 
 /**
@@ -83,12 +87,29 @@ export class SecurityApi {
     return this.#capability !== null;
   }
 
+  /**
+   * The CSRF token for the current session.
+   *
+   * Memory only, like the capability. It is delivered in a response body and
+   * sent back in a header; putting it in storage would outlive the session it
+   * protects, and putting it in a URL would put it in history and `Referer`.
+   */
+  #csrfToken: string | null = null;
+
   /** Forgets the capability. Called when an attempt ends, however it ends. */
   forget(): void {
     this.#capability = null;
   }
 
-  async #send(path: string, init: RequestInit = {}): Promise<Response | null> {
+  /** True once this page holds a session's CSRF token. */
+  get hasCsrfToken(): boolean {
+    return this.#csrfToken !== null;
+  }
+
+  async #send(
+    path: string,
+    init: RequestInit & { acceptsCookie?: boolean } = {},
+  ): Promise<Response | null> {
     const headers = new Headers(init.headers);
     if (init.body !== undefined) {
       headers.set("content-type", "application/json");
@@ -100,9 +121,12 @@ export class SecurityApi {
       return await fetch(`${this.#baseUrl}${path}`, {
         ...init,
         headers,
-        // No credentials: bootstrap is session-free by design, and sending
-        // cookies here would create a session surface that must not exist yet.
-        credentials: "omit",
+        // Bootstrap is session-free by design, so no cookies are sent — and
+        // with `omit` the browser also refuses to *store* any the response
+        // sets. That matters at exactly one point: the confirmation, which is
+        // where the installation stops being session-free and the server signs
+        // the new owner in. That call opts in.
+        credentials: init.acceptsCookie === true ? "same-origin" : "omit",
       });
     } catch {
       return null;
@@ -125,7 +149,10 @@ export class SecurityApi {
     }
   }
 
-  async #json<T>(path: string, init: RequestInit = {}): Promise<SecurityResult<T>> {
+  async #json<T>(
+    path: string,
+    init: RequestInit & { acceptsCookie?: boolean } = {},
+  ): Promise<SecurityResult<T>> {
     const response = await this.#send(path, init);
     if (response === null) {
       return { ok: false, problem: UNREACHABLE };
@@ -199,7 +226,15 @@ export class SecurityApi {
   async confirmStorage(attemptId: string): Promise<SecurityResult<BootstrapConfirmationResultDto>> {
     const result = await this.#json<BootstrapConfirmationResultDto>(
       `/v1/bootstrap/${attemptId}/recovery/confirm`,
-      { method: "POST", body: JSON.stringify({ storedOffline: true }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ storedOffline: true }),
+        // The one bootstrap call that accepts a cookie: the server signs the
+        // new owner in here, and with `omit` the browser would discard the
+        // `Set-Cookie` and send the owner straight to a sign-in screen they
+        // have no reason to see.
+        acceptsCookie: true,
+      },
     );
     if (result.ok) {
       // The attempt is over: the capability authorizes nothing further, so
@@ -207,5 +242,148 @@ export class SecurityApi {
       this.#capability = null;
     }
     return result;
+  }
+
+  // -------------------------------------------------------------------------
+  // Authenticated calls
+  // -------------------------------------------------------------------------
+
+  /**
+   * Sends a request carrying the session cookie and, for writes, the CSRF
+   * token.
+   *
+   * `credentials: "same-origin"` rather than `"include"`: the API is served
+   * from this origin, and `include` would attach the cookie to a cross-origin
+   * request if the base URL were ever pointed elsewhere.
+   */
+  async #sendAuthenticated(
+    path: string,
+    init: RequestInit & { csrf?: boolean } = {},
+  ): Promise<Response | null> {
+    const headers = new Headers(init.headers);
+    if (init.body !== undefined) {
+      headers.set("content-type", "application/json");
+    }
+    if (init.csrf === true && this.#csrfToken !== null) {
+      headers.set(CSRF_TOKEN_HEADER, this.#csrfToken);
+    }
+    try {
+      return await fetch(`${this.#baseUrl}${path}`, {
+        ...init,
+        headers,
+        credentials: "same-origin",
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async #authenticatedJson<T>(
+    path: string,
+    init: RequestInit & { csrf?: boolean } = {},
+  ): Promise<SecurityResult<T>> {
+    const response = await this.#sendAuthenticated(path, init);
+    if (response === null) {
+      return { ok: false, problem: UNREACHABLE };
+    }
+    if (!response.ok) {
+      return { ok: false, problem: await this.#problem(response) };
+    }
+    if (response.status === 204) {
+      return { ok: true, value: undefined as T };
+    }
+    return { ok: true, value: (await response.json()) as T };
+  }
+
+  /** Signs in with a password and captures the session's CSRF token. */
+  async loginWithPassword(password: string): Promise<SecurityResult<AuthenticatedSessionDto>> {
+    const result = await this.#authenticatedJson<AuthenticatedSessionDto>(
+      "/v1/auth/login/password",
+      { method: "POST", body: JSON.stringify({ password }) },
+    );
+    if (result.ok) {
+      this.#csrfToken = result.value.csrfToken;
+    }
+    return result;
+  }
+
+  /** Begins a passkey sign-in by asking for a challenge. */
+  async passkeyLoginOptions(): Promise<SecurityResult<{ challenge: string }>> {
+    return await this.#authenticatedJson<{ challenge: string }>("/v1/auth/login/passkey/options", {
+      method: "POST",
+    });
+  }
+
+  async loginWithPasskey(credential: unknown): Promise<SecurityResult<AuthenticatedSessionDto>> {
+    const result = await this.#authenticatedJson<AuthenticatedSessionDto>(
+      "/v1/auth/login/passkey",
+      { method: "POST", body: JSON.stringify(credential) },
+    );
+    if (result.ok) {
+      this.#csrfToken = result.value.csrfToken;
+    }
+    return result;
+  }
+
+  /**
+   * Reads the current session, refreshing the held CSRF token.
+   *
+   * Called on load so a page reload recovers the token without a new sign-in:
+   * the cookie survives the reload, so the session does, and only the token
+   * needs fetching again.
+   */
+  async currentSession(): Promise<SecurityResult<AuthenticatedSessionDto>> {
+    const result = await this.#authenticatedJson<AuthenticatedSessionDto>("/v1/auth/session");
+    if (result.ok) {
+      this.#csrfToken = result.value.csrfToken;
+    }
+    return result;
+  }
+
+  async listSessions(): Promise<SecurityResult<{ sessions: SessionViewDto[] }>> {
+    return await this.#authenticatedJson<{ sessions: SessionViewDto[] }>("/v1/auth/sessions");
+  }
+
+  async listPasskeys(): Promise<SecurityResult<{ passkeys: PasskeyViewDto[] }>> {
+    return await this.#authenticatedJson<{ passkeys: PasskeyViewDto[] }>("/v1/auth/passkeys");
+  }
+
+  async revokeSession(sessionId: string): Promise<SecurityResult<void>> {
+    return await this.#authenticatedJson<void>(`/v1/auth/sessions/${sessionId}`, {
+      method: "DELETE",
+      csrf: true,
+    });
+  }
+
+  async revokeOtherSessions(): Promise<SecurityResult<void>> {
+    return await this.#authenticatedJson<void>("/v1/auth/sessions/revoke-all", {
+      method: "POST",
+      csrf: true,
+    });
+  }
+
+  /** Signs out of this browser and forgets the token it was holding. */
+  async signOut(): Promise<SecurityResult<void>> {
+    const result = await this.#authenticatedJson<void>("/v1/auth/session", {
+      method: "DELETE",
+      csrf: true,
+    });
+    this.#csrfToken = null;
+    return result;
+  }
+
+  async setPassword(newPassword: string): Promise<SecurityResult<{ configured: boolean }>> {
+    return await this.#authenticatedJson<{ configured: boolean }>("/v1/auth/password", {
+      method: "PUT",
+      csrf: true,
+      body: JSON.stringify({ newPassword }),
+    });
+  }
+
+  async removePasskey(credentialId: string): Promise<SecurityResult<void>> {
+    return await this.#authenticatedJson<void>(
+      `/v1/auth/passkeys/${encodeURIComponent(credentialId)}`,
+      { method: "DELETE", csrf: true },
+    );
   }
 }

@@ -13,7 +13,8 @@ import {
   type SafeProblemCode,
   toSafeProblem,
 } from "@myownnotion/domain";
-import type { FastifyError, FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { requestContext } from "../security/request-context.ts";
 
 export interface ProblemBody {
   readonly type: string;
@@ -78,11 +79,27 @@ export function sendProblem(reply: FastifyReply, error: SafeError): FastifyReply
     .send(problem);
 }
 
+/**
+ * The request's correlation id, or a placeholder.
+ *
+ * The context is attached by the first `onRequest` hook, so it is present for
+ * every request that reaches a handler. A validation failure during that hook
+ * itself would not have one, and inventing an id there is better than throwing
+ * from the error handler.
+ */
+function safeCorrelationId(request: FastifyRequest): string {
+  try {
+    return requestContext(request).correlationId;
+  } catch {
+    return "00000000-0000-0000-0000-000000000000";
+  }
+}
+
 export function registerErrorHandling(app: FastifyInstance): void {
   app.setErrorHandler((error: FastifyError, _request, reply) => {
     // Fastify schema-validation failures become safe 400 problems.
     if (error.validation !== undefined) {
-      const problem: ProblemBody = {
+      const problem: ProblemBody & { correlationId?: string } = {
         type: "https://myownnotion.dev/problems/validation.invalid-payload",
         title: "Request does not match the API contract",
         status: 400,
@@ -91,6 +108,13 @@ export function registerErrorHandling(app: FastifyInstance): void {
           field: failure.instancePath || String(failure.params["missingProperty"] ?? "body"),
           code: failure.keyword,
         })),
+        // Carried on every validation failure, not only the security ones.
+        // Security routes declare `SecurityProblem` for their 400, which
+        // requires it — without it Fastify cannot serialize the error and the
+        // caller receives a 500 that hides an ordinary bad request. It is also
+        // the only bridge from a redacted client problem to the server log,
+        // which is exactly what someone debugging a rejected payload wants.
+        correlationId: safeCorrelationId(_request),
       };
       return reply.status(400).header("content-type", "application/problem+json").send(problem);
     }
@@ -147,7 +171,12 @@ export function registerErrorHandling(app: FastifyInstance): void {
 const SECURITY_PROBLEM_TITLES: Record<SafeProblemCode, { title: string; status: number }> = {
   authentication_failed: { title: "Authentication failed", status: 401 },
   authentication_required: { title: "Authentication required", status: 401 },
-  recent_authentication_required: { title: "Recent authentication required", status: 401 },
+  // 428, not 401: the session is valid and the caller is who they say they
+  // are. What is missing is a precondition — a fresh proof of possession — and
+  // a client that received 401 would reasonably discard the session and send
+  // the owner back to a full sign-in instead of prompting for one step. This
+  // is also what the normative contract declares.
+  recent_authentication_required: { title: "Recent authentication required", status: 428 },
   csrf_validation_failed: { title: "Request could not be validated", status: 403 },
   rate_limited: { title: "Too many attempts", status: 429 },
   forbidden: { title: "Not permitted", status: 403 },

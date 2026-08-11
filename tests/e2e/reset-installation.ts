@@ -11,7 +11,7 @@
  * Tables are truncated only when they exist, so this is safe to call before
  * the security migration (T019) has landed.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import pg from "pg";
 
 /**
@@ -171,7 +171,74 @@ export async function seedCommittedOwner(): Promise<void> {
       `UPDATE installations SET state = 'ready', owner_id = $1, workspace_id = $2 WHERE id = $3`,
       [ownerId, workspaceId, installation.id],
     );
+    // A device, because a session is bound to one and sign-in refuses without
+    // an active one.
+    await client.query(
+      `INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
+       VALUES ($1, $2, 'e2e-binding', 'End-to-end browser', 'active')`,
+      [randomUUID(), ownerId],
+    );
     await client.query("COMMIT");
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * Digests a session secret exactly as the server does.
+ *
+ * Duplicated here rather than imported because `apps/api` is not on the
+ * end-to-end module path. It must stay in step with `digestSessionSecret` in
+ * `apps/api/src/security/session-service.ts`; if it drifts, every seeded
+ * session is simply unrecognised and the content journeys land on the sign-in
+ * page, which is a loud failure rather than a silent one.
+ */
+function digestSessionSecret(secret: string): string {
+  return createHash("sha256").update(`session|${secret}`).digest("base64url");
+}
+
+/**
+ * Issues a session directly, and returns the secret the browser must present.
+ *
+ * Content journeys are about content, not about how the owner signed in. The
+ * password ceremony is exercised properly by the authentication journeys;
+ * repeating it before every hierarchy test would add a sign-in to each one and
+ * make a failure there look like a failure here.
+ */
+export async function seedSession(): Promise<string | null> {
+  const client = new pg.Client({ connectionString: connectionString() });
+  await client.connect();
+  try {
+    const { rows: owners } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
+    const ownerId = owners[0]?.id;
+    if (ownerId === undefined) {
+      return null;
+    }
+    const { rows: devices } = await client.query<{ id: string }>(
+      `SELECT id FROM authorized_devices WHERE owner_id = $1 AND state = 'active' LIMIT 1`,
+      [ownerId],
+    );
+    const deviceId = devices[0]?.id;
+    if (deviceId === undefined) {
+      return null;
+    }
+    const secret = randomBytes(32).toString("base64url");
+    const now = new Date();
+    await client.query(
+      `INSERT INTO sessions
+         (id, owner_id, device_id, session_secret_hash, auth_method,
+          issued_at, last_seen_at, expires_at, recent_auth_at, state)
+       VALUES ($1, $2, $3, $4, 'password', $5, $5, $6, $5, 'active')`,
+      [
+        randomUUID(),
+        ownerId,
+        deviceId,
+        digestSessionSecret(secret),
+        now,
+        new Date(now.getTime() + 30 * 24 * 60 * 60_000),
+      ],
+    );
+    return secret;
   } finally {
     await client.end();
   }

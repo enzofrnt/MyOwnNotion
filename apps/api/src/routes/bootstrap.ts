@@ -78,6 +78,19 @@ export interface BootstrapRouteDeps {
   readonly service: BootstrapService;
   /** Kits are streamed once and never colocated with workspace data. */
   readonly renderKit: (kitId: string) => Promise<string>;
+  /**
+   * Signs the new owner in, once ownership has committed.
+   *
+   * Injected rather than reached for directly so this module keeps knowing
+   * nothing about sessions: bootstrap is session-free right up to the moment
+   * it stops being, and that moment is a single call.
+   */
+  readonly startSession: (input: {
+    reply: FastifyReply;
+    ownerId: string;
+    deviceId: string;
+    correlationId: string;
+  }) => Promise<void>;
 }
 
 export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRouteDeps): void {
@@ -272,7 +285,7 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
       }
       const { attemptId } = request.params as { attemptId: string };
       try {
-        await deps.service.confirmAndPromote({
+        const promoted = await deps.service.confirmAndPromote({
           attemptId,
           capability: capabilityFrom(request),
           deviceBindingId: `web-${attemptId}`,
@@ -280,6 +293,23 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
           devicePlatform: null,
           correlationId: requestContext(request).correlationId,
         });
+
+        // Setup ends signed in. The owner proved possession of their passkey
+        // seconds ago; sending them to a sign-in screen to prove it again is
+        // friction with no security gain, and an owner who has just finished a
+        // careful ceremony reads it as the ceremony having failed.
+        //
+        // Only the cookie is set here. The CSRF token is not added to the
+        // response body because the contract pins that shape exactly — the
+        // client reads it from `GET /v1/auth/session`, which it calls on load
+        // anyway.
+        await deps.startSession({
+          reply,
+          ownerId: promoted.ownerId,
+          deviceId: promoted.deviceId,
+          correlationId: requestContext(request).correlationId,
+        });
+
         // The one response shape that can only exist after the atomic
         // promotion: every field is a constant the contract pins.
         return reply.status(200).send({

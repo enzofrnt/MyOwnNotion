@@ -158,24 +158,102 @@
 
 ### Tests for User Story 2 (write first and make them fail)
 
-- [ ] T037 [P] [US2] Add contract tests for the exact owner endpoints `POST /v1/auth/passkeys/enrollment/options`, `POST /v1/auth/passkeys/enrollment/complete`, `GET /v1/auth/passkeys`, `DELETE /v1/auth/passkeys/{credentialId}`, `PUT /v1/auth/password`, passkey/password login, session listing/revocation, session+CSRF+recent-auth requirements, redacted responses, and safe authentication failures in `apps/api/tests/authentication.contract.spec.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, FR-023, FR-035).
-- [ ] T038 [P] [US2] Add controlled-clock unit/property tests for 1–90 day inactivity, default 30-day expiry, 1–60 minute recent-authentication, default 15-minute sensitive-operation reauthentication, and rate-limit transitions in `packages/domain/tests/session-policy.clock.spec.ts` (FR-006, FR-007).
-- [ ] T039 [P] [US2] Add production cookie tests requiring `__Host-mn_session; Secure; HttpOnly; SameSite=Strict; Path=/` under HTTPS and rejecting it over HTTP, plus distinct `mn_dev_session` loopback-only HTTP exception tests in `apps/api/tests/session-cookie.policy.spec.ts` and `apps/api/tests/loopback-cookie-exception.spec.ts` (FR-006, FR-023).
-- [ ] T040 [P] [US2] Add session/revocation integration tests for passkey-only login, password alternative, wrong-credential indistinguishability, one-session revoke, revoke-all, renewal denial, CSRF failure, and non-loopback HTTP refusal in `packages/database/tests/session.integration.spec.ts` and `apps/api/tests/session-revocation.integration.spec.ts` (FR-003, FR-004, FR-006, FR-007, FR-023).
-- [ ] T041 [P] [US2] Add responsive Playwright authentication journeys for passkey-only login, password alternative, reauthentication prompts, session management, revocation, safe errors, keyboard/focus, and cookie behavior in `tests/e2e/authentication.spec.ts` (FR-003, FR-004, FR-005, FR-006, FR-007).
+- [X] T037 [P] [US2] Add contract tests for the exact owner endpoints `POST /v1/auth/passkeys/enrollment/options`, `POST /v1/auth/passkeys/enrollment/complete`, `GET /v1/auth/passkeys`, `DELETE /v1/auth/passkeys/{credentialId}`, `PUT /v1/auth/password`, passkey/password login, session listing/revocation, session+CSRF+recent-auth requirements, redacted responses, and safe authentication failures in `apps/api/tests/authentication.contract.spec.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, FR-023, FR-035).
+- [X] T038 [P] [US2] Add controlled-clock unit/property tests for 1–90 day inactivity, default 30-day expiry, 1–60 minute recent-authentication, default 15-minute sensitive-operation reauthentication, and rate-limit transitions in `packages/domain/tests/session-policy.clock.spec.ts` (FR-006, FR-007).
+- [X] T039 [P] [US2] Add production cookie tests requiring `__Host-mn_session; Secure; HttpOnly; SameSite=Strict; Path=/` under HTTPS and rejecting it over HTTP, plus distinct `mn_dev_session` loopback-only HTTP exception tests in `apps/api/tests/session-cookie.policy.spec.ts` and `apps/api/tests/loopback-cookie-exception.spec.ts` (FR-006, FR-023).
+- [X] T040 [P] [US2] Add session/revocation integration tests for passkey-only login, password alternative, wrong-credential indistinguishability, one-session revoke, revoke-all, renewal denial, CSRF failure, and non-loopback HTTP refusal in `packages/database/tests/session.integration.spec.ts` and `apps/api/tests/session-revocation.integration.spec.ts` (FR-003, FR-004, FR-006, FR-007, FR-023).
+- [X] T041 [P] [US2] Add responsive Playwright authentication journeys for passkey-only login, password alternative, reauthentication prompts, session management, revocation, safe errors, keyboard/focus, and cookie behavior in `tests/e2e/authentication.spec.ts` (FR-003, FR-004, FR-005, FR-006, FR-007).
 
 ### Implementation for User Story 2
 
-- [ ] T042 [US2] Implement the exact passkey credential-management endpoints `POST /v1/auth/passkeys/enrollment/options`, `POST /v1/auth/passkeys/enrollment/complete`, `GET /v1/auth/passkeys`, and selected `DELETE /v1/auth/passkeys/{credentialId}` with owner-session attribution, CSRF validation, recent-authentication on enrollment/completion and selected removal, redacted list/response fields, and no remote administrator API in `apps/api/src/security/webauthn-service.ts`, `apps/api/src/security/passkey-service.ts`, `apps/api/src/routes/authentication.ts`, and `packages/database/src/repositories/security/passkey-repository.ts` (FR-003, FR-005, FR-006, FR-023, FR-035).
-- [ ] T043 [US2] Implement `PUT /v1/auth/password` for setting and changing the password alternative, require owner session+CSRF+recent authentication, preserve passkey-only login, use versioned password hashing, keep password reset out of the owner API, and return indistinguishable redacted credential failures in `apps/api/src/security/password-service.ts`, `apps/api/src/routes/authentication.ts`, and `packages/database/src/repositories/security/password-repository.ts` (FR-004, FR-005, FR-006, FR-023).
-- [ ] T044 [US2] Implement opaque server-side sessions, inactivity expiry, recent-authentication checks, device binding, independent revocation, renewal denial, and controlled-clock policy evaluation in `apps/api/src/security/session-service.ts`, `packages/database/src/repositories/security/session-repository.ts`, and `packages/domain/src/security/session-policy.ts` (FR-006, FR-007).
-- [ ] T045 [US2] Implement CSRF protection using the browser-returned `X-CSRF-Token` value only as the CSRF request header, never in a URL, log, or persistent plaintext, plus the production `__Host-mn_session` versus loopback-only `mn_dev_session` issuance/acceptance predicate in `apps/api/src/security/cookie-policy.ts`, `apps/api/src/security/csrf.ts`, and `apps/api/src/security/authentication-hook.ts` (FR-006, FR-007, FR-023).
-- [ ] T046 [US2] Implement authentication/session routes, browser-returned CSRF response handling, owner-visible redacted session and credential inventories, one-session revoke, revoke-all, recent-authentication failures, and rate-limited safe errors in `apps/api/src/routes/authentication.ts`, `apps/api/src/routes/sessions.ts`, and `apps/api/src/app.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, FR-022, FR-023).
-- [ ] T047 [US2] Implement responsive sign-in, credential-management, recent-authentication, session-inventory, and revocation UI states in `apps/web/src/features/auth/login-page.tsx`, `apps/web/src/features/security/session-panel.tsx`, `apps/web/src/features/security/security-settings.tsx`, and `apps/web/src/services/security-api.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, SC-008).
-- [ ] T048 [US2] Record authentication successes/failures, method changes, rate limits, session revocations, and cookie-policy refusals through the redacted audit path in `apps/api/src/security/audit-service.ts` and `packages/database/src/repositories/security/audit-repository.ts` (FR-022, FR-023).
+- [X] T042 [US2] Implement the exact passkey credential-management endpoints `POST /v1/auth/passkeys/enrollment/options`, `POST /v1/auth/passkeys/enrollment/complete`, `GET /v1/auth/passkeys`, and selected `DELETE /v1/auth/passkeys/{credentialId}` with owner-session attribution, CSRF validation, recent-authentication on enrollment/completion and selected removal, redacted list/response fields, and no remote administrator API in `apps/api/src/security/webauthn-service.ts`, `apps/api/src/security/passkey-service.ts`, `apps/api/src/routes/authentication.ts`, and `packages/database/src/repositories/security/passkey-repository.ts` (FR-003, FR-005, FR-006, FR-023, FR-035).
+- [X] T043 [US2] Implement `PUT /v1/auth/password` for setting and changing the password alternative, require owner session+CSRF+recent authentication, preserve passkey-only login, use versioned password hashing, keep password reset out of the owner API, and return indistinguishable redacted credential failures in `apps/api/src/security/password-service.ts`, `apps/api/src/routes/authentication.ts`, and `packages/database/src/repositories/security/password-repository.ts` (FR-004, FR-005, FR-006, FR-023).
+- [X] T044 [US2] Implement opaque server-side sessions, inactivity expiry, recent-authentication checks, device binding, independent revocation, renewal denial, and controlled-clock policy evaluation in `apps/api/src/security/session-service.ts`, `packages/database/src/repositories/security/session-repository.ts`, and `packages/domain/src/security/session-policy.ts` (FR-006, FR-007).
+- [X] T045 [US2] Implement CSRF protection using the browser-returned `X-CSRF-Token` value only as the CSRF request header, never in a URL, log, or persistent plaintext, plus the production `__Host-mn_session` versus loopback-only `mn_dev_session` issuance/acceptance predicate in `apps/api/src/security/cookie-policy.ts`, `apps/api/src/security/csrf.ts`, and `apps/api/src/security/authentication-hook.ts` (FR-006, FR-007, FR-023).
+- [X] T046 [US2] Implement authentication/session routes, browser-returned CSRF response handling, owner-visible redacted session and credential inventories, one-session revoke, revoke-all, recent-authentication failures, and rate-limited safe errors in `apps/api/src/routes/authentication.ts`, `apps/api/src/routes/sessions.ts`, and `apps/api/src/app.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, FR-022, FR-023).
+- [X] T047 [US2] Implement responsive sign-in, credential-management, recent-authentication, session-inventory, and revocation UI states in `apps/web/src/features/auth/login-page.tsx`, `apps/web/src/features/security/session-panel.tsx`, `apps/web/src/features/security/security-settings.tsx`, and `apps/web/src/services/security-api.ts` (FR-003, FR-004, FR-005, FR-006, FR-007, SC-008).
+- [X] T048 [US2] Record authentication successes/failures, method changes, rate limits, session revocations, and cookie-policy refusals through the redacted audit path in `apps/api/src/security/audit-service.ts` and `packages/database/src/repositories/security/audit-repository.ts` (FR-022, FR-023).
 - [ ] T049 [US2] Run the authentication/session evidence matrix and update `specs/002-owner-security-foundation/validation.md` with exact passkey/password counts, expiry clocks, revocation denials, cookie headers, CSRF failures, and candidate SHA (FR-003, FR-004, FR-005, FR-006, FR-007, SC-003).
 
 **Checkpoint**: US2 provides coherent authenticated owner flows and secure session control; production never uses the development cookie, and loopback HTTP never receives the production cookie.
+
+> **Phase 4 landed, except T049.** T037–T048 are complete. T049 records the
+> evidence matrix against a candidate SHA and a clean tree, so like T036 it can
+> only be written after the commit it describes.
+>
+> **Decisions taken here, with the reasoning, because each is arguable.**
+>
+> 1. *Expiry follows the inactivity period in force, not the stored
+>    `expires_at`.* An operator who shortens the window because something went
+>    wrong needs it to apply to the sessions already out there — those are the
+>    ones they are worried about. Reading the stored column would leave every
+>    existing session on its old deadline and the change would look applied
+>    while doing nothing. The column stays as the projection the inventory
+>    displays. Pinned in both directions in `session-policy.clock.spec.ts`.
+> 2. *The CSRF token is an HMAC of the deployment key over the session id, not
+>    a second cookie.* A double-submit cookie is satisfied by anyone who can
+>    set a cookie on the origin — under the loopback HTTP exception, anyone on
+>    the machine. Without a server-held key, whoever learns a session secret
+>    can also mint its token and the second factor collapses into the first.
+> 3. *`HttpOnly` in both cookie modes.* The loopback exception relaxes
+>    transport, not script access; a development cookie readable from
+>    JavaScript would make every XSS a session theft.
+> 4. *No password reset, anywhere in the owner API.* A reset needs a channel
+>    this installation does not have. It would be a third way in, weaker than
+>    both real ones. An owner who forgets the password signs in with the
+>    passkey; one who has lost both uses the recovery kit. The security screen
+>    says so before the owner chooses to set a password.
+> 5. *A login with no password configured burns the same work as a real
+>    verification.* Measured, not assumed: 251 ms to hash, 238 to verify, 240
+>    for the equivalent work. Without it the endpoint answers "is a password
+>    configured?" in the one channel that cannot be redacted.
+> 6. *One audit event type for every authentication failure.* The trail is
+>    readable by the owner; distinguishing "wrong password" from "unknown
+>    passkey" in writing would reintroduce the oracle the responses avoid.
+> 7. *Setup ends signed in.* The owner proved possession seconds earlier, and
+>    a sign-in screen immediately after a careful ceremony reads as the
+>    ceremony having failed. The confirmation sets the cookie; the CSRF token
+>    is not added to that response because the contract pins its shape exactly,
+>    and the client reads it from `GET /v1/auth/session` on load anyway.
+>
+> **Two defects the end-to-end matrix found, both introduced by this phase.**
+>
+> *Session reads were serializable transactions that do not retry.* Every
+> screen makes several authenticated requests at once, so two of them
+> serialized against each other and one came back as a server error — the
+> security screen appeared saying "the session list could not be loaded" for no
+> reason the owner could act on, and revoking a session while the page was
+> busy could fail the same way. Resolving, touching, and revoking a session are
+> single guarded statements whose atomicity comes from the statement; the
+> transaction added a failure mode without adding a guarantee. The property it
+> was protecting — a request in flight must not write a fresh window over a
+> session the owner has just revoked — is kept by `WHERE ... AND state =
+> 'active'`, and is pinned by two concurrency tests.
+>
+> *An offline browser with a valid session was sent to the sign-in page.* The
+> shell reads the session on load; offline, that read fails, and treating the
+> failure as "no session" locked the owner out of their own local content for
+> as long as the network was down — in an application whose point is to keep
+> working offline. An unreachable server is now distinguished from a server
+> that answered and refused. Nothing is lost by continuing: authority is
+> checked server-side on every request.
+>
+> **Two divergences from the implementation were corrected against the
+> normative contract.** `recent_authentication_required` now answers `428`
+> rather than `401` — the session is valid and the caller is who they say they
+> are, so a client receiving `401` would reasonably discard the session and
+> demand a full sign-in instead of prompting for one step. And a Fastify
+> schema-validation failure now carries a correlation id, without which the
+> security routes could not serialize their own declared `400` and returned a
+> `500` that hid an ordinary bad request.
+>
+> **What the passkey path can and cannot be tested through.** The ceremony
+> needs an authenticator, so passkey login is covered by its refusal paths and
+> the password alternative carries the end-to-end journeys. Everything
+> downstream of the credential — cookie, CSRF, recency, revocation, inventory
+> — is identical whichever one opened the session, and is asserted through a
+> password-issued session. The Node-side authenticator recorded as the T027
+> follow-up would close this too.
 
 ## Phase 5: User Story 4 — Protect Data and Maintain Recovery Material (Priority: P1)
 

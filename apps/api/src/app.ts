@@ -14,10 +14,12 @@ import {
   type DatabaseHandle,
   getOrCreateWorkspace,
 } from "@myownnotion/database";
+import { sessionPolicy } from "@myownnotion/domain";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AppContext } from "./context.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
+import { registerAuthenticationRoutes } from "./routes/authentication.ts";
 import { registerBootstrapRoutes } from "./routes/bootstrap.ts";
 import { registerChangeRoutes } from "./routes/changes.ts";
 import { registerExportRoutes } from "./routes/export.ts";
@@ -32,9 +34,18 @@ import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
 import { AuditService } from "./security/audit-service.ts";
+import { resolvePrincipal } from "./security/authentication-hook.ts";
 import { BootstrapService } from "./security/bootstrap-service.ts";
-import { attachRequestContext, createRequestContext } from "./security/request-context.ts";
+import { setSessionCookie } from "./security/cookie-policy.ts";
+import { loadDeploymentKey } from "./security/deployment-key.ts";
+import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
+import {
+  attachRequestContext,
+  createRequestContext,
+  updateRequestContext,
+} from "./security/request-context.ts";
 import { loadSecurityConfig, type SecurityConfig } from "./security/security-config.ts";
+import { SessionService } from "./security/session-service.ts";
 import type { WebAuthnChallenge } from "./security/webauthn-service.ts";
 
 export interface BuildAppOptions {
@@ -123,6 +134,56 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
     });
     registerInstallationRoutes(app, { db: database.db, config: securityConfig });
     const audit = new AuditService(database.db, { logger: app.log });
+    const now = options.now ?? (() => new Date());
+
+    /**
+     * Reads the deployment wrapping key on demand rather than caching it.
+     *
+     * The key can become unavailable while the process runs — an unmounted
+     * secret, a permission change — and a cached copy would keep authorizing
+     * protected work long after the operator revoked access to it.
+     */
+    const deploymentKey = (): Buffer | null => {
+      try {
+        return Buffer.from(loadDeploymentKey(securityConfig.deploymentKeyFile).bytes);
+      } catch {
+        return null;
+      }
+    };
+
+    // One policy object, shared by the service and the routes. Two calls would
+    // be two objects that could drift the moment the policy takes an argument.
+    const policy = sessionPolicy();
+    const sessionService = new SessionService({
+      db: database.db,
+      audit,
+      installationId: INSTALLATION_ID,
+      policy,
+      now,
+    });
+
+    // Registered before the routes so every handler sees a resolved principal.
+    app.addHook("onRequest", async (request) => {
+      const outcome = await resolvePrincipal(request, [
+        createOwnerPrincipalResolver({ sessions: sessionService, config: securityConfig }),
+      ]);
+      if (outcome.authenticated) {
+        updateRequestContext(request, { principal: outcome.principal });
+      }
+    });
+
+    registerAuthenticationRoutes(app, {
+      db: database.db,
+      config: securityConfig,
+      sessions: sessionService,
+      audit,
+      installationId: INSTALLATION_ID,
+      deploymentKey,
+      policy,
+      now,
+      challenges: new Map<string, WebAuthnChallenge>(),
+    });
+
     const bootstrap = new BootstrapService({
       db: database.db,
       config: securityConfig,
@@ -138,6 +199,23 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       // The kit artifact is streamed, never colocated with workspace data.
       renderKit: async (kitId) =>
         JSON.stringify({ format: "myownnotion.recovery+json", formatVersion: 1, kitId }),
+      // Setup ends signed in: the owner just proved possession, and a
+      // sign-in screen immediately afterwards reads as the ceremony having
+      // failed.
+      startSession: async ({ reply, ownerId, deviceId, correlationId }) => {
+        const issued = await sessionService.issue({
+          ownerId,
+          deviceId,
+          authMethod: "passkey",
+          correlationId,
+        });
+        setSessionCookie(
+          reply,
+          securityConfig,
+          issued.secret,
+          Math.max(0, Math.floor((issued.session.expiresAt.getTime() - now().getTime()) / 1000)),
+        );
+      },
     });
   }
   registerItemRoutes(app, context);
