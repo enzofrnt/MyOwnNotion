@@ -8,7 +8,13 @@
  * conflicts return safe problems.
  */
 
-import { type Database, readItem, submitMutation } from "@myownnotion/database";
+import {
+  type Database,
+  readItem,
+  readItemName,
+  submitMutation,
+  type Transaction,
+} from "@myownnotion/database";
 import { isUuid, type MutationCommand, type Uuid } from "@myownnotion/domain";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { ProtectedContent } from "../security/protected-content.ts";
@@ -21,7 +27,11 @@ export function mutationIdFrom(request: FastifyRequest): Uuid | null {
 }
 
 /**
- * Seals the payload-bearing fields a command touched.
+ * Seals the payload-bearing fields a command touched, inside its transaction.
+ *
+ * Every mutating route funnels through `handleMutation`, so sealing in one
+ * place is what keeps a new route from silently storing plaintext — a route
+ * author has to opt out rather than remember to opt in.
  *
  * **Current content is sealed at record version 1 and upserted.** History is
  * not lost by that: a revision keeps its own immutable snapshot, and that is
@@ -35,27 +45,30 @@ export function mutationIdFrom(request: FastifyRequest): Uuid | null {
  */
 async function sealPayloads(
   protectedContent: ProtectedContent,
-  db: Database,
+  tx: Transaction,
   command: MutationCommand,
-  item: { id: string; name?: string } | null,
+  primaryItemId: string | undefined,
 ): Promise<void> {
   if (command.type === "page.document.replace") {
-    await protectedContent.writePageBody(db, {
+    await protectedContent.writePageBody(tx, {
       pageId: command.itemId,
       recordVersion: 1,
       body: command.document.body,
     });
   }
-  // The title, whatever created or renamed it. Read from the item the
-  // mutation produced rather than from the command, so a rename and a
+  // The title, whatever created or renamed it. Read back from the row the
+  // mutation just wrote rather than taken from the command, so a rename and a
   // creation are handled by one branch and a command shape that carries the
   // name differently cannot slip past.
-  if (item !== null && typeof item.name === "string") {
-    await protectedContent.writeItemName(db, {
-      itemId: item.id,
-      recordVersion: 1,
-      name: item.name,
-    });
+  if (primaryItemId !== undefined) {
+    const name = await readItemName(tx, primaryItemId);
+    if (name !== null) {
+      await protectedContent.writeItemName(tx, {
+        itemId: primaryItemId,
+        recordVersion: 1,
+        name,
+      });
+    }
   }
 }
 
@@ -82,11 +95,26 @@ export async function handleMutation(input: {
     });
   }
 
+  // Bound once so the callback closes over a narrowed value rather than
+  // re-reading an optional property.
+  const protectedContent = input.protectedContent;
+  const command = input.command;
+
   const outcome = await submitMutation(input.db, {
     workspaceId: input.workspaceId,
     mutationId,
     commandType: input.command.type,
-    command: input.command,
+    command,
+    // Sealing happens inside the mutation's transaction. Content and its
+    // envelope commit together or neither does, and there is no second round
+    // trip on the request path.
+    ...(protectedContent === undefined
+      ? {}
+      : {
+          onAccepted: async (tx: Transaction, accepted: { primaryItemId?: Uuid }) => {
+            await sealPayloads(protectedContent, tx, command, accepted.primaryItemId);
+          },
+        }),
   });
 
   const { result } = outcome;
@@ -94,17 +122,6 @@ export async function handleMutation(input: {
     const revisionIds = result.revisionIds ?? [];
     const primaryItemId = outcome.primaryItemId;
     const item = primaryItemId === undefined ? null : await readItem(input.db, primaryItemId);
-
-    // The dual write. Every mutating route funnels through here, so sealing
-    // in one place is what keeps a new route from silently storing plaintext
-    // — a route author has to opt out rather than remember to opt in.
-    //
-    // It runs only after the mutation is accepted: sealing a payload for a
-    // mutation that was then rejected would leave an envelope for content that
-    // does not exist.
-    if (input.protectedContent !== undefined) {
-      await sealPayloads(input.protectedContent, input.db, input.command, item);
-    }
 
     return input.reply
       .status(result.status === "accepted" ? (input.successStatus ?? 200) : 200)

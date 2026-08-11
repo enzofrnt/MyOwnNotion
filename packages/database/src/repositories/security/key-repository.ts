@@ -67,7 +67,7 @@ export interface InsertWrappingKeyVersionInput {
 }
 
 export async function insertWrappingKeyVersion(
-  tx: Transaction,
+  tx: Executor,
   input: InsertWrappingKeyVersionInput,
 ): Promise<WrappingKeyVersionRecord> {
   await tx.insert(wrappingKeyVersions).values({
@@ -131,7 +131,7 @@ export interface InsertRootKeyInput {
   readonly createdAt: Date;
 }
 
-export async function insertRootKey(tx: Transaction, input: InsertRootKeyInput): Promise<void> {
+export async function insertRootKey(tx: Executor, input: InsertRootKeyInput): Promise<void> {
   await tx.insert(workspaceRootKeys).values({
     id: input.id,
     installationId: input.installationId,
@@ -220,10 +220,7 @@ export interface InsertGenerationInput {
   readonly createdAt: Date;
 }
 
-export async function insertGeneration(
-  tx: Transaction,
-  input: InsertGenerationInput,
-): Promise<void> {
+export async function insertGeneration(tx: Executor, input: InsertGenerationInput): Promise<void> {
   await tx.insert(dataKeyGenerations).values({
     id: input.id,
     installationId: input.installationId,
