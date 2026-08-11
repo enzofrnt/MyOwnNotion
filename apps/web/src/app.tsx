@@ -1,19 +1,25 @@
 /**
- * Application shell (T018, extended by T033): single development workspace
- * with the hierarchy explorer as its primary surface, gated on an owner
- * existing.
+ * Application shell (T018, extended by T033 and T047).
  *
- * The gate is deliberately a hard swap rather than an overlay. An installation
- * with no owner has nothing to show behind a modal, and rendering the
- * workspace underneath would suggest content exists that the security layer
- * has not yet been asked to protect.
+ * Three states, resolved once on load and then driven by events:
+ *
+ *   - no owner yet → first-run setup;
+ *   - an owner, but no session in this browser → sign in;
+ *   - a session → the workspace.
+ *
+ * Each is a hard swap rather than an overlay. An installation with no owner
+ * has nothing to show behind a modal, and rendering the workspace underneath a
+ * sign-in prompt would suggest the content is already available to whoever is
+ * looking at the screen.
  */
 import { useCallback, useEffect, useState } from "react";
 import { BootstrapPage } from "./features/auth/bootstrap-page.tsx";
+import { LoginPage } from "./features/auth/login-page.tsx";
 import { HierarchyExplorer } from "./features/hierarchy/hierarchy-explorer.tsx";
+import { SecuritySettings } from "./features/security/security-settings.tsx";
 import { SecurityApi } from "./services/security-api.ts";
 
-type Gate = "checking" | "bootstrap" | "workspace";
+type Gate = "checking" | "bootstrap" | "login" | "workspace";
 
 export interface AppProps {
   /** Injected in tests; defaults to the same-origin client. */
@@ -21,28 +27,63 @@ export interface AppProps {
 }
 
 export function App(props: AppProps = {}) {
+  const [api] = useState(() => props.api ?? new SecurityApi());
   const [gate, setGate] = useState<Gate>("checking");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [showSecurity, setShowSecurity] = useState(false);
+
+  /**
+   * Decides which of the three states this browser is in.
+   *
+   * The session is read after the status, not instead of it: an installation
+   * with no owner has no session to look for, and asking would produce a
+   * refusal that says nothing useful.
+   */
+  const resolveGate = useCallback(async (): Promise<void> => {
+    const status = await api.status();
+    // An unreachable or unreadable status is not treated as "no owner": that
+    // would put a live installation back on the first-run page.
+    if (status.ok && status.value.ownerCount === 0) {
+      setGate("bootstrap");
+      return;
+    }
+    const session = await api.currentSession();
+    if (session.ok) {
+      setSessionId(session.value.session.sessionId);
+      setGate("workspace");
+      return;
+    }
+    // **An unreachable server is not a refusal.** This application is meant to
+    // keep working offline, and a browser that is merely disconnected still
+    // holds its session cookie — sending it to a sign-in page it cannot
+    // complete would lock the owner out of their own local content for as long
+    // as the network is down. Only a server that answered, and refused, means
+    // there is no session.
+    //
+    // Nothing is lost by continuing: authority is checked server-side on every
+    // request, so an offline browser can read what it already has and can
+    // change nothing that reaches the server.
+    if (session.problem.code === "service_unavailable") {
+      setGate("workspace");
+      return;
+    }
+    setSessionId(null);
+    setGate("login");
+  }, [api]);
 
   useEffect(() => {
-    const api = props.api ?? new SecurityApi();
-    let cancelled = false;
-    void (async () => {
-      const result = await api.status();
-      if (cancelled) {
-        return;
-      }
-      // An unreachable or unreadable status is not treated as "no owner": that
-      // would put a live installation back on the first-run page. The
-      // bootstrap page itself reports the outage, and the API refuses a claim
-      // on an installation that already has an owner regardless.
-      setGate(result.ok && result.value.ownerCount === 0 ? "bootstrap" : "workspace");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [props.api]);
+    void resolveGate();
+  }, [resolveGate]);
 
-  const onReady = useCallback(() => setGate("workspace"), []);
+  const onSignedIn = useCallback(() => {
+    void resolveGate();
+  }, [resolveGate]);
+
+  const onSignedOut = useCallback(() => {
+    setSessionId(null);
+    setShowSecurity(false);
+    setGate("login");
+  }, []);
 
   if (gate === "checking") {
     return (
@@ -57,7 +98,15 @@ export function App(props: AppProps = {}) {
   if (gate === "bootstrap") {
     return (
       <div className="app-shell">
-        <BootstrapPage {...(props.api ? { api: props.api } : {})} onReady={onReady} />
+        <BootstrapPage api={api} onReady={onSignedIn} />
+      </div>
+    );
+  }
+
+  if (gate === "login") {
+    return (
+      <div className="app-shell">
+        <LoginPage api={api} onSignedIn={onSignedIn} />
       </div>
     );
   }
@@ -67,9 +116,21 @@ export function App(props: AppProps = {}) {
       <header className="app-header">
         <h1>MyOwnNotion</h1>
         <p className="app-subtitle">Canonical content workspace</p>
+        <button
+          type="button"
+          className="link"
+          onClick={() => setShowSecurity((shown) => !shown)}
+          data-testid="toggle-security-settings"
+        >
+          {showSecurity ? "Back to workspace" : "Security"}
+        </button>
       </header>
       <main className="app-main">
-        <HierarchyExplorer />
+        {showSecurity ? (
+          <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
+        ) : (
+          <HierarchyExplorer />
+        )}
       </main>
     </div>
   );
