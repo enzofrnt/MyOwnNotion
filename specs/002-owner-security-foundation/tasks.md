@@ -263,8 +263,8 @@
 
 ### Tests for User Story 4 (write first and make them fail)
 
-- [ ] T050 [P] [US4] Add server encryption integration tests covering page/block content, sensitive properties/relationships, files/chunks, content-revealing indexes, history, annotations, and recoverable integration secrets while preserving feature-001 identity manifests in `packages/database/tests/security-crypto.integration.spec.ts` (FR-011, FR-014, FR-024).
-- [ ] T051 [P] [US4] Add encrypted blob chunk tests for authenticated 4 MiB chunk envelopes, digest/content addressing, nonce uniqueness, tamper detection, and chunk-index AAD in `packages/blob-store/tests/encrypted-chunks.spec.ts` (FR-011, FR-014, FR-017).
+- [X] T050 [P] [US4] Add server encryption integration tests covering page/block content, sensitive properties/relationships, files/chunks, content-revealing indexes, history, annotations, and recoverable integration secrets while preserving feature-001 identity manifests in `packages/database/tests/security-crypto.integration.spec.ts` (FR-011, FR-014, FR-024).
+- [X] T051 [P] [US4] Add encrypted blob chunk tests for authenticated 4 MiB chunk envelopes, digest/content addressing, nonce uniqueness, tamper detection, and chunk-index AAD in `packages/blob-store/tests/encrypted-chunks.spec.ts` (FR-011, FR-014, FR-017).
 - [ ] T052 [P] [US4] Add local encryption tests for content, files, indexes, pending operations, device-secure-storage behavior, lock/key-loss states, and preserved local projection/mutation identities in `packages/client-core/tests/local-encryption.spec.ts` and `packages/client-core/tests/local-encryption.integration.spec.ts` (FR-012, FR-014, FR-024).
 - [ ] T053 [P] [US4] Add missing/wrong/corrupt/unauthorized/revoked-key and flipped-ciphertext/tag/AAD/generation fault tests proving no partial or substituted data in `apps/api/tests/encryption-read-faults.integration.spec.ts` and `packages/database/tests/encryption-fault-injection.integration.spec.ts` (FR-013, FR-014, FR-023).
 - [ ] T054 [P] [US4] Add responsive Playwright recovery-readiness, protected-storage failure, encrypted-local-state, and honest error journeys in `tests/e2e/security-recovery.spec.ts` (FR-011, FR-012, FR-014, FR-015, FR-016).
@@ -272,13 +272,73 @@
 ### Implementation for User Story 4
 
 - [ ] T055 [US4] Implement protected-record repositories and generation-aware encrypted reads/writes for feature-001 payload-bearing fields while retaining approved routing metadata and every canonical ID in `packages/database/src/repositories/security/protected-record-repository.ts`, `packages/database/src/repositories/item-repository.ts`, `packages/database/src/repositories/revision-repository.ts`, and `packages/database/src/repositories/relationship-repository.ts` (FR-011, FR-014, FR-024).
-- [ ] T056 [US4] Implement encrypted file metadata/chunk storage and content-addressed ciphertext without changing logical file identity or digest lineage in `packages/blob-store/src/encryption/encrypted-chunk-store.ts`, `packages/blob-store/src/encrypted-blob-store.ts`, and `packages/blob-store/src/index.ts` (FR-011, FR-014, FR-024).
+- [X] T056 [US4] Implement encrypted file metadata/chunk storage and content-addressed ciphertext without changing logical file identity or digest lineage in `packages/blob-store/src/encryption/encrypted-chunk-store.ts`, `packages/blob-store/src/encrypted-blob-store.ts`, and `packages/blob-store/src/index.ts` (FR-011, FR-014, FR-024).
 - [ ] T057 [US4] Integrate protected repositories with feature-001 page, file, relationship, revision, search, export, and snapshot routes without editing feature-001 artifacts in `apps/api/src/routes/pages.ts`, `apps/api/src/routes/files.ts`, `apps/api/src/routes/relationships.ts`, `apps/api/src/routes/revisions.ts`, `apps/api/src/routes/search.ts`, `apps/api/src/routes/export.ts`, and `apps/api/src/routes/snapshots.ts` (FR-011, FR-024).
 - [ ] T058 [US4] Implement device-bound encrypted local storage for content, files, indexes, pending operations, and conflicts using platform secure storage when available in `packages/client-core/src/security/local-encryption.ts`, `packages/client-core/src/security/local-key-state.ts`, `packages/client-core/src/local-store/schema.ts`, and `packages/client-core/src/local-store/local-repository.ts` (FR-012, FR-014, FR-024).
 - [ ] T059 [US4] Implement encrypted recovery-kit artifact creation, format/version/lineage metadata, supported generations, offline separation, readiness persistence, and the canonical `authorizationState`/`deliveryState` valid-pair transitions for provisional and active kits in `apps/api/src/security/recovery-kit-service.ts`, `packages/database/src/repositories/security/recovery-kit-repository.ts`, and `packages/domain/src/security/recovery-artifacts.ts` (FR-015, FR-016, FR-018).
 - [ ] T060 [US4] Enforce fail-closed reads, generation authorization, external-secret boundaries, and redacted integrity failures through `apps/api/src/security/integrity-service.ts`, `packages/database/src/repositories/security/integrity-repository.ts`, and `apps/api/src/plugins/errors.ts` (FR-013, FR-014, FR-023).
 - [ ] T061 [US4] Add encryption/recovery audit events and status projections without logging plaintext, keys, credentials, tokens, or artifacts in `apps/api/src/security/audit-service.ts`, `packages/database/src/repositories/security/audit-repository.ts`, and `packages/domain/src/security/audit.ts` (FR-022, FR-023, FR-035).
 - [ ] T062 [US4] Run the complete server/local encryption and recovery-readiness evidence suite, record category-by-category usable plaintext counts and fail-closed counts in `specs/002-owner-security-foundation/validation.md`, and mark SC-004 only from raw evidence after migration-compatible storage is verified (FR-011, FR-012, FR-014, FR-015, FR-016, SC-004).
+
+> **Phase 5, first batch: the cryptographic foundations.** T050, T051 and
+> T056 are complete. The key hierarchy, the protected-record repository, and
+> the encrypted chunk store all exist with their tests, and nothing yet calls
+> them from a feature-001 route — that separation is deliberate, so a failure
+> in the integration cannot be confused with a failure in the primitives.
+>
+> **What landed.** A four-level key hierarchy — mounted deployment key wrapping
+> a workspace root key, wrapping a data-key generation, deriving a per-record
+> key. Rotating the deployment key rewraps one row per workspace instead of
+> re-encrypting everything; retiring a generation to `decrypt-only` keeps what
+> came before it readable; revoking one makes those records deliberately
+> unreadable, and that is enforced for reads as well as writes.
+>
+> **The boundary FR-011 draws, asserted in both directions.** Identifiers,
+> hierarchy, ordering, and revision lineage stay readable — encrypting them
+> would mean decrypting the workspace to answer "what is in this folder", which
+> is unusable and puts the data key in play for every navigation. Everything a
+> person wrote is sealed. The tests read the raw rows and assert the plaintext
+> is absent, because a round-trip test alone passes just as happily when the
+> payload is also written somewhere in the clear.
+>
+> **The chunk index is in the AAD**, and that is the single most important line
+> in the blob store. Without it, chunks can be reordered, duplicated, or
+> dropped and every one still authenticates: the file decrypts cleanly to
+> something the owner never wrote, with no error anywhere. Each of those three
+> manipulations has its own test.
+>
+> **A slow suite and a CI heap exhaustion, both from one line of test code.**
+> The chunk tests compared multi-megabyte payloads with `expect(a).toEqual(b)`.
+> On a Buffer that size, the matcher compares element by element and builds a
+> diff of millions of entries: the suite took nineteen seconds locally and
+> exhausted a 2 GB heap outright. Replacing it with `Buffer.compare`, falling
+> back to a digest comparison only when the bytes actually differ, took the
+> suite to under a second.
+>
+> Two things worth recording about how that was found. First, the store itself
+> was never implicated — a single 4 MiB chunk write was measured at 15 MB of
+> heap before and after, which is what ruled it out. Second, this note
+> previously said the nineteen seconds were a throughput problem at roughly
+> 1.3 MB/s and asked for the cipher to be profiled. That was wrong twice over,
+> and it is corrected here rather than quietly deleted: a measurement left in a
+> spec sends someone looking for a defect, and this one would have sent them to
+> the wrong module.
+>
+> The chunk size is now injectable all the same, defaulting to the 4 MiB
+> constant, because the index properties — ordering, duplication, gaps,
+> splicing — are about the chunk *index* and have no reason to move megabytes
+> per assertion. One test still runs at the real size, and another pins the
+> constant.
+>
+> **Deliberately not in this batch.** T052 and T058 (local encryption in the
+> client), T054 (recovery journeys), T057 (feature-001 route integration), T059
+> (recovery-kit artifacts), T061 (encryption audit events), and T062 (the
+> evidence matrix). T053's fault coverage exists at the database level in
+> `security-crypto.integration.spec.ts` but not yet as the API-level suite the
+> task names, so it stays unchecked. T055 and T060 stay unchecked for the same
+> reason: their repositories and fail-closed reads are in place, their
+> integration into feature-001 repositories and routes is not.
+>
 
 **Checkpoint**: All FR-011/FR-012 categories are application-encrypted, invalid material fails closed, external key custody is preserved, and recovery artifacts are not colocated with workspace ciphertext.
 
