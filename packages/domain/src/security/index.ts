@@ -14,6 +14,7 @@
  * Crypto.
  */
 
+export * from "./bootstrap.ts";
 export * from "./crypto.ts";
 export * from "./envelopes.ts";
 export * from "./identity-manifest.ts";

@@ -21,6 +21,7 @@ export * from "./revisions/types.ts";
 // Platform-independent security rules only. The crypto implementation lives
 // behind the `@myownnotion/domain/security` subpath because it needs
 // `node:crypto`, which cannot enter a browser bundle.
+export * from "./security/bootstrap.ts";
 export * from "./security/invariants.ts";
 export * from "./security/redaction.ts";
 export * from "./security/rotation-policy.ts";
