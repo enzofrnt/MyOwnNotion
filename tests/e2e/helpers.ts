@@ -38,9 +38,12 @@ export async function createChildItem(
   name: string,
 ): Promise<void> {
   await page.getByLabel("Name", { exact: true }).fill(name);
-  const button = page.getByRole("button", { name: `New ${kind} inside ${parentName}` });
-  await button.scrollIntoViewIfNeeded();
-  await button.click();
+  // No explicit `scrollIntoViewIfNeeded`: `click()` already scrolls, and it
+  // retries when the element is replaced. The explicit call was the only step
+  // here that does not retry, so a re-render landing between resolving the
+  // locator and scrolling it detached the element and failed the journey —
+  // intermittently, which is the worst way for it to fail.
+  await page.getByRole("button", { name: `New ${kind} inside ${parentName}` }).click();
   await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
 }
 
