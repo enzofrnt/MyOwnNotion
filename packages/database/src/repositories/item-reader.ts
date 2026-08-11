@@ -159,3 +159,22 @@ export async function listItems(
     rows.map((row) => row.id as Uuid),
   );
 }
+
+/**
+ * Reads just an item's name, from any executor.
+ *
+ * Exists so the encryption layer can seal a title from inside the mutation's
+ * own transaction, where the full `readItem` — which fans out to placements,
+ * documents and files — would be far more work than the one column it needs.
+ */
+export async function readItemName(
+  executor: Parameters<typeof readItems>[0],
+  itemId: string,
+): Promise<string | null> {
+  const rows = await executor
+    .select({ name: items.name })
+    .from(items)
+    .where(eq(items.id, itemId))
+    .limit(1);
+  return rows[0]?.name ?? null;
+}

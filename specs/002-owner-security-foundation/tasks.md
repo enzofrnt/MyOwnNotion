@@ -360,16 +360,25 @@
 > one deploy would leave nothing to recover from if anything were wrong with a
 > key.
 >
-> **The dual write costs a round trip per mutation, and it shows.** Sealing
-> happens after the mutation commits, on the plain database handle, so every
-> write now makes an extra call. A hierarchy journey that waits on a restore
-> round trip flaked in CI at its 10-second default once that latency was added.
-> The timeout was raised to the 15 seconds the same file already uses for
-> post-mutation waits, which is consistent rather than a workaround — but the
-> latency is real and the fix is to seal *inside* the mutation transaction.
-> That is also the correct design: content and its envelope should commit
-> together or not at all, and today a failure between them leaves committed
-> content with no envelope.
+> **Sealing happens inside the mutation transaction.** `submitMutation` takes
+> an `onAccepted` callback that runs after the command is accepted and before
+> the transaction closes; the encryption layer seals there. This package still
+> knows nothing about encryption — it calls a callback — and a throw from it
+> rolls the whole mutation back, which is the point: content that could not be
+> sealed is never stored.
+>
+> An earlier version sealed *after* the commit, on the plain database handle.
+> That was both slower — an extra round trip on every mutation, enough to push
+> a restore journey past its 10-second timeout in CI — and wrong: a failure
+> between the two left committed content with no envelope, which the migration
+> phase would later scrub, losing it outright. An atomicity test now induces a
+> sealing failure with a revoked generation and asserts that neither the item,
+> nor an envelope, nor an accepted mutation row survives.
+>
+> Establishing the hierarchy lazily had to move onto the caller's executor for
+> the same reason. Opening its own transaction from inside the mutation's
+> waited on locks that mutation already held, and surfaced as a 500 on the very
+> first page anyone created.
 >
 > Revision snapshots are named in `ProtectedContent` but not yet sealed — they
 > carry the whole record as it stood, so they are the next thing that matters.

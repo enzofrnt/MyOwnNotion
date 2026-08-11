@@ -133,8 +133,12 @@ export class KeyHierarchy {
    * existing active root key and current generation rather than minting a
    * second set. Two processes starting at once must not produce two root keys,
    * because records written under one would be unreadable under the other.
+   *
+   * Takes any executor rather than insisting on a transaction, because the
+   * caller that matters is already inside one — the first protected write of a
+   * mutation. Opening another here would deadlock against it.
    */
-  async initialize(tx: Transaction): Promise<void> {
+  async initialize(tx: Database | Transaction): Promise<void> {
     const wrappingKey = this.#wrappingKey();
     const { installationId, workspaceId } = this.#deps;
     const now = this.#deps.now();
@@ -246,9 +250,16 @@ export class KeyHierarchy {
       // for whether one exists at all.
       const established = await findGeneration(executor, this.#deps.workspaceId, 1);
       if (established === null) {
-        await this.#deps.db.transaction(async (tx) => {
-          await this.initialize(tx);
-        });
+        // On the caller's executor, never a new transaction of our own. The
+        // first protected write arrives from inside the mutation's
+        // transaction, and opening a second one on another connection would
+        // wait for locks that the first one holds — a deadlock that surfaced
+        // as a 500 on the very first page anyone created.
+        //
+        // Running the inserts on the caller's executor also gives the right
+        // atomicity for free: if the mutation rolls back, so does the
+        // hierarchy it created.
+        await this.initialize(executor);
         stored = await findCurrentGeneration(executor, this.#deps.workspaceId);
       }
     }

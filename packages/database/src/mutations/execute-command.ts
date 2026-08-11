@@ -451,6 +451,28 @@ export async function submitMutation(
     readonly commandType: string;
     readonly command: MutationCommand;
     readonly now?: () => Date;
+    /**
+     * Runs inside the mutation's transaction, after the command is accepted.
+     *
+     * The encryption layer seals payloads here. Doing it afterwards, on a
+     * separate connection, was both slower — an extra round trip on every
+     * mutation, enough to push a journey past its timeout — and wrong: a
+     * failure between the two left committed content with no envelope. Inside
+     * the transaction, the content and its envelope commit together or neither
+     * does.
+     *
+     * This package knows nothing about encryption; it calls a callback. A
+     * throw here rolls the whole mutation back, which is the intended
+     * behaviour: content that could not be sealed must not be stored.
+     */
+    readonly onAccepted?: (
+      tx: Transaction,
+      accepted: {
+        readonly revisionIds: readonly Uuid[];
+        readonly changedItemIds: readonly Uuid[];
+        readonly primaryItemId?: Uuid;
+      },
+    ) => Promise<void>;
   },
 ): Promise<SubmitOutcome> {
   const acceptedAt = (input.now ?? (() => new Date()))();
@@ -500,6 +522,19 @@ export async function submitMutation(
         revisionIds: execution.value.revisionIds,
         changedItemIds: execution.value.changedItemIds,
       });
+
+      // Last, and still inside the transaction. A throw from here rolls the
+      // mutation back, so content that could not be sealed is never stored.
+      if (input.onAccepted !== undefined) {
+        await input.onAccepted(tx, {
+          revisionIds: execution.value.revisionIds,
+          changedItemIds: execution.value.changedItemIds,
+          ...(execution.value.primaryItemId !== undefined
+            ? { primaryItemId: execution.value.primaryItemId }
+            : {}),
+        });
+      }
+
       return {
         result: {
           mutationId: input.mutationId,

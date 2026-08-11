@@ -50,6 +50,11 @@ beforeEach(async () => {
   await harness.built.database.db.execute(
     sql`TRUNCATE protected_envelopes, placements, revision_parents, page_documents CASCADE`,
   );
+  // Any generation a test revoked is restored, so one test cannot leave the
+  // installation unable to seal for every test after it.
+  await harness.built.database.db.execute(
+    sql`UPDATE data_key_generations SET state = 'current' WHERE state = 'revoked'`,
+  );
 });
 
 /** Creates a page through the ordinary route and returns its id. */
@@ -238,5 +243,49 @@ describe("feature 001 is unchanged", () => {
       sql`SELECT count(*)::int AS n FROM protected_envelopes WHERE entity_type = 'page.body'`,
     );
     expect((rows as unknown as { rows: { n: number }[] }).rows[0]?.n).toBe(1);
+  });
+});
+
+describe("content and its envelope commit together", () => {
+  it("rolls the whole mutation back when sealing fails", async () => {
+    // The property this design exists for. Sealing runs inside the mutation's
+    // transaction, so a failure there must take the content with it — a page
+    // stored with no envelope would be plaintext that the migration's scrub
+    // would later delete, losing it outright.
+    //
+    // The failure is induced the way a real one would arrive: the key
+    // generation is revoked, so no data key can be produced.
+    await harness.built.database.db.execute(sql`UPDATE data_key_generations SET state = 'revoked'`);
+    const id = generateUuidV7();
+    const mutationId = randomUUID();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": mutationId },
+      payload: {
+        id,
+        kind: "page",
+        name: "Should not survive",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+    });
+    expect(response.statusCode).toBeGreaterThanOrEqual(400);
+
+    // Neither the item nor an envelope for it exists.
+    const items = await harness.built.database.db.execute(
+      sql`SELECT id FROM items WHERE id = ${id}::uuid`,
+    );
+    expect((items as unknown as { rows: unknown[] }).rows).toHaveLength(0);
+    expect(await envelopeText()).not.toContain("Should not survive");
+
+    // And the mutation is not recorded as accepted, so a retry is a fresh
+    // attempt rather than an idempotent replay of something that never
+    // happened.
+    const accepted = await harness.built.database.db.execute(
+      sql`SELECT status FROM mutations WHERE id = ${mutationId}::uuid`,
+    );
+    expect((accepted as unknown as { rows: unknown[] }).rows).toHaveLength(0);
+
+    await harness.built.database.db.execute(sql`UPDATE data_key_generations SET state = 'current'`);
   });
 });
