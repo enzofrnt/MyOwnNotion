@@ -65,8 +65,8 @@
 - [X] T024 [P] [US1] Add OpenAPI contract tests for installation status, session-free bootstrap start, credential verification, one-time download, regeneration, and offline confirmation in `apps/api/tests/bootstrap.contract.spec.ts` against `specs/002-owner-security-foundation/contracts/security-api.openapi.yaml` (FR-001, FR-002, FR-015, FR-016).
 - [X] T025 [P] [US1] Add bootstrap state-machine property tests for no-session capability scope, one open attempt, `0/0` before the atomic ownership/workspace commit, `1/1` only in initialized states, 15-minute expiry, one download, replay rejection, same verified `attemptId` plus browser-held capability on regeneration, rejection/expiry of the old material without resurrection, interruption recovery, and readiness prerequisites in `packages/domain/tests/bootstrap-state.property.spec.ts` (FR-001, FR-002, FR-015, FR-016, FR-024, SC-001).
 - [X] T026 [P] [US1] Add serializable concurrency and identity tests for repeated/concurrent claims, committed `ownerCount=0`/`workspaceCount=0` before the atomic commit, `ownerCount=1`/`workspaceCount=1` only after it, restart checkpoints, and no partial owner in `packages/database/tests/bootstrap-concurrency.integration.spec.ts` (FR-001, FR-002, FR-024, SC-001).
-- [ ] T027 [P] [US1] Add bootstrap fault-injection tests at credential verification, kit creation, download consumption, confirmation, retry, and unavailable-key boundaries in `apps/api/tests/bootstrap-fault-injection.integration.spec.ts` (FR-002, FR-013, FR-014, FR-015, FR-016).
-- [ ] T028 [P] [US1] Add responsive Playwright bootstrap journeys using virtual WebAuthn for fresh, concurrent, repeated, interrupted, expired/lost provisional-kit, invalid-key, keyboard, and focus states in `tests/e2e/bootstrap.spec.ts` (FR-001, FR-002, FR-015, FR-016, SC-001).
+- [X] T027 [P] [US1] Add bootstrap fault-injection tests at credential verification, kit creation, download consumption, confirmation, retry, and unavailable-key boundaries in `apps/api/tests/bootstrap-fault-injection.integration.spec.ts` (FR-002, FR-013, FR-014, FR-015, FR-016).
+- [X] T028 [P] [US1] Add responsive Playwright bootstrap journeys using virtual WebAuthn for fresh, concurrent, repeated, interrupted, expired/lost provisional-kit, invalid-key, keyboard, and focus states in `tests/e2e/bootstrap.spec.ts` (FR-001, FR-002, FR-015, FR-016, SC-001).
 
 ### Implementation for User Story 1
 
@@ -74,19 +74,59 @@
 - [ ] T030 [US1] Implement bootstrap WebAuthn challenge creation and credential verification with origin/RP ID/user-verification/sign-count checks without issuing a session cookie in `apps/api/src/security/bootstrap-webauthn-service.ts` and `apps/api/src/security/webauthn-service.ts` (FR-002, FR-003, FR-023).
 - [X] T031 [US1] Implement attempt-scoped persistence of `PendingBootstrapCredentialMaterial`, provisional kit metadata, and the browser-held capability; implement the single serializable promotion transaction that only after consumed download plus explicit offline confirmation creates the owner credential/owner, binds the canonical feature-001 workspace, creates the initial device/key generation, activates/confirms the kit, sets `ready`, and changes counts from `0/0` to `1/1` in `apps/api/src/security/bootstrap-service.ts`, `packages/database/src/repositories/security/bootstrap-repository.ts`, `packages/database/src/repositories/security/owner-repository.ts`, and `packages/database/src/repositories/security/workspace-binding-repository.ts` (FR-001, FR-002, FR-015, FR-024, SC-001).
 - [X] T032 [US1] Implement safe installation-status, bootstrap, credential-verification, download, regeneration, and explicit offline-confirmation routes with no session dependency; return pending progress at `0/0` and the browser-held bootstrap capability only in response body/headers, accept it only through `X-Bootstrap-Capability` with the same verified `attemptId`, return the explicit `BootstrapConfirmationResult` (`confirmed/ready/1/1`, `active/confirmed`), reject a different attempt or any old `rejected/expired` kit, and never place capability or kit material in a URL, log, or persistent plaintext in `apps/api/src/routes/installation.ts`, `apps/api/src/routes/bootstrap.ts`, and `apps/api/src/app.ts` (FR-001, FR-002, FR-015, FR-016, FR-023, FR-035).
-- [ ] T033 [US1] Implement first-run owner/bootstrap UI with passkey ceremony, optional password handoff, recovery-kit download/confirmation, expiry/resume messaging, and accessible responsive states in `apps/web/src/features/auth/bootstrap-page.tsx`, `apps/web/src/features/auth/passkey-client.ts`, `apps/web/src/features/security/recovery-kit-panel.tsx`, and `apps/web/src/services/security-api.ts` (FR-002, FR-004, FR-015, FR-016, SC-008).
-- [ ] T034 [US1] Add bootstrap rate-limit and audit events for claim conflicts, credential verification, kit creation/download/confirmation/regeneration, and interrupted attempts in `apps/api/src/security/rate-limit-service.ts`, `apps/api/src/security/audit-service.ts`, and `packages/database/src/repositories/security/audit-repository.ts` (FR-022, FR-023).
+- [X] T033 [US1] Implement first-run owner/bootstrap UI with passkey ceremony, optional password handoff, recovery-kit download/confirmation, expiry/resume messaging, and accessible responsive states in `apps/web/src/features/auth/bootstrap-page.tsx`, `apps/web/src/features/auth/passkey-client.ts`, `apps/web/src/features/security/recovery-kit-panel.tsx`, and `apps/web/src/services/security-api.ts` (FR-002, FR-004, FR-015, FR-016, SC-008).
+- [X] T034 [US1] Add bootstrap rate-limit and audit events for claim conflicts, credential verification, kit creation/download/confirmation/regeneration, and interrupted attempts in `apps/api/src/security/rate-limit-service.ts`, `apps/api/src/security/audit-service.ts`, and `packages/database/src/repositories/security/audit-repository.ts` (FR-022, FR-023).
 - [ ] T035 [US1] Execute exactly 20 clean-install trials with at least 5 representative operators `O01`–`O05`, recording start/end clocks, duration, credential verification, one download, offline confirmation, `authorizationState=active`, `deliveryState=confirmed`, `ownerCount=1`, `workspaceCount=1`, and raw failures in `specs/002-owner-security-foundation/validation.md`; accept SC-002 only when at least 19 trials finish within 300 seconds and every operator has a trial (SC-002).
 - [ ] T036 [US1] Run the independent bootstrap matrix and record `ownerCount=0`/`workspaceCount=0` before the atomic commit, `ownerCount=1`/`workspaceCount=1` for every initialized state (`recovery-required`, `ready`, `migration-in-progress`, `degraded`), same-attempt capability regeneration, old-kit rejection/expiry, concurrent/repeated/interrupted counts, invalid-key results, and candidate evidence in `specs/002-owner-security-foundation/validation.md`; do not replace `pending` with `pass` without raw evidence (FR-001, FR-002, FR-013, FR-014, FR-015, FR-016, SC-001).
 
-> **Phase 3 partial (in progress)**: landed — the domain bootstrap state
-> machine (T029), its 35 property tests (T025), attempt-scoped persistence with
-> the atomic `0/0` → `1/1` promotion (T031) and its 17 concurrency tests (T026),
-> WebAuthn ceremony verification (T030), rate limiting (the rate-limit half of
-> T034), the session-free bootstrap and installation-status routes (T032), and
-> 19 route contract tests (T024). Still open: the first-run UI (T033), the audit
-> half of T034, and the fault-injection and Playwright suites (T027, T028).
-> T034 stays unchecked until its audit half lands.
+> **Phase 3 landed, except the two tasks that need people.** The domain
+> bootstrap state machine (T029) and its property tests (T025), attempt-scoped
+> persistence with the atomic `0/0` → `1/1` promotion (T031) and its
+> concurrency tests (T026), WebAuthn ceremony verification (T030), rate
+> limiting and the bootstrap audit trail (T034), the session-free routes
+> (T032), route contract tests (T024), fault injection (T027), the first-run UI
+> (T033), and the Playwright journeys (T028).
+>
+> **Four defects found while building the UI and the journeys, each fixed
+> here.**
+>
+> 1. *The installation row was never created.* Nothing created it at startup,
+>    so a genuinely fresh deployment could not bootstrap at all — the claim
+>    failed on a foreign key. It is now created at startup, idempotently, the
+>    same way feature 001 ensures the canonical workspace.
+> 2. *An abandoned attempt locked the installation out permanently.* The
+>    partial unique index keeps one attempt open, and an attempt still at
+>    `started` had no expiry, so a closed tab made the installation impossible
+>    to set up without database access. `BOOTSTRAP_CLAIM_WINDOW_MINUTES` and
+>    `isAttemptStale` now let a new claim supersede a stale attempt; a live one
+>    still conflicts, which is what protects a setup in progress elsewhere. The
+>    supersession is audited as `bootstrap.interrupted`.
+> 3. *The end-to-end security reset was reseting almost nothing.* Its table
+>    list predated migration `0004` and guessed a `security_` prefix for most
+>    names; because it only truncated tables that existed, the mismatch was
+>    silent. Names corrected, and the reset now throws if a table is missing —
+>    a reset that quietly does nothing is how a suite goes green while
+>    asserting nothing.
+> 4. *WebAuthn rejects an IP address as a relying-party id.* The ceremony
+>    failed with `SecurityError` before reaching the authenticator. The
+>    end-to-end matrix now serves over `localhost`, which is both a valid
+>    relying-party id and a secure context, and which the API already treats as
+>    loopback.
+>
+> **The download route was realigned to the normative contract.** The
+> implementation had added a client-held `downloadToken` the OpenAPI document
+> does not specify. The client now holds exactly one secret — the capability —
+> and one-time-ness is enforced server-side, with the token kept as a binding
+> between the attempt and the kit it prepared.
+>
+> **What T027 can and cannot reach.** Every boundary past the claim is behind a
+> real WebAuthn ceremony, which cannot be produced without an authenticator; an
+> injected fault there is never reached, and this was verified rather than
+> assumed. The suite therefore injects a real database-level fault into the
+> claim transaction, which *is* reachable, and covers the deeper boundaries
+> through their refusal paths. Reaching them properly needs a Node-side
+> authenticator that can mint a valid attestation — that is the follow-up, and
+> it would also strengthen T036's evidence.
 >
 > **T035 cannot be executed by an automated contributor.** It requires 20 real
 > clean-install trials with at least five human operators `O01`–`O05`, timed,

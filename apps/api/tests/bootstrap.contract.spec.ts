@@ -24,6 +24,16 @@ let harness: ApiHarness;
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
 const CAPABILITY_HEADER = "x-bootstrap-capability";
 
+/**
+ * The server's clock, under the test's control.
+ *
+ * Fixed rather than real so windows and expiries are deterministic, and
+ * movable so the supersession journey can age an attempt out without waiting
+ * a quarter of an hour.
+ */
+const BASE_TIME = new Date("2026-03-01T00:00:00.000Z");
+const clock = { value: BASE_TIME };
+
 beforeAll(async () => {
   harness = await createApiHarness({
     security: loadSecurityConfig({
@@ -31,6 +41,7 @@ beforeAll(async () => {
       MYOWNNOTION_API_HOST: "127.0.0.1",
       MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
     }),
+    now: () => clock.value,
   });
 }, 180_000);
 
@@ -39,6 +50,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  clock.value = BASE_TIME;
   await harness.built.database.db.execute(sql`
     TRUNCATE security_audit_events, security_rate_limits, recovery_kits, recovery_epochs,
       data_key_generations, sessions, authorized_devices, pending_bootstrap_credentials,
@@ -317,7 +329,6 @@ describe("the routes that follow credential verification", () => {
       method: "POST",
       url: `/v1/bootstrap/${attemptId}/recovery/download`,
       headers: { [CAPABILITY_HEADER]: capability },
-      payload: { downloadToken: "no-such-token" },
     });
     expect(response.statusCode).toBe(409);
     expect(response.json().code).toBe("conflict");
@@ -369,7 +380,7 @@ describe("the routes that follow credential verification", () => {
       const response = await inject({
         method: "POST",
         url: `/v1/bootstrap/${attemptId}/${path}`,
-        payload: { storedOffline: true, downloadToken: "x" },
+        payload: { storedOffline: true },
       });
       expect(response.statusCode, path).toBe(403);
     }
@@ -462,5 +473,52 @@ describe("a binding that points at no workspace", () => {
     expect(response.statusCode).toBe(500);
     // And it says nothing about what it found.
     expect(response.body).not.toContain("workspace_id");
+  });
+});
+
+describe("an abandoned attempt does not lock the installation out", () => {
+  // The whole point of the security layer is that the person who owns the
+  // machine can always get back in. An attempt claimed and then abandoned used
+  // to hold the single open slot forever, which meant a closed tab could make
+  // an installation impossible to set up without database access.
+
+  const claim = (nonce: string) =>
+    inject({ method: "POST", url: "/v1/bootstrap", payload: { clientNonce: nonce.repeat(24) } });
+
+  it("refuses a second claim while the first is still live", async () => {
+    expect((await claim("n")).statusCode).toBe(201);
+    // Someone is mid-setup in another browser: taking it from them would be
+    // worse than making this one wait.
+    expect((await claim("m")).statusCode).toBe(409);
+  });
+
+  it("lets a new claim supersede one that has been left alone", async () => {
+    const first = await claim("n");
+    expect(first.statusCode).toBe(201);
+
+    clock.value = new Date(BASE_TIME.getTime() + 16 * 60_000);
+    const later = await claim("p");
+    expect(later.statusCode).toBe(201);
+    expect(later.json().attemptId).not.toBe(first.json().attemptId);
+  });
+
+  it("records the supersession, so a takeover is distinguishable from a first claim", async () => {
+    await claim("n");
+    clock.value = new Date(BASE_TIME.getTime() + 16 * 60_000);
+    await claim("p");
+
+    const events = await harness.built.database.db.execute(
+      sql`SELECT event_type FROM security_audit_events WHERE event_type = 'bootstrap.interrupted'`,
+    );
+    expect((events as unknown as { rows: unknown[] }).rows).toHaveLength(1);
+  });
+
+  it("still refuses every claim once ownership is committed", async () => {
+    // Staleness must not become a way back into a closed bootstrap surface.
+    await fabricateCommittedOwnership();
+    clock.value = new Date(BASE_TIME.getTime() + 60 * 60_000);
+    const response = await claim("n");
+    expect(response.statusCode).toBe(409);
+    expect(response.json().code).toBe("bootstrap_unavailable");
   });
 });

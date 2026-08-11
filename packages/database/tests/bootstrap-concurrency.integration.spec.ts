@@ -15,6 +15,7 @@ import {
   BootstrapClaimConflictError,
   claimAttempt,
   createInstallation,
+  findAttempt,
   findOpenAttempt,
   persistAttempt,
   prepareProvisionalKit,
@@ -25,6 +26,7 @@ import {
   saveVerifiedCredential,
 } from "@myownnotion/database";
 import {
+  BOOTSTRAP_CLAIM_WINDOW_MINUTES,
   type BootstrapAttempt,
   consumeDownload,
   generateUuidV7,
@@ -151,11 +153,27 @@ function promotionInput(attempt: BootstrapAttempt) {
   };
 }
 
+/**
+ * Claims an attempt and unwraps the result.
+ *
+ * `claimAttempt` now reports which attempt it superseded, and takes the clock
+ * so it can tell a stale attempt from a live one. These tests are about
+ * concurrency, not supersession, so they claim at `ORIGIN`, the same instant
+ * the attempts were created. Every attempt they race is then live, and a
+ * conflict is a real conflict rather than one attempt quietly ageing out.
+ * Using the wall clock here would date every seeded attempt to 2026-01-01 and
+ * silently turn each conflict into a supersession.
+ */
+async function claim(db: Parameters<typeof claimAttempt>[0]) {
+  const { attempt } = await claimAttempt(db, freshAttempt(), ORIGIN);
+  return attempt;
+}
+
 describe("claiming the single attempt", () => {
   it("lets exactly one of many concurrent claims win", async () => {
     const results = await runConcurrently(
       context.postgres.connectionString,
-      Array.from({ length: 6 }, () => async (handle) => claimAttempt(handle.db, freshAttempt())),
+      Array.from({ length: 6 }, () => async (handle) => claim(handle.db)),
     );
     const winners = results.filter((result) => result.status === "fulfilled");
     expect(winners).toHaveLength(1);
@@ -174,13 +192,13 @@ describe("claiming the single attempt", () => {
   it("keeps the installation at 0/0 after any number of claims", async () => {
     await runConcurrently(
       context.postgres.connectionString,
-      Array.from({ length: 6 }, () => async (handle) => claimAttempt(handle.db, freshAttempt())),
+      Array.from({ length: 6 }, () => async (handle) => claim(handle.db)),
     );
     expect(await readCounts(context.handle.db)).toEqual({ ownerCount: 0, workspaceCount: 0 });
   });
 
   it("moves the installation to bootstrap-in-progress, still 0/0", async () => {
-    await claimAttempt(context.handle.db, freshAttempt());
+    await claim(context.handle.db);
     const rows = await context.handle.db.execute<{ state: string }>(
       sql`SELECT state FROM installations`,
     );
@@ -189,34 +207,32 @@ describe("claiming the single attempt", () => {
   });
 
   it("refuses a new claim once ownership is committed", async () => {
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     await promoteBootstrap(context.handle.db, promotionInput(attempt));
-    await expect(claimAttempt(context.handle.db, freshAttempt())).rejects.toMatchObject({
+    await expect(claim(context.handle.db)).rejects.toMatchObject({
       code: "bootstrap_unavailable",
     });
   });
 
   it("allows a fresh claim after the previous attempt became terminal", async () => {
-    const first = await claimAttempt(context.handle.db, freshAttempt());
+    const first = await claim(context.handle.db);
     await context.handle.db.transaction(async (tx) => {
       await persistAttempt(tx, { ...first, state: "abandoned", updatedAt: at(5) });
     });
-    await expect(claimAttempt(context.handle.db, freshAttempt())).resolves.toBeDefined();
+    await expect(claim(context.handle.db)).resolves.toBeDefined();
   });
 
   it("exposes exactly one open attempt at a time", async () => {
-    await claimAttempt(context.handle.db, freshAttempt());
+    await claim(context.handle.db);
     const open = await findOpenAttempt(context.handle.db, { installationId: INSTALLATION_ID });
     expect(open).not.toBeNull();
-    await expect(claimAttempt(context.handle.db, freshAttempt())).rejects.toBeInstanceOf(
-      BootstrapClaimConflictError,
-    );
+    await expect(claim(context.handle.db)).rejects.toBeInstanceOf(BootstrapClaimConflictError);
   });
 });
 
 describe("counts through the whole attempt", () => {
   it("stays 0/0 at every pre-confirmation step", async () => {
-    const attempt = await claimAttempt(context.handle.db, freshAttempt());
+    const attempt = await claim(context.handle.db);
     expect(await readCounts(context.handle.db), "after claim").toEqual({
       ownerCount: 0,
       workspaceCount: 0,
@@ -232,7 +248,7 @@ describe("counts through the whole attempt", () => {
   });
 
   it("holds verified credential material with no owner row", async () => {
-    const attempt = await claimAttempt(context.handle.db, freshAttempt());
+    const attempt = await claim(context.handle.db);
     await walkToConsumed(attempt);
     const pending = await context.handle.db.execute<{ count: string }>(
       sql`SELECT count(*)::text AS count FROM pending_bootstrap_credentials`,
@@ -242,7 +258,7 @@ describe("counts through the whole attempt", () => {
   });
 
   it("moves to 1/1 only at the atomic promotion", async () => {
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     const result = await promoteBootstrap(context.handle.db, promotionInput(attempt));
     expect(result.ownerCount).toBe(1);
     expect(result.workspaceCount).toBe(1);
@@ -252,7 +268,7 @@ describe("counts through the whole attempt", () => {
 
 describe("the atomic promotion", () => {
   it("lets exactly one of many concurrent promotions win", async () => {
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     const results = await runConcurrently(
       context.postgres.connectionString,
       Array.from(
@@ -265,7 +281,7 @@ describe("the atomic promotion", () => {
   });
 
   it("refuses promotion from any state other than download-consumed", async () => {
-    const attempt = await claimAttempt(context.handle.db, freshAttempt());
+    const attempt = await claim(context.handle.db);
     // Claimed but nothing else: no credential, no kit, no download.
     await expect(
       promoteBootstrap(context.handle.db, promotionInput(attempt)),
@@ -274,7 +290,7 @@ describe("the atomic promotion", () => {
   });
 
   it("leaves 0/0 intact when the promotion fails partway", async () => {
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     // A duplicate device binding makes an insert fail after the owner and the
     // workspace have already been written inside the transaction.
     await context.handle.db.execute(sql`
@@ -304,7 +320,7 @@ describe("the atomic promotion", () => {
     await context.handle.db.execute(sql`
       INSERT INTO workspaces (id, schema_version) VALUES (${WORKSPACE_ID}::uuid, 1)
     `);
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     const result = await promoteBootstrap(context.handle.db, promotionInput(attempt));
     expect(result.workspaceId).toBe(WORKSPACE_ID);
     const rows = await context.handle.db.execute<{ count: string }>(
@@ -314,7 +330,7 @@ describe("the atomic promotion", () => {
   });
 
   it("confirms the kit and clears the pending material in the same commit", async () => {
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     await promoteBootstrap(context.handle.db, promotionInput(attempt));
 
     const kit = await context.handle.db.execute<{
@@ -335,7 +351,7 @@ describe("the atomic promotion", () => {
   });
 
   it("creates the first device with null activity and sync timestamps", async () => {
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     await promoteBootstrap(context.handle.db, promotionInput(attempt));
     const device = await context.handle.db.execute<{
       last_activity_at: string | null;
@@ -347,7 +363,7 @@ describe("the atomic promotion", () => {
   });
 
   it("reports every initialized state as 1/1 after promotion", async () => {
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     await promoteBootstrap(context.handle.db, promotionInput(attempt));
     for (const state of [
       "recovery-required",
@@ -368,8 +384,68 @@ describe("the atomic promotion", () => {
       INSERT INTO workspaces (id, schema_version) VALUES (${WORKSPACE_ID}::uuid, 1)
     `);
     const before = await context.snapshotIdentities();
-    const attempt = await walkToConsumed(await claimAttempt(context.handle.db, freshAttempt()));
+    const attempt = await walkToConsumed(await claim(context.handle.db));
     await promoteBootstrap(context.handle.db, promotionInput(attempt));
     expect(await context.identityDrift(before)).toEqual([]);
+  });
+});
+
+describe("an abandoned attempt must not lock the installation out forever", () => {
+  // The failure this prevents: an owner claims an attempt, closes the tab, and
+  // the installation can never be set up again. The single-open-attempt index
+  // is what makes that possible, so the recovery has to happen at the claim.
+
+  it("a live attempt still blocks a second claim", async () => {
+    const first = await claimAttempt(context.handle.db, freshAttempt(), ORIGIN);
+    expect(first.supersededAttemptId).toBeNull();
+
+    // One minute later, well inside the window: somebody is mid-setup and must
+    // not have it taken from under them.
+    await expect(claimAttempt(context.handle.db, freshAttempt(), at(1))).rejects.toBeInstanceOf(
+      BootstrapClaimConflictError,
+    );
+  });
+
+  it("a stale attempt is superseded, and the new claim proceeds", async () => {
+    const abandoned = freshAttempt();
+    await claimAttempt(context.handle.db, abandoned, ORIGIN);
+
+    const second = await claimAttempt(
+      context.handle.db,
+      freshAttempt(),
+      at(BOOTSTRAP_CLAIM_WINDOW_MINUTES + 1),
+    );
+    expect(second.supersededAttemptId).toBe(abandoned.attemptId);
+
+    // The old attempt is closed rather than deleted: it is a durable record of
+    // something that happened, and the audit trail refers to it.
+    const previous = await findAttempt(context.handle.db, abandoned.attemptId);
+    expect(previous?.state).toBe("abandoned");
+  });
+
+  it("supersession commits nothing: the installation is still 0/0", async () => {
+    await claimAttempt(context.handle.db, freshAttempt(), ORIGIN);
+    await claimAttempt(context.handle.db, freshAttempt(), at(BOOTSTRAP_CLAIM_WINDOW_MINUTES + 1));
+    expect(await readCounts(context.handle.db)).toEqual({ ownerCount: 0, workspaceCount: 0 });
+  });
+
+  it("only one attempt is open after a supersession", async () => {
+    // Otherwise the next claim sees two open attempts and the invariant the
+    // partial unique index enforces is already broken.
+    await claimAttempt(context.handle.db, freshAttempt(), ORIGIN);
+    const third = freshAttempt();
+    await claimAttempt(context.handle.db, third, at(BOOTSTRAP_CLAIM_WINDOW_MINUTES + 1));
+    const open = await findOpenAttempt(context.handle.db, { installationId: INSTALLATION_ID });
+    expect(open?.attemptId).toBe(third.attemptId);
+  });
+
+  it("still refuses once ownership is committed, however stale the attempt", async () => {
+    // Staleness must not become a way back into a closed bootstrap surface.
+    const attempt = await walkToConsumed(await claim(context.handle.db));
+    await promoteBootstrap(context.handle.db, promotionInput(attempt));
+
+    await expect(
+      claimAttempt(context.handle.db, freshAttempt(), at(BOOTSTRAP_CLAIM_WINDOW_MINUTES + 100)),
+    ).rejects.toMatchObject({ code: "bootstrap_unavailable" });
   });
 });

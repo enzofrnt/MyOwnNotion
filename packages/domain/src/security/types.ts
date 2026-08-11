@@ -76,6 +76,17 @@ export type BootstrapState = (typeof BOOTSTRAP_STATES)[number];
 /** The one-time provisional recovery download window. */
 export const BOOTSTRAP_KIT_WINDOW_MINUTES = 15;
 
+/**
+ * How long a claimed attempt may sit before a new claim may supersede it.
+ *
+ * Without this an attempt claimed and then abandoned — a closed tab, a crashed
+ * browser — holds the single open-attempt slot forever, and the installation
+ * can never be set up again without direct database access. The window matches
+ * the kit window because both bound the same thing: how long one person may
+ * hold the installation's only bootstrap slot while doing nothing with it.
+ */
+export const BOOTSTRAP_CLAIM_WINDOW_MINUTES = 15;
+
 // ---------------------------------------------------------------------------
 // Encrypted envelope
 // ---------------------------------------------------------------------------

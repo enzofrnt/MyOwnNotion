@@ -191,23 +191,30 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
         return reply;
       }
       const { attemptId } = request.params as { attemptId: string };
-      const body = (request.body ?? {}) as { downloadToken?: string };
       try {
+        // No request body: the capability is the only thing the client holds.
+        // One-time-ness is a server-side property, not something the caller
+        // proves by presenting a second secret.
         const attempt = await deps.service.consumeKitDownload({
           attemptId,
           capability: capabilityFrom(request),
-          downloadToken: body.downloadToken ?? "",
           correlationId: requestContext(request).correlationId,
         });
         const artifact = await deps.renderKit(attempt.recoveryKitId ?? "");
         // Streamed as an attachment: the kit is never rendered into a page
         // where a browser extension or a screenshot could capture it.
-        return reply
-          .status(200)
-          .header("content-type", "application/json")
-          .header("content-disposition", 'attachment; filename="myownnotion-recovery.json"')
-          .header("cache-control", "no-store")
-          .send(artifact);
+        return (
+          reply
+            .status(200)
+            .header("content-type", "application/json")
+            .header("content-disposition", 'attachment; filename="myownnotion-recovery.json"')
+            .header("cache-control", "no-store")
+            // The contract pins this header: the client learns the download is
+            // spent from the same response that carries the kit, so a retry
+            // after a partial save is a regeneration rather than a second GET.
+            .header("x-recovery-download-consumed", "true")
+            .send(artifact)
+        );
       } catch (error) {
         return fail(request, reply, error);
       }
