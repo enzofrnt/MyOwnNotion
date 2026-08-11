@@ -81,8 +81,13 @@ test.describe("hierarchy organization (US1)", () => {
     await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(0);
 
     await page.getByRole("button", { name: `Restore ${root}` }).click();
-    await expect(page.getByTestId(`tree-item-${root}`)).toBeVisible();
-    await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible();
+    // The same 15 seconds `createChildItem` uses, and for the same reason:
+    // this waits on a mutation round trip, not on a render. It was left at the
+    // 10-second default and flaked in CI once the dual write added a database
+    // round trip to every mutation — real added latency, not a test artefact,
+    // and the reason to move sealing inside the mutation transaction.
+    await expect(page.getByTestId(`tree-item-${root}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible({ timeout: 15_000 });
     await waitForSynchronized(page);
   });
 

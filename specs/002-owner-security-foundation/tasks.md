@@ -360,6 +360,17 @@
 > one deploy would leave nothing to recover from if anything were wrong with a
 > key.
 >
+> **The dual write costs a round trip per mutation, and it shows.** Sealing
+> happens after the mutation commits, on the plain database handle, so every
+> write now makes an extra call. A hierarchy journey that waits on a restore
+> round trip flaked in CI at its 10-second default once that latency was added.
+> The timeout was raised to the 15 seconds the same file already uses for
+> post-mutation waits, which is consistent rather than a workaround — but the
+> latency is real and the fix is to seal *inside* the mutation transaction.
+> That is also the correct design: content and its envelope should commit
+> together or not at all, and today a failure between them leaves committed
+> content with no envelope.
+>
 > Revision snapshots are named in `ProtectedContent` but not yet sealed — they
 > carry the whole record as it stood, so they are the next thing that matters.
 >
