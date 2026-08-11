@@ -30,6 +30,7 @@ export function registerPageDocumentRoutes(app: FastifyInstance, context: AppCon
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
         request,
         reply,
         command: {

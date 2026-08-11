@@ -33,9 +33,6 @@ const SECURITY_TABLES = [
   "rotation_checkpoints",
   "rotation_operations",
   "rotation_policies",
-  "wrapping_key_versions",
-  "workspace_root_keys",
-  "data_key_generations",
   "recovery_kits",
   "recovery_epochs",
   "authorized_devices",
@@ -84,6 +81,12 @@ export async function resetSecurityInstallation(): Promise<void> {
     // truncating it would leave every later journey claiming a bootstrap
     // attempt against an installation that does not exist. Resetting the row
     // to `uninitialized` is what a fresh install actually looks like.
+    //
+    // The key hierarchy — `wrapping_key_versions`, `workspace_root_keys`,
+    // `data_key_generations` — is kept for exactly the same reason, and the
+    // reason is not theoretical: it is also created once at startup, and
+    // truncating it left the server unable to seal anything, which failed
+    // thirteen content journeys at once the first time this ran.
     await client.query(
       `TRUNCATE ${SECURITY_TABLES.map((table) => `"${table}"`).join(", ")} CASCADE`,
     );
