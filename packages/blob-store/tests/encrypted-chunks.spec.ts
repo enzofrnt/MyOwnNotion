@@ -24,7 +24,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 let root: string;
 let store: EncryptedChunkStore;
+let fullSizeStore: EncryptedChunkStore;
 let blobs: FilesystemBlobStore;
+
+/** Chunk size for the index tests. Small enough to be free, big enough to be real. */
+const SMALL_CHUNK = 64;
 
 const KEY = randomKey();
 const OTHER_KEY = randomKey();
@@ -40,7 +44,12 @@ const BINDING = {
 beforeAll(() => {
   root = mkdtempSync(path.join(os.tmpdir(), "mon-chunks-"));
   blobs = new FilesystemBlobStore(root);
-  store = new EncryptedChunkStore({ blobs, dataKey: async () => KEY });
+  // Small chunks for everything about the chunk *index* — ordering,
+  // duplication, gaps, splicing. Those properties have nothing to do with the
+  // chunk size, and asserting them at 4 MiB a chunk cost a CI runner its heap.
+  store = new EncryptedChunkStore({ blobs, dataKey: async () => KEY, chunkBytes: SMALL_CHUNK });
+  // One store at the real size, for the one test that should pay for it.
+  fullSizeStore = new EncryptedChunkStore({ blobs, dataKey: async () => KEY });
 });
 
 afterAll(() => {
@@ -48,10 +57,10 @@ afterAll(() => {
 });
 
 /** A payload spanning several chunks, with recognisable content per chunk. */
-function multiChunkPayload(chunks: number): Uint8Array {
-  const bytes = Buffer.alloc(CHUNK_BYTES * chunks);
+function multiChunkPayload(chunks: number, chunkBytes: number = SMALL_CHUNK): Uint8Array {
+  const bytes = Buffer.alloc(chunkBytes * chunks);
   for (let index = 0; index < chunks; index += 1) {
-    bytes.write(`chunk-${index}-start`, index * CHUNK_BYTES);
+    bytes.write(`chunk-${index}-start`, index * chunkBytes);
   }
   return new Uint8Array(bytes);
 }
@@ -68,6 +77,10 @@ describe("splitting", () => {
     expect(splitIntoChunks(new Uint8Array(CHUNK_BYTES))).toHaveLength(1);
   });
 
+  it("honours a configured chunk size", () => {
+    expect(splitIntoChunks(new Uint8Array(200), 64)).toHaveLength(4);
+  });
+
   it("starts a second chunk one byte later", () => {
     const chunks = splitIntoChunks(new Uint8Array(CHUNK_BYTES + 1));
     expect(chunks).toHaveLength(2);
@@ -76,7 +89,9 @@ describe("splitting", () => {
   });
 
   it("uses 4 MiB, as the requirement states", () => {
+    // The production default, pinned separately from the tests that shrink it.
     expect(CHUNK_BYTES).toBe(4 * 1024 * 1024);
+    expect(new EncryptedChunkStore({ blobs, dataKey: async () => KEY })).toBeDefined();
   });
 });
 
@@ -93,17 +108,26 @@ describe("the round trip", () => {
   // — see the throughput note in tasks.md — and the timeout is set so the
   // correctness assertion still stands while that is investigated, rather than
   // to hide it.
-  it("returns a multi-chunk file byte for byte", async () => {
-    const payload = multiChunkPayload(3);
-    const envelopes = await store.write(payload, BINDING);
-    expect(envelopes).toHaveLength(3);
-    expect(Buffer.from(await store.read(envelopes, BINDING))).toEqual(Buffer.from(payload));
+  it("returns a multi-chunk file at the real 4 MiB chunk size", async () => {
+    // The one test that pays the production cost, so the real path is
+    // exercised rather than only the shrunken one.
+    const payload = multiChunkPayload(2, CHUNK_BYTES);
+    const envelopes = await fullSizeStore.write(payload, {
+      ...BINDING,
+      contentId: contentId("full-size"),
+    });
+    expect(envelopes).toHaveLength(2);
+    expect(
+      Buffer.from(
+        await fullSizeStore.read(envelopes, { ...BINDING, contentId: contentId("full-size") }),
+      ),
+    ).toEqual(Buffer.from(payload));
   }, 60_000);
 
   it("records the plaintext length of each chunk", async () => {
-    const payload = new Uint8Array(CHUNK_BYTES + 17);
+    const payload = new Uint8Array(SMALL_CHUNK + 17);
     const envelopes = await store.write(payload, { ...BINDING, contentId: contentId("len") });
-    expect(envelopes[0]?.byteLength).toBe(CHUNK_BYTES);
+    expect(envelopes[0]?.byteLength).toBe(SMALL_CHUNK);
     expect(envelopes[1]?.byteLength).toBe(17);
   });
 

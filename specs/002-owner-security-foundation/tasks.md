@@ -307,14 +307,21 @@
 > something the owner never wrote, with no error anywhere. Each of those three
 > manipulations has its own test.
 >
-> **A throughput observation, not yet explained.** The multi-chunk round trip
-> moves 12 MiB through the cipher and the filesystem twice and takes about
-> eighteen seconds — roughly 1.3 MB/s, which is far slower than AES-GCM should
-> be and points at copying or filesystem behaviour rather than at the cipher.
-> The test carries a raised timeout so the correctness assertion still stands,
-> and this note is here so the number is not quietly accepted. It should be
-> profiled before files are wired into the routes, because that is when it
-> starts costing owners time.
+> **The chunk size is injectable, and the reason is worth recording.** The
+> first version of the tests proved every index property — ordering,
+> duplication, gaps, splicing — at the production 4 MiB chunk size, moving
+> 12 MiB per assertion. That suite took nineteen seconds locally and exhausted
+> the heap on a CI runner outright. The properties are about the chunk
+> *index*, not the chunk size, so the store now takes `chunkBytes` with the
+> 4 MiB constant as its default and the index tests run at 64 bytes. One test
+> still runs at the real size so the production path is exercised, and another
+> pins the constant.
+>
+> An earlier note here called the nineteen seconds a throughput problem, at
+> roughly 1.3 MB/s. That was wrong: it was the suite doing 12 MiB six times
+> over, not a slow cipher. The real-size path has still not been profiled, and
+> should be before files are wired into the routes — but there is no evidence
+> of a throughput defect, and the earlier claim should not be repeated.
 >
 > **Deliberately not in this batch.** T052 and T058 (local encryption in the
 > client), T054 (recovery journeys), T057 (feature-001 route integration), T059

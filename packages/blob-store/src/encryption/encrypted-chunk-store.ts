@@ -88,15 +88,18 @@ function digestOf(bytes: Uint8Array): string {
 }
 
 /** Splits a payload into chunk-sized views without copying. */
-export function splitIntoChunks(bytes: Uint8Array): readonly Uint8Array[] {
+export function splitIntoChunks(
+  bytes: Uint8Array,
+  chunkBytes: number = CHUNK_BYTES,
+): readonly Uint8Array[] {
   if (bytes.length === 0) {
     // An empty file has no chunks, and `sealEnvelope` refuses empty plaintext.
     // The caller records a zero-chunk file rather than an empty envelope.
     return [];
   }
   const chunks: Uint8Array[] = [];
-  for (let offset = 0; offset < bytes.length; offset += CHUNK_BYTES) {
-    chunks.push(bytes.subarray(offset, Math.min(offset + CHUNK_BYTES, bytes.length)));
+  for (let offset = 0; offset < bytes.length; offset += chunkBytes) {
+    chunks.push(bytes.subarray(offset, Math.min(offset + chunkBytes, bytes.length)));
   }
   return chunks;
 }
@@ -105,13 +108,26 @@ export interface EncryptedChunkStoreDeps {
   readonly blobs: BlobStore;
   /** The data key for the generation in `binding`. Never stored here. */
   readonly dataKey: (generation: number) => Promise<Uint8Array>;
+  /**
+   * Bytes per chunk. Defaults to the 4 MiB the requirement fixes.
+   *
+   * Overridable so tests can exercise multi-chunk behaviour — ordering,
+   * duplication, gaps — without moving megabytes per assertion. Those
+   * properties are about the chunk *index*, not the chunk size, and proving
+   * them at 4 MiB a chunk cost a CI runner its heap. One test still runs at the
+   * real size, and another asserts the constant itself, so the production
+   * value stays pinned.
+   */
+  readonly chunkBytes?: number;
 }
 
 export class EncryptedChunkStore {
   readonly #deps: EncryptedChunkStoreDeps;
+  readonly #chunkBytes: number;
 
   constructor(deps: EncryptedChunkStoreDeps) {
     this.#deps = deps;
+    this.#chunkBytes = deps.chunkBytes ?? CHUNK_BYTES;
   }
 
   /**
@@ -127,7 +143,7 @@ export class EncryptedChunkStore {
     const envelopes: ChunkEnvelope[] = [];
 
     let chunkIndex = 0;
-    for (const chunk of splitIntoChunks(bytes)) {
+    for (const chunk of splitIntoChunks(bytes, this.#chunkBytes)) {
       const bound = bindingFor(binding, chunkIndex);
       const salt = randomSalt();
       const recordKey = deriveRecordKey(key, salt, `${CHUNK_ENTITY_TYPE}:${chunkIndex}`);
