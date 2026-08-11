@@ -70,6 +70,7 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
         request,
         reply,
         successStatus: 201,
@@ -136,6 +137,7 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
         request,
         reply,
         command: { type: "item.rename", itemId: itemId as Uuid, name: body.name },
@@ -156,6 +158,7 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
         request,
         reply,
         command: { type: "item.trash", itemId: itemId as Uuid },
@@ -188,6 +191,7 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
         request,
         reply,
         command: {

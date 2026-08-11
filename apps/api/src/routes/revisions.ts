@@ -105,6 +105,7 @@ export function registerRevisionRoutes(app: FastifyInstance, context: AppContext
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
         request,
         reply,
         command: {

@@ -33,6 +33,12 @@ const SECURITY_TABLES = [
   "rotation_checkpoints",
   "rotation_operations",
   "rotation_policies",
+  // The key hierarchy is per-installation state, not startup infrastructure,
+  // and it is truncated with everything else. Bootstrap recreates it in its
+  // promotion; a workspace whose ownership arrives another way gets one on its
+  // first protected write. Keeping it here instead — which an earlier attempt
+  // tried — left a previous test's generation 1 in place, and the next
+  // bootstrap promotion then violated the unique index and could not confirm.
   "wrapping_key_versions",
   "workspace_root_keys",
   "data_key_generations",
@@ -84,6 +90,9 @@ export async function resetSecurityInstallation(): Promise<void> {
     // truncating it would leave every later journey claiming a bootstrap
     // attempt against an installation that does not exist. Resetting the row
     // to `uninitialized` is what a fresh install actually looks like.
+    //
+    // The key hierarchy is *not* kept, unlike the installation row: see the
+    // note beside those tables in the list above.
     await client.query(
       `TRUNCATE ${SECURITY_TABLES.map((table) => `"${table}"`).join(", ")} CASCADE`,
     );

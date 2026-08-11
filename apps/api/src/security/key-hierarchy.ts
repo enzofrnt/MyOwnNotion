@@ -220,10 +220,38 @@ export class KeyHierarchy {
     executor: Database | Transaction,
     input: { generation?: number; writable: boolean },
   ): Promise<DataKey> {
-    const stored =
+    let stored =
       input.generation === undefined
         ? await findCurrentGeneration(executor, this.#deps.workspaceId)
         : await findGeneration(executor, this.#deps.workspaceId, input.generation);
+
+    // **Established on first write, not at startup.** Two things create the
+    // hierarchy — this, and the bootstrap promotion, which mints the owner's
+    // first data key as part of the atomic `0/0` → `1/1` transaction. Doing it
+    // eagerly at startup collided with that: startup inserted generation 1,
+    // and the promotion's own insert then violated the unique index, so
+    // confirming setup failed outright.
+    //
+    // Creating it lazily removes the ordering problem entirely. Before bootstrap
+    // there is no content to protect and nothing runs this; after it, the
+    // promotion has already made the generation and this finds it. The only
+    // case left is an installation whose ownership was established some other
+    // way, and it gets a hierarchy the first time it writes.
+    if (stored === null && input.generation === undefined && input.writable) {
+      // "No current generation" is not the same as "no hierarchy". A retired or
+      // revoked generation with no current one means a rotation left the
+      // workspace in a state it should not be in, and minting generation 1
+      // again would both violate the unique index and paper over it. The
+      // hierarchy always starts at generation 1, so its presence is the test
+      // for whether one exists at all.
+      const established = await findGeneration(executor, this.#deps.workspaceId, 1);
+      if (established === null) {
+        await this.#deps.db.transaction(async (tx) => {
+          await this.initialize(tx);
+        });
+        stored = await findCurrentGeneration(executor, this.#deps.workspaceId);
+      }
+    }
 
     if (stored === null) {
       throw new KeyUnavailableError(

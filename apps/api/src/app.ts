@@ -38,7 +38,10 @@ import { resolvePrincipal } from "./security/authentication-hook.ts";
 import { BootstrapService } from "./security/bootstrap-service.ts";
 import { setSessionCookie } from "./security/cookie-policy.ts";
 import { loadDeploymentKey } from "./security/deployment-key.ts";
+import { KeyHierarchy } from "./security/key-hierarchy.ts";
 import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
+import { ProtectedContent } from "./security/protected-content.ts";
+import { ProtectedRecordService } from "./security/protected-record-service.ts";
 import {
   attachRequestContext,
   createRequestContext,
@@ -90,11 +93,26 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const workspace = await getOrCreateWorkspace(database.db);
   const contentStore = new ContentStore(new FilesystemBlobStore(options.blobRoot));
 
+  /**
+   * Set only when the security layer is configured.
+   *
+   * Undefined leaves feature-001 exactly as it was, which is what the
+   * feature-001 contract harness relies on: it builds the app without a
+   * security configuration and must not suddenly need a deployment key to
+   * write a page.
+   */
+  let protectedContent: ProtectedContent | undefined;
+
   const context: AppContext = {
     db: database.db,
     workspaceId: workspace.id,
     schemaVersion: workspace.schemaVersion,
     contentStore,
+    get protectedContent() {
+      // A getter, because the security block that assigns it runs after this
+      // object is built and the content routes read it per request.
+      return protectedContent;
+    },
   };
 
   const app = Fastify({
@@ -151,6 +169,25 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       }
     };
 
+    // The key hierarchy is deliberately *not* established here.
+    //
+    // Establishing it at startup collided with the bootstrap promotion, which
+    // mints the owner's first data key inside its atomic transaction: startup
+    // inserted generation 1, the promotion's own insert then violated the
+    // unique index, and confirming setup failed outright. It also could not
+    // help an installation whose ownership arrives after the process started,
+    // which is every one of them.
+    //
+    // `dataKey` creates it on the first protected write instead. See the
+    // comment there.
+    const keys = new KeyHierarchy({
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      workspaceId: workspace.id,
+      deploymentKey,
+      now,
+    });
+
     // One policy object, shared by the service and the routes. Two calls would
     // be two objects that could drift the moment the policy takes an argument.
     const policy = sessionPolicy();
@@ -170,6 +207,20 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       if (outcome.authenticated) {
         updateRequestContext(request, { principal: outcome.principal });
       }
+    });
+
+    // Available to the content routes through the context, so a feature-001
+    // route can seal its payload without knowing anything about key
+    // generations. Absent when security is not configured, which is what keeps
+    // the feature-001 harness behaving exactly as it did.
+    protectedContent = new ProtectedContent({
+      records: new ProtectedRecordService({
+        db: database.db,
+        keys,
+        installationId: INSTALLATION_ID,
+        workspaceId: workspace.id,
+        now,
+      }),
     });
 
     registerAuthenticationRoutes(app, {

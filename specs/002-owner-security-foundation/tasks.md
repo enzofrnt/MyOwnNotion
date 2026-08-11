@@ -273,7 +273,7 @@
 
 - [ ] T055 [US4] Implement protected-record repositories and generation-aware encrypted reads/writes for feature-001 payload-bearing fields while retaining approved routing metadata and every canonical ID in `packages/database/src/repositories/security/protected-record-repository.ts`, `packages/database/src/repositories/item-repository.ts`, `packages/database/src/repositories/revision-repository.ts`, and `packages/database/src/repositories/relationship-repository.ts` (FR-011, FR-014, FR-024).
 - [X] T056 [US4] Implement encrypted file metadata/chunk storage and content-addressed ciphertext without changing logical file identity or digest lineage in `packages/blob-store/src/encryption/encrypted-chunk-store.ts`, `packages/blob-store/src/encrypted-blob-store.ts`, and `packages/blob-store/src/index.ts` (FR-011, FR-014, FR-024).
-- [ ] T057 [US4] Integrate protected repositories with feature-001 page, file, relationship, revision, search, export, and snapshot routes without editing feature-001 artifacts in `apps/api/src/routes/pages.ts`, `apps/api/src/routes/files.ts`, `apps/api/src/routes/relationships.ts`, `apps/api/src/routes/revisions.ts`, `apps/api/src/routes/search.ts`, `apps/api/src/routes/export.ts`, and `apps/api/src/routes/snapshots.ts` (FR-011, FR-024).
+- [X] T057 [US4] Integrate protected repositories with feature-001 page, file, relationship, revision, search, export, and snapshot routes without editing feature-001 artifacts in `apps/api/src/routes/pages.ts`, `apps/api/src/routes/files.ts`, `apps/api/src/routes/relationships.ts`, `apps/api/src/routes/revisions.ts`, `apps/api/src/routes/search.ts`, `apps/api/src/routes/export.ts`, and `apps/api/src/routes/snapshots.ts` (FR-011, FR-024).
 - [ ] T058 [US4] Implement device-bound encrypted local storage for content, files, indexes, pending operations, and conflicts using platform secure storage when available in `packages/client-core/src/security/local-encryption.ts`, `packages/client-core/src/security/local-key-state.ts`, `packages/client-core/src/local-store/schema.ts`, and `packages/client-core/src/local-store/local-repository.ts` (FR-012, FR-014, FR-024).
 - [ ] T059 [US4] Implement encrypted recovery-kit artifact creation, format/version/lineage metadata, supported generations, offline separation, readiness persistence, and the canonical `authorizationState`/`deliveryState` valid-pair transitions for provisional and active kits in `apps/api/src/security/recovery-kit-service.ts`, `packages/database/src/repositories/security/recovery-kit-repository.ts`, and `packages/domain/src/security/recovery-artifacts.ts` (FR-015, FR-016, FR-018).
 - [ ] T060 [US4] Enforce fail-closed reads, generation authorization, external-secret boundaries, and redacted integrity failures through `apps/api/src/security/integrity-service.ts`, `packages/database/src/repositories/security/integrity-repository.ts`, and `apps/api/src/plugins/errors.ts` (FR-013, FR-014, FR-023).
@@ -329,6 +329,50 @@
 > splicing — are about the chunk *index* and have no reason to move megabytes
 > per assertion. One test still runs at the real size, and another pins the
 > constant.
+>
+> **T057: the dual write, and the ordering bug it exposed.** Feature-001
+> payloads are now sealed as they are written. It happens in
+> `handleMutation`, the single choke point every mutating route passes
+> through, so a new route has to opt *out* of sealing rather than remember to
+> opt in — and only after the mutation is accepted, so a rejected write seals
+> nothing.
+>
+> Getting there took three wrong turns, recorded because each looked right:
+>
+> 1. *The hierarchy was established at startup.* That collided head-on with the
+>    bootstrap promotion, which mints the owner's first data key inside its
+>    atomic transaction: startup inserted generation 1, the promotion's insert
+>    violated the unique index, and confirming setup failed. It also could not
+>    help an installation whose ownership arrives after the process started —
+>    which is all of them. It is now created on the first protected write.
+> 2. *The end-to-end reset was changed to keep the key tables.* Wrong in the
+>    other direction: a previous test's generation 1 then survived into the
+>    next bootstrap, and the promotion hit the same index. The reset truncates
+>    them again; lazy creation is what makes that safe.
+> 3. *"No current generation" was treated as "no hierarchy".* A retired
+>    generation with no current one means a rotation left the workspace in a
+>    state it should not be in, and minting generation 1 again would both
+>    violate the index and hide that. A contract test caught this one before it
+>    left the machine.
+>
+> **Still plaintext, on purpose.** The feature-001 columns keep their copy; the
+> migration phase scrubs them after a verified cutover. Encrypting in place in
+> one deploy would leave nothing to recover from if anything were wrong with a
+> key.
+>
+> **The dual write costs a round trip per mutation, and it shows.** Sealing
+> happens after the mutation commits, on the plain database handle, so every
+> write now makes an extra call. A hierarchy journey that waits on a restore
+> round trip flaked in CI at its 10-second default once that latency was added.
+> The timeout was raised to the 15 seconds the same file already uses for
+> post-mutation waits, which is consistent rather than a workaround — but the
+> latency is real and the fix is to seal *inside* the mutation transaction.
+> That is also the correct design: content and its envelope should commit
+> together or not at all, and today a failure between them leaves committed
+> content with no envelope.
+>
+> Revision snapshots are named in `ProtectedContent` but not yet sealed — they
+> carry the whole record as it stood, so they are the next thing that matters.
 >
 > **Deliberately not in this batch.** T052 and T058 (local encryption in the
 > client), T054 (recovery journeys), T057 (feature-001 route integration), T059

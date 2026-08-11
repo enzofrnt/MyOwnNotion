@@ -50,6 +50,7 @@ export function registerRelationshipRoutes(app: FastifyInstance, context: AppCon
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
         request,
         reply,
         successStatus: 201,
@@ -80,6 +81,7 @@ export function registerRelationshipRoutes(app: FastifyInstance, context: AppCon
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
         request,
         reply,
         command: { type: "relationship.remove", relationshipId: relationshipId as Uuid },
