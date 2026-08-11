@@ -28,14 +28,21 @@ function connectionString(): string {
 }
 
 /**
- * Encodes a password exactly as `password-service.ts` does.
+ * Encodes a password in the stored format, at deliberately cheap parameters.
  *
- * Duplicated rather than imported because `apps/api` is not on the end-to-end
- * module path. A drift here shows up immediately as a refused sign-in, which
- * is a loud failure rather than a silent one.
+ * A stored hash carries its own parameters and the server verifies against
+ * those, so a fixture need not pay the production cost — which is 256 MB of
+ * synchronous work per test, for nothing. Cheap parameters also exercise the
+ * versioned-hash property rather than working around it: if verification ever
+ * stopped reading the parameters from the row, every journey here would start
+ * failing to sign in.
+ *
+ * The format is duplicated rather than imported because `apps/api` is not on
+ * the end-to-end module path; a drift shows up immediately as a refused
+ * sign-in, which is loud rather than silent.
  */
 function encodePassword(password: string): string {
-  const N = 131_072;
+  const N = 16_384;
   const r = 8;
   const p = 1;
   const salt = randomBytes(16);
@@ -76,18 +83,31 @@ test.beforeEach(async () => {
   await seedPassword();
 });
 
+/**
+ * Brings the sign-in page to its password form.
+ *
+ * A browser that supports passkeys opens on the passkey option and offers a
+ * link to the password; one that does not — WebKit on Linux, for instance —
+ * opens on the password form with no link at all. So the form is *checked
+ * for* rather than the link being clicked speculatively.
+ *
+ * The obvious shortcut, `click().catch(() => {})`, is a trap: `click()` waits
+ * for its locator until the test times out, so swallowing the rejection still
+ * costs the full timeout on every browser where the link does not exist. That
+ * is exactly how these journeys passed on macOS and took an hour to fail in
+ * CI. `isVisible()` answers immediately.
+ */
+async function openPasswordForm(page: import("@playwright/test").Page): Promise<void> {
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+  if (!(await page.getByTestId("password-input").isVisible())) {
+    await page.getByTestId("use-password-instead").click();
+  }
+  await expect(page.getByTestId("password-input")).toBeVisible();
+}
+
 async function signIn(page: import("@playwright/test").Page, password = PASSWORD): Promise<void> {
   await page.goto("/");
-  // Wait for the shell to resolve which of its three states it is in, or the
-  // clicks below race the loading placeholder.
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
-  await page
-    .getByTestId("use-password-instead")
-    .click()
-    .catch(() => {
-      // Already on the password form: a browser without passkey support starts
-      // there, and the link is not rendered.
-    });
+  await openPasswordForm(page);
   await page.getByTestId("password-input").fill(password);
   await page.getByTestId("sign-in-password").click();
 }
@@ -118,13 +138,43 @@ test.describe("the sign-in gate", () => {
     }
   });
 
-  test("the password field is reachable and operable from the keyboard", async ({ page }) => {
+  test("a browser without passkey support opens on the password form", async ({ page }) => {
+    // Not hypothetical: WebKit on Linux exposes no `PublicKeyCredential`, and
+    // this branch of the sign-in page was written for it but exercised by
+    // nothing — every journey ran on browsers that do support passkeys, so a
+    // helper that waited for a link this page never renders passed locally and
+    // timed out sixteen times in CI. Removing the API here covers the branch
+    // on every browser in the matrix.
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, "PublicKeyCredential");
+    });
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
-    await page
-      .getByTestId("use-password-instead")
-      .click()
-      .catch(() => {});
+
+    // Straight to the password, with no link to a passkey option that could
+    // not work, and a note saying why.
+    await expect(page.getByTestId("password-input")).toBeVisible();
+    await expect(page.getByTestId("use-password-instead")).toHaveCount(0);
+    await expect(page.getByTestId("use-passkey-instead")).toHaveCount(0);
+    await expect(page.getByText("cannot use passkeys")).toBeVisible();
+  });
+
+  test("signing in still works without passkey support", async ({ page }) => {
+    await page.addInitScript(() => {
+      Reflect.deleteProperty(window, "PublicKeyCredential");
+    });
+    await page.goto("/");
+    await openPasswordForm(page);
+    await page.getByTestId("password-input").fill(PASSWORD);
+    await page.getByTestId("sign-in-password").click();
+    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+
+  test("the password field is reachable and operable from the keyboard", async ({ page }) => {
+    await page.goto("/");
+    await openPasswordForm(page);
     const input = page.getByTestId("password-input");
     await input.focus();
     await expect(input).toBeFocused();
@@ -235,11 +285,7 @@ test.describe("the security screen", () => {
 test.describe("responsive and assistive presentation", () => {
   test("the sign-in control fits the viewport without horizontal scrolling", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
-    await page
-      .getByTestId("use-password-instead")
-      .click()
-      .catch(() => {});
+    await openPasswordForm(page);
     const button = page.getByTestId("sign-in-password");
     const box = await button.boundingBox();
     const width = page.viewportSize()?.width ?? 0;
