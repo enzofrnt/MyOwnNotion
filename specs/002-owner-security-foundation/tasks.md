@@ -95,7 +95,9 @@
 > applies to T106 in Phase 8 (10 usability participants). Both need a human to
 > run them and record the raw results in `validation.md`.
 >
-> **Committed-count definition (decided here).** `workspaceCount` counts
+> **Why the count joins instead of trusting the column (recorded here).** `installations.workspace_id` carries no foreign key, by the deliberate decision recorded at the head of migration `0004`: protected records must survive a migration that scrubs plaintext rows. That leaves the column free to point at a workspace that does not exist. The join is what keeps the decision safe — a dangling binding counts zero, the singleton invariant breaks, and `/v1/installation/status` fails closed rather than reporting a workspace nobody can open. Pinned by `a binding that points at no workspace` in `bootstrap.contract.spec.ts`.
+
+**Committed-count definition (decided here).** `workspaceCount` counts
 > workspaces the installation is *bound* to, via a join, not raw `workspaces`
 > rows. Feature 001 creates the canonical workspace eagerly at API startup, so
 > counting rows reported `workspaceCount = 1` on a pristine installation and
