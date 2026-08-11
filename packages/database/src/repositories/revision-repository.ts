@@ -14,7 +14,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import type { Transaction } from "../client.ts";
+import type { Database, Transaction } from "../client.ts";
 import {
   items,
   logicalFiles,
@@ -234,4 +234,26 @@ export async function buildItemSnapshot(
     positionKey: placement.positionKey,
   }));
   return snapshot;
+}
+
+/**
+ * Reads the stored snapshots for a set of revisions.
+ *
+ * Exists so the encryption layer can seal them from inside the mutation's own
+ * transaction. A snapshot is the whole record as it stood, so it is the field
+ * that would let someone holding the database reconstruct everything a scrub
+ * of the current rows was meant to remove.
+ */
+export async function readRevisionSnapshots(
+  executor: Database | Transaction,
+  revisionIds: readonly string[],
+): Promise<ReadonlyMap<string, Record<string, unknown>>> {
+  if (revisionIds.length === 0) {
+    return new Map();
+  }
+  const rows = await executor
+    .select({ id: revisions.id, snapshot: revisions.snapshot })
+    .from(revisions)
+    .where(inArray(revisions.id, [...revisionIds]));
+  return new Map(rows.map((row) => [row.id, row.snapshot as Record<string, unknown>]));
 }
