@@ -169,11 +169,17 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       }
     };
 
-    // The key hierarchy, established at startup so a configured installation
-    // is always ready to seal. Idempotent, and it refuses when the deployment
-    // key is unavailable — which is why it is wrapped: an installation with no
-    // key must still start and serve its status route, so the operator can see
-    // what is wrong. Protected reads and writes refuse individually.
+    // The key hierarchy is deliberately *not* established here.
+    //
+    // Establishing it at startup collided with the bootstrap promotion, which
+    // mints the owner's first data key inside its atomic transaction: startup
+    // inserted generation 1, the promotion's own insert then violated the
+    // unique index, and confirming setup failed outright. It also could not
+    // help an installation whose ownership arrives after the process started,
+    // which is every one of them.
+    //
+    // `dataKey` creates it on the first protected write instead. See the
+    // comment there.
     const keys = new KeyHierarchy({
       db: database.db,
       installationId: INSTALLATION_ID,
@@ -181,16 +187,6 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
       deploymentKey,
       now,
     });
-    try {
-      await database.db.transaction(async (tx) => {
-        await keys.initialize(tx);
-      });
-    } catch (error) {
-      app.log.warn(
-        { err: error instanceof Error ? error.name : "unknown" },
-        "the workspace key hierarchy could not be established; protected data is unavailable",
-      );
-    }
 
     // One policy object, shared by the service and the routes. Two calls would
     // be two objects that could drift the moment the policy takes an argument.
