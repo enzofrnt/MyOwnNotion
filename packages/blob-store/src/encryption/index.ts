@@ -5,4 +5,4 @@
  * source cleanup belongs to migration orchestration, not to this package.
  */
 
-export {};
+export * from "./encrypted-chunk-store.ts";
