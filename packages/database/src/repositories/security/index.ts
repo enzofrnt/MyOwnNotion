@@ -9,6 +9,7 @@
 export * from "./audit-repository.ts";
 export * from "./bootstrap-repository.ts";
 export * from "./credential-repository.ts";
+export * from "./device-repository.ts";
 export * from "./installation-repository.ts";
 export * from "./key-repository.ts";
 export * from "./protected-record-repository.ts";
