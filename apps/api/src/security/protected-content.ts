@@ -33,6 +33,7 @@ export const PROTECTED_ENTITY_TYPES = {
   itemName: "item.name",
   pageBody: "page.body",
   revisionSnapshot: "revision.snapshot",
+  relationshipMetadata: "relationship.metadata",
 } as const;
 
 export interface ProtectedContentDeps {
@@ -124,6 +125,41 @@ export class ProtectedContent {
     recordVersion?: number,
   ): Promise<T | null> {
     return await this.#read<T>(executor, PROTECTED_ENTITY_TYPES.pageBody, pageId, recordVersion);
+  }
+
+  /**
+   * Seals a relationship's metadata.
+   *
+   * FR-011 names "sensitive properties and relationships" explicitly. The
+   * endpoints and the relation type stay readable — the graph has to be
+   * traversable without a key, exactly as the hierarchy is — but the metadata
+   * is a free-form note the owner wrote about *why* two items are related,
+   * which is often more revealing than either item's title.
+   */
+  async writeRelationshipMetadata(
+    executor: Database | Transaction,
+    input: { relationshipId: string; recordVersion: number; metadata: unknown },
+  ): Promise<void> {
+    await this.#write(
+      executor,
+      PROTECTED_ENTITY_TYPES.relationshipMetadata,
+      input.relationshipId,
+      input.recordVersion,
+      input.metadata,
+    );
+  }
+
+  async readRelationshipMetadata<T>(
+    executor: Database | Transaction,
+    relationshipId: string,
+    recordVersion?: number,
+  ): Promise<T | null> {
+    return await this.#read<T>(
+      executor,
+      PROTECTED_ENTITY_TYPES.relationshipMetadata,
+      relationshipId,
+      recordVersion,
+    );
   }
 
   /**
