@@ -42,6 +42,18 @@ export function describeLastUse(iso: string | null): string {
   return Number.isNaN(at.getTime()) ? "unknown" : at.toLocaleString();
 }
 
+/**
+ * What revoking does, and what it does not (FR-010).
+ *
+ * Revocation stops a device reaching the workspace from now on. It cannot
+ * reach back and erase what the device already holds — a lost laptop that
+ * never comes online again keeps whatever was on it. Saying only "revoked"
+ * would let an owner believe their data was wiped, and stop looking for the
+ * device.
+ */
+export const REVOKED_NOTICE =
+  "That device can no longer reach this workspace. Anything already stored on it cannot be erased remotely if it never reconnects.";
+
 export function describeState(state: DeviceDto["state"]): string {
   switch (state) {
     case "revoked":
@@ -116,7 +128,7 @@ export function DevicePanel(props: DevicePanelProps) {
         setMessage(explain(result.problem.code, "That device could not be revoked."));
       } else {
         await refresh();
-        setMessage("That device can no longer reach this workspace.");
+        setMessage(REVOKED_NOTICE);
       }
       setBusy(false);
     },
