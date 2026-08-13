@@ -11,6 +11,16 @@ services:
     ports:
       - "127.0.0.1:${MYOWNNOTION_DB_PORT:-5432}:5432"
 
+  # Shares the API image, so it must share the locally built one too:
+  # otherwise the schema job would run the published image against a database
+  # the freshly built API is about to use.
+  migrate:
+    image: myownnotion/api:dev
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    read_only: false
+
   api:
     image: myownnotion/api:dev
     build:

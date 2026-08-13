@@ -4,8 +4,9 @@
  * Static checks on the committed Compose files. They run without a Docker
  * daemon so the gate is identical locally and in CI:
  *
- *   1. the official stack declares `api`, `web`, `postgres`, and durable
- *      volumes for PostgreSQL data and the encrypted file store;
+ *   1. the official stack declares `api`, `web`, `postgres`, the one-shot
+ *      `migrate` schema job the API waits on, and durable volumes for
+ *      PostgreSQL data and the encrypted file store;
  *   2. every published port binds 127.0.0.1 explicitly — the HTTPS boundary is
  *      the administrator's external reverse proxy, not this stack;
  *   3. no secret value appears in any Compose file: secret material arrives as
@@ -30,6 +31,7 @@ interface ComposeService {
   secrets?: unknown[];
   healthcheck?: unknown;
   depends_on?: unknown;
+  restart?: string;
 }
 
 interface ComposeDocument {
@@ -74,10 +76,39 @@ for (const required of ["postgres-data", "file-store"]) {
     failures.push(`compose.yaml must declare the durable \`${required}\` volume`);
   }
 }
+// A healthcheck answers "is this still serving?", which only a long-running
+// service can answer. The schema job runs to completion and is depended on
+// through its exit status instead, so `restart: "no"` marks it as one-shot.
+function isOneShotJob(service: ComposeService): boolean {
+  return String(service.restart ?? "").trim() === "no";
+}
+
 for (const [name, service] of Object.entries(base.services ?? {})) {
-  if (service.healthcheck === undefined) {
+  if (service.healthcheck === undefined && !isOneShotJob(service)) {
     failures.push(`compose.yaml service \`${name}\` must define a healthcheck`);
   }
+}
+
+// The schema must be applied by a job that finishes before the API starts.
+// Migrating from inside server startup would let replicas race on the same
+// database, and leaving it out entirely brought the API up against an empty
+// one — the failure that motivated this rule.
+const migrateService = base.services?.["migrate"];
+if (migrateService === undefined) {
+  failures.push("compose.yaml must declare the one-shot `migrate` schema job");
+} else if (!isOneShotJob(migrateService)) {
+  failures.push(
+    'compose.yaml service `migrate` must set `restart: "no"`; it is a job, not a service',
+  );
+}
+
+const apiDependsOnMigrate = (
+  base.services?.["api"]?.depends_on as Record<string, { condition?: string }> | undefined
+)?.["migrate"];
+if (apiDependsOnMigrate?.condition !== "service_completed_successfully") {
+  failures.push(
+    "compose.yaml service `api` must depend on `migrate` with `condition: service_completed_successfully`",
+  );
 }
 
 // 2. Loopback-only published ports in every Compose file.

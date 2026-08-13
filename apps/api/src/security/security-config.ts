@@ -10,11 +10,21 @@
  * misconfiguration cannot quietly downgrade a production session — it
  * produces a differently named cookie the production path does not accept.
  *
- * `MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1` alone is not enough. The public
- * origin must be loopback HTTP *and* the listener must be bound to loopback.
- * A public HTTP origin with the flag set is a configuration error and the
- * process refuses to start, because the operator has asked for something that
- * would ship session cookies in clear text over a network.
+ * `MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1` alone is not enough: the public
+ * origin must also be loopback HTTP. A public HTTP origin with the flag set is
+ * a configuration error and the process refuses to start, because the operator
+ * has asked for something that would ship session cookies in clear text over a
+ * network.
+ *
+ * The bound listener is deliberately *not* part of that decision. A container
+ * has to listen on `0.0.0.0` to be reachable through its published port at
+ * all, so requiring a loopback listener made the exception unusable inside the
+ * Compose stack and left the whole security surface silently unregistered. The
+ * public origin is what actually bounds the cookie's reach: with a loopback
+ * origin, only a browser on this host can reach the application at the origin
+ * the cookie, CSRF, and WebAuthn checks are pinned to. Confining the listener
+ * on top of that is the deployment's job — `compose.yaml` publishes every port
+ * on `127.0.0.1` and `pnpm compose:check` verifies it.
  */
 
 export const PRODUCTION_SESSION_COOKIE = "__Host-mn_session" as const;
@@ -112,11 +122,6 @@ export function loadSecurityConfig(env: Environment = process.env): SecurityConf
   const exceptionRequested = env["MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE"]?.trim() === "1";
 
   const originIsLoopbackHttp = isLoopbackHttpOrigin(publicOrigin);
-  // `0.0.0.0` inside a container is loopback-reachable only because the
-  // published port binds 127.0.0.1 on the host, which Compose enforces and
-  // `pnpm compose:check` verifies. Treating it as loopback here would let a
-  // directly exposed container use the exception, so it does not count.
-  const listenerIsLoopback = isLoopbackHostname(listenHost);
 
   let cookieMode: SessionCookieMode;
   if (exceptionRequested) {
@@ -124,12 +129,6 @@ export function loadSecurityConfig(env: Environment = process.env): SecurityConf
       throw new SecurityConfigError(
         `MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1 requires a loopback HTTP public origin; ` +
           `${publicOrigin.origin} would send session cookies in clear text over a network`,
-      );
-    }
-    if (!listenerIsLoopback) {
-      throw new SecurityConfigError(
-        `MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1 requires a loopback listener; ` +
-          `MYOWNNOTION_API_HOST=${listenHost} is reachable beyond this host`,
       );
     }
     cookieMode = "loopback-development";

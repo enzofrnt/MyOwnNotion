@@ -15,7 +15,7 @@ import {
   getOrCreateWorkspace,
 } from "@myownnotion/database";
 import { sessionPolicy } from "@myownnotion/domain";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { AppContext } from "./context.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
@@ -79,11 +79,23 @@ export interface BuiltApp {
  */
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
 
-/** Returns null rather than throwing when security is not configured. */
-function tryLoadSecurityConfig(): SecurityConfig | null {
+/**
+ * Returns null rather than throwing when security is not configured.
+ *
+ * The refusal is logged because an unlogged one is indistinguishable from a
+ * healthy start: the process listens, `/health` answers 200, the container
+ * healthcheck goes green, and every security route is simply absent. An
+ * operator then has nothing at all to go on — the first symptom is a 404 on
+ * login. The reason belongs in the startup log, where they will look.
+ */
+function tryLoadSecurityConfig(log: FastifyBaseLogger): SecurityConfig | null {
   try {
     return loadSecurityConfig();
-  } catch {
+  } catch (error) {
+    log.warn(
+      { reason: error instanceof Error ? error.message : String(error) },
+      "security configuration was refused; installation, bootstrap, authentication, and session routes are NOT registered",
+    );
     return null;
   }
 }
@@ -137,7 +149,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   // Security surface. `loadSecurityConfig` throws on an incoherent
   // configuration, so a harness that does not supply one gets the content
   // routes alone rather than a partially wired security layer.
-  const securityConfig = options.security ?? tryLoadSecurityConfig();
+  const securityConfig = options.security ?? tryLoadSecurityConfig(app.log);
   if (securityConfig !== null) {
     // The installation row must exist before anything can claim a bootstrap
     // attempt against it. Creating it here mirrors how feature 001 ensures the
