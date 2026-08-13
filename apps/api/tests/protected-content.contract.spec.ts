@@ -387,3 +387,49 @@ describe("history is sealed too", () => {
     expect(row?.distinct_ids).toBe(row?.total);
   });
 });
+
+describe("a refused envelope leaves a trace", () => {
+  it("records the rejection instead of only refusing the read", async () => {
+    // An integrity failure is answered with an opaque refusal, on purpose:
+    // saying which check failed is a decryption oracle. That leaves the
+    // operator with nothing once the request is over — which is exactly the
+    // event they most need. The refusal is now audited.
+    const pageId = await createPage(SECRET_TITLE);
+    // Substitution, induced the way a real one would arrive: the stored AAD
+    // digest no longer describes the record the envelope sits on. Moving the
+    // row to another entity id would instead read as "never written", which is
+    // a different answer and not the one under test.
+    await harness.built.database.db.execute(
+      sql`UPDATE protected_envelopes SET aad_digest = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+          WHERE entity_id = ${pageId}::uuid AND entity_type = 'item.name'`,
+    );
+
+    // Read through the protected path directly. The ordinary route still
+    // serves the plaintext column — switching reads over is the cutover step
+    // of the encryption migration, not this task — so going through it would
+    // succeed and prove nothing.
+    const protectedContent = harness.built.context.protectedContent;
+    expect(protectedContent).toBeDefined();
+    await expect(
+      protectedContent?.readItemName(harness.built.database.db, pageId),
+    ).rejects.toThrow();
+
+    const events = await harness.built.database.db.execute(
+      sql`SELECT event_type, outcome, metadata FROM security_audit_events
+          WHERE event_type = 'integrity.envelope-rejected'`,
+    );
+    const rows = (
+      events as unknown as {
+        rows: { event_type: string; outcome: string; metadata: Record<string, unknown> }[];
+      }
+    ).rows;
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    expect(rows[0]?.outcome).toBe("failure");
+
+    // The trail must stay safe to read: a reason and the generation, never
+    // ciphertext, key material, or anything that was opened.
+    const trail = JSON.stringify(rows);
+    expect(trail).not.toContain(SECRET_TITLE);
+    expect(trail).toContain("binding-mismatch");
+  });
+});

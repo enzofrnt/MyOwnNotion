@@ -6,6 +6,7 @@
  * The server binds to 127.0.0.1 only until authentication exists.
  */
 
+import { randomUUID } from "node:crypto";
 import multipart from "@fastify/multipart";
 import { ContentStore, FilesystemBlobStore } from "@myownnotion/blob-store";
 import {
@@ -282,6 +283,37 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
         installationId: INSTALLATION_ID,
         workspaceId: workspace.id,
         now,
+        // A refused envelope is the one integrity signal an operator cannot
+        // reconstruct afterwards: the request is answered with an opaque
+        // refusal and nothing is left behind. `AuditService.record` swallows
+        // its own failures, so recording can never turn the refusal into a
+        // different error.
+        reportIntegrityFailure: async (failure) => {
+          await audit.record(
+            {
+              installationId: INSTALLATION_ID,
+              workspaceId: workspace.id,
+              // No request is in scope here — this is reached from inside a
+              // repository read — so the event carries its own correlation id
+              // rather than borrowing one it cannot verify.
+              correlationId: randomUUID(),
+              actorClass: "system",
+            },
+            {
+              eventType: "integrity.envelope-rejected",
+              outcome: "failure",
+              objectKind: failure.entityType,
+              objectId: failure.entityId,
+              // Reason, generation and version only. No ciphertext, no key,
+              // no opened bytes — the audit trail must stay safe to read.
+              metadata: {
+                reason: failure.reason,
+                keyGeneration: failure.keyGeneration,
+                recordVersion: failure.recordVersion,
+              },
+            },
+          );
+        },
       }),
     });
 
