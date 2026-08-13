@@ -111,10 +111,23 @@ function sessionView(session: SessionRecord) {
   };
 }
 
+/**
+ * Applies a route's authentication requirement.
+ *
+ * Returned by `registerAuthenticationRoutes` so other route modules share the
+ * one gate rather than rebuilding it. A second implementation would be a
+ * second idea of what "recent" and "valid CSRF" mean, and the two would drift.
+ */
+export type AuthenticationGate = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+  requirement: { csrf?: boolean; recentAuthentication?: boolean },
+) => OwnerPrincipal | null;
+
 export function registerAuthenticationRoutes(
   app: FastifyInstance,
   deps: AuthenticationRouteDeps,
-): void {
+): AuthenticationGate {
   const csrf = createCsrfValidator({ deploymentKey: deps.deploymentKey });
 
   const auditContext = (request: FastifyRequest) => ({
@@ -675,6 +688,8 @@ export function registerAuthenticationRoutes(
       }
     },
   );
+
+  return require;
 }
 
 /**
