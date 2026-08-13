@@ -12,6 +12,7 @@ import {
   type Database,
   readItem,
   readItemName,
+  readRelationshipMetadata,
   readRevisionSnapshots,
   submitMutation,
   type Transaction,
@@ -70,6 +71,20 @@ async function sealPayloads(
       recordVersion: 1,
       body: command.document.body,
     });
+  }
+  // A relationship's metadata: the free-form note explaining *why* two items
+  // are related, which is often more revealing than either title. The
+  // endpoints and the relation type stay in the clear so the graph can be
+  // traversed without a key, exactly as the hierarchy can.
+  if (command.type === "relationship.create") {
+    const metadata = await readRelationshipMetadata(tx, command.id);
+    if (metadata !== null) {
+      await protectedContent.writeRelationshipMetadata(tx, {
+        relationshipId: command.id,
+        recordVersion: 1,
+        metadata,
+      });
+    }
   }
   // The title, whatever created or renamed it. Read back from the row the
   // mutation just wrote rather than taken from the command, so a rename and a

@@ -19,7 +19,7 @@ import {
   validateCreateRelationship,
 } from "@myownnotion/domain";
 import { and, eq, isNull, or } from "drizzle-orm";
-import type { Transaction } from "../client.ts";
+import type { Database, Transaction } from "../client.ts";
 import { items, relationships } from "../schema/index.ts";
 import { getItem } from "./hierarchy-repository.ts";
 import { buildItemSnapshot, insertRevision, supersedeRevision } from "./revision-repository.ts";
@@ -203,4 +203,25 @@ export async function listRelationships(
     sourceAvailability: availability.get(row.sourceItemId) ?? "unavailable",
     targetAvailability: availability.get(row.targetItemId) ?? "unavailable",
   }));
+}
+
+/**
+ * Reads just one relationship's metadata, from any executor.
+ *
+ * The mirror of `readItemName`: the encryption layer seals the metadata from
+ * inside the mutation's own transaction, and `listRelationships` — which fans
+ * out to item availability for both endpoints — would be far more work than
+ * the single column it needs.
+ */
+export async function readRelationshipMetadata(
+  executor: Database | Transaction,
+  relationshipId: string,
+): Promise<Record<string, unknown> | null> {
+  const rows = await executor
+    .select({ metadata: relationships.metadata })
+    .from(relationships)
+    .where(eq(relationships.id, relationshipId))
+    .limit(1);
+  const row = rows[0];
+  return row === undefined ? null : ((row.metadata as Record<string, unknown>) ?? {});
 }

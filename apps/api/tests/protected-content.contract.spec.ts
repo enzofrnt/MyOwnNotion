@@ -26,6 +26,7 @@ let keyDirectory: string;
 
 const SECRET_TITLE = "Codes for the safe";
 const SECRET_BODY = "the third digit is seven";
+const SECRET_RELATION_NOTE = "cited in the dismissal file";
 
 beforeAll(async () => {
   keyDirectory = mkdtempSync(path.join(os.tmpdir(), "mon-content-key-"));
@@ -137,6 +138,46 @@ describe("writing content through the ordinary routes", () => {
       (row) => row.entity_type,
     );
     expect(new Set(types)).toEqual(new Set(["item.name", "page.body"]));
+  });
+
+  it("seals a relationship's metadata but not the edge itself", async () => {
+    // FR-011 names "sensitive properties and relationships". The note saying
+    // *why* two items are related is often more revealing than either title —
+    // and it was reaching PostgreSQL in the clear with no envelope at all.
+    const source = await createPage("Source");
+    const target = await createPage("Target");
+    const relationshipId = generateUuidV7();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: relationshipId,
+        sourceItemId: source,
+        targetItemId: target,
+        relationType: "note:mentions",
+        metadata: { note: SECRET_RELATION_NOTE },
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+
+    expect(await envelopeTypes()).toContain("relationship.metadata");
+    const raw = await envelopeText();
+    expect(raw).not.toContain(SECRET_RELATION_NOTE);
+    expect(raw).not.toContain("dismissal");
+    // The graph stays traversable without a key: both endpoints and the
+    // relation type remain readable, exactly as the hierarchy does.
+    const stored = await harness.built.database.db.execute(
+      sql`SELECT source_item_id, target_item_id, relation_type FROM relationships WHERE id = ${relationshipId}::uuid`,
+    );
+    const row = (
+      stored as unknown as {
+        rows: { source_item_id: string; target_item_id: string; relation_type: string }[];
+      }
+    ).rows[0];
+    expect(row?.source_item_id).toBe(source);
+    expect(row?.target_item_id).toBe(target);
+    expect(row?.relation_type).toBe("note:mentions");
   });
 
   it("keeps the identifier readable", async () => {
