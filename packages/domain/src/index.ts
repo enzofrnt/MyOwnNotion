@@ -22,6 +22,9 @@ export * from "./revisions/types.ts";
 // behind the `@myownnotion/domain/security` subpath because it needs
 // `node:crypto`, which cannot enter a browser bundle.
 export * from "./security/bootstrap.ts";
+// The canonical AAD only: no key material and no `node:crypto`, so the browser
+// client can bind its local envelopes exactly as the server binds its own.
+export * from "./security/envelope-binding.ts";
 export * from "./security/invariants.ts";
 export * from "./security/redaction.ts";
 export * from "./security/rotation-policy.ts";

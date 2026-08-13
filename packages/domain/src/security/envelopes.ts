@@ -25,65 +25,25 @@ import {
   sha256,
   toBase64Url,
 } from "./crypto.ts";
+import { canonicalAadBytes, canonicalAadFor, type EnvelopeBinding } from "./envelope-binding.ts";
 import { ENVELOPE_ALGORITHM, ENVELOPE_FORMAT, type EncryptedEnvelope } from "./types.ts";
 
-/** The identity an envelope is bound to. Every field enters the AAD. */
-export interface EnvelopeBinding {
-  readonly installationId: string;
-  readonly workspaceId: string;
-  readonly entityType: string;
-  readonly entityId: string;
-  readonly keyGeneration: number;
-  readonly recordVersion: number;
-  /** Present only for file chunks. */
-  readonly chunkIndex?: number;
-}
-
-const ENTITY_TYPE_PATTERN = /^[a-z][a-z0-9._-]{1,63}$/;
+export type { EnvelopeBinding };
 
 /**
  * Canonical AAD string.
  *
- * Field order and separators are part of the contract: two bindings must never
- * produce the same string, and the same binding must produce a byte-identical
- * string on every host and every release. `|` cannot appear in a UUID, in a
- * validated entity type, or in a decimal integer, so no field can be shifted
- * into another by crafted input.
+ * The construction itself lives in `envelope-binding.ts`, which carries no
+ * `node:crypto` dependency, because the browser client seals its own local
+ * records against the same binding. Two implementations of this string would
+ * be two chances to disagree by a separator.
  */
 export function canonicalAad(binding: EnvelopeBinding): string {
-  if (!ENTITY_TYPE_PATTERN.test(binding.entityType)) {
-    throw new CryptoInputError(`invalid entityType: ${binding.entityType}`);
-  }
-  if (!Number.isInteger(binding.keyGeneration) || binding.keyGeneration < 1) {
-    throw new CryptoInputError("keyGeneration must be a positive integer");
-  }
-  if (!Number.isInteger(binding.recordVersion) || binding.recordVersion < 1) {
-    throw new CryptoInputError("recordVersion must be a positive integer");
-  }
-  if (
-    binding.chunkIndex !== undefined &&
-    (!Number.isInteger(binding.chunkIndex) || binding.chunkIndex < 0)
-  ) {
-    throw new CryptoInputError("chunkIndex must be a non-negative integer");
-  }
-
-  // An absent chunk index is the empty field, so a whole-record envelope and
-  // chunk 0 of the same entity never share an AAD.
-  return [
-    ENVELOPE_FORMAT,
-    ENVELOPE_ALGORITHM,
-    binding.installationId,
-    binding.workspaceId,
-    binding.entityType,
-    binding.entityId,
-    String(binding.keyGeneration),
-    String(binding.recordVersion),
-    binding.chunkIndex === undefined ? "" : String(binding.chunkIndex),
-  ].join("|");
+  return canonicalAadFor(ENVELOPE_FORMAT, ENVELOPE_ALGORITHM, binding);
 }
 
 export function aadBytes(binding: EnvelopeBinding): Uint8Array {
-  return new Uint8Array(Buffer.from(canonicalAad(binding), "utf8"));
+  return canonicalAadBytes(canonicalAad(binding));
 }
 
 export function aadDigest(binding: EnvelopeBinding): Uint8Array {
