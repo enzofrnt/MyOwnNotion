@@ -23,6 +23,7 @@ import { registerLogging } from "./plugins/logging.ts";
 import { registerAuthenticationRoutes } from "./routes/authentication.ts";
 import { registerBootstrapRoutes } from "./routes/bootstrap.ts";
 import { registerChangeRoutes } from "./routes/changes.ts";
+import { registerDeviceRoutes } from "./routes/devices.ts";
 import { registerExportRoutes } from "./routes/export.ts";
 import { registerFileRoutes } from "./routes/files.ts";
 import { registerHealthRoutes } from "./routes/health.ts";
@@ -39,6 +40,7 @@ import { resolvePrincipal } from "./security/authentication-hook.ts";
 import { BootstrapService } from "./security/bootstrap-service.ts";
 import { setSessionCookie } from "./security/cookie-policy.ts";
 import { loadDeploymentKey } from "./security/deployment-key.ts";
+import { DeviceService } from "./security/device-service.ts";
 import { KeyHierarchy } from "./security/key-hierarchy.ts";
 import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
 import { ProtectedContent } from "./security/protected-content.ts";
@@ -317,7 +319,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       }),
     });
 
-    registerAuthenticationRoutes(app, {
+    const requireOwner = registerAuthenticationRoutes(app, {
       db: database.db,
       config: securityConfig,
       sessions: sessionService,
@@ -327,6 +329,16 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       policy,
       now,
       challenges: new Map<string, WebAuthnChallenge>(),
+    });
+
+    // The device inventory shares the authentication gate rather than building
+    // its own: one idea of what "recent" and "valid CSRF" mean, for the routes
+    // an owner reaches for when they suspect someone else has access.
+    registerDeviceRoutes(app, {
+      devices: new DeviceService({ db: database.db, now }),
+      audit,
+      installationId: INSTALLATION_ID,
+      require: requireOwner,
     });
 
     const bootstrap = new BootstrapService({
