@@ -25,6 +25,8 @@ function device(overrides: Partial<AuthorizedDevice> = {}): AuthorizedDevice {
     lastSyncAt: null,
     localStorageLimitBytes: null,
     localStorageUsedBytes: 0,
+    keyProtectionCapability: null,
+    deviceKeyVersion: 1,
     revokedAt: null,
     ...overrides,
   };
@@ -57,6 +59,28 @@ describe("the three places the row and the contract disagree", () => {
   it("names an unknown platform rather than omitting it", () => {
     const dto = toDeviceDto(device({ platform: null }));
     expect(dto.platform).toBe("unknown");
+  });
+});
+
+describe("how a device says it protects its key", () => {
+  it("omits the field when the device never said", () => {
+    // Silence is not "unavailable". A device that predates the question is
+    // not a weakly protected one, and telling the owner otherwise would send
+    // them revoking something that is fine.
+    const dto = toDeviceDto(device({ keyProtectionCapability: null }));
+    expect(dto.keyProtection).toBeUndefined();
+  });
+
+  it("reports what the device actually claimed", () => {
+    const dto = toDeviceDto(device({ keyProtectionCapability: "platform-secure-storage" }));
+    expect(dto.keyProtection).toBe("platform-secure-storage");
+  });
+
+  it("drops a value the contract does not define", () => {
+    // The column is free text. Passing an unknown value straight through would
+    // fail response serialization and turn a stale client into a 500.
+    const dto = toDeviceDto(device({ keyProtectionCapability: "something-invented" }));
+    expect(dto.keyProtection).toBeUndefined();
   });
 });
 

@@ -46,6 +46,19 @@ export interface DeviceServiceDeps {
   readonly now: () => Date;
 }
 
+type KeyProtection = NonNullable<DeviceDto["keyProtection"]>;
+
+const KEY_PROTECTIONS: readonly KeyProtection[] = [
+  "platform-secure-storage",
+  "browser-non-exportable",
+  "unavailable",
+];
+
+/** Guards the column, which is free text, against the contract union. */
+function isKeyProtection(value: string | null): value is KeyProtection {
+  return value !== null && (KEY_PROTECTIONS as readonly string[]).includes(value);
+}
+
 export function toDeviceDto(device: AuthorizedDevice): DeviceDto {
   return {
     deviceId: device.id,
@@ -59,6 +72,13 @@ export function toDeviceDto(device: AuthorizedDevice): DeviceDto {
     state: device.state,
     localStorageLimitBytes: device.localStorageLimitBytes ?? DEFAULT_LOCAL_STORAGE_LIMIT_BYTES,
     localUsageBytes: device.localStorageUsedBytes,
+    // Omitted when the device never reported one. The contract makes this
+    // optional precisely so silence stays distinguishable from a device
+    // stating it has no secure storage — the owner should not be told a
+    // device is weakly protected when it simply predates the question.
+    ...(isKeyProtection(device.keyProtectionCapability)
+      ? { keyProtection: device.keyProtectionCapability }
+      : {}),
   };
 }
 
