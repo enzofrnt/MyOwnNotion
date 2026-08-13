@@ -80,20 +80,40 @@ export interface BuiltApp {
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
 
 /**
- * Returns null rather than throwing when security is not configured.
+ * Loads the security configuration, or refuses to start.
  *
- * The refusal is logged because an unlogged one is indistinguishable from a
- * healthy start: the process listens, `/health` answers 200, the container
- * healthcheck goes green, and every security route is simply absent. An
- * operator then has nothing at all to go on — the first symptom is a 404 on
- * login. The reason belongs in the startup log, where they will look.
+ * **In production a refused configuration stops the process.** Continuing
+ * without one is not a degraded mode: the installation, bootstrap,
+ * authentication, and session routes are simply absent, so the workspace is
+ * open to anyone who can reach it. The failure is also invisible — the process
+ * listens, `/health` answers 200, the container healthcheck goes green, and
+ * the first symptom is a 404 on login that looks like a routing bug rather
+ * than an unprotected deployment.
+ *
+ * That is not hypothetical: the shipped Compose defaults produced exactly this
+ * state. `MYOWNNOTION_PUBLIC_ORIGIN` defaulted to an `http://` loopback origin
+ * while `MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE` defaulted to `0`, which
+ * `loadSecurityConfig` correctly refuses — and the refusal was swallowed into
+ * a warning nobody reads in a container that reports itself healthy.
+ *
+ * Outside production it still returns null, because the feature-001 contract
+ * harness builds the app deliberately without a security configuration and
+ * must keep working.
  */
 function tryLoadSecurityConfig(log: FastifyBaseLogger): SecurityConfig | null {
   try {
     return loadSecurityConfig();
   } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    if (process.env["NODE_ENV"] === "production") {
+      log.fatal(
+        { reason },
+        "refusing to start: the security configuration is invalid, and serving without one would leave this workspace unprotected",
+      );
+      throw error;
+    }
     log.warn(
-      { reason: error instanceof Error ? error.message : String(error) },
+      { reason },
       "security configuration was refused; installation, bootstrap, authentication, and session routes are NOT registered",
     );
     return null;

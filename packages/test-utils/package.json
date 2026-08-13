@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@myownnotion/database": "workspace:*",
     "@myownnotion/domain": "workspace:*",
     "@testcontainers/postgresql": "^11.11.1",
     "pg": "^8.16.3"

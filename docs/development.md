@@ -80,10 +80,11 @@ Three settings decide whether this works, and each fails quietly on its own:
 - **`MYOWNNOTION_PUBLIC_ORIGIN` must be the origin you open**, port included.
   It defaults to the published web port;
 - **`MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1` is required for an http origin.**
-  Without it the security configuration is refused, and the API answers
-  `/health` with 200 while every installation, bootstrap, authentication, and
-  session route is absent. The refusal is logged: look for
-  `security configuration was refused` in `docker compose logs api`.
+  Without it the security configuration is refused. Under `NODE_ENV=production`
+  the API then refuses to start rather than serve a workspace with no
+  installation, bootstrap, authentication, or session routes, so the container
+  exits and restarts instead of reporting itself healthy. `docker compose logs
+  api` carries the reason.
 
 In a real deployment the administrator's reverse proxy terminates HTTPS in
 front of the stack. There `MYOWNNOTION_PUBLIC_ORIGIN` is the public https
