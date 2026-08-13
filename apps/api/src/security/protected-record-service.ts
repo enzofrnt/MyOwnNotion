@@ -30,12 +30,42 @@ import {
 } from "@myownnotion/domain/security";
 import { type KeyHierarchy, KeyUnavailableError } from "./key-hierarchy.ts";
 
+/**
+ * Why an envelope was refused. Reported, never returned to the caller.
+ *
+ * The two cases are worth telling apart in the audit trail even though the
+ * caller sees one opaque refusal. A binding mismatch means the row is not the
+ * record it was read for — a substitution, or a ciphertext replayed from
+ * another entity. A failed tag means the row *is* the right record but its
+ * bytes no longer authenticate. The first suggests someone editing the
+ * database; the second suggests corruption or a key that no longer matches.
+ */
+export type IntegrityFailureReason = "binding-mismatch" | "authentication-failed";
+
+export interface IntegrityFailure {
+  readonly reason: IntegrityFailureReason;
+  readonly entityType: string;
+  readonly entityId: string;
+  readonly keyGeneration: number;
+  readonly recordVersion: number;
+}
+
 export interface ProtectedRecordServiceDeps {
   readonly db: Database;
   readonly keys: KeyHierarchy;
   readonly installationId: string;
   readonly workspaceId: string;
   readonly now: () => Date;
+  /**
+   * Records a refused envelope.
+   *
+   * Optional, and awaited before the refusal is raised: an integrity failure
+   * that is only ever thrown leaves no trace once the request is answered, and
+   * this is exactly the event an operator needs to see. It must not be able to
+   * turn a refusal into a different failure, so the caller is expected to
+   * swallow its own errors — `AuditService.record` already does.
+   */
+  readonly reportIntegrityFailure?: (failure: IntegrityFailure) => Promise<void>;
 }
 
 export interface ProtectedWrite {
@@ -129,7 +159,12 @@ export class ProtectedRecordService {
     // Checked before any decryption is attempted: a row that is not the record
     // we asked for is a substitution, and the specific answer is more useful to
     // an operator than a generic tag failure.
-    assertEnvelopeMatches(stored, binding);
+    try {
+      assertEnvelopeMatches(stored, binding);
+    } catch (error) {
+      await this.#reportIntegrityFailure("binding-mismatch", input, stored);
+      throw error;
+    }
 
     // A read may use a retired generation — that is what `decrypt-only` is
     // for. It may not use a revoked one, and `dataKey` enforces that.
@@ -142,6 +177,7 @@ export class ProtectedRecordService {
       return openEnvelope(dataKey.material, stored.envelope, binding);
     } catch (error) {
       if (error instanceof EnvelopeDecryptionError) {
+        await this.#reportIntegrityFailure("authentication-failed", input, stored);
         throw new SecurityRepositoryError(
           "protected_read_failed",
           "the stored record did not authenticate",
@@ -149,6 +185,31 @@ export class ProtectedRecordService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Reports a refusal, and never changes it.
+   *
+   * The reporter is given the entity type, id, generation and version — never
+   * the ciphertext, the key, or any opened bytes. It is deliberately unable to
+   * affect the outcome: whatever it does, the refusal that follows is the same.
+   */
+  async #reportIntegrityFailure(
+    reason: IntegrityFailureReason,
+    input: ProtectedRead,
+    stored: { keyGeneration: number; recordVersion: number },
+  ): Promise<void> {
+    const report = this.#deps.reportIntegrityFailure;
+    if (report === undefined) {
+      return;
+    }
+    await report({
+      reason,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      keyGeneration: stored.keyGeneration,
+      recordVersion: stored.recordVersion,
+    });
   }
 
   /**
