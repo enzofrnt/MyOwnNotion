@@ -342,6 +342,20 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     registerBootstrapRoutes(app, {
       service: bootstrap,
       // The kit artifact is streamed, never colocated with workspace data.
+      //
+      // **This is a placeholder, and it recovers nothing** (T059). It emits a
+      // format name, a version and an id — no encrypted key material, no
+      // lineage, no supported generations. The ceremony around it is real: the
+      // download is one-time, the confirmation is explicit, and the states
+      // advance correctly. The file at the end of it is not.
+      //
+      // `packages/domain/src/security/recovery-artifacts.ts` already has
+      // `createRecoveryKit`, which produces the real thing, and the artifact
+      // must be built here at download time rather than stored, since
+      // `recovery_kits` deliberately keeps only a digest. What blocks the
+      // wiring is that `createRecoveryKit` takes a passphrase and no
+      // requirement says where it comes from — it cannot travel with the
+      // artifact without defeating it.
       renderKit: async (kitId) =>
         JSON.stringify({ format: "myownnotion.recovery+json", formatVersion: 1, kitId }),
       // Setup ends signed in: the owner just proved possession, and a
