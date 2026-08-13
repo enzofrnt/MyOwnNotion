@@ -15,6 +15,9 @@ interface ComposeDocument {
     {
       ports?: Array<string | { host_ip?: string; published?: number | string }>;
       image?: string;
+      restart?: string;
+      command?: string[];
+      depends_on?: Record<string, { condition?: string }>;
     }
   >;
   volumes?: Record<string, unknown>;
@@ -67,5 +70,33 @@ describe("compose security (loopback only)", () => {
     };
     expect(postgres.image).toBe("postgres:18");
     expect(postgres.environment?.["TZ"]).toBe("UTC");
+  });
+
+  it("serves the client and the API from one origin", () => {
+    // `MYOWNNOTION_PUBLIC_ORIGIN` names a single origin and the production
+    // session cookie is `__Host-`-prefixed, so it is returned only to the
+    // exact origin that set it. If the web server does not carry `/v1/`
+    // through to the API, the client's relative calls resolve against the
+    // static shell and every one of them answers with index.html.
+    const nginx = readFileSync(path.join(repoRoot, "docker/web-nginx.conf"), "utf8");
+    expect(nginx).toMatch(/location\s+\/v1\/\s*\{[^}]*proxy_pass\s+http:\/\/api:3001/s);
+    expect(nginx).toMatch(/location\s+=\s+\/health\s*\{[^}]*proxy_pass\s+http:\/\/api:3001/s);
+  });
+
+  it("applies the schema through a one-shot job the API waits for", () => {
+    // The image carries the reviewed SQL, but nothing applied it: a fresh
+    // deployment started the API against an empty database and crashed on its
+    // first query. Migrating from server startup instead would let replicas
+    // race, so it is a job whose exit status gates the API.
+    const compose = loadCompose("compose.yaml");
+    const migrate = compose.services?.["migrate"] as { restart?: string; command?: string[] };
+    expect(migrate).toBeDefined();
+    expect(migrate.restart).toBe("no");
+    expect(migrate.command).toContain("dist/migrate.mjs");
+
+    const api = compose.services?.["api"] as {
+      depends_on?: Record<string, { condition?: string }>;
+    };
+    expect(api.depends_on?.["migrate"]?.condition).toBe("service_completed_successfully");
   });
 });

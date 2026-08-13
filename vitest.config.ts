@@ -33,6 +33,12 @@ export default defineConfig({
         // Recorded exception: plan.md "Quality Gates" — narrow, first-party
         // executable exclusion; review if server.ts grows beyond bootstrap wiring.
         "apps/api/src/server.ts",
+        // Process entry point, same exception: reads process.env, calls
+        // process.exit(), and writes to the console. Every line of real
+        // migration logic lives in packages/database/src/migrate.ts, which the
+        // integration suite covers fully. Review if this file grows beyond
+        // resolving the migrations directory and reporting the outcome.
+        "apps/api/src/migrate.ts",
       ],
       thresholds: {
         statements: 90,

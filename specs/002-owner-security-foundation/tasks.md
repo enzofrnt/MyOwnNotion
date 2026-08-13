@@ -486,6 +486,17 @@
 - [ ] T106 [US6] Execute the exact SC-008 usability protocol with exactly 10 pseudonymous participants `P01`–`P10`: show the implemented security screens, give identical task wording without facilitator explanation, score owner/no-second-account, sessions/devices and revocation, recovery readiness, and unreachable-device erasure limitation, record facilitator-explanation yes/no and each 0–4 result, and accept only at least 9 independent four-of-four successes in `specs/002-owner-security-foundation/validation.md` (FR-001, FR-008, FR-010, FR-015, SC-008).
 - [ ] T107 [US6] Run Compose, migration, local-checks/pull-request/`main`/tag, manual-diagnostic, work-branch-push-without-gate, pull-request image-build-without-publication, `main` publication, exact-SHA, negative-gate, five-security-job/artifact, image, checksum, SBOM/provenance, GHCR, and rollback evidence: pin a prior compatible immutable image, restore it through Compose, verify health and persisted data, and fill every delivery/release ledger field in `specs/002-owner-security-foundation/validation.md`—candidate type/SHA, required checks, failed/skipped/missing/cancelled/stale result, exact-SHA result, publication result, all five security artifacts plus `image-build.json`, artifact digests/checksums/SBOM/provenance, current/prior image refs and digests, pre/post persisted-data digests, Compose image selection, pre/post health, rollback result, raw artifact, reviewer, date, and status—keeping SC-007 pending unless every required result and artifact is recorded (FR-030, FR-031, FR-032, FR-033, FR-034, FR-035, SC-007).
 
+- [X] T117 [US6] Apply the reviewed schema inside the official stack: move the migration runner to `packages/database/src/migrate.ts`, add the bundled `apps/api/src/migrate.ts` entrypoint the image ships as `dist/migrate.mjs`, and add the one-shot `migrate` job in `compose.yaml` whose successful exit gates `api`, with `scripts/ci/check-compose.ts` and `tests/contract/compose-security.spec.ts` enforcing it (FR-030, FR-032).
+- [X] T118 [US6] Make the official stack reachable as one origin and fail loudly when it is not: proxy `/v1/` and `/health` to the API in `docker/web-nginx.conf` so the `__Host-` cookie is returned to the origin that set it, allow the named loopback exception behind a published port in `apps/api/src/security/security-config.ts`, log the refused security configuration in `apps/api/src/app.ts` instead of serving a healthy `/health` with no session routes, derive `MYOWNNOTION_PUBLIC_ORIGIN` from the published web port, and document the whole procedure in `.env.example` and `docs/development.md` (FR-030, FR-031).
+
+> **Discovered during use, not planned**: T117 and T118 record faults found when
+> the published stack was first run on a workstation. Each was invisible from
+> the outside — the schema was never applied, the security surface was dropped
+> without a log line, and every client API call resolved to `index.html` — so
+> none of them appeared in T092/T098 as originally written. They are recorded
+> here rather than folded into those tasks so the reason the stack did not run
+> stays legible.
+
 > **Deferral (owner decision)**: the vulnerability-scanning half of T100 and
 > T101 — dependency audit, secret scan, static security analysis, license
 > policy, and the container scan — is postponed until the application is
@@ -637,9 +648,9 @@ the exact implementation, test, workflow, or evidence paths above.
 | FR-027 | `spec.md` §Requirements; `validation.md` FR-027 | T003, T018, T074, T076, T080, T083, T084, T085, T088, T089, T115 |
 | FR-028 | `spec.md` §Requirements; `validation.md` FR-028 | T009, T013, T019, T090, T091, T095, T096, T097, T105, T115 |
 | FR-029 | `spec.md` §Requirements; `validation.md` FR-029 | T003, T011, T090, T091, T095, T096, T097, T105, T115 |
-| FR-030 | `spec.md` §Requirements; `validation.md` FR-030 | T004, T007, T092, T098, T099, T107, T110, T115 |
-| FR-031 | `spec.md` §Requirements; `validation.md` FR-031 | T004, T092, T098, T099, T107, T115 |
-| FR-032 | `spec.md` §Requirements; `validation.md` FR-032 | T004, T005, T007, T092, T094, T098, T099, T101, T102, T103, T107, T115 |
+| FR-030 | `spec.md` §Requirements; `validation.md` FR-030 | T004, T007, T092, T098, T099, T107, T110, T115, T117, T118 |
+| FR-031 | `spec.md` §Requirements; `validation.md` FR-031 | T004, T092, T098, T099, T107, T115, T118 |
+| FR-032 | `spec.md` §Requirements; `validation.md` FR-032 | T004, T005, T007, T092, T094, T098, T099, T101, T102, T103, T107, T115, T117 |
 | FR-033 | `spec.md` §Requirements; `validation.md` FR-033 | T001, T002, T005, T006, T007, T093, T100, T101, T102, T103, T104, T107, T109, T110, T115 |
 | FR-034 | `spec.md` §Requirements; `validation.md` FR-034 | T005, T007, T093, T094, T100, T101, T102, T103, T104, T107, T115 |
 | FR-035 | `spec.md` §Requirements; `validation.md` FR-035 | T001, T002, T003, T006, T007, T008, T012, T013, T016, T017, T022, T032, T037, T042, T046, T061, T073, T086, T087, T092, T093, T100, T102, T103, T107, T109, T110, T111, T112, T113, T115 |

@@ -74,6 +74,9 @@ RUN apt-get update \
 RUN mkdir -p /var/lib/myownnotion/blobs \
  && chown -R node:node /var/lib/myownnotion
 
+# `dist/` holds both entrypoints: `server.mjs` and the `migrate.mjs` the
+# Compose `migrate` job runs. The reviewed SQL sits at /app/migrations, which
+# is where dist/migrate.mjs resolves it from.
 COPY --from=builder --chown=node:node /deploy/node_modules ./node_modules
 COPY --from=builder --chown=node:node /app/apps/api/dist ./dist
 COPY --from=builder --chown=node:node /app/packages/database/migrations ./migrations

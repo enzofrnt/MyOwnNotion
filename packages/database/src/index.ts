@@ -1,4 +1,5 @@
 export * from "./client.ts";
+export * from "./migrate.ts";
 export * from "./mutations/execute-command.ts";
 export * from "./mutations/run-mutation.ts";
 export * from "./repositories/change-repository.ts";

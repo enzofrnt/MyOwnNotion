@@ -231,14 +231,37 @@ describe("session cookie policy", () => {
     ).toThrow(/loopback HTTP public origin/);
   });
 
-  it("refuses the exception when the listener is not loopback", () => {
+  it("allows the exception behind a published port, where the listener cannot be loopback", () => {
+    // A container must listen on 0.0.0.0 to be reachable through its published
+    // port at all. Refusing that combination made the exception unusable inside
+    // the Compose stack, which silently dropped the entire security surface.
+    // The loopback *origin* is what bounds the cookie's reach; confining the
+    // published port to 127.0.0.1 is the deployment's job, and `compose.yaml`
+    // does it under `pnpm compose:check`.
+    const config = loadSecurityConfig({
+      MYOWNNOTION_PUBLIC_ORIGIN: "http://127.0.0.1:5173",
+      MYOWNNOTION_API_HOST: "0.0.0.0",
+      MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
+    });
+
+    expect(config.cookieMode).toBe("loopback-development");
+    expect(config.sessionCookieName).toBe(DEVELOPMENT_SESSION_COOKIE);
+    // The relaxation is about reachability only. The exception still never
+    // yields the production cookie, and still never sets Secure.
+    expect(sessionCookieAttributes(config).secure).toBe(false);
+    expect(acceptsCookieName(config, PRODUCTION_SESSION_COOKIE)).toBe(false);
+  });
+
+  it("still refuses a non-loopback origin however the listener is bound", () => {
+    // The origin check is the one that carries the guarantee, so relaxing the
+    // listener must not open a network origin by way of `0.0.0.0`.
     expect(() =>
       loadSecurityConfig({
-        MYOWNNOTION_PUBLIC_ORIGIN: "http://127.0.0.1:5173",
+        MYOWNNOTION_PUBLIC_ORIGIN: "http://workspace.example",
         MYOWNNOTION_API_HOST: "0.0.0.0",
         MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
       }),
-    ).toThrow(/loopback listener/);
+    ).toThrow(/loopback HTTP public origin/);
   });
 
   it("accepts exactly one cookie name per mode", () => {

@@ -15,7 +15,7 @@ import {
   getOrCreateWorkspace,
 } from "@myownnotion/database";
 import { sessionPolicy } from "@myownnotion/domain";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { AppContext } from "./context.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
@@ -64,6 +64,15 @@ export interface BuildAppOptions {
   readonly security?: SecurityConfig;
   /** Injected so bootstrap timing is testable at exact instants. */
   readonly now?: () => Date;
+  /**
+   * Whether an unusable security configuration stops the process.
+   *
+   * Defaults to `NODE_ENV === "production"`. Injected rather than read
+   * directly at the point of use so a test can exercise the refusal without
+   * setting a global that leaks into every other test sharing the process —
+   * which is exactly what happened the first time this was written.
+   */
+  readonly refuseWithoutSecurity?: boolean;
 }
 
 export interface BuiltApp {
@@ -79,17 +88,65 @@ export interface BuiltApp {
  */
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
 
-/** Returns null rather than throwing when security is not configured. */
-function tryLoadSecurityConfig(): SecurityConfig | null {
+/**
+ * Loads the security configuration, or refuses to start.
+ *
+ * **In production a refused configuration stops the process.** Continuing
+ * without one is not a degraded mode: the installation, bootstrap,
+ * authentication, and session routes are simply absent, so the workspace is
+ * open to anyone who can reach it. The failure is also invisible — the process
+ * listens, `/health` answers 200, the container healthcheck goes green, and
+ * the first symptom is a 404 on login that looks like a routing bug rather
+ * than an unprotected deployment.
+ *
+ * That is not hypothetical: the shipped Compose defaults produced exactly this
+ * state. `MYOWNNOTION_PUBLIC_ORIGIN` defaulted to an `http://` loopback origin
+ * while `MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE` defaulted to `0`, which
+ * `loadSecurityConfig` correctly refuses — and the refusal was swallowed into
+ * a warning nobody reads in a container that reports itself healthy.
+ *
+ * Outside production it still returns null, because the feature-001 contract
+ * harness builds the app deliberately without a security configuration and
+ * must keep working.
+ */
+function tryLoadSecurityConfig(
+  log: FastifyBaseLogger,
+  refuseToStart: boolean,
+): SecurityConfig | null {
   try {
     return loadSecurityConfig();
-  } catch {
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    if (refuseToStart) {
+      log.fatal(
+        { reason },
+        "refusing to start: the security configuration is invalid, and serving without one would leave this workspace unprotected",
+      );
+      throw error;
+    }
+    log.warn(
+      { reason },
+      "security configuration was refused; installation, bootstrap, authentication, and session routes are NOT registered",
+    );
     return null;
   }
 }
 
 export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const database = createDatabase(options.databaseUrl);
+  try {
+    return await composeApp(options, database);
+  } catch (error) {
+    // The pool is open by now. Leaving it behind on a failed build leaks a
+    // connection for the lifetime of the process — and in a test run, keeps a
+    // client attached to a container that is about to stop, which surfaces as
+    // an unhandled 57P01 long after the real failure.
+    await database.close();
+    throw error;
+  }
+}
+
+async function composeApp(options: BuildAppOptions, database: DatabaseHandle): Promise<BuiltApp> {
   const workspace = await getOrCreateWorkspace(database.db);
   const contentStore = new ContentStore(new FilesystemBlobStore(options.blobRoot));
 
@@ -137,7 +194,12 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   // Security surface. `loadSecurityConfig` throws on an incoherent
   // configuration, so a harness that does not supply one gets the content
   // routes alone rather than a partially wired security layer.
-  const securityConfig = options.security ?? tryLoadSecurityConfig();
+  const securityConfig =
+    options.security ??
+    tryLoadSecurityConfig(
+      app.log,
+      options.refuseWithoutSecurity ?? process.env["NODE_ENV"] === "production",
+    );
   if (securityConfig !== null) {
     // The installation row must exist before anything can claim a bootstrap
     // attempt against it. Creating it here mirrors how feature 001 ensures the

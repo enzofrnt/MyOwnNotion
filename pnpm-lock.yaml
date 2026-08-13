@@ -258,6 +258,9 @@ importers:
 
   packages/test-utils:
     dependencies:
+      '@myownnotion/database':
+        specifier: workspace:*
+        version: link:../database
       '@myownnotion/domain':
         specifier: workspace:*
         version: link:../domain

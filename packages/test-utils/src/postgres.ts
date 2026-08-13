@@ -8,8 +8,7 @@
  * 2. Testcontainers — starts a `postgres:18` container per suite.
  */
 import { randomBytes } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import { migrate } from "@myownnotion/database";
 import pg from "pg";
 
 export interface DisposablePostgres {
@@ -58,39 +57,16 @@ export async function startDisposablePostgres(): Promise<DisposablePostgres> {
   return createFromTestcontainers();
 }
 
-const migrationsDir = path.resolve(import.meta.dirname, "../../database/migrations");
-
-/** Applies every reviewed SQL migration to the disposable database. */
+/**
+ * Applies every reviewed SQL migration to the disposable database.
+ *
+ * Delegates to the one runner in `@myownnotion/database`. This used to be a
+ * second copy of the same loop, which meant fixtures could drift from what
+ * `pnpm db:migrate` and the API image actually apply — the one thing a
+ * migration fixture must not do.
+ */
 export async function applyMigrations(connectionString: string): Promise<string[]> {
-  const client = new pg.Client({ connectionString });
-  await client.connect();
-  const applied: string[] = [];
-  try {
-    await client.query(
-      `CREATE TABLE IF NOT EXISTS schema_migrations (
-         version text PRIMARY KEY,
-         applied_at timestamptz NOT NULL DEFAULT now()
-       )`,
-    );
-    const files = readdirSync(migrationsDir)
-      .filter((file) => file.endsWith(".sql"))
-      .sort();
-    for (const file of files) {
-      const version = file.replace(/\.sql$/, "");
-      const { rowCount } = await client.query(
-        "SELECT 1 FROM schema_migrations WHERE version = $1",
-        [version],
-      );
-      if ((rowCount ?? 0) > 0) {
-        continue;
-      }
-      applied.push(version);
-      await client.query(readFileSync(path.join(migrationsDir, file), "utf8"));
-    }
-  } finally {
-    await client.end();
-  }
-  return applied;
+  return await migrate(connectionString);
 }
 
 export async function startMigratedPostgres(): Promise<DisposablePostgres> {

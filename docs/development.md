@@ -47,11 +47,49 @@ pnpm db:migrate
 pnpm dev
 ```
 
-Every published port binds to `127.0.0.1` only. There is no supported
-production composition before authentication exists.
+Every published port binds to `127.0.0.1` only.
 
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
+
+### Running the published stack locally
+
+`docker compose up -d` also loads `compose.override.yaml`, which builds the
+images from this checkout. To run the published images instead, select the base
+file only:
+
+```bash
+MYOWNNOTION_API_IMAGE=ghcr.io/enzofrnt/myownnotion-api:sha-<commit> \
+MYOWNNOTION_WEB_IMAGE=ghcr.io/enzofrnt/myownnotion-web:sha-<commit> \
+MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1 \
+docker compose -f compose.yaml up -d
+```
+
+Then open the published web port. The client and the API share that one origin:
+nginx serves the static shell and proxies `/v1/` and `/health` to the API,
+because the `__Host-` session cookie is returned only to the origin that set it.
+
+The `migrate` job applies the reviewed SQL and the API waits for it to exit
+successfully, so a first run against an empty volume needs no extra step. Watch
+it with `docker compose logs migrate`.
+
+Three settings decide whether this works, and each fails quietly on its own:
+
+- **the ports must be free.** `pnpm dev` already holds 3001; Compose then
+  leaves the containers `Created` and prints no container logs at all;
+- **`MYOWNNOTION_PUBLIC_ORIGIN` must be the origin you open**, port included.
+  It defaults to the published web port;
+- **`MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE=1` is required for an http origin.**
+  Without it the security configuration is refused. Under `NODE_ENV=production`
+  the API then refuses to start rather than serve a workspace with no
+  installation, bootstrap, authentication, or session routes, so the container
+  exits and restarts instead of reporting itself healthy. `docker compose logs
+  api` carries the reason.
+
+In a real deployment the administrator's reverse proxy terminates HTTPS in
+front of the stack. There `MYOWNNOTION_PUBLIC_ORIGIN` is the public https
+origin, the loopback exception stays off, and the production `__Host-` cookie
+is used.
 
 > **PostgreSQL 18 volume note**: the volume must mount at
 > `/var/lib/postgresql`, not `/var/lib/postgresql/data`. The `postgres:18`
