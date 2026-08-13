@@ -308,7 +308,20 @@ never reports `complete` early.
 The official `compose.yaml` will contain `api`, `web`, `postgres`, and durable
 `file-store` storage, with health checks and startup dependencies. API and web
 ports bind to `127.0.0.1`; production uses the `__Host-mn_session` Secure cookie behind the
-administrator's HTTPS reverse proxy. `.env.example` documents trusted proxy,
+administrator's HTTPS reverse proxy.
+
+A one-shot `migrate` job applies the reviewed SQL before `api` starts, gated on
+its exit status. The API never migrates during startup: replicas would race on
+the same database, and a schema change must be an operation that either
+succeeds or stops the rollout.
+
+The stack presents a single origin. `web` serves the client shell and proxies
+`/v1/` and `/health` to `api`, because `__Host-`-prefixed cookies carry no
+Domain and return only to the exact origin that set them — a client and an API
+on separate origins would leave the browser holding a session cookie it never
+attaches. `MYOWNNOTION_PUBLIC_ORIGIN` is that one origin, and the loopback
+cookie exception turns on the origin alone, not on the bound listener, since a
+container must bind `0.0.0.0` to be reachable through its published port. `.env.example` documents trusted proxy,
 public origin, request/body/file-size limits, database URL, image selection,
 and mounted secret paths without secret values. `compose.override.yaml` is a
 local-build override using loopback HTTP and the explicitly named development
