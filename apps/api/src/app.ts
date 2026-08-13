@@ -64,6 +64,15 @@ export interface BuildAppOptions {
   readonly security?: SecurityConfig;
   /** Injected so bootstrap timing is testable at exact instants. */
   readonly now?: () => Date;
+  /**
+   * Whether an unusable security configuration stops the process.
+   *
+   * Defaults to `NODE_ENV === "production"`. Injected rather than read
+   * directly at the point of use so a test can exercise the refusal without
+   * setting a global that leaks into every other test sharing the process —
+   * which is exactly what happened the first time this was written.
+   */
+  readonly refuseWithoutSecurity?: boolean;
 }
 
 export interface BuiltApp {
@@ -100,12 +109,15 @@ const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
  * harness builds the app deliberately without a security configuration and
  * must keep working.
  */
-function tryLoadSecurityConfig(log: FastifyBaseLogger): SecurityConfig | null {
+function tryLoadSecurityConfig(
+  log: FastifyBaseLogger,
+  refuseToStart: boolean,
+): SecurityConfig | null {
   try {
     return loadSecurityConfig();
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    if (process.env["NODE_ENV"] === "production") {
+    if (refuseToStart) {
       log.fatal(
         { reason },
         "refusing to start: the security configuration is invalid, and serving without one would leave this workspace unprotected",
@@ -169,7 +181,12 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   // Security surface. `loadSecurityConfig` throws on an incoherent
   // configuration, so a harness that does not supply one gets the content
   // routes alone rather than a partially wired security layer.
-  const securityConfig = options.security ?? tryLoadSecurityConfig(app.log);
+  const securityConfig =
+    options.security ??
+    tryLoadSecurityConfig(
+      app.log,
+      options.refuseWithoutSecurity ?? process.env["NODE_ENV"] === "production",
+    );
   if (securityConfig !== null) {
     // The installation row must exist before anything can claim a bootstrap
     // attempt against it. Creating it here mirrors how feature 001 ensures the
