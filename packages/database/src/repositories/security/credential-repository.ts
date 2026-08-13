@@ -347,13 +347,25 @@ export async function findAnyAuthorizedDevice(
   return rows[0] ?? null;
 }
 
-/** Records real authenticated activity. Never called by a read or a rename. */
+/**
+ * Records real authenticated activity. Never called by a read or a rename.
+ *
+ * A synchronization counts as activity as well: a device that synced was
+ * reachable and in use, and leaving `lastActivityAt` behind would show it as
+ * dormant in the very inventory meant to surface dormant devices. The reverse
+ * does not hold — being active is not synchronizing — so plain activity leaves
+ * `lastSyncAt` alone.
+ */
 export async function recordDeviceActivity(
   executor: Executor,
-  input: { deviceId: string; now: Date },
+  input: { deviceId: string; now: Date; kind?: "activity" | "sync" },
 ): Promise<void> {
   await executor
     .update(authorizedDevices)
-    .set({ lastActivityAt: input.now })
+    .set(
+      input.kind === "sync"
+        ? { lastSyncAt: input.now, lastActivityAt: input.now }
+        : { lastActivityAt: input.now },
+    )
     .where(eq(authorizedDevices.id, input.deviceId));
 }
