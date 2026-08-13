@@ -25,6 +25,7 @@ import {
   type BootstrapProgressDto,
   type BootstrapStartedDto,
   CSRF_TOKEN_HEADER,
+  type DeviceDto,
   type InstallationStatusDto,
   type PasskeyViewDto,
   type SecurityProblemDto,
@@ -357,6 +358,43 @@ export class SecurityApi {
 
   async revokeOtherSessions(): Promise<SecurityResult<void>> {
     return await this.#authenticatedJson<void>("/v1/auth/sessions/revoke-all", {
+      method: "POST",
+      csrf: true,
+    });
+  }
+
+  async listDevices(): Promise<SecurityResult<{ devices: DeviceDto[] }>> {
+    return await this.#authenticatedJson<{ devices: DeviceDto[] }>("/v1/devices");
+  }
+
+  async renameDevice(deviceId: string, name: string): Promise<SecurityResult<DeviceDto>> {
+    return await this.#authenticatedJson<DeviceDto>(`/v1/devices/${deviceId}`, {
+      method: "PATCH",
+      csrf: true,
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  async setDeviceStorageLimit(
+    deviceId: string,
+    localStorageLimitBytes: number,
+  ): Promise<SecurityResult<DeviceDto>> {
+    return await this.#authenticatedJson<DeviceDto>(`/v1/devices/${deviceId}`, {
+      method: "PATCH",
+      csrf: true,
+      body: JSON.stringify({ localStorageLimitBytes }),
+    });
+  }
+
+  async revokeDevice(deviceId: string): Promise<SecurityResult<DeviceDto>> {
+    return await this.#authenticatedJson<DeviceDto>(`/v1/devices/${deviceId}/revoke`, {
+      method: "POST",
+      csrf: true,
+    });
+  }
+
+  async reauthorizeDevice(deviceId: string): Promise<SecurityResult<DeviceDto>> {
+    return await this.#authenticatedJson<DeviceDto>(`/v1/devices/${deviceId}/reauthorize`, {
       method: "POST",
       csrf: true,
     });

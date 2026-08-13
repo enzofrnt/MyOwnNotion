@@ -13,11 +13,21 @@
 import type { PasskeyViewDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useId, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
+import { DevicePanel } from "./device-panel.tsx";
 import { SessionPanel } from "./session-panel.tsx";
 
 export interface SecuritySettingsProps {
   readonly api: SecurityApi;
   readonly currentSessionId: string | null;
+  /**
+   * The device this browser is using, when the caller knows it.
+   *
+   * Optional because not every entry point has loaded the session yet. When it
+   * is absent the inventory simply does not mark a row as "this device" —
+   * better than guessing, which would point an owner at the wrong device to
+   * revoke.
+   */
+  readonly currentDeviceId?: string | null;
   readonly onSignedOut: () => void;
 }
 
@@ -158,6 +168,8 @@ export function SecuritySettings(props: SecuritySettingsProps) {
         currentSessionId={props.currentSessionId}
         onSignedOut={props.onSignedOut}
       />
+
+      <DevicePanel api={props.api} currentDeviceId={props.currentDeviceId ?? null} />
     </main>
   );
 }
