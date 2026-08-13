@@ -9,7 +9,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { describeLastUse, describeState } from "../src/features/security/device-panel.tsx";
+import {
+  describeLastUse,
+  describeState,
+  REVOKED_NOTICE,
+} from "../src/features/security/device-panel.tsx";
 
 describe("a device that has never been used", () => {
   it("says never, rather than borrowing a date", () => {
@@ -43,5 +47,21 @@ describe("device states in the owner's words", () => {
 
   it("calls an active device active", () => {
     expect(describeState("active")).toBe("Active");
+  });
+});
+
+describe("what revoking does not do", () => {
+  it("says data on an unreachable device cannot be erased remotely", () => {
+    // FR-010. Saying only "revoked" would let an owner believe their data was
+    // wiped and stop looking for the lost device — the opposite of what the
+    // situation calls for.
+    expect(REVOKED_NOTICE).toMatch(/cannot be erased remotely/i);
+    expect(REVOKED_NOTICE).toMatch(/reconnects/i);
+  });
+
+  it("still says what revoking did achieve", () => {
+    // The limitation must not swallow the reassurance: the device really has
+    // lost its access from now on.
+    expect(REVOKED_NOTICE).toMatch(/no longer reach/i);
   });
 });

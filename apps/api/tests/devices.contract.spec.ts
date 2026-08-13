@@ -294,3 +294,107 @@ describe("reauthorization is not revocation", () => {
     expect(renamed.statusCode, renamed.body).toBe(200);
   });
 });
+
+describe("the two timestamps are part of every answer", () => {
+  /** Every field the contract marks required, so a missing one fails loudly. */
+  const REQUIRED = [
+    "deviceId",
+    "name",
+    "platform",
+    "clientType",
+    "authorizedAt",
+    "lastActivityAt",
+    "lastSyncAt",
+    "state",
+    "localStorageLimitBytes",
+    "localUsageBytes",
+  ] as const;
+
+  it("returns them from the inventory", async () => {
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/devices",
+      headers: authHeaders(auth),
+    });
+    const { devices } = response.json() as { devices: Record<string, unknown>[] };
+    for (const device of devices) {
+      for (const field of REQUIRED) {
+        expect(Object.keys(device)).toContain(field);
+      }
+    }
+  });
+
+  it("returns them from a rename", async () => {
+    // Not just from the list. A mutation that answered without them would let
+    // a client refresh its state into a shape where "never used" is missing
+    // rather than null.
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "PATCH",
+      url: `/v1/devices/${DEVICE_ID}`,
+      headers: authHeaders(auth),
+      payload: { name: "Renamed" },
+    });
+    const device = response.json() as Record<string, unknown>;
+    for (const field of REQUIRED) {
+      expect(Object.keys(device)).toContain(field);
+    }
+  });
+
+  it("returns them from a revocation", async () => {
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/devices/${OTHER_DEVICE_ID}/revoke`,
+      headers: authHeaders(auth),
+    });
+    const device = response.json() as Record<string, unknown>;
+    for (const field of REQUIRED) {
+      expect(Object.keys(device)).toContain(field);
+    }
+  });
+
+  it("maps the snake_case columns onto the camelCase fields", async () => {
+    // The one mapping worth asserting end to end: a device with a real
+    // activity instant in the database must surface it as `lastActivityAt`,
+    // and a null `last_sync_at` must stay null rather than borrowing it.
+    const activity = "2026-04-02T03:04:05.000Z";
+    await harness.built.database.db.execute(sql`
+      UPDATE authorized_devices SET last_activity_at = ${activity}::timestamptz
+      WHERE id = ${OTHER_DEVICE_ID}::uuid
+    `);
+
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/devices/${OTHER_DEVICE_ID}`,
+      headers: authHeaders(auth),
+    });
+    const device = response.json() as { lastActivityAt: string | null; lastSyncAt: string | null };
+    expect(device.lastActivityAt).toBe(activity);
+    expect(device.lastSyncAt).toBeNull();
+  });
+
+  it("populates each field only from its own event", async () => {
+    // A synchronization sets both, because syncing is activity. Activity
+    // alone must not set `lastSyncAt` — a device that never synced would then
+    // look as though it had, and the owner would stop wondering why.
+    const sync = "2026-04-03T00:00:00.000Z";
+    await harness.built.database.db.execute(sql`
+      UPDATE authorized_devices
+      SET last_sync_at = ${sync}::timestamptz, last_activity_at = ${sync}::timestamptz
+      WHERE id = ${OTHER_DEVICE_ID}::uuid
+    `);
+
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/devices/${OTHER_DEVICE_ID}`,
+      headers: authHeaders(auth),
+    });
+    const device = response.json() as { lastActivityAt: string | null; lastSyncAt: string | null };
+    expect(device.lastSyncAt).toBe(sync);
+    expect(device.lastActivityAt).toBe(sync);
+  });
+});
