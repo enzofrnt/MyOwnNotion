@@ -134,6 +134,19 @@ function tryLoadSecurityConfig(
 
 export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   const database = createDatabase(options.databaseUrl);
+  try {
+    return await composeApp(options, database);
+  } catch (error) {
+    // The pool is open by now. Leaving it behind on a failed build leaks a
+    // connection for the lifetime of the process — and in a test run, keeps a
+    // client attached to a container that is about to stop, which surfaces as
+    // an unhandled 57P01 long after the real failure.
+    await database.close();
+    throw error;
+  }
+}
+
+async function composeApp(options: BuildAppOptions, database: DatabaseHandle): Promise<BuiltApp> {
   const workspace = await getOrCreateWorkspace(database.db);
   const contentStore = new ContentStore(new FilesystemBlobStore(options.blobRoot));
 
