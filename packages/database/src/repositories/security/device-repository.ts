@@ -41,6 +41,22 @@ export interface AuthorizedDevice {
   readonly lastSyncAt: Date | null;
   readonly localStorageLimitBytes: number | null;
   readonly localStorageUsedBytes: number;
+  /**
+   * How this device protects its local key material, as it reported.
+   *
+   * Null when the device never said. That is not the same as `unavailable`,
+   * which is the device stating it has no secure storage — and the difference
+   * decides whether the owner is looking at an old client or a weakly
+   * protected one.
+   */
+  readonly keyProtectionCapability: string | null;
+  /**
+   * Which generation of device key this device holds.
+   *
+   * Persisted so a rotation can tell which devices still carry the old one
+   * without asking them.
+   */
+  readonly deviceKeyVersion: number;
   readonly revokedAt: Date | null;
 }
 
@@ -69,6 +85,8 @@ function toDevice(row: typeof authorizedDevices.$inferSelect): AuthorizedDevice 
     lastSyncAt: row.lastSyncAt ?? null,
     localStorageLimitBytes: row.localStorageLimitBytes ?? null,
     localStorageUsedBytes: row.localStorageUsedBytes,
+    keyProtectionCapability: row.keyProtectionCapability ?? null,
+    deviceKeyVersion: row.deviceKeyVersion,
     revokedAt: row.revokedAt ?? null,
   };
 }
