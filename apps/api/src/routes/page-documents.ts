@@ -31,6 +31,7 @@ export function registerPageDocumentRoutes(app: FastifyInstance, context: AppCon
         db: context.db,
         workspaceId: context.workspaceId,
         protectedContent: context.protectedContent,
+        rotationPolicies: context.rotationPolicies,
         request,
         reply,
         command: {

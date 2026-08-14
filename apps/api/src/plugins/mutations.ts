@@ -20,6 +20,7 @@ import {
 import { isUuid, type MutationCommand, type Uuid } from "@myownnotion/domain";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { ProtectedContent } from "../security/protected-content.ts";
+import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
 import { sendProblem } from "./errors.ts";
 
 export function mutationIdFrom(request: FastifyRequest): Uuid | null {
@@ -116,6 +117,13 @@ export async function handleMutation(input: {
    * feature-001 harness build an app with no deployment key and still write.
    */
   readonly protectedContent?: ProtectedContent | undefined;
+  /**
+   * Refuses protected writes once a rotation policy has reached its block.
+   *
+   * Optional for the same reason as the line above: the feature-001 harness
+   * builds an app with no security layer and must keep writing.
+   */
+  readonly rotationPolicies?: RotationPolicyService | undefined;
 }): Promise<FastifyReply> {
   const mutationId = mutationIdFrom(input.request);
   if (mutationId === null) {
@@ -145,6 +153,14 @@ export async function handleMutation(input: {
             tx: Transaction,
             accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
           ) => {
+            // Checked inside the transaction, not before it. A decision taken
+            // on the request path could be overtaken by a block committing in
+            // between, and the write it let through would be sealed under a
+            // key the policy had already stopped.
+            //
+            // It throws, so the whole mutation rolls back: a refused write
+            // leaves neither content nor envelope behind.
+            await input.rotationPolicies?.assertWritesAllowed(tx);
             await sealPayloads(
               protectedContent,
               tx,

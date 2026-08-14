@@ -165,12 +165,17 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
    * write a page.
    */
   let protectedContent: ProtectedContent | undefined;
+  /** Set with the rest of the security layer; absent leaves feature-001 alone. */
+  let rotationPolicies: RotationPolicyService | undefined;
 
   const context: AppContext = {
     db: database.db,
     workspaceId: workspace.id,
     schemaVersion: workspace.schemaVersion,
     contentStore,
+    get rotationPolicies() {
+      return rotationPolicies;
+    },
     get protectedContent() {
       // A getter, because the security block that assigns it runs after this
       // object is built and the content routes read it per request.
@@ -341,7 +346,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     // a fresh proof. The scheduler evaluates at startup so an overdue key is
     // reported by a restart rather than only by a timer the process may never
     // reach.
-    const rotationPolicies = new RotationPolicyService({
+    rotationPolicies = new RotationPolicyService({
       db: database.db,
       installationId: INSTALLATION_ID,
       now,
