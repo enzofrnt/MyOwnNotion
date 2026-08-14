@@ -35,6 +35,7 @@ import {
   insertGeneration,
   insertRootKey,
   insertWrappingKeyVersion,
+  updateWrappedRootKey,
 } from "@myownnotion/database";
 import {
   deriveRecordKey,
@@ -190,6 +191,55 @@ export class KeyHierarchy {
         createdAt: now,
       });
     }
+  }
+
+  /**
+   * Rewraps the workspace root key under a new deployment key.
+   *
+   * This is the entire cost of a wrapping-key rotation: one row per workspace.
+   * Every protected record and file chunk stays byte-for-byte as it was,
+   * because they are sealed under the *data* key, and the data key is sealed
+   * under the root key, and only the root key's wrapper changes here.
+   *
+   * The new key is supplied rather than read from the mount: during a rotation
+   * both keys exist, and the caller is the one that knows which is which. The
+   * old key is still needed to unwrap what it wrapped, so this runs while the
+   * mount still holds it.
+   */
+  async rewrapRootKey(
+    tx: Transaction,
+    input: {
+      newWrappingKey: Uint8Array;
+      newWrappingKeyVersionId: string;
+      rewrapOperationId?: string;
+    },
+  ): Promise<{ rootKeyVersion: number }> {
+    const stored = await findActiveRootKey(tx, this.#deps.workspaceId);
+    if (stored === null) {
+      throw new KeyUnavailableError("no active workspace root key");
+    }
+    // Unwrapped with the current key, rewrapped with the new one. The root key
+    // itself is unchanged: rotating the wrapper must not rotate what it wraps,
+    // or every data key underneath would need re-sealing too.
+    const rootKey = await this.#rootKey(tx);
+    const aad = wrapAad(
+      "root",
+      this.#deps.installationId,
+      this.#deps.workspaceId,
+      stored.rootKeyVersion,
+    );
+    const rewrapped = seal(new Uint8Array(input.newWrappingKey), rootKey, aad);
+
+    await updateWrappedRootKey(tx, {
+      rootKeyId: stored.id,
+      wrappedRootKey: encodeWrapped(rewrapped),
+      wrappingKeyVersionId: input.newWrappingKeyVersionId,
+      ...(input.rewrapOperationId === undefined
+        ? {}
+        : { rewrapOperationId: input.rewrapOperationId }),
+    });
+
+    return { rootKeyVersion: stored.rootKeyVersion };
   }
 
   /** Unwraps the workspace root key. Never cached: it is used seldom. */

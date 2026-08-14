@@ -85,6 +85,14 @@ export interface BuiltApp {
   readonly app: FastifyInstance;
   readonly context: AppContext;
   readonly database: DatabaseHandle;
+  /**
+   * The key hierarchy, when the security layer is configured.
+   *
+   * Exposed so a rotation can be driven from a test without reaching into the
+   * schema and reimplementing the unwrap. Nothing on the request path reads it
+   * from here.
+   */
+  readonly keyHierarchy?: KeyHierarchy | undefined;
   close(): Promise<void>;
 }
 
@@ -167,6 +175,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   let protectedContent: ProtectedContent | undefined;
   /** Set with the rest of the security layer; absent leaves feature-001 alone. */
   let rotationPolicies: RotationPolicyService | undefined;
+  let keyHierarchy: KeyHierarchy | undefined;
 
   const context: AppContext = {
     db: database.db,
@@ -253,7 +262,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     //
     // `dataKey` creates it on the first protected write instead. See the
     // comment there.
-    const keys = new KeyHierarchy({
+    keyHierarchy = new KeyHierarchy({
       db: database.db,
       installationId: INSTALLATION_ID,
       workspaceId: workspace.id,
@@ -289,7 +298,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     protectedContent = new ProtectedContent({
       records: new ProtectedRecordService({
         db: database.db,
-        keys,
+        keys: keyHierarchy,
         installationId: INSTALLATION_ID,
         workspaceId: workspace.id,
         now,
@@ -431,6 +440,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     app,
     context,
     database,
+    keyHierarchy,
     close: async () => {
       await app.close();
       await database.close();

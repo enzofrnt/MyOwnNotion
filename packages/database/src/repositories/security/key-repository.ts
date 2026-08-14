@@ -274,3 +274,38 @@ export async function incrementGenerationCounts(
       ),
     );
 }
+
+/**
+ * Replaces the wrapper around a workspace root key.
+ *
+ * The root key itself is unchanged — only what encrypts it. That is the whole
+ * economy of a wrapping-key rotation: one row per workspace, and no protected
+ * record or file chunk is touched.
+ */
+export async function updateWrappedRootKey(
+  tx: Transaction,
+  input: {
+    rootKeyId: string;
+    wrappedRootKey: string;
+    wrappingKeyVersionId: string;
+    /**
+     * The rotation that rewrapped this row.
+     *
+     * Recorded on the row itself so a half-finished rotation is visible in the
+     * data rather than only in its checkpoints: an operator can ask which
+     * workspaces still carry the old wrapper by asking which rows lack this.
+     */
+    rewrapOperationId?: string;
+  },
+): Promise<void> {
+  await tx
+    .update(workspaceRootKeys)
+    .set({
+      wrappedRootKey: input.wrappedRootKey,
+      wrappingKeyVersionId: input.wrappingKeyVersionId,
+      ...(input.rewrapOperationId === undefined
+        ? {}
+        : { rewrapOperationId: input.rewrapOperationId }),
+    })
+    .where(eq(workspaceRootKeys.id, input.rootKeyId));
+}
