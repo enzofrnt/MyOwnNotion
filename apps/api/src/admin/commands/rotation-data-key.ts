@@ -59,6 +59,14 @@ import { KeyHierarchy } from "../../security/key-hierarchy.ts";
 import { ProtectedRecordService } from "../../security/protected-record-service.ts";
 import { type CommandResult, EXIT_CODES } from "../command-output.ts";
 import { type ParsedCommand, requireOption } from "../command-parser.ts";
+import {
+  auditGenerationCreated,
+  auditRotationCheckpoint,
+  auditRotationCompleted,
+  auditRotationFailed,
+  auditRotationStarted,
+  type RotationAudit,
+} from "./rotation-audit.ts";
 
 /**
  * How long a data-key generation is good for, and how much grace follows.
@@ -93,6 +101,14 @@ export interface DataKeyRotationDeps {
   readonly newId?: () => string;
   /** Test seam: how many records one transaction rewrites. */
   readonly batchSize?: number;
+  /**
+   * The audit journal, when the caller wired one.
+   *
+   * Optional so the handler stays testable without a full audit context, and
+   * because a rotation must not fail for want of a logger. Every event it does
+   * write commits inside the transaction it describes.
+   */
+  readonly audit?: RotationAudit;
 }
 
 /**
@@ -202,6 +218,20 @@ export async function rotationDataKeyCommand(
           operationId,
           now: startedAt,
         });
+        await auditRotationStarted(deps.audit, tx, {
+          kind: "data-key",
+          operationId,
+          from: fromGeneration,
+          to: started.generation,
+          totalCount: remaining,
+        });
+        // Two events of their own, because minting and retiring have separate
+        // consequences: one makes writes land somewhere new, the other makes
+        // every existing record depend on a decrypt-only key.
+        await auditGenerationCreated(deps.audit, tx, {
+          generation: started.generation,
+          retired: fromGeneration,
+        });
         return started.generation;
       });
     } catch (error) {
@@ -289,6 +319,13 @@ export async function rotationDataKeyCommand(
           phase: "rewriting",
           now: deps.now(),
         });
+        await auditRotationCheckpoint(deps.audit, tx, {
+          kind: "data-key",
+          operationId,
+          processedCount: progress.rewrittenCount,
+          totalCount: progress.totalCount,
+          cursor: progress.cursor,
+        });
       });
       sequence += 1;
     } catch (error) {
@@ -308,7 +345,7 @@ export async function rotationDataKeyCommand(
   const completedAt = deps.now();
   const schedule = await runSecurityTransaction(deps.db, async (tx) => {
     await finishRotationOperation(tx, { operationId, phase: "complete", now: completedAt });
-    return await completeRotationPolicy(tx, {
+    const completed = await completeRotationPolicy(tx, {
       policyId: policy.id,
       operationId,
       now: completedAt,
@@ -316,6 +353,14 @@ export async function rotationDataKeyCommand(
       graceDays: DATA_KEY_GRACE_DAYS,
       currentGeneration: toGeneration,
     });
+    await auditRotationCompleted(deps.audit, tx, {
+      kind: "data-key",
+      operationId,
+      processedCount: progress.rewrittenCount,
+      to: toGeneration,
+      nextDueAt: completed.dueAt,
+    });
+    return completed;
   });
 
   return {
@@ -437,6 +482,13 @@ async function abandonRotation(
       policyId: input.policyId,
       operationId: input.operationId,
       now: failedAt,
+    });
+    await auditRotationFailed(deps.audit, tx, {
+      kind: "data-key",
+      operationId: input.operationId,
+      processedCount: input.progress.rewrittenCount,
+      reason:
+        input.error instanceof Error ? input.error.message : "a record could not be re-encrypted",
     });
   });
   return {

@@ -12,6 +12,7 @@
 
 import process from "node:process";
 import { createDatabase } from "@myownnotion/database";
+import { type AuditContext, AuditService, newCorrelationId } from "../security/audit-service.ts";
 import { loadSecurityConfig } from "../security/security-config.ts";
 import { type CommandResult, EXIT_CODES, exitCodeFor, renderResult } from "./command-output.ts";
 import { parseCommand, wantsJson } from "./command-parser.ts";
@@ -70,16 +71,44 @@ export async function runCli(
 
     const config = loadSecurityConfig();
     const database = createDatabase(process.env["DATABASE_URL"] ?? "");
+    // One correlation ID for the whole invocation, so every row a command
+    // writes — the rotation events as well as the command event itself —
+    // joins back to the single moment an operator typed something.
+    const correlationId = newCorrelationId();
+    const audit = new AuditService(database.db);
+    const auditContext: AuditContext = {
+      installationId: INSTALLATION_ID,
+      correlationId,
+      // Never `owner`. These run on the host, as whoever can already read the
+      // mounted key, and recording them otherwise would blur the one boundary
+      // FR-019 draws.
+      actorClass: "hosting-admin",
+    };
     const context: CommandContext = {
       db: database.db,
       installationId: INSTALLATION_ID,
       deploymentKeyFile: config.deploymentKeyFile,
       now: () => new Date(),
+      audit: { audit, context: auditContext },
     };
 
     try {
       const result = await runCommand(command, context);
       print(renderResult(result, { json }));
+      // Best-effort and after the fact: the command has already run, and
+      // failing to record it must not change its outcome. The command *path*
+      // is recorded, never the arguments — a path is a fixed vocabulary,
+      // arguments are whatever someone typed.
+      await audit.record(auditContext, {
+        eventType:
+          result.code === EXIT_CODES.ok
+            ? "admin.cli-command-executed"
+            : "admin.cli-command-refused",
+        outcome: result.code === EXIT_CODES.ok ? "success" : "refused",
+        objectKind: "cli-command",
+        objectId: command.path.join(" "),
+        metadata: { exitCode: result.code },
+      });
       return result.code;
     } finally {
       await database.close();

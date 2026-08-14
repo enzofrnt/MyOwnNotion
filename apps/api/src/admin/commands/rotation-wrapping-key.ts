@@ -57,6 +57,13 @@ import { loadDeploymentKey } from "../../security/deployment-key.ts";
 import { KeyHierarchy } from "../../security/key-hierarchy.ts";
 import { type CommandResult, EXIT_CODES } from "../command-output.ts";
 import { CommandUsageError, type ParsedCommand, requireOption } from "../command-parser.ts";
+import {
+  auditRotationCheckpoint,
+  auditRotationCompleted,
+  auditRotationFailed,
+  auditRotationStarted,
+  type RotationAudit,
+} from "./rotation-audit.ts";
 
 /**
  * How long a wrapping key is good for, and how much grace follows.
@@ -78,6 +85,14 @@ export interface WrappingKeyRotationDeps {
   readonly newId?: () => string;
   /** Test seam: permission enforcement on the two key files. */
   readonly enforceKeyPermissions?: boolean;
+  /**
+   * The audit journal, when the caller wired one.
+   *
+   * Optional so the handler stays testable without a full audit context, and
+   * because a rotation must not fail for want of a logger. Every event it does
+   * write commits inside the transaction it describes.
+   */
+  readonly audit?: RotationAudit;
 }
 
 interface LoadedKeys {
@@ -260,6 +275,13 @@ export async function rotationWrappingKeyCommand(
         totalCount: units.length,
       });
       await markRotationInProgress(tx, { policyId: policy.id, operationId, now });
+      await auditRotationStarted(deps.audit, tx, {
+        kind: "wrapping-key",
+        operationId,
+        from: currentVersion.version,
+        to: targetVersion,
+        totalCount: units.length,
+      });
     }
   });
 
@@ -299,6 +321,13 @@ export async function rotationWrappingKeyCommand(
           phase: "rewrapping",
           now: deps.now(),
         });
+        await auditRotationCheckpoint(deps.audit, tx, {
+          kind: "wrapping-key",
+          operationId,
+          processedCount: processed,
+          totalCount: units.length,
+          cursor: unit.workspaceId,
+        });
       });
       sequence += 1;
       rewrapped.push(unit.workspaceId);
@@ -328,13 +357,21 @@ export async function rotationWrappingKeyCommand(
       phase: "complete",
       now: completedAt,
     });
-    return await completeRotationPolicy(tx, {
+    const completed = await completeRotationPolicy(tx, {
       policyId: policy.id,
       operationId,
       now: completedAt,
       dueIntervalDays: WRAPPING_KEY_DUE_INTERVAL_DAYS,
       graceDays: WRAPPING_KEY_GRACE_DAYS,
     });
+    await auditRotationCompleted(deps.audit, tx, {
+      kind: "wrapping-key",
+      operationId,
+      processedCount: rewrapped.length,
+      to: targetVersion,
+      nextDueAt: completed.dueAt,
+    });
+    return completed;
   });
 
   return {
@@ -395,6 +432,15 @@ async function abandonRotation(
       policyId: input.policyId,
       operationId: input.operationId,
       now: failedAt,
+    });
+    await auditRotationFailed(deps.audit, tx, {
+      kind: "wrapping-key",
+      operationId: input.operationId,
+      processedCount: input.done,
+      reason:
+        input.error instanceof Error
+          ? input.error.message
+          : "a workspace root key could not be rewrapped",
     });
   });
   const reason =
