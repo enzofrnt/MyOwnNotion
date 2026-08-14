@@ -56,6 +56,10 @@ function service(): BootstrapService {
     installationId: INSTALLATION_ID,
     workspaceId: harness.built.context.workspaceId,
     workspaceSchemaVersion: 1,
+    // A stand-in wrapped key: these tests inject faults into the ceremony's
+    // ordering, not into the key hierarchy, and building a real one would tie
+    // every fault case to a deployment-key fixture it has no use for.
+    sealFirstDataKey: async () => "AAAA.BBBB.CCCC",
     now: () => clock.value,
     challenges: new Map<string, WebAuthnChallenge>(),
   };
