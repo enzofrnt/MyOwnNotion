@@ -410,6 +410,34 @@ export async function retireGeneration(
     );
 }
 
+/**
+ * Revokes a retired generation. Irreversible, and refuses any other state.
+ *
+ * The `decrypt-only` requirement in the `where` clause is the guard, not a
+ * filter: revoking a `current` generation would make a workspace unwritable
+ * with no replacement, and this is the one operation here whose mistake
+ * cannot be undone — every record still sealed under a revoked generation is
+ * permanently unreadable. The caller must have established that nothing
+ * remains under it.
+ */
+export async function revokeGeneration(
+  tx: Transaction,
+  input: { workspaceId: string; generation: number; now: Date },
+): Promise<boolean> {
+  const rows = await tx
+    .update(dataKeyGenerations)
+    .set({ state: "revoked", revokedAt: input.now })
+    .where(
+      and(
+        eq(dataKeyGenerations.workspaceId, input.workspaceId),
+        eq(dataKeyGenerations.generation, input.generation),
+        eq(dataKeyGenerations.state, "decrypt-only"),
+      ),
+    )
+    .returning({ id: dataKeyGenerations.id });
+  return rows.length > 0;
+}
+
 /** Counts written under a generation, for rotation progress reporting. */
 export async function incrementGenerationCounts(
   executor: Executor,

@@ -28,7 +28,7 @@ import type { EncryptedEnvelope } from "@myownnotion/domain";
 // The envelope helpers live behind the `/security` subpath because they need
 // `node:crypto`; this package is server-side, so importing them is fine.
 import { type EnvelopeBinding, envelopeMatchesBinding } from "@myownnotion/domain/security";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { protectedEnvelopes } from "../../schema/security/index.ts";
 import { SecurityRepositoryError } from "./repository-types.ts";
@@ -256,4 +256,55 @@ export async function countRecordsInGeneration(
       ),
     );
   return rows.length;
+}
+
+/**
+ * One batch of envelopes still sealed under a generation, in cursor order.
+ *
+ * The cursor is the row id, which is unique and totally ordered, so a sweep
+ * can resume from exactly where it stopped without a window that skips or
+ * repeats a row. Ordering by anything non-unique — a timestamp, an entity id
+ * shared across versions — would leave that window open, and on a long
+ * rotation "skips a row" means a record left permanently under a generation
+ * the operator is trying to retire.
+ *
+ * Returns identities, not envelopes. The rewrite goes back through the record
+ * service so the AAD is rebuilt from the record's own identity rather than
+ * copied from the row being replaced; copying it would carry a wrong binding
+ * forward intact.
+ */
+export async function listEntitiesInGeneration(
+  executor: Executor,
+  input: {
+    workspaceId: string;
+    keyGeneration: number;
+    afterCursor: string;
+    limit: number;
+  },
+): Promise<
+  readonly { cursor: string; entityType: string; entityId: string; recordVersion: number }[]
+> {
+  const rows = await executor
+    .select({
+      id: protectedEnvelopes.id,
+      entityType: protectedEnvelopes.entityType,
+      entityId: protectedEnvelopes.entityId,
+      recordVersion: protectedEnvelopes.recordVersion,
+    })
+    .from(protectedEnvelopes)
+    .where(
+      and(
+        eq(protectedEnvelopes.workspaceId, input.workspaceId),
+        eq(protectedEnvelopes.keyGeneration, input.keyGeneration),
+        ...(input.afterCursor === "" ? [] : [gt(protectedEnvelopes.id, input.afterCursor)]),
+      ),
+    )
+    .orderBy(asc(protectedEnvelopes.id))
+    .limit(input.limit);
+  return rows.map((row) => ({
+    cursor: row.id,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    recordVersion: row.recordVersion,
+  }));
 }

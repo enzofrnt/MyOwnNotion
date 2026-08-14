@@ -40,6 +40,7 @@ const VALUE_FLAGS = new Set([
   // the mounted deployment key, which is the whole reason the new key arrives
   // as a file rather than as a value.
   "new-key-file",
+  "revoke-generation",
 ]);
 
 /** Flags a caller might reach for to pass a secret inline. Always refused. */

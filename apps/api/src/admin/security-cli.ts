@@ -31,6 +31,11 @@ There is no remote equivalent: these commands are not exposed over HTTP.
                                       key per workspace under a new deployment
                                       key. Both files must be mounted: the old
                                       key unwraps, the new one rewraps.
+  security rotation data-key          re-encrypts every protected record under
+                                      a new generation. Long, resumable, and
+                                      readable throughout: the old generation
+                                      stays decrypt-only until you revoke it
+                                      with --revoke-generation N.
   security compatibility inspect      --target PATH --source PATH
 
   --json        machine-readable envelope

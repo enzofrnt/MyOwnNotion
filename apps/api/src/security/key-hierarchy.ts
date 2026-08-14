@@ -35,6 +35,7 @@ import {
   insertGeneration,
   insertRootKey,
   insertWrappingKeyVersion,
+  retireGeneration,
   updateWrappedRootKey,
 } from "@myownnotion/database";
 import {
@@ -191,6 +192,45 @@ export class KeyHierarchy {
         createdAt: now,
       });
     }
+  }
+
+  /**
+   * Mints the next data-key generation and retires the current one.
+   *
+   * Both in one step, and in this order, because the gap between them is the
+   * dangerous state. Retiring first would leave a workspace with no writable
+   * generation; minting first without retiring would leave two `current`
+   * rows, which the partial unique index rejects anyway.
+   *
+   * The old generation becomes `decrypt-only`, not `revoked`. Every record
+   * still sealed under it must stay readable while the rewrite sweeps through
+   * — revoking here would destroy exactly what the rotation is protecting.
+   * Revocation is a separate, later decision, taken only once nothing remains
+   * under it.
+   */
+  async startNextGeneration(tx: Transaction): Promise<{ generation: number }> {
+    const { installationId, workspaceId } = this.#deps;
+    const currentGeneration = await findCurrentGeneration(tx, workspaceId);
+    if (currentGeneration === null) {
+      throw new KeyUnavailableError("no current data key generation to rotate from");
+    }
+    const next = currentGeneration.generation + 1;
+    const rootKey = await this.#rootKey(tx);
+    const dataKey = randomKey();
+    const wrapped = seal(rootKey, dataKey, wrapAad("data", installationId, workspaceId, next));
+
+    // Retire before insert: the partial unique index permits one `current` row
+    // per workspace, so the other order is rejected by the database.
+    await retireGeneration(tx, workspaceId, currentGeneration.generation);
+    await insertGeneration(tx, {
+      id: randomUUID(),
+      installationId,
+      workspaceId,
+      generation: next,
+      wrappedKeyMaterial: encodeWrapped(wrapped),
+      createdAt: this.#deps.now(),
+    });
+    return { generation: next };
   }
 
   /**

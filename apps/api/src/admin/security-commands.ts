@@ -21,7 +21,12 @@
 
 import { readFileSync } from "node:fs";
 import type { Database } from "@myownnotion/database";
-import { findRotationPolicy, findRunningRotation, readCounts } from "@myownnotion/database";
+import {
+  findInstallation,
+  findRotationPolicy,
+  findRunningRotation,
+  readCounts,
+} from "@myownnotion/database";
 import { evaluateRotationPolicy, type KeyRotationPolicy } from "@myownnotion/domain";
 import { loadDeploymentKey } from "../security/deployment-key.ts";
 import { type CommandResult, EXIT_CODES } from "./command-output.ts";
@@ -31,6 +36,7 @@ import {
   requireOption,
   shouldExecute,
 } from "./command-parser.ts";
+import { rotationDataKeyCommand } from "./commands/rotation-data-key.ts";
 import { rotationWrappingKeyCommand } from "./commands/rotation-wrapping-key.ts";
 
 export interface CommandContext {
@@ -182,11 +188,62 @@ export function compatibilityInspectCommand(command: ParsedCommand): CommandResu
   };
 }
 
+/**
+ * Resolves what the data-key rotation needs and that the other commands do
+ * not: the workspace it sweeps, and the deployment key itself rather than its
+ * path.
+ *
+ * The workspace comes from the installation row rather than from a flag. This
+ * installation has exactly one, and asking an operator to name it would invite
+ * them to name the wrong one — a rotation against a workspace id that does not
+ * exist would report "nothing to rewrite" and look like success.
+ */
+async function runDataKeyRotation(
+  command: ParsedCommand,
+  context: CommandContext,
+): Promise<CommandResult> {
+  const installation = await findInstallation(context.db);
+  if (installation?.workspaceId == null) {
+    return {
+      code: EXIT_CODES.refused,
+      message: "this installation has no workspace yet; there is nothing to rotate",
+    };
+  }
+  const keyFile = context.deploymentKeyFile;
+  if (keyFile === undefined) {
+    return {
+      code: EXIT_CODES.keyUnavailable,
+      message: "no deployment key file is configured",
+    };
+  }
+  return await rotationDataKeyCommand(
+    command,
+    {
+      db: context.db,
+      installationId: context.installationId,
+      workspaceId: installation.workspaceId,
+      // Read on each call rather than captured once. A rotation that ran for
+      // hours on a key the operator has since unmounted would defeat the point
+      // of unmounting it.
+      deploymentKey: () => {
+        try {
+          return Buffer.from(loadDeploymentKey(keyFile).bytes);
+        } catch {
+          return null;
+        }
+      },
+      now: context.now,
+    },
+    { execute: shouldExecute(command) },
+  );
+}
+
 export const KNOWN_COMMANDS = [
   "security status",
   "security key check",
   "security rotation status",
   "security rotation wrapping-key",
+  "security rotation data-key",
   "security compatibility inspect",
 ] as const;
 
@@ -217,6 +274,8 @@ export async function runCommand(
         // handler that re-derived it could disagree with the others.
         { execute: shouldExecute(command) },
       );
+    case "security rotation data-key":
+      return await runDataKeyRotation(command, context);
     case "security compatibility inspect":
       return compatibilityInspectCommand(command);
     default:
