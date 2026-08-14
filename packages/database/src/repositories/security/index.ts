@@ -13,6 +13,7 @@ export * from "./device-repository.ts";
 export * from "./installation-repository.ts";
 export * from "./key-repository.ts";
 export * from "./migration-checkpoint-repository.ts";
+export * from "./migration-cutover-repository.ts";
 export * from "./migration-repository.ts";
 export * from "./migration-source-repository.ts";
 export * from "./protected-record-repository.ts";

@@ -28,6 +28,7 @@ export * from "./security/data-key-rotation.ts";
 export * from "./security/device-state.ts";
 export * from "./security/envelope-binding.ts";
 export * from "./security/invariants.ts";
+export * from "./security/migration.ts";
 export * from "./security/redaction.ts";
 export * from "./security/rotation-policy.ts";
 export * from "./security/session-policy.ts";
