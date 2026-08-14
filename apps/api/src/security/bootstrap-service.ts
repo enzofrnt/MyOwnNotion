@@ -78,6 +78,16 @@ export interface BootstrapServiceDeps {
   readonly installationId: string;
   readonly workspaceId: string;
   readonly workspaceSchemaVersion: number;
+  /**
+   * Seals the workspace's first data key under its root key.
+   *
+   * Supplied rather than built here so the bootstrap does not need to know how
+   * the key hierarchy is put together — but it must be a *real* wrapped key.
+   * This was random bytes until T059, which meant generation 1 could never be
+   * unwrapped and every protected write after setup depended on a generation
+   * that was not one.
+   */
+  readonly sealFirstDataKey: () => Promise<string>;
   /** Injected so the whole flow is testable at exact instants. */
   readonly now: () => Date;
   /** Challenges live in memory: they are single-use and outlive no request. */
@@ -454,7 +464,11 @@ export class BootstrapService {
       deviceName: input.deviceName,
       devicePlatform: input.devicePlatform,
       dataKeyGenerationId: randomUUID(),
-      wrappedDataKey: newSecret(),
+      // A real data key, sealed under the workspace root key. This used to be
+      // `newSecret()` — random bytes stored where a wrapped key belongs —
+      // which meant generation 1, the generation every subsequent protected
+      // write depends on, could never be unwrapped.
+      wrappedDataKey: await this.#deps.sealFirstDataKey(),
       recoveryEpochId: randomUUID(),
       now,
     });

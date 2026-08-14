@@ -40,6 +40,7 @@ import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
 import { AuditService } from "./security/audit-service.ts";
 import { resolvePrincipal } from "./security/authentication-hook.ts";
+import { renderBootstrapKit } from "./security/bootstrap-kit.ts";
 import { BootstrapService } from "./security/bootstrap-service.ts";
 import { setSessionCookie } from "./security/cookie-policy.ts";
 import { loadDeploymentKey } from "./security/deployment-key.ts";
@@ -450,28 +451,35 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       installationId: INSTALLATION_ID,
       workspaceId: workspace.id,
       workspaceSchemaVersion: workspace.schemaVersion,
+      sealFirstDataKey: async () => {
+        if (keyHierarchy === undefined) {
+          throw new Error("the key hierarchy is unavailable; setup cannot be completed");
+        }
+        return await keyHierarchy.sealFirstDataKey(database.db);
+      },
       now: options.now ?? (() => new Date()),
       challenges: new Map<string, WebAuthnChallenge>(),
     });
     registerBootstrapRoutes(app, {
       service: bootstrap,
-      // The kit artifact is streamed, never colocated with workspace data.
-      //
-      // **This is a placeholder, and it recovers nothing** (T059). It emits a
-      // format name, a version and an id — no encrypted key material, no
-      // lineage, no supported generations. The ceremony around it is real: the
-      // download is one-time, the confirmation is explicit, and the states
-      // advance correctly. The file at the end of it is not.
-      //
-      // `packages/domain/src/security/recovery-artifacts.ts` already has
-      // `createRecoveryKit`, which produces the real thing, and the artifact
-      // must be built here at download time rather than stored, since
-      // `recovery_kits` deliberately keeps only a digest. What blocks the
-      // wiring is that `createRecoveryKit` takes a passphrase and no
-      // requirement says where it comes from — it cannot travel with the
-      // artifact without defeating it.
+      // The artifact lives in `bootstrap-kit.ts`, not here. It is the only
+      // path that produces the file an owner is told to keep forever, and code
+      // that only runs from a composition root is code only ever exercised by
+      // accident.
       renderKit: async (kitId) =>
-        JSON.stringify({ format: "myownnotion.recovery+json", formatVersion: 1, kitId }),
+        JSON.stringify(
+          await renderBootstrapKit(
+            {
+              db: database.db,
+              installationId: INSTALLATION_ID,
+              workspaceId: workspace.id,
+              keys: keyHierarchy,
+              deploymentKey,
+              now,
+            },
+            kitId,
+          ),
+        ),
       // Setup ends signed in: the owner just proved possession, and a
       // sign-in screen immediately afterwards reads as the ceremony having
       // failed.

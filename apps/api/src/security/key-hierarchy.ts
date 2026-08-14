@@ -153,6 +153,40 @@ export class KeyHierarchy {
    * mutation. Opening another here would deadlock against it.
    */
   async initialize(tx: Database | Transaction): Promise<void> {
+    await this.ensureRootKey(tx);
+    const { installationId, workspaceId } = this.#deps;
+    const now = this.#deps.now();
+
+    const currentGeneration = await findCurrentGeneration(tx, workspaceId);
+    if (currentGeneration === null) {
+      const rootKey = await this.#rootKey(tx);
+      const dataKey = randomKey();
+      const wrapped = seal(rootKey, dataKey, wrapAad("data", installationId, workspaceId, 1));
+      await insertGeneration(tx, {
+        id: randomUUID(),
+        installationId,
+        workspaceId,
+        generation: 1,
+        wrappedKeyMaterial: encodeWrapped(wrapped),
+        createdAt: now,
+      });
+    }
+  }
+
+  /**
+   * Establishes the wrapping version and the workspace root key, and stops.
+   *
+   * Separate from `initialize` because the bootstrap needs exactly this much
+   * and no more: the recovery kit is issued *before* ownership is committed,
+   * and it carries the root key — so the root key must exist by then. The
+   * first data-key generation must **not**, because the promotion that commits
+   * ownership inserts generation 1 itself, and a second one violates the
+   * partial unique index and fails the whole ceremony.
+   *
+   * That collision is not hypothetical: eagerly initialising the full
+   * hierarchy at startup is exactly what broke setup once already.
+   */
+  async ensureRootKey(tx: Database | Transaction): Promise<void> {
     const wrappingKey = this.#wrappingKey();
     const { installationId, workspaceId } = this.#deps;
     const now = this.#deps.now();
@@ -189,21 +223,22 @@ export class KeyHierarchy {
         createdAt: now,
       });
     }
+  }
 
-    const currentGeneration = await findCurrentGeneration(tx, workspaceId);
-    if (currentGeneration === null) {
-      const rootKey = await this.#rootKey(tx);
-      const dataKey = randomKey();
-      const wrapped = seal(rootKey, dataKey, wrapAad("data", installationId, workspaceId, 1));
-      await insertGeneration(tx, {
-        id: randomUUID(),
-        installationId,
-        workspaceId,
-        generation: 1,
-        wrappedKeyMaterial: encodeWrapped(wrapped),
-        createdAt: now,
-      });
-    }
+  /**
+   * Seals a first data key under the workspace root key.
+   *
+   * For the bootstrap promotion, which inserts generation 1 in the same
+   * transaction that commits ownership. It used to store a random value there
+   * — not a data key at all, just bytes — which meant the generation every
+   * subsequent write depends on could never be unwrapped.
+   */
+  async sealFirstDataKey(tx: Database | Transaction): Promise<string> {
+    await this.ensureRootKey(tx);
+    const { installationId, workspaceId } = this.#deps;
+    const rootKey = await this.#rootKey(tx);
+    const dataKey = randomKey();
+    return encodeWrapped(seal(rootKey, dataKey, wrapAad("data", installationId, workspaceId, 1)));
   }
 
   /**

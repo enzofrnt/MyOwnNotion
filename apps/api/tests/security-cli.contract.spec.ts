@@ -356,3 +356,76 @@ describe("help", () => {
     expect(lines.join("\n")).toMatch(/never accepted as arguments/i);
   });
 });
+
+describe("the recovery import command", () => {
+  it("refuses without a deployment key, before reading anything", async () => {
+    // The key is what opens the kit. Without it there is nothing to check the
+    // file against, and reading it first would be work done to reach the same
+    // refusal.
+    const result = await runCommand(
+      parseCommand(["security", "recovery", "import", "--kit-file", "/nonexistent", "--yes"]),
+      context(),
+    );
+    expect(result.code).toBe(EXIT_CODES.keyUnavailable);
+  });
+
+  it("refuses a file that is not a kit", async () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "mon-cli-kit-"));
+    const keyFile = path.join(directory, "key");
+    const kitFile = path.join(directory, "not-a-kit.json");
+    writeFileSync(keyFile, randomBytes(32).toString("base64"), { mode: 0o600 });
+    writeFileSync(kitFile, JSON.stringify({ hello: "world" }));
+    try {
+      const result = await runCommand(
+        parseCommand(["security", "recovery", "import", "--kit-file", kitFile, "--yes"]),
+        { ...context(), deploymentKeyFile: keyFile },
+      );
+      // Named plainly. An operator who pointed at the wrong file needs to know
+      // that, not to see a decryption failure they will read as a lost kit.
+      expect(result.code).toBe(EXIT_CODES.usage);
+      expect(result.message).toMatch(/not a MyOwnNotion recovery kit/i);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses an unreadable file without quoting its contents", async () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "mon-cli-kit-"));
+    const keyFile = path.join(directory, "key");
+    writeFileSync(keyFile, randomBytes(32).toString("base64"), { mode: 0o600 });
+    try {
+      const result = await runCommand(
+        parseCommand([
+          "security",
+          "recovery",
+          "import",
+          "--kit-file",
+          path.join(directory, "absent.json"),
+          "--yes",
+        ]),
+        { ...context(), deploymentKeyFile: keyFile },
+      );
+      expect(result.code).toBe(EXIT_CODES.usage);
+      // The path is operator information; whatever the file held is not.
+      expect(result.message).toMatch(/could not be read/i);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("requires --kit-file", async () => {
+    const directory = mkdtempSync(path.join(os.tmpdir(), "mon-cli-kit-"));
+    const keyFile = path.join(directory, "key");
+    writeFileSync(keyFile, randomBytes(32).toString("base64"), { mode: 0o600 });
+    try {
+      await expect(
+        runCommand(parseCommand(["security", "recovery", "import", "--yes"]), {
+          ...context(),
+          deploymentKeyFile: keyFile,
+        }),
+      ).rejects.toThrow(/--kit-file is required/);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
