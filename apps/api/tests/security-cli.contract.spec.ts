@@ -16,7 +16,30 @@
  *     is the one that changes nothing.
  */
 
+import { randomBytes } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { runCli } from "../src/admin/security-cli.ts";
+import {
+  type CommandContext,
+  compatibilityInspectCommand,
+  KNOWN_COMMANDS,
+  keyCheckCommand,
+  runCommand,
+} from "../src/admin/security-commands.ts";
+
+/** A context with no database work: these commands never reach it. */
+function context(): CommandContext {
+  return {
+    db: undefined as never,
+    installationId: "018f2b7c-0000-7000-8000-000000000001",
+    deploymentKeyFile: undefined,
+    now: () => new Date("2026-06-01T00:00:00.000Z"),
+  };
+}
+
 import { EXIT_CODES, exitCodeFor, renderResult } from "../src/admin/command-output.ts";
 import {
   CommandUsageError,
@@ -200,5 +223,123 @@ describe("exit codes", () => {
       conflict: 6,
       unexpected: 7,
     });
+  });
+});
+
+describe("the supported command set", () => {
+  it("refuses an unknown command by listing what exists", async () => {
+    // A tool that guessed the nearest match and ran it would be worse than one
+    // that refuses: the operator asked for something specific, on a host, with
+    // the deployment key in reach.
+    await expect(
+      runCommand(parseCommand(["security", "delete", "everything"]), context()),
+    ).rejects.toThrow(/unknown command/);
+  });
+
+  it("names the commands it does support", async () => {
+    try {
+      await runCommand(parseCommand(["security", "nope"]), context());
+      expect.unreachable("should have refused");
+    } catch (error) {
+      expect((error as Error).message).toContain("security status");
+    }
+  });
+
+  it("exposes no administrative recovery and no remote path", () => {
+    // FR-019 puts these on the host, behind whoever can already reach the
+    // mounted key. A bearer token or an admin route would move that boundary
+    // to the network, which is the thing the requirement forbids.
+    const joined = KNOWN_COMMANDS.join(" ");
+    expect(joined).not.toMatch(/recover|token|bearer|remote/i);
+  });
+});
+
+describe("the key check", () => {
+  it("reports a readable key by fingerprint, never by value", async () => {
+    // The question an operator has is "can the process read it, and is it the
+    // right one" — the bytes answer neither better, and printing them would
+    // put the key in a terminal scrollback.
+    const directory = mkdtempSync(path.join(os.tmpdir(), "mon-cli-key-"));
+    const file = path.join(directory, "deployment-key");
+    const material = randomBytes(32);
+    writeFileSync(file, material.toString("base64"), { encoding: "utf8", mode: 0o600 });
+
+    try {
+      const result = keyCheckCommand({ ...context(), deploymentKeyFile: file });
+      expect(result.code).toBe(EXIT_CODES.ok);
+      const rendered = renderResult(result, { json: true });
+      expect(rendered).toContain("fingerprint");
+      expect(rendered).not.toContain(material.toString("base64"));
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("reports an unreadable key as unavailable rather than as a crash", async () => {
+    // Exit code 4, which a supervisor can retry on. An unexpected failure
+    // would be exit 7 and read as a bug in the tool.
+    const result = keyCheckCommand({
+      ...context(),
+      deploymentKeyFile: path.join(os.tmpdir(), "definitely-not-here"),
+    });
+    expect(result.code).toBe(EXIT_CODES.keyUnavailable);
+  });
+
+  it("reports an unconfigured key as unavailable too", () => {
+    const result = keyCheckCommand({ ...context(), deploymentKeyFile: undefined });
+    expect(result.code).toBe(EXIT_CODES.keyUnavailable);
+  });
+});
+
+describe("compatibility inspect", () => {
+  it("refuses the same path for both sides", async () => {
+    // Almost certainly a mistake, and one that would otherwise report a
+    // confident "compatible" about an installation with itself.
+    const result = compatibilityInspectCommand(
+      parseCommand([
+        "security",
+        "compatibility",
+        "inspect",
+        "--target",
+        "/srv/same",
+        "--source",
+        "/srv/same",
+      ]),
+    );
+    expect(result.code).toBe(EXIT_CODES.usage);
+  });
+
+  it("says plainly that it changed nothing", async () => {
+    // The command an operator runs while unsure. It has to be obvious that
+    // running it was safe.
+    const result = compatibilityInspectCommand(
+      parseCommand([
+        "security",
+        "compatibility",
+        "inspect",
+        "--target",
+        "/srv/target",
+        "--source",
+        "/srv/source",
+      ]),
+    );
+    expect(result.code).toBe(EXIT_CODES.ok);
+    expect(result.message).toMatch(/changed nothing/);
+  });
+});
+
+describe("help", () => {
+  it("says there is no remote equivalent", async () => {
+    // An operator who cannot find an HTTP route should learn that there is
+    // none by design, rather than assume they missed it.
+    const lines: string[] = [];
+    await runCli(["--help"], (line) => lines.push(line));
+    expect(lines.join("\n")).toMatch(/no remote equivalent/);
+  });
+
+  it("says where secrets go instead of the command line", async () => {
+    const lines: string[] = [];
+    await runCli([], (line) => lines.push(line));
+    expect(lines.join("\n")).toMatch(/never accepted as arguments/i);
   });
 });
