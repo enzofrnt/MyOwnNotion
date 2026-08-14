@@ -12,8 +12,9 @@
 
 import type { PasskeyViewDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useId, useState } from "react";
-import type { SecurityApi } from "../../services/security-api.ts";
+import type { RotationStatusView, SecurityApi } from "../../services/security-api.ts";
 import { DevicePanel } from "./device-panel.tsx";
+import { KeyRotationPanel } from "./key-rotation-panel.tsx";
 import { SessionPanel } from "./session-panel.tsx";
 
 export interface SecuritySettingsProps {
@@ -36,6 +37,7 @@ export function SecuritySettings(props: SecuritySettingsProps) {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [rotation, setRotation] = useState<RotationStatusView | null>(null);
   const passwordId = useId();
 
   const refresh = useCallback(async () => {
@@ -43,6 +45,12 @@ export function SecuritySettings(props: SecuritySettingsProps) {
     if (result.ok) {
       setPasskeys(result.value.passkeys);
     }
+    // A separate call, and a failure here is silent. Rotation state is
+    // context, not the reason the owner came to this screen; an error banner
+    // over their passkeys because a status read failed would be the tail
+    // wagging the dog.
+    const rotationResult = await props.api.rotationStatus();
+    setRotation(rotationResult.ok ? rotationResult.value : null);
   }, [props.api]);
 
   useEffect(() => {
@@ -170,6 +178,14 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       />
 
       <DevicePanel api={props.api} currentDeviceId={props.currentDeviceId ?? null} />
+
+      {rotation !== null && (
+        <KeyRotationPanel
+          policies={rotation.policies}
+          running={rotation.running}
+          writesAllowed={rotation.writesAllowed}
+        />
+      )}
     </main>
   );
 }

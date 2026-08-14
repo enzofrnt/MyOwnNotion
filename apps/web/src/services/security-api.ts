@@ -28,6 +28,7 @@ import {
   type DeviceDto,
   type InstallationStatusDto,
   type PasskeyViewDto,
+  type RotationPolicyViewDto,
   type SecurityProblemDto,
   type SessionViewDto,
 } from "@myownnotion/contracts";
@@ -43,6 +44,28 @@ import {
 export type ClientProblem = Omit<SecurityProblemDto, "correlationId"> & {
   readonly correlationId: string | null;
 };
+
+/**
+ * What `GET /v1/security/rotation` answers.
+ *
+ * Declared here rather than imported because the route composes it inline
+ * from the policy view and the running operations; this is the shape of that
+ * composition, and it belongs with the client that consumes it.
+ */
+export interface RotationStatusView {
+  readonly policies: readonly RotationPolicyViewDto[];
+  readonly writesAllowed: boolean;
+  readonly running: readonly {
+    readonly operationId: string;
+    readonly kind: "wrapping-key" | "data-key";
+    readonly mode: string;
+    readonly phase: string;
+    readonly fromVersionOrGeneration: number;
+    readonly toVersionOrGeneration: number;
+    readonly processedCount: number;
+    readonly totalCount: number;
+  }[];
+}
 
 export type SecurityResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -416,6 +439,17 @@ export class SecurityApi {
       csrf: true,
       body: JSON.stringify({ newPassword }),
     });
+  }
+
+  /**
+   * Both rotation policies and whatever is running.
+   *
+   * A plain read with no recency requirement, matching the route: this is how
+   * an owner discovers a rotation is overdue, and a re-authentication prompt
+   * in front of it would discourage looking.
+   */
+  async rotationStatus(): Promise<SecurityResult<RotationStatusView>> {
+    return await this.#authenticatedJson<RotationStatusView>("/v1/security/rotation");
   }
 
   async removePasskey(credentialId: string): Promise<SecurityResult<void>> {
