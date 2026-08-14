@@ -257,3 +257,99 @@ export async function finishRotationOperation(
     .set({ phase: input.phase, updatedAt: input.now })
     .where(eq(rotationOperations.id, input.operationId));
 }
+
+/**
+ * Moves the policy to `complete` and schedules the next rotation.
+ *
+ * The new due date is computed from the completion instant rather than from
+ * the previous due date. Both readings are defensible, and this one is chosen
+ * because the alternative punishes a late rotation twice: an installation that
+ * rotated a month overdue would immediately be eleven months from due again,
+ * and the operator who just did the work would see a policy that still looks
+ * neglected.
+ *
+ * `mode` returns to `scheduled` unconditionally. An emergency ends when the
+ * rotation that answered it completes; leaving the policy in emergency would
+ * mean the next ordinary cycle inherits zero grace for a reason that no longer
+ * exists.
+ */
+export async function completeRotationPolicy(
+  tx: Transaction,
+  input: {
+    policyId: string;
+    operationId: string;
+    now: Date;
+    dueIntervalDays: number;
+    graceDays: number;
+    currentGeneration?: number;
+  },
+): Promise<{ dueAt: Date; writeBlockAt: Date }> {
+  const dueAt = addDays(input.now, input.dueIntervalDays);
+  const writeBlockAt = addDays(dueAt, input.graceDays);
+  await tx
+    .update(rotationPolicies)
+    .set({
+      state: "complete",
+      mode: "scheduled",
+      nextAction: "none",
+      dueAt,
+      writeBlockAt,
+      lastCompletedAt: input.now,
+      // Cleared, not left: a failure the operator has since fixed must stop
+      // being reported, or `failed` would outrank the completion that
+      // resolved it forever.
+      lastFailureAt: null,
+      lastOperationId: input.operationId,
+      updatedAt: input.now,
+      ...(input.currentGeneration === undefined
+        ? {}
+        : { currentGeneration: input.currentGeneration }),
+    })
+    .where(eq(rotationPolicies.id, input.policyId));
+  return { dueAt, writeBlockAt };
+}
+
+/**
+ * Records a failed rotation without touching the due date or the write block.
+ *
+ * Deliberately: a rotation that failed did not rotate anything, so nothing
+ * about *when the key must be rotated* has changed. Extending the deadline
+ * because an attempt was made would let a repeatedly failing installation
+ * postpone the block indefinitely, which is the exact outcome the block
+ * exists to prevent.
+ */
+export async function failRotationPolicy(
+  tx: Transaction,
+  input: { policyId: string; operationId: string; now: Date },
+): Promise<void> {
+  await tx
+    .update(rotationPolicies)
+    .set({
+      state: "failed",
+      nextAction: "retry-rotation",
+      lastFailureAt: input.now,
+      lastOperationId: input.operationId,
+      updatedAt: input.now,
+    })
+    .where(eq(rotationPolicies.id, input.policyId));
+}
+
+/** Marks a policy as having a rotation under way. */
+export async function markRotationInProgress(
+  tx: Transaction,
+  input: { policyId: string; operationId: string; now: Date },
+): Promise<void> {
+  await tx
+    .update(rotationPolicies)
+    .set({
+      state: "in-progress",
+      nextAction: "resume-rotation",
+      lastOperationId: input.operationId,
+      updatedAt: input.now,
+    })
+    .where(eq(rotationPolicies.id, input.policyId));
+}
+
+function addDays(from: Date, days: number): Date {
+  return new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
+}
