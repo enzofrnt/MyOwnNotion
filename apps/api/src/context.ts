@@ -6,6 +6,7 @@ import type { ContentStore } from "@myownnotion/blob-store";
 import type { Database } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
 import type { ProtectedContent } from "./security/protected-content.ts";
+import type { RotationPolicyService } from "./security/rotation-policy-service.ts";
 
 export interface AppContext {
   readonly db: Database;
@@ -20,4 +21,6 @@ export interface AppContext {
    * app without a security configuration needs no deployment key.
    */
   readonly protectedContent?: ProtectedContent | undefined;
+  /** Refuses protected writes once a rotation policy reaches its block. */
+  readonly rotationPolicies?: RotationPolicyService | undefined;
 }

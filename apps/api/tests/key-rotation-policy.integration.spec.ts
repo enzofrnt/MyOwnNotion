@@ -242,3 +242,85 @@ describe("the owner-facing warning states", () => {
     expect(new Set(states).size).toBe(states.length);
   });
 });
+
+describe("the block reaches the write path, not only the status", () => {
+  it("refuses a protected write once the block instant has passed", async () => {
+    // The check that was calculated but never applied until now. A policy that
+    // reported a block while writes carried on would be worse than no policy:
+    // the operator would believe the deadline had teeth.
+    await seedPolicy("data-key", { dueInDays: -400, blockInDays: -1 });
+
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: randomUUID(),
+        kind: "page",
+        name: "Written after the deadline",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+    });
+    expect(response.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
+  it("leaves nothing behind when it refuses", async () => {
+    // The refusal happens inside the mutation's transaction, so content and
+    // envelope roll back together. A half-written item would be worse than
+    // either outcome.
+    await seedPolicy("data-key", { dueInDays: -400, blockInDays: -1 });
+    const id = randomUUID();
+
+    await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id,
+        kind: "page",
+        name: "Should not survive",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+    });
+
+    const items = await harness.built.database.db.execute(
+      sql`SELECT id FROM items WHERE id = ${id}::uuid`,
+    );
+    expect((items as unknown as { rows: unknown[] }).rows).toHaveLength(0);
+  });
+
+  it("still writes while the policy is merely overdue", async () => {
+    // The grace period has to actually work, or the block is just an earlier
+    // deadline wearing a different name.
+    await seedPolicy("data-key", { dueInDays: -1, blockInDays: 6 });
+
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: randomUUID(),
+        kind: "page",
+        name: "Written during grace",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+  });
+
+  it("writes normally when no policy is configured", async () => {
+    // An installation that has not set up rotation must not be unusable.
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: randomUUID(),
+        kind: "page",
+        name: "No policy at all",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+  });
+});
