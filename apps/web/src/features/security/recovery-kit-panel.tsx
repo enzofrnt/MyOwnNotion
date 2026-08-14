@@ -16,6 +16,21 @@ import { useCallback, useId, useState } from "react";
 
 export type KitDelivery = "downloadable" | "download-consumed";
 
+/**
+ * The thing an owner must be told and would never guess.
+ *
+ * This installation seals its recovery kit under the deployment key file on
+ * the host. That removes the passphrase an owner would otherwise have to
+ * transcribe and never lose — and it means **the kit alone restores nothing**.
+ *
+ * An owner who is not told this stores the kit carefully, decommissions the
+ * old machine with its key, and discovers the gap at the only moment it cannot
+ * be fixed. So it is not a footnote and not a tooltip: it sits next to the
+ * download button, in the same weight as the instruction to store the file.
+ */
+export const DEPLOYMENT_KEY_REQUIREMENT =
+  "Back up your deployment key file as well, somewhere separate. This kit is unlocked by that key — on its own it cannot restore anything.";
+
 export interface RecoveryKitPanelProps {
   readonly kitId: string;
   readonly delivery: KitDelivery;
@@ -47,9 +62,14 @@ export function RecoveryKitPanel(props: RecoveryKitPanelProps) {
     <section className="recovery-kit-panel" aria-labelledby="recovery-kit-heading">
       <h2 id="recovery-kit-heading">Save your recovery kit</h2>
       <p>
-        This is the only copy. It is downloaded once, and it is the only way back into this
+        This is the only copy. It is downloaded once, and it is what gets you back into this
         installation if you lose your passkey. Store it offline — a printout or an encrypted drive,
         not this device's downloads folder.
+      </p>
+      <p className="recovery-kit-panel__deployment-key" data-testid="deployment-key-requirement">
+        {/* Beside the download, not below the fold: this is the half of the
+            answer that an owner cannot infer from the file they are given. */}
+        <strong>{DEPLOYMENT_KEY_REQUIREMENT}</strong>
       </p>
 
       <dl className="recovery-kit-facts">
@@ -106,7 +126,8 @@ export function RecoveryKitPanel(props: RecoveryKitPanelProps) {
           data-testid="acknowledge-offline-storage"
         />
         <label htmlFor={acknowledgeId}>
-          I have stored this recovery kit somewhere offline that I can reach without this device.
+          I have stored this recovery kit, and a copy of the deployment key, somewhere offline that
+          I can reach without this device.
         </label>
       </div>
 
