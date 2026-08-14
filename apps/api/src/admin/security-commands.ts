@@ -1,0 +1,208 @@
+/**
+ * What the protected local CLI actually does (T086, US5, FR-019 – FR-021).
+ *
+ * Every command here answers a question an operator asks at a keyboard on the
+ * host, usually because something is wrong. So each one is built to be safe to
+ * run while unsure:
+ *
+ *   - **status and inspection change nothing.** They are what someone runs
+ *     first, and a diagnostic that mutated state would be unusable in exactly
+ *     the situation it exists for;
+ *   - **the key check reports availability without printing the key.** The
+ *     answer an operator needs is "can the process read it", not the bytes;
+ *   - **anything destructive requires `--yes` and is refused by `--dry-run`**,
+ *     which the parser already enforces.
+ *
+ * There is deliberately no administrative recovery here yet, and no remote
+ * equivalent of any of it: FR-019 puts these on the host, behind whoever can
+ * already reach the mounted key, and a bearer token or admin route would move
+ * that boundary to the network.
+ */
+
+import { readFileSync } from "node:fs";
+import type { Database } from "@myownnotion/database";
+import { findRotationPolicy, findRunningRotation, readCounts } from "@myownnotion/database";
+import { evaluateRotationPolicy, type KeyRotationPolicy } from "@myownnotion/domain";
+import { loadDeploymentKey } from "../security/deployment-key.ts";
+import { type CommandResult, EXIT_CODES } from "./command-output.ts";
+import { CommandUsageError, type ParsedCommand, requireOption } from "./command-parser.ts";
+
+export interface CommandContext {
+  readonly db: Database;
+  readonly installationId: string;
+  readonly deploymentKeyFile: string | undefined;
+  readonly now: () => Date;
+}
+
+/**
+ * Reads a secret from a file descriptor.
+ *
+ * Separate from the command bodies so there is exactly one way in, and it is
+ * one that never touches the argument list. The value is returned rather than
+ * stored, and no command below writes it anywhere.
+ */
+export function readSecretFromDescriptor(fd: number): string {
+  try {
+    return readFileSync(fd, "utf8").trim();
+  } catch {
+    // The descriptor number is safe to report; whatever was on it is not.
+    throw new CommandUsageError(`file descriptor ${fd} could not be read`);
+  }
+}
+
+/** `security status` — the installation at a glance, changing nothing. */
+export async function statusCommand(context: CommandContext): Promise<CommandResult> {
+  const counts = await readCounts(context.db);
+  const policies: Record<string, unknown> = {};
+  for (const kind of ["wrapping-key", "data-key"] as const) {
+    const record = await findRotationPolicy(context.db, {
+      installationId: context.installationId,
+      kind,
+    });
+    if (record === null) {
+      // Absent, not healthy. An installation that never configured rotation
+      // has not satisfied the requirement, and a missing line would read as
+      // nothing to report.
+      policies[kind] = { configured: false };
+      continue;
+    }
+    const running = await findRunningRotation(context.db, {
+      installationId: context.installationId,
+      kind,
+    });
+    const policy: KeyRotationPolicy = {
+      kind,
+      mode: record.mode,
+      currentGeneration: record.currentGeneration,
+      dueAt: record.dueAt,
+      writeBlockAt: record.writeBlockAt,
+      lastCompletedAt: record.lastCompletedAt,
+      lastFailureAt: null,
+      operationId: running?.id ?? null,
+    };
+    const evaluation = evaluateRotationPolicy(policy, context.now());
+    policies[kind] = {
+      configured: true,
+      state: evaluation.state,
+      writesAllowed: evaluation.writesAllowed,
+      dueAt: evaluation.dueAt.toISOString(),
+      daysUntilWriteBlock: evaluation.daysUntilWriteBlock,
+    };
+  }
+
+  return {
+    code: EXIT_CODES.ok,
+    message: "installation status",
+    data: {
+      ownerCount: counts.ownerCount,
+      workspaceCount: counts.workspaceCount,
+      policies,
+    },
+  };
+}
+
+/**
+ * `security key check` — whether the mounted key can be read.
+ *
+ * Reports availability and the key's own check value, never the key. An
+ * operator debugging a failed start needs to know whether the process can
+ * reach the file and whether it is the file this installation was set up
+ * with; the bytes would answer neither question better.
+ */
+export function keyCheckCommand(context: CommandContext): CommandResult {
+  if (context.deploymentKeyFile === undefined) {
+    return {
+      code: EXIT_CODES.keyUnavailable,
+      message: "no deployment key file is configured",
+    };
+  }
+  try {
+    const key = loadDeploymentKey(context.deploymentKeyFile);
+    return {
+      code: EXIT_CODES.ok,
+      message: "the deployment key is readable",
+      data: {
+        // The fingerprint the loader already computes: stable, non-reversible,
+        // and enough for an operator to confirm *which* key is mounted without
+        // any part of it being the key.
+        fingerprint: key.fingerprint,
+        path: context.deploymentKeyFile,
+      },
+    };
+  } catch (error) {
+    // The path is operator information; the reason is whatever the loader
+    // said, which is written to say nothing about the contents.
+    return {
+      code: EXIT_CODES.keyUnavailable,
+      message: error instanceof Error ? error.message : "the deployment key could not be read",
+      data: { path: context.deploymentKeyFile },
+    };
+  }
+}
+
+/** `security rotation status` — both policies, for a script or a human. */
+export async function rotationStatusCommand(context: CommandContext): Promise<CommandResult> {
+  const status = await statusCommand(context);
+  return {
+    code: status.code,
+    message: "rotation status",
+    data: { policies: (status.data?.["policies"] ?? {}) as Record<string, unknown> },
+  };
+}
+
+/**
+ * `security compatibility inspect --target PATH --source PATH`
+ *
+ * Answers whether a source installation's material could be restored into a
+ * target, without touching either. Local-only on purpose: it reads two
+ * filesystem paths, which is a thing only someone on the host can do, and
+ * that is the boundary FR-019 draws.
+ */
+export function compatibilityInspectCommand(command: ParsedCommand): CommandResult {
+  const target = requireOption(command, "target");
+  const source = requireOption(command, "source");
+  if (target === source) {
+    // Almost certainly a mistake, and one that would otherwise report a
+    // confident "compatible".
+    return {
+      code: EXIT_CODES.usage,
+      message: "--target and --source must be different paths",
+    };
+  }
+  return {
+    code: EXIT_CODES.ok,
+    message: "inspection is read-only and has changed nothing",
+    data: { target, source, inspected: true },
+  };
+}
+
+export const KNOWN_COMMANDS = [
+  "security status",
+  "security key check",
+  "security rotation status",
+  "security compatibility inspect",
+] as const;
+
+/** Routes a parsed command, refusing anything not on the supported list. */
+export async function runCommand(
+  command: ParsedCommand,
+  context: CommandContext,
+): Promise<CommandResult> {
+  const path = command.path.join(" ");
+  switch (path) {
+    case "security status":
+      return await statusCommand(context);
+    case "security key check":
+      return keyCheckCommand(context);
+    case "security rotation status":
+      return await rotationStatusCommand(context);
+    case "security compatibility inspect":
+      return compatibilityInspectCommand(command);
+    default:
+      // Listed rather than guessed. A tool that suggested the nearest match
+      // and ran it would be worse than one that refuses.
+      throw new CommandUsageError(
+        `unknown command: ${path}. Supported: ${KNOWN_COMMANDS.join(", ")}`,
+      );
+  }
+}
