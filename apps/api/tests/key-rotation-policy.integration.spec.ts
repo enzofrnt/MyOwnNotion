@@ -373,3 +373,79 @@ describe("a wrapping-key rotation leaves the content alone", () => {
     expect(pageId).toBeTruthy();
   });
 });
+
+describe("what the trail records about a rotation", () => {
+  it("records a reached write block once per evaluation, not once per refused write", async () => {
+    // Auditing the write path would emit one row per request: thousands of
+    // identical events burying the one an operator needs, and a self-inflicted
+    // write amplification while the installation is already unhappy.
+    await seedPolicy("data-key", { dueInDays: -400, blockInDays: -1 });
+    const blocked: { kind: string }[] = [];
+    const { logger } = recordingLogger();
+
+    const scheduler = new RotationScheduler({
+      policies: policies(),
+      logger,
+      onWriteBlocked: async (event) => {
+        blocked.push({ kind: event.kind });
+      },
+    });
+
+    await scheduler.evaluate();
+    expect(blocked).toHaveLength(1);
+    expect(blocked[0]?.kind).toBe("data-key");
+
+    // Several refused writes in between change nothing: the count follows
+    // evaluations, not requests.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await harness.built.app.inject({
+        method: "POST",
+        url: "/v1/items",
+        headers: { "idempotency-key": randomUUID() },
+        payload: {
+          id: randomUUID(),
+          kind: "page",
+          name: "Refused",
+          placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        },
+      });
+    }
+    expect(blocked).toHaveLength(1);
+  });
+
+  it("says nothing while the policy is merely overdue", async () => {
+    // The event marks the moment writes actually stopped. Firing during the
+    // grace period would make it useless for answering "since when?".
+    await seedPolicy("data-key", { dueInDays: -1, blockInDays: 6 });
+    const blocked: unknown[] = [];
+    const { logger } = recordingLogger();
+
+    await new RotationScheduler({
+      policies: policies(),
+      logger,
+      onWriteBlocked: async (event) => {
+        blocked.push(event);
+      },
+    }).evaluate();
+
+    expect(blocked).toHaveLength(0);
+  });
+
+  it("carries the dates an operator needs, and no key material", async () => {
+    await seedPolicy("wrapping-key", { dueInDays: -400, blockInDays: -1 });
+    const blocked: { dueAt: Date; writeBlockAt: Date }[] = [];
+    const { logger } = recordingLogger();
+
+    await new RotationScheduler({
+      policies: policies(),
+      logger,
+      onWriteBlocked: async (event) => {
+        blocked.push({ dueAt: event.dueAt, writeBlockAt: event.writeBlockAt });
+      },
+    }).evaluate();
+
+    expect(blocked[0]?.dueAt).toBeInstanceOf(Date);
+    expect(blocked[0]?.writeBlockAt).toBeInstanceOf(Date);
+    expect(JSON.stringify(blocked)).not.toContain("key");
+  });
+});

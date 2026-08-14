@@ -27,6 +27,22 @@ export const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 export interface RotationSchedulerDeps {
   readonly policies: RotationPolicyService;
   readonly logger: FastifyBaseLogger;
+  /**
+   * Records a reached write block, at most once per evaluation.
+   *
+   * Deliberately raised here rather than from the write path. Auditing every
+   * refused write would emit one row per request — thousands of identical
+   * events burying the one an operator needs, and a self-inflicted write
+   * amplification while the installation is already unhappy.
+   *
+   * The scheduler evaluates at startup and daily, so this fires about as often
+   * as an operator would want to be told.
+   */
+  readonly onWriteBlocked?: (blocked: {
+    kind: "wrapping-key" | "data-key";
+    dueAt: Date;
+    writeBlockAt: Date;
+  }) => Promise<void>;
   /** Injected so tests do not wait a day, and so the interval is visible. */
   readonly intervalMs?: number;
 }
@@ -81,6 +97,13 @@ export class RotationScheduler {
           ? "protected writes are blocked until this key is rotated"
           : "a key rotation is due",
       );
+      if (evaluation.state === "write-block") {
+        await this.#deps.onWriteBlocked?.({
+          kind,
+          dueAt: evaluation.dueAt,
+          writeBlockAt: evaluation.writeBlockAt,
+        });
+      }
     }
     return health;
   }
