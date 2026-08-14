@@ -27,6 +27,10 @@ There is no remote equivalent: these commands are not exposed over HTTP.
   security status                     installation and rotation state
   security key check                  whether the deployment key is readable
   security rotation status            both rotation policies
+  security rotation wrapping-key      --new-key-file PATH; rewraps one root
+                                      key per workspace under a new deployment
+                                      key. Both files must be mounted: the old
+                                      key unwraps, the new one rewraps.
   security compatibility inspect      --target PATH --source PATH
 
   --json        machine-readable envelope

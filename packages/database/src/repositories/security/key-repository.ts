@@ -64,27 +64,138 @@ export interface InsertWrappingKeyVersionInput {
   readonly externalSecretReference: string;
   readonly algorithm: string;
   readonly createdAt: Date;
+  /**
+   * Defaults to `current`. A rotation inserts its target as `pending`, so the
+   * rewrapped rows have something to reference before the version is the one
+   * new work uses.
+   */
+  readonly state?: "current" | "pending";
 }
 
 export async function insertWrappingKeyVersion(
   tx: Executor,
   input: InsertWrappingKeyVersionInput,
 ): Promise<WrappingKeyVersionRecord> {
+  const state = input.state ?? "current";
   await tx.insert(wrappingKeyVersions).values({
     id: input.id,
     installationId: input.installationId,
     version: input.version,
     externalSecretReference: input.externalSecretReference,
     algorithm: input.algorithm,
-    state: "current",
+    state,
     createdAt: input.createdAt,
   });
   return {
     id: input.id,
     version: input.version,
     externalSecretReference: input.externalSecretReference,
-    state: "current",
+    state,
   };
+}
+
+/**
+ * The version a rotation is rewrapping towards, if one is in flight.
+ *
+ * Derived from the rows rather than from the operation, and that distinction
+ * matters after a failure. A failed operation is no longer "running", so
+ * looking for one would report nothing in flight — while half the root keys
+ * are already rewrapped under a version that does exist. Starting a fresh
+ * rotation from there would target a *third* version and try to unwrap the
+ * already-rewrapped rows with the old key, which cannot open them.
+ *
+ * The `pending` row is what says "a rotation towards this version is
+ * unfinished", whether the attempt that created it failed, crashed, or is
+ * still going.
+ */
+export async function findPendingWrappingKeyVersion(
+  executor: Executor,
+  installationId: string,
+): Promise<WrappingKeyVersionRecord | null> {
+  const rows = await executor
+    .select()
+    .from(wrappingKeyVersions)
+    .where(
+      and(
+        eq(wrappingKeyVersions.installationId, installationId),
+        eq(wrappingKeyVersions.state, "pending"),
+      ),
+    )
+    .orderBy(wrappingKeyVersions.version)
+    .limit(1);
+  const row = rows[0];
+  return row === undefined
+    ? null
+    : {
+        id: row.id,
+        version: row.version,
+        externalSecretReference: row.externalSecretReference,
+        state: row.state,
+      };
+}
+
+/** A specific version by number, whatever state it is in. */
+export async function findWrappingKeyVersion(
+  executor: Executor,
+  input: { installationId: string; version: number },
+): Promise<WrappingKeyVersionRecord | null> {
+  const rows = await executor
+    .select()
+    .from(wrappingKeyVersions)
+    .where(
+      and(
+        eq(wrappingKeyVersions.installationId, input.installationId),
+        eq(wrappingKeyVersions.version, input.version),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  return row === undefined
+    ? null
+    : {
+        id: row.id,
+        version: row.version,
+        externalSecretReference: row.externalSecretReference,
+        state: row.state,
+      };
+}
+
+/**
+ * Promotes a `pending` version to `current`, retiring the one it replaces.
+ *
+ * Both updates in one call, and the demotion first, because the partial unique
+ * index permits exactly one `current` row: promoting before demoting would be
+ * rejected by the database. That rejection is the index doing its job — it is
+ * the reason an installation can never be in a state where two versions each
+ * claim to be the one new work uses.
+ *
+ * The old version becomes `previous` rather than `revoked`. It can still
+ * unwrap nothing at this point — every root key has been rewrapped — but the
+ * row is the record that the rotation happened, and an operator reading it
+ * later needs to see a retired version, not a repudiated one.
+ */
+export async function promoteWrappingKeyVersion(
+  tx: Transaction,
+  input: { installationId: string; fromVersionId: string; toVersionId: string; now: Date },
+): Promise<void> {
+  await tx
+    .update(wrappingKeyVersions)
+    .set({ state: "previous", revokedAt: input.now })
+    .where(
+      and(
+        eq(wrappingKeyVersions.installationId, input.installationId),
+        eq(wrappingKeyVersions.id, input.fromVersionId),
+      ),
+    );
+  await tx
+    .update(wrappingKeyVersions)
+    .set({ state: "current" })
+    .where(
+      and(
+        eq(wrappingKeyVersions.installationId, input.installationId),
+        eq(wrappingKeyVersions.id, input.toVersionId),
+      ),
+    );
 }
 
 export interface RootKeyRecord {
@@ -119,6 +230,49 @@ export async function findActiveRootKey(
         rootKeyVersion: row.rootKeyVersion,
         state: row.state,
       };
+}
+
+/**
+ * The active root keys still wrapped under something other than `versionId`.
+ *
+ * This is the work list of a wrapping-key rotation, and it is deliberately
+ * derived from the rows rather than from a checkpoint. A checkpoint says what
+ * a previous attempt *believed* it had done; this says what the database
+ * actually holds. When the two disagree — a crash between the rewrap and its
+ * checkpoint — the rows are right, and re-running against them converges.
+ *
+ * Revoked and superseded root keys are excluded: rewrapping a key that is no
+ * longer used to open anything would extend the life of material the
+ * installation has already decided to stop trusting.
+ */
+export async function listRootKeysToRewrap(
+  executor: Executor,
+  input: {
+    installationId: string;
+    /**
+     * The version being rewrapped *towards*. `null` before that version row
+     * exists — a rotation that has not started yet — in which case every
+     * active root key is still to be rewrapped.
+     */
+    wrappingKeyVersionId: string | null;
+  },
+): Promise<readonly { rootKeyId: string; workspaceId: string }[]> {
+  const rows = await executor
+    .select({
+      id: workspaceRootKeys.id,
+      workspaceId: workspaceRootKeys.workspaceId,
+    })
+    .from(workspaceRootKeys)
+    .where(
+      and(
+        eq(workspaceRootKeys.installationId, input.installationId),
+        eq(workspaceRootKeys.state, "active"),
+        ...(input.wrappingKeyVersionId === null
+          ? []
+          : [sql`${workspaceRootKeys.wrappingKeyVersionId} <> ${input.wrappingKeyVersionId}`]),
+      ),
+    );
+  return rows.map((row) => ({ rootKeyId: row.id, workspaceId: row.workspaceId }));
 }
 
 export interface InsertRootKeyInput {

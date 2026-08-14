@@ -462,7 +462,10 @@ export const wrappingKeyVersions = pgTable(
       .where(sql`${table.state} = 'current'`),
     check(
       "wrapping_key_versions_state_check",
-      sql`${table.state} IN ('current', 'previous', 'revoked')`,
+      // `pending` is a version a rotation is rewrapping *towards*: it exists so
+      // the rewrapped rows have something to reference, and it becomes
+      // `current` only once every workspace root key opens under it.
+      sql`${table.state} IN ('current', 'pending', 'previous', 'revoked')`,
     ),
     check("wrapping_key_versions_version_check", sql`${table.version} >= 1`),
   ],

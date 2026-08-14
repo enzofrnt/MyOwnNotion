@@ -29,7 +29,18 @@ export interface ParsedCommand {
 }
 
 /** Flags that take a value; everything else is a boolean switch. */
-const VALUE_FLAGS = new Set(["target", "source", "generation", "kind", "reason", "fd"]);
+const VALUE_FLAGS = new Set([
+  "target",
+  "source",
+  "generation",
+  "kind",
+  "reason",
+  "fd",
+  // A *path*, not a key. The file is loaded under the same permission rules as
+  // the mounted deployment key, which is the whole reason the new key arrives
+  // as a file rather than as a value.
+  "new-key-file",
+]);
 
 /** Flags a caller might reach for to pass a secret inline. Always refused. */
 const SECRET_FLAGS = new Set(["password", "passphrase", "key", "secret", "token"]);

@@ -25,7 +25,13 @@ import { findRotationPolicy, findRunningRotation, readCounts } from "@myownnotio
 import { evaluateRotationPolicy, type KeyRotationPolicy } from "@myownnotion/domain";
 import { loadDeploymentKey } from "../security/deployment-key.ts";
 import { type CommandResult, EXIT_CODES } from "./command-output.ts";
-import { CommandUsageError, type ParsedCommand, requireOption } from "./command-parser.ts";
+import {
+  CommandUsageError,
+  type ParsedCommand,
+  requireOption,
+  shouldExecute,
+} from "./command-parser.ts";
+import { rotationWrappingKeyCommand } from "./commands/rotation-wrapping-key.ts";
 
 export interface CommandContext {
   readonly db: Database;
@@ -180,6 +186,7 @@ export const KNOWN_COMMANDS = [
   "security status",
   "security key check",
   "security rotation status",
+  "security rotation wrapping-key",
   "security compatibility inspect",
 ] as const;
 
@@ -196,6 +203,20 @@ export async function runCommand(
       return keyCheckCommand(context);
     case "security rotation status":
       return await rotationStatusCommand(context);
+    case "security rotation wrapping-key":
+      return await rotationWrappingKeyCommand(
+        command,
+        {
+          db: context.db,
+          installationId: context.installationId,
+          deploymentKeyFile: context.deploymentKeyFile,
+          now: context.now,
+        },
+        // The parser decides this, not the command: `--dry-run` beating
+        // `--yes` is a property of every destructive command here, and a
+        // handler that re-derived it could disagree with the others.
+        { execute: shouldExecute(command) },
+      );
     case "security compatibility inspect":
       return compatibilityInspectCommand(command);
     default:
