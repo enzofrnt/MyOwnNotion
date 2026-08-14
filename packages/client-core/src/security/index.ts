@@ -6,6 +6,8 @@
  * device-bound key.
  */
 
+export * from "./device-key-binding.ts";
 export * from "./local-encryption.ts";
 export * from "./local-key-state.ts";
 export * from "./local-record-codec.ts";
+export * from "./reauthorization.ts";
