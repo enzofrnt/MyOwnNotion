@@ -14,6 +14,7 @@ export * from "./installation-repository.ts";
 export * from "./key-repository.ts";
 export * from "./migration-checkpoint-repository.ts";
 export * from "./migration-repository.ts";
+export * from "./migration-source-repository.ts";
 export * from "./protected-record-repository.ts";
 export * from "./repository-types.ts";
 export * from "./rotation-repository.ts";
