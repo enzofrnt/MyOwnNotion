@@ -98,7 +98,7 @@ export async function statusCommand(context: CommandContext): Promise<CommandRes
       dueAt: record.dueAt,
       writeBlockAt: record.writeBlockAt,
       lastCompletedAt: record.lastCompletedAt,
-      lastFailureAt: null,
+      lastFailureAt: record.lastFailureAt,
       operationId: running?.id ?? null,
     };
     const evaluation = evaluateRotationPolicy(policy, context.now());

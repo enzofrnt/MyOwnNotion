@@ -79,7 +79,10 @@ export class RotationPolicyService {
       dueAt: record.dueAt,
       writeBlockAt: record.writeBlockAt,
       lastCompletedAt: record.lastCompletedAt,
-      lastFailureAt: null,
+      // The stored value, not a hard-coded null. A failed rotation writes this
+      // column, and reading it is what turns that row into the `failed` state
+      // an owner is shown — without it the failure is recorded and invisible.
+      lastFailureAt: record.lastFailureAt,
       operationId: running?.id ?? null,
     };
     return evaluateRotationPolicy(policy, this.#deps.now());
