@@ -24,6 +24,7 @@ export * from "./revisions/types.ts";
 export * from "./security/bootstrap.ts";
 // The canonical AAD only: no key material and no `node:crypto`, so the browser
 // client can bind its local envelopes exactly as the server binds its own.
+export * from "./security/device-state.ts";
 export * from "./security/envelope-binding.ts";
 export * from "./security/invariants.ts";
 export * from "./security/redaction.ts";
