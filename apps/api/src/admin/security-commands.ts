@@ -36,6 +36,7 @@ import {
   requireOption,
   shouldExecute,
 } from "./command-parser.ts";
+import type { RotationAudit } from "./commands/rotation-audit.ts";
 import { rotationDataKeyCommand } from "./commands/rotation-data-key.ts";
 import { rotationWrappingKeyCommand } from "./commands/rotation-wrapping-key.ts";
 
@@ -44,6 +45,14 @@ export interface CommandContext {
   readonly installationId: string;
   readonly deploymentKeyFile: string | undefined;
   readonly now: () => Date;
+  /**
+   * The audit journal, when the caller wired one.
+   *
+   * Optional because the read-only commands have nothing to audit beyond the
+   * invocation itself, which the CLI records, and because a test driving one
+   * command should not have to construct an audit context to do it.
+   */
+  readonly audit?: RotationAudit;
 }
 
 /**
@@ -233,6 +242,7 @@ async function runDataKeyRotation(
         }
       },
       now: context.now,
+      audit: context.audit,
     },
     { execute: shouldExecute(command) },
   );
@@ -268,6 +278,7 @@ export async function runCommand(
           installationId: context.installationId,
           deploymentKeyFile: context.deploymentKeyFile,
           now: context.now,
+          audit: context.audit,
         },
         // The parser decides this, not the command: `--dry-run` beating
         // `--yes` is a property of every destructive command here, and a
