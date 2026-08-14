@@ -333,6 +333,14 @@ export class KeyHierarchy {
 
     const cached = this.#unwrapped.get(stored.generation);
     if (cached !== undefined) {
+      // The cache saves the unwrap, never the authorization. Returning it
+      // without this check meant an operator could unmount the deployment key
+      // — the emergency response to a suspected compromise — and every read
+      // would keep succeeding for as long as the process happened to live.
+      //
+      // Checking costs one read of a small file and preserves the point of
+      // the cache, which was to avoid the asymmetric crypto, not the syscall.
+      this.#wrappingKey();
       return { generation: stored.generation, material: cached };
     }
 
