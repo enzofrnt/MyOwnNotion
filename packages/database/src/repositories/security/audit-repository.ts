@@ -70,6 +70,11 @@ export const SECURITY_EVENT_TYPES = [
   "device.renamed",
   "device.revoked",
   "device.reauthorization-required",
+  // A device asked for synchronization material and was refused. Recorded
+  // because it is the observable consequence of a revocation: without it, an
+  // owner can see that they revoked a device but never that the device kept
+  // trying, which is the part worth knowing.
+  "device.synchronization-denied",
   // Recovery
   "recovery.kit-prepared",
   "recovery.kit-downloaded",
