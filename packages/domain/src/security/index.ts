@@ -21,6 +21,7 @@ export * from "./envelopes.ts";
 export * from "./identity-manifest.ts";
 // Re-exported for convenience so a Node consumer needs one import.
 export * from "./invariants.ts";
+export * from "./migration.ts";
 export * from "./recovery-artifacts.ts";
 export * from "./redaction.ts";
 export * from "./rotation-policy.ts";

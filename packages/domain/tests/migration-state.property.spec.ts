@@ -14,46 +14,36 @@
  */
 
 import {
+  assertAdvance,
   buildIdentityManifest,
+  canAdvance,
+  checkpointAdvances,
+  encryptedReadsEnabled,
+  MIGRATION_ORDER,
   MIGRATION_STATES,
   type MigrationState,
+  mayReportComplete,
+  mayScrubPlaintext,
   partialIdentityDigest,
+  plaintextWritesEnabled,
+  resumeStateAfterFault,
+  sourceRetained,
+  stageIndex,
 } from "@myownnotion/domain/security";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-/** The linear progression; `failed` is reachable from any non-terminal state. */
-const ORDER = MIGRATION_STATES.filter((state) => state !== "failed");
-
-function order(state: MigrationState): number {
-  return ORDER.indexOf(state as (typeof ORDER)[number]);
-}
-
-function canAdvance(from: MigrationState, to: MigrationState): boolean {
-  if (from === "complete" || from === "failed") {
-    return false;
-  }
-  if (to === "failed") {
-    return true;
-  }
-  // Strictly one step forward: skipping a stage would skip its gate.
-  return order(to) === order(from) + 1;
-}
-
-/** Whether plaintext writes are still accepted in this state. */
-function plaintextWritesEnabled(state: MigrationState): boolean {
-  return order(state) < order("stop-plaintext-writes");
-}
-
-/** Whether reads are served from encrypted storage in this state. */
-function encryptedReadsEnabled(state: MigrationState): boolean {
-  return state !== "failed" && order(state) >= order("encrypted-read-cutover");
-}
-
-/** Whether the plaintext source is still on disk. */
-function sourceRetained(state: MigrationState): boolean {
-  return state === "failed" || order(state) < order("scrub-plaintext");
-}
+/**
+ * The predicates come from the domain module, not from this file.
+ *
+ * They used to be defined here, which made every property below a test of its
+ * own restatement of the rules: an implementation that ordered the stages
+ * differently would have passed, because nothing in the run ever consulted it.
+ * Importing them is what turns these properties into claims about the
+ * migration rather than about the test.
+ */
+const ORDER = MIGRATION_ORDER;
+const order = stageIndex;
 
 const stateArbitrary = fc.constantFrom<MigrationState>(...MIGRATION_STATES);
 
@@ -222,5 +212,156 @@ describe("identity preservation across the migration", () => {
     expect(partialIdentityDigest({ items: all.slice(0, 1) })).not.toBe(
       partialIdentityDigest({ items: all }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The gates in front of the irreversible steps
+// ---------------------------------------------------------------------------
+
+describe("scrubbing the plaintext source", () => {
+  const verified = {
+    state: "scrub-plaintext" as MigrationState,
+    sourceCount: 1200,
+    destinationCount: 1200,
+    sourceDigest: "abc",
+    destinationDigest: "abc",
+  };
+
+  it("is permitted only once everything agrees", () => {
+    expect(mayScrubPlaintext(verified)).toBe(true);
+  });
+
+  it("is refused from every state but its own", () => {
+    // The stage exists to be the last thing that happens before deletion. A
+    // scrub reachable from `backfill` would delete a source that half the
+    // workspace still depends on.
+    for (const state of MIGRATION_STATES) {
+      if (state === "scrub-plaintext") {
+        continue;
+      }
+      expect(mayScrubPlaintext({ ...verified, state })).toBe(false);
+    }
+  });
+
+  it("is refused when the counts disagree", () => {
+    expect(mayScrubPlaintext({ ...verified, destinationCount: 1199 })).toBe(false);
+  });
+
+  it("treats a missing digest as disagreement, never as agreement", () => {
+    // The single most dangerous default available here: absence read as a
+    // match is how an unverified migration passes its own verification and
+    // then deletes the original.
+    expect(mayScrubPlaintext({ ...verified, sourceDigest: null })).toBe(false);
+    expect(mayScrubPlaintext({ ...verified, destinationDigest: null })).toBe(false);
+    expect(mayScrubPlaintext({ ...verified, sourceDigest: null, destinationDigest: null })).toBe(
+      false,
+    );
+  });
+
+  it("is refused when the digests differ", () => {
+    expect(mayScrubPlaintext({ ...verified, destinationDigest: "def" })).toBe(false);
+  });
+});
+
+describe("reporting completion", () => {
+  it("refuses while the source is still on disk", () => {
+    // A migration reported complete with the source retained has not finished,
+    // and the next operator will believe otherwise.
+    expect(
+      mayReportComplete({
+        state: "complete",
+        sourceRetained: true,
+        sourceCount: 10,
+        destinationCount: 10,
+      }),
+    ).toBe(false);
+  });
+
+  it("refuses when the destination is short", () => {
+    expect(
+      mayReportComplete({
+        state: "complete",
+        sourceRetained: false,
+        sourceCount: 10,
+        destinationCount: 9,
+      }),
+    ).toBe(false);
+  });
+
+  it("accepts only the state that did the work", () => {
+    expect(
+      mayReportComplete({
+        state: "complete",
+        sourceRetained: false,
+        sourceCount: 10,
+        destinationCount: 10,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("checkpoints", () => {
+  const first = {
+    sequence: 1,
+    state: "backfill" as MigrationState,
+    sourceCursor: "aaa",
+    recordCount: 100,
+    blobCount: 10,
+  };
+
+  it("must move both the sequence and the cursor forward", () => {
+    expect(checkpointAdvances(first, { ...first, sequence: 2, sourceCursor: "bbb" })).toBe(true);
+    expect(checkpointAdvances(first, { ...first, sequence: 2, sourceCursor: "aaa" })).toBe(false);
+    expect(checkpointAdvances(first, { ...first, sequence: 1, sourceCursor: "bbb" })).toBe(false);
+  });
+
+  it("refuses counts that go backwards", () => {
+    // Cumulative by definition. A checkpoint reporting fewer records than the
+    // one before it describes a different migration, or a bug.
+    expect(
+      checkpointAdvances(first, {
+        ...first,
+        sequence: 2,
+        sourceCursor: "bbb",
+        recordCount: 99,
+      }),
+    ).toBe(false);
+  });
+
+  it("accepts the first checkpoint of a migration", () => {
+    expect(checkpointAdvances(null, first)).toBe(true);
+  });
+});
+
+describe("resuming after a fault", () => {
+  it("returns to the last safe checkpoint, not to where the migration claimed to be", () => {
+    // The difference matters when a fault lands mid-stage: resuming at the
+    // stage it had claimed to reach would skip the part that never happened.
+    expect(
+      resumeStateAfterFault({
+        sequence: 4,
+        state: "backfill",
+        sourceCursor: "m",
+        recordCount: 400,
+        blobCount: 0,
+      }),
+    ).toBe("backfill");
+  });
+
+  it("starts from the beginning when nothing was ever checkpointed", () => {
+    expect(resumeStateAfterFault(null)).toBe("prepare-destinations");
+  });
+});
+
+describe("refusing an illegal advance out loud", () => {
+  it("names both states", () => {
+    expect(() => assertAdvance("backfill", "scrub-plaintext")).toThrow(
+      /backfill to scrub-plaintext/,
+    );
+  });
+
+  it("permits the legal step", () => {
+    expect(() => assertAdvance("backfill", "verify")).not.toThrow();
   });
 });
