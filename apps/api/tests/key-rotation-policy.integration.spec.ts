@@ -19,7 +19,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createInstallation, schema } from "@myownnotion/database";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { RotationPolicyService } from "../src/security/rotation-policy-service.ts";
 import { DAILY_INTERVAL_MS, RotationScheduler } from "../src/security/rotation-scheduler.ts";
@@ -322,5 +322,54 @@ describe("the block reaches the write path, not only the status", () => {
       },
     });
     expect(response.statusCode, response.body).toBe(201);
+  });
+});
+
+describe("a wrapping-key rotation leaves the content alone", () => {
+  it("rewraps the root key without touching a single envelope", async () => {
+    // The property the whole key hierarchy exists to provide. If a deployment
+    // key rotation had to re-encrypt records, it would take hours, leave a
+    // window of half-rotated data, and nobody would run it on schedule.
+    const pageId = await createSealedPage(SECRET);
+    const before = await harness.built.database.db.execute(
+      sql`SELECT entity_type, ciphertext, nonce, tag FROM protected_envelopes ORDER BY entity_type`,
+    );
+    expect((before as unknown as { rows: unknown[] }).rows.length).toBeGreaterThan(0);
+
+    const keys = harness.built.context.protectedContent;
+    expect(keys).toBeDefined();
+
+    // Rewrap under a new deployment key.
+    const newKey = randomBytes(32);
+    const versionId = randomUUID();
+    await harness.built.database.db.transaction(async (tx) => {
+      // Exactly one version may be current, so the outgoing one steps down to
+      // `previous` first. It stays usable on purpose: it is what unwrapped the
+      // root key a moment ago, and revoking it before the rewrap landed would
+      // strand the workspace.
+      await tx
+        .update(schema.wrappingKeyVersions)
+        .set({ state: "previous" })
+        .where(eq(schema.wrappingKeyVersions.state, "current"));
+      await tx.insert(schema.wrappingKeyVersions).values({
+        id: versionId,
+        installationId: INSTALLATION_ID,
+        version: 2,
+        externalSecretReference: "file:///run/secrets/deployment-key.next",
+        algorithm: "aes-256-gcm",
+        state: "current",
+      });
+      await harness.built.keyHierarchy?.rewrapRootKey(tx, {
+        newWrappingKey: new Uint8Array(newKey),
+        newWrappingKeyVersionId: versionId,
+      });
+    });
+
+    const after = await harness.built.database.db.execute(
+      sql`SELECT entity_type, ciphertext, nonce, tag FROM protected_envelopes ORDER BY entity_type`,
+    );
+    // Byte for byte. Not "still decryptable" — untouched.
+    expect(JSON.stringify(after)).toBe(JSON.stringify(before));
+    expect(pageId).toBeTruthy();
   });
 });
