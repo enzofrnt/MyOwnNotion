@@ -24,3 +24,4 @@ export * from "./recovery-artifacts.ts";
 export * from "./redaction.ts";
 export * from "./rotation-policy.ts";
 export * from "./types.ts";
+export * from "./wrapping-key-rotation.ts";
