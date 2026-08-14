@@ -14,5 +14,6 @@ export * from "./installation-repository.ts";
 export * from "./key-repository.ts";
 export * from "./protected-record-repository.ts";
 export * from "./repository-types.ts";
+export * from "./rotation-repository.ts";
 export * from "./session-repository.ts";
 export * from "./transaction.ts";
