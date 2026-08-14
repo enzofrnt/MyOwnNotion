@@ -48,7 +48,7 @@ function makeKit(payload = new Uint8Array([1, 2, 3, 4])): RecoveryKit {
     sourceLineageId: "018f2b7c-0000-7000-8000-000000000002",
     kitId: "018f2b7c-0000-7000-8000-000000000003",
     recoveryEpoch: 1,
-    passphrase: PASSPHRASE,
+    secret: { kind: "passphrase", passphrase: PASSPHRASE },
     payload,
     supportedKeyGenerations: [1],
     createdAt: CLOCK_ORIGIN,
@@ -103,7 +103,7 @@ describe("kit creation", () => {
         sourceLineageId: "018f2b7c-0000-7000-8000-000000000002",
         kitId: "018f2b7c-0000-7000-8000-000000000003",
         recoveryEpoch: 1,
-        passphrase: PASSPHRASE,
+        secret: { kind: "passphrase", passphrase: PASSPHRASE },
         payload: new Uint8Array(),
         supportedKeyGenerations: [1],
         createdAt: CLOCK_ORIGIN,
@@ -237,12 +237,16 @@ describe("unwrapping", () => {
   it("returns the payload for a confirmed kit and the right passphrase", () => {
     const payload = new Uint8Array([9, 8, 7, 6, 5]);
     const confirmed = confirmKit(makeKit(payload));
-    expect(openRecoveryKit(confirmed, PASSPHRASE)).toEqual(payload);
+    expect(openRecoveryKit(confirmed, { kind: "passphrase", passphrase: PASSPHRASE })).toEqual(
+      payload,
+    );
   });
 
   it("refuses a wrong passphrase", () => {
     const confirmed = confirmKit(makeKit());
-    expect(() => openRecoveryKit(confirmed, "wrong passphrase")).toThrow(EnvelopeDecryptionError);
+    expect(() =>
+      openRecoveryKit(confirmed, { kind: "passphrase", passphrase: "wrong passphrase" }),
+    ).toThrow(EnvelopeDecryptionError);
   });
 
   it("refuses an unconfirmed kit even with the right passphrase", () => {
@@ -256,7 +260,9 @@ describe("unwrapping", () => {
       now: minutesAfterOrigin(2),
     });
     for (const unusable of [kit, downloadable, consumed]) {
-      expect(() => openRecoveryKit(unusable, PASSPHRASE)).toThrow(EnvelopeDecryptionError);
+      expect(() =>
+        openRecoveryKit(unusable, { kind: "passphrase", passphrase: PASSPHRASE }),
+      ).toThrow(EnvelopeDecryptionError);
     }
   });
 
@@ -266,11 +272,17 @@ describe("unwrapping", () => {
       const retired = transitionRecoveryKit(confirmed, target, {
         now: minutesAfterOrigin(100),
       });
-      expect(() => openRecoveryKit(retired, PASSPHRASE)).toThrow(EnvelopeDecryptionError);
+      expect(() =>
+        openRecoveryKit(retired, { kind: "passphrase", passphrase: PASSPHRASE }),
+      ).toThrow(EnvelopeDecryptionError);
       // Explicit inspection is still possible for recovery tooling.
-      expect(openRecoveryKit(retired, PASSPHRASE, { requireUsable: false })).toBeInstanceOf(
-        Uint8Array,
-      );
+      expect(
+        openRecoveryKit(
+          retired,
+          { kind: "passphrase", passphrase: PASSPHRASE },
+          { requireUsable: false },
+        ),
+      ).toBeInstanceOf(Uint8Array);
     }
   });
 
@@ -283,7 +295,9 @@ describe("unwrapping", () => {
       { ...confirmed, kdf: { ...confirmed.kdf, salt: "A".repeat(22) } },
     ];
     for (const mutated of mutations) {
-      expect(() => openRecoveryKit(mutated, PASSPHRASE)).toThrow(EnvelopeDecryptionError);
+      expect(() =>
+        openRecoveryKit(mutated, { kind: "passphrase", passphrase: PASSPHRASE }),
+      ).toThrow(EnvelopeDecryptionError);
     }
   });
 
@@ -293,15 +307,33 @@ describe("unwrapping", () => {
       ...confirmed,
       kitId: "018f2b7c-0000-7000-8000-0000000000ff",
     };
-    expect(() => openRecoveryKit(rebound, PASSPHRASE)).toThrow(EnvelopeDecryptionError);
+    expect(() => openRecoveryKit(rebound, { kind: "passphrase", passphrase: PASSPHRASE })).toThrow(
+      EnvelopeDecryptionError,
+    );
   });
 
   it("reports every unwrap failure with one indistinguishable message", () => {
     const confirmed = confirmKit(makeKit());
     const failures = [
-      () => openRecoveryKit(confirmed, "wrong"),
-      () => openRecoveryKit({ ...confirmed, recoveryEpoch: 99 }, PASSPHRASE),
-      () => openRecoveryKit({ ...confirmed, authorizationState: "revoked" }, PASSPHRASE),
+      () => openRecoveryKit(confirmed, { kind: "passphrase", passphrase: "wrong" }),
+      () =>
+        openRecoveryKit(
+          { ...confirmed, recoveryEpoch: 99 },
+          { kind: "passphrase", passphrase: PASSPHRASE },
+        ),
+      () =>
+        openRecoveryKit(
+          { ...confirmed, authorizationState: "revoked" },
+          { kind: "passphrase", passphrase: PASSPHRASE },
+        ),
+      // A deployment key offered to a passphrase-sealed kit: a caller that has
+      // confused two kinds of secret. It must fail the same way as every other
+      // refusal, or the message itself would say which mistake was made.
+      () =>
+        openRecoveryKit(confirmed, {
+          kind: "deployment-key",
+          deploymentKey: new Uint8Array(32).fill(7),
+        }),
     ];
     const messages = new Set<string>();
     for (const failure of failures) {
@@ -314,5 +346,93 @@ describe("unwrapping", () => {
       }
     }
     expect(messages.size).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Kits sealed under the deployment key
+// ---------------------------------------------------------------------------
+
+describe("a kit sealed under the deployment key", () => {
+  const DEPLOYMENT_KEY = new Uint8Array(32).fill(11);
+
+  function makeDeploymentKit(payload = new Uint8Array([1, 2, 3, 4])) {
+    return createRecoveryKit({
+      installationId: "018f2b7c-0000-7000-8000-000000000001",
+      sourceLineageId: "018f2b7c-0000-7000-8000-000000000002",
+      kitId: "018f2b7c-0000-7000-8000-000000000003",
+      recoveryEpoch: 1,
+      secret: { kind: "deployment-key", deploymentKey: DEPLOYMENT_KEY },
+      payload,
+      supportedKeyGenerations: [1],
+      createdAt: CLOCK_ORIGIN,
+      downloadExpiresAt: minutesAfterOrigin(WINDOW_MINUTES),
+    });
+  }
+
+  it("says so in the artifact rather than leaving it to be inferred", () => {
+    // Whoever holds this file — an operator, a tool, a person opening it in a
+    // text editor years from now — must be able to tell what it needs without
+    // running code that guesses.
+    expect(makeDeploymentKit().kdf.algorithm).toBe("deployment-key");
+  });
+
+  it("carries no scrypt parameters, because none were used", () => {
+    const kit = makeDeploymentKit();
+    // A passphrase KDF's parameters on a kit with no passphrase would be a
+    // description of work that never happened, and would send someone looking
+    // for a phrase that never existed.
+    expect(kit.kdf).not.toHaveProperty("N");
+    expect(kit.kdf).not.toHaveProperty("p");
+  });
+
+  it("round-trips under the same deployment key", () => {
+    const payload = new Uint8Array([9, 8, 7, 6, 5]);
+    const confirmed = confirmKit(makeDeploymentKit(payload));
+    expect(
+      openRecoveryKit(confirmed, { kind: "deployment-key", deploymentKey: DEPLOYMENT_KEY }),
+    ).toEqual(payload);
+  });
+
+  it("refuses a different deployment key", () => {
+    const confirmed = confirmKit(makeDeploymentKit());
+    expect(() =>
+      openRecoveryKit(confirmed, {
+        kind: "deployment-key",
+        deploymentKey: new Uint8Array(32).fill(12),
+      }),
+    ).toThrow(EnvelopeDecryptionError);
+  });
+
+  it("refuses a passphrase, however plausible", () => {
+    // The two secrets are not interchangeable. Stretching the wrong one would
+    // produce a failure much further along, where it is far harder to read.
+    const confirmed = confirmKit(makeDeploymentKit());
+    expect(() =>
+      openRecoveryKit(confirmed, { kind: "passphrase", passphrase: PASSPHRASE }),
+    ).toThrow(EnvelopeDecryptionError);
+  });
+
+  it("produces unrelated ciphertext for two kits under one key", () => {
+    // Otherwise an observer could tell that a kit was regenerated without any
+    // change to what it protects, which is information about the installation
+    // that the file has no business carrying.
+    const payload = new Uint8Array([4, 4, 4, 4]);
+    const first = makeDeploymentKit(payload);
+    const second = makeDeploymentKit(payload);
+    expect(second.encryption.ciphertext).not.toBe(first.encryption.ciphertext);
+    expect(second.kdf.salt).not.toBe(first.kdf.salt);
+  });
+
+  it("is still unusable until it has been confirmed", () => {
+    // The delivery rules are about the kit's lifecycle, not about which secret
+    // seals it. A kit that skipped confirmation because it had no passphrase
+    // would be a hole opened by an unrelated choice.
+    expect(() =>
+      openRecoveryKit(makeDeploymentKit(), {
+        kind: "deployment-key",
+        deploymentKey: DEPLOYMENT_KEY,
+      }),
+    ).toThrow(EnvelopeDecryptionError);
   });
 });

@@ -17,6 +17,7 @@ import {
   CRYPTO_SIZES,
   CryptoInputError,
   DEFAULT_SCRYPT_PARAMETERS,
+  deriveRecordKey,
   deriveRecoveryKey,
   EnvelopeDecryptionError,
   fromBase64Url,
@@ -38,11 +39,46 @@ import {
 export const RECOVERY_FORMAT = "myownnotion.recovery+json" as const;
 export const RECOVERY_FORMAT_VERSION = 1 as const;
 
-export interface RecoveryKdfDescriptor {
+/**
+ * How a kit's ciphertext is unlocked. Two shapes, and the artifact says which.
+ *
+ * The descriptor is part of the downloaded file on purpose. Whoever holds a kit
+ * — an operator, a recovery tool, a person opening it in a text editor five
+ * years from now — must be able to tell what it needs *without* running code
+ * that guesses. A file that looked passphrase-protected and was not would send
+ * someone hunting for a phrase that never existed.
+ */
+export type RecoveryKdfDescriptor = RecoveryScryptDescriptor | RecoveryDeploymentKeyDescriptor;
+
+export interface RecoveryScryptDescriptor {
   readonly algorithm: "scrypt";
   readonly N: ScryptParameters["N"];
   readonly r: 8;
   readonly p: number;
+  readonly keyLength: 32;
+  readonly salt: string;
+}
+
+/**
+ * The kit is sealed under the installation's mounted deployment key.
+ *
+ * There is no passphrase, and the consequence is worth stating in the type
+ * rather than leaving in a document: **this kit is useless on its own**. It can
+ * only be opened on a host that mounts the same deployment key file, so
+ * recovery means keeping the key *and* the kit, in separate places.
+ *
+ * That is a deliberate trade. It removes the phrase an owner would otherwise
+ * have to transcribe and never lose, and it removes the offline attack against
+ * a stolen kit — there is no weak secret to guess. What it does not do is
+ * protect against losing the machine *and* its key together, and no property of
+ * this format can change that.
+ *
+ * The salt is still present and still random: two kits made under the same
+ * deployment key must not produce the same ciphertext, or an observer could
+ * tell that a kit was regenerated without change.
+ */
+export interface RecoveryDeploymentKeyDescriptor {
+  readonly algorithm: "deployment-key";
   readonly keyLength: 32;
   readonly salt: string;
 }
@@ -99,7 +135,17 @@ export interface CreateRecoveryKitInput {
   readonly sourceLineageId: string;
   readonly kitId: string;
   readonly recoveryEpoch: number;
-  readonly passphrase: string;
+  /**
+   * The secret that seals the kit. Exactly one of the two.
+   *
+   * A union rather than two optional fields, so "neither" and "both" are not
+   * expressible: a caller that passed neither would otherwise seal a kit under
+   * an empty phrase, which is the worst possible outcome and looks like
+   * success.
+   */
+  readonly secret:
+    | { readonly kind: "passphrase"; readonly passphrase: string }
+    | { readonly kind: "deployment-key"; readonly deploymentKey: Uint8Array };
   /** Key material to protect; the caller zeroes its own copy afterwards. */
   readonly payload: Uint8Array;
   readonly supportedKeyGenerations: readonly number[];
@@ -128,7 +174,18 @@ export function createRecoveryKit(input: CreateRecoveryKitInput): RecoveryKit {
 
   const parameters = input.scrypt ?? DEFAULT_SCRYPT_PARAMETERS;
   const salt = randomSalt();
-  const wrappingKey = deriveRecoveryKey(input.passphrase, salt, parameters);
+  const kdf: RecoveryKdfDescriptor =
+    input.secret.kind === "passphrase"
+      ? {
+          algorithm: "scrypt",
+          N: parameters.N,
+          r: parameters.r,
+          p: parameters.p,
+          keyLength: parameters.keyLength,
+          salt: toBase64Url(salt),
+        }
+      : { algorithm: "deployment-key", keyLength: 32, salt: toBase64Url(salt) };
+  const wrappingKey = recoveryWrappingKey(input.secret, salt, parameters);
   const aad = recoveryAad(input);
   const sealed = seal(wrappingKey, input.payload, aad, randomNonce());
 
@@ -144,14 +201,7 @@ export function createRecoveryKit(input: CreateRecoveryKitInput): RecoveryKit {
     createdAt: input.createdAt.toISOString(),
     downloadExpiresAt: input.downloadExpiresAt.toISOString(),
     supportedKeyGenerations: [...input.supportedKeyGenerations].sort((a, b) => a - b),
-    kdf: {
-      algorithm: "scrypt",
-      N: parameters.N,
-      r: parameters.r,
-      p: parameters.p,
-      keyLength: parameters.keyLength,
-      salt: toBase64Url(salt),
-    },
+    kdf,
     encryption: {
       algorithm: "AES-256-GCM",
       nonce: toBase64Url(sealed.nonce),
@@ -170,7 +220,7 @@ export function createRecoveryKit(input: CreateRecoveryKitInput): RecoveryKit {
  */
 export function openRecoveryKit(
   kit: RecoveryKit,
-  passphrase: string,
+  secret: CreateRecoveryKitInput["secret"],
   options: { requireUsable?: boolean } = {},
 ): Uint8Array {
   const requireUsable = options.requireUsable ?? true;
@@ -201,13 +251,47 @@ export function openRecoveryKit(
     throw new EnvelopeDecryptionError();
   }
 
-  const wrappingKey = deriveRecoveryKey(passphrase, salt, {
-    N: kit.kdf.N,
-    r: kit.kdf.r,
-    p: kit.kdf.p,
-    keyLength: kit.kdf.keyLength,
-  });
+  if (kit.kdf.algorithm === "scrypt" && secret.kind !== "passphrase") {
+    // Refused rather than coerced. A deployment key offered to a
+    // passphrase-sealed kit is a caller that has confused two kinds of secret,
+    // and stretching the bytes as if they were a phrase would produce a
+    // plausible-looking failure much further along.
+    throw new EnvelopeDecryptionError();
+  }
+  if (kit.kdf.algorithm === "deployment-key" && secret.kind !== "deployment-key") {
+    throw new EnvelopeDecryptionError();
+  }
+
+  const wrappingKey =
+    kit.kdf.algorithm === "scrypt"
+      ? recoveryWrappingKey(secret, salt, {
+          N: kit.kdf.N,
+          r: kit.kdf.r,
+          p: kit.kdf.p,
+          keyLength: kit.kdf.keyLength,
+        })
+      : recoveryWrappingKey(secret, salt, DEFAULT_SCRYPT_PARAMETERS);
   return open(wrappingKey, { nonce, ciphertext, tag }, recoveryAad(kit));
+}
+
+/**
+ * The key that actually seals or opens the kit.
+ *
+ * A passphrase is stretched, because it is a human secret with little entropy.
+ * A deployment key is **not**: it is already 32 uniformly random bytes, and
+ * scrypt over it would burn a second of CPU to produce something no harder to
+ * guess. It is mixed with the kit's salt through HKDF instead, so two kits made
+ * under one deployment key stay unrelated.
+ */
+function recoveryWrappingKey(
+  secret: CreateRecoveryKitInput["secret"],
+  salt: Uint8Array,
+  parameters: ScryptParameters,
+): Uint8Array {
+  if (secret.kind === "passphrase") {
+    return deriveRecoveryKey(secret.passphrase, salt, parameters);
+  }
+  return deriveRecordKey(secret.deploymentKey, salt, "myownnotion/recovery-kit");
 }
 
 // ---------------------------------------------------------------------------
