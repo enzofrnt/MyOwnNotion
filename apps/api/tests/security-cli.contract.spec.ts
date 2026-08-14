@@ -245,12 +245,25 @@ describe("the supported command set", () => {
     }
   });
 
-  it("exposes no administrative recovery and no remote path", () => {
+  it("exposes no remote path to any of this", () => {
     // FR-019 puts these on the host, behind whoever can already reach the
     // mounted key. A bearer token or an admin route would move that boundary
     // to the network, which is the thing the requirement forbids.
+    //
+    // This used to assert that no command mentioned recovery at all, which was
+    // true only because administrative recovery had not been written yet. The
+    // requirement was never "no recovery command" — it is "no *remote*
+    // recovery", and `security recovery import` is precisely the local form
+    // FR-019 calls for. Asserting the absence of the feature would have made
+    // the test fail the moment the requirement was satisfied.
     const joined = KNOWN_COMMANDS.join(" ");
-    expect(joined).not.toMatch(/recover|token|bearer|remote/i);
+    expect(joined).not.toMatch(/token|bearer|remote|http/i);
+  });
+
+  it("keeps administrative recovery local, and only local", () => {
+    // The positive half of the same rule: the command exists, and it is a
+    // command rather than a route.
+    expect(KNOWN_COMMANDS).toContain("security recovery import");
   });
 });
 
