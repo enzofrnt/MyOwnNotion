@@ -34,6 +34,7 @@ import { registerPageDocumentRoutes } from "./routes/page-documents.ts";
 import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
+import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
 import { AuditService } from "./security/audit-service.ts";
 import { resolvePrincipal } from "./security/authentication-hook.ts";
@@ -50,6 +51,8 @@ import {
   createRequestContext,
   updateRequestContext,
 } from "./security/request-context.ts";
+import { RotationPolicyService } from "./security/rotation-policy-service.ts";
+import { RotationScheduler } from "./security/rotation-scheduler.ts";
 import { loadSecurityConfig, type SecurityConfig } from "./security/security-config.ts";
 import { SessionService } from "./security/session-service.ts";
 import type { WebAuthnChallenge } from "./security/webauthn-service.ts";
@@ -334,6 +337,25 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     // The device inventory shares the authentication gate rather than building
     // its own: one idea of what "recent" and "valid CSRF" mean, for the routes
     // an owner reaches for when they suspect someone else has access.
+    // Rotation: status is readable by any signed-in owner, starting one needs
+    // a fresh proof. The scheduler evaluates at startup so an overdue key is
+    // reported by a restart rather than only by a timer the process may never
+    // reach.
+    const rotationPolicies = new RotationPolicyService({
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      now,
+    });
+    registerRotationRoutes(app, {
+      db: database.db,
+      policies: rotationPolicies,
+      audit,
+      installationId: INSTALLATION_ID,
+      now,
+      require: requireOwner,
+    });
+    void new RotationScheduler({ policies: rotationPolicies, logger: app.log }).start();
+
     registerDeviceRoutes(app, {
       devices: new DeviceService({ db: database.db, now }),
       audit,

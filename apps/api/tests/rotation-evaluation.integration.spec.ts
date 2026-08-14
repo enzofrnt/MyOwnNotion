@@ -20,6 +20,7 @@ import path from "node:path";
 import { createInstallation, schema } from "@myownnotion/database";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { hashPassword } from "../src/security/password-service.ts";
 import {
   RotationPolicyService,
   RotationWriteBlockedError,
@@ -56,7 +57,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await harness.built.database.db.execute(
-    sql`TRUNCATE rotation_checkpoints, rotation_operations, rotation_policies, installations CASCADE`,
+    sql`TRUNCATE rotation_checkpoints, rotation_operations, rotation_policies, sessions, password_credential_versions, authorized_devices, owners, installations CASCADE`,
   );
   await createInstallation(harness.built.database.db, {
     id: INSTALLATION_ID,
@@ -68,6 +69,16 @@ beforeEach(async () => {
 async function seedPolicy(
   kind: "wrapping-key" | "data-key",
   offsets: { dueInDays: number; blockInDays: number },
+  /**
+   * What the offsets are relative to.
+   *
+   * The service tests pin a fixed clock, but the routes run on the
+   * application clock. A policy seeded against the fixed instant is already
+   * long past its write block by the time a route reads it, which is how this
+   * first showed up: a status route reporting writes blocked on a policy the
+   * test had made healthy.
+   */
+  from: Date = NOW,
 ): Promise<void> {
   await harness.built.database.db.insert(schema.rotationPolicies).values({
     id: randomUUID(),
@@ -75,11 +86,57 @@ async function seedPolicy(
     kind,
     mode: "scheduled",
     dueIntervalDays: 365,
-    dueAt: new Date(NOW.getTime() + offsets.dueInDays * DAY),
-    writeBlockAt: new Date(NOW.getTime() + offsets.blockInDays * DAY),
+    dueAt: new Date(from.getTime() + offsets.dueInDays * DAY),
+    writeBlockAt: new Date(from.getTime() + offsets.blockInDays * DAY),
     currentGeneration: 1,
     state: "pre-due",
   });
+}
+
+const OWNER_ID = "018f2b7c-0000-7000-8000-0000000000bb";
+const PASSWORD = "correct horse battery staple";
+const COOKIE = "mn_dev_session";
+const CSRF_HEADER = "x-csrf-token";
+
+/** Seeds a committed owner with a password, so a session can be issued. */
+async function seedOwner(): Promise<void> {
+  const db = harness.built.database.db;
+  const [workspace] = await db
+    .execute(sql`SELECT id FROM workspaces LIMIT 1`)
+    .then((result) => (result as unknown as { rows: { id: string }[] }).rows ?? []);
+  await db.execute(
+    sql`INSERT INTO owners (id, installation_id, state) VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')`,
+  );
+  await db.execute(
+    sql`UPDATE installations SET state = 'ready', owner_id = ${OWNER_ID}::uuid, workspace_id = ${workspace?.id}::uuid`,
+  );
+  await db.execute(sql`
+    INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
+    VALUES (gen_random_uuid(), ${OWNER_ID}::uuid, 'rotation-binding', 'Laptop', 'active')
+  `);
+  const hashed = await hashPassword(PASSWORD);
+  await db.execute(sql`
+    INSERT INTO password_credential_versions (id, owner_id, password_hash, hash_algorithm, state)
+    VALUES (gen_random_uuid(), ${OWNER_ID}::uuid, ${hashed.encoded}, 'scrypt', 'active')
+  `);
+}
+
+async function authenticate(): Promise<{ cookie: string; csrf: string }> {
+  await seedOwner();
+  const response = await harness.built.app.inject({
+    method: "POST",
+    url: "/v1/auth/login/password",
+    payload: { password: PASSWORD },
+  });
+  expect(response.statusCode, response.body).toBe(200);
+  const header = response.headers["set-cookie"];
+  const value = Array.isArray(header) ? header[0] : header;
+  const match = /mn_dev_session=([^;]*)/.exec(String(value ?? ""));
+  return { cookie: match?.[1] ?? "", csrf: response.json().csrfToken as string };
+}
+
+function authHeaders(auth: { cookie: string; csrf: string }): Record<string, string> {
+  return { cookie: `${COOKIE}=${auth.cookie}`, [CSRF_HEADER]: auth.csrf };
 }
 
 function service(): RotationPolicyService {
@@ -239,5 +296,122 @@ describe("what the scheduler says", () => {
     await new RotationScheduler({ policies: service(), logger }).evaluate();
     const operations = await harness.built.database.db.select().from(schema.rotationOperations);
     expect(operations).toHaveLength(0);
+  });
+});
+
+describe("starting a rotation is deliberate", () => {
+  it("refuses without confirmation, even with everything else right", async () => {
+    // The field has no default in the contract, and the handler refuses false
+    // rather than reading it as consent. A client that forgets it cannot start
+    // a rotation that rewrites data.
+    await seedPolicy("data-key", { dueInDays: -10, blockInDays: -1 });
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/security/rotation",
+      headers: authHeaders(auth),
+      payload: {
+        kind: "data-key",
+        mode: "scheduled",
+        reason: "annual rotation",
+        dryRun: false,
+        confirmation: false,
+      },
+    });
+    expect(response.statusCode).toBe(400);
+
+    const operations = await harness.built.database.db.select().from(schema.rotationOperations);
+    expect(operations).toHaveLength(0);
+  });
+
+  it("answers a dry run without starting anything", async () => {
+    // An operator deciding whether to rotate at 2am deserves to see the shape
+    // of the job first.
+    await seedPolicy("data-key", { dueInDays: -10, blockInDays: -1 });
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/security/rotation",
+      headers: authHeaders(auth),
+      payload: {
+        kind: "data-key",
+        mode: "scheduled",
+        reason: "checking the size",
+        dryRun: true,
+        confirmation: true,
+      },
+    });
+    // 200, not 202: nothing has begun, and 202 would suggest otherwise.
+    expect(response.statusCode, response.body).toBe(200);
+    expect((response.json() as { phase: string }).phase).toBe("planned");
+
+    const operations = await harness.built.database.db.select().from(schema.rotationOperations);
+    expect(operations).toHaveLength(0);
+  });
+
+  it("starts one when confirmed, and reports it as accepted rather than done", async () => {
+    await seedPolicy("data-key", { dueInDays: -10, blockInDays: -1 });
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/security/rotation",
+      headers: authHeaders(auth),
+      payload: {
+        kind: "data-key",
+        mode: "scheduled",
+        reason: "annual rotation",
+        dryRun: false,
+        confirmation: true,
+      },
+    });
+    expect(response.statusCode, response.body).toBe(202);
+
+    const operations = await harness.built.database.db.select().from(schema.rotationOperations);
+    expect(operations).toHaveLength(1);
+  });
+
+  it("refuses a second rotation of the same kind", async () => {
+    await seedPolicy("data-key", { dueInDays: -10, blockInDays: -1 });
+    const auth = await authenticate();
+    const start = () =>
+      harness.built.app.inject({
+        method: "POST",
+        url: "/v1/security/rotation",
+        headers: authHeaders(auth),
+        payload: {
+          kind: "data-key",
+          mode: "scheduled",
+          reason: "annual rotation",
+          dryRun: false,
+          confirmation: true,
+        },
+      });
+
+    expect((await start()).statusCode).toBe(202);
+    expect((await start()).statusCode).toBe(409);
+  });
+
+  it("lets any signed-in owner read the status without a fresh prompt", async () => {
+    // This is how an owner discovers a rotation is overdue. A prompt in front
+    // of it would discourage looking.
+    await seedPolicy("wrapping-key", { dueInDays: -3, blockInDays: 4 }, new Date());
+    const auth = await authenticate();
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/security/rotation",
+      headers: authHeaders(auth),
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    const body = response.json() as { policies: { kind: string }[]; writesAllowed: boolean };
+    expect(body.policies.map((policy) => policy.kind)).toContain("wrapping-key");
+    expect(body.writesAllowed).toBe(true);
+  });
+
+  it("refuses an unauthenticated caller", async () => {
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/security/rotation",
+    });
+    expect(response.statusCode).toBeGreaterThanOrEqual(401);
   });
 });
