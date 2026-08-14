@@ -28,6 +28,11 @@ import {
   readCounts,
 } from "@myownnotion/database";
 import { evaluateRotationPolicy, type KeyRotationPolicy } from "@myownnotion/domain";
+import type { RecoveryKit } from "@myownnotion/domain/security";
+import {
+  AdministrativeRecoveryError,
+  AdministrativeRecoveryService,
+} from "../security/administrative-recovery-service.ts";
 import { loadDeploymentKey } from "../security/deployment-key.ts";
 import { type CommandResult, EXIT_CODES } from "./command-output.ts";
 import {
@@ -248,6 +253,98 @@ async function runDataKeyRotation(
   );
 }
 
+/**
+ * `security recovery import --kit-file PATH [--yes | --dry-run]`
+ *
+ * Local only, and that is FR-019 rather than an omission: the operation adopts
+ * an entire installation's identity, and an HTTP route would put a bearer
+ * token between the network and someone else's workspace.
+ *
+ * Without `--yes` it inspects and reports every blocker at once. An operator
+ * standing in front of a restored machine at three in the morning should learn
+ * everything that is wrong in one command rather than discover the second
+ * problem after fixing the first.
+ */
+async function runRecoveryImport(
+  command: ParsedCommand,
+  context: CommandContext,
+): Promise<CommandResult> {
+  const kitFile = requireOption(command, "kit-file");
+  const keyFile = context.deploymentKeyFile;
+  if (keyFile === undefined) {
+    return {
+      code: EXIT_CODES.keyUnavailable,
+      message: "no deployment key file is configured; the kit cannot be opened",
+    };
+  }
+
+  let kit: RecoveryKit;
+  try {
+    kit = JSON.parse(readFileSync(kitFile, "utf8")) as RecoveryKit;
+  } catch {
+    // The path is operator information; whatever the file contained is not.
+    return { code: EXIT_CODES.usage, message: `the kit at ${kitFile} could not be read` };
+  }
+  if (kit.format !== "myownnotion.recovery+json") {
+    return { code: EXIT_CODES.usage, message: "that file is not a MyOwnNotion recovery kit" };
+  }
+
+  const service = new AdministrativeRecoveryService({
+    db: context.db,
+    deploymentKey: () => {
+      try {
+        return Buffer.from(loadDeploymentKey(keyFile).bytes);
+      } catch {
+        return null;
+      }
+    },
+    now: context.now,
+  });
+
+  if (!shouldExecute(command)) {
+    const report = await service.inspect(kit);
+    return {
+      code: report.blockers.length === 0 ? EXIT_CODES.ok : EXIT_CODES.refused,
+      message:
+        report.blockers.length === 0
+          ? "this kit can be imported into this target; nothing has been changed"
+          : `this kit cannot be imported: ${report.blockers.join("; ")}`,
+      data: {
+        installationId: report.installationId,
+        sourceLineageId: report.sourceLineageId,
+        kitOpens: report.kitOpens,
+        targetEmpty: report.targetEmpty,
+        blockers: report.blockers,
+      },
+    };
+  }
+
+  try {
+    const result = await service.import(kit);
+    return {
+      code: EXIT_CODES.ok,
+      message:
+        "the installation identity has been adopted. Restore the database and file store, then authorize a device — no device from the source installation is trusted here",
+      data: {
+        installationId: result.installationId,
+        sourceLineageId: result.sourceLineageId,
+        workspaceId: result.workspaceId,
+        recoveryEpoch: result.recoveryEpoch,
+        devicesRevoked: result.devicesRevoked,
+      },
+    };
+  } catch (error) {
+    const code =
+      error instanceof AdministrativeRecoveryError && error.code === "conflict"
+        ? EXIT_CODES.conflict
+        : EXIT_CODES.refused;
+    return {
+      code,
+      message: error instanceof Error ? error.message : "the import was refused",
+    };
+  }
+}
+
 export const KNOWN_COMMANDS = [
   "security status",
   "security key check",
@@ -255,6 +352,7 @@ export const KNOWN_COMMANDS = [
   "security rotation wrapping-key",
   "security rotation data-key",
   "security compatibility inspect",
+  "security recovery import",
 ] as const;
 
 /** Routes a parsed command, refusing anything not on the supported list. */
@@ -289,6 +387,8 @@ export async function runCommand(
       return await runDataKeyRotation(command, context);
     case "security compatibility inspect":
       return compatibilityInspectCommand(command);
+    case "security recovery import":
+      return await runRecoveryImport(command, context);
     default:
       // Listed rather than guessed. A tool that suggested the nearest match
       // and ran it would be worse than one that refuses.

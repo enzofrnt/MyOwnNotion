@@ -41,6 +41,7 @@ const VALUE_FLAGS = new Set([
   // as a file rather than as a value.
   "new-key-file",
   "revoke-generation",
+  "kit-file",
 ]);
 
 /** Flags a caller might reach for to pass a secret inline. Always refused. */

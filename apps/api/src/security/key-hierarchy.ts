@@ -63,15 +63,27 @@ export class KeyUnavailableError extends Error {
   }
 }
 
-/** AAD for wrapping one key under another. Binds the wrap to its purpose. */
-function wrapAad(purpose: string, installationId: string, workspaceId: string, version: number) {
+/**
+ * AAD for wrapping one key under another. Binds the wrap to its purpose.
+ *
+ * Exported because administrative recovery has to produce a wrap this module
+ * will later open. A second copy of this string anywhere would be a second
+ * thing to keep in step, and the failure mode of getting it wrong is not a
+ * type error — it is a workspace that cannot be opened.
+ */
+export function wrapAad(
+  purpose: string,
+  installationId: string,
+  workspaceId: string,
+  version: number,
+) {
   return new Uint8Array(
     Buffer.from(`mn.wrap.v1|${purpose}|${installationId}|${workspaceId}|${version}`, "utf8"),
   );
 }
 
-/** A wrapped key, encoded for a text column. */
-function encodeWrapped(sealed: ReturnType<typeof seal>): string {
+/** A wrapped key, encoded for a text column. Exported for the same reason. */
+export function encodeWrapped(sealed: ReturnType<typeof seal>): string {
   return [toBase64Url(sealed.nonce), toBase64Url(sealed.ciphertext), toBase64Url(sealed.tag)].join(
     ".",
   );

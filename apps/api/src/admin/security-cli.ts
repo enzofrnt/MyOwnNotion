@@ -37,6 +37,10 @@ There is no remote equivalent: these commands are not exposed over HTTP.
                                       readable throughout: the old generation
                                       stays decrypt-only until you revoke it
                                       with --revoke-generation N.
+  security recovery import            --kit-file PATH; adopts a source
+                                      installation's identity into an EMPTY
+                                      target. Refuses anything else. No device
+                                      from the source is trusted afterwards.
   security compatibility inspect      --target PATH --source PATH
 
   --json        machine-readable envelope
