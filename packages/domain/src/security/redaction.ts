@@ -42,6 +42,13 @@ export const FORBIDDEN_FIELD_NAMES = [
   "datakey",
   "masterkey",
   "recordkey",
+  // The wrapped forms, which are the ones that actually exist as columns and
+  // therefore the ones most likely to reach a log through a row dump. Wrapped
+  // is not safe: it is key material under another key, and whoever holds that
+  // key is exactly who a leaked row helps.
+  "rootkey",
+  "wrappedrootkey",
+  "wrappeddatakey",
   "privatekey",
   "keymaterial",
   // Credentials
