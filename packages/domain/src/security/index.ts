@@ -16,6 +16,7 @@
 
 export * from "./bootstrap.ts";
 export * from "./crypto.ts";
+export * from "./data-key-rotation.ts";
 export * from "./envelopes.ts";
 export * from "./identity-manifest.ts";
 // Re-exported for convenience so a Node consumer needs one import.
