@@ -42,6 +42,15 @@ export interface RotationPolicyRecord {
   readonly dueAt: Date;
   readonly writeBlockAt: Date;
   readonly lastCompletedAt: Date | null;
+  /**
+   * When the last attempt failed, or null.
+   *
+   * Read as well as written: `failRotationPolicy` sets it, and the policy
+   * evaluation turns it into the `failed` state an owner sees. A record that
+   * omitted it would leave a failed rotation written to the table and
+   * invisible everywhere else.
+   */
+  readonly lastFailureAt: Date | null;
   readonly currentGeneration: number;
 }
 
@@ -95,6 +104,7 @@ export async function findRotationPolicy(
         dueAt: row.dueAt,
         writeBlockAt: row.writeBlockAt,
         lastCompletedAt: row.lastCompletedAt ?? null,
+        lastFailureAt: row.lastFailureAt ?? null,
         currentGeneration: row.currentGeneration,
       };
 }
