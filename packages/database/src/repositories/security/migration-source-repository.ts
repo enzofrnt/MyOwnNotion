@@ -15,6 +15,13 @@
  * timestamp would be ambiguous between rows written in the same millisecond,
  * and ambiguity here means a record neither side believes it owns.
  *
+ * This leans on one property of feature-001 that is worth stating out loud:
+ * **identifiers are UUIDv7**, so they sort in creation order. That is what
+ * lets the same value serve as both the resume cursor and the capture
+ * boundary. Under random v4 identifiers the sweep would still be correct — the
+ * order would just be arbitrary — but the boundary would not be, because a
+ * record created after it could sort before it and be treated as pre-existing.
+ *
  * **The capture boundary is an upper bound in the query, not a filter
  * applied afterwards.** Everything at or before it is the backfill's to copy;
  * everything after it was written by the encrypted path and needs no copy.
@@ -150,14 +157,34 @@ export async function countPlaintextSources(
  * *records* exist on both sides — feature-001's canonical identity, preserved
  * verbatim through the migration. Hashing the contents instead would compare
  * plaintext against ciphertext and prove nothing.
+ *
+ * **Bounded by the capture boundary**, when one is given. Without the bound
+ * the digest covers records written *after* the boundary, which the backfill
+ * was never asked to copy — so an installation that took a single note during
+ * its migration would fail its own verification and be refused a scrub it had
+ * earned.
  */
 export async function readSourceIdentities(
   executor: Executor,
+  bounds: { itemBoundary?: string; pageBoundary?: string } = {},
 ): Promise<{ items: string[]; pages: string[] }> {
-  const itemRows = await executor.select({ id: items.id }).from(items).orderBy(items.id);
+  const itemRows = await executor
+    .select({ id: items.id })
+    .from(items)
+    .where(
+      bounds.itemBoundary === undefined || bounds.itemBoundary === ""
+        ? undefined
+        : lte(items.id, bounds.itemBoundary),
+    )
+    .orderBy(items.id);
   const pageRows = await executor
     .select({ id: pageDocuments.pageId })
     .from(pageDocuments)
+    .where(
+      bounds.pageBoundary === undefined || bounds.pageBoundary === ""
+        ? undefined
+        : lte(pageDocuments.pageId, bounds.pageBoundary),
+    )
     .orderBy(pageDocuments.pageId);
   return {
     items: itemRows.map((row) => row.id),

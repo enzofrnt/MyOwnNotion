@@ -23,6 +23,7 @@ import {
   type DatabaseHandle,
   schema,
 } from "@myownnotion/database";
+import { generateUuidV7 } from "@myownnotion/domain";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -113,7 +114,11 @@ beforeEach(async () => {
 async function seedItems(count: number): Promise<{ id: string; name: string }[]> {
   const created: { id: string; name: string }[] = [];
   for (let index = 0; index < count; index += 1) {
-    const id = randomUUID();
+    // v7, like the application generates. The capture boundary is an id
+    // comparison, so a fixture using random v4 identifiers would produce
+    // records that sort before a boundary they were created after — testing a
+    // world this application does not live in.
+    const id = generateUuidV7();
     const name = `Private note ${index}`;
     const mutationId = randomUUID();
     const revisionId = randomUUID();

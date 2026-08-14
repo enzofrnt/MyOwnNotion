@@ -206,9 +206,16 @@ export class MigrationBackfillService {
    * page document is keyed by its item, so its identifier is already in
    * `items`. Listing it twice would change the digest without adding anything
    * the comparison did not already cover.
+   *
+   * The boundary is not optional in practice — every caller inside a migration
+   * has one. It is optional in the signature so a diagnostic can ask what the
+   * whole source looks like without inventing a boundary to do it.
    */
-  async sourceIdentityDigest(): Promise<string> {
-    const identities = await readSourceIdentities(this.#deps.db);
+  async sourceIdentityDigest(boundary?: BackfillBoundary): Promise<string> {
+    const identities = await readSourceIdentities(this.#deps.db, {
+      ...(boundary === undefined ? {} : { itemBoundary: boundary.itemCursor }),
+      ...(boundary === undefined ? {} : { pageBoundary: boundary.pageCursor }),
+    });
     return partialIdentityDigest({ items: identities.items });
   }
 }
