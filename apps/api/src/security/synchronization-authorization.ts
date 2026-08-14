@@ -47,23 +47,43 @@ const REFUSALS: Readonly<Record<Exclude<DeviceState, "active">, SynchronizationR
  * a distinction the code should still make rather than rely on there being
  * only one owner.
  */
+export interface SynchronizationAuthorizationOptions {
+  /**
+   * Records a refused delivery.
+   *
+   * Optional, and given only the device id, its state, and the reason — never
+   * key material. A refusal that leaves no trace means an owner can see that
+   * they revoked a device but never that the device kept trying, which is the
+   * part worth knowing.
+   */
+  readonly reportRefusal?: (refusal: {
+    deviceId: string;
+    reason: SynchronizationRefusal;
+    deviceState?: DeviceState;
+  }) => Promise<void>;
+}
+
 export async function authorizeSynchronization(
   executor: Database | Transaction,
   input: { ownerId: string; deviceId: string },
+  options: SynchronizationAuthorizationOptions = {},
 ): Promise<SynchronizationDecision> {
   const device = await findDevice(executor, input);
   if (device === null) {
     // Unknown and revoked are reported separately in the log but both refuse.
     // The caller must not vary its response between them: doing so would tell
     // an attacker which device ids exist.
+    await options.reportRefusal?.({ deviceId: input.deviceId, reason: "device_unknown" });
     return { allowed: false, refusal: "device_unknown" };
   }
   if (!mayHoldSynchronizationKey(device.state)) {
-    return {
-      allowed: false,
-      refusal: REFUSALS[device.state as Exclude<DeviceState, "active">],
+    const reason = REFUSALS[device.state as Exclude<DeviceState, "active">];
+    await options.reportRefusal?.({
+      deviceId: input.deviceId,
+      reason,
       deviceState: device.state,
-    };
+    });
+    return { allowed: false, refusal: reason, deviceState: device.state };
   }
   return { allowed: true, deviceState: device.state };
 }

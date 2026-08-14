@@ -168,3 +168,64 @@ describe("which devices may synchronize", () => {
     }
   });
 });
+
+describe("a refusal leaves a trace", () => {
+  it("reports the refusal, with the reason and no key material", async () => {
+    // Without this an owner can see that they revoked a device, but never that
+    // the device kept trying afterwards — which is the part that tells them
+    // whether it is still in someone's hands.
+    const id = await authorize("revoked");
+    const reported: Record<string, unknown>[] = [];
+
+    await authorizeSynchronization(
+      harness.built.database.db,
+      { ownerId: OWNER_ID, deviceId: id },
+      {
+        reportRefusal: async (refusal) => {
+          reported.push(refusal as unknown as Record<string, unknown>);
+        },
+      },
+    );
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]?.["reason"]).toBe("device_revoked");
+    expect(reported[0]?.["deviceState"]).toBe("revoked");
+    expect(JSON.stringify(reported)).not.toContain("binding-");
+  });
+
+  it("reports nothing when the device is allowed", async () => {
+    // An audit trail of successful synchronizations would be noise that buries
+    // the refusals, which are the events worth finding.
+    const id = await authorize();
+    const reported: unknown[] = [];
+
+    const decision = await authorizeSynchronization(
+      harness.built.database.db,
+      { ownerId: OWNER_ID, deviceId: id },
+      {
+        reportRefusal: async (refusal) => {
+          reported.push(refusal);
+        },
+      },
+    );
+
+    expect(decision.allowed).toBe(true);
+    expect(reported).toHaveLength(0);
+  });
+
+  it("reports an unknown device without inventing a state for it", async () => {
+    const reported: Record<string, unknown>[] = [];
+    await authorizeSynchronization(
+      harness.built.database.db,
+      { ownerId: OWNER_ID, deviceId: generateUuidV7() },
+      {
+        reportRefusal: async (refusal) => {
+          reported.push(refusal as unknown as Record<string, unknown>);
+        },
+      },
+    );
+
+    expect(reported[0]?.["reason"]).toBe("device_unknown");
+    expect(reported[0]?.["deviceState"]).toBeUndefined();
+  });
+});

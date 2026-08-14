@@ -463,6 +463,19 @@ export class BootstrapService {
       { ...this.#auditContext(input.correlationId), workspaceId: result.workspaceId },
       { eventType: "bootstrap.confirmed", outcome: "success" },
     );
+    // The promotion creates the owner's first device. Recording it here rather
+    // than leaving it implied by `bootstrap.confirmed` is what lets the device
+    // trail be read on its own: every later revocation and reauthorization
+    // refers to a device whose authorization would otherwise appear nowhere.
+    await this.#deps.audit.record(
+      { ...this.#auditContext(input.correlationId), workspaceId: result.workspaceId },
+      {
+        eventType: "device.authorized",
+        outcome: "success",
+        objectKind: "device",
+        objectId: result.deviceId,
+      },
+    );
     await clearRateLimit(this.#deps.db, {
       installationId: this.#deps.installationId,
       operation: "bootstrap.claim",
