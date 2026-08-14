@@ -368,7 +368,33 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       now,
       require: requireOwner,
     });
-    void new RotationScheduler({ policies: rotationPolicies, logger: app.log }).start();
+    void new RotationScheduler({
+      policies: rotationPolicies,
+      logger: app.log,
+      // Audited from the evaluation rather than from the write path: one row
+      // per refused write would bury the event under thousands of copies of
+      // itself, exactly when an operator most needs to find it.
+      onWriteBlocked: async (blocked) => {
+        await audit.record(
+          {
+            installationId: INSTALLATION_ID,
+            workspaceId: workspace.id,
+            correlationId: randomUUID(),
+            actorClass: "system",
+          },
+          {
+            eventType: "rotation.write-blocked",
+            outcome: "failure",
+            objectKind: "rotation-policy",
+            objectId: blocked.kind,
+            metadata: {
+              dueAt: blocked.dueAt.toISOString(),
+              writeBlockAt: blocked.writeBlockAt.toISOString(),
+            },
+          },
+        );
+      },
+    }).start();
 
     registerDeviceRoutes(app, {
       devices: new DeviceService({ db: database.db, now }),
