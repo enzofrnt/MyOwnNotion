@@ -195,6 +195,23 @@ export class KeyHierarchy {
   }
 
   /**
+   * The material a recovery kit carries.
+   *
+   * The workspace root key, unwrapped. Every data key is sealed under it, and
+   * every record under those, so this one value is what turns a database dump
+   * on a new machine back into a readable workspace — which is precisely what
+   * a recovery kit is for.
+   *
+   * Deliberately a named method rather than making `#rootKey` public. There is
+   * exactly one legitimate reason to take this key out of the hierarchy, and a
+   * reader looking for how key material escapes should find this and its
+   * explanation rather than a general-purpose accessor.
+   */
+  async exportRecoveryMaterial(executor: Database | Transaction): Promise<Uint8Array> {
+    return await this.#rootKey(executor);
+  }
+
+  /**
    * Mints the next data-key generation and retires the current one.
    *
    * Both in one step, and in this order, because the gap between them is the

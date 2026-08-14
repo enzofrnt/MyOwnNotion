@@ -13,6 +13,7 @@ import {
   createDatabase,
   createInstallation,
   type DatabaseHandle,
+  findCurrentGeneration,
   getOrCreateWorkspace,
 } from "@myownnotion/database";
 import { sessionPolicy } from "@myownnotion/domain";
@@ -34,6 +35,7 @@ import { registerPageDocumentRoutes } from "./routes/page-documents.ts";
 import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
+import { registerRecoveryRoutes } from "./routes/security-recovery.ts";
 import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
 import { AuditService } from "./security/audit-service.ts";
@@ -46,6 +48,7 @@ import { KeyHierarchy } from "./security/key-hierarchy.ts";
 import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
 import { ProtectedContent } from "./security/protected-content.ts";
 import { ProtectedRecordService } from "./security/protected-record-service.ts";
+import { RecoveryKitService } from "./security/recovery-kit-service.ts";
 import {
   attachRequestContext,
   createRequestContext,
@@ -395,6 +398,43 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
         );
       },
     }).start();
+
+    // Recovery-kit replacement. The payload is the workspace root key, taken
+    // through the hierarchy's one named export rather than a general accessor,
+    // and the kit is sealed under the mounted deployment key — so the routes
+    // need the key reader as well as the database.
+    registerRecoveryRoutes(app, {
+      kits: new RecoveryKitService({
+        db: database.db,
+        installationId: INSTALLATION_ID,
+        sourceLineageId: INSTALLATION_ID,
+        workspaceId: workspace.id,
+        deploymentKey,
+        supportedKeyGenerations: async () => {
+          const current = await findCurrentGeneration(database.db, workspace.id);
+          // Every generation up to the current one, because a restored
+          // installation has to open records written under any of them. An
+          // empty list means the hierarchy was never established, and the
+          // service refuses rather than sealing a kit that opens nothing.
+          return current === null
+            ? []
+            : Array.from({ length: current.generation }, (_, index) => index + 1);
+        },
+        recoveryPayload: async () => {
+          if (keyHierarchy === undefined) {
+            // Unreachable from this branch — the hierarchy is built above —
+            // but the service must fail closed rather than seal an empty kit
+            // if that ever stops being true.
+            throw new Error("the key hierarchy is unavailable");
+          }
+          return await keyHierarchy.exportRecoveryMaterial(database.db);
+        },
+        now,
+      }),
+      audit,
+      installationId: INSTALLATION_ID,
+      require: requireOwner,
+    });
 
     registerDeviceRoutes(app, {
       devices: new DeviceService({ db: database.db, now }),
