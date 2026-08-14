@@ -21,11 +21,15 @@
  * must prove itself again is still theirs, and one they revoked is not.
  */
 
+import {
+  canTransitionDevice,
+  type DeviceState,
+  isDeviceOperable,
+  isValidStorageLimit,
+} from "@myownnotion/domain";
 import { and, eq } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { authorizedDevices } from "../../schema/security/index.ts";
-
-export type DeviceState = "pending" | "active" | "revoked" | "reauthorization-required";
 
 export interface AuthorizedDevice {
   readonly id: string;
@@ -140,10 +144,29 @@ async function requireOperable(
   if (device === null) {
     throw new DeviceRepositoryError("device_not_found", "no such device for this owner");
   }
-  if (device.state === "revoked") {
+  // The rule comes from the domain, so the repository and any other caller
+  // cannot end up with two ideas of what a revoked device may still do.
+  if (!isDeviceOperable(device.state)) {
     throw new DeviceRepositoryError("device_revoked", "this device has been revoked");
   }
   return device;
+}
+
+/**
+ * Refuses a transition the domain does not allow.
+ *
+ * Separate from `requireOperable` because the two answer different questions:
+ * one asks whether the owner may act on the device at all, the other whether
+ * this particular change is a legal step. Asking a device already awaiting
+ * reauthorization to reauthorize is refused here, not silently repeated.
+ */
+function requireTransition(from: DeviceState, to: DeviceState): void {
+  if (!canTransitionDevice(from, to)) {
+    throw new DeviceRepositoryError(
+      "device_transition_invalid",
+      `a device cannot go from ${from} to ${to}`,
+    );
+  }
 }
 
 export async function renameDevice(
@@ -168,10 +191,10 @@ export async function setLocalStorageLimit(
   input: { ownerId: string; deviceId: string; limitBytes: number | null },
 ): Promise<AuthorizedDevice> {
   await requireOperable(executor, input);
-  if (input.limitBytes !== null && (!Number.isInteger(input.limitBytes) || input.limitBytes < 0)) {
+  if (!isValidStorageLimit(input.limitBytes)) {
     throw new DeviceRepositoryError(
       "device_storage_limit_invalid",
-      "a storage limit must be a non-negative integer, or null for unlimited",
+      "a storage limit must be a positive integer, or null for no limit",
     );
   }
   const rows = await executor
@@ -193,7 +216,8 @@ export async function revokeDevice(
   executor: Executor,
   input: { ownerId: string; deviceId: string; now: Date },
 ): Promise<AuthorizedDevice> {
-  await requireOperable(executor, input);
+  const current = await requireOperable(executor, input);
+  requireTransition(current.state, "revoked");
   const rows = await executor
     .update(authorizedDevices)
     .set({ state: "revoked", revokedAt: input.now })
@@ -212,7 +236,8 @@ export async function requireDeviceReauthorization(
   executor: Executor,
   input: { ownerId: string; deviceId: string },
 ): Promise<AuthorizedDevice> {
-  await requireOperable(executor, input);
+  const current = await requireOperable(executor, input);
+  requireTransition(current.state, "reauthorization-required");
   const rows = await executor
     .update(authorizedDevices)
     .set({ state: "reauthorization-required" })

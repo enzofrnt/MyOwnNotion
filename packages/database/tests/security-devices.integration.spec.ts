@@ -251,6 +251,13 @@ describe("reauthorization is not revocation", () => {
     expect(flagged.state).toBe("reauthorization-required");
     expect(flagged.revokedAt).toBeNull();
 
+    // Asking twice is refused rather than silently repeated: the second call
+    // did nothing, and reporting it as success would tell the owner an action
+    // took place that did not.
+    await expect(
+      requireDeviceReauthorization(context.handle.db, { ownerId, deviceId: id }),
+    ).rejects.toMatchObject({ code: "device_transition_invalid" });
+
     // And unlike revocation, it does not close the device off.
     const renamed = await renameDevice(context.handle.db, {
       ownerId,
