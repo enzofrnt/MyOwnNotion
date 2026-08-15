@@ -91,6 +91,12 @@ export const SAFE_ERROR_CODES = [
   "item.not-active",
   "item.not-trashed",
   "item.wrong-kind",
+  // Feature 004. `confirmation-required` is a refusal rather than a prompt:
+  // the domain declines, and the caller is responsible for asking the owner
+  // and resubmitting. That keeps the decision with the person and the
+  // enforcement with the data.
+  "conversion.confirmation-required",
+  "conversion.file-not-convertible",
   "placement.not-found",
   "placement.already-removed",
   "placement.cardinality-violation",

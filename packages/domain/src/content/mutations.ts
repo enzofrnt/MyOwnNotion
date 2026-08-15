@@ -20,6 +20,7 @@ import {
 export const COMMAND_TYPES = [
   "item.create",
   "item.rename",
+  "item.convert",
   "item.trash",
   "item.restore",
   "placement.move",
@@ -48,6 +49,13 @@ export type MutationCommand =
       readonly pageDocument?: PageDocument;
     }
   | { readonly type: "item.rename"; readonly itemId: Uuid; readonly name: string }
+  | {
+      readonly type: "item.convert";
+      readonly itemId: Uuid;
+      readonly targetKind: "page" | "folder";
+      /** Carried in the command so a replay cannot destroy unconfirmed content. */
+      readonly confirmedDestruction: boolean;
+    }
   | { readonly type: "item.trash"; readonly itemId: Uuid }
   | {
       readonly type: "item.restore";
@@ -203,6 +211,17 @@ export function parseMutationCommand(
         return invalid();
       }
       return ok({ type: "item.rename", itemId, name });
+    }
+    case "item.convert": {
+      const itemId = requireUuid(payload, "itemId");
+      const targetKind = payload["targetKind"];
+      if (itemId === null || (targetKind !== "page" && targetKind !== "folder")) {
+        return invalid();
+      }
+      // Absent means not confirmed. Defaulting the other way would let a
+      // caller destroy content by omitting a field.
+      const confirmedDestruction = payload["confirmedDestruction"] === true;
+      return ok({ type: "item.convert", itemId, targetKind, confirmedDestruction });
     }
     case "item.trash": {
       const itemId = requireUuid(payload, "itemId");

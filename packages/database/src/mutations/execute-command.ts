@@ -26,6 +26,7 @@ import {
 import { eq } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { recordChange } from "../repositories/change-repository.ts";
+import { executeConvertItem } from "../repositories/content/conversion-repository.ts";
 import {
   executeAddFilePlacement,
   executeRemovePlacement,
@@ -307,6 +308,23 @@ export async function executeCommand(
       return executeCreateItem(tx, context, command);
     case "item.rename":
       return executeRenameItem(tx, context, command);
+    case "item.convert": {
+      const result = await executeConvertItem(tx, {
+        command,
+        mutationId: context.mutationId,
+        acceptedAt: context.acceptedAt,
+        insertRevision: (revision) => insertRevision(tx, revision),
+        buildItemSnapshot: (itemId) => buildItemSnapshot(tx, itemId),
+        supersedeRevision: (revisionId, at) => supersedeRevision(tx, revisionId, at),
+      });
+      return result.ok
+        ? ok({
+            revisionIds: result.value.revisionIds,
+            changedItemIds: result.value.changedItemIds,
+            primaryItemId: result.value.itemId,
+          })
+        : (result as DomainResult<CommandExecution>);
+    }
     case "item.trash": {
       const result = await executeTrash(tx, {
         mutationId: context.mutationId,
