@@ -1,4 +1,12 @@
 # syntax=docker/dockerfile:1.9
+# check=skip=InvalidDefaultArgInFrom
+#
+# That rule wants `ARG NODE_BASE` to carry a default so the file builds on its
+# own. Giving it one is exactly what must not happen here: a default is an
+# unpinned base, and an unpinned base makes two builds of the same commit
+# produce different images. The argument is required, every caller supplies the
+# digest from docker/base-images.json, and a build that omits it fails loudly —
+# which is the intended behaviour, not a defect to paper over.
 #
 # API image (feature 002, FR-032/FR-034).
 #
