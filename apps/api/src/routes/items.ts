@@ -19,6 +19,7 @@ import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import { handleMutation } from "../plugins/mutations.ts";
+import { resolveProtectedContent } from "../security/content-resolution.ts";
 
 const ItemParamsSchema = Type.Object({ itemId: Type.String({ format: "uuid" }) });
 
@@ -49,10 +50,15 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
             : isUuid(query.parentItemId)
               ? query.parentItemId
               : undefined;
-      const items = await listItems(context.db, context.workspaceId, {
+      const rows = await listItems(context.db, context.workspaceId, {
         ...(parentItemId !== undefined ? { parentItemId } : {}),
         ...(query.lifecycle !== undefined ? { lifecycle: query.lifecycle } : {}),
       });
+      // The sealed copy wins where it exists. Before this, envelopes were
+      // written and never read back, so a corrupted one changed nothing a
+      // caller could see — which is the same as not encrypting at all, from
+      // the point of view of anyone relying on it.
+      const items = await resolveProtectedContent(context.db, rows, context.protectedContent);
       return { items };
     },
   );
@@ -109,10 +115,11 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
     },
     async (request, reply) => {
       const { itemId } = request.params as { itemId: string };
-      const item = await readItem(context.db, itemId as Uuid);
-      if (item === null) {
+      const row = await readItem(context.db, itemId as Uuid);
+      if (row === null) {
         return sendProblem(reply, { code: "item.not-found", title: "Item does not exist" });
       }
+      const [item] = await resolveProtectedContent(context.db, [row], context.protectedContent);
       return item;
     },
   );
