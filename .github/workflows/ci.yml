@@ -171,7 +171,23 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps
+      # Browsers are ~400 MB and identical between runs of the same Playwright
+      # version. The key is that version and nothing else: keying on the
+      # lockfile would miss the cache on every unrelated dependency change, and
+      # keying on less would serve browsers to a Playwright that cannot drive
+      # them.
+      - id: playwright-version
+        run: echo "value=$(pnpm exec playwright --version | tr -d ' ')" >> "$GITHUB_OUTPUT"
+      - id: playwright-cache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.value }}
+      - name: Install browsers
+        # `--with-deps` still runs on a hit: the system libraries live outside
+        # the cached directory, and a cached browser without them fails at
+        # launch with an error that says nothing about the cause.
+        run: pnpm exec playwright install --with-deps
       - name: Start disposable PostgreSQL and migrate
         run: |
           docker compose up -d --wait postgres || {
