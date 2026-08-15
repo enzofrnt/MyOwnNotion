@@ -41,6 +41,16 @@ describe("validatePageDocument", () => {
     expect(result.ok).toBe(true);
   });
 
+  it.each([1, 2])("accepts version %s explicitly", (formatVersion) => {
+    // Named versions rather than only the relative check above, because the
+    // relative one passed while the gate was still capped at 1 and the block
+    // editor could not save a single document. Version 1 must stay accepted
+    // too: pages written before the block model are upgraded by the client on
+    // the owner's first edit, so refusing it would refuse writes to an
+    // installation's own older pages.
+    expect(validatePageDocument(document({ formatVersion })).ok).toBe(true);
+  });
+
   it("rejects an unknown format", () => {
     const result = validatePageDocument(
       document({ format: "text/markdown" as PageDocument["format"] }),

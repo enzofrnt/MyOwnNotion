@@ -59,16 +59,33 @@ function normaliseMarks(marks: readonly Mark[] | undefined): readonly Mark[] | u
     return undefined;
   }
 
+  // `code` is exclusive: a run of inline code carries no other formatting.
+  //
+  // Two reasons, and the second is the one that forced it. Typographically,
+  // bold inside a code span has no meaning — the export already dropped it,
+  // returning the code span and ignoring every other mark. And every editor
+  // schema worth using says the same: ProseMirror's `code` mark excludes all
+  // others, so a model that allowed the combination produced documents the
+  // editor refused to open. Deciding it here keeps the two in agreement
+  // instead of leaving the conversion to paper over a disagreement.
+  const codeMark = marks.find((mark) => mark.type === "code");
+  if (codeMark !== undefined) {
+    return [codeMark];
+  }
+
   const seen = new Set<string>();
   const unique: Mark[] = [];
   for (const mark of marks) {
-    // A link's href is part of its identity: two links to different places are
-    // two marks, and only an exact repeat is a duplicate.
-    const key = mark.type === "link" ? `link:${mark.href}` : mark.type;
-    if (seen.has(key)) {
+    // One mark of each type, links included — and links especially. An earlier
+    // version keyed links by href, on the reasoning that two links to different
+    // places are two different marks. They are, but a single run of text cannot
+    // be both: it points somewhere, or somewhere else. The editor schema agrees
+    // and rejects the pair outright, so the model has to decide, and the first
+    // one wins because document order is the only ordering there is.
+    if (seen.has(mark.type)) {
       continue;
     }
-    seen.add(key);
+    seen.add(mark.type);
     unique.push(mark);
   }
 

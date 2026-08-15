@@ -60,8 +60,21 @@ export interface CreateItemPlan {
   readonly pageDocument: PageDocument | null;
 }
 
-/** Maximum accepted page-document format version for this slice. */
-export const SUPPORTED_PAGE_DOCUMENT_VERSION = 1;
+/**
+ * Maximum accepted page-document format version.
+ *
+ * Raised to 2 by feature 003, which introduced the block content model. The
+ * server still does not read a body — since feature 002 it holds no key and
+ * could not if it wanted to — so this is a version gate and nothing more: it
+ * says which envelopes this installation understands, not what may be inside
+ * them.
+ *
+ * Version 1 stays accepted, and must. Documents written before the block model
+ * existed are read as legacy bodies and upgraded by the client on the owner's
+ * first edit, so an installation that rejected version 1 would refuse writes to
+ * its own older pages.
+ */
+export const SUPPORTED_PAGE_DOCUMENT_VERSION = 2;
 
 export function validatePageDocument(document: PageDocument): DomainResult<PageDocument> {
   if (document.format !== PAGE_DOCUMENT_FORMAT) {

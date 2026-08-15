@@ -117,3 +117,33 @@ describe("inline normalisation", () => {
     );
   });
 });
+
+describe("marks the editor schema would reject", () => {
+  // These three rules were not invented for tidiness. Each one was a document
+  // the model considered legal and ProseMirror refused to open, found by
+  // running the round trip through the real schema with `check()` rather than
+  // only through `nodeFromJSON`, which is far more forgiving than an editor is.
+
+  it("keeps only one link per run, the first one", () => {
+    // A run of text points somewhere, or somewhere else — it cannot do both.
+    const first = { type: "link" as const, href: "https://example.org/" };
+    const second = { type: "link" as const, href: "mailto:someone@example.org" };
+    expect(normaliseInline([{ text: "x", marks: [first, second] }])).toEqual([
+      { text: "x", marks: [first] },
+    ]);
+  });
+
+  it("drops every other mark when the run is code", () => {
+    // Bold inside a code span has no typographic meaning, the Markdown export
+    // already ignored it, and the editor schema excludes it outright.
+    expect(normaliseInline([{ text: "x", marks: [{ type: "bold" }, { type: "code" }] }])).toEqual([
+      { text: "x", marks: [{ type: "code" }] },
+    ]);
+  });
+
+  it("keeps a code run's mark even when code came first", () => {
+    expect(normaliseInline([{ text: "x", marks: [{ type: "code" }, { type: "italic" }] }])).toEqual(
+      [{ text: "x", marks: [{ type: "code" }] }],
+    );
+  });
+});

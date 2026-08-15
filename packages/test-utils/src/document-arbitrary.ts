@@ -47,7 +47,16 @@ const markArbitrary: fc.Arbitrary<Mark> = fc.oneof(
 export const inlineArbitrary: fc.Arbitrary<Inline> = fc
   .tuple(
     textArbitrary,
-    fc.option(fc.uniqueArray(markArbitrary, { maxLength: 3 }), { nil: undefined }),
+    fc.option(
+      // Unique *by mark type*, not structurally. The default comparison treats
+      // two links with different hrefs as two distinct values, and generated
+      // documents where one run of text linked to two places — which the model
+      // does not allow and the editor schema rejects outright. A generator that
+      // produces illegal documents does not test the model harder, it tests a
+      // model that does not exist.
+      fc.uniqueArray(markArbitrary, { maxLength: 3, selector: (mark) => mark.type }),
+      { nil: undefined },
+    ),
   )
   .map(([text, marks]) => (marks === undefined || marks.length === 0 ? { text } : { text, marks }));
 

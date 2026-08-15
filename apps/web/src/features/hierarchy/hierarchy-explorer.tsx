@@ -14,8 +14,8 @@ import { SyncStatus } from "../../components/sync-status.tsx";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
+import { EditorView } from "../editor/editor-view.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
-import { PageDocumentForm } from "../pages/page-document-form.tsx";
 import { FileNode } from "./file-node.tsx";
 import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
@@ -407,7 +407,7 @@ export function HierarchyExplorer() {
 
       {selectedItem !== null && selectedItem.kind === "page" ? (
         <>
-          <PageDocumentForm service={service} itemId={selectedItem.id} />
+          <EditorView service={service} itemId={selectedItem.id} />
           <AttachmentPanel pageId={selectedItem.id} onChanged={() => void refresh()} />
         </>
       ) : null}

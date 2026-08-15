@@ -53,6 +53,17 @@ export function readDocumentBody(body: unknown): DocumentBodyRead {
   if (Array.isArray(body["blocks"])) {
     return { kind: "blocks", result: validateDocument(body) };
   }
+  if (Object.keys(body).length === 0) {
+    // An empty object is an empty document, not legacy content.
+    //
+    // This is the shape every newly created page starts with, and treating it
+    // as legacy told an owner their brand-new page "was written before the
+    // block editor existed" and refused to let them type in it. The rule that
+    // makes it safe is that there is nothing here to preserve: `{}` carries no
+    // content, so reading it as an empty document loses exactly nothing, which
+    // is not true of any other legacy body.
+    return { kind: "blocks", result: validateDocument({ blocks: [] }) };
+  }
   return { kind: "legacy", body };
 }
 
