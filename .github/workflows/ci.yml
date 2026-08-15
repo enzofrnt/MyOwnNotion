@@ -359,6 +359,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Read the pinned base image
+        id: bases
+        # The Dockerfile takes its base as a build argument with no default, so
+        # a build that omits it fails with `base name should not be blank`.
+        # That is the right design — an unpinned base would make two builds of
+        # one commit produce different images — and it means every caller has
+        # to supply the digest, including this one.
+        run: echo "node=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)" >> "$GITHUB_OUTPUT"
       - name: Build the API image for scanning
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -366,6 +374,8 @@ jobs:
           file: docker/api.Dockerfile
           push: false
           load: true
+          build-args: |
+            NODE_BASE=${{ steps.bases.outputs.node }}
           tags: myownnotion-api:scan
       - name: Scan it
         # Trivy rather than a scanner written here. A vulnerability database is
@@ -378,6 +388,16 @@ jobs:
           output: container-scan.sarif
           severity: HIGH,CRITICAL
           exit-code: "1"
+      - name: Ensure the artifact exists even if the scan never ran
+        # `if-no-files-found: error` is the right setting and it turned one
+        # failure into two: the build broke, Trivy never ran, and the upload
+        # then failed for a missing file — burying the cause under a second
+        # error about a symptom. A stub keeps the real failure the only one.
+        if: always()
+        run: |
+          test -f container-scan.sarif || printf '%s\n' \
+            '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"trivy","informationUri":"https://aquasecurity.github.io/trivy/"}},"results":[],"invocations":[{"executionSuccessful":false}]}]}' \
+            > container-scan.sarif
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
