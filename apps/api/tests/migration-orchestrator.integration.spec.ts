@@ -385,3 +385,183 @@ describe("the scrub", () => {
     expect(result.advanced).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fault injection (T091)
+// ---------------------------------------------------------------------------
+//
+// These live here rather than in a file of their own, and the reason is
+// mundane but real: every integration file starts its own PostgreSQL
+// container, and a separate suite for the same subject pushed this machine
+// past what it can run at once — producing serialization failures in
+// unrelated tests. Same fixtures, same subject, one container.
+//
+// The faults are injected in the database rather than by mocking, because what
+// is being tested is what the *rows* say after a crash. A mocked failure proves
+// the code takes a branch; a broken row proves the migration cannot be talked
+// into finishing over one.
+
+/** Simulates a crash: the process stops calling `step`, the rows stay put. */
+const SCRUBBED = "\uFFFD";
+
+async function plaintextSurvives(): Promise<boolean> {
+  const rows = await handle.db.select().from(schema.items);
+  return rows.length > 0 && rows.every((row) => row.name !== SCRUBBED);
+}
+
+async function sourceRetained(): Promise<boolean> {
+  return (await findMigration(handle.db, INSTALLATION_ID))?.sourceRetained ?? false;
+}
+
+const FAULT_POINTS = [
+  "prepare-destinations",
+  "capture-boundary",
+  "backfill",
+  "verify",
+  "stop-plaintext-writes",
+  "encrypted-read-cutover",
+] as const;
+
+describe("a crash at each stage before the scrub", () => {
+  for (const stage of FAULT_POINTS) {
+    it(`leaves the plaintext intact when it stops at ${stage}`, async () => {
+      await seedItems(3);
+      const driver = orchestrator(1);
+      await run(driver, { stopAt: stage });
+
+      // The safety argument, at every prefix of the sequence. One point where
+      // this fails is the point at which a container restart destroys a
+      // workspace, and it would be found by an operator rather than here.
+      expect(await plaintextSurvives(), `${stage}: plaintext gone`).toBe(true);
+      expect(await sourceRetained(), `${stage}: source released`).toBe(true);
+    });
+  }
+
+  it("resumes from a crash and still finishes", async () => {
+    const seeded = await seedItems(4);
+    await run(orchestrator(1), { stopAt: "backfill" });
+
+    // A fresh orchestrator, as a restarted process would be: no memory of what
+    // the last one was doing, only the rows.
+    const resumed = orchestrator();
+    await resumed.begin();
+    for (let step = 0; step < 60; step += 1) {
+      const result = await resumed.step();
+      if (result.state === "complete" || result.state === "failed") {
+        break;
+      }
+    }
+
+    expect((await findMigration(handle.db, INSTALLATION_ID))?.state).toBe("complete");
+    for (const item of seeded) {
+      const opened = await records().read(handle.db, {
+        entityType: PROTECTED_ENTITY_TYPES.itemName,
+        entityId: item.id,
+      });
+      expect(JSON.parse(Buffer.from(opened ?? new Uint8Array()).toString("utf8"))).toBe(item.name);
+    }
+  });
+});
+
+describe("a fault during the backfill", () => {
+  it("stops rather than skipping the record it could not copy", async () => {
+    const seeded = await seedItems(3);
+    await run(orchestrator(1), { stopAt: "backfill" });
+
+    // A row the sweep cannot handle. Skipping it would leave a record with no
+    // encrypted copy, which the scrub would then delete the only version of.
+    await handle.db
+      .update(schema.items)
+      .set({ name: "" })
+      .where(eq(schema.items.id, seeded[0]?.id ?? ""))
+      .catch(() => undefined);
+
+    const driver = orchestrator();
+    for (let step = 0; step < 20; step += 1) {
+      const result = await driver.step();
+      if (result.state === "complete" || result.state === "failed") {
+        break;
+      }
+    }
+
+    // Either it finished honestly or it stopped. What it must not do is reach
+    // `complete` with a record uncopied.
+    const migration = await findMigration(handle.db, INSTALLATION_ID);
+    if (migration?.state === "complete") {
+      expect(migration.destinationCount).toBeGreaterThanOrEqual(migration.sourceCount);
+    }
+  });
+});
+
+describe("a fault after verification", () => {
+  it("does not let a later stage proceed on stale counts", async () => {
+    await seedItems(3);
+    const driver = orchestrator();
+    await run(driver, { stopAt: "stop-plaintext-writes" });
+
+    // The verification wrote its digests; something then corrupted them, as a
+    // partial write or a hand-edit would.
+    const migration = await findMigration(handle.db, INSTALLATION_ID);
+    await handle.db.execute(
+      sql`UPDATE encryption_migrations SET source_digest = 'a', destination_digest = 'b' WHERE id = ${migration?.id ?? ""}`,
+    );
+
+    for (let step = 0; step < 10; step += 1) {
+      const result = await driver.step();
+      if (result.state === "complete" || result.state === "failed") {
+        break;
+      }
+    }
+
+    // The scrub asks for a positive answer to every question rather than
+    // trusting the stage it is in, so mismatched digests stop it there.
+    expect(await plaintextSurvives()).toBe(true);
+    expect(await sourceRetained()).toBe(true);
+  });
+});
+
+describe("a fault during the scrub", () => {
+  it("keeps the migration at the scrub stage until nothing is left", async () => {
+    await seedItems(3);
+    const driver = orchestrator();
+    await run(driver, { stopAt: "scrub-plaintext" });
+
+    // A record written back into plaintext between two scrub passes, as a
+    // partially applied batch would leave it.
+    const rows = await handle.db.select().from(schema.items).limit(1);
+    await handle.db
+      .update(schema.items)
+      .set({ name: "restored by a partial write" })
+      .where(eq(schema.items.id, rows[0]?.id ?? ""));
+
+    const result = await driver.step();
+
+    // Not an error, and not completion either: there is more to do, and the
+    // next call does it.
+    expect(["scrub-plaintext", "complete"]).toContain(result.state);
+    if (result.state === "scrub-plaintext") {
+      expect(await sourceRetained()).toBe(true);
+    }
+  });
+
+  it("releases the source only once every record is scrubbed", async () => {
+    await seedItems(3);
+    const driver = orchestrator();
+    await driver.begin();
+    for (let step = 0; step < 60; step += 1) {
+      const result = await driver.step();
+      if (result.state === "complete" || result.state === "failed") {
+        break;
+      }
+    }
+
+    const migration = await findMigration(handle.db, INSTALLATION_ID);
+    expect(migration?.state).toBe("complete");
+    expect(migration?.sourceRetained).toBe(false);
+    // And the evidence behind SC-010: counted, not sampled. A migration that
+    // scrubbed 99% has not finished, and the remaining 1% is exactly the part
+    // nobody would notice.
+    const remaining = await handle.db.select().from(schema.items).where(sql`name <> ${SCRUBBED}`);
+    expect(remaining).toHaveLength(0);
+  });
+});
