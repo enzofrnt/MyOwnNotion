@@ -65,8 +65,8 @@ folder becomes page — is shippable and useful on its own.
 **Independent test**: folder with two pages and a file inside, convert, write a sentence, reload — the sentence is there and all three children are in place, in order.
 
 - [X] T017 [US1] Implement the conversion in one transaction in `packages/database/src/repositories/content/conversion-repository.ts` — the kind change and the revision, committed together
-- [ ] T018 [US1] Route the command to the domain in `apps/api/src/routes/` so it goes through the same validation as every other mutation
-- [ ] T019 [US1] Apply the conversion to the local projection in `packages/client-core/src/outbox/apply-to-projection.ts`, so it works offline like every other command
+- [X] T018 [US1] Route the command to the domain in `apps/api/src/routes/` so it goes through the same validation as every other mutation
+- [X] T019 [US1] Apply the conversion to the local projection in `packages/client-core/src/outbox/apply-to-projection.ts`, so it works offline like every other command
 - [ ] T020 [P] [US1] Add the conversion control to `apps/web/src/features/navigation/convert-item.tsx`, reachable from the keyboard (FR-018)
 - [ ] T021 [US1] Reflect the new kind in the tree without a reload in `apps/web/src/features/navigation/tree.tsx` (FR-017)
 - [X] T022 [P] [US1] Integration test in `packages/database/tests/conversion.integration.spec.ts` — converting touches no placement row and the composite key still holds
@@ -91,7 +91,7 @@ folder becomes page — is shippable and useful on its own.
 - [X] T030 [P] [US2] Integration test in `packages/database/tests/conversion.integration.spec.ts` — after a destructive conversion no page document and no protected envelope remain for that item
 - [ ] T031 [US2] Playwright journey in `tests/e2e/item-conversion.spec.ts` — the warning names the loss, declining changes nothing, accepting keeps every child
 - [ ] T032 [P] [US2] Playwright case in `tests/e2e/item-conversion.spec.ts` — restoring the revision from before the conversion brings the content back (FR-012, SC-005)
-- [ ] T033 [P] [US2] Contract test in `apps/api/tests/conversion.contract.spec.ts` — the API refuses a destructive conversion without the flag, whatever the caller (FR-014, the point of the whole design)
+- [X] T033 [P] [US2] Contract test in `apps/api/tests/conversion.contract.spec.ts` — the API refuses a destructive conversion without the flag, whatever the caller (FR-014, the point of the whole design)
 
 **Checkpoint**: both directions work, and the destructive one cannot be performed silently by any caller.
 

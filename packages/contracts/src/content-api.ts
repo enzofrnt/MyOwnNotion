@@ -107,6 +107,24 @@ export const UpdateItemSchema = Type.Object(
 );
 export type UpdateItemDto = Static<typeof UpdateItemSchema>;
 
+/**
+ * Converting a page to a folder, or the reverse (feature 004).
+ *
+ * A route of its own rather than a field on the generic update, because it is
+ * an operation with its own guarantees rather than a field that happens to
+ * change: it may destroy content, and it refuses to until the owner has said
+ * so. `confirmedDestruction` defaults to false when absent — the other way
+ * round would let a caller destroy a page's content by omitting a field.
+ */
+export const ConvertItemSchema = Type.Object(
+  {
+    targetKind: Type.Union([Type.Literal("page"), Type.Literal("folder")]),
+    confirmedDestruction: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+export type ConvertItemDto = Static<typeof ConvertItemSchema>;
+
 export const ReplacePageDocumentSchema = Type.Object(
   {
     baseRevisionId: UuidSchema,

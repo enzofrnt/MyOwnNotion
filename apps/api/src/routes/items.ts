@@ -3,6 +3,8 @@
  */
 
 import {
+  type ConvertItemDto,
+  ConvertItemSchema,
   type CreateItemDto,
   CreateItemSchema,
   ItemSchema,
@@ -150,6 +152,38 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
         request,
         reply,
         command: { type: "item.rename", itemId: itemId as Uuid, name: body.name },
+      });
+    },
+  );
+
+  app.post(
+    "/v1/items/:itemId/convert",
+    {
+      schema: {
+        params: ItemParamsSchema,
+        body: ConvertItemSchema,
+        response: { 200: MutationResultSchema },
+      },
+    },
+    async (request, reply) => {
+      const { itemId } = request.params as { itemId: string };
+      const body = request.body as ConvertItemDto;
+      return handleMutation({
+        db: context.db,
+        workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
+        rotationPolicies: context.rotationPolicies,
+        request,
+        reply,
+        command: {
+          type: "item.convert",
+          itemId: itemId as Uuid,
+          targetKind: body.targetKind,
+          // Absent means not confirmed. The domain refuses a destructive
+          // conversion without this, so the route does not need to decide
+          // anything — it only passes the owner's answer through.
+          confirmedDestruction: body.confirmedDestruction === true,
+        },
       });
     },
   );

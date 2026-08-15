@@ -167,6 +167,7 @@ export async function prepareProjectionWrite(
     }
 
     case "item.rename":
+    case "item.convert":
     case "page.document.replace": {
       const row = await db.items.get(command.itemId);
       // A missing row is not an error here. The write step raises the domain
@@ -183,15 +184,21 @@ export async function prepareProjectionWrite(
       const edited: LocalItemRow =
         command.type === "item.rename"
           ? { ...opened, name: command.name.trim(), currentRevisionId: revisionId }
-          : {
-              ...opened,
-              pageDocument: {
-                format: command.document.format,
-                formatVersion: command.document.formatVersion,
-                body: command.document.body as Record<string, unknown>,
-              },
-              currentRevisionId: revisionId,
-            };
+          : command.type === "item.convert"
+            ? // The kind is the only field that changes. The document is left
+              // as it is: the server decides whether it may be destroyed, and
+              // a client that dropped it locally first would have destroyed
+              // content the server may still refuse to lose.
+              { ...opened, kind: command.targetKind, currentRevisionId: revisionId }
+            : {
+                ...opened,
+                pageDocument: {
+                  format: command.document.format,
+                  formatVersion: command.document.formatVersion,
+                  body: command.document.body as Record<string, unknown>,
+                },
+                currentRevisionId: revisionId,
+              };
       return { revisionId, item: await codec.sealItem(edited) };
     }
 
@@ -241,6 +248,7 @@ export async function applyCommandToProjection(
       return [revisionId];
     }
 
+    case "item.convert":
     case "item.rename": {
       const item = await db.items.get(command.itemId);
       if (item === undefined) {
