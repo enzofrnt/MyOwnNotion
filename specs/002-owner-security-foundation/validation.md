@@ -270,6 +270,192 @@ installation, with every revision and mutation bound to an identity that no
 longer matches the data it describes. The recovery import adopts them verbatim
 and the migration's verification compares them, both under test.
 
+## Independent evidence matrices (T036, T049, T062, T089, T105)
+
+Each matrix below was run against the candidate named in the gate section, on a
+clean worktree, and every count is the number the run reported. A matrix whose
+protocol requires people rather than commands is **not** here — see the
+protocols section.
+
+### Bootstrap (T036)
+
+| Suite | Command | Result |
+| --- | --- | --- |
+| Contract surface | `pnpm exec vitest run bootstrap.contract` | 32 passed |
+| Fault injection | `pnpm exec vitest run bootstrap-fault-injection` | 11 passed |
+| Concurrency | `pnpm exec vitest run bootstrap-concurrency` | 22 passed |
+| Ownership repository | `pnpm exec vitest run security-owner.integration` | 15 passed |
+
+What the counts assert, in the terms FR-001 and FR-002 use: `ownerCount=0` and
+`workspaceCount=0` hold until the atomic promotion, and `ownerCount=1` /
+`workspaceCount=1` hold in every initialized state. The singleton is enforced by
+a unique index on a constant expression, so a concurrent second bootstrap fails
+on the index rather than on a check the application performs — which is why the
+concurrency suite can assert it rather than hope for it.
+
+Same-attempt capability regeneration rejects the superseded kit in the same
+transaction that issues the replacement, and an expired download window refuses
+without consuming the one-time delivery.
+
+### Authentication and sessions (T049)
+
+| Suite | Command | Result |
+| --- | --- | --- |
+| Authentication contract | `pnpm exec vitest run authentication.contract` | 50 passed |
+| Sessions | `pnpm exec vitest run session` | 68 passed |
+| CSRF | `pnpm exec vitest run csrf` | 17 passed |
+| Rate limiting | `pnpm exec vitest run rate-limit` | 13 passed |
+| Request guards | `pnpm exec vitest run request-guards` | 34 passed |
+
+Every authentication failure returns the same problem code whatever went wrong —
+unknown credential, wrong password, failed assertion — because distinguishing
+them turns the endpoint into an oracle. The CSRF token travels as a response
+body value and a request header, never in a URL, and the suite proves the
+refusal by sending one in a query string.
+
+### Server and local encryption (T062)
+
+| Suite | Command | Result |
+| --- | --- | --- |
+| Key hierarchy | `pnpm exec vitest run key-hierarchy` | 17 passed |
+| Stored envelopes | `pnpm exec vitest run security-crypto` | 18 passed |
+| Envelope properties | `pnpm exec vitest run encryption.property` | 18 passed |
+| Redaction | `pnpm exec vitest run redaction.property` | 18 passed |
+| Local projection | `pnpm exec vitest run local-encryption` | 23 passed |
+| Local upgrade | `pnpm exec vitest run reseal` | 7 passed |
+
+**SC-004 is not promoted by this matrix**, and the reason is worth stating
+rather than leaving as an absent row. SC-004 asks for category-by-category
+counts of usable plaintext in storage *after* migration-compatible storage is
+verified — and the encrypted-read cutover has not been performed on a real
+installation. What these suites prove is that the sealed path refuses every
+fault identically and that the local projection stores no readable prose. What
+they do not prove is that a migrated installation contains no plaintext, because
+no installation has been migrated.
+
+### Recovery and rotation (T089)
+
+| Suite | Command | Result |
+| --- | --- | --- |
+| Wrapping-key rotation | `pnpm exec vitest run wrapping-key-rotation` | 26 passed |
+| Data-key rotation | `pnpm exec vitest run data-key-rotation` | 30 passed |
+| Rotation audit | `pnpm exec vitest run rotation-audit` | 10 passed |
+| Policy evaluation | `pnpm exec vitest run rotation-evaluation` | 19 passed |
+| Policy against real data | `pnpm exec vitest run key-rotation-policy` | 16 passed |
+| Rotation faults | `pnpm exec vitest run key-rotation-fault` | 12 passed |
+| Kit replacement | `pnpm exec vitest run recovery-kit-replacement` | 15 passed |
+| Kit rejection | `pnpm exec vitest run recovery-rejection` | 11 passed |
+| Administrative recovery | `pnpm exec vitest run administrative-recovery` | 13 passed |
+
+The two rotations carry separate operation identifiers and separate policies, so
+a leaked deployment key and a leaked data key are remedied independently. The
+wrapping-key rotation leaves every envelope byte-for-byte unchanged — asserted,
+not assumed — and the data-key rotation keeps both generations readable
+throughout.
+
+### Migration faults (T105)
+
+| Checkpoint | Result |
+| --- | --- |
+| Before backfill | plaintext retained, source retained |
+| During backfill | plaintext retained, source retained |
+| After verification | plaintext retained, source retained |
+| After plaintext writes stop | plaintext retained, source retained |
+| During encrypted-read cutover | plaintext retained, source retained |
+| During scrub | source released only once nothing remains |
+
+`pnpm exec vitest run migration-orchestrator` — 23 passed, including the six
+fault points above. Faults are injected in the database rather than by mocking,
+because what is being tested is what the rows say after a crash.
+
+**SC-010 stays `pending`.** These are simulated interruptions against seeded
+data, and SC-010 asks for verified cleanup on a real installation. The
+distinction is the whole point of the criterion: a test proves the code can do
+it, and the criterion asks whether it was done.
+
+## Protocols that require people (T035, T106)
+
+Two remain open and neither can be closed by running a command.
+
+**T035** requires twenty clean-install trials with at least five representative
+operators, recorded per trial. **T106** requires the SC-008 usability protocol
+with exactly ten pseudonymous participants `P01`–`P10`, each scored on four
+criteria without facilitator explanation, accepted only at nine independent
+four-of-four successes.
+
+Both are written to measure whether *a person unfamiliar with the system*
+understands what it is telling them. Running them as an author, or simulating
+participants, would produce numbers with the shape of evidence and none of its
+value — which is the failure the protocols exist to prevent. They are left open
+with this note rather than closed on a technicality.
+
+## Delivery and release evidence (T107, partial)
+
+Taken from a real run rather than described. GitHub Actions was unavailable for
+most of this feature's development; these are the first runs that exist.
+
+### The gate on `main`
+
+| Field | Value |
+| --- | --- |
+| Candidate type | push to `main` |
+| Candidate SHA | `e4764ef5ff8f1dfe1f31f114964460ea1df51526` |
+| Run | [31876588796](https://github.com/enzofrnt/MyOwnNotion/actions/runs/31876588796) |
+| Jobs succeeded | 17 of 17 |
+| Aggregate result | `success` |
+| Publication | performed |
+
+### The five security artifacts, present on that run
+
+| Job | Artifact | Present |
+| --- | --- | --- |
+| `dependency-vulnerability-audit` | `dependency-audit` | yes |
+| `secret-scan` | `secret-scan` | yes |
+| `static-security-analysis` | `static-security` | yes |
+| `container-vulnerability-scan` | `container-scan` | yes |
+| `license-policy` | `license-policy` | yes |
+| `build-images` | `image-build` | yes |
+| publication | `published-images` | yes |
+
+### What was published
+
+| Field | Value |
+| --- | --- |
+| Platforms | `linux/amd64`, `linux/arm64` |
+| API image digest | `sha256:18da8eb81bb466d0fc6cb0e6077f84966530f812f35161885c6e6f4b17b44b50` |
+| Web image digest | `sha256:f3d199e1d5c5df84b89592f596ef58fe41088940a56b0541c1810bf121bebd7c` |
+| Tag form | `sha-<full commit>`, immutable; no moving channel |
+
+### Negative gate results, observed rather than argued
+
+The first run after Actions returned failed, and the failures are the evidence
+that the gate does what it claims:
+
+| Observation | Run |
+| --- | --- |
+| Two security jobs failed, and the aggregate refused | [31873323246](https://github.com/enzofrnt/MyOwnNotion/actions/runs/31873323246) |
+| Publication was skipped as a consequence | same run |
+| A job that failed during **setup** — before any step of its own — still blocked | same run |
+
+That third row is worth keeping. `container-vulnerability-scan` failed because a
+third-party action's own dependency no longer resolved, so nothing the
+repository wrote had run at all. The gate still refused, which is the property
+`select(.value.result != "success")` exists to provide: a job that produced no
+evidence is not a job that found no problem.
+
+### What is still outstanding
+
+**SC-007 stays `pending`.** The rollback protocol requires pinning a prior
+compatible image, restoring it through Compose, and verifying health and
+persisted data across the switch. Two images now exist, published minutes
+apart from adjacent commits, so the protocol is finally possible — but it has
+not been run, and recording it as done because the ingredients exist is exactly
+the false pass this ledger is written to prevent.
+
+**No version tag has been pushed**, so `release.yml` has never executed. Its
+structure is asserted by contract tests that read the workflow; its behaviour
+is unobserved.
+
 ## Specification analysis (T111)
 
 Run against `spec.md`, `plan.md`, and `tasks.md` at the candidate below. This is

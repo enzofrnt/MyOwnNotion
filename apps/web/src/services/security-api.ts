@@ -67,6 +67,22 @@ export interface RotationStatusView {
   }[];
 }
 
+/** What `GET /v1/security/recovery` answers. */
+export interface RecoveryStatusView {
+  readonly active: {
+    readonly kitId: string;
+    readonly recoveryEpoch: number;
+    readonly confirmedAt: string | null;
+  } | null;
+  readonly pending: {
+    readonly kitId: string;
+    readonly deliveryState: string;
+    readonly downloadExpiresAt: string | null;
+  } | null;
+  /** What the owner must also keep. Part of the payload, not documentation. */
+  readonly notice: string;
+}
+
 export type SecurityResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly problem: ClientProblem };
@@ -450,6 +466,17 @@ export class SecurityApi {
    */
   async rotationStatus(): Promise<SecurityResult<RotationStatusView>> {
     return await this.#authenticatedJson<RotationStatusView>("/v1/security/rotation");
+  }
+
+  async recoveryStatus(): Promise<SecurityResult<RecoveryStatusView>> {
+    return await this.#authenticatedJson<RecoveryStatusView>("/v1/security/recovery");
+  }
+
+  async prepareRecoveryReplacement(): Promise<SecurityResult<{ kitId: string }>> {
+    return await this.#authenticatedJson<{ kitId: string }>("/v1/security/recovery", {
+      method: "POST",
+      csrf: true,
+    });
   }
 
   async removePasskey(credentialId: string): Promise<SecurityResult<void>> {
