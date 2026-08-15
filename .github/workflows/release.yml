@@ -1,0 +1,153 @@
+# Version-tag publication (T103, US6, FR-032 – FR-035).
+#
+# One trigger, and it is deliberately narrow: a tag matching
+# `v<major>.<minor>.<patch>` exactly. There is no `main` trigger here, because
+# `ci.yml` already publishes a commit-addressable image for every commit on
+# `main` — a second path publishing the same commit under a different name
+# would be two answers to "what is running", which is the question images with
+# immutable tags exist to answer once.
+#
+# The structure of this file is one idea: **publication depends on a gate that
+# provably ran on this exact commit.**
+#
+# It gets that by *calling* `ci.yml` rather than reacting to it. A
+# `workflow_run` trigger fires after some earlier run finished, and the run it
+# reports on may be for a different commit — the classic way a release is
+# published on evidence from something else. Calling the reusable workflow
+# means the gate runs here, now, on `github.sha`, and its exported
+# `candidate_sha` is compared against this workflow's own before anything is
+# pushed.
+name: Release
+
+on:
+  push:
+    tags:
+      # Anchored at both ends. A loose pattern would match `v1.2.3-rc1` and
+      # `v1.2.3-broken`, and a release candidate published to the same
+      # immutable channel as a release is a release nobody meant to make.
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  # The full quality gate, run here, on this tag's commit. Every security job,
+  # every test, the image build — the same definition `main` and every pull
+  # request run, because a release verified by a weaker gate is a release
+  # verified by a different gate.
+  quality-gate:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  verify-candidate:
+    name: Verify the gate ran on this commit
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    permissions:
+      contents: read
+    steps:
+      - name: Compare the gate's candidate against this release
+        # The anti-staleness check, and it is a comparison rather than an
+        # assumption. If these ever differ, something has arranged for a
+        # release to be verified by evidence from another commit, and that is
+        # exactly the failure the whole structure exists to prevent.
+        env:
+          GATE_SHA: ${{ needs.quality-gate.outputs.candidate_sha }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          echo "gate:    $GATE_SHA"
+          echo "release: $RELEASE_SHA"
+          if [ -z "$GATE_SHA" ]; then
+            echo "The gate exported no candidate SHA; refusing to publish."
+            exit 1
+          fi
+          if [ "$GATE_SHA" != "$RELEASE_SHA" ]; then
+            echo "The gate ran on a different commit; refusing to publish."
+            exit 1
+          fi
+          echo "The gate ran on this commit."
+
+  publish-release-images:
+    name: Publish version-tagged images
+    runs-on: ubuntu-latest
+    needs:
+      - quality-gate
+      - verify-candidate
+    # Both must have succeeded. `verify-candidate` alone would be enough for
+    # freshness and says nothing about whether the gate passed; `quality-gate`
+    # alone says nothing about which commit it ran on.
+    if: needs.quality-gate.result == 'success' && needs.verify-candidate.result == 'success'
+    # The only job in this workflow granted package writes.
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish immutable version-tagged images
+        # Two tags, both immutable: the version and the commit. No `latest`,
+        # deliberately — a moving tag means a deployment cannot name what it is
+        # running, and a rollback cannot name what to go back to.
+        run: |
+          set -euo pipefail
+          owner=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
+          repo=$(printf '%s' "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')
+          registry="ghcr.io/${owner}/${repo}"
+          source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          version="${GITHUB_REF_NAME}"
+          node_base=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)
+          nginx_base=$(jq -r '.bases.nginx | "\(.ref)@\(.digest)"' docker/base-images.json)
+          platforms=$(jq -r '.platforms | join(",")' docker/base-images.json)
+
+          publish() {
+            local target="$1"; shift
+            docker buildx build --platform "$platforms" --push \
+              --file "docker/${target}.Dockerfile" \
+              --build-arg "NODE_BASE=$node_base" \
+              "$@" \
+              --provenance=true --sbom=true \
+              --label "org.opencontainers.image.source=$source_url" \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              --label "org.opencontainers.image.version=$version" \
+              --label "org.opencontainers.image.licenses=AGPL-3.0-or-later" \
+              --label "org.opencontainers.image.title=myownnotion-${target}" \
+              --annotation "index:org.opencontainers.image.source=$source_url" \
+              --annotation "index:org.opencontainers.image.revision=$GITHUB_SHA" \
+              --annotation "index:org.opencontainers.image.version=$version" \
+              --annotation "index:org.opencontainers.image.description=MyOwnNotion ${target}" \
+              --metadata-file "release-${target}.json" \
+              --tag "${registry}-${target}:${version}" \
+              --tag "${registry}-${target}:sha-${GITHUB_SHA}" .
+          }
+
+          publish api
+          publish web --build-arg "NGINX_BASE=$nginx_base"
+
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg version "$version" \
+            --arg platforms "$platforms" \
+            --slurpfile api release-api.json \
+            --slurpfile web release-web.json \
+            '{
+               candidateSha: $sha,
+               version: $version,
+               platforms: ($platforms | split(",")),
+               images: {
+                 api: $api[0]["containerimage.digest"],
+                 web: $web[0]["containerimage.digest"]
+               }
+             }' > released-images.json
+          cat released-images.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: released-images
+          path: released-images.json
+          if-no-files-found: error
