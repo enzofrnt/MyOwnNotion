@@ -69,7 +69,7 @@ describe("what reaches IndexedDB", () => {
     // The whole point. Someone with the browser profile — a shared laptop, a
     // stolen one, a forensic image — gets ciphertext and structure, not prose.
     const row = itemRow();
-    await db.items.put((await codec.sealItem(row)) as unknown as LocalItemRow);
+    await db.items.put(await codec.sealItem(row));
 
     const stored = JSON.stringify(await db.items.toArray());
     expect(stored).not.toContain("Redundancy");
@@ -92,7 +92,7 @@ describe("what reaches IndexedDB", () => {
 
   it("returns the original row when opened", async () => {
     const row = itemRow();
-    await db.items.put((await codec.sealItem(row)) as unknown as LocalItemRow);
+    await db.items.put(await codec.sealItem(row));
     const stored = (await db.items.get(row.id)) as never;
 
     expect(await codec.openItem(stored)).toEqual(row);
@@ -103,7 +103,7 @@ describe("what reaches IndexedDB", () => {
     // unlocking anything: a folder listing must not need the device key.
     const active = await codec.sealItem(itemRow());
     const trashed = await codec.sealItem(itemRow({ lifecycle: "trashed" }));
-    await db.items.bulkPut([active, trashed] as unknown as LocalItemRow[]);
+    await db.items.bulkPut([active, trashed]);
 
     const stillActive = await db.items.where("lifecycle").equals("active").toArray();
     expect(stillActive).toHaveLength(1);
@@ -182,7 +182,7 @@ describe("when the key is not available", () => {
   it("refuses to open a stored row while locked, and leaves it intact", async () => {
     const row = itemRow();
     const sealed = await codec.sealItem(row);
-    await db.items.put(sealed as unknown as LocalItemRow);
+    await db.items.put(sealed);
 
     keys.lock();
     await expect(codec.openItem(sealed)).rejects.toThrow();

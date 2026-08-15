@@ -15,7 +15,8 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { type LocalDatabase, type OutboxMutationRow, parentKeyOf } from "../local-store/schema.ts";
-import { applyCommandToProjection } from "./apply-to-projection.ts";
+import type { LocalRecordCodec } from "../security/local-record-codec.ts";
+import { applyCommandToProjection, prepareProjectionWrite } from "./apply-to-projection.ts";
 
 export interface LocalMutationInput {
   readonly mutationId: Uuid;
@@ -39,12 +40,19 @@ export async function applyLocalMutation(
   db: LocalDatabase,
   input: LocalMutationInput,
   now: () => Date = () => new Date(),
+  codec: LocalRecordCodec,
 ): Promise<DomainResult<LocalMutationResult>> {
   const parsed = parseMutationCommand(input.commandType, input.payload);
   if (!parsed.ok) {
     return parsed as DomainResult<LocalMutationResult>;
   }
   const command: MutationCommand = parsed.value;
+
+  // Sealed before the transaction opens, never inside it. Dexie commits a
+  // transaction as soon as control returns to the event loop for a non-Dexie
+  // promise, and the crypto is one — so sealing inside would end the
+  // transaction early and let the writes that follow land outside it.
+  const prepared = await prepareProjectionWrite(db, command, codec);
 
   try {
     const localRevisionIds = await db.transaction(
@@ -56,7 +64,7 @@ export async function applyLocalMutation(
           // Stable mutation identity: re-submission is a no-op (FR-040).
           return existing.localRevisionIds;
         }
-        const revisionIds = await applyCommandToProjection(db, command, now);
+        const revisionIds = await applyCommandToProjection(db, command, now, prepared);
 
         const enqueueOrder =
           ((await db.outbox.orderBy("enqueueOrder").last())?.enqueueOrder ?? 0) + 1;

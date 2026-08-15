@@ -21,6 +21,7 @@ import type { Uuid } from "@myownnotion/domain";
 import { LocalRepository } from "../local-store/local-repository.ts";
 import { type LocalDatabase, META_KEYS } from "../local-store/schema.ts";
 import { Outbox } from "../outbox/outbox.ts";
+import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 
 export interface ReconcileTransport {
   submitMutationBatch(
@@ -54,9 +55,10 @@ const BATCH_LIMIT = 100;
 export async function reconcile(
   db: LocalDatabase,
   transport: ReconcileTransport,
+  codec: LocalRecordCodec,
 ): Promise<ReconcileOutcome> {
   const outbox = new Outbox(db);
-  const repository = new LocalRepository(db);
+  const repository = new LocalRepository(db, codec);
 
   await outbox.recoverInterrupted();
 

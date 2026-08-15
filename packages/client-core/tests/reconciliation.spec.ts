@@ -3,6 +3,7 @@
  * tests (T036, US6, SC-014).
  */
 
+import type { LocalRecordCodec } from "@myownnotion/client-core";
 import {
   applyLocalMutation,
   type LocalDatabase,
@@ -21,15 +22,18 @@ import type {
 } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestCodec } from "./helpers/codec.ts";
 
 let db: LocalDatabase;
+let codec: LocalRecordCodec;
 let outbox: Outbox;
 let repository: LocalRepository;
 
-beforeEach(() => {
+beforeEach(async () => {
+  ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
   outbox = new Outbox(db);
-  repository = new LocalRepository(db);
+  repository = new LocalRepository(db, codec);
 });
 
 afterEach(async () => {
@@ -38,17 +42,22 @@ afterEach(async () => {
 
 async function enqueueCreate(name: string): Promise<Uuid> {
   const mutationId = generateUuidV7();
-  const result = await applyLocalMutation(db, {
-    mutationId,
-    commandType: "item.create",
-    payload: {
-      id: generateUuidV7(),
-      kind: "folder",
-      name,
-      placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+  const result = await applyLocalMutation(
+    db,
+    {
+      mutationId,
+      commandType: "item.create",
+      payload: {
+        id: generateUuidV7(),
+        kind: "folder",
+        name,
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+      baseRevisionIds: [],
     },
-    baseRevisionIds: [],
-  });
+    () => new Date(),
+    codec,
+  );
   expect(result.ok).toBe(true);
   return mutationId;
 }
@@ -162,7 +171,7 @@ describe("reconciliation (T044)", () => {
     await enqueueCreate("One");
     await enqueueCreate("Two");
     const transport = new FakeTransport();
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.submitted).toBe(2);
     expect(outcome.accepted).toBe(2);
     expect(outcome.retained).toBe(0);
@@ -174,7 +183,7 @@ describe("reconciliation (T044)", () => {
     const transport = new FakeTransport();
     // First delivery already accepted server-side (e.g. response was lost).
     transport.acceptedIds.add(mutationId);
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.accepted).toBe(1);
     expect(await db.outbox.count()).toBe(0);
     // The server observed exactly one logical acceptance.
@@ -185,7 +194,7 @@ describe("reconciliation (T044)", () => {
     await enqueueCreate("Kept");
     const transport = new FakeTransport();
     transport.failNextBatch = true;
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.offline).toBe(true);
     expect(outcome.retained).toBe(1);
     const pending = await outbox.pending();
@@ -200,7 +209,7 @@ describe("reconciliation (T044)", () => {
     const competing = generateUuidV7();
     transport.conflictIds.set(conflicted, [competing]);
 
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.accepted).toBe(1);
     expect(outcome.conflicts).toBe(1);
     const conflicts = await outbox.conflicts();
@@ -240,7 +249,7 @@ describe("reconciliation (T044)", () => {
         hasMore: false,
       },
     ];
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.caughtUpTo).toBe("2");
     expect(await repository.getLastChangeCursor()).toBe("2");
     expect((await repository.getItem(itemA.id as Uuid))?.name).toBe("From changes A");
@@ -266,7 +275,7 @@ describe("reconciliation (T044)", () => {
     const conflictedId = await enqueueCreate("Survivor");
     await outbox.captureConflict(conflictedId, [generateUuidV7()], "revision.stale-base");
 
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.usedSnapshotFallback).toBe(true);
     expect(outcome.caughtUpTo).toBe("100");
     expect((await repository.getItem(fresh.id as Uuid))?.name).toBe("Fresh from snapshot");
@@ -278,7 +287,7 @@ describe("reconciliation (T044)", () => {
     const transport = new FakeTransport();
     transport.rejectIds.add(rejected);
 
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.conflicts).toBe(1);
     expect(outcome.accepted).toBe(0);
     const conflicts = await outbox.conflicts();
@@ -294,7 +303,7 @@ describe("reconciliation (T044)", () => {
     transport.rejectIds.add(rejected);
     transport.omitProblemDetail = true;
 
-    await reconcile(db, transport);
+    await reconcile(db, transport, codec);
     expect((await outbox.conflicts())[0]?.errorCode).toBe("mutation.rejected");
   });
 
@@ -303,7 +312,7 @@ describe("reconciliation (T044)", () => {
     const transport = new FakeTransport();
     transport.failChanges = true;
 
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.offline).toBe(true);
     expect(outcome.usedSnapshotFallback).toBe(false);
     // The durable cursor is preserved so the next attempt resumes in place.
@@ -318,7 +327,7 @@ describe("reconciliation (T044)", () => {
     transport.compactedCursors.add("old-cursor");
     transport.snapshot = null; // snapshot request fails too
 
-    const outcome = await reconcile(db, transport);
+    const outcome = await reconcile(db, transport, codec);
     expect(outcome.offline).toBe(true);
     expect(outcome.usedSnapshotFallback).toBe(false);
     expect(outcome.caughtUpTo).toBe("old-cursor");

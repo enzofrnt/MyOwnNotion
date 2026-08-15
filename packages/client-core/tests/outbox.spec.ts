@@ -6,6 +6,7 @@
  * in the UI and must expose in-flight rows too, not only pending ones.
  */
 
+import type { LocalRecordCodec } from "@myownnotion/client-core";
 import {
   applyLocalMutation,
   type LocalDatabase,
@@ -14,11 +15,14 @@ import {
 } from "@myownnotion/client-core";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestCodec } from "./helpers/codec.ts";
 
 let db: LocalDatabase;
+let codec: LocalRecordCodec;
 let outbox: Outbox;
 
-beforeEach(() => {
+beforeEach(async () => {
+  ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
   outbox = new Outbox(db);
 });
@@ -29,17 +33,22 @@ afterEach(async () => {
 
 async function enqueue(name: string): Promise<Uuid> {
   const mutationId = generateUuidV7();
-  const result = await applyLocalMutation(db, {
-    mutationId,
-    commandType: "item.create",
-    payload: {
-      id: generateUuidV7(),
-      kind: "folder",
-      name,
-      placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+  const result = await applyLocalMutation(
+    db,
+    {
+      mutationId,
+      commandType: "item.create",
+      payload: {
+        id: generateUuidV7(),
+        kind: "folder",
+        name,
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      },
+      baseRevisionIds: [],
     },
-    baseRevisionIds: [],
-  });
+    () => new Date(),
+    codec,
+  );
   expect(result.ok).toBe(true);
   return mutationId;
 }
