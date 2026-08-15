@@ -153,6 +153,11 @@ test.describe("the document survives", () => {
 
     await page.reload();
     await openWorkspace(page);
+    // The document was written straight to the server, so the client has to
+    // pull it before the editor can render it. Without this the test races the
+    // reconciler: it passed on a fast machine, failed on a loaded CI runner,
+    // and reported itself flaky rather than wrong.
+    await waitForSynchronized(page);
     await selectItem(page, name);
     await expect(surface(page).locator("h1")).toHaveText("Kept", { timeout: 30_000 });
   });
@@ -190,6 +195,11 @@ test.describe("a block this client does not recognise", () => {
 
     await page.reload();
     await openWorkspace(page);
+    // The document was written straight to the server, so the client has to
+    // pull it before the editor can render it. Without this the test races the
+    // reconciler: it passed on a fast machine, failed on a loaded CI runner,
+    // and reported itself flaky rather than wrong.
+    await waitForSynchronized(page);
     await selectItem(page, name);
 
     // Shown as unrenderable, never as an empty gap: a block that renders as
@@ -241,6 +251,11 @@ test.describe("a page written before the block editor existed", () => {
 
     await page.reload();
     await openWorkspace(page);
+    // The document was written straight to the server, so the client has to
+    // pull it before the editor can render it. Without this the test races the
+    // reconciler: it passed on a fast machine, failed on a loaded CI runner,
+    // and reported itself flaky rather than wrong.
+    await waitForSynchronized(page);
     await selectItem(page, name);
 
     await expect(page.getByTestId("legacy-document-notice")).toBeVisible({ timeout: 30_000 });
