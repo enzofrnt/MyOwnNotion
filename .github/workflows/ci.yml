@@ -377,16 +377,36 @@ jobs:
           build-args: |
             NODE_BASE=${{ steps.bases.outputs.node }}
           tags: myownnotion-api:scan
-      - name: Scan it
-        # Trivy rather than a scanner written here. A vulnerability database is
-        # not something this repository should be maintaining, and the value of
-        # the job is entirely in the database being current.
+      # Two scans, and the split is the whole point of this job being useful.
+      #
+      # The first run of it found 169 HIGH/CRITICAL vulnerabilities in the
+      # Debian base and **not one of them had a fix available**. Blocking on
+      # those makes the job impossible to satisfy no matter how fresh the base
+      # image is, and a check that can never pass is a check somebody
+      # eventually deletes — taking the ones that *are* actionable with it.
+      #
+      # So: report everything, block on what can be acted upon.
+      - name: Record every finding
+        # Non-blocking, and the artifact keeps the unfixable ones. They are
+        # real, they are worth seeing, and the reason they do not fail the
+        # build is that no version of this image would make them go away.
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: myownnotion-api:scan
           format: sarif
           output: container-scan.sarif
           severity: HIGH,CRITICAL
+          exit-code: "0"
+      - name: Fail on anything with a fix available
+        # This is the gate. A vulnerability with a published fix means the base
+        # image is out of date or a dependency needs raising, and both are
+        # things this repository can do something about today.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: myownnotion-api:scan
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: "1"
       - name: Ensure the artifact exists even if the scan never ran
         # `if-no-files-found: error` is the right setting and it turned one
