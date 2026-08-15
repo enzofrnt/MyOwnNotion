@@ -22,6 +22,7 @@ import type {
   LocalItemRow,
   LocalRelationshipRow,
   OutboxMutationRow,
+  SealedLocalItemRow,
 } from "../local-store/schema.ts";
 import { LOCAL_ENTITY_TYPES, type LocalCipher, type LocalEnvelope } from "./local-encryption.ts";
 
@@ -29,14 +30,6 @@ import { LOCAL_ENTITY_TYPES, type LocalCipher, type LocalEnvelope } from "./loca
 export interface LocalBindingContext {
   readonly installationId: string;
   readonly workspaceId: string;
-}
-
-export interface SealedLocalItemRow extends Omit<LocalItemRow, "name" | "pageDocument" | "file"> {
-  readonly sealedName: LocalEnvelope;
-  readonly sealedPageBody: LocalEnvelope | null;
-  readonly sealedFile: LocalEnvelope | null;
-  /** Kept in the clear: the client renders a placeholder without unlocking. */
-  readonly hasPageDocument: 0 | 1;
 }
 
 export interface SealedLocalRelationshipRow extends Omit<LocalRelationshipRow, "metadata"> {

@@ -17,7 +17,13 @@ import {
   type Uuid,
   wouldCreateCycle,
 } from "@myownnotion/domain";
-import { type LocalDatabase, parentKeyOf } from "../local-store/schema.ts";
+import {
+  type LocalDatabase,
+  type LocalItemRow,
+  parentKeyOf,
+  type SealedLocalItemRow,
+} from "../local-store/schema.ts";
+import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 import { LocalValidationError } from "./apply-local-mutation.ts";
 
 async function loadView(db: LocalDatabase): Promise<HierarchyView> {
@@ -55,7 +61,17 @@ async function loadView(db: LocalDatabase): Promise<HierarchyView> {
             id: row.id,
             workspaceId: row.id,
             kind: row.kind,
-            name: row.name,
+            // Empty rather than opened. The view exists to answer structural
+            // questions — is the parent active, is it a container — and the
+            // domain reads a name only from the *command*, never from here.
+            // Opening every title on every mutation would be the projection's
+            // most expensive operation, paid to fill a field nothing reads.
+            //
+            // If an invariant ever does need the stored name, this is where it
+            // breaks, and it breaks by comparing against "" rather than by
+            // failing to compile. That is the risk, and it is why the reason
+            // is written down rather than assumed obvious.
+            name: "",
             lifecycle: row.lifecycle,
             trashedAt: row.trashedAt,
             purgeAfter: row.purgeAfter,
@@ -74,8 +90,11 @@ async function writeLocalRevision(
   itemId: Uuid,
   parentRevisionIds: Uuid[],
   now: () => Date,
+  // Supplied when the sealed row already carries it. Generating a second one
+  // here would leave the row pointing at a revision that does not exist.
+  revisionId?: Uuid,
 ): Promise<Uuid> {
-  const id = generateUuidV7();
+  const id = revisionId ?? generateUuidV7();
   await db.revisionHeaders.put({
     id,
     itemId,
@@ -87,10 +106,113 @@ async function writeLocalRevision(
   return id;
 }
 
+/**
+ * The rows a command will write, sealed, computed before any transaction opens.
+ *
+ * This split exists because of one Dexie property with an unpleasant failure
+ * mode: a transaction commits as soon as control returns to the event loop for
+ * anything that is not a Dexie promise. Sealing is WebCrypto and therefore
+ * asynchronous, so doing it inside the transaction does not throw — it ends the
+ * transaction early and lets the writes that follow land outside it. The
+ * atomicity the outbox depends on would be gone with nothing to show for it.
+ *
+ * So: read and seal here, write there. The window between the two is a
+ * single-user client applying its own queued mutations in order, and the
+ * mutation id makes a replay a no-op, so a row changing underneath is not a
+ * case this has to defend against.
+ */
+export interface PreparedProjectionWrite {
+  /**
+   * The revision this command will create.
+   *
+   * Generated here rather than inside the transaction, because the sealed row
+   * carries it and the row has to be sealed before the transaction opens. It
+   * is a client-side UUIDv7 with no dependency on stored state, so moving its
+   * generation earlier changes nothing except when it happens.
+   */
+  readonly revisionId?: Uuid;
+  /** The finished row to write, already sealed. */
+  readonly item?: SealedLocalItemRow;
+}
+
+export async function prepareProjectionWrite(
+  db: LocalDatabase,
+  command: MutationCommand,
+  codec: LocalRecordCodec,
+): Promise<PreparedProjectionWrite> {
+  switch (command.type) {
+    case "item.create": {
+      const revisionId = generateUuidV7();
+      return {
+        revisionId,
+        item: await codec.sealItem({
+          id: command.id,
+          kind: command.kind,
+          name: command.name.trim(),
+          lifecycle: "active",
+          currentRevisionId: revisionId,
+          trashedAt: null,
+          purgeAfter: null,
+          pageDocument:
+            command.kind === "page"
+              ? (command.pageDocument ?? {
+                  format: "myownnotion.document+json",
+                  formatVersion: 1,
+                  body: {},
+                })
+              : null,
+          file: null,
+        }),
+      };
+    }
+
+    case "item.rename":
+    case "page.document.replace": {
+      const row = await db.items.get(command.itemId);
+      // A missing row is not an error here. The write step raises the domain
+      // failure with the message the caller expects, and duplicating that
+      // check would mean two places deciding what "not found" means.
+      if (row === undefined) {
+        return {};
+      }
+      const opened = await codec.openItem(row);
+      const revisionId = generateUuidV7();
+      // Reopened, edited, resealed. A partial update is not available: the
+      // envelope binds the whole row's identity, so a new title cannot be
+      // written without re-deriving the record it belongs to.
+      const edited: LocalItemRow =
+        command.type === "item.rename"
+          ? { ...opened, name: command.name.trim(), currentRevisionId: revisionId }
+          : {
+              ...opened,
+              pageDocument: {
+                format: command.document.format,
+                formatVersion: command.document.formatVersion,
+                body: command.document.body as Record<string, unknown>,
+              },
+              currentRevisionId: revisionId,
+            };
+      return { revisionId, item: await codec.sealItem(edited) };
+    }
+
+    default:
+      return {};
+  }
+}
+
+/**
+ * Writes what `prepareProjectionWrite` produced.
+ *
+ * Takes no codec, and that absence is the guarantee: with no way to seal from
+ * in here, nothing in this function can accidentally end the transaction it
+ * runs inside. The linter noticing the unused parameter is what made the
+ * property explicit rather than incidental.
+ */
 export async function applyCommandToProjection(
   db: LocalDatabase,
   command: MutationCommand,
   now: () => Date,
+  prepared: PreparedProjectionWrite = {},
 ): Promise<Uuid[]> {
   switch (command.type) {
     case "item.create": {
@@ -101,25 +223,11 @@ export async function applyCommandToProjection(
           throw new LocalValidationError("item.not-found", "Parent is not an active container");
         }
       }
-      const revisionId = await writeLocalRevision(db, command.id, [], now);
-      await db.items.add({
-        id: command.id,
-        kind: command.kind,
-        name: command.name.trim(),
-        lifecycle: "active",
-        currentRevisionId: revisionId,
-        trashedAt: null,
-        purgeAfter: null,
-        pageDocument:
-          command.kind === "page"
-            ? (command.pageDocument ?? {
-                format: "myownnotion.document+json",
-                formatVersion: 1,
-                body: {},
-              })
-            : null,
-        file: null,
-      });
+      if (prepared.item === undefined || prepared.revisionId === undefined) {
+        throw new LocalValidationError("item.not-found", "The write was not prepared");
+      }
+      const revisionId = await writeLocalRevision(db, command.id, [], now, prepared.revisionId);
+      await db.items.add(prepared.item);
       await db.placements.add({
         // Shared client-generated identity: the server persists the same
         // placement id, so queued follow-up moves keep resolving after sync.
@@ -138,16 +246,17 @@ export async function applyCommandToProjection(
       if (item === undefined) {
         throw new LocalValidationError("item.not-found", "Item is not available locally");
       }
+      if (prepared.item === undefined || prepared.revisionId === undefined) {
+        throw new LocalValidationError("item.not-found", "The write was not prepared");
+      }
       const revisionId = await writeLocalRevision(
         db,
         command.itemId,
         [item.currentRevisionId],
         now,
+        prepared.revisionId,
       );
-      await db.items.update(command.itemId, {
-        name: command.name.trim(),
-        currentRevisionId: revisionId,
-      });
+      await db.items.put(prepared.item);
       return [revisionId];
     }
 
@@ -156,20 +265,17 @@ export async function applyCommandToProjection(
       if (item === undefined || item.kind !== "page") {
         throw new LocalValidationError("item.not-found", "Page is not available locally");
       }
+      if (prepared.item === undefined || prepared.revisionId === undefined) {
+        throw new LocalValidationError("item.not-found", "The write was not prepared");
+      }
       const revisionId = await writeLocalRevision(
         db,
         command.itemId,
         [item.currentRevisionId],
         now,
+        prepared.revisionId,
       );
-      await db.items.update(command.itemId, {
-        pageDocument: {
-          format: command.document.format,
-          formatVersion: command.document.formatVersion,
-          body: command.document.body as Record<string, unknown>,
-        },
-        currentRevisionId: revisionId,
-      });
+      await db.items.put(prepared.item);
       return [revisionId];
     }
 

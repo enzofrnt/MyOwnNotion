@@ -2,6 +2,7 @@
  * Local schema and projection contract tests (T034, US6, FR-037).
  */
 
+import type { LocalRecordCodec } from "@myownnotion/client-core";
 import {
   LOCAL_SCHEMA_VERSION,
   type LocalDatabase,
@@ -12,8 +13,10 @@ import {
 import type { ItemDto } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestCodec } from "./helpers/codec.ts";
 
 let db: LocalDatabase;
+let codec: LocalRecordCodec;
 let repository: LocalRepository;
 
 function itemDto(overrides: Partial<ItemDto> & { id: string; name: string }): ItemDto {
@@ -35,9 +38,10 @@ function itemDto(overrides: Partial<ItemDto> & { id: string; name: string }): It
   } as ItemDto;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
-  repository = new LocalRepository(db);
+  repository = new LocalRepository(db, codec);
 });
 
 afterEach(async () => {

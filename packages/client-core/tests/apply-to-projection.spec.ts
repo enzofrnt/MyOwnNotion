@@ -8,6 +8,7 @@
  * semantics are refused rather than half-applied.
  */
 
+import type { LocalRecordCodec } from "@myownnotion/client-core";
 import {
   applyLocalMutation,
   type LocalDatabase,
@@ -15,13 +16,28 @@ import {
 } from "@myownnotion/client-core";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestCodec } from "./helpers/codec.ts";
 
 let db: LocalDatabase;
+let codec: LocalRecordCodec;
+
+/**
+ * The stored row, opened.
+ *
+ * Every assertion in this file is about what a *user* would see, and the user
+ * sees the opened row. Reading the sealed one and asserting on `sealedName`
+ * would test the codec, which has its own suite.
+ */
+async function readItem(itemId: Uuid) {
+  const row = await db.items.get(itemId);
+  return row === undefined ? undefined : await codec.openItem(row);
+}
 
 const FIXED_NOW = new Date("2026-08-09T12:00:00.000Z");
 const now = () => FIXED_NOW;
 
-beforeEach(() => {
+beforeEach(async () => {
+  ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
 });
 
@@ -51,6 +67,7 @@ async function createItem(
       baseRevisionIds: [],
     },
     now,
+    codec,
   );
   expect(result.ok).toBe(true);
   return { itemId, placementId };
@@ -60,7 +77,7 @@ describe("item.create", () => {
   it("persists a page with a default document envelope and its placement", async () => {
     const { itemId, placementId } = await createItem("page", "  Padded name  ", null);
 
-    const item = await db.items.get(itemId);
+    const item = await readItem(itemId);
     expect(item?.name).toBe("Padded name");
     expect(item?.pageDocument?.format).toBe("myownnotion.document+json");
 
@@ -73,7 +90,7 @@ describe("item.create", () => {
 
   it("leaves a folder without a page document", async () => {
     const { itemId } = await createItem("folder", "Folder", null);
-    expect((await db.items.get(itemId))?.pageDocument).toBeNull();
+    expect((await readItem(itemId))?.pageDocument).toBeNull();
   });
 
   it("nests beneath an active container", async () => {
@@ -98,6 +115,7 @@ describe("item.create", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -118,6 +136,7 @@ describe("item.create", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
 
     const result = await applyLocalMutation(
@@ -134,6 +153,7 @@ describe("item.create", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -144,17 +164,22 @@ describe("item.create", () => {
   it("rejects a file as a parent because file placements are terminal", async () => {
     const fileId = generateUuidV7();
     const revisionId = generateUuidV7();
-    await db.items.add({
-      id: fileId,
-      kind: "file",
-      name: "diagram.png",
-      lifecycle: "active",
-      currentRevisionId: revisionId,
-      trashedAt: null,
-      purgeAfter: null,
-      pageDocument: null,
-      file: { mediaType: "image/png", originalName: "diagram.png", byteLength: 4 },
-    });
+    // Sealed like any other row: the fixture has to look like what the
+    // application would actually have stored, or the validation under test is
+    // reading a shape that cannot occur.
+    await db.items.add(
+      await codec.sealItem({
+        id: fileId,
+        kind: "file",
+        name: "diagram.png",
+        lifecycle: "active",
+        currentRevisionId: revisionId,
+        trashedAt: null,
+        purgeAfter: null,
+        pageDocument: null,
+        file: { mediaType: "image/png", originalName: "diagram.png", byteLength: 4 },
+      }),
+    );
 
     const result = await applyLocalMutation(
       db,
@@ -170,6 +195,7 @@ describe("item.create", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -181,7 +207,7 @@ describe("item.create", () => {
 describe("item.rename", () => {
   it("renames and chains the new revision onto the previous head", async () => {
     const { itemId } = await createItem("page", "Before", null);
-    const previousRevisionId = (await db.items.get(itemId))?.currentRevisionId as Uuid;
+    const previousRevisionId = (await readItem(itemId))?.currentRevisionId as Uuid;
 
     const result = await applyLocalMutation(
       db,
@@ -192,10 +218,11 @@ describe("item.rename", () => {
         baseRevisionIds: [previousRevisionId],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(true);
 
-    const item = await db.items.get(itemId);
+    const item = await readItem(itemId);
     expect(item?.name).toBe("After");
     expect(item?.currentRevisionId).not.toBe(previousRevisionId);
 
@@ -214,6 +241,7 @@ describe("item.rename", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -225,7 +253,7 @@ describe("item.rename", () => {
 describe("page.document.replace", () => {
   it("replaces the document body and advances the revision", async () => {
     const { itemId } = await createItem("page", "Doc", null);
-    const baseRevisionId = (await db.items.get(itemId))?.currentRevisionId as Uuid;
+    const baseRevisionId = (await readItem(itemId))?.currentRevisionId as Uuid;
 
     const result = await applyLocalMutation(
       db,
@@ -244,17 +272,18 @@ describe("page.document.replace", () => {
         baseRevisionIds: [baseRevisionId],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(true);
 
-    const item = await db.items.get(itemId);
+    const item = await readItem(itemId);
     expect(item?.pageDocument?.body).toEqual({ text: "offline edit" });
     expect(item?.currentRevisionId).not.toBe(baseRevisionId);
   });
 
   it("refuses to give a folder page content", async () => {
     const { itemId } = await createItem("folder", "Folder", null);
-    const baseRevisionId = (await db.items.get(itemId))?.currentRevisionId as Uuid;
+    const baseRevisionId = (await readItem(itemId))?.currentRevisionId as Uuid;
 
     const result = await applyLocalMutation(
       db,
@@ -269,12 +298,13 @@ describe("page.document.replace", () => {
         baseRevisionIds: [baseRevisionId],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("item.not-found");
     }
-    expect((await db.items.get(itemId))?.pageDocument).toBeNull();
+    expect((await readItem(itemId))?.pageDocument).toBeNull();
   });
 });
 
@@ -297,6 +327,7 @@ describe("placement.move", () => {
         baseRevisionIds: [before],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(true);
 
@@ -320,6 +351,7 @@ describe("placement.move", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(true);
     expect((await db.placements.get(child.placementId))?.parentKey).toBe("root");
@@ -339,6 +371,7 @@ describe("placement.move", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -358,6 +391,7 @@ describe("placement.move", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -382,6 +416,7 @@ describe("item.trash", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -410,6 +445,7 @@ describe("item.trash", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
 
     const second = await applyLocalMutation(
@@ -421,6 +457,7 @@ describe("item.trash", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(second.ok).toBe(false);
     if (!second.ok) {
@@ -438,6 +475,7 @@ describe("item.trash", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -459,6 +497,7 @@ describe("item.restore", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
 
     const result = await applyLocalMutation(
@@ -470,6 +509,7 @@ describe("item.restore", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(true);
 
@@ -492,6 +532,7 @@ describe("item.restore", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -521,6 +562,7 @@ describe("relationship commands", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(true);
 
@@ -548,6 +590,7 @@ describe("relationship commands", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect((await db.relationships.get(relationshipId))?.metadata).toEqual({});
   });
@@ -570,6 +613,7 @@ describe("relationship commands", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
 
     const result = await applyLocalMutation(
@@ -581,6 +625,7 @@ describe("relationship commands", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(true);
     expect(await db.relationships.get(relationshipId)).toBeUndefined();
@@ -596,6 +641,7 @@ describe("relationship commands", () => {
         baseRevisionIds: [],
       },
       now,
+      codec,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -630,6 +676,7 @@ describe("commands with no offline semantics", () => {
         db,
         { mutationId: generateUuidV7(), commandType: type, payload, baseRevisionIds: [] },
         now,
+        codec,
       );
       expect(result.ok).toBe(false);
       if (!result.ok) {

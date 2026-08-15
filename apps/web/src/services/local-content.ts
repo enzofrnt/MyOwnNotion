@@ -9,17 +9,22 @@
  */
 import {
   applyLocalMutation,
+  LocalCipher,
   type LocalDatabase,
+  LocalKeyManager,
+  LocalRecordCodec,
   LocalRepository,
   Outbox,
   openLocalDatabase,
   type ProjectedItem,
   type ReconcileTransport,
   reconcile,
+  resealPlaintextProjection,
 } from "@myownnotion/client-core";
 import type { ItemDto } from "@myownnotion/contracts";
 import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
 import { ContentApi } from "./content-api.ts";
+import { IndexedDbKeyStorage } from "./local-key-storage.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
 
 /**
@@ -53,11 +58,23 @@ export class LocalContentService {
   /** Set when a caller arrives mid-pass; triggers exactly one follow-up pass. */
   #resyncRequested = false;
   #snapshot: LocalContentSnapshot;
+  readonly #keys: LocalKeyManager;
+  readonly #codec: LocalRecordCodec;
+  #unlocked: Promise<void> | null = null;
 
   constructor(api: ContentApi = new ContentApi(), databaseName = "myownnotion-local") {
     this.api = api;
     this.db = openLocalDatabase(databaseName);
-    this.repository = new LocalRepository(this.db);
+    // The projection is sealed under a device key that never leaves this
+    // origin. Established lazily on first use rather than in the constructor:
+    // minting a key is asynchronous, and a constructor that cannot await would
+    // have to hand out a codec that is not ready yet.
+    this.#keys = new LocalKeyManager(new IndexedDbKeyStorage());
+    this.#codec = new LocalRecordCodec(new LocalCipher(this.#keys), {
+      installationId: databaseName,
+      workspaceId: databaseName,
+    });
+    this.repository = new LocalRepository(this.db, this.#codec);
     this.outbox = new Outbox(this.db);
     this.#snapshot = {
       syncState: "pending",
@@ -65,6 +82,21 @@ export class LocalContentService {
       conflictCount: 0,
       storagePersisted: null,
     };
+  }
+
+  /**
+   * Establishes the device key once, and reseals a plaintext projection.
+   *
+   * Idempotent by the stored promise rather than by a boolean: two callers
+   * arriving together must not both mint a key, and the second must wait for
+   * the first rather than proceed against a codec that cannot seal yet.
+   */
+  async #unlock(): Promise<void> {
+    this.#unlocked ??= (async () => {
+      await this.#keys.establish();
+      await resealPlaintextProjection(this.db, this.#codec);
+    })();
+    await this.#unlocked;
   }
 
   subscribe = (listener: Listener): (() => void) => {
@@ -172,7 +204,8 @@ export class LocalContentService {
 
   async #runSynchronize(): Promise<SyncState> {
     await this.#notify("syncing");
-    const outcome = await reconcile(this.db, this.#transport());
+    await this.#unlock();
+    const outcome = await reconcile(this.db, this.#transport(), this.#codec);
     const state: SyncState = outcome.offline
       ? "offline"
       : outcome.conflicts > 0 || (await this.outbox.conflicts()).length > 0
@@ -206,12 +239,18 @@ export class LocalContentService {
     payload: Record<string, unknown>,
     baseRevisionIds: Uuid[] = [],
   ): Promise<{ ok: true } | { ok: false; error: SafeError }> {
-    const result = await applyLocalMutation(this.db, {
-      mutationId: generateUuidV7(),
-      commandType,
-      payload,
-      baseRevisionIds,
-    });
+    await this.#unlock();
+    const result = await applyLocalMutation(
+      this.db,
+      {
+        mutationId: generateUuidV7(),
+        commandType,
+        payload,
+        baseRevisionIds,
+      },
+      () => new Date(),
+      this.#codec,
+    );
     if (!result.ok) {
       // A storage failure means nothing was saved: surface it explicitly
       // rather than leaving a stale "pending" that implies durability.
