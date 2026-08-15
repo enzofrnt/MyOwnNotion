@@ -224,3 +224,20 @@ export async function readSessionCookie(
         sameSite: session.sameSite,
       };
 }
+
+/**
+ * Types into the block editor (feature 003).
+ *
+ * Replaces the raw-JSON textarea the earlier suites filled. Clearing first
+ * because a page opened for the second time already holds content, and `type`
+ * appends rather than replaces — a difference that silently turned "version 2"
+ * into "version 1version 2" and made a revision assertion pass for the wrong
+ * reason.
+ */
+export async function typeIntoEditor(page: Page, text: string): Promise<void> {
+  const surface = page.getByTestId("block-editor").locator(".ProseMirror");
+  await surface.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await surface.pressSequentially(text);
+}

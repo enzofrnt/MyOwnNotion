@@ -6,6 +6,7 @@ import {
   createRootItem,
   openWorkspace,
   selectItem,
+  typeIntoEditor,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -23,7 +24,7 @@ test.describe("revision history (US5)", () => {
     const originalHead = await page.getByTestId("current-head").textContent();
 
     // Edit the document to supersede the original revision.
-    await page.getByTestId("document-body").fill('{"text":"version 2"}');
+    await typeIntoEditor(page, "version 2");
     await page.getByTestId("save-document").click();
     await expect(page.getByTestId("document-saved")).toBeVisible();
     await waitForSynchronized(page);
@@ -55,7 +56,7 @@ test.describe("revision history (US5)", () => {
     const originalHead = await page.getByTestId("current-head").textContent();
 
     // Edit once so the original head is restorable history.
-    await page.getByTestId("document-body").fill('{"text":"v2"}');
+    await typeIntoEditor(page, "v2");
     await page.getByTestId("save-document").click();
     await waitForSynchronized(page);
     await selectItem(page, pageName);

@@ -12,6 +12,7 @@ import {
   createRootItem,
   openWorkspace,
   selectItem,
+  typeIntoEditor,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -75,11 +76,11 @@ test.describe("offline continuity (US6)", () => {
     // Select the page and note its identity.
     await selectItem(page, pageName);
     const itemId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
-    await expect(page.getByTestId("document-body")).toBeVisible();
+    await expect(page.getByTestId("block-editor")).toBeVisible();
 
     // Go offline and edit the document locally.
     await goOffline(page);
-    await page.getByTestId("document-body").fill('{"text":"offline edit"}');
+    await typeIntoEditor(page, "offline edit");
     await page.getByTestId("save-document").click();
     await expect(page.getByTestId("document-saved")).toBeVisible();
 

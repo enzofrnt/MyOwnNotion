@@ -19,7 +19,7 @@ improvement over today's raw-JSON textarea.
 
 ## Phase 1: Setup
 
-- [ ] T001 Add Tiptap 3 (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`) to `apps/web/package.json` and refresh `pnpm-lock.yaml` — *deferred to the Phase 3 batch, where the dependency is actually used; adding it earlier would land an unused dependency*
+- [X] T001 Add Tiptap 3 (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`) to `apps/web/package.json` and refresh `pnpm-lock.yaml` — *deferred to the Phase 3 batch, where the dependency is actually used; adding it earlier would land an unused dependency*
 - [ ] T002 [P] Add `@axe-core/playwright` as a root dev dependency in `package.json` for the SC-004 audit — *deferred to the Phase 8 batch, for the same reason*
 - [X] T003 [P] Create the `packages/domain/src/document/` module directory with an `index.ts` barrel exported from `packages/domain/src/index.ts`
 - [X] T004 [P] Amend `docs/product/roadmap.md` to move canvas section 14 (databases and views) out of feature 003 into its own future feature, per constitution principle VIII and the spec's Assumptions — *the roadmap turned out to contradict itself as well: section 14 was claimed by both 003 and 008*
@@ -59,32 +59,32 @@ improvement over today's raw-JSON textarea.
 
 ### The conversion boundary
 
-- [ ] T017 [US1] Define the ProseMirror schema mirroring the model in `apps/web/src/features/editor/tiptap-schema.ts` — one node per known block type, lists nesting through children rather than a container
-- [ ] T018 [US1] Implement the opaque unknown node in `apps/web/src/features/editor/unknown-block.ts` — an atom, non-editable, movable and deletable, carrying the original block JSON verbatim in an attribute
-- [ ] T019 [US1] Implement `toTiptap` in `apps/web/src/features/editor/to-tiptap.ts` — model → ProseMirror doc, routing any unrecognised type to the unknown node **before** ProseMirror sees it
-- [ ] T020 [US1] Implement `fromTiptap` in `apps/web/src/features/editor/from-tiptap.ts` — ProseMirror doc → model, re-emitting each unknown node's stored JSON rather than reconstructing it
-- [ ] T021 [US1] Render the unrenderable placeholder in `apps/web/src/features/editor/unknown-block.ts` — names the unknown type visibly, never an empty gap (FR-006)
+- [X] T017 [US1] Define the ProseMirror schema mirroring the model in `apps/web/src/features/editor/tiptap-schema.ts` — one node per known block type, lists nesting through children rather than a container
+- [X] T018 [US1] Implement the opaque unknown node in `apps/web/src/features/editor/unknown-block.ts` — an atom, non-editable, movable and deletable, carrying the original block JSON verbatim in an attribute
+- [X] T019 [US1] Implement `toTiptap` in `apps/web/src/features/editor/to-tiptap.ts` — model → ProseMirror doc, routing any unrecognised type to the unknown node **before** ProseMirror sees it
+- [X] T020 [US1] Implement `fromTiptap` in `apps/web/src/features/editor/from-tiptap.ts` — ProseMirror doc → model, re-emitting each unknown node's stored JSON rather than reconstructing it
+- [X] T021 [US1] Render the unrenderable placeholder in `apps/web/src/features/editor/unknown-block.ts` — names the unknown type visibly, never an empty gap (FR-006)
 
 ### The editing surface
 
-- [ ] T022 [US1] Build the editor surface in `apps/web/src/features/editor/editor-view.tsx`, replacing the raw-JSON control in `apps/web/src/features/pages/page-document-form.tsx`
-- [ ] T023 [US1] Configure the input rules in `apps/web/src/features/editor/editor-view.tsx` — `# `, `## `, `### `, `- `, `1. `, `> `, ``` ``` ```, `[] `, with the shortcut characters consumed (FR-002, US1 scenario 1)
-- [ ] T024 [P] [US1] Build the slash menu in `apps/web/src/features/editor/slash-menu.tsx` as a `listbox` with `aria-activedescendant`, offering every known block type (FR-002)
-- [ ] T025 [P] [US1] Build block controls in `apps/web/src/features/editor/block-controls.tsx` — select, move, transform, duplicate, delete, as buttons with accessible names (FR-003)
-- [ ] T026 [US1] Wire undo and redo over every action from FR-002 and FR-003 in `apps/web/src/features/editor/editor-view.tsx` (FR-004)
-- [ ] T027 [US1] Wire the editor to the existing mutation path in `apps/web/src/services/local-content.ts` so document writes go through feature 001's outbox unchanged (FR-025)
-- [ ] T028 [US1] Refuse editing when the device key is unavailable in `apps/web/src/features/editor/editor-view.tsx` — a stated refusal, not a degraded plaintext write (FR-026, spec edge case)
-- [ ] T029 [US1] Reduce unrepresentable pasted rich text to plain text in `apps/web/src/features/editor/editor-view.tsx`, so nothing is stored that the export path cannot emit (spec edge case)
+- [X] T022 [US1] Build the editor surface in `apps/web/src/features/editor/editor-view.tsx`, replacing the raw-JSON control in `apps/web/src/features/pages/page-document-form.tsx`
+- [X] T023 [US1] Configure the input rules in `apps/web/src/features/editor/editor-view.tsx` — `# `, `## `, `### `, `- `, `1. `, `> `, ``` ``` ```, `[] `, with the shortcut characters consumed (FR-002, US1 scenario 1)
+- [X] T024 [P] [US1] Build the slash menu in `apps/web/src/features/editor/slash-menu.tsx` as a `listbox` with `aria-activedescendant`, offering every known block type (FR-002)
+- [X] T025 [P] [US1] Build block controls in `apps/web/src/features/editor/block-controls.tsx` — select, move, transform, duplicate, delete, as buttons with accessible names (FR-003)
+- [X] T026 [US1] Wire undo and redo over every action from FR-002 and FR-003 in `apps/web/src/features/editor/editor-view.tsx` (FR-004)
+- [X] T027 [US1] Wire the editor to the existing mutation path in `apps/web/src/services/local-content.ts` so document writes go through feature 001's outbox unchanged (FR-025)
+- [X] T028 [US1] Refuse editing when the device key is unavailable in `apps/web/src/features/editor/editor-view.tsx` — a stated refusal, not a degraded plaintext write (FR-026, spec edge case)
+- [X] T029 [US1] Reduce unrepresentable pasted rich text to plain text in `apps/web/src/features/editor/editor-view.tsx`, so nothing is stored that the export path cannot emit (spec edge case)
 
 ### Tests
 
-- [ ] T030 [P] [US1] Property test in `apps/web/tests/editor-round-trip.property.spec.ts` — model → Tiptap → model is the identity over generated documents
-- [ ] T031 [P] [US1] Property test in `apps/web/tests/editor-unknown-block.property.spec.ts` — an unknown block round-trips to identical JSON (SC-009), with the numeric-key limit from [data-model.md](./data-model.md) stated in the test
-- [ ] T032 [US1] Playwright journey in `tests/e2e/block-editor.spec.ts` — each block type by both routes, reorder, undo, reload, unchanged
-- [ ] T033 [P] [US1] Playwright case in `tests/e2e/block-editor.spec.ts` — a document seeded with an unrecognised block type shows the placeholder and still saves that block unchanged
-- [ ] T034 [P] [US1] Playwright case in `tests/e2e/block-editor.spec.ts` — a legacy v1 document opens read-only without being rewritten, and upgrades only on an edit
+- [X] T030 [P] [US1] Property test in `apps/web/tests/editor-round-trip.property.spec.ts` — model → Tiptap → model is the identity over generated documents
+- [X] T031 [P] [US1] Property test in `apps/web/tests/editor-unknown-block.property.spec.ts` — an unknown block round-trips to identical JSON (SC-009), with the numeric-key limit from [data-model.md](./data-model.md) stated in the test
+- [X] T032 [US1] Playwright journey in `tests/e2e/block-editor.spec.ts` — each block type by both routes, reorder, undo, reload, unchanged
+- [X] T033 [P] [US1] Playwright case in `tests/e2e/block-editor.spec.ts` — a document seeded with an unrecognised block type shows the placeholder and still saves that block unchanged
+- [X] T034 [P] [US1] Playwright case in `tests/e2e/block-editor.spec.ts` — a legacy v1 document opens read-only without being rewritten, and upgrades only on an edit
 
-**Checkpoint**: US1 is independently shippable. An owner can write a structured note and it survives.
+**Checkpoint**: US1 is independently shippable — 9 journeys green, 271 e2e tests passing overall. An owner can write a structured note and it survives. ✅
 
 ---
 

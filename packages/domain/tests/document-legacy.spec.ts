@@ -53,6 +53,28 @@ describe("deciding how a body is read", () => {
     expect(readDocumentBody(null).kind).toBe("legacy");
     expect(readDocumentBody("nonsense").kind).toBe("legacy");
   });
+
+  it("reads an empty object as an empty document, not as legacy content", () => {
+    // The shape every newly created page starts with. Reading `{}` as legacy
+    // told an owner their brand-new page "was written before the block editor
+    // existed" and refused to let them type in it — a defect an end-to-end
+    // journey found and no unit test would have, because the unit tests all
+    // supplied a body with something in it.
+    //
+    // Safe precisely because `{}` carries no content: there is nothing to
+    // preserve, which is not true of any other legacy body.
+    const read = readDocumentBody({});
+    expect(read.kind).toBe("blocks");
+    if (read.kind === "blocks" && read.result.ok) {
+      expect(read.result.document.blocks).toEqual([]);
+    }
+  });
+
+  it("still reads a non-empty free-form body as legacy", () => {
+    // The boundary of the rule above: one key is enough to make it content
+    // somebody may care about.
+    expect(readDocumentBody({ text: "something" }).kind).toBe("legacy");
+  });
 });
 
 describe("upgrading, which happens only on an edit", () => {

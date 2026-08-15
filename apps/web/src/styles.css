@@ -398,3 +398,77 @@ textarea {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* ---------------------------------------------------------------------------
+   The block editor (feature 003, US1)
+   ------------------------------------------------------------------------ */
+
+.editor-surface {
+  min-height: 12rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: 0.25rem;
+  /* Wide content scrolls inside its own container rather than widening the
+     page: FR-021 forbids horizontal page scrolling at 320 pixels, and a long
+     unbroken link or a code line is the usual way that happens. */
+  overflow-x: auto;
+}
+
+.editor-surface:focus-visible,
+.editor-surface .ProseMirror-focused {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.editor-surface pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* An unrenderable block must look present and deliberate, never like an empty
+   gap — a block that renders as nothing is indistinguishable from one that was
+   lost, which is the failure FR-006 exists to prevent. */
+.editor-unknown-block {
+  padding: 0.75rem;
+  border: 1px dashed currentColor;
+  border-radius: 0.25rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.block-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.block-controls button {
+  /* Reachable by thumb at 320 pixels (FR-021). */
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0 0.6rem;
+}
+
+.slash-menu ul {
+  list-style: none;
+  margin: 0.25rem 0;
+  padding: 0.25rem;
+  border: 1px solid var(--border, #d0d0d0);
+  border-radius: 0.25rem;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.slash-menu li {
+  padding: 0.5rem;
+  cursor: pointer;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.slash-menu li[aria-selected="true"] {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
