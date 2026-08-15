@@ -60,40 +60,57 @@ section. Une feature livrant un éditeur par blocs *et* une base de données à
 cinq types de vues ne serait ni relisible ni testable indépendamment. Les cases
 à cocher et les tâches simples restent dans 003 parce que ce sont des blocs
 d'éditeur ; une entrée typée avec filtres enregistrés et vues Kanban ou
-calendrier appartient à 008.
+calendrier appartient à 009.
 
-### 004 — Files and local storage
+### 004 — Unified items and page/folder conversion
 
 **État** : prévue
-**Dépendance** : 001 à 003
+**Dépendance** : 001, 003
+**Canevas** : sections 11 et 12
+
+Socle commun aux pages et aux dossiers, conversion dans les deux sens, et
+séparation explicite entre les enfants de la hiérarchie et les pièces jointes
+liées au contenu d'une page.
+
+Cette feature a été insérée après la livraison de l'éditeur par blocs, quand
+l'usage a montré que la section 11 du canevas décrivait mal le produit : elle
+présentait pages et dossiers comme « deux objets distincts » alors qu'une page
+fait déjà tout ce que fait un dossier, ce qui avait figé le type d'un élément à
+sa création. Les entrées suivantes ont été décalées d'un rang pour lui faire
+place, afin qu'un même numéro ne désigne jamais deux features différentes.
+
+### 005 — Files and local storage
+
+**État** : prévue
+**Dépendance** : 001 à 004
 **Canevas** : sections 15 à 18
 
 Expérience complète des fichiers et pièces jointes, prévisualisations,
 Draw.io, quotas locaux, disponibilité hors ligne et déchargement sûr.
 
-### 005 — Multi-device synchronization
+### 006 — Multi-device synchronization
 
 **État** : prévue
-**Dépendance** : 001 à 004
+**Dépendance** : 001 à 005
 **Canevas** : sections 9 et 17 à 20
 
 Transport temps réel, rattrapage, compatibilité client-serveur, synchronisation
 des fichiers, révocation d’appareil, historique et résolution visuelle des
 conflits.
 
-### 006 — Backup, recovery and updates
+### 007 — Backup, recovery and updates
 
 **État** : prévue
-**Dépendance** : 002, 004, 005
+**Dépendance** : 002, 005, 006
 **Canevas** : sections 27 à 34
 
 Sauvegardes chiffrées vers Google Drive, vérification, restauration isolée,
 export/import, migrations, mise à jour et retour arrière.
 
-### 007 — Search and V1 release readiness
+### 008 — Search and V1 release readiness
 
 **État** : prévue
-**Dépendance** : 001 à 006
+**Dépendance** : 001 à 007
 **Canevas** : sections 6, 21 et 35 à 45
 
 Recherche V1, puis durcissement final transversal de la readiness V1,
@@ -104,37 +121,37 @@ portée par la feature 002 et n’est pas dupliquée ici.
 
 ## Après la V1
 
-### 008 — Databases and structured tasks
+### 009 — Databases and structured tasks
 
 Propriétés, relations, filtres, tris, vues table, Kanban, galerie, liste et
 calendrier. Canevas : section 14.
 
-### 009 — Knowledge graph
+### 010 — Knowledge graph
 
 Graphe local et global, périmètres, profondeur et filtres combinables. Canevas :
 section 22.
 
-### 010 — Whiteboards
+### 011 — Whiteboards
 
 Tableaux blancs, cartes, dessins, connexions et références canoniques. Canevas :
 section 23.
 
-### 011 — Public sharing and annotations
+### 012 — Public sharing and annotations
 
 Liens publics, descendants, pièces jointes, annotations, confidentialité et
 modération. Canevas : sections 24 et 25.
 
-### 012 — MCP access
+### 013 — MCP access
 
 Autorisation, permissions granulaires, révocation et audit MCP. Canevas :
 section 26.
 
-### 013 — Desktop clients
+### 014 — Desktop clients
 
 Applications Electron Windows et macOS, stockage sécurisé et mises à jour.
 Canevas : section 7.
 
-### 014 — iOS experience
+### 015 — iOS experience
 
 Web app iOS avancée puis application native uniquement si les limites de la Web
 app empêchent de satisfaire les exigences produit. Canevas : section 7.
