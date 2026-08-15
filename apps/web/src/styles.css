@@ -482,11 +482,17 @@ textarea {
    in view. */
 .convert-dialog {
   position: fixed;
+  /* Pinned to both edges rather than centred with a 100vw width.
+     `100vw` includes the scrollbar, so `calc(100vw - 2rem)` overflowed on
+     engines that give scrollbars real width — green on macOS, where they are
+     overlays, and red on the Linux WebKit that CI runs. Insetting from both
+     sides cannot overflow, whatever the scrollbar does. */
+  inset-inline: 1rem;
   top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
   z-index: 20;
-  max-width: min(32rem, calc(100vw - 2rem));
+  max-width: 32rem;
+  margin-inline: auto;
   padding: 1rem;
   border: 1px solid currentColor;
   border-radius: 0.5rem;
