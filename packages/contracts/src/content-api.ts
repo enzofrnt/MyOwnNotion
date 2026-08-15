@@ -28,6 +28,23 @@ export const PlacementKindSchema = Type.Union([
 const NullableUuid = Type.Union([UuidSchema, Type.Null()]);
 const NullableDateTime = Type.Union([Type.String({ format: "date-time" }), Type.Null()]);
 
+/**
+ * The page document envelope.
+ *
+ * `formatVersion: 2` introduced the block content model (feature 003), whose
+ * body is `{ blocks: Block[] }` as defined in `@myownnotion/domain` and
+ * specified in `specs/003-core-workspace-experience/contracts/document-format.md`.
+ * Version 1 bodies are free-form objects written before that model existed;
+ * they are still read, and are upgraded by the client on the owner's first
+ * edit — never by the server, which since feature 002 cannot read a stored
+ * body at all.
+ *
+ * **`body` stays open on purpose, and it must not be tightened here.** The
+ * server validating the block model would mean a client adding a block type
+ * could not save until the server was upgraded to know about it — which is
+ * precisely the forward compatibility FR-006 requires, broken at the API. The
+ * server carries the body; the client owns its shape.
+ */
 export const PageDocumentSchema = Type.Object(
   {
     format: Type.Literal("myownnotion.document+json"),

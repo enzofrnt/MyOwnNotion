@@ -46,10 +46,21 @@ GHCR et releases immuables requis par FR-030 à FR-035.
 
 **État** : prévue
 **Dépendance** : 001, 002
-**Canevas** : sections 7 et 11 à 14
+**Canevas** : sections 7 et 11 à 13
 
 Navigation responsive, barre latérale, pages et dossiers utilisables, éditeur
 par blocs, raccourcis, états de sauvegarde et accessibilité des parcours cœur.
+
+**La section 14 (bases de données et vues) n'est pas dans cette feature.** Elle
+l'était jusqu'à la planification de 003, où cette entrée s'est révélée en
+contradiction avec deux choses : la constitution, qui exige que « advanced
+databases … MUST be delivered as separate specs rather than folded into the
+core feature », et la feature 008 ci-dessous, qui revendiquait déjà la même
+section. Une feature livrant un éditeur par blocs *et* une base de données à
+cinq types de vues ne serait ni relisible ni testable indépendamment. Les cases
+à cocher et les tâches simples restent dans 003 parce que ce sont des blocs
+d'éditeur ; une entrée typée avec filtres enregistrés et vues Kanban ou
+calendrier appartient à 008.
 
 ### 004 — Files and local storage
 

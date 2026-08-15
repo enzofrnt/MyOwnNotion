@@ -267,6 +267,9 @@ importers:
       '@testcontainers/postgresql':
         specifier: ^11.11.1
         version: 11.14.0
+      fast-check:
+        specifier: ^4.5.3
+        version: 4.9.0
       pg:
         specifier: ^8.16.3
         version: 8.22.0

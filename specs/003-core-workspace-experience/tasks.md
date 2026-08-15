@@ -19,12 +19,12 @@ improvement over today's raw-JSON textarea.
 
 ## Phase 1: Setup
 
-- [ ] T001 Add Tiptap 3 (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`) to `apps/web/package.json` and refresh `pnpm-lock.yaml`
-- [ ] T002 [P] Add `@axe-core/playwright` as a root dev dependency in `package.json` for the SC-004 audit
-- [ ] T003 [P] Create the `packages/domain/src/document/` module directory with an `index.ts` barrel exported from `packages/domain/src/index.ts`
-- [ ] T004 [P] Amend `docs/product/roadmap.md` to move canvas section 14 (databases and views) out of feature 003 into its own future feature, per constitution principle VIII and the spec's Assumptions
+- [ ] T001 Add Tiptap 3 (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`) to `apps/web/package.json` and refresh `pnpm-lock.yaml` — *deferred to the Phase 3 batch, where the dependency is actually used; adding it earlier would land an unused dependency*
+- [ ] T002 [P] Add `@axe-core/playwright` as a root dev dependency in `package.json` for the SC-004 audit — *deferred to the Phase 8 batch, for the same reason*
+- [X] T003 [P] Create the `packages/domain/src/document/` module directory with an `index.ts` barrel exported from `packages/domain/src/index.ts`
+- [X] T004 [P] Amend `docs/product/roadmap.md` to move canvas section 14 (databases and views) out of feature 003 into its own future feature, per constitution principle VIII and the spec's Assumptions — *the roadmap turned out to contradict itself as well: section 14 was claimed by both 003 and 008*
 
-**Checkpoint**: dependencies resolve, `pnpm typecheck` passes, the roadmap and the spec no longer disagree about scope.
+**Checkpoint**: dependencies resolve, `pnpm typecheck` passes, the roadmap and the spec no longer disagree about scope. ✅
 
 ---
 
@@ -34,20 +34,20 @@ improvement over today's raw-JSON textarea.
 
 **Why first**: the model is the one artifact FR-005 makes a requirement in its own right, and it is the only part of this feature that is pure, fast to test, and independent of a browser. Getting it wrong later means rewriting stored documents.
 
-- [ ] T005 Define block and inline types in `packages/domain/src/document/block.ts` — the eight known block types, `Inline`, the five marks, and the known-type registry, per [data-model.md](./data-model.md)
-- [ ] T006 Define the document envelope and its invariants in `packages/domain/src/document/document.ts` — `blocks` array, unique ids across nesting, document order
-- [ ] T007 Implement normalisation in `packages/domain/src/document/document.ts` — sort marks by type, merge adjacent equally-marked inline nodes, drop empty text nodes
-- [ ] T008 Implement `validateDocument` in `packages/domain/src/document/validate.ts` — returns a typed document or an explanation, never throws for content reasons; unknown block types pass, malformed known blocks fail
-- [ ] T009 [P] Reject unsafe link hrefs in `packages/domain/src/document/validate.ts` — only `http:`, `https:`, `mailto:` absolute URLs; a `javascript:` href is a validation failure, not a rendering choice
-- [ ] T010 [P] Implement lossless legacy reading in `packages/domain/src/document/legacy.ts` — a non-`{blocks}` body is preserved verbatim and wrapped as a `legacyBody` unknown block only on the owner's first edit
-- [ ] T011 [P] Implement `exportMarkdown` in `packages/domain/src/document/export-markdown.ts` — the mapping table in [contracts/document-format.md](./contracts/document-format.md), with unknown blocks emitted as labelled fenced JSON
-- [ ] T012 Document `formatVersion: 2` in `packages/contracts/src/content-api.ts` — the body shape and the rule that an unknown version is opaque and preserved
-- [ ] T013 [P] Unit tests for validation in `packages/domain/tests/document-validate.spec.ts` — unknown type accepted, `heading` with `level: 9` rejected, `checkbox` without `checked` rejected, `javascript:` href rejected
-- [ ] T014 [P] Unit tests for legacy reading in `packages/domain/tests/document-legacy.spec.ts` — a v1 body survives a read unchanged and is only wrapped on an edit
-- [ ] T015 [P] Property test in `packages/domain/tests/document-normalise.property.spec.ts` — normalisation is idempotent over generated documents
-- [ ] T016 [P] Property test in `packages/domain/tests/document-export.property.spec.ts` — `exportMarkdown` is total: never throws on any valid document, including ones containing unknown blocks
+- [X] T005 Define block and inline types in `packages/domain/src/document/block.ts` — the eight known block types, `Inline`, the five marks, and the known-type registry, per [data-model.md](./data-model.md)
+- [X] T006 Define the document envelope and its invariants in `packages/domain/src/document/document.ts` — `blocks` array, unique ids across nesting, document order
+- [X] T007 Implement normalisation in `packages/domain/src/document/document.ts` — sort marks by type, merge adjacent equally-marked inline nodes, drop empty text nodes
+- [X] T008 Implement `validateDocument` in `packages/domain/src/document/validate.ts` — returns a typed document or an explanation, never throws for content reasons; unknown block types pass, malformed known blocks fail
+- [X] T009 [P] Reject unsafe link hrefs in `packages/domain/src/document/validate.ts` — only `http:`, `https:`, `mailto:` absolute URLs; a `javascript:` href is a validation failure, not a rendering choice
+- [X] T010 [P] Implement lossless legacy reading in `packages/domain/src/document/legacy.ts` — a non-`{blocks}` body is preserved verbatim and wrapped as a `legacyBody` unknown block only on the owner's first edit
+- [X] T011 [P] Implement `exportMarkdown` in `packages/domain/src/document/export-markdown.ts` — the mapping table in [contracts/document-format.md](./contracts/document-format.md), with unknown blocks emitted as labelled fenced JSON
+- [X] T012 Document `formatVersion: 2` in `packages/contracts/src/content-api.ts` — the body shape and the rule that an unknown version is opaque and preserved
+- [X] T013 [P] Unit tests for validation in `packages/domain/tests/document-validate.spec.ts` — unknown type accepted, `heading` with `level: 9` rejected, `checkbox` without `checked` rejected, `javascript:` href rejected
+- [X] T014 [P] Unit tests for legacy reading in `packages/domain/tests/document-legacy.spec.ts` — a v1 body survives a read unchanged and is only wrapped on an edit
+- [X] T015 [P] Property test in `packages/domain/tests/document-normalise.property.spec.ts` — normalisation is idempotent over generated documents
+- [X] T016 [P] Property test in `packages/domain/tests/document-export.property.spec.ts` — `exportMarkdown` is total: never throws on any valid document, including ones containing unknown blocks
 
-**Checkpoint**: `pnpm test:unit -- document` and `pnpm test:property -- document` pass. The model exists, is validated, and exports, with no editor in the picture.
+**Checkpoint**: `pnpm test:unit -- document` and `pnpm test:property -- document` pass — 40 tests. The model exists, is validated, and exports, with no editor in the picture. ✅
 
 ---
 
