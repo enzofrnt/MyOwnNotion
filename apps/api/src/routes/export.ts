@@ -106,7 +106,10 @@ async function buildManifest(context: AppContext) {
           id: placement.id as Uuid,
           workspaceId: placement.workspaceId as Uuid,
           itemId: placement.itemId as Uuid,
-          itemKind: placement.itemKind as "page" | "folder" | "file",
+          // Not the item's kind: the exported item already carries that, and
+          // duplicating it here is what tied a placement to a value that
+          // changes when a page becomes a folder.
+          itemIsFile: placement.itemIsFile,
           kind: placement.kind as "hierarchy" | "attachment",
           parentItemId: (placement.parentItemId as Uuid | null) ?? null,
           positionKey: placement.positionKey,

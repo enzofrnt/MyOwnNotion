@@ -46,7 +46,16 @@ export interface Placement {
   readonly id: Uuid;
   readonly workspaceId: Uuid;
   readonly itemId: Uuid;
-  readonly itemKind: ItemKind;
+  /**
+   * Whether the placed item is a file — not which kind it is.
+   *
+   * The cardinality rules only ever ask this question: an attachment must be a
+   * file, and a non-file has exactly one hierarchy placement. Carrying the full
+   * kind meant carrying a value that changes when a page becomes a folder,
+   * which is what made conversion impossible (feature 004). File-ness never
+   * changes, so this one is safe to denormalise.
+   */
+  readonly itemIsFile: boolean;
   readonly kind: PlacementKind;
   /** `null` means the workspace root (hierarchy placements only). */
   readonly parentItemId: Uuid | null;

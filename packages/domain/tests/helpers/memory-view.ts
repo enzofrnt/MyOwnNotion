@@ -70,7 +70,7 @@ export class MemoryGraph implements HierarchyView {
       id,
       workspaceId: this.workspaceId,
       itemId,
-      itemKind: item.kind,
+      itemIsFile: item.kind === "file",
       kind,
       parentItemId,
       positionKey,

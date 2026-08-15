@@ -30,7 +30,7 @@ function placement(itemId: Uuid, parentItemId: Uuid | null, id = generateUuidV7(
     id,
     workspaceId,
     itemId,
-    itemKind: "page",
+    itemIsFile: false,
     kind: "hierarchy",
     parentItemId,
     positionKey: "V",

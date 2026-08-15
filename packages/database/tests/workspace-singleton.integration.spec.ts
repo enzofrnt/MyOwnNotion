@@ -1,15 +1,3 @@
-/**
- * Single canonical workspace enforcement (T103, FR-001).
- *
- * FR-001 requires exactly one canonical workspace per installation. Before
- * migration 0002 that was only a convention: `getOrCreateWorkspace` generates
- * a fresh UUID per call, so two concurrent bootstraps inserted two distinct
- * rows and nothing rejected or detected the stray one. These tests pin the
- * storage-level guarantee and the graceful concurrent-bootstrap behaviour.
- */
-
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { createDatabase, type DatabaseHandle, getOrCreateWorkspace } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { applyMigrations, startDisposablePostgres } from "@myownnotion/test-utils";
@@ -58,33 +46,13 @@ describe("migration 0002_workspace_singleton", () => {
     expect(indexes).toContain("workspaces_singleton_idx");
   });
 
-  it("applies forward over an existing database that already holds one workspace", async () => {
-    // The real upgrade path: 0001 already applied, one workspace in place.
-    const upgraded = await startDisposablePostgres();
-    const client = new pg.Client({ connectionString: upgraded.connectionString });
-    try {
-      await client.connect();
-      // 0001 creates schema_migrations and records itself.
-      await client.query(
-        readFileSync(
-          path.join(import.meta.dirname, "../migrations/0001_content_foundations.sql"),
-          "utf8",
-        ),
-      );
-      await client.query("INSERT INTO workspaces (id, schema_version) VALUES ($1, 1)", [
-        generateUuidV7(),
-      ]);
-      await client.end();
-
-      const applied = await applyMigrations(upgraded.connectionString);
-      // Only assert the migration under test is applied; pinning the whole
-      // pending list would break on every future migration.
-      expect(applied).toContain("0002_workspace_singleton");
-      expect(applied).not.toContain("0001_content_foundations");
-    } finally {
-      await upgraded.stop();
-    }
-  });
+  // The former "applies forward over an existing database" case was removed
+  // with feature 004, which collapsed 0001-0005 into one initial migration.
+  // It applied 0001 alone, seeded a workspace, then applied 0002 — a path that
+  // no longer exists, and cannot be re-created without keeping the migrations
+  // it was testing. The guarantee it protected is still covered above: the
+  // singleton index exists, and the concurrent-bootstrap cases below assert
+  // the behaviour it gives.
 });
 
 describe("workspace bootstrap", () => {
