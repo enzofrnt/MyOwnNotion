@@ -12,9 +12,14 @@
 
 import type { PasskeyViewDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useId, useState } from "react";
-import type { RotationStatusView, SecurityApi } from "../../services/security-api.ts";
+import type {
+  RecoveryStatusView,
+  RotationStatusView,
+  SecurityApi,
+} from "../../services/security-api.ts";
 import { DevicePanel } from "./device-panel.tsx";
 import { KeyRotationPanel } from "./key-rotation-panel.tsx";
+import { RecoveryReadinessPanel } from "./recovery-readiness-panel.tsx";
 import { SessionPanel } from "./session-panel.tsx";
 
 export interface SecuritySettingsProps {
@@ -38,6 +43,7 @@ export function SecuritySettings(props: SecuritySettingsProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [rotation, setRotation] = useState<RotationStatusView | null>(null);
+  const [recovery, setRecovery] = useState<RecoveryStatusView | null>(null);
   const passwordId = useId();
 
   const refresh = useCallback(async () => {
@@ -51,6 +57,11 @@ export function SecuritySettings(props: SecuritySettingsProps) {
     // wagging the dog.
     const rotationResult = await props.api.rotationStatus();
     setRotation(rotationResult.ok ? rotationResult.value : null);
+    // Left null on failure rather than defaulted. The panel reads null as
+    // "cannot tell you either way", which is the honest answer and is not the
+    // same as "you have no kit".
+    const recoveryResult = await props.api.recoveryStatus();
+    setRecovery(recoveryResult.ok ? recoveryResult.value : null);
   }, [props.api]);
 
   useEffect(() => {
@@ -178,6 +189,22 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       />
 
       <DevicePanel api={props.api} currentDeviceId={props.currentDeviceId ?? null} />
+
+      <RecoveryReadinessPanel
+        status={recovery}
+        busy={busy}
+        onPrepareReplacement={async () => {
+          setBusy(true);
+          const result = await props.api.prepareRecoveryReplacement();
+          setMessage(
+            result.ok
+              ? "A new kit is ready to download."
+              : "That kit could not be prepared. Your existing kit is unaffected.",
+          );
+          await refresh();
+          setBusy(false);
+        }}
+      />
 
       {rotation !== null && (
         <KeyRotationPanel
