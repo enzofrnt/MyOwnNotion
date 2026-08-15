@@ -177,6 +177,50 @@ suites above are real evidence of the foundation, not of any individual
 requirement, and recording them as such would be the exact false pass this
 ledger exists to prevent.
 
+## Complete local gate (T110)
+
+The full gate, run against the candidate below on a clean worktree. This is the
+same sequence run before every merge in this feature's development, and it is
+recorded here once with real counts rather than described.
+
+| Field | Value |
+| --- | --- |
+| Candidate commit SHA | `cb897f3441b9c80115f8904cec17af9aaf044821` |
+| Branch | `main` |
+| Node version | `v24.19.0` |
+| pnpm version | `10.33.3` |
+| Docker version | `29.6.2` |
+| Database fixture | `postgres:18` via Testcontainers, one container per integration suite |
+| Deployment wrapping-key fixture | per-suite 32-byte file at mode `0600`; never key material in the repository |
+| Overall status | `pass` |
+
+| Gate step | Command | Result |
+| --- | --- | --- |
+| Toolchain policy | `pnpm toolchain:check` | pass, 437 tracked files |
+| Formatting | `pnpm format:check` | pass, 338 files |
+| Lint and static analysis | `pnpm lint:ci` | pass, 339 files, 0 warnings |
+| Types | `pnpm typecheck` | pass, 0 errors |
+| Unit, property, integration, contract | `pnpm test:coverage` | **1615 passed**, 104 files, 0 failed |
+| Coverage | same run | lines 90.12%, branches 88.35%, functions 91.63% (threshold 90%) |
+| Forward migrations | `pnpm db:test-migrations` | 5 passed |
+| Production build | `pnpm build` | pass |
+| Compose contract | `pnpm compose:check` | pass (services, loopback ports, secrets, image pinning) |
+| Browser journeys | `pnpm test:e2e --project=chromium-desktop` | **70 passed** |
+
+Two things this table does not claim, both recorded because a ledger that hides
+them is worth less than no ledger:
+
+- **`pnpm shell:check` does not run on this host.** It pins shfmt `3.12.0` and
+  the host has `3.13.1`. That is local toolchain drift rather than a defect, and
+  no shell file was modified in this feature's work. It runs in CI against the
+  pinned version.
+- **No GitHub Actions run backs any of this.** Actions has been unavailable for
+  billing reasons throughout, so every task closed during that period carries
+  `(NO CI here)` in `tasks.md` — 49 of them at this commit. The workflows added
+  by T100, T101, T103 and T104 are verified by contract tests that read the YAML,
+  and by local runs of the scripts they invoke, but they have never executed.
+  Re-running them is the first item of the deferred checkup.
+
 ## Functional-requirement ledger
 
 | Requirement/criterion | Command or test path | Candidate SHA | Controlled clock/configuration | Raw evidence/artifact | Reviewer/date | Status |
