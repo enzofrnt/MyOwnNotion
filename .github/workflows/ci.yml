@@ -242,6 +242,155 @@ jobs:
           path: image-build.json
           if-no-files-found: error
 
+  # ---------------------------------------------------------------------------
+  # The five blocking security jobs (T100, FR-033 – FR-035)
+  # ---------------------------------------------------------------------------
+  #
+  # Five jobs rather than one, and each producing a named artifact, because the
+  # requirement is that they are *individually observable*. A single "security"
+  # job that ran all five would be one red X hiding which of five very different
+  # problems occurred — a vulnerable dependency, a committed secret, a dangerous
+  # code pattern, a vulnerable base image, and a forbidden licence are not the
+  # same emergency and do not have the same fix.
+  #
+  # Every one of them runs on the candidate SHA that the rest of the gate ran
+  # on, because they are checked out from the same event.
+
+  dependency-vulnerability-audit:
+    name: dependency-vulnerability-audit
+    runs-on: ubuntu-latest
+    needs: install
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Audit production dependencies
+        # Written whatever the outcome: an audit that produced no artifact
+        # because it failed is indistinguishable, to the aggregate, from one
+        # that never ran.
+        run: pnpm security:audit --json > dependency-audit.json || (cat dependency-audit.json; exit 1)
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-audit
+          path: dependency-audit.json
+          if-no-files-found: error
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    needs: install
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The full history, because a secret committed and then removed is
+          # still a leaked secret: the object stays reachable in the repository.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:secrets
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: secret-scan
+          path: secret-scan.sarif
+          if-no-files-found: error
+
+  static-security-analysis:
+    name: static-security-analysis
+    runs-on: ubuntu-latest
+    needs: install
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:static
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: static-security
+          path: static-security.sarif
+          if-no-files-found: error
+
+  container-vulnerability-scan:
+    name: container-vulnerability-scan
+    runs-on: ubuntu-latest
+    # Depends on `build-images` so it scans the same commit's images rather
+    # than an unrelated build. It rebuilds locally rather than pulling: nothing
+    # is published at this point in the pipeline, so there is no registry
+    # reference to scan.
+    needs: build-images
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build the API image for scanning
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          push: false
+          load: true
+          tags: myownnotion-api:scan
+      - name: Scan it
+        # Trivy rather than a scanner written here. A vulnerability database is
+        # not something this repository should be maintaining, and the value of
+        # the job is entirely in the database being current.
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
+        with:
+          image-ref: myownnotion-api:scan
+          format: sarif
+          output: container-scan.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: container-scan
+          path: container-scan.sarif
+          if-no-files-found: error
+
+  license-policy:
+    name: license-policy
+    runs-on: ubuntu-latest
+    needs: install
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:licenses
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: license-policy
+          path: license-policy.json
+          if-no-files-found: error
+
   quality-gate:
     name: quality-gate
     runs-on: ubuntu-latest
@@ -260,9 +409,23 @@ jobs:
       - e2e
       - build
       - build-images
+      - dependency-vulnerability-audit
+      - secret-scan
+      - static-security-analysis
+      - container-vulnerability-scan
+      - license-policy
     if: always()
     steps:
       - name: Fail unless every required job succeeded
+        # `success` and nothing else. `skipped` and `cancelled` are failures
+        # here, and that is the point of comparing against one value rather
+        # than excluding `failure`: a job that was skipped produced no evidence,
+        # and a gate that treats "no evidence" as "no problem" is not a gate.
+        #
+        # A job missing from `needs` entirely cannot be caught by this script —
+        # it would simply not appear. That is what the contract test in
+        # `tests/contract/release-gates.spec.ts` is for: it reads this file and
+        # asserts the required set.
         run: |
           results='${{ toJSON(needs) }}'
           echo "$results"
