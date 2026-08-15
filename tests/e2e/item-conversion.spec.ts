@@ -1,0 +1,248 @@
+/**
+ * Converting a page into a folder, and back (T023, T024, T031, T032, US1, US2).
+ *
+ * The journeys an owner actually takes. Three things are asserted here that no
+ * lower level can reach:
+ *
+ *   - **the warning says what is lost, and for how long it can be undone.**
+ *     A dialog that says "are you sure?" is one an owner learns to click
+ *     through; one that names the content and the retention limit is one they
+ *     can act on.
+ *   - **declining changes nothing.** The most important property of a
+ *     destructive control is what happens when it is refused.
+ *   - **children survive on screen**, not only in the database. The integration
+ *     suite proves the rows are there; this proves the owner can still see
+ *     them.
+ */
+
+import { expect, test } from "./fixtures.ts";
+import {
+  createChildItem,
+  createRootItem,
+  openWorkspace,
+  readTreeOrder,
+  selectItem,
+  typeIntoEditor,
+  uniqueName,
+  waitForSynchronized,
+} from "./helpers.ts";
+
+function convertButton(page: import("@playwright/test").Page, name: string) {
+  return page.getByTestId(`convert-${name}`);
+}
+
+test.describe("turning a folder into a page", () => {
+  test("keeps every child and gains somewhere to write", async ({ page }) => {
+    // US1 end to end. The non-destructive direction, which needs no
+    // confirmation because nothing is at stake.
+    await openWorkspace(page);
+    const folder = uniqueName("Container");
+    await createRootItem(page, "folder", folder);
+    await waitForSynchronized(page);
+
+    const first = uniqueName("Alpha");
+    const second = uniqueName("Beta");
+    await createChildItem(page, folder, "page", first);
+    // Between the two, not only after: the tree re-renders as each creation
+    // reconciles, and a second creation launched into that re-render loses the
+    // element it was about to act on. WebKit is slow enough to show it.
+    await waitForSynchronized(page);
+    await createChildItem(page, folder, "page", second);
+    await waitForSynchronized(page);
+
+    await convertButton(page, folder).click();
+    await waitForSynchronized(page);
+
+    // No dialog: nothing was lost, so nothing was asked.
+    await expect(page.getByTestId("convert-confirmation")).toBeHidden();
+
+    await selectItem(page, folder);
+    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+
+    // Both children are still in the tree, in the order they were created.
+    const order = await readTreeOrder(page);
+    expect(order.indexOf(first)).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf(second)).toBeGreaterThan(order.indexOf(first));
+  });
+
+  test("the converted page accepts and keeps content", async ({ page }) => {
+    await openWorkspace(page);
+    const folder = uniqueName("WillHoldText");
+    await createRootItem(page, "folder", folder);
+    await waitForSynchronized(page);
+
+    await convertButton(page, folder).click();
+    await waitForSynchronized(page);
+    await selectItem(page, folder);
+
+    await typeIntoEditor(page, "now it has words");
+    await page.getByTestId("save-document").click();
+    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await page.reload();
+    await openWorkspace(page);
+    await waitForSynchronized(page);
+    await selectItem(page, folder);
+    await expect(page.getByTestId("block-editor")).toContainText("now it has words", {
+      timeout: 30_000,
+    });
+  });
+});
+
+test.describe("turning a page into a folder", () => {
+  test("converts an empty page without warning about content it does not have", async ({
+    page,
+  }) => {
+    // US2 scenario 6. Every page has a document from the moment it is created,
+    // so warning here would fire on a page made a minute ago and never typed
+    // in — which is how an owner learns to dismiss the warning that matters.
+    await openWorkspace(page);
+    const empty = uniqueName("NeverTyped");
+    await createRootItem(page, "page", empty);
+    await waitForSynchronized(page);
+
+    await convertButton(page, empty).click();
+    await waitForSynchronized(page);
+
+    await expect(page.getByTestId("convert-confirmation")).toBeHidden();
+  });
+
+  test("warns before destroying content, naming what goes and for how long it can be undone", async ({
+    page,
+  }) => {
+    await openWorkspace(page);
+    const written = uniqueName("HasWords");
+    await createRootItem(page, "page", written);
+    await waitForSynchronized(page);
+    await selectItem(page, written);
+    await typeIntoEditor(page, "something worth keeping");
+    await page.getByTestId("save-document").click();
+    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await convertButton(page, written).click();
+
+    const dialog = page.getByTestId("convert-confirmation");
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    // Names the loss rather than asking a vague question.
+    await expect(dialog).toContainText(/deleted/i);
+    // And says the recovery is bounded, so the owner is not promised a
+    // reversibility that expires in silence.
+    await expect(page.getByTestId("convert-retention-notice")).toContainText(
+      /only for as long as/i,
+    );
+    // And says what is *not* lost, which is most of what they have.
+    await expect(dialog).toContainText(/underneath/i);
+  });
+
+  test("declining leaves the page exactly as it was", async ({ page }) => {
+    // The property that matters most about a destructive control.
+    await openWorkspace(page);
+    const kept = uniqueName("Declined");
+    await createRootItem(page, "page", kept);
+    await waitForSynchronized(page);
+    await selectItem(page, kept);
+    await typeIntoEditor(page, "still here afterwards");
+    await page.getByTestId("save-document").click();
+    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await convertButton(page, kept).click();
+    await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("cancel-convert").click();
+    await expect(page.getByTestId("convert-confirmation")).toBeHidden();
+
+    await selectItem(page, kept);
+    await expect(page.getByTestId("block-editor")).toContainText("still here afterwards");
+  });
+
+  test("accepting destroys the content and keeps every child", async ({ page }) => {
+    await openWorkspace(page);
+    const parent = uniqueName("Sacrificed");
+    await createRootItem(page, "page", parent);
+    await waitForSynchronized(page);
+
+    const child = uniqueName("Survivor");
+    await createChildItem(page, parent, "page", child);
+    await waitForSynchronized(page);
+
+    await selectItem(page, parent);
+    await typeIntoEditor(page, "about to be deleted");
+    await page.getByTestId("save-document").click();
+    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await convertButton(page, parent).click();
+    await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("confirm-convert").click();
+    await waitForSynchronized(page);
+
+    // The child is still in the tree: what is *under* an item is never what a
+    // conversion destroys.
+    await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible({ timeout: 30_000 });
+  });
+});
+
+test.describe("the confirmation as a dialog", () => {
+  test("closes on Escape and returns focus to the control that opened it", async ({ page }) => {
+    // FR-018. Focus landing on <body> after a dialog closes is the usual way a
+    // keyboard journey ends without anyone noticing.
+    await openWorkspace(page);
+    const name = uniqueName("Escapable");
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    await typeIntoEditor(page, "content that triggers the dialog");
+    await page.getByTestId("save-document").click();
+    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await convertButton(page, name).click();
+    await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("convert-confirmation")).toBeHidden();
+    await expect(convertButton(page, name)).toBeFocused();
+  });
+
+  test("is announced as an alert dialog", async ({ page }) => {
+    await openWorkspace(page);
+    const name = uniqueName("Announced");
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    await typeIntoEditor(page, "content that triggers the dialog");
+    await page.getByTestId("save-document").click();
+    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await convertButton(page, name).click();
+    const dialog = page.getByTestId("convert-confirmation");
+    await expect(dialog).toHaveAttribute("role", "alertdialog");
+    await expect(dialog).toHaveAttribute("aria-modal", "true");
+  });
+});
+
+test.describe("at a narrow viewport", () => {
+  test("the confirmation is readable on a phone", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await openWorkspace(page);
+    const name = uniqueName("Narrow");
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    await typeIntoEditor(page, "content that triggers the dialog");
+    await page.getByTestId("save-document").click();
+    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await convertButton(page, name).click();
+    await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
+
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    );
+    expect(overflows).toBe(false);
+  });
+});

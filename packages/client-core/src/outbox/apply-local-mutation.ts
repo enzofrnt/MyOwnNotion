@@ -48,13 +48,18 @@ export async function applyLocalMutation(
   }
   const command: MutationCommand = parsed.value;
 
-  // Sealed before the transaction opens, never inside it. Dexie commits a
-  // transaction as soon as control returns to the event loop for a non-Dexie
-  // promise, and the crypto is one — so sealing inside would end the
-  // transaction early and let the writes that follow land outside it.
-  const prepared = await prepareProjectionWrite(db, command, codec);
-
   try {
+    // Sealed before the transaction opens, never inside it. Dexie commits a
+    // transaction as soon as control returns to the event loop for a non-Dexie
+    // promise, and the crypto is one — so sealing inside would end the
+    // transaction early and let the writes that follow land outside it.
+    //
+    // Inside the try, though: preparation is also where a command can be
+    // refused on its content (a destructive conversion without confirmation),
+    // and that refusal has to come back as a domain error rather than escape
+    // as a raw exception.
+    const prepared = await prepareProjectionWrite(db, command, codec);
+
     const localRevisionIds = await db.transaction(
       "rw",
       [db.items, db.placements, db.relationships, db.revisionHeaders, db.outbox, db.meta],
@@ -100,7 +105,13 @@ export class LocalValidationError extends Error {
     | "item.not-found"
     | "containment.cycle-rejected"
     | "validation.invalid-payload"
-    | "placement.not-found";
+    | "placement.not-found"
+    // Feature 004. The client refuses a destructive conversion for the same
+    // reason the server does, and refuses it *first*: applying it optimistically
+    // would turn the page into a folder on screen, and only then discover that
+    // the server declines. The rule lives in the shared domain, so both sides
+    // reach the same answer rather than approximating each other.
+    | "conversion.confirmation-required";
   constructor(code: LocalValidationError["code"], message: string) {
     super(message);
     this.name = "LocalValidationError";
