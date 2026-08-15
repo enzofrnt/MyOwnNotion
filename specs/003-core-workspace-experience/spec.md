@@ -17,8 +17,9 @@ guarantees and no new security boundary; it makes the ones that exist usable.
 
 **Exclusions**: section 14 (databases and views) is deliberately **not** in
 scope — see Assumptions. Files and attachments (sections 15–18) belong to
-feature 004; real-time multi-device transport belongs to feature 005; search
-belongs to feature 007.
+feature 005; real-time multi-device transport belongs to feature 006; search
+belongs to feature 008. (These numbers shifted when feature 004, unified items
+and conversion, was inserted after 003 shipped its editor.)
 
 ---
 
@@ -362,9 +363,9 @@ non-local address and confirm the interface warns clearly and unmistakably.
 - Databases, typed properties, saved views, filters, sorting, and grouping
   (canvas section 14) — separate specification.
 - File attachments, previews, Draw.io, and local storage quotas (sections
-  15–18) — feature 004.
+  15–18) — feature 005.
 - Real-time transport, multi-device catch-up, and visual conflict resolution
-  beyond making a conflict visible (sections 19–20) — feature 005.
-- Search (section 21) — feature 007.
+  beyond making a conflict visible (sections 19–20) — feature 006.
+- Search (section 21) — feature 008.
 - Public sharing, plugins, import from other products, and collaborative
   editing — permanently out of scope for V1 or governed by their own specs.

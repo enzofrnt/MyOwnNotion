@@ -309,27 +309,46 @@ Déplacer ou renommer un objet ne doit pas changer son identité ni casser silen
 
 ## 11. Pages, dossiers et hiérarchie
 
-Les pages et les dossiers sont deux objets distincts.
+Les pages et les dossiers ne sont pas deux objets de natures différentes. Ils
+partagent un socle commun, et la page ajoute une capacité que le dossier n'a
+pas.
 
-### 11.1 Page
+Cette section disait auparavant « les pages et les dossiers sont deux objets
+distincts ». C'était trompeur : cela laissait croire à deux familles séparées
+alors qu'une page fait déjà tout ce que fait un dossier. La formulation
+actuelle dit ce que l'application doit faire, et rend possible la conversion
+décrite en 11.4.
 
-Une page possède un contenu éditorial. Elle peut également contenir :
+### 11.1 Socle commun
 
-- des sous-pages ;
-- des dossiers ;
-- des blocs ;
-- des tâches ;
-- des fichiers ;
-- des relations ;
-- des propriétés.
+Tout élément de la hiérarchie, page comme dossier, possède :
 
-### 11.2 Dossier
+- un titre ;
+- une position choisie par le propriétaire parmi ses frères ;
+- une identité stable, que le renommage et le déplacement ne changent jamais ;
+- des enfants dans la hiérarchie : sous-pages, sous-dossiers et fichiers
+  autonomes rangés en dessous de lui.
 
-Un dossier ne possède pas de contenu éditorial. Il sert uniquement à organiser :
+Un dossier s'arrête à ce socle. Il n'a pas de contenu éditorial, et n'en aura
+pas tant qu'il reste un dossier.
 
-- des pages ;
-- d'autres éléments de la hiérarchie ;
-- des sous-dossiers.
+### 11.2 Ce que la page ajoute
+
+Une page possède en plus un contenu éditorial : du texte, des blocs, des
+tâches, des relations et des propriétés.
+
+Elle porte de ce fait **deux relations distinctes**, qu'il ne faut pas
+confondre :
+
+- **ses enfants dans la hiérarchie** — sous-pages, sous-dossiers et fichiers
+  autonomes rangés en dessous d'elle, exactement comme un dossier en range ;
+- **ses pièces jointes de contenu** — les fichiers liés au texte de la page
+  elle-même.
+
+L'interface expose les deux séparément : les enfants se déplient comme pour un
+dossier, les pièces jointes de contenu par un bouton dédié. Un dossier n'a que
+la première relation, puisqu'il n'a pas de contenu auquel rattacher quoi que ce
+soit.
 
 ### 11.3 Opérations
 
@@ -337,13 +356,39 @@ Le propriétaire doit pouvoir :
 
 - créer une page ou un dossier ;
 - les renommer ;
-- les déplacer ;
-- les réordonner ;
+- les déplacer où il veut dans la hiérarchie ;
+- les réordonner librement parmi leurs frères ;
 - déplacer une branche complète ;
 - supprimer puis restaurer un élément ;
-- distinguer visuellement une page d'un dossier.
+- distinguer visuellement une page d'un dossier ;
+- convertir une page en dossier et un dossier en page (voir 11.4).
 
 Le système doit empêcher les cycles de hiérarchie. Une opération portant sur une branche doit être atomique du point de vue de l'utilisateur ou reprendre proprement après une interruption.
+
+### 11.4 Conversion entre page et dossier
+
+Le propriétaire doit pouvoir changer d'avis. Une page dont il s'avère qu'elle
+ne sert qu'à ranger doit pouvoir devenir un dossier ; un dossier auquel il veut
+ajouter du texte doit pouvoir devenir une page.
+
+Les deux sens ne se ressemblent pas.
+
+**Dossier vers page** n'ajoute qu'une capacité. Rien n'est perdu, et aucune
+confirmation n'est nécessaire.
+
+**Page vers dossier est destructif** : le contenu éditorial de la page et les
+pièces jointes liées à ce contenu disparaissent, puisqu'un dossier n'a nulle
+part où les porter. Cette conversion doit donc :
+
+- demander une confirmation explicite qui nomme ce qui va être supprimé ;
+- rappeler que le retour en arrière n'est possible que pendant la durée de
+  rétention de l'historique, et non indéfiniment ;
+- rester récupérable par l'historique des révisions pendant cette durée.
+
+**Dans les deux sens, sans exception**, l'identité de l'élément est conservée
+et tout ce qui se trouve en dessous de lui dans la hiérarchie — sous-pages,
+sous-dossiers et fichiers autonomes — reste intact et à sa place. Une
+conversion n'est jamais une suppression suivie d'une création.
 
 ---
 
@@ -361,7 +406,16 @@ La barre latérale gauche doit permettre :
 - d'accéder aux réglages ;
 - de voir l'état de connexion et de synchronisation.
 
-Elle peut afficher au même niveau des pages, dossiers et fichiers autonomes. Un bouton discret associé à chaque page permet de consulter ses pièces jointes.
+Elle peut afficher au même niveau des pages, dossiers et fichiers autonomes.
+
+Conformément à 11.2, une page expose **deux dépliages distincts** : ses enfants
+dans la hiérarchie, comme un dossier, et un bouton discret pour ses pièces
+jointes de contenu. Un dossier n'a que le premier. Confondre les deux ferait
+disparaître de l'arbre les fichiers rangés sous une page, ou ferait apparaître
+dans la hiérarchie des pièces jointes qui n'y sont pas.
+
+La barre latérale doit aussi permettre de convertir une page en dossier et
+inversement (11.4).
 
 La navigation doit préserver le contexte lors d'un retour en arrière, prendre en charge le clavier et afficher des états explicites de chargement, de contenu vide, d'indisponibilité locale et d'erreur.
 
