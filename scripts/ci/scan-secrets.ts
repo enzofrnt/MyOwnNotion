@@ -208,7 +208,13 @@ for (const file of trackedFiles()) {
     }
     // `${VAR:-default}` in Compose/env files names a variable and its
     // non-secret fallback; the value itself is supplied at runtime.
-    const scannable = line.replaceAll(/\$\{[^}]*\}/g, "<interpolated>");
+    //
+    // The placeholder is short and deliberately so. It replaced
+    // `<interpolated>` — fourteen characters that every "long opaque string"
+    // rule read as a password, so a Compose line built entirely from variables
+    // was reported as a hard-coded credential. A substitution meant to remove
+    // false positives must not look like the thing it is standing in for.
+    const scannable = line.replaceAll(/\$\{[^}]*\}/g, "$VAR");
     for (const rule of rules) {
       if (rule.shippedSourceOnly && isTestFile) {
         continue;
