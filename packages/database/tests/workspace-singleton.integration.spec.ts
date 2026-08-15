@@ -1,15 +1,3 @@
-/**
- * Single canonical workspace enforcement (T103, FR-001).
- *
- * FR-001 requires exactly one canonical workspace per installation. Before
- * migration 0002 that was only a convention: `getOrCreateWorkspace` generates
- * a fresh UUID per call, so two concurrent bootstraps inserted two distinct
- * rows and nothing rejected or detected the stray one. These tests pin the
- * storage-level guarantee and the graceful concurrent-bootstrap behaviour.
- */
-
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { createDatabase, type DatabaseHandle, getOrCreateWorkspace } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { applyMigrations, startDisposablePostgres } from "@myownnotion/test-utils";
