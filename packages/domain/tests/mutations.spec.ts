@@ -23,6 +23,7 @@ describe("typed mutation dispatch (T073)", () => {
         placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
       },
       "item.rename": { itemId, name: "renamed" },
+      "item.convert": { itemId, targetKind: "folder", confirmedDestruction: true },
       "item.trash": { itemId },
       "item.restore": { itemId },
       "placement.move": { placementId: generateUuidV7(), parentItemId: null, positionKey: "V" },

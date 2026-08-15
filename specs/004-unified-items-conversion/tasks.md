@@ -39,20 +39,22 @@ folder becomes page — is shippable and useful on its own.
 
 ### Domain rules
 
-- [ ] T008 Define the conversion rules in `packages/domain/src/content/conversion.ts` — the total transition table from [data-model.md](./data-model.md), including the no-op and the file exclusion
-- [ ] T009 Require `confirmedDestruction` when a page holding content becomes a folder, in `packages/domain/src/content/conversion.ts` (FR-010, FR-014)
-- [ ] T010 Add the `item.convert` command to `packages/domain/src/content/mutations.ts` and its error codes to `types.ts` (`conversion.confirmation-required`, `conversion.file-not-convertible`)
-- [ ] T011 [P] Update `packages/domain/src/content/file-placements.ts` to read the item's file-ness rather than its kind, so the rules keep working when the kind changes
-- [ ] T012 [P] Document the command shape in `packages/contracts/src/content-api.ts`, per [contracts/convert-mutation.md](./contracts/convert-mutation.md)
+- [X] T008 Define the conversion rules in `packages/domain/src/content/conversion.ts` — the total transition table from [data-model.md](./data-model.md), including the no-op and the file exclusion
+- [X] T009 Require `confirmedDestruction` when a page holding content becomes a folder, in `packages/domain/src/content/conversion.ts` (FR-010, FR-014)
+- [X] T010 Add the `item.convert` command to `packages/domain/src/content/mutations.ts` and its error codes to `types.ts` (`conversion.confirmation-required`, `conversion.file-not-convertible`)
+- [X] T011 [P] Update `packages/domain/src/content/file-placements.ts` to read the item's file-ness rather than its kind, so the rules keep working when the kind changes
+- [X] T012 [P] Document the command shape in `packages/contracts/src/content-api.ts`, per [contracts/convert-mutation.md](./contracts/convert-mutation.md)
 
 ### Tests
 
-- [ ] T013 [P] Unit tests in `packages/domain/tests/conversion.spec.ts` — every row of the transition table, including the no-op and both file refusals
-- [ ] T014 [P] Unit tests in `packages/domain/tests/conversion.spec.ts` — a page with content is refused without confirmation, and accepted with it
-- [ ] T015 [P] Property test in `packages/domain/tests/conversion.property.spec.ts` — over generated trees, every hierarchy child keeps its parent and position through a conversion in either direction
-- [ ] T016 [P] Property test in `packages/domain/tests/conversion.property.spec.ts` — identity and revision lineage are preserved, and converting twice is the same as converting once
+- [X] T013 [P] Unit tests in `packages/domain/tests/conversion.spec.ts` — every row of the transition table, including the no-op and both file refusals
+- [X] T014 [P] Unit tests in `packages/domain/tests/conversion.spec.ts` — a page with content is refused without confirmation, and accepted with it
+- [X] T015 [P] Property test in `packages/domain/tests/conversion.property.spec.ts` — over generated trees, every hierarchy child keeps its parent and position through a conversion in either direction
+- [X] T016 [P] Property test in `packages/domain/tests/conversion.property.spec.ts` — identity and revision lineage are preserved, and converting twice is the same as converting once
 
-**Checkpoint**: `pnpm test:unit -- conversion`, `pnpm test:property -- conversion` and `pnpm test:migration` pass. The kind is mutable and the rules exist, with no interface yet.
+**Checkpoint**: passed ✅ — 20 conversion tests, 858 unit, 292 property, 242 integration, 750 contract. The kind is mutable, the rules exist and the command executes, with no interface yet.
+
+**Planning correction**: T017 and T025 were listed in Phases 3 and 4 but had to land here. TypeScript's exhaustive command switch does not compile with a command that has no execution, so `item.convert` could not exist as a parsed command without its repository. Splitting them across phases was a planning error rather than a scope change, and the phases that follow are correspondingly lighter.
 
 ---
 
@@ -62,12 +64,12 @@ folder becomes page — is shippable and useful on its own.
 
 **Independent test**: folder with two pages and a file inside, convert, write a sentence, reload — the sentence is there and all three children are in place, in order.
 
-- [ ] T017 [US1] Implement the conversion in one transaction in `packages/database/src/repositories/content/conversion-repository.ts` — the kind change and the revision, committed together
+- [X] T017 [US1] Implement the conversion in one transaction in `packages/database/src/repositories/content/conversion-repository.ts` — the kind change and the revision, committed together
 - [ ] T018 [US1] Route the command to the domain in `apps/api/src/routes/` so it goes through the same validation as every other mutation
 - [ ] T019 [US1] Apply the conversion to the local projection in `packages/client-core/src/outbox/apply-to-projection.ts`, so it works offline like every other command
 - [ ] T020 [P] [US1] Add the conversion control to `apps/web/src/features/navigation/convert-item.tsx`, reachable from the keyboard (FR-018)
 - [ ] T021 [US1] Reflect the new kind in the tree without a reload in `apps/web/src/features/navigation/tree.tsx` (FR-017)
-- [ ] T022 [P] [US1] Integration test in `packages/database/tests/conversion.integration.spec.ts` — converting touches no placement row and the composite key still holds
+- [X] T022 [P] [US1] Integration test in `packages/database/tests/conversion.integration.spec.ts` — converting touches no placement row and the composite key still holds
 - [ ] T023 [US1] Playwright journey in `tests/e2e/item-conversion.spec.ts` — folder with children becomes a page, content is written, children survive a reload in order
 - [ ] T024 [P] [US1] Playwright case in `tests/e2e/item-conversion.spec.ts` — folder to page asks for no confirmation, because nothing is lost (FR-009)
 
@@ -81,12 +83,12 @@ folder becomes page — is shippable and useful on its own.
 
 **Independent test**: page with content and two child pages, convert, confirm the warning names the loss, verify children intact and content restorable.
 
-- [ ] T025 [US2] Delete the page document and its protected envelope in the same transaction as the kind change, in `packages/database/src/repositories/content/conversion-repository.ts` (research decision 3)
+- [X] T025 [US2] Delete the page document and its protected envelope in the same transaction as the kind change, in `packages/database/src/repositories/content/conversion-repository.ts` (research decision 3)
 - [ ] T026 [US2] Build the confirmation dialog in `apps/web/src/features/navigation/convert-item.tsx` — names the content and its attachments, states that recovery is limited to the retention window without quoting a number (FR-010, FR-011)
 - [ ] T027 [US2] Send `confirmedDestruction` in the command rather than setting it later, so a replayed command cannot destroy content the owner never agreed to lose (research decision 5)
 - [ ] T028 [P] [US2] Say there is nothing to lose when the page is empty, rather than warning about content that does not exist (US2 scenario 6)
 - [ ] T029 [P] [US2] Make the dialog a real focus-trapping dialog announced to assistive technology, returning focus to its trigger on close (FR-018)
-- [ ] T030 [P] [US2] Integration test in `packages/database/tests/conversion.integration.spec.ts` — after a destructive conversion no page document and no protected envelope remain for that item
+- [X] T030 [P] [US2] Integration test in `packages/database/tests/conversion.integration.spec.ts` — after a destructive conversion no page document and no protected envelope remain for that item
 - [ ] T031 [US2] Playwright journey in `tests/e2e/item-conversion.spec.ts` — the warning names the loss, declining changes nothing, accepting keeps every child
 - [ ] T032 [P] [US2] Playwright case in `tests/e2e/item-conversion.spec.ts` — restoring the revision from before the conversion brings the content back (FR-012, SC-005)
 - [ ] T033 [P] [US2] Contract test in `apps/api/tests/conversion.contract.spec.ts` — the API refuses a destructive conversion without the flag, whatever the caller (FR-014, the point of the whole design)
