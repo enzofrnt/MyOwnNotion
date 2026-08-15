@@ -84,7 +84,15 @@ async function writeDocument(itemId: Uuid): Promise<void> {
       document: {
         format: "myownnotion.document+json",
         formatVersion: 2,
-        body: { blocks: [] },
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: "01924f8e-7c1a-7000-8000-0000000000bb",
+              content: [{ text: "worth keeping" }],
+            },
+          ],
+        },
       },
     },
   });
@@ -135,6 +143,16 @@ describe("folder to page", () => {
     expect(await kindOf(folder)).toBe("page");
     // Asserted against real rows: the children are where they were, in order.
     expect(await activeChildIds(folder)).toEqual([first, second]);
+  });
+
+  it("treats an empty document as nothing to lose", async () => {
+    // Every page gets a document when it is created, with an empty body. If
+    // that counted as content, an owner would be warned about destroying a
+    // page they made ten seconds ago and never typed in — which teaches them
+    // to dismiss the warning that matters (US2 scenario 6).
+    const page = await createItem("page", "d");
+    expect((await convert(page, "folder")).result.status).toBe("accepted");
+    expect(await kindOf(page)).toBe("folder");
   });
 
   it("needs no confirmation, because nothing is lost", async () => {

@@ -42,6 +42,12 @@ const STATUS_BY_CODE: Partial<Record<SafeErrorCode, number>> = {
   "item.not-active": 409,
   "item.not-trashed": 409,
   "item.wrong-kind": 409,
+  // 409 rather than 400: the request is well formed and the owner simply has
+  // not agreed to the loss yet. The client is expected to ask them and resend
+  // the same command with the confirmation, which is a conflict of state, not
+  // a malformed payload.
+  "conversion.confirmation-required": 409,
+  "conversion.file-not-convertible": 409,
   "placement.not-found": 404,
   "placement.already-removed": 409,
   "placement.cardinality-violation": 409,
