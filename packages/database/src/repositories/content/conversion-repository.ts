@@ -76,11 +76,22 @@ export async function executeConvertItem(
   }
 
   if (plan.value.noop) {
-    // Already the target kind. No revision, because nothing changed — a replay
-    // must be quiet, not merely successful.
+    // Already the target kind, so no new revision: a replay must be quiet, not
+    // merely successful, and inventing a revision would put an event in the
+    // history for something that did not happen.
+    //
+    // The item's *current* revision is returned as the result instead of an
+    // empty list. That is not a workaround for the mutations_result_check
+    // constraint — it is what the constraint is asking for, correctly
+    // answered: the outcome of this mutation is the state the item is already
+    // in, and that state has a revision.
     return {
       ok: true,
-      value: { revisionIds: [], changedItemIds: [], itemId: plan.value.item.id },
+      value: {
+        revisionIds: [plan.value.item.currentRevisionId],
+        changedItemIds: [],
+        itemId: plan.value.item.id,
+      },
     };
   }
 

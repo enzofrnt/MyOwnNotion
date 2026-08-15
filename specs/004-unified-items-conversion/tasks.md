@@ -69,7 +69,7 @@ folder becomes page — is shippable and useful on its own.
 - [ ] T019 [US1] Apply the conversion to the local projection in `packages/client-core/src/outbox/apply-to-projection.ts`, so it works offline like every other command
 - [ ] T020 [P] [US1] Add the conversion control to `apps/web/src/features/navigation/convert-item.tsx`, reachable from the keyboard (FR-018)
 - [ ] T021 [US1] Reflect the new kind in the tree without a reload in `apps/web/src/features/navigation/tree.tsx` (FR-017)
-- [ ] T022 [P] [US1] Integration test in `packages/database/tests/conversion.integration.spec.ts` — converting touches no placement row and the composite key still holds
+- [X] T022 [P] [US1] Integration test in `packages/database/tests/conversion.integration.spec.ts` — converting touches no placement row and the composite key still holds
 - [ ] T023 [US1] Playwright journey in `tests/e2e/item-conversion.spec.ts` — folder with children becomes a page, content is written, children survive a reload in order
 - [ ] T024 [P] [US1] Playwright case in `tests/e2e/item-conversion.spec.ts` — folder to page asks for no confirmation, because nothing is lost (FR-009)
 
@@ -88,7 +88,7 @@ folder becomes page — is shippable and useful on its own.
 - [ ] T027 [US2] Send `confirmedDestruction` in the command rather than setting it later, so a replayed command cannot destroy content the owner never agreed to lose (research decision 5)
 - [ ] T028 [P] [US2] Say there is nothing to lose when the page is empty, rather than warning about content that does not exist (US2 scenario 6)
 - [ ] T029 [P] [US2] Make the dialog a real focus-trapping dialog announced to assistive technology, returning focus to its trigger on close (FR-018)
-- [ ] T030 [P] [US2] Integration test in `packages/database/tests/conversion.integration.spec.ts` — after a destructive conversion no page document and no protected envelope remain for that item
+- [X] T030 [P] [US2] Integration test in `packages/database/tests/conversion.integration.spec.ts` — after a destructive conversion no page document and no protected envelope remain for that item
 - [ ] T031 [US2] Playwright journey in `tests/e2e/item-conversion.spec.ts` — the warning names the loss, declining changes nothing, accepting keeps every child
 - [ ] T032 [P] [US2] Playwright case in `tests/e2e/item-conversion.spec.ts` — restoring the revision from before the conversion brings the content back (FR-012, SC-005)
 - [ ] T033 [P] [US2] Contract test in `apps/api/tests/conversion.contract.spec.ts` — the API refuses a destructive conversion without the flag, whatever the caller (FR-014, the point of the whole design)
