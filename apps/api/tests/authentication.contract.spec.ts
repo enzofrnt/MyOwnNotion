@@ -327,7 +327,12 @@ describe("CSRF", () => {
     // accepted it as a query parameter, this would start passing without it.
     const response = await inject({
       method: "DELETE",
-      url: `/v1/auth/session?csrfToken=${auth.csrf}`,
+      // The rule this line trips forbids a token in a query string, and the
+      // only way to prove a route refuses one is to send one. Rewriting the
+      // URL to dodge the scanner would leave the rule enforced everywhere
+      // except at the one place that demonstrates it holds. The marker has to
+      // sit on the offending line, because the scanner exempts per line.
+      url: `/v1/auth/session?csrfToken=${auth.csrf}`, // static-security:allow no-secret-in-url
       headers: { cookie: `${COOKIE}=${auth.cookie}` },
     });
     expect(response.statusCode).toBe(403);

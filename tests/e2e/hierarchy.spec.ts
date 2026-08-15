@@ -52,6 +52,14 @@ test.describe("hierarchy organization (US1)", () => {
     await createChildItem(page, parent, "page", first);
     await createChildItem(page, parent, "page", second);
 
+    // Let the creations reconcile before reordering. Without this the test
+    // races itself: the reorder is applied optimistically, the creations'
+    // responses arrive afterwards carrying the server's ordering, and that
+    // ordering wins — so the assertion below waits fifteen seconds for a state
+    // the client has already discarded. It surfaced as a webkit-mobile
+    // flake, which is only where the timing was slow enough to lose reliably.
+    await waitForSynchronized(page);
+
     // Move "second" up; order persists after reload.
     await page.getByRole("button", { name: `Move ${second} up` }).click();
     // Wait for the optimistic reorder to land before waiting for the queue to
