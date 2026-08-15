@@ -28,7 +28,14 @@ export async function createRootItem(
   await page
     .getByRole("button", { name: kind === "page" ? "New root page" : "New root folder" })
     .click();
-  await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible();
+  // The same 15-second budget `createChildItem` already uses, and for the same
+  // reason. These two helpers do the same work, but only the child one was
+  // hardened when it last flaked; this one kept Playwright's 5-second default
+  // and went on failing intermittently on WebKit, which is slow enough to
+  // exceed it under a loaded CI runner. Two identical waits with different
+  // budgets is not a policy, it is an oversight that took two red runs on
+  // `main` to surface.
+  await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
 }
 
 export async function createChildItem(
@@ -50,7 +57,9 @@ export async function createChildItem(
 /** Selects a tree item by clicking its name (never the action buttons). */
 export async function selectItem(page: Page, name: string): Promise<void> {
   await page.getByTestId(`tree-item-${name}`).locator(".tree-name").click();
-  await expect(page.getByTestId(`tree-item-${name}`)).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId(`tree-item-${name}`)).toHaveAttribute("aria-selected", "true", {
+    timeout: 15_000,
+  });
 }
 
 export async function waitForSynchronized(page: Page): Promise<void> {
