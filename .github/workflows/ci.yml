@@ -304,6 +304,8 @@ jobs:
     needs: install
     permissions:
       contents: read
+      # For the SARIF upload only.
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -317,6 +319,18 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm security:secrets
+      - name: Publish the findings to GitHub
+        # Same reasoning as the container scan: GitHub's Security tab already
+        # renders SARIF, tracks which alerts are new since the base branch, and
+        # annotates pull requests. Reimplementing any of that would mean
+        # maintaining it.
+        #
+        # `always()` because a blocked run is the one worth reading.
+        if: always()
+        uses: github/codeql-action/upload-sarif@c16c0f3f2812ec4bb3750a5ed64873fe2ce0fbef # codeql-bundle-v2.26.3
+        with:
+          sarif_file: secret-scan.sarif
+          category: secret-scan
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -330,6 +344,8 @@ jobs:
     needs: install
     permissions:
       contents: read
+      # For the SARIF upload only.
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -339,6 +355,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm security:static
+      - name: Publish the findings to GitHub
+        # `always()` because a blocked run is the one worth reading.
+        if: always()
+        uses: github/codeql-action/upload-sarif@c16c0f3f2812ec4bb3750a5ed64873fe2ce0fbef # codeql-bundle-v2.26.3
+        with:
+          sarif_file: static-security.sarif
+          category: static-security-analysis
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -356,6 +379,8 @@ jobs:
     needs: build-images
     permissions:
       contents: read
+      # For the SARIF upload only.
+      security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
@@ -418,6 +443,23 @@ jobs:
           test -f container-scan.sarif || printf '%s\n' \
             '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"trivy","informationUri":"https://aquasecurity.github.io/trivy/"}},"results":[],"invocations":[{"executionSuccessful":false}]}]}' \
             > container-scan.sarif
+      - name: Publish the findings to GitHub
+        # GitHub's own SARIF ingestion rather than a report generated here.
+        # It puts every finding in the Security tab with its CVE, package and
+        # fixed version, annotates pull requests, and tracks which alerts are
+        # new since the base branch — none of which is worth reimplementing,
+        # and all of which would then need maintaining.
+        #
+        # `always()` because the run that blocked is exactly the one whose
+        # findings someone wants to look at.
+        if: always()
+        uses: github/codeql-action/upload-sarif@c16c0f3f2812ec4bb3750a5ed64873fe2ce0fbef # codeql-bundle-v2.26.3
+        with:
+          sarif_file: container-scan.sarif
+          # Named, because this repository will eventually upload more than one
+          # kind of SARIF and an unnamed category makes the second upload
+          # replace the first.
+          category: container-vulnerability-scan
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
