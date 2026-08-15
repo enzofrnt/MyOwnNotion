@@ -23,7 +23,7 @@ function placementWith(positionKey: string): Placement {
     id: generateUuidV7(),
     workspaceId: generateUuidV7(),
     itemId: generateUuidV7(),
-    itemKind: "page",
+    itemIsFile: false,
     kind: "hierarchy",
     parentItemId: null,
     positionKey,

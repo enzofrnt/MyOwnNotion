@@ -69,7 +69,8 @@ beforeAll(async () => {
       id: placementId,
       workspaceId,
       itemId: id,
-      itemKind: kind,
+      // Pages and folders only in this fixture.
+      itemIsFile: false,
       kind: "hierarchy",
       parentItemId: parent,
       positionKey: `${keys[index % BRANCHING] as string}${index.toString(36)}`,

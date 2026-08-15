@@ -110,7 +110,10 @@ async function executeCreateItem(
     id: plan.value.placement.id ?? generateUuidV7(),
     workspaceId: context.workspaceId,
     itemId: plan.value.item.id,
-    itemKind: plan.value.item.kind,
+    // Always false here, and the type says so: `item.create` accepts only
+    // 'page' and 'folder'. Files enter through `file.placement.add`, which sets
+    // this to true itself.
+    itemIsFile: false,
     kind: "hierarchy",
     parentItemId: plan.value.placement.parentItemId,
     positionKey: plan.value.placement.positionKey,

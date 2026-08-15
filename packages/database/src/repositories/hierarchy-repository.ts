@@ -32,7 +32,7 @@ export function toPlacement(row: PlacementRow): Placement {
     id: row.id as Uuid,
     workspaceId: row.workspaceId as Uuid,
     itemId: row.itemId as Uuid,
-    itemKind: row.itemKind as Placement["itemKind"],
+    itemIsFile: row.itemIsFile,
     kind: row.kind as Placement["kind"],
     parentItemId: (row.parentItemId as Uuid | null) ?? null,
     positionKey: row.positionKey,

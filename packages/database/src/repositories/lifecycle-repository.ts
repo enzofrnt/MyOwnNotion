@@ -319,7 +319,7 @@ export async function executeRestore(
         id: generateUuidV7(),
         workspaceId: item.workspaceId,
         itemId: item.id,
-        itemKind: item.kind,
+        itemIsFile: item.kind === "file",
         kind: placement.kind,
         parentItemId: placement.parentItemId,
         positionKey: placement.positionKey,

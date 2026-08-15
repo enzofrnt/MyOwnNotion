@@ -46,7 +46,7 @@ async function loadView(db: LocalDatabase): Promise<HierarchyView> {
     id: row.id,
     workspaceId: row.id,
     itemId: row.itemId,
-    itemKind: itemsById.get(row.itemId)?.kind ?? "page",
+    itemIsFile: (itemsById.get(row.itemId)?.kind ?? "page") === "file",
     kind: row.kind,
     parentItemId: row.parentItemId,
     positionKey: row.positionKey,

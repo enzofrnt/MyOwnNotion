@@ -16,8 +16,8 @@ folder becomes page — is shippable and useful on its own.
 
 ## Phase 1: Setup
 
-- [ ] T001 Reset the local database volume so the collapsed migration applies cleanly: `docker compose down -v && docker compose up -d --wait postgres`
-- [ ] T002 Record the migration-collapse exception in `plan.md` Complexity Tracking with its removal condition — *already written; verify it survived review before implementing*
+- [X] T001 Reset the local database volume so the collapsed migration applies cleanly: `docker compose down -v && docker compose up -d --wait postgres`
+- [X] T002 Record the migration-collapse exception in `plan.md` Complexity Tracking with its removal condition — *already written; verify it survived review before implementing*
 
 **Checkpoint**: a clean database, and the exception documented where the constitution requires.
 
@@ -31,11 +31,11 @@ folder becomes page — is shippable and useful on its own.
 
 ### Schema
 
-- [ ] T003 Collapse `packages/database/migrations/0001`–`0005` into a single `0001_initial.sql`, preserving every table, constraint and index that exists today
-- [ ] T004 In `0001_initial.sql`, add `is_file boolean GENERATED ALWAYS AS (kind = 'file') STORED` to `items` with a unique index on `(id, is_file)`
-- [ ] T005 In `0001_initial.sql`, replace `placements.item_kind` with `item_is_file boolean` and repoint the composite foreign key at `(id, is_file)`, keeping both constraints that used it (`placements_attachment_file_check`, `placements_single_hierarchy_unique`)
-- [ ] T006 Mirror the change in `packages/database/src/schema/index.ts`, keeping the comment explaining *why* the denormalisation copies the immutable property rather than the kind
-- [ ] T007 Verify the migration self-registers in `schema_migrations`, as every migration in this repository must
+- [X] T003 Collapse `packages/database/migrations/0001`–`0005` into a single `0001_initial.sql`, preserving every table, constraint and index that exists today
+- [X] T004 In `0001_initial.sql`, add `is_file boolean GENERATED ALWAYS AS (kind = 'file') STORED` to `items` with a unique index on `(id, is_file)`
+- [X] T005 In `0001_initial.sql`, replace `placements.item_kind` with `item_is_file boolean` and repoint the composite foreign key at `(id, is_file)`, keeping both constraints that used it (`placements_attachment_file_check`, `placements_single_hierarchy_unique`)
+- [X] T006 Mirror the change in `packages/database/src/schema/index.ts`, keeping the comment explaining *why* the denormalisation copies the immutable property rather than the kind
+- [X] T007 Verify the migration self-registers in `schema_migrations`, as every migration in this repository must
 
 ### Domain rules
 

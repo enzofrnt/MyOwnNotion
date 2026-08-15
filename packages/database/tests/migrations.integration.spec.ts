@@ -21,7 +21,7 @@ afterAll(async () => {
 describe("reviewed SQL migrations", () => {
   it("applies from an empty database", async () => {
     const applied = await applyMigrations(database.connectionString);
-    expect(applied).toContain("0001_content_foundations");
+    expect(applied).toContain("0001_initial");
   });
 
   it("is idempotent: reapplying applies nothing", async () => {
@@ -84,7 +84,73 @@ describe("reviewed SQL migrations", () => {
         `SELECT indexdef FROM pg_indexes WHERE indexname = 'placements_single_hierarchy_unique'`,
       );
       expect(rows[0]?.indexdef).toContain("UNIQUE");
-      expect(rows[0]?.indexdef).toContain("item_kind <> 'file'");
+      // Predicated on the denormalised file-ness, not on the kind. Copying
+      // the kind is what made a page unable to become a folder, because every
+      // placement row referenced it through a composite foreign key.
+      expect(rows[0]?.indexdef).toContain("NOT item_is_file");
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("lets an item's kind change without touching its placements", async () => {
+    // The property the whole feature-004 schema change exists for, asserted
+    // against a real database rather than argued in a comment.
+    //
+    // Under the previous schema this update violated `placements_item_kind_fk`
+    // on every placement the item had, because the composite key referenced
+    // (id, kind) — a value that changes when a page becomes a folder. It now
+    // references (id, is_file), which does not.
+    const client = new pg.Client({ connectionString: database.connectionString });
+    await client.connect();
+    try {
+      const workspaceId = "00000000-0000-7000-8000-0000000f0001";
+      const itemId = "00000000-0000-7000-8000-0000000f0010";
+      const revisionId = "00000000-0000-7000-8000-0000000f0020";
+      const mutationId = "00000000-0000-7000-8000-0000000f0002";
+      const placementId = "00000000-0000-7000-8000-0000000f0030";
+
+      await client.query("BEGIN");
+      await client.query("SET CONSTRAINTS ALL DEFERRED");
+      await client.query(
+        `INSERT INTO workspaces (id, schema_version) VALUES ($1, 1)
+         ON CONFLICT DO NOTHING`,
+        [workspaceId],
+      );
+      await client.query(
+        `INSERT INTO mutations (id, workspace_id, command_type, status, accepted_at, result_revision_ids)
+         VALUES ($1, $2, 'item.create', 'accepted', now(), ARRAY[$3]::uuid[])`,
+        [mutationId, workspaceId, revisionId],
+      );
+      await client.query(
+        `INSERT INTO items (id, workspace_id, kind, name, current_revision_id)
+         VALUES ($1, $2, 'page', 'Convertible', $3)`,
+        [itemId, workspaceId, revisionId],
+      );
+      await client.query(
+        `INSERT INTO revisions (id, item_id, mutation_id, lineage_digest)
+         VALUES ($1, $2, $3, 'digest')`,
+        [revisionId, itemId, mutationId],
+      );
+      await client.query(
+        `INSERT INTO placements
+           (id, workspace_id, item_id, item_is_file, kind, parent_item_id, position_key, created_revision_id)
+         VALUES ($1, $2, $3, false, 'hierarchy', NULL, 'V', $4)`,
+        [placementId, workspaceId, itemId, revisionId],
+      );
+      await client.query("COMMIT");
+
+      await client.query(`UPDATE items SET kind = 'folder' WHERE id = $1`, [itemId]);
+
+      const { rows } = await client.query<{ kind: string; position_key: string }>(
+        `SELECT i.kind, p.position_key
+           FROM items i JOIN placements p ON p.item_id = i.id
+          WHERE i.id = $1`,
+        [itemId],
+      );
+      expect(rows[0]?.kind).toBe("folder");
+      // Same placement, same position: the conversion did not move anything.
+      expect(rows[0]?.position_key).toBe("V");
     } finally {
       await client.end();
     }

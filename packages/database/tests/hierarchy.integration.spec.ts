@@ -73,7 +73,8 @@ beforeAll(async () => {
       id: placementId,
       workspaceId: context.workspaceId,
       itemId: id,
-      itemKind: kind,
+      // This helper only creates pages and folders; files have their own path.
+      itemIsFile: false,
       kind: "hierarchy",
       parentItemId: parent,
       positionKey: `${keys[index % BRANCHING] as string}${index.toString(36)}`,
