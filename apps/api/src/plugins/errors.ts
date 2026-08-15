@@ -14,6 +14,7 @@ import {
   toSafeProblem,
 } from "@myownnotion/domain";
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { ProtectedContentUnavailableError } from "../security/content-resolution.ts";
 import { requestContext } from "../security/request-context.ts";
 
 export interface ProblemBody {
@@ -117,6 +118,22 @@ export function registerErrorHandling(app: FastifyInstance): void {
         correlationId: safeCorrelationId(_request),
       };
       return reply.status(400).header("content-type", "application/problem+json").send(problem);
+    }
+
+    // A protected record that could not be read is reported as itself rather
+    // than as an unexpected failure. The distinction matters to the person
+    // reading it: "unexpected" invites a bug report, and this is a key or an
+    // envelope problem with an operator-side cause. The code is deliberately
+    // coarse — naming the failed check would be a decryption oracle.
+    if (error instanceof ProtectedContentUnavailableError) {
+      _request.log.error({ err: error }, "protected read failed");
+      const problem: ProblemBody = {
+        type: "https://myownnotion.dev/problems/protected_read_failed",
+        title: "Protected record could not be read",
+        status: 500,
+        code: "protected_read_failed",
+      };
+      return reply.status(500).header("content-type", "application/problem+json").send(problem);
     }
 
     const statusCode =
