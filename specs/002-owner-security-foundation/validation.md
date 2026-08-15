@@ -221,6 +221,55 @@ them is worth less than no ledger:
   and by local runs of the scripts they invoke, but they have never executed.
   Re-running them is the first item of the deferred checkup.
 
+## Toolchain and artifact validation (T109)
+
+Every checker this feature relies on, run against the same candidate as the
+gate above.
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Formatting, without modifying files | `pnpm format:check` | pass, 339 files |
+| Biome lint and static analysis | `pnpm lint:ci` | pass, 340 files, 0 warnings |
+| TypeScript | `pnpm typecheck` | pass, 0 errors |
+| Shell | `pnpm shell:check` | **not run on this host** — see below |
+| Contract suites | `pnpm exec vitest run --project workspace-contract` | 147 passed |
+| Forward migrations | `pnpm db:test-migrations` | 5 passed |
+| Compose contract | `pnpm compose:check` | pass |
+| Release and gate artifacts | `tests/contract/release-gates.spec.ts`, `tests/contract/release-artifacts.spec.ts` | 36 passed |
+| Toolchain policy | `pnpm toolchain:check` | pass, 437 tracked files |
+
+**`shell:check` did not run**, and the reason is recorded rather than the row
+left blank: it pins shfmt `3.12.0` and this host has `3.13.1`, so it refuses
+before checking anything. That refusal is correct — a formatter that silently
+accepted a different version would let formatting drift between a developer's
+machine and CI. Five shell files are tracked and none was modified by this
+feature's work, so the gap is bounded: it can only hide drift introduced
+elsewhere, and CI runs the pinned version.
+
+The release and gate artifact checks read `.github/workflows/ci.yml`,
+`release.yml`, and `.github/rulesets/main.json` as documents. That is the only
+way to check the class of failure a workflow cannot check about itself — a
+required job that is simply absent never appears in the aggregate's own
+comparison, and its absence looks exactly like everything passing.
+
+## Feature-001 scope guard (T114)
+
+The scope guard says feature 002 must not edit feature-001 specification
+artifacts. Verified rather than asserted:
+
+| Question | Method | Result |
+| --- | --- | --- |
+| Were any `specs/001-content-foundations/` files changed by this feature's work? | `git diff --name-only <feature start>..HEAD -- specs/001-*` | 0 files |
+| Does any open task schedule such an edit? | Read of `tasks.md` | none; the only mention is the scope guard itself |
+| Are feature-001 canonical identities preserved through the security path? | `apps/api/tests/administrative-recovery.integration.spec.ts`, `apps/api/tests/migration-backfill.integration.spec.ts` | identifiers adopted and verified verbatim |
+
+The last row is the one that matters. Not editing the specification is easy;
+what would actually break feature 001 is a security path that *regenerated* an
+identifier — an installation holding the same notes and denying it is the same
+installation, with every revision and mutation bound to an identity that no
+longer matches the data it describes. The recovery import adopts them verbatim
+and the migration's verification compares them, both under test.
+
 ## Functional-requirement ledger
 
 | Requirement/criterion | Command or test path | Candidate SHA | Controlled clock/configuration | Raw evidence/artifact | Reviewer/date | Status |
