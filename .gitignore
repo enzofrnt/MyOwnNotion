@@ -75,3 +75,7 @@ container-scan-*.sarif
 .DS_Store
 Thumbs.db
 *.swp
+
+# Written by the containerised Playwright run, which installs into the
+# mounted checkout. Never part of the repository.
+.pnpm-store/

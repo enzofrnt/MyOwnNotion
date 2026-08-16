@@ -128,6 +128,7 @@ export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
       ]);
       return;
     }
+
     const day = 24 * 60 * 60 * 1000;
     await client.query(
       `INSERT INTO rotation_policies
@@ -140,6 +141,25 @@ export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
              state = EXCLUDED.state`,
       [installationId, new Date(Date.now() - 400 * day), new Date(Date.now() - day)],
     );
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * Removes every rotation policy from the installation.
+ *
+ * Any journey that seeds a policy owes the next one this call. A policy is
+ * installation-wide and outlives the file that wrote it, so one left behind in
+ * `write-block` state refuses every write in every journey that follows —
+ * including the first journeys of the *next browser project*, which then fail
+ * as "the row never appeared" with nothing pointing back here.
+ */
+export async function clearRotationPolicies(): Promise<void> {
+  const client = new pg.Client({ connectionString: connectionString() });
+  await client.connect();
+  try {
+    await client.query(`DELETE FROM rotation_policies`);
   } finally {
     await client.end();
   }
