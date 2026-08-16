@@ -172,7 +172,11 @@ test.describe("the tree as one tab stop", () => {
 });
 
 test.describe("acting on an item from the keyboard", () => {
-  test("F2 starts a rename", async ({ page }) => {
+  test("F2 starts a rename", async ({ page, isMobile }) => {
+    // Desktop engines only. F2 is a physical-keyboard key that a touch keyboard
+    // does not offer, so the assertion says nothing about the mobile
+    // experience; renaming there is covered by the visible control.
+    test.skip(isMobile === true, "F2 is not a key a touch keyboard has");
     await openWorkspace(page);
     const name = uniqueName("Renamable");
     await createRootItem(page, "folder", name);
@@ -187,7 +191,9 @@ test.describe("acting on an item from the keyboard", () => {
     await expect(row(page, renamed)).toBeVisible({ timeout: 30_000 });
   });
 
-  test("Delete asks before trashing, and declining changes nothing", async ({ page }) => {
+  test("Delete asks before trashing, and declining changes nothing", async ({ page, isMobile }) => {
+    // Desktop engines only, for the same reason as F2.
+    test.skip(isMobile === true, "Delete is not a key a touch keyboard has");
     // A destructive key with no confirmation is a key an owner presses once and
     // regrets. Declining must be a complete no-op.
     await openWorkspace(page);

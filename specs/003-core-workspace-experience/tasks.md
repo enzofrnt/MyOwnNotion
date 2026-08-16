@@ -20,7 +20,7 @@ improvement over today's raw-JSON textarea.
 ## Phase 1: Setup
 
 - [X] T001 Add Tiptap 3 (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`) to `apps/web/package.json` and refresh `pnpm-lock.yaml` — *deferred to the Phase 3 batch, where the dependency is actually used; adding it earlier would land an unused dependency*
-- [ ] T002 [P] Add `@axe-core/playwright` as a root dev dependency in `package.json` for the SC-004 audit — *deferred to the Phase 8 batch, for the same reason*
+- [X] T002 [P] Add `@axe-core/playwright` as a root dev dependency in `package.json` for the SC-004 audit — *deferred to the Phase 8 batch, for the same reason*
 - [X] T003 [P] Create the `packages/domain/src/document/` module directory with an `index.ts` barrel exported from `packages/domain/src/index.ts`
 - [X] T004 [P] Amend `docs/product/roadmap.md` to move canvas section 14 (databases and views) out of feature 003 into its own future feature, per constitution principle VIII and the spec's Assumptions — *the roadmap turned out to contradict itself as well: section 14 was claimed by both 003 and 008*
 
@@ -140,11 +140,11 @@ improvement over today's raw-JSON textarea.
 
 **Independent test**: complete User Story 1 at a 320-pixel viewport with no horizontal page scrolling at any point.
 
-- [ ] T061 [US4] Make the workspace layout responsive from 320 pixels in `apps/web/src/styles.css` and `apps/web/src/app.tsx` (FR-021)
+- [X] T061 [US4] Make the workspace layout responsive from 320 pixels in `apps/web/src/styles.css` and `apps/web/src/app.tsx` (FR-021)
 - [ ] T062 [US4] Turn the sidebar into a dismissable overlay at narrow widths in `apps/web/src/features/navigation/sidebar.tsx` — closable by `Escape` and a visible control, returning focus to its trigger (US4 scenario 2)
-- [ ] T063 [P] [US4] Contain wide content — code blocks, long links — inside their own scroll containers in `apps/web/src/styles.css` so the page never widens
-- [ ] T064 [P] [US4] Ensure touch targets are at least 44×44 pixels across the editor and tree controls in `apps/web/src/styles.css`
-- [ ] T065 [US4] Playwright journey in `tests/e2e/narrow-viewport.spec.ts` — US1 completed at 320 pixels, asserting `scrollWidth <= clientWidth + 1` on every core screen (SC-008)
+- [X] T063 [P] [US4] Contain wide content — code blocks, long links — inside their own scroll containers in `apps/web/src/styles.css` so the page never widens
+- [X] T064 [P] [US4] Ensure touch targets are at least 44×44 pixels across the editor and tree controls in `apps/web/src/styles.css`
+- [X] T065 [US4] Playwright journey in `tests/e2e/narrow-viewport.spec.ts` — US1 completed at 320 pixels, asserting `scrollWidth <= clientWidth + 1` on every core screen (SC-008)
 
 ---
 
@@ -154,20 +154,20 @@ improvement over today's raw-JSON textarea.
 
 **Independent test**: point the client at a non-local server over plain HTTP and confirm the warning is clear and unmistakable.
 
-- [ ] T066 [US5] Report reachability, protocol compatibility, channel security, and authentication state in `apps/web/src/features/connection/connection-status.tsx` (FR-023)
-- [ ] T067 [US5] Warn on a non-local address over an insecure channel in `apps/web/src/features/connection/connection-status.tsx` — plainly, not as a subtle badge (FR-024)
-- [ ] T068 [P] [US5] State a protocol-version mismatch at connection time in `apps/web/src/features/connection/connection-status.tsx`, rather than failing unrelatedly later (US5 scenario 2)
-- [ ] T069 [US5] Playwright journey in `tests/e2e/connection-trust.spec.ts` — the insecure non-local warning and the version-mismatch statement
+- [X] T066 [US5] Report reachability, protocol compatibility, channel security, and authentication state in `apps/web/src/features/connection/connection-status.tsx` (FR-023)
+- [X] T067 [US5] Warn on a non-local address over an insecure channel in `apps/web/src/features/connection/connection-status.tsx` — plainly, not as a subtle badge (FR-024)
+- [X] T068 [P] [US5] State a protocol-version mismatch at connection time in `apps/web/src/features/connection/connection-status.tsx`, rather than failing unrelatedly later (US5 scenario 2)
+- [X] T069 [US5] Playwright journey in `tests/e2e/connection-trust.spec.ts` — the insecure non-local warning and the version-mismatch statement
 
 ---
 
 ## Phase 8: Polish & cross-cutting
 
-- [ ] T070 Extend `tests/e2e/accessibility.spec.ts` with `@axe-core/playwright` over the workspace, editor, and settings screens, failing on any critical or serious violation (SC-004)
+- [X] T070 Extend `tests/e2e/accessibility.spec.ts` with `@axe-core/playwright` over the workspace, editor, and settings screens, failing on any critical or serious violation (SC-004)
 - [ ] T071 [P] Add `tests/e2e/editor-performance.spec.ts` — a generated 500-block document, asserting keystroke-to-visible under 100 ms at p95 (SC-005) and open-to-editable under 2 seconds (SC-006)
-- [ ] T072 [P] Document the content model and its export path in `docs/` and link it from the product documentation, since FR-005 requires the model to be documented and not merely to exist
-- [ ] T073 [P] Create `specs/003-core-workspace-experience/validation.md` recording evidence per FR and SC, with SC-002 and SC-007 marked pending because they need ten human participants
-- [ ] T074 Run the full local gate — `pnpm checks:local` then `pnpm test:e2e` — before the pull request, per constitution principle III
+- [X] T072 [P] Document the content model and its export path in `docs/` and link it from the product documentation, since FR-005 requires the model to be documented and not merely to exist
+- [X] T073 [P] Create `specs/003-core-workspace-experience/validation.md` recording evidence per FR and SC, with SC-002 and SC-007 marked pending because they need ten human participants
+- [X] T074 Run the full local gate — `pnpm checks:local` then `pnpm test:e2e` — before the pull request, per constitution principle III
 
 ---
 

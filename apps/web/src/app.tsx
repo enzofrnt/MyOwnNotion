@@ -12,11 +12,13 @@
  * sign-in prompt would suggest the content is already available to whoever is
  * looking at the screen.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BootstrapPage } from "./features/auth/bootstrap-page.tsx";
 import { LoginPage } from "./features/auth/login-page.tsx";
+import { ConnectionStatus } from "./features/connection/connection-status.tsx";
 import { HierarchyExplorer } from "./features/hierarchy/hierarchy-explorer.tsx";
 import { SecuritySettings } from "./features/security/security-settings.tsx";
+import { ContentApi } from "./services/content-api.ts";
 import { SecurityApi } from "./services/security-api.ts";
 
 type Gate = "checking" | "bootstrap" | "login" | "workspace";
@@ -27,6 +29,14 @@ export interface AppProps {
 }
 
 export function App(props: AppProps = {}) {
+  // Declared before any conditional return: a hook placed after one is a hook
+  // that does not run on every render, which React refuses — and the symptom
+  // is the whole application failing to mount, not a warning.
+  //
+  // One instance for the connection panel. It only issues a health check, so it
+  // shares nothing with the content service and needs no coordination.
+  const connectionApi = useMemo(() => new ContentApi(), []);
+
   const [api] = useState(() => props.api ?? new SecurityApi());
   const [gate, setGate] = useState<Gate>("checking");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -127,7 +137,15 @@ export function App(props: AppProps = {}) {
       </header>
       <main className="app-main">
         {showSecurity ? (
-          <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
+          <>
+            {/* On the security screen rather than in the workspace chrome: an
+                owner checks who they are talking to when they are thinking
+                about trust, and a permanent banner in the sidebar becomes
+                furniture nobody reads. The insecure-channel warning inside it
+                is the exception — it is an alert wherever it appears. */}
+            <ConnectionStatus api={connectionApi} />
+            <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
+          </>
         ) : (
           <HierarchyExplorer />
         )}

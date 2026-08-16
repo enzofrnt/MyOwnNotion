@@ -601,3 +601,50 @@ input[type="file"] {
 .tree-twisty--leaf {
   cursor: default;
 }
+
+/* ---------------------------------------------------------------------------
+   Narrow viewports (feature 003, US4, FR-021)
+   ------------------------------------------------------------------------ */
+
+/* The floor is 320 pixels, and the rule that keeps it is simple: nothing may
+   make the page itself wider. Wide content scrolls inside its own container
+   instead — a code block, a long unbroken link, a table — because a page that
+   scrolls sideways loses the left edge of every line, which is where reading
+   starts. */
+.app-shell {
+  overflow-x: clip;
+}
+
+pre,
+code,
+.editor-surface pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Long unbroken strings — a URL, an identifier — break rather than push. */
+code,
+.tree-name,
+.save-state,
+.connection-status code {
+  overflow-wrap: anywhere;
+}
+
+.connection-status {
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 400px) {
+  /* Controls stack rather than crowd. At this width a row of six buttons is
+     six buttons nobody can hit. */
+  .tree-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .tree-actions button,
+  .block-controls button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+}
