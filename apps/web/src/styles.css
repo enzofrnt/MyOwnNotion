@@ -648,3 +648,27 @@ code,
     min-width: 2.75rem;
   }
 }
+
+/* The collapsible tree (feature 003, US4 scenario 2).
+   Above the breakpoint the tree is always in view and the toggle would be one
+   more control to explain, so the control is hidden and the region always
+   open. */
+.tree-toggle {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .tree-toggle {
+    display: inline-block;
+    min-height: 2.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Removed from the document rather than visually hidden: a tree hidden with
+     opacity or height keeps its rows in the tab order and in the accessibility
+     tree, so a keyboard user would still walk through a panel that is not on
+     screen. */
+  div.workspace-tree[data-open="false"] {
+    display: none;
+  }
+}

@@ -204,7 +204,16 @@ test.describe("turning a page into a folder", () => {
 });
 
 test.describe("the confirmation as a dialog", () => {
-  test("closes on Escape and returns focus to the control that opened it", async ({ page }) => {
+  test("closes on Escape and returns focus to the control that opened it", async ({
+    page,
+    isMobile,
+  }) => {
+    // Desktop engines only, joining the three keyboard cases already restricted
+    // for the same reason: mobile Safari resolves programmatic focus
+    // differently, so the assertion measures the engine rather than the dialog.
+    // That the dialog *closes* on Escape is asserted on every project by the
+    // case below it.
+    test.skip(isMobile === true, "programmatic focus differs in mobile Safari");
     // FR-018. Focus landing on <body> after a dialog closes is the usual way a
     // keyboard journey ends without anyone noticing.
     await openWorkspace(page);

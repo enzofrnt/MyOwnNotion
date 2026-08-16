@@ -106,3 +106,57 @@ test.describe("at 320 pixels", () => {
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
   });
 });
+
+test.describe("the collapsible tree", () => {
+  test("can be hidden and shown again on a phone", async ({ page }) => {
+    // US4 scenario 2. At 320 pixels the tree and the editor cannot both be on
+    // screen and be usable, so the tree has to get out of the way — and come
+    // back.
+    await page.setViewportSize(NARROW);
+    await openWorkspace(page);
+    const name = uniqueName("Collapsible");
+    await createRootItem(page, "folder", name);
+    await waitForSynchronized(page);
+
+    await expect(page.getByTestId("workspace-tree")).toBeVisible();
+    await page.getByTestId("toggle-tree").click();
+    await expect(page.getByTestId("workspace-tree")).toBeHidden();
+
+    await page.getByTestId("toggle-tree").click();
+    await expect(page.getByTestId("workspace-tree")).toBeVisible();
+  });
+
+  test("closes on Escape and gives focus back to the control", async ({ page }) => {
+    // Leaving focus inside a panel that is no longer on screen is how a
+    // keyboard journey ends without anyone noticing.
+    await page.setViewportSize(NARROW);
+    await openWorkspace(page);
+    const name = uniqueName("Escapable");
+    await createRootItem(page, "folder", name);
+    await waitForSynchronized(page);
+
+    await page.getByTestId(`tree-item-${name}`).focus();
+    await page.keyboard.press("Escape");
+
+    await expect(page.getByTestId("workspace-tree")).toBeHidden();
+    await expect(page.getByTestId("toggle-tree")).toBeFocused();
+  });
+
+  test("declares whether it is open", async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await openWorkspace(page);
+    await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "true");
+    await page.getByTestId("toggle-tree").click();
+    await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("stays out of the way on a desktop", async ({ page }) => {
+    // The control exists in the markup at every width; above the breakpoint it
+    // is not shown, because the tree is always in view and a toggle would be
+    // one more thing to explain.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+    await expect(page.getByTestId("toggle-tree")).toBeHidden();
+    await expect(page.getByTestId("workspace-tree")).toBeVisible();
+  });
+});

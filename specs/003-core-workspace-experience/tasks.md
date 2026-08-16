@@ -141,7 +141,7 @@ improvement over today's raw-JSON textarea.
 **Independent test**: complete User Story 1 at a 320-pixel viewport with no horizontal page scrolling at any point.
 
 - [X] T061 [US4] Make the workspace layout responsive from 320 pixels in `apps/web/src/styles.css` and `apps/web/src/app.tsx` (FR-021)
-- [ ] T062 [US4] Turn the sidebar into a dismissable overlay at narrow widths in `apps/web/src/features/navigation/sidebar.tsx` — closable by `Escape` and a visible control, returning focus to its trigger (US4 scenario 2)
+- [X] T062 [US4] Turn the sidebar into a dismissable overlay at narrow widths in `apps/web/src/features/navigation/sidebar.tsx` — closable by `Escape` and a visible control, returning focus to its trigger (US4 scenario 2)
 - [X] T063 [P] [US4] Contain wide content — code blocks, long links — inside their own scroll containers in `apps/web/src/styles.css` so the page never widens
 - [X] T064 [P] [US4] Ensure touch targets are at least 44×44 pixels across the editor and tree controls in `apps/web/src/styles.css`
 - [X] T065 [US4] Playwright journey in `tests/e2e/narrow-viewport.spec.ts` — US1 completed at 320 pixels, asserting `scrollWidth <= clientWidth + 1` on every core screen (SC-008)

@@ -10,7 +10,7 @@
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { readNavigationState, writeNavigationState } from "@myownnotion/client-core";
 import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
@@ -101,6 +101,18 @@ export function HierarchyExplorer() {
   // erasing every open branch on the way in.
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [newItemName, setNewItemName] = useState("");
+  /**
+   * Whether the tree is showing at narrow widths.
+   *
+   * Open by default: an owner who lands on the workspace should see what is in
+   * it. The control only appears below the breakpoint, so on a desktop this
+   * state is set and never read.
+   */
+  const [treeOpen, setTreeOpen] = useState(true);
+  const treeToggle = useRef<HTMLButtonElement | null>(null);
+  // Held in a ref so the key listener does not have to be rebound whenever the
+  // callback identity changes.
+  const closeTreeRef = useRef<() => void>(() => {});
 
   const refresh = useCallback(async () => {
     setItems(await service.listActiveItems());
@@ -370,6 +382,37 @@ export function HierarchyExplorer() {
     },
   });
 
+  useEffect(() => {
+    // Escape is bound to the document rather than to the container, and not
+    // only because a plain <div> with a key handler is a lint error: the owner
+    // may have tabbed out of the tree into the editor, and the panel still
+    // needs to close from wherever they are.
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape" || !treeOpen) {
+        return;
+      }
+      // Only when the owner is *in* the tree. A document-wide Escape handler
+      // competes with every dialog on the page: closing the conversion
+      // confirmation also collapsed the tree and pulled focus onto its toggle,
+      // which is a worse outcome than not handling the key at all.
+      const active = document.activeElement;
+      const inTree = active instanceof HTMLElement && active.closest("#workspace-tree") !== null;
+      if (inTree) {
+        closeTreeRef.current();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [treeOpen]);
+
+  const closeTree = useCallback(() => {
+    setTreeOpen(false);
+    // Back to the control that opened it. Leaving focus in a panel that is no
+    // longer on screen is how a keyboard journey ends without anyone noticing.
+    treeToggle.current?.focus();
+  }, []);
+  closeTreeRef.current = closeTree;
+
   if (loadState === "loading") {
     return (
       <p className="loading-state" role="status">
@@ -539,41 +582,65 @@ export function HierarchyExplorer() {
   return (
     <section aria-label="Workspace hierarchy">
       <SyncStatus service={service} />
+
+      {/* Only rendered as a control below the breakpoint — CSS hides it wider
+          than that, where the tree is always in view and a toggle would be one
+          more thing to explain. */}
+      <button
+        type="button"
+        ref={treeToggle}
+        className="tree-toggle"
+        data-testid="toggle-tree"
+        aria-expanded={treeOpen}
+        aria-controls="workspace-tree"
+        onClick={() => {
+          setTreeOpen((open) => !open);
+        }}
+      >
+        {treeOpen ? "Hide the workspace tree" : "Show the workspace tree"}
+      </button>
       {problem !== null ? (
         <p className="status-banner" data-state="error" role="alert" data-testid="problem-banner">
           {problem.code}: {problem.title}
         </p>
       ) : null}
 
-      <div className="toolbar">
-        <label htmlFor="new-item-name" className="muted">
-          Name
-        </label>
-        <input
-          id="new-item-name"
-          type="text"
-          value={newItemName}
-          placeholder="New item name"
-          onChange={(event) => setNewItemName(event.target.value)}
-        />
-        <button type="button" onClick={() => void createItem("folder", null)}>
-          New root folder
-        </button>
-        <button type="button" onClick={() => void createItem("page", null)}>
-          New root page
-        </button>
-      </div>
+      <div
+        id="workspace-tree"
+        className="workspace-tree"
+        data-open={treeOpen}
+        data-testid="workspace-tree"
+      >
+        <div className="toolbar">
+          <label htmlFor="new-item-name" className="muted">
+            Name
+          </label>
+          <input
+            id="new-item-name"
+            type="text"
+            value={newItemName}
+            placeholder="New item name"
+            onChange={(event) => setNewItemName(event.target.value)}
+          />
+          <button type="button" onClick={() => void createItem("folder", null)}>
+            New root folder
+          </button>
+          <button type="button" onClick={() => void createItem("page", null)}>
+            New root page
+          </button>
+        </div>
 
-      {tree.length === 0 ? (
-        <p className="empty-state" data-testid="empty-state">
-          The workspace is empty. Create a folder or a page to begin.
-        </p>
-      ) : (
-        /* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the list receives the tree role deliberately (WAI-ARIA tree over ul/li) */
-        <ul role="tree" aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
-          {tree.map((node) => renderNode(node, 1))}
-        </ul>
-      )}
+        {tree.length === 0 ? (
+          <p className="empty-state" data-testid="empty-state">
+            The workspace is empty. Create a folder or a page to begin.
+          </p>
+        ) : (
+          /* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the list receives the tree role deliberately (WAI-ARIA tree over ul/li) */
+          <ul role="tree" aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
+            {tree.map((node) => renderNode(node, 1))}
+          </ul>
+        )}
+      </div>
 
       <MutationStatus service={service} />
 
