@@ -19,6 +19,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createChildItem,
   createRootItem,
+  expectNoHorizontalOverflow,
   openWorkspace,
   readTreeOrder,
   selectItem,
@@ -258,9 +259,6 @@ test.describe("at a narrow viewport", () => {
     await convertButton(page, name).click();
     await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
 
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-    );
-    expect(overflows).toBe(false);
+    await expectNoHorizontalOverflow(page);
   });
 });
