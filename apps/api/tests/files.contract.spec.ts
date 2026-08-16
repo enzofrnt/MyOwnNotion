@@ -266,3 +266,57 @@ describe("copy-on-write content replacement (FR-030/FR-036)", () => {
     expect(body.competingRevisionIds?.length).toBe(1);
   });
 });
+
+describe("what uses a file (feature 005, FR-005)", () => {
+  it("names the page a file is attached to", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Usage host" });
+    const result = await importFile("used.txt", "used bytes", {
+      kind: "attachment",
+      parentItemId: page.itemId,
+      positionKey: "U1x",
+    });
+    expect(result.status).toBe(201);
+
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${result.itemId}/usages`,
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      usages: Array<{ usedByItemId: string; usedByName: string; usageKind: string }>;
+    };
+    expect(body.usages).toHaveLength(1);
+    // The name travels with the id, because this is read while an owner decides
+    // whether to destroy something and a bare identifier decides nothing.
+    expect(body.usages[0]?.usedByName).toBe("Usage host");
+    expect(body.usages[0]?.usedByItemId).toBe(page.itemId);
+    expect(body.usages[0]?.usageKind).toBe("attachment");
+  });
+
+  it("answers with an empty list for a file nothing points at", async () => {
+    const result = await importFile("lonely.txt", "lonely bytes", {
+      kind: "hierarchy",
+      parentItemId: null,
+      positionKey: "U2x",
+    });
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${result.itemId}/usages`,
+    });
+    // A file at the workspace root is placed, not used: nothing would break if
+    // it went away, which is the question this endpoint answers.
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { usages: unknown[] }).usages).toEqual([]);
+  });
+
+  it("answers for an unknown id rather than failing", async () => {
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${generateUuidV7()}/usages`,
+    });
+    // An empty answer, not a 404: the caller asked what uses a file, and
+    // "nothing" is a complete answer even when the file is gone.
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { usages: unknown[] }).usages).toEqual([]);
+  });
+});

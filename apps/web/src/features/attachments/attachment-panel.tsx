@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentList, type AttachmentRow } from "../files/attachment-list.tsx";
+import { DeleteFile } from "../files/delete-file.tsx";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 import { ReplaceFileContent } from "./replace-file-content.tsx";
 
@@ -167,6 +168,15 @@ export function AttachmentPanel({
               >
                 remove
               </button>
+              <DeleteFile
+                api={api}
+                fileItemId={row.item.id as Uuid}
+                fileName={row.item.name}
+                onDeleted={() => {
+                  void refresh();
+                  onChanged?.();
+                }}
+              />
               <ReplaceFileContent
                 itemId={row.item.id as Uuid}
                 currentRevisionId={row.item.currentRevisionId as Uuid}

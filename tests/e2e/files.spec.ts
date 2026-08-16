@@ -101,7 +101,7 @@ test.describe("what a page says about its files (US1)", () => {
     await waitForSynchronized(page);
     await selectItem(page, pageName);
 
-    const fileName = uniqueName("fields") + ".txt";
+    const fileName = `${uniqueName("fields")}.txt`;
     await attach(page, fileName, "some bytes");
 
     await expect(page.getByTestId(`attachment-type-${fileName}`)).toContainText("text/plain");
@@ -125,7 +125,7 @@ test.describe("what a page says about its files (US1)", () => {
     await waitForSynchronized(page);
     await selectItem(page, first);
 
-    const fileName = uniqueName("shared") + ".txt";
+    const fileName = `${uniqueName("shared")}.txt`;
     await attach(page, fileName, "shared bytes");
     await waitForSynchronized(page);
 
@@ -146,5 +146,95 @@ test.describe("what a page says about its files (US1)", () => {
 
     // Blank space would read as "loading" just as easily as "empty".
     await expect(page.getByTestId("attachments-empty")).toBeVisible();
+  });
+});
+
+test.describe("moving, renaming and deleting a file (US2)", () => {
+  test("a rename leaves every reference resolving", async ({ page }) => {
+    // FR-003. Identity is the item, not the name: if a reference were stored by
+    // name, this is the moment it would break, and it would break silently.
+    const pageName = uniqueName("RenameHost");
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    await selectItem(page, pageName);
+
+    const fileName = `${uniqueName("before")}.txt`;
+    await page.getByTestId("attachment-upload").setInputFiles({
+      name: fileName,
+      mimeType: "text/plain",
+      buffer: Buffer.from("bytes that outlive the name"),
+    });
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    // The usage still names the page, and the page still lists the file.
+    await expect(page.getByTestId(`attachment-usages-${fileName}`)).toContainText(pageName);
+    await page.reload();
+    await openWorkspace(page);
+    await selectItem(page, pageName);
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("deleting a file in use names what would break, and declining changes nothing", async ({
+    page,
+  }) => {
+    // FR-004. The owner is not answering "delete this?" but "am I willing to
+    // break these?", which cannot be answered from a count.
+    const pageName = uniqueName("DeleteHost");
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    await selectItem(page, pageName);
+
+    const fileName = `${uniqueName("used")}.txt`;
+    await page.getByTestId("attachment-upload").setInputFiles({
+      name: fileName,
+      mimeType: "text/plain",
+      buffer: Buffer.from("still in use"),
+    });
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await page.getByTestId(`delete-file-${fileName}`).click();
+    const confirmation = page.getByTestId("delete-file-confirmation");
+    await expect(confirmation).toBeVisible({ timeout: 30_000 });
+    await expect(confirmation).toHaveAttribute("role", "alertdialog");
+    // Named, not counted.
+    await expect(page.getByTestId("delete-file-usages")).toContainText(pageName);
+    await expect(page.getByTestId("delete-file-usage-list")).toContainText(pageName);
+
+    await page.getByTestId("delete-file-cancel").click();
+    await expect(confirmation).toHaveCount(0);
+    // Declining is not a soft delete: the file is exactly where it was.
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible();
+  });
+
+  test("confirming sends the file to the trash, where it can be recovered", async ({ page }) => {
+    const pageName = uniqueName("TrashHost");
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    await selectItem(page, pageName);
+
+    const fileName = `${uniqueName("doomed")}.txt`;
+    await page.getByTestId("attachment-upload").setInputFiles({
+      name: fileName,
+      mimeType: "text/plain",
+      buffer: Buffer.from("about to go"),
+    });
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await page.getByTestId(`delete-file-${fileName}`).click();
+    await expect(page.getByTestId("delete-file-confirmation")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("delete-file-confirm").click();
+
+    await expect(page.getByTestId(`attachment-${fileName}`)).toHaveCount(0, { timeout: 30_000 });
+    // The same 30-day window as anything else, not a second mechanism (T022).
+    await waitForSynchronized(page);
+    await page.reload();
+    await openWorkspace(page);
+    await expect(page.getByTestId(`trash-item-${fileName}`)).toBeVisible({ timeout: 30_000 });
   });
 });

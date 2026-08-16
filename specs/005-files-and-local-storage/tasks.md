@@ -69,16 +69,16 @@ both still resolve it; delete it and confirm the dialogue names both usages.
 
 ### Tests for User Story 2
 
-- [ ] T017 [P] [US2] Integration test in `packages/database/tests/file-references.integration.spec.ts` — rename and move leave every reference resolving
-- [ ] T018 [P] [US2] Domain test in `packages/domain/tests/file-deletion.spec.ts` — a deletion plan refuses while usages remain and lists them
+- [X] T017 [P] [US2] Integration test in `packages/database/tests/file-references.integration.spec.ts` — rename and move leave every reference resolving
+- [X] T018 [P] [US2] Domain test in `packages/domain/tests/file-deletion.spec.ts` — a deletion plan refuses while usages remain and lists them
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] `packages/domain/src/files/deletion.ts` — pure plan: what a deletion would remove, what still uses it, whether confirmation is required (FR-004)
-- [ ] T020 [US2] Assert in `packages/database/src/repositories/move-branch.ts` and `execute-command.ts` that rename and move rewrite no reference — identity is the item, not the name or the path (FR-003)
-- [ ] T021 [P] [US2] `apps/web/src/features/files/delete-file.tsx` — an `alertdialog` naming every usage before anything is destroyed
-- [ ] T022 [US2] Route a confirmed deletion through the existing trash in `packages/database/src/repositories/lifecycle-repository.ts` rather than a second mechanism
-- [ ] T023 [P] [US2] Playwright journey in `tests/e2e/files.spec.ts` — rename, move, both usages still resolve; deletion names both and declining changes nothing
+- [X] T019 [US2] `packages/domain/src/files/deletion.ts` — pure plan: what a deletion would remove, what still uses it, whether confirmation is required (FR-004)
+- [X] T020 [US2] Assert in `packages/database/src/repositories/move-branch.ts` and `execute-command.ts` that rename and move rewrite no reference — identity is the item, not the name or the path (FR-003)
+- [X] T021 [P] [US2] `apps/web/src/features/files/delete-file.tsx` — an `alertdialog` naming every usage before anything is destroyed
+- [X] T022 [US2] Route a confirmed deletion through the existing trash in `packages/database/src/repositories/lifecycle-repository.ts` rather than a second mechanism
+- [X] T023 [P] [US2] Playwright journey in `tests/e2e/files.spec.ts` — rename, move, both usages still resolve; deletion names both and declining changes nothing
 
 **Checkpoint**: the file experience is safe to use for real content.
 
