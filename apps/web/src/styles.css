@@ -581,3 +581,23 @@ input[type="file"] {
   border-left-color: var(--danger);
   color: var(--danger);
 }
+
+/* The expand/collapse control. A leaf gets an empty span of the same width so
+   names line up regardless of whether a row has children — a tree whose labels
+   jitter as branches open is harder to scan than one that does not. */
+.tree-twisty {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  min-height: 1.5rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tree-twisty--leaf {
+  cursor: default;
+}

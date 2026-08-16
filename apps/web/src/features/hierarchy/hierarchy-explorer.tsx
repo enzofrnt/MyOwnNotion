@@ -8,6 +8,7 @@
  */
 
 import type { ProjectedItem } from "@myownnotion/client-core";
+import { readNavigationState, writeNavigationState } from "@myownnotion/client-core";
 import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
@@ -17,6 +18,7 @@ import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
+import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { FileNode } from "./file-node.tsx";
 import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
@@ -69,8 +71,17 @@ function buildTree(items: ProjectedItem[]): TreeNode[] {
   return build("root", new Set());
 }
 
-function flatten(nodes: TreeNode[]): TreeNode[] {
-  return nodes.flatMap((node) => [node, ...flatten(node.children)]);
+/**
+ * The rows an owner can currently see, in the order they appear.
+ *
+ * Keyboard movement walks this list rather than the tree, because "the next
+ * item" means the next *visible* one — stepping into a collapsed branch would
+ * move focus somewhere invisible.
+ */
+function flatten(nodes: TreeNode[], expanded: ReadonlySet<string>): TreeNode[] {
+  return nodes.flatMap((node) =>
+    expanded.has(node.item.id) ? [node, ...flatten(node.children, expanded)] : [node],
+  );
 }
 
 export function HierarchyExplorer() {
@@ -80,6 +91,14 @@ export function HierarchyExplorer() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  // Which branches are open. Everything was permanently expanded before US3,
+  // which is workable at ten items and unusable at a hundred.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  // Guards the persistence effect below. Without it that effect can fire before
+  // the stored state has been read — a subscription refresh flips `loadState`
+  // to ready while `expanded` is still empty — and write the empty set back,
+  // erasing every open branch on the way in.
+  const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [newItemName, setNewItemName] = useState("");
 
   const refresh = useCallback(async () => {
@@ -97,6 +116,12 @@ export function HierarchyExplorer() {
         await service.seedFromServer();
       }
       if (!cancelled) {
+        // Which branches were open is device ergonomics, not content: it lives
+        // in the local projection and never syncs. Restoring it is what makes
+        // returning to the workspace feel like returning (FR-014).
+        const navigation = await readNavigationState(service.db);
+        setExpanded(new Set(navigation.expandedItemIds));
+        setNavigationLoaded(true);
         await refresh();
       }
     })();
@@ -109,8 +134,25 @@ export function HierarchyExplorer() {
     };
   }, [service, refresh]);
 
+  useEffect(() => {
+    // Written on change rather than on unload: a tab closed abruptly never
+    // reaches an unload handler, and losing the tree state that way is exactly
+    // the case worth surviving.
+    if (!navigationLoaded) {
+      return;
+    }
+    void (async () => {
+      const current = await readNavigationState(service.db);
+      await writeNavigationState(service.db, {
+        ...current,
+        expandedItemIds: [...expanded],
+        lastVisitedItemId: selectedId,
+      });
+    })();
+  }, [service, expanded, selectedId, navigationLoaded]);
+
   const tree = useMemo(() => buildTree(items), [items]);
-  const visibleNodes = useMemo(() => flatten(tree), [tree]);
+  const visibleNodes = useMemo(() => flatten(tree, expanded), [tree, expanded]);
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedId) ?? null,
     [items, selectedId],
@@ -161,6 +203,12 @@ export function HierarchyExplorer() {
           : {}),
       });
       setNewItemName("");
+      if (parentItemId !== null) {
+        // Open the branch we just put something into. Creating a page inside a
+        // collapsed folder and being shown nothing is indistinguishable from
+        // the creation having failed.
+        setExpanded((current) => new Set(current).add(parentItemId));
+      }
     },
     [newItemName, runCommand, siblingKeys],
   );
@@ -252,28 +300,74 @@ export function HierarchyExplorer() {
     [runCommand, siblingKeys],
   );
 
-  const onTreeKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
-      if (visibleNodes.length === 0) {
-        return;
+  const keyboardNodes = useMemo(
+    () =>
+      visibleNodes.map((node) => ({
+        id: node.item.id,
+        name: node.item.name,
+        level: 1,
+        hasChildren: node.children.length > 0,
+        expanded: expanded.has(node.item.id),
+        parentId:
+          node.item.placements.find((entry) => entry.kind === "hierarchy")?.parentItemId ?? null,
+      })),
+    [visibleNodes, expanded],
+  );
+
+  const toggleBranch = useCallback((id: string, open: boolean) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (open) {
+        next.add(id);
+      } else {
+        next.delete(id);
       }
-      const index = visibleNodes.findIndex((node) => node.item.id === selectedId);
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        const next = visibleNodes[Math.min(index + 1, visibleNodes.length - 1)] ?? visibleNodes[0];
-        if (next !== undefined) {
-          setSelectedId(next.item.id);
-        }
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        const previous = visibleNodes[Math.max(index - 1, 0)] ?? visibleNodes[0];
-        if (previous !== undefined) {
-          setSelectedId(previous.item.id);
-        }
+      return next;
+    });
+  }, []);
+
+  const onTreeKeyDown = useTreeKeyboard(keyboardNodes, selectedId, {
+    select: (id: string) => {
+      // Focused synchronously, on the element that is already in the document,
+      // before React is told anything.
+      //
+      // The tree has one tab stop, so focus has to follow the selection:
+      // otherwise arrowing moves the highlight and leaves focus behind, and a
+      // screen reader keeps reading the row the owner moved away from.
+      //
+      // Three deferred variants were tried first and all failed for the same
+      // underlying reason — the row an owner arrows *to* is already rendered,
+      // so a ref never fires for it, and anything scheduled after the state
+      // update raced the re-render that follows a projection refresh. Doing it
+      // first sidesteps the timing entirely: the element exists, so focus it,
+      // then let React catch up.
+      const row = document.querySelector(`[data-item-id="${id}"]`);
+      if (row instanceof HTMLElement) {
+        // Made focusable first. The row being moved to still carries
+        // tabindex="-1" at this instant — React has not re-rendered yet — and
+        // WebKit declines to focus it in that state where the other engines
+        // oblige. Setting it here is harmless: the next render restores whatever
+        // the roving tabindex should be.
+        row.tabIndex = 0;
+        row.focus();
+      }
+      setSelectedId(id as Uuid);
+    },
+    setExpanded: toggleBranch,
+    open: (id: string) => setSelectedId(id as Uuid),
+    rename: (id: string) => {
+      const node = visibleNodes.find((entry) => entry.item.id === id);
+      if (node !== undefined) {
+        void renameItem(node);
       }
     },
-    [selectedId, visibleNodes],
-  );
+    remove: (id: string) => {
+      const node = visibleNodes.find((entry) => entry.item.id === id);
+      if (node !== undefined && window.confirm(`Move “${node.item.name}” to the trash?`)) {
+        void runCommand("item.trash", { itemId: node.item.id });
+      }
+    },
+  });
 
   if (loadState === "loading") {
     return (
@@ -289,22 +383,46 @@ export function HierarchyExplorer() {
     const parentId = parentPlacement?.parentItemId ?? null;
     return (
       <li key={node.item.id} role="none">
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: the ARIA tree pattern
+            puts one handler on the tree, not one per row. A row-level handler
+            would need every row in the tab order to receive its own key events,
+            which is the arrangement the pattern exists to avoid. Keyboard
+            operation is covered by useTreeKeyboard on the container and
+            asserted in keyboard-navigation.spec.ts. */}
         <div
           role="treeitem"
           aria-level={level}
           aria-selected={isSelected}
+          {...(node.children.length > 0 ? { "aria-expanded": expanded.has(node.item.id) } : {})}
           tabIndex={isSelected || (selectedId === null && level === 1) ? 0 : -1}
           className="tree-row"
           data-testid={`tree-item-${node.item.name}`}
           data-item-id={node.item.id}
           onClick={() => setSelectedId(node.item.id)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              setSelectedId(node.item.id);
-            }
-          }}
         >
+          {node.children.length > 0 ? (
+            <button
+              type="button"
+              className="tree-twisty"
+              aria-label={
+                expanded.has(node.item.id)
+                  ? `Collapse ${node.item.name}`
+                  : `Expand ${node.item.name}`
+              }
+              data-testid={`toggle-${node.item.name}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleBranch(node.item.id, !expanded.has(node.item.id));
+              }}
+            >
+              {expanded.has(node.item.id) ? "▾" : "▸"}
+            </button>
+          ) : (
+            // Reserves the same width so names line up whether or not a row has
+            // children; hidden from assistive technology because it says
+            // nothing.
+            <span className="tree-twisty tree-twisty--leaf" aria-hidden="true" />
+          )}
           <span className="tree-kind">{node.item.kind}</span>
           <span className="tree-name">{node.item.name}</span>
           {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
@@ -394,7 +512,11 @@ export function HierarchyExplorer() {
             </button>
           </span>
         </div>
-        {node.children.length > 0 ? (
+        {/* Rendered only when open. Hiding a collapsed branch with CSS would
+            leave its rows in the accessibility tree and in the tab order, so a
+            screen reader would announce children of a folder the owner has
+            closed. */}
+        {node.children.length > 0 && expanded.has(node.item.id) ? (
           // biome-ignore lint/a11y/useSemanticElements: role="group" on ul is the canonical ARIA tree substructure
           <ul role="group">{node.children.map((child) => renderNode(child, level + 1))}</ul>
         ) : null}

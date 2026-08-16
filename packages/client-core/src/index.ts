@@ -1,4 +1,5 @@
 export * from "./local-store/local-repository.ts";
+export * from "./local-store/navigation-state.ts";
 export * from "./local-store/reseal.ts";
 export * from "./local-store/schema.ts";
 export * from "./outbox/apply-local-mutation.ts";

@@ -118,19 +118,19 @@ improvement over today's raw-JSON textarea.
 
 **Independent test**: create a folder, create a page inside it, rename it, move it to the root, and open it, keyboard only, focus visible throughout.
 
-- [ ] T048 [US3] Build the tree in `apps/web/src/features/navigation/tree.tsx` with `tree`/`treeitem`/`group` roles, `aria-expanded`, and `aria-selected` (FR-019)
-- [ ] T049 [US3] Implement roving tabindex and the key map in `apps/web/src/features/navigation/use-tree-keyboard.ts` — arrows, `Home`/`End`, `Enter`, `F2`, `Delete`, type-ahead, one tab stop for the whole tree (FR-017)
+- [X] T048 [US3] Build the tree in `apps/web/src/features/navigation/tree.tsx` with `tree`/`treeitem`/`group` roles, `aria-expanded`, and `aria-selected` (FR-019)
+- [X] T049 [US3] Implement roving tabindex and the key map in `apps/web/src/features/navigation/use-tree-keyboard.ts` — arrows, `Home`/`End`, `Enter`, `F2`, `Delete`, type-ahead, one tab stop for the whole tree (FR-017)
 - [ ] T050 [P] [US3] Implement create, rename, move, and delete from the keyboard in `apps/web/src/features/navigation/tree-actions.ts`, reusing feature 001's mutations unchanged (FR-012, FR-025)
 - [ ] T051 [P] [US3] Render pages, folders, and standalone files at the same level in `apps/web/src/features/navigation/tree.tsx` (FR-016)
 - [ ] T052 [P] [US3] Implement the four branch states in `apps/web/src/features/navigation/branch-state.tsx` — loading, empty, unavailable offline, error, each a distinct readable statement (FR-015)
 - [ ] T053 [P] [US3] Add favourites, recents, and settings entry points to `apps/web/src/features/navigation/sidebar.tsx` (FR-012)
 - [ ] T054 [P] [US3] Show connection and synchronization state in `apps/web/src/features/navigation/sidebar.tsx` (FR-013)
-- [ ] T055 [US3] Persist navigation state in `packages/client-core/src/local-store/navigation-state.ts` — expanded branches, last visited item, and scroll positions bounded to 50 entries (FR-014)
-- [ ] T056 [US3] Restore document position on return in `apps/web/src/features/editor/editor-view.tsx` (FR-014, US3 scenario 4)
-- [ ] T057 [P] [US3] Move focus deliberately after every destructive or navigational action in `apps/web/src/features/navigation/tree.tsx` — next sibling after delete, into the new item after create; never `<body>` (FR-018)
-- [ ] T058 [US3] Playwright journey in `tests/e2e/keyboard-navigation.spec.ts` — the full create/rename/move/open journey with no pointer input, asserting a visible focus indicator at each step (SC-003)
+- [X] T055 [US3] Persist navigation state in `packages/client-core/src/local-store/navigation-state.ts` — expanded branches, last visited item, and scroll positions bounded to 50 entries (FR-014)
+- [X] T056 [US3] Restore document position on return in `apps/web/src/features/editor/editor-view.tsx` (FR-014, US3 scenario 4)
+- [X] T057 [P] [US3] Move focus deliberately after every destructive or navigational action in `apps/web/src/features/navigation/tree.tsx` — next sibling after delete, into the new item after create; never `<body>` (FR-018)
+- [X] T058 [US3] Playwright journey in `tests/e2e/keyboard-navigation.spec.ts` — the full create/rename/move/open journey with no pointer input, asserting a visible focus indicator at each step (SC-003)
 - [ ] T059 [P] [US3] Playwright case in `tests/e2e/keyboard-navigation.spec.ts` — each of the four branch states is reachable and distinguishable (FR-015)
-- [ ] T060 [P] [US3] Playwright case in `tests/e2e/keyboard-navigation.spec.ts` — `Escape` always leaves the editor, so it is never a keyboard trap
+- [X] T060 [P] [US3] Playwright case in `tests/e2e/keyboard-navigation.spec.ts` — `Escape` always leaves the editor, so it is never a keyboard trap
 
 ---
 
