@@ -80,6 +80,22 @@ export class Outbox {
   }
 
   /**
+   * The server refused for a condition retrying cannot clear.
+   *
+   * The row stays in the queue rather than being captured as a conflict: the
+   * work is not lost, there is no competing version to choose between, and the
+   * owner needs to be told what is refused and what would resolve it (FR-010).
+   * The reason is stored because the refusal happened once, on the server, and
+   * the interface has to repeat it later.
+   */
+  async markBlocked(mutationId: Uuid, reason: string): Promise<void> {
+    await this.#db.outbox.update(mutationId, {
+      status: "blocked" as OutboxStatus,
+      blockedReason: reason,
+    });
+  }
+
+  /**
    * Rejected concurrent mutation: captured as a durable conflict record
    * (FR-042) and removed from the submission queue. The local command,
    * payload, causal bases, and competing revision identities all survive.

@@ -31,6 +31,7 @@ import {
 } from "@myownnotion/domain";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { SaveStateIndicator } from "../save-state/save-state-indicator.tsx";
 import { EditorSurface, type EditorSurfaceHandle } from "./editor-surface.tsx";
 
 type LoadState =
@@ -203,6 +204,8 @@ export function EditorView({
         handleRef={surface}
       />
 
+      <SaveStateIndicator service={service} itemId={itemId} />
+
       <div className="field-row">
         <button
           type="button"
@@ -213,8 +216,11 @@ export function EditorView({
           Save document
         </button>
         {savedLocally && saveError === null ? (
+          // Kept as the signal that *this* save completed, which is what the
+          // journeys wait on. Whether the work is durable is a different
+          // question, and the indicator below is the one that answers it.
           <span className="muted" data-testid="document-saved" role="status">
-            Saved locally — synchronization state above reflects server durability
+            Saved locally
           </span>
         ) : null}
         {saveError !== null ? (

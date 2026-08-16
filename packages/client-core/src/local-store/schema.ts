@@ -62,7 +62,19 @@ export interface LocalRevisionHeaderRow {
   readonly local: 0 | 1;
 }
 
-export type OutboxStatus = "pending" | "sending" | "conflict";
+/**
+ * Where a queued mutation stands.
+ *
+ * `blocked` was added by feature 003 because the previous set could only say
+ * "not yet" — which is a lie when the server has refused and retrying cannot
+ * help. A rotation write block is the case that exists today: the owner needs
+ * to know what is refused, that their existing content is still readable, and
+ * what would resolve it, and none of that fits in `pending`.
+ *
+ * `conflict` is deliberately not a save state. A conflict is a question for
+ * the owner, not a stage of saving.
+ */
+export type OutboxStatus = "pending" | "sending" | "conflict" | "blocked";
 
 export interface OutboxMutationRow {
   readonly mutationId: Uuid;
@@ -71,6 +83,14 @@ export interface OutboxMutationRow {
   readonly baseRevisionIds: Uuid[];
   readonly localRevisionIds: Uuid[];
   readonly status: OutboxStatus;
+  /**
+   * Why the server refused, when the status is `blocked`.
+   *
+   * Stored rather than recomputed: the interface has to tell the owner what is
+   * refused and what would resolve it, and the refusal happened once, on the
+   * server, possibly hours ago.
+   */
+  readonly blockedReason?: string;
   readonly createdAt: string;
   readonly lastAttemptAt: string | null;
   /** Monotonic local order of submission. */
@@ -107,7 +127,7 @@ export interface LocalMetaRow {
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 2;
+export const LOCAL_SCHEMA_VERSION = 3;
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -156,6 +176,19 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
     conflicts: "mutationId, capturedAt",
     meta: "key",
   });
+  db.version(2).stores({
+    items: "id, kind, lifecycle",
+    placements: "id, itemId, parentKey, [parentKey+kind]",
+    relationships: "id, sourceItemId, targetItemId",
+    revisionHeaders: "id, itemId, local",
+    outbox: "mutationId, status, enqueueOrder",
+    conflicts: "mutationId, capturedAt",
+    meta: "key",
+  });
+  // Version 3 widens what an outbox row may hold — a `blocked` status and its
+  // reason — without touching a single stored row. Nothing existing can be
+  // `blocked`, because nothing wrote that value before this version, so the
+  // upgrade needs no migration function at all.
   db.version(LOCAL_SCHEMA_VERSION).stores({
     items: "id, kind, lifecycle",
     placements: "id, itemId, parentKey, [parentKey+kind]",
