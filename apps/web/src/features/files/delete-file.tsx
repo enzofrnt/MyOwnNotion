@@ -47,28 +47,6 @@ export function DeleteFile({
     }
   }, [stage.kind]);
 
-  const ask = useCallback(async () => {
-    setStage({ kind: "checking" });
-    const result = await api.fileUsages(fileItemId);
-    if (!result.ok) {
-      // Not treated as "no usages". Failing to learn what uses a file is not
-      // the same as learning that nothing does, and only one of those is safe
-      // to act on.
-      setStage({
-        kind: "failed",
-        message: "What uses this file could not be checked, so it has not been deleted.",
-      });
-      return;
-    }
-    const usages = result.value.usages.map(toNamedUsage);
-    const plan = planFileDeletion({ fileExists: true, usages, confirmed: false });
-    if (plan.kind === "proceed") {
-      await destroy();
-      return;
-    }
-    setStage({ kind: "confirming", usages });
-  }, [api, fileItemId]);
-
   /**
    * Removes every placement, which is how a file is deleted here.
    *
@@ -98,6 +76,28 @@ export function DeleteFile({
     trigger.current?.focus();
     onDeleted();
   }, [api, fileItemId, onDeleted]);
+
+  const ask = useCallback(async () => {
+    setStage({ kind: "checking" });
+    const result = await api.fileUsages(fileItemId);
+    if (!result.ok) {
+      // Not treated as "no usages". Failing to learn what uses a file is not
+      // the same as learning that nothing does, and only one of those is safe
+      // to act on.
+      setStage({
+        kind: "failed",
+        message: "What uses this file could not be checked, so it has not been deleted.",
+      });
+      return;
+    }
+    const usages = result.value.usages.map(toNamedUsage);
+    const plan = planFileDeletion({ fileExists: true, usages, confirmed: false });
+    if (plan.kind === "proceed") {
+      await destroy();
+      return;
+    }
+    setStage({ kind: "confirming", usages });
+  }, [api, fileItemId, destroy]);
 
   const dismiss = useCallback(() => {
     setStage({ kind: "idle" });
