@@ -103,11 +103,11 @@ folder becomes page — is shippable and useful on its own.
 
 **Independent test**: a file under a page and a different file attached to its content each appear in their own place, and neither in both.
 
-- [ ] T034 [US3] Show hierarchy children under a page exactly as under a folder, in `apps/web/src/features/navigation/tree.tsx` (FR-015)
-- [ ] T035 [US3] Show content attachments in their own disclosure, offered for pages only, in `apps/web/src/features/navigation/tree.tsx` (FR-015, FR-016)
-- [ ] T036 [P] [US3] Ensure a folder offers no attachments control at all, rather than an empty one (FR-016)
-- [ ] T037 [US3] Playwright journey in `tests/e2e/item-conversion.spec.ts` — a filed file and an attached file appear in their own place and never in both
-- [ ] T038 [P] [US3] Playwright case — a page converted to a folder loses its attachments disclosure along with its content
+- [X] T034 [US3] Show hierarchy children under a page exactly as under a folder, in `apps/web/src/features/navigation/tree.tsx` (FR-015)
+- [X] T035 [US3] Show content attachments in their own disclosure, offered for pages only, in `apps/web/src/features/navigation/tree.tsx` (FR-015, FR-016)
+- [X] T036 [P] [US3] Ensure a folder offers no attachments control at all, rather than an empty one (FR-016)
+- [X] T037 [US3] Playwright journey in `tests/e2e/item-conversion.spec.ts` — a filed file and an attached file appear in their own place and never in both
+- [X] T038 [P] [US3] Playwright case — a page converted to a folder loses its attachments disclosure along with its content
 
 ---
 
@@ -115,18 +115,18 @@ folder becomes page — is shippable and useful on its own.
 
 **Goal**: conversion disturbs neither placement nor order.
 
-- [ ] T039 [US4] Playwright journey in `tests/e2e/item-conversion.spec.ts` — four siblings in a deliberate order, one converted, order unchanged after a reload
-- [ ] T040 [P] [US4] Playwright case — a converted item can still be moved to another parent and keeps its own children
+- [X] T039 [US4] Playwright journey in `tests/e2e/item-conversion.spec.ts` — four siblings in a deliberate order, one converted, order unchanged after a reload
+- [X] T040 [P] [US4] Playwright case — a converted item can still be moved to another parent and keeps its own children
 
 ---
 
 ## Phase 7: Polish & cross-cutting
 
 - [X] T041 Extend `tests/e2e/accessibility.spec.ts` with the conversion flow **including its confirmation**, which is easy to miss because it is not on screen at load (SC-008)
-- [ ] T042 [P] Add the SC-009 benchmark — conversion within 2 seconds in a workspace of 1,000 items — to the performance suite
-- [ ] T043 [P] Playwright case for the offline path: convert while offline, come back online, and confirm the outcome is the one the owner confirmed
-- [ ] T044 [P] Create `specs/004-unified-items-conversion/validation.md` recording evidence per FR and SC
-- [ ] T045 Run the full local gate — `pnpm checks:local` then `pnpm test:e2e` — before the pull request
+- [X] T042 [P] Add the SC-009 benchmark — conversion within 2 seconds in a workspace of 1,000 items — to the performance suite
+- [X] T043 [P] Playwright case for the offline path: convert while offline, come back online, and confirm the outcome is the one the owner confirmed
+- [X] T044 [P] Create `specs/004-unified-items-conversion/validation.md` recording evidence per FR and SC
+- [X] T045 Run the full local gate — `pnpm checks:local` then `pnpm test:e2e` — before the pull request
 
 ---
 
