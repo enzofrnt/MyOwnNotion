@@ -26,10 +26,27 @@ import {
 /** The narrowest viewport the product supports. */
 const NARROW = { width: 320, height: 640 };
 
+/**
+ * Opens the workspace at a narrow width with the tree showing.
+ *
+ * Below the breakpoint the tree is a panel that can be closed, so a test that
+ * goes looking for a row without checking it is open is racing the layout. It
+ * showed up as a WebKit-only flake, which is where the render was slow enough
+ * to lose.
+ */
+async function openNarrowWorkspace(page: import("@playwright/test").Page): Promise<void> {
+  await openWorkspace(page);
+  const toggle = page.getByTestId("toggle-tree");
+  if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "false") {
+    await toggle.click();
+  }
+  await expect(page.getByTestId("workspace-tree")).toBeVisible();
+}
+
 test.describe("at 320 pixels", () => {
   test("the workspace does not scroll sideways", async ({ page }) => {
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowRoot");
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
@@ -41,7 +58,7 @@ test.describe("at 320 pixels", () => {
     // The usual culprit: a URL or an identifier with no break opportunity. It
     // has to wrap or scroll inside the editor rather than widen the page.
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowPage");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
@@ -60,7 +77,7 @@ test.describe("at 320 pixels", () => {
     // The independent test the specification names for US4: the whole writing
     // journey, at 320 pixels, with no horizontal scrolling at any point.
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowWrite");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
@@ -82,7 +99,7 @@ test.describe("at 320 pixels", () => {
 
   test("the save state stays readable", async ({ page }) => {
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowState");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
@@ -97,7 +114,7 @@ test.describe("at 320 pixels", () => {
     // aesthetic: a smaller target is one an owner misses, and missing a
     // "trash" button is worse than missing a "save" one.
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowTargets");
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
@@ -113,7 +130,7 @@ test.describe("the collapsible tree", () => {
     // screen and be usable, so the tree has to get out of the way — and come
     // back.
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("Collapsible");
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
@@ -130,7 +147,7 @@ test.describe("the collapsible tree", () => {
     // Leaving focus inside a panel that is no longer on screen is how a
     // keyboard journey ends without anyone noticing.
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("Escapable");
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
