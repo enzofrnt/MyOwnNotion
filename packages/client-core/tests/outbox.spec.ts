@@ -173,3 +173,25 @@ describe("captureConflict()", () => {
     expect(await outbox.conflicts()).toEqual([]);
   });
 });
+
+describe("resolveConflict()", () => {
+  it("drops the record the owner has decided about, and only that one", async () => {
+    const mine = await enqueue("Mine");
+    const other = await enqueue("Other");
+    await outbox.captureConflict(mine, [generateUuidV7()], "revision.stale-base");
+    await outbox.captureConflict(other, [generateUuidV7()], "revision.stale-base");
+
+    await outbox.resolveConflict(mine);
+
+    const remaining = await outbox.conflicts();
+    expect(remaining.map((row) => row.mutationId)).toEqual([other]);
+  });
+
+  it("is silent about a conflict that is not there", async () => {
+    // Two tabs can reach the same decision, and the second one arriving must
+    // not raise. What must never happen is the opposite — a record removed by
+    // anything other than a decision — and that is why nothing here expires or
+    // tidies up in the background.
+    await expect(outbox.resolveConflict(generateUuidV7())).resolves.toBeUndefined();
+  });
+});
