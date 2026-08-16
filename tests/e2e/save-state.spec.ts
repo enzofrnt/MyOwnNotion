@@ -141,3 +141,20 @@ test.describe("as assistive technology sees it", () => {
     await expect(page.getByTestId("save-state-label")).not.toBeEmpty();
   });
 });
+
+// KNOWN DEFECT, deliberately recorded here rather than asserted as passing.
+//
+// The spec edge case "a page open in two tabs: the second must not silently
+// overwrite the first tab-s newer content" does not hold today. A journey
+// written for it fails: the second tab settles on a clean "Saved".
+//
+// The cause is worth writing down because it is not the obvious one. Both tabs
+// share one IndexedDB, and the save path re-reads the item immediately before
+// submitting -- so the second tab picks up the *current* revision as its base
+// and the write is causally correct. Nothing conflicts. What is stale is only
+// what the second tab is showing, and the editor does not notice that the
+// document changed underneath it.
+//
+// Fixing it means the editor watching for external changes to the open
+// document and telling the owner, not tightening the causal check, which is
+// already doing its job. Tracked rather than patched late.

@@ -20,6 +20,7 @@ verifiably broken on one browser engine.
 | FR-007 four save states | pass | `save-state.spec.ts`, `save-state.spec.ts` in client-core |
 | FR-008 never "saved" before the server confirms | pass | `save-state.spec.ts` — asserted as a negative with the server unreachable |
 | FR-009 local edits survive an unexpected close | pass | `save-state.spec.ts` — reload mid-session |
+| Edge case: two tabs | **not met** | A second tab overwrites the first tab-s newer content and reports a clean save. Both tabs share IndexedDB and the save path re-reads the item before submitting, so the write is causally correct and nothing conflicts; what is stale is what the second tab shows. Recorded in `save-state.spec.ts`. |
 | FR-010 a refusal states what is blocked and what resolves it | pass | `deriveSaveState` unit tests; the notice carries reason and resolution |
 | FR-011 conflicts visible, both versions reachable | **partial** | Conflicts are recorded durably and surfaced by `MutationStatus`; the save-state indicator deliberately does not treat them as a save state. No journey asserts reaching both versions from the editor. |
 | FR-012 browse, expand, create, move, favourites, recents, settings | **partial** | Browse, expand/collapse, create, rename, move and delete are covered by `keyboard-navigation.spec.ts` and `hierarchy.spec.ts`. Favourites and recents are not built. |
