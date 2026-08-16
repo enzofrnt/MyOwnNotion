@@ -94,15 +94,15 @@ unrecognised one; each previews or states name, type and size with a download.
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] Contract test in `apps/api/tests/file-download.spec.ts` — every download carries `Content-Disposition: attachment`, `nosniff`, and the restrictive policy
-- [ ] T025 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` — an SVG carrying script cannot reach the workspace around it
+- [X] T024 [P] [US3] Contract test in `apps/api/tests/file-download.spec.ts` — every download carries `Content-Disposition: attachment`, `nosniff`, and the restrictive policy
+- [X] T025 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` — an SVG carrying script cannot reach the workspace around it
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Serve downloads inert in `apps/api/src/routes/files.ts` — the three headers of [contracts/file-transfer.md](./contracts/file-transfer.md), plus `Range` for progressive PDF
-- [ ] T027 [US3] `apps/web/src/features/files/file-preview.tsx` — a sandboxed frame fed opaque bytes, with no same-origin access (FR-013)
-- [ ] T028 [P] [US3] Preview PDF, SVG, PNG, JPEG, GIF and WebP through that one frame in `apps/web/src/features/files/file-preview.tsx` (FR-010)
-- [ ] T029 [P] [US3] `apps/web/src/features/files/unsupported-file.tsx` — name, type, size and a download or external-open action (FR-012)
+- [X] T026 [US3] Serve downloads inert in `apps/api/src/routes/files.ts` — the three headers of [contracts/file-transfer.md](./contracts/file-transfer.md), plus `Range` for progressive PDF
+- [X] T027 [US3] `apps/web/src/features/files/file-preview.tsx` — a sandboxed frame fed opaque bytes, with no same-origin access (FR-013)
+- [X] T028 [P] [US3] Preview PDF, SVG, PNG, JPEG, GIF and WebP through that one frame in `apps/web/src/features/files/file-preview.tsx` (FR-010)
+- [X] T029 [P] [US3] `apps/web/src/features/files/unsupported-file.tsx` — name, type, size and a download or external-open action (FR-012)
 - [ ] T030 [US3] `apps/web/src/features/files/drawio-editor.tsx` — the vendored engine, served from this origin, never `diagrams.net`
 - [ ] T031 [US3] Save a Draw.io edit through the ordinary save path in `apps/web/src/features/files/drawio-editor.tsx` so its state is reported like any other content (FR-011)
 - [ ] T032 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` asserting no request leaves this origin while editing a diagram — a request to `diagrams.net` fails the test

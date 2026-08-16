@@ -13,6 +13,7 @@ import { ContentApi } from "../../services/content-api.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentList, type AttachmentRow } from "../files/attachment-list.tsx";
 import { DeleteFile } from "../files/delete-file.tsx";
+import { FilePreview } from "../files/file-preview.tsx";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 import { ReplaceFileContent } from "./replace-file-content.tsx";
 
@@ -31,6 +32,8 @@ export function AttachmentPanel({
   const [usagesByFile, setUsagesByFile] = useState<Record<string, FileUsageDto[]>>({});
   const [problem, setProblem] = useState<ProblemDto | null>(null);
   const [busy, setBusy] = useState(false);
+  /** One preview open at a time: several 2 GB blobs at once is a crash. */
+  const [previewing, setPreviewing] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     // Attachments are file items with an attachment placement on this page.
@@ -168,6 +171,16 @@ export function AttachmentPanel({
               >
                 remove
               </button>
+              <button
+                type="button"
+                aria-label={`Preview ${row.item.name}`}
+                data-testid={`preview-file-${row.item.name}`}
+                onClick={() =>
+                  setPreviewing((current) => (current === row.item.id ? null : row.item.id))
+                }
+              >
+                {previewing === row.item.id ? "close" : "preview"}
+              </button>
               <DeleteFile
                 api={api}
                 fileItemId={row.item.id as Uuid}
@@ -189,6 +202,24 @@ export function AttachmentPanel({
           );
         }}
       />
+
+      {previewing !== null
+        ? (() => {
+            const row = rows.find((candidate) => candidate.item.id === previewing);
+            if (row === undefined) {
+              return null;
+            }
+            const file = (row.item as { file?: { mediaType?: string; byteLength?: number } }).file;
+            return (
+              <FilePreview
+                fileItemId={row.item.id}
+                fileName={row.item.name}
+                mediaType={file?.mediaType ?? "application/octet-stream"}
+                byteLength={file?.byteLength ?? 0}
+              />
+            );
+          })()
+        : null}
     </section>
   );
 }

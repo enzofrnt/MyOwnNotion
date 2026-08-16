@@ -206,6 +206,70 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
   );
 
   app.get(
+    "/v1/files/:itemId/content",
+    { schema: { params: Type.Object({ itemId: Type.String({ format: "uuid" }) }) } },
+    async (request, reply) => {
+      const { itemId } = request.params as { itemId: string };
+      const [logical] = await context.db
+        .select()
+        .from(schema.logicalFiles)
+        .where(eq(schema.logicalFiles.itemId, itemId as Uuid))
+        .limit(1);
+      if (logical === undefined) {
+        return sendProblem(reply, { code: "item.not-found", title: "File does not exist" });
+      }
+      const [content] = await context.db
+        .select()
+        .from(schema.fileContents)
+        .where(eq(schema.fileContents.id, logical.contentId))
+        .limit(1);
+      if (content === undefined || content.verifiedAt === null) {
+        // Unverified content is not served. Handing back bytes the server has
+        // not confirmed would make "synchronized" mean less than FR-007 says.
+        // Reported as not-found rather than with a code of its own: from the
+        // caller's side there is nothing here to fetch, and the distinction
+        // between "absent" and "not yet verified" is operator detail.
+        return sendProblem(reply, {
+          code: "item.not-found",
+          title: "This file has no verified content to serve",
+        });
+      }
+      const bytes = await context.contentStore.read(content.storageKey);
+      if (bytes === null) {
+        return sendProblem(reply, {
+          code: "item.not-found",
+          title: "The stored bytes for this file could not be read",
+        });
+      }
+
+      // Every header here is load-bearing, and each closes a different door.
+      //
+      // A file is arbitrary bytes the owner obtained somewhere else, and two of
+      // the formats this product previews — SVG and PDF — can carry script.
+      // Served inline from the application's own origin, that script runs with
+      // the application's privileges against everything the owner has written.
+      //
+      //   `attachment`  stops the browser rendering it inline at all;
+      //   `nosniff`     stops it being reinterpreted as something executable;
+      //   the policy    denies the response any capability even if it is.
+      //
+      // Any one of them alone has a known bypass shape, which is why all three
+      // are set rather than whichever seems sufficient.
+      return reply
+        .status(200)
+        .header("content-type", logical.mediaType)
+        .header(
+          "content-disposition",
+          `attachment; filename*=UTF-8''${encodeURIComponent(logical.originalName)}`,
+        )
+        .header("x-content-type-options", "nosniff")
+        .header("content-security-policy", "default-src 'none'; sandbox")
+        .header("cache-control", "private, max-age=0, must-revalidate")
+        .send(Buffer.from(bytes));
+    },
+  );
+
+  app.get(
     "/v1/files/:itemId/usages",
     {
       schema: {

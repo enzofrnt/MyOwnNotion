@@ -676,6 +676,19 @@ code,
   }
 }
 
+/* File previews (feature 005, FR-010, FR-013).
+   Sized generously but bounded: a preview is a look at a file, not a reader,
+   and an unbounded frame pushes everything else off the screen. */
+.file-preview {
+  width: 100%;
+  max-width: 100%;
+  height: 60vh;
+  min-height: 240px;
+  border: 1px solid var(--border, #d4d4d8);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+}
+
 /* Favourites, recents, and settings (feature 003, FR-012).
    Above the tree rather than beside it: at 320 pixels there is no beside, and a
    shortcut list that only exists on a wide screen is not a shortcut. */
