@@ -148,6 +148,11 @@ section 26.
 
 ### 014 — Desktop clients
 
+**État** : spécifiée et planifiée ; prête pour l’analyse avant implémentation
+**Dépendance** : 001 à 013
+**Dossier** : [`specs/014-desktop-clients`](../../specs/014-desktop-clients/)
+**Canevas** : section 7, avec les invariants des sections 5, 9, 17 à 20, 28 à 30 et 36 à 45
+
 Applications Electron Windows et macOS, stockage sécurisé et mises à jour.
 Canevas : section 7.
 
