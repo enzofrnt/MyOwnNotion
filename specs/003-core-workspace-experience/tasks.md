@@ -94,18 +94,18 @@ improvement over today's raw-JSON textarea.
 
 **Independent test**: type offline, observe the state, come back online, observe it resolve, with no premature claim of success.
 
-- [ ] T035 [US2] Add `blocked` to `OutboxStatus` in `packages/client-core/src/local-store/schema.ts` and bump `LOCAL_SCHEMA_VERSION` with a Dexie upgrade that widens without rewriting rows
-- [ ] T036 [US2] Write `blocked` on a server refusal in `packages/client-core/src/outbox/outbox.ts`, carrying the reason and what would resolve it (FR-010)
-- [ ] T037 [US2] Implement `deriveSaveState` in `packages/client-core/src/save-state/derive.ts` — pure, total, worst-first precedence, per [contracts/save-state.md](./contracts/save-state.md)
-- [ ] T038 [P] [US2] Unit tests in `packages/client-core/tests/save-state.spec.ts` — each of the four states, the offline presentation of `unsaved`, and the precedence when several rows exist
-- [ ] T039 [US2] Build the save-state indicator in `apps/web/src/features/save-state/save-state-indicator.tsx` — four visually distinct states (FR-007, SC-010)
-- [ ] T040 [US2] Ensure `saved` is only shown on the absence of outbox rows in `apps/web/src/features/save-state/save-state-indicator.tsx` — never on optimistic application or a timer (FR-008)
+- [X] T035 [US2] Add `blocked` to `OutboxStatus` in `packages/client-core/src/local-store/schema.ts` and bump `LOCAL_SCHEMA_VERSION` with a Dexie upgrade that widens without rewriting rows
+- [X] T036 [US2] Write `blocked` on a server refusal in `packages/client-core/src/outbox/outbox.ts`, carrying the reason and what would resolve it (FR-010)
+- [X] T037 [US2] Implement `deriveSaveState` in `packages/client-core/src/save-state/derive.ts` — pure, total, worst-first precedence, per [contracts/save-state.md](./contracts/save-state.md)
+- [X] T038 [P] [US2] Unit tests in `packages/client-core/tests/save-state.spec.ts` — each of the four states, the offline presentation of `unsaved`, and the precedence when several rows exist
+- [X] T039 [US2] Build the save-state indicator in `apps/web/src/features/save-state/save-state-indicator.tsx` — four visually distinct states (FR-007, SC-010)
+- [X] T040 [US2] Ensure `saved` is only shown on the absence of outbox rows in `apps/web/src/features/save-state/save-state-indicator.tsx` — never on optimistic application or a timer (FR-008)
 - [ ] T041 [P] [US2] Present the blocked state in `apps/web/src/features/save-state/blocked-notice.tsx` — what is refused, that existing content is still readable, what would resolve it (FR-010)
 - [ ] T042 [P] [US2] Surface conflicts in `apps/web/src/features/save-state/conflict-notice.tsx` — the conflict visible and both versions reachable, never a silent loss (FR-011)
-- [ ] T043 [US2] Announce transitions into blocked and conflict through a polite live region in `apps/web/src/features/save-state/save-state-indicator.tsx` (FR-020)
-- [ ] T044 [US2] Playwright journey in `tests/e2e/save-state.spec.ts` — the offline round trip, asserting no moment at which "saved" appears before confirmation
+- [X] T043 [US2] Announce transitions into blocked and conflict through a polite live region in `apps/web/src/features/save-state/save-state-indicator.tsx` (FR-020)
+- [X] T044 [US2] Playwright journey in `tests/e2e/save-state.spec.ts` — the offline round trip, asserting no moment at which "saved" appears before confirmation
 - [ ] T045 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a rotation write block produces the blocked state with all three statements present
-- [ ] T046 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — an unexpected close leaves the last completed edit present on reopen (FR-009, US1 scenario 4)
+- [X] T046 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — an unexpected close leaves the last completed edit present on reopen (FR-009, US1 scenario 4)
 - [ ] T047 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a page open in two tabs: the second does not silently overwrite the first tab's newer content (spec edge case)
 
 **Checkpoint**: US1 and US2 together are the product's core promise — writing that works and a truthful statement about it.

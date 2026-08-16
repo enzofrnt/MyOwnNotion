@@ -44,6 +44,8 @@ export interface ReconcileOutcome {
   readonly submitted: number;
   readonly accepted: number;
   readonly conflicts: number;
+  /** Mutations the server refused for a condition retrying cannot clear. */
+  readonly blocked: number;
   readonly retained: number;
   readonly caughtUpTo: string;
   readonly usedSnapshotFallback: boolean;
@@ -51,6 +53,18 @@ export interface ReconcileOutcome {
 }
 
 const BATCH_LIMIT = 100;
+
+/**
+ * Whether a refusal is a condition on the server rather than a competing change.
+ *
+ * The distinction decides what the owner is asked to do. A conflict needs them
+ * to choose between two versions; a block needs them to wait or to clear the
+ * condition, and offering a choice between versions would be nonsense because
+ * there is only one.
+ */
+function isWriteBlock(code: string | undefined): boolean {
+  return code === "write_blocked" || code === "rotation.write-blocked";
+}
 
 export async function reconcile(
   db: LocalDatabase,
@@ -65,6 +79,7 @@ export async function reconcile(
   let submitted = 0;
   let accepted = 0;
   let conflicts = 0;
+  let blocked = 0;
 
   // Submit the durable queue in stable order.
   for (;;) {
@@ -91,6 +106,7 @@ export async function reconcile(
         submitted,
         accepted,
         conflicts,
+        blocked,
         retained: (await outbox.pending()).length,
         caughtUpTo: await repository.getLastChangeCursor(),
         usedSnapshotFallback: false,
@@ -110,6 +126,17 @@ export async function reconcile(
           mutationId,
           (result.competingRevisionIds ?? []) as Uuid[],
           result.problem?.code ?? "mutation.conflict",
+        );
+      } else if (isWriteBlock(result.problem?.code)) {
+        // Refused by a condition on the server rather than by a competing
+        // change: retrying will not help until that condition clears. Recording
+        // it as a conflict would ask the owner to choose between versions when
+        // there is no second version — and would hide the one thing they can
+        // act on (FR-010).
+        blocked += 1;
+        await outbox.markBlocked(
+          mutationId,
+          result.problem?.title ?? "The server is not accepting changes right now.",
         );
       } else {
         // Deterministic rejection: retain durably as a conflict record so
@@ -139,6 +166,7 @@ export async function reconcile(
             submitted,
             accepted,
             conflicts,
+            blocked,
             retained: (await outbox.pending()).length,
             caughtUpTo: cursor,
             usedSnapshotFallback: false,
@@ -159,6 +187,7 @@ export async function reconcile(
         submitted,
         accepted,
         conflicts,
+        blocked,
         retained: (await outbox.pending()).length,
         caughtUpTo: cursor,
         usedSnapshotFallback,
@@ -181,6 +210,7 @@ export async function reconcile(
     submitted,
     accepted,
     conflicts,
+    blocked,
     retained: (await outbox.pending()).length,
     caughtUpTo: cursor,
     usedSnapshotFallback,

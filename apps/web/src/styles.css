@@ -547,3 +547,37 @@ input[type="file"] {
 .field-row {
   flex-wrap: wrap;
 }
+
+/* ---------------------------------------------------------------------------
+   Save state (feature 003, US2)
+   ------------------------------------------------------------------------ */
+
+/* Four visually distinct states (SC-010). Colour is not the only difference —
+   the wording differs too — because an owner who cannot distinguish the colours
+   still needs to know whether their work is safe. */
+.save-state {
+  margin: 0.5rem 0;
+  padding: 0.4rem 0.6rem;
+  border-left: 3px solid var(--muted);
+  font-size: 0.85rem;
+}
+
+.save-state[data-state="saved"] {
+  border-left-color: var(--ok);
+  color: var(--ok);
+}
+
+.save-state[data-state="sending"] {
+  border-left-color: var(--accent);
+  color: var(--accent);
+}
+
+.save-state[data-state="unsaved"] {
+  border-left-color: var(--warn);
+  color: var(--warn);
+}
+
+.save-state[data-state="blocked"] {
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
