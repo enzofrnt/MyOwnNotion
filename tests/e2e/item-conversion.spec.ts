@@ -262,3 +262,109 @@ test.describe("at a narrow viewport", () => {
     await expectNoHorizontalOverflow(page);
   });
 });
+
+test.describe("the two relations a page has", () => {
+  test("hierarchy children and content attachments never appear in the same list", async ({
+    page,
+  }) => {
+    // US3, FR-015 and FR-016. The distinction has existed in stored data since
+    // feature 001 — a placement is either `hierarchy` or `attachment` — and the
+    // failure this guards against is presentational: merge the two and a file
+    // the owner filed under a page becomes indistinguishable from one embedded
+    // in its text, or disappears from the tree entirely.
+    await openWorkspace(page);
+    const parent = uniqueName("TwoRelations");
+    await createRootItem(page, "page", parent);
+    await waitForSynchronized(page);
+
+    const filed = uniqueName("FiledUnder");
+    await createChildItem(page, parent, "page", filed);
+    await waitForSynchronized(page);
+
+    await selectItem(page, parent);
+
+    // The hierarchy child is in the tree.
+    await expect(page.getByTestId(`tree-item-${filed}`)).toBeVisible({ timeout: 30_000 });
+
+    // The attachments panel is a separate region and does not list it.
+    const attachments = page.getByRole("region", { name: /attachments/i });
+    await expect(attachments).toBeVisible();
+    await expect(attachments).not.toContainText(filed);
+  });
+
+  test("a folder offers no attachments panel at all", async ({ page }) => {
+    // Not an empty one: a folder has no content, so it has nothing to attach
+    // files to, and showing an empty panel would suggest otherwise.
+    await openWorkspace(page);
+    const folder = uniqueName("JustAFolder");
+    await createRootItem(page, "folder", folder);
+    await waitForSynchronized(page);
+    await selectItem(page, folder);
+
+    await expect(page.getByRole("region", { name: /attachments/i })).toBeHidden();
+  });
+
+  test("converting a page to a folder takes its attachments panel with it", async ({ page }) => {
+    await openWorkspace(page);
+    const name = uniqueName("LosesPanel");
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    await expect(page.getByRole("region", { name: /attachments/i })).toBeVisible();
+
+    await convertAndSettle(page, name, "folder");
+    await selectItem(page, name);
+
+    await expect(page.getByRole("region", { name: /attachments/i })).toBeHidden();
+  });
+});
+
+test.describe("order and placement", () => {
+  test("a conversion leaves sibling order untouched", async ({ page }) => {
+    // US4. The order is the owner's, and a conversion is not an occasion to
+    // renegotiate it.
+    await openWorkspace(page);
+    const first = uniqueName("AAFirst");
+    const middle = uniqueName("BBMiddle");
+    const last = uniqueName("CCLast");
+    for (const name of [first, middle, last]) {
+      await createRootItem(page, "folder", name);
+      await waitForSynchronized(page);
+    }
+
+    const before = await readTreeOrder(page);
+    await convertAndSettle(page, middle, "page");
+    const after = await readTreeOrder(page);
+
+    expect(after.indexOf(first)).toBeLessThan(after.indexOf(middle));
+    expect(after.indexOf(middle)).toBeLessThan(after.indexOf(last));
+    expect(after).toEqual(before);
+  });
+});
+
+test.describe("offline", () => {
+  test("a conversion made offline reaches the server once it returns", async ({ page }) => {
+    // The conversion is an ordinary mutation, so it queues and reconciles like
+    // every other one. What is worth asserting is that it does not need a
+    // special path — and that the outcome is the one the owner chose.
+    await openWorkspace(page);
+    const name = uniqueName("OfflineConvert");
+    await createRootItem(page, "folder", name);
+    await waitForSynchronized(page);
+
+    await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
+    await convertButton(page, name).click();
+    await expect(convertButton(page, name)).toHaveText("to folder", { timeout: 30_000 });
+
+    await page.unroute("**/v1/**");
+    // Reload before waiting: the client reconciles when it starts and when it
+    // is asked to, not on a timer, so removing the route does not by itself
+    // make the queue drain. The existing offline suite does the same, and
+    // waiting first simply times out.
+    await page.reload();
+    await openWorkspace(page);
+    await waitForSynchronized(page);
+    // Still a page after the round trip: the queued conversion was accepted.
+    await expect(convertButton(page, name)).toHaveText("to folder");
+  });
+});
