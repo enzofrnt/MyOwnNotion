@@ -14,8 +14,8 @@
 
 import { embeddedFiles, type FileUsage, readDocumentBody, type Uuid } from "@myownnotion/domain";
 import { and, eq } from "drizzle-orm";
-import type { Transaction } from "../../client.ts";
-import { fileUsages, logicalFiles } from "../../schema/index.ts";
+import type { Database, Transaction } from "../../client.ts";
+import { fileUsages, items, logicalFiles } from "../../schema/index.ts";
 
 /**
  * Replaces the `embed` usages of one page.
@@ -101,6 +101,42 @@ export async function usagesOfFile(tx: Transaction, fileItemId: Uuid): Promise<F
   const rows = await tx.select().from(fileUsages).where(eq(fileUsages.fileItemId, fileItemId));
   return rows.map((row) => ({
     fileItemId: row.fileItemId as Uuid,
+    usageKind: row.usageKind as FileUsage["usageKind"],
+    blockId: (row.blockId as Uuid | null) ?? null,
+  }));
+}
+
+/**
+ * Every usage of one file, with the name of what uses it.
+ *
+ * The name is joined here rather than fetched by the caller because this is
+ * read while an owner is deciding whether to destroy something: a list of
+ * identifiers tells them nothing about what they are about to break.
+ */
+export async function namedUsagesOfFile(
+  executor: Database | Transaction,
+  fileItemId: Uuid,
+): Promise<
+  Array<{
+    readonly usedByItemId: Uuid;
+    readonly usedByName: string;
+    readonly usageKind: FileUsage["usageKind"];
+    readonly blockId: Uuid | null;
+  }>
+> {
+  const rows = await executor
+    .select({
+      usedByItemId: fileUsages.usedByItemId,
+      usedByName: items.name,
+      usageKind: fileUsages.usageKind,
+      blockId: fileUsages.blockId,
+    })
+    .from(fileUsages)
+    .innerJoin(items, eq(items.id, fileUsages.usedByItemId))
+    .where(eq(fileUsages.fileItemId, fileItemId));
+  return rows.map((row) => ({
+    usedByItemId: row.usedByItemId as Uuid,
+    usedByName: row.usedByName,
     usageKind: row.usageKind as FileUsage["usageKind"],
     blockId: (row.blockId as Uuid | null) ?? null,
   }));

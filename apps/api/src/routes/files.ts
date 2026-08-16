@@ -7,12 +7,13 @@
  * independent logical file (FR-034).
  */
 
-import { MutationResultSchema } from "@myownnotion/contracts";
+import { FileUsagesResponseSchema, MutationResultSchema } from "@myownnotion/contracts";
 import {
   DomainRejection,
   executeImportFile,
   executeReplaceFileContent,
   findVerifiedContentByDigest,
+  namedUsagesOfFile,
   readItem,
   recordChange,
   runMutation,
@@ -201,6 +202,25 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
         }
         throw error;
       }
+    },
+  );
+
+  app.get(
+    "/v1/files/:itemId/usages",
+    {
+      schema: {
+        params: Type.Object({ itemId: Type.String({ format: "uuid" }) }),
+        response: { 200: FileUsagesResponseSchema },
+      },
+    },
+    async (request) => {
+      const { itemId } = request.params as { itemId: string };
+      // Read before a deletion is confirmed, so it answers "what would this
+      // break" rather than "is this used" — the count alone is what
+      // `file_contents.reference_count` already gives, and it is not enough to
+      // decide with.
+      const usages = await namedUsagesOfFile(context.db, itemId as Uuid);
+      return { usages };
     },
   );
 

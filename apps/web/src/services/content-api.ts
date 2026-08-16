@@ -9,6 +9,7 @@ import type {
   CanonicalSnapshotDto,
   ChangesResponseDto,
   CreateItemDto,
+  FileUsageDto,
   ItemDto,
   MutationResultDto,
   ProblemDto,
@@ -93,6 +94,18 @@ export class ContentApi {
 
   async getItem(itemId: Uuid): Promise<ApiResult<ItemDto>> {
     return this.#request(`/v1/items/${itemId}`);
+  }
+
+  /**
+   * Where a file is used (feature 005, FR-005).
+   *
+   * Its own request rather than a field on the item, because it is read at one
+   * specific moment — while an owner decides whether to destroy something — and
+   * carrying it on every item listing would cost every screen for one screen's
+   * benefit.
+   */
+  async fileUsages(itemId: Uuid): Promise<ApiResult<{ usages: FileUsageDto[] }>> {
+    return this.#request(`/v1/files/${itemId}/usages`);
   }
 
   async createItem(mutationId: Uuid, body: CreateItemDto): Promise<ApiResult<MutationResultDto>> {

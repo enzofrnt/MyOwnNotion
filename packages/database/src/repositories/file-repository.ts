@@ -155,6 +155,16 @@ export async function executeImportFile(
     positionKey: input.placement.positionKey,
     createdRevisionId: revisionId,
   });
+  // Importing is the commonest way a file comes to be used at all, so the usage
+  // has to be recorded here too. Recording it only in `executeAddFilePlacement`
+  // left every imported attachment reporting "used nowhere else" — which is the
+  // under-reporting direction, the one that tells an owner it is safe to
+  // destroy something a page still shows.
+  await recordPlacementUsage(tx, {
+    fileItemId: input.itemId,
+    parentItemId: input.placement.parentItemId,
+    kind: input.placement.kind,
+  });
   const snapshot = await buildItemSnapshot(tx, input.itemId);
   await insertRevision(tx, {
     id: revisionId,

@@ -25,11 +25,11 @@ by inspection.
 
 **Nothing in phases 3 to 6 can start until this phase is done.**
 
-- [ ] T004 Write migration `packages/database/migrations/0003_files_and_offline.sql` — `file_usages`, `uploads`, and `items.offline_intent` — idempotent and self-recording like `0002`
-- [ ] T005 Extend `packages/database/src/schema/index.ts` with the three additions from [data-model.md](./data-model.md)
-- [ ] T006 [P] Add `offlineIntent` to the item read model in `packages/database/src/repositories/item-reader.ts` and to the revision snapshot in `revision-repository.ts`, so it reaches every device
-- [ ] T007 [P] Add `offlineIntent` and `localAvailability` to `LocalItemRow` in `packages/client-core/src/local-store/schema.ts`, with a Dexie version bump and an upgrade that defaults them
-- [ ] T008 [P] Add `ItemSchema.offlineIntent` and the upload DTOs to `packages/contracts/src/content-api.ts`
+- [X] T004 Write migration `packages/database/migrations/0003_files_and_offline.sql` — `file_usages`, `uploads`, and `items.offline_intent` — idempotent and self-recording like `0002`
+- [X] T005 Extend `packages/database/src/schema/index.ts` with the three additions from [data-model.md](./data-model.md)
+- [X] T006 [P] Add `offlineIntent` to the item read model in `packages/database/src/repositories/item-reader.ts` and to the revision snapshot in `revision-repository.ts`, so it reaches every device
+- [X] T007 [P] Add `offlineIntent` and `localAvailability` to `LocalItemRow` in `packages/client-core/src/local-store/schema.ts`, with a Dexie version bump and an upgrade that defaults them
+- [X] T008 [P] Add `ItemSchema.offlineIntent` and the upload DTOs to `packages/contracts/src/content-api.ts`
 
 **Checkpoint**: schema in place on both sides; nothing user-visible yet.
 
@@ -44,17 +44,17 @@ hierarchy, open the attachment list, and confirm all nine fields per row.
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Property test in `packages/domain/tests/file-usages.property.spec.ts` — extracting embeds from any valid block document finds every file reference and invents none
-- [ ] T010 [P] [US1] Integration test in `packages/database/tests/file-usages.integration.spec.ts` — the index matches reality after attach, embed, move, and remove
+- [X] T009 [P] [US1] Property test in `packages/domain/tests/file-usages.property.spec.ts` — extracting embeds from any valid block document finds every file reference and invents none
+- [X] T010 [P] [US1] Integration test in `packages/database/tests/file-usages.integration.spec.ts` — the index matches reality after attach, embed, move, and remove
 
 ### Implementation for User Story 1
 
-- [ ] T011 [P] [US1] `packages/domain/src/files/usages.ts` — pure extraction of file references from a block document, total and never throwing on an unknown block
-- [ ] T012 [US1] `packages/database/src/repositories/content/usage-repository.ts` — write the derived index inside the mutation transaction whenever a document or placement changes
-- [ ] T013 [US1] Expose usages on the item read path in `packages/database/src/repositories/item-reader.ts` so a file reports every page that attaches or embeds it (FR-005)
-- [ ] T014 [P] [US1] `apps/web/src/features/files/attachment-list.tsx` — the nine fields of FR-002, each reachable by keyboard
-- [ ] T015 [US1] Show local availability and sync state per row in `apps/web/src/features/files/attachment-list.tsx`, using the three distinct states rather than a boolean (FR-002)
-- [ ] T016 [P] [US1] Playwright journey in `tests/e2e/files.spec.ts` — a page with three attachments states every field; a file used twice lists both usages
+- [X] T011 [P] [US1] `packages/domain/src/files/usages.ts` — pure extraction of file references from a block document, total and never throwing on an unknown block
+- [X] T012 [US1] `packages/database/src/repositories/content/usage-repository.ts` — write the derived index inside the mutation transaction whenever a document or placement changes
+- [X] T013 [US1] Expose usages on the item read path in `packages/database/src/repositories/item-reader.ts` so a file reports every page that attaches or embeds it (FR-005)
+- [X] T014 [P] [US1] `apps/web/src/features/files/attachment-list.tsx` — the nine fields of FR-002, each reachable by keyboard
+- [X] T015 [US1] Show local availability and sync state per row in `apps/web/src/features/files/attachment-list.tsx`, using the three distinct states rather than a boolean (FR-002)
+- [X] T016 [P] [US1] Playwright journey in `tests/e2e/files.spec.ts` — a page with three attachments states every field; a file used twice lists both usages
 
 **Checkpoint**: files are findable and truthfully described.
 
