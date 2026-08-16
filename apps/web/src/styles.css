@@ -96,6 +96,24 @@ input[type="text"] {
   gap: 0.5rem;
   padding: 0.3rem 0.5rem;
   border-radius: 6px;
+  /* Wraps rather than pushing the page wider. Feature 004 added a conversion
+     control to every row, and at 320 pixels — minus a scrollbar that has real
+     width on Linux, unlike the overlay ones macOS draws — the row no longer
+     fits on one line. A row that overflows scrolls the whole page sideways,
+     which FR-021 forbids. */
+  flex-wrap: wrap;
+  /* Flex items refuse to shrink below their content by default, so a long name
+     would force the row open regardless of the wrap. */
+  min-width: 0;
+}
+
+.tree-row .tree-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tree-actions {
+  flex-wrap: wrap;
 }
 
 .tree-row:hover {
@@ -471,4 +489,61 @@ textarea {
 .slash-menu li[aria-selected="true"] {
   outline: 2px solid currentColor;
   outline-offset: -2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Page ↔ folder conversion (feature 004)
+   ------------------------------------------------------------------------ */
+
+/* A real dialog rather than a tooltip: it interrupts, because the owner is
+   about to lose text. Positioned over the tree so the item it refers to stays
+   in view. */
+.convert-dialog {
+  position: fixed;
+  /* Pinned to both edges rather than centred with a 100vw width.
+     `100vw` includes the scrollbar, so `calc(100vw - 2rem)` overflowed on
+     engines that give scrollbars real width — green on macOS, where they are
+     overlays, and red on the Linux WebKit that CI runs. Insetting from both
+     sides cannot overflow, whatever the scrollbar does. */
+  inset-inline: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  max-width: 32rem;
+  margin-inline: auto;
+  padding: 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: var(--surface, Canvas);
+  box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.25);
+}
+
+.convert-dialog:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.convert-dialog h2 {
+  margin-top: 0;
+}
+
+.convert-dialog button {
+  /* Reachable by thumb at 320 pixels, like every other control. */
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+}
+
+/* A file input sizes itself from the native button's label, whose width comes
+   from the system font — 347px on the Linux runners against a 320px viewport,
+   and comfortably narrower on macOS. That difference is why this overflowed
+   only in CI. Constraining it costs nothing: the control is still operable,
+   and the page stops scrolling sideways (FR-021). */
+input[type="file"] {
+  max-width: 100%;
+}
+
+/* The row holding it wraps for the same reason: a label and a file input side
+   by side do not fit at 320px in every font. */
+.field-row {
+  flex-wrap: wrap;
 }

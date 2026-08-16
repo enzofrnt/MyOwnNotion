@@ -16,6 +16,7 @@ import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
+import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
 import { FileNode } from "./file-node.tsx";
 import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
@@ -177,6 +178,35 @@ export function HierarchyExplorer() {
     [runCommand],
   );
 
+  /**
+   * Converts an item, and reports back whether the server asked for a
+   * confirmation rather than treating that refusal as a failure.
+   *
+   * The distinction matters: `conversion.confirmation-required` is not an
+   * error the owner should see as a red banner, it is the server saying "ask
+   * them first". Everything else is a real failure.
+   */
+  const convertItem = useCallback(
+    async (itemId: Uuid, targetKind: "page" | "folder", confirmedDestruction: boolean) => {
+      setProblem(null);
+      const result = await service.mutate("item.convert", {
+        itemId,
+        targetKind,
+        confirmedDestruction,
+      });
+      await refresh();
+      if (result.ok) {
+        return { ok: true, needsConfirmation: false };
+      }
+      const needsConfirmation = result.error.code === "conversion.confirmation-required";
+      if (!needsConfirmation) {
+        setProblem(result.error);
+      }
+      return { ok: false, needsConfirmation, message: result.error.title };
+    },
+    [service, refresh],
+  );
+
   const reorder = useCallback(
     async (node: TreeNode, direction: -1 | 1) => {
       const placement = node.item.placements.find((entry) => entry.kind === "hierarchy");
@@ -296,6 +326,14 @@ export function HierarchyExplorer() {
                   +folder
                 </button>
               </>
+            ) : null}
+            {node.item.kind !== "file" ? (
+              <ConvertItemControl
+                itemId={node.item.id}
+                itemName={node.item.name}
+                kind={node.item.kind as ConvertibleKind}
+                convert={convertItem}
+              />
             ) : null}
             <button
               type="button"

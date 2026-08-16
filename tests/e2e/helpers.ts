@@ -241,3 +241,40 @@ export async function typeIntoEditor(page: Page, text: string): Promise<void> {
   await page.keyboard.press("Delete");
   await surface.pressSequentially(text);
 }
+
+/**
+ * Asserts the page does not scroll sideways, and names the culprit when it does.
+ *
+ * A bare `scrollWidth > clientWidth` assertion says the page overflows and
+ * nothing else, which is close to useless when the failure only happens on an
+ * engine you cannot run locally: scrollbar width and system fonts both differ
+ * between macOS and the Linux runners, and both change the answer. This reports
+ * every element extending past the viewport, so the next failure names itself
+ * instead of costing three rounds of guessing.
+ */
+export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  const report = await page.evaluate(() => {
+    const root = document.documentElement;
+    const limit = root.clientWidth;
+    const offenders: string[] = [];
+    for (const element of Array.from(document.querySelectorAll("*"))) {
+      const box = element.getBoundingClientRect();
+      if (box.right > limit + 1) {
+        const label =
+          element.getAttribute("data-testid") ??
+          (typeof element.className === "string" && element.className !== ""
+            ? element.className
+            : element.tagName);
+        offenders.push(
+          `${String(label).slice(0, 60)} right=${Math.round(box.right)} width=${Math.round(box.width)}`,
+        );
+      }
+    }
+    return { overflow: root.scrollWidth - limit, limit, offenders: offenders.slice(0, 8) };
+  });
+
+  expect(
+    report.overflow,
+    `viewport ${report.limit}px, overflow ${report.overflow}px, offenders:\n${report.offenders.join("\n")}`,
+  ).toBeLessThanOrEqual(1);
+}

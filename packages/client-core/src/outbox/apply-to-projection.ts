@@ -85,6 +85,23 @@ async function loadView(db: LocalDatabase): Promise<HierarchyView> {
   };
 }
 
+/**
+ * Whether a stored body holds anything an owner would miss.
+ *
+ * Mirrors the server rule deliberately: every page has a document from the
+ * moment it is created, so "a document exists" is true of a page never typed
+ * in, and warning about that teaches an owner to dismiss the warning that
+ * matters.
+ */
+function holdsEditorialContent(body: unknown): boolean {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return false;
+  }
+  const record = body as Record<string, unknown>;
+  const blocks = record["blocks"];
+  return Array.isArray(blocks) ? blocks.length > 0 : Object.keys(record).length > 0;
+}
+
 async function writeLocalRevision(
   db: LocalDatabase,
   itemId: Uuid,
@@ -181,6 +198,21 @@ export async function prepareProjectionWrite(
       // Reopened, edited, resealed. A partial update is not available: the
       // envelope binds the whole row's identity, so a new title cannot be
       // written without re-deriving the record it belongs to.
+      if (
+        command.type === "item.convert" &&
+        command.targetKind === "folder" &&
+        !command.confirmedDestruction &&
+        holdsEditorialContent(opened.pageDocument?.body)
+      ) {
+        // Refused before anything is written. Applying it optimistically would
+        // show the owner a folder and then take it back when the server
+        // declines; refusing here means the two sides agree from the start.
+        throw new LocalValidationError(
+          "conversion.confirmation-required",
+          "Converting a page with content to a folder destroys that content",
+        );
+      }
+
       const edited: LocalItemRow =
         command.type === "item.rename"
           ? { ...opened, name: command.name.trim(), currentRevisionId: revisionId }

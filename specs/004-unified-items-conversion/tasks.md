@@ -67,11 +67,11 @@ folder becomes page — is shippable and useful on its own.
 - [X] T017 [US1] Implement the conversion in one transaction in `packages/database/src/repositories/content/conversion-repository.ts` — the kind change and the revision, committed together
 - [X] T018 [US1] Route the command to the domain in `apps/api/src/routes/` so it goes through the same validation as every other mutation
 - [X] T019 [US1] Apply the conversion to the local projection in `packages/client-core/src/outbox/apply-to-projection.ts`, so it works offline like every other command
-- [ ] T020 [P] [US1] Add the conversion control to `apps/web/src/features/navigation/convert-item.tsx`, reachable from the keyboard (FR-018)
-- [ ] T021 [US1] Reflect the new kind in the tree without a reload in `apps/web/src/features/navigation/tree.tsx` (FR-017)
+- [X] T020 [P] [US1] Add the conversion control to `apps/web/src/features/navigation/convert-item.tsx`, reachable from the keyboard (FR-018)
+- [X] T021 [US1] Reflect the new kind in the tree without a reload in `apps/web/src/features/navigation/tree.tsx` (FR-017)
 - [X] T022 [P] [US1] Integration test in `packages/database/tests/conversion.integration.spec.ts` — converting touches no placement row and the composite key still holds
-- [ ] T023 [US1] Playwright journey in `tests/e2e/item-conversion.spec.ts` — folder with children becomes a page, content is written, children survive a reload in order
-- [ ] T024 [P] [US1] Playwright case in `tests/e2e/item-conversion.spec.ts` — folder to page asks for no confirmation, because nothing is lost (FR-009)
+- [X] T023 [US1] Playwright journey in `tests/e2e/item-conversion.spec.ts` — folder with children becomes a page, content is written, children survive a reload in order
+- [X] T024 [P] [US1] Playwright case in `tests/e2e/item-conversion.spec.ts` — folder to page asks for no confirmation, because nothing is lost (FR-009)
 
 **Checkpoint**: US1 is shippable on its own. An owner can turn a container into something they can write in.
 
@@ -84,13 +84,13 @@ folder becomes page — is shippable and useful on its own.
 **Independent test**: page with content and two child pages, convert, confirm the warning names the loss, verify children intact and content restorable.
 
 - [X] T025 [US2] Delete the page document and its protected envelope in the same transaction as the kind change, in `packages/database/src/repositories/content/conversion-repository.ts` (research decision 3)
-- [ ] T026 [US2] Build the confirmation dialog in `apps/web/src/features/navigation/convert-item.tsx` — names the content and its attachments, states that recovery is limited to the retention window without quoting a number (FR-010, FR-011)
-- [ ] T027 [US2] Send `confirmedDestruction` in the command rather than setting it later, so a replayed command cannot destroy content the owner never agreed to lose (research decision 5)
-- [ ] T028 [P] [US2] Say there is nothing to lose when the page is empty, rather than warning about content that does not exist (US2 scenario 6)
-- [ ] T029 [P] [US2] Make the dialog a real focus-trapping dialog announced to assistive technology, returning focus to its trigger on close (FR-018)
+- [X] T026 [US2] Build the confirmation dialog in `apps/web/src/features/navigation/convert-item.tsx` — names the content and its attachments, states that recovery is limited to the retention window without quoting a number (FR-010, FR-011)
+- [X] T027 [US2] Send `confirmedDestruction` in the command rather than setting it later, so a replayed command cannot destroy content the owner never agreed to lose (research decision 5)
+- [X] T028 [P] [US2] Say there is nothing to lose when the page is empty, rather than warning about content that does not exist (US2 scenario 6)
+- [X] T029 [P] [US2] Make the dialog a real focus-trapping dialog announced to assistive technology, returning focus to its trigger on close (FR-018)
 - [X] T030 [P] [US2] Integration test in `packages/database/tests/conversion.integration.spec.ts` — after a destructive conversion no page document and no protected envelope remain for that item
-- [ ] T031 [US2] Playwright journey in `tests/e2e/item-conversion.spec.ts` — the warning names the loss, declining changes nothing, accepting keeps every child
-- [ ] T032 [P] [US2] Playwright case in `tests/e2e/item-conversion.spec.ts` — restoring the revision from before the conversion brings the content back (FR-012, SC-005)
+- [X] T031 [US2] Playwright journey in `tests/e2e/item-conversion.spec.ts` — the warning names the loss, declining changes nothing, accepting keeps every child
+- [X] T032 [P] [US2] Playwright case in `tests/e2e/item-conversion.spec.ts` — restoring the revision from before the conversion brings the content back (FR-012, SC-005)
 - [X] T033 [P] [US2] Contract test in `apps/api/tests/conversion.contract.spec.ts` — the API refuses a destructive conversion without the flag, whatever the caller (FR-014, the point of the whole design)
 
 **Checkpoint**: both directions work, and the destructive one cannot be performed silently by any caller.
@@ -122,7 +122,7 @@ folder becomes page — is shippable and useful on its own.
 
 ## Phase 7: Polish & cross-cutting
 
-- [ ] T041 Extend `tests/e2e/accessibility.spec.ts` with the conversion flow **including its confirmation**, which is easy to miss because it is not on screen at load (SC-008)
+- [X] T041 Extend `tests/e2e/accessibility.spec.ts` with the conversion flow **including its confirmation**, which is easy to miss because it is not on screen at load (SC-008)
 - [ ] T042 [P] Add the SC-009 benchmark — conversion within 2 seconds in a workspace of 1,000 items — to the performance suite
 - [ ] T043 [P] Playwright case for the offline path: convert while offline, come back online, and confirm the outcome is the one the owner confirmed
 - [ ] T044 [P] Create `specs/004-unified-items-conversion/validation.md` recording evidence per FR and SC
