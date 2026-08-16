@@ -327,7 +327,32 @@ export function HierarchyExplorer() {
   }, []);
 
   const onTreeKeyDown = useTreeKeyboard(keyboardNodes, selectedId, {
-    select: (id: string) => setSelectedId(id as Uuid),
+    select: (id: string) => {
+      // Focused synchronously, on the element that is already in the document,
+      // before React is told anything.
+      //
+      // The tree has one tab stop, so focus has to follow the selection:
+      // otherwise arrowing moves the highlight and leaves focus behind, and a
+      // screen reader keeps reading the row the owner moved away from.
+      //
+      // Three deferred variants were tried first and all failed for the same
+      // underlying reason — the row an owner arrows *to* is already rendered,
+      // so a ref never fires for it, and anything scheduled after the state
+      // update raced the re-render that follows a projection refresh. Doing it
+      // first sidesteps the timing entirely: the element exists, so focus it,
+      // then let React catch up.
+      const row = document.querySelector(`[data-item-id="${id}"]`);
+      if (row instanceof HTMLElement) {
+        // Made focusable first. The row being moved to still carries
+        // tabindex="-1" at this instant — React has not re-rendered yet — and
+        // WebKit declines to focus it in that state where the other engines
+        // oblige. Setting it here is harmless: the next render restores whatever
+        // the roving tabindex should be.
+        row.tabIndex = 0;
+        row.focus();
+      }
+      setSelectedId(id as Uuid);
+    },
     setExpanded: toggleBranch,
     open: (id: string) => setSelectedId(id as Uuid),
     rename: (id: string) => {
@@ -370,24 +395,6 @@ export function HierarchyExplorer() {
           aria-selected={isSelected}
           {...(node.children.length > 0 ? { "aria-expanded": expanded.has(node.item.id) } : {})}
           tabIndex={isSelected || (selectedId === null && level === 1) ? 0 : -1}
-          ref={(element) => {
-            // The tree has one tab stop, so focus has to follow the selection
-            // rather than sit where the browser left it. Without this, arrowing
-            // moves the highlight and leaves focus behind, and a screen reader
-            // keeps reading the row the owner has moved away from.
-            //
-            // Guarded on focus already being inside the tree: stealing it from
-            // the editor or a dialog because a selection changed elsewhere
-            // would be worse than not moving it at all.
-            if (isSelected && element !== null && document.activeElement !== element) {
-              const active = document.activeElement;
-              const inTree =
-                active instanceof HTMLElement && active.closest('[role="tree"]') !== null;
-              if (inTree) {
-                element.focus();
-              }
-            }
-          }}
           className="tree-row"
           data-testid={`tree-item-${node.item.name}`}
           data-item-id={node.item.id}

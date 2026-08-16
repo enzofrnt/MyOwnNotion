@@ -27,6 +27,14 @@ let keyDirectory: string;
 const SECRET_TITLE = "Codes for the safe";
 const SECRET_BODY = "the third digit is seven";
 const SECRET_RELATION_NOTE = "cited in the dismissal file";
+/**
+ * The body of a mutation that must be refused, and therefore never sealed.
+ *
+ * Long and distinctive on purpose: the assertion searches base64 ciphertext for
+ * it, and a three-letter needle matches random base64 often enough to fail a
+ * build for no reason.
+ */
+const STALE_BODY_MARKER = "rejected-stale-base-should-never-be-sealed";
 
 beforeAll(async () => {
   keyDirectory = mkdtempSync(path.join(os.tmpdir(), "mon-content-key-"));
@@ -94,7 +102,14 @@ async function replaceBody(pageId: string, body: unknown): Promise<void> {
   expect(response.statusCode, response.body).toBe(200);
 }
 
-/** Every envelope row, as one haystack. */
+/**
+ * Every envelope row, as one haystack.
+ *
+ * Searched for plaintext that must not be there. The needle has to be long and
+ * distinctive: envelopes are base64 ciphertext, and a short word like "two"
+ * occurs in random base64 often enough to fail a build for no reason — which it
+ * did, on CI, on a change that touched no server code at all.
+ */
 async function envelopeText(): Promise<string> {
   const rows = await harness.built.database.db.execute(sql`SELECT * FROM protected_envelopes`);
   return JSON.stringify((rows as unknown as { rows: unknown[] }).rows);
@@ -123,7 +138,8 @@ describe("writing content through the ordinary routes", () => {
     expect(await envelopeTypes()).toContain("page.body");
     const raw = await envelopeText();
     expect(raw).not.toContain(SECRET_BODY);
-    expect(raw).not.toContain("seven");
+    // A fragment of the secret, long enough not to occur in base64 by chance.
+    expect(raw).not.toContain("digit is seven");
   });
 
   it("binds the title and the body separately", async () => {
@@ -164,7 +180,7 @@ describe("writing content through the ordinary routes", () => {
     expect(await envelopeTypes()).toContain("relationship.metadata");
     const raw = await envelopeText();
     expect(raw).not.toContain(SECRET_RELATION_NOTE);
-    expect(raw).not.toContain("dismissal");
+    expect(raw).not.toContain("the dismissal file");
     // The graph stays traversable without a key: both endpoints and the
     // relation type remain readable, exactly as the hierarchy does.
     const stored = await harness.built.database.db.execute(
@@ -251,12 +267,16 @@ describe("feature 001 is unchanged", () => {
       headers: { "idempotency-key": randomUUID() },
       payload: {
         baseRevisionId: stale,
-        document: { format: "myownnotion.document+json", formatVersion: 1, body: { text: "two" } },
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: { text: STALE_BODY_MARKER },
+        },
       },
     });
     expect(response.statusCode).toBeGreaterThanOrEqual(400);
     // The refused body was never sealed.
-    expect(await envelopeText()).not.toContain("two");
+    expect(await envelopeText()).not.toContain(STALE_BODY_MARKER);
   });
 
   it("replays an idempotent retry without a second envelope", async () => {
