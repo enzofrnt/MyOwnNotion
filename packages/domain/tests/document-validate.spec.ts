@@ -195,3 +195,32 @@ describe("link hrefs", () => {
     },
   );
 });
+
+describe("internal page links", () => {
+  it("accepts a canonical target UUID", () => {
+    const targetItemId = generateUuidV7();
+    const document = expectOk(
+      validateDocument(
+        body({
+          type: "paragraph",
+          id: generateUuidV7(),
+          content: [{ text: "Reference", marks: [{ type: "pageLink", targetItemId }] }],
+        }),
+      ),
+    );
+    expect(document.blocks[0]).toMatchObject({
+      content: [{ text: "Reference", marks: [{ type: "pageLink", targetItemId }] }],
+    });
+  });
+
+  it("rejects an invalid target identity", () => {
+    const result = validateDocument(
+      body({
+        type: "paragraph",
+        id: generateUuidV7(),
+        content: [{ text: "Reference", marks: [{ type: "pageLink", targetItemId: "child" }] }],
+      }),
+    );
+    expect(result.ok).toBe(false);
+  });
+});

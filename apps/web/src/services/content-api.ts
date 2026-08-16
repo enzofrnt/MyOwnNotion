@@ -165,10 +165,15 @@ export class ContentApi {
     itemId: Uuid,
     baseRevisionId: Uuid,
     document: { format: "myownnotion.document+json"; formatVersion: number; body: object },
+    pageLinkTargetIds?: readonly Uuid[],
   ): Promise<ApiResult<MutationResultDto>> {
     return this.#request(`/v1/pages/${itemId}/document`, {
       method: "PUT",
-      body: JSON.stringify({ baseRevisionId, document }),
+      body: JSON.stringify({
+        baseRevisionId,
+        document,
+        ...(pageLinkTargetIds !== undefined ? { pageLinkTargetIds } : {}),
+      }),
       mutationId,
     });
   }

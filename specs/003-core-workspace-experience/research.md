@@ -192,6 +192,33 @@ be a rule set we maintain and nobody trusts.
 
 ## Resolved unknowns
 
+## 7. How are internal page links kept separate from hierarchy children?
+
+**Decision**: Store an internal mention as a `pageLink` inline mark carrying
+the stable target item ID, and maintain one canonical `page-link` relationship
+per source/target pair. The page-document mutation receives the explicit target
+set and reconciles relationship rows in the same transaction as the document
+revision. The web editor uses a local page picker and renders the mark with a
+distinct internal-link affordance.
+
+**Rationale**: A URL-shaped string alone would lose the distinction between an
+external link and a canonical page reference, and deriving backlinks by
+decrypting every document would violate the existing relationship projection.
+Using a relationship row also means rename, move, conversion, trash, export,
+and diagnostics continue to address the stable item identity. The relation is
+not a placement, so linking to a descendant cannot create a hierarchy cycle.
+
+**Alternatives considered**:
+
+- *Create a hierarchy placement when a page is mentioned.* Rejected: it makes
+  ordinary references restructure the workspace and cannot represent a page
+  elsewhere without duplication.
+- *Store only an internal URL in the document.* Rejected: it conflates page
+  references with external links and leaves backlinks without a canonical edge.
+- *Keep one relationship per mention.* Rejected: repeated labels in a
+  document would create duplicate graph edges; the canonical relation is one
+  source/target edge while the document preserves each visible mention.
+
 Every `NEEDS CLARIFICATION` from the Technical Context is closed by the
 decisions above. No open question blocks Phase 1.
 

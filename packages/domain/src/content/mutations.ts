@@ -94,6 +94,7 @@ export type MutationCommand =
       readonly itemId: Uuid;
       readonly baseRevisionId: Uuid;
       readonly document: PageDocument;
+      readonly pageLinkTargetIds?: readonly Uuid[];
     }
   | {
       readonly type: "relationship.create";
@@ -298,7 +299,23 @@ export function parseMutationCommand(
       if (itemId === null || baseRevisionId === null || document === null) {
         return invalid();
       }
-      return ok({ type: "page.document.replace", itemId, baseRevisionId, document });
+      const rawTargets = payload["pageLinkTargetIds"];
+      if (rawTargets !== undefined && !Array.isArray(rawTargets)) {
+        return invalid();
+      }
+      const pageLinkTargetIds = (rawTargets ?? []).map((target) =>
+        isUuid(target) ? target : null,
+      );
+      if (pageLinkTargetIds.some((target) => target === null)) {
+        return invalid();
+      }
+      return ok({
+        type: "page.document.replace",
+        itemId,
+        baseRevisionId,
+        document,
+        ...(rawTargets !== undefined ? { pageLinkTargetIds: pageLinkTargetIds as Uuid[] } : {}),
+      });
     }
     case "relationship.create": {
       const id = requireUuid(payload, "id");

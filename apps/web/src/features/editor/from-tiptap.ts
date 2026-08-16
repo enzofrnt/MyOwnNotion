@@ -185,6 +185,13 @@ function convertMarks(marks: JSONContent["marks"]): Mark[] {
         }
         break;
       }
+      case "pageLink": {
+        const targetItemId = mark.attrs?.["targetItemId"];
+        if (typeof targetItemId === "string") {
+          converted.push({ type: "pageLink", targetItemId: targetItemId as Uuid });
+        }
+        break;
+      }
       default:
         // A mark the model does not have. Dropped rather than carried: it holds
         // no content of its own, and the text it covers survives either way.

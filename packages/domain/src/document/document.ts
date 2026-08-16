@@ -94,9 +94,11 @@ function normaliseMarks(marks: readonly Mark[] | undefined): readonly Mark[] | u
     if (byType !== 0) {
       return byType;
     }
-    const leftHref = left.type === "link" ? left.href : "";
-    const rightHref = right.type === "link" ? right.href : "";
-    return leftHref < rightHref ? -1 : leftHref > rightHref ? 1 : 0;
+    const leftValue =
+      left.type === "link" ? left.href : left.type === "pageLink" ? left.targetItemId : "";
+    const rightValue =
+      right.type === "link" ? right.href : right.type === "pageLink" ? right.targetItemId : "";
+    return leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
   });
   return unique;
 }
@@ -105,7 +107,15 @@ function marksKey(marks: readonly Mark[] | undefined): string {
   if (marks === undefined) {
     return "";
   }
-  return marks.map((mark) => (mark.type === "link" ? `link:${mark.href}` : mark.type)).join("|");
+  return marks
+    .map((mark) =>
+      mark.type === "link"
+        ? `link:${mark.href}`
+        : mark.type === "pageLink"
+          ? `pageLink:${mark.targetItemId}`
+          : mark.type,
+    )
+    .join("|");
 }
 
 /**

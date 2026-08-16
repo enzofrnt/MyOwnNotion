@@ -13,12 +13,14 @@ export interface ReplacePageDocumentCommand {
   readonly itemId: Uuid;
   readonly baseRevisionId: Uuid;
   readonly document: PageDocument;
+  readonly pageLinkTargetIds?: readonly Uuid[];
 }
 
 export interface ReplacePageDocumentPlan {
   readonly item: CanonicalItem;
   readonly document: PageDocument;
   readonly parentRevisionId: Uuid;
+  readonly pageLinkTargetIds?: readonly Uuid[];
 }
 
 export function validateReplacePageDocument(
@@ -44,7 +46,14 @@ export function validateReplacePageDocument(
       competingRevisionIds: [item.currentRevisionId],
     });
   }
-  return ok({ item, document: document.value, parentRevisionId: item.currentRevisionId });
+  return ok({
+    item,
+    document: document.value,
+    ...(command.pageLinkTargetIds !== undefined
+      ? { pageLinkTargetIds: [...new Set(command.pageLinkTargetIds)] }
+      : {}),
+    parentRevisionId: item.currentRevisionId,
+  });
 }
 
 /** Content-role check shared by API serialization and export. */

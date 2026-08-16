@@ -24,7 +24,7 @@ import {
   validateRenameItem,
   validateReplacePageDocument,
 } from "@myownnotion/domain";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { recordChange } from "../repositories/change-repository.ts";
 import { executeConvertItem } from "../repositories/content/conversion-repository.ts";
@@ -45,7 +45,13 @@ import {
   insertRevision,
   supersedeRevision,
 } from "../repositories/revision-repository.ts";
-import { items, mutations, pageDocuments, placements as placementsTable } from "../schema/index.ts";
+import {
+  items,
+  mutations,
+  pageDocuments,
+  placements as placementsTable,
+  relationships,
+} from "../schema/index.ts";
 import { runMutation } from "./run-mutation.ts";
 
 export interface CommandExecution {
@@ -233,6 +239,14 @@ async function executeReplacePageDocument(
   if (!plan.ok) {
     return plan as DomainResult<CommandExecution>;
   }
+  if (plan.value.pageLinkTargetIds !== undefined) {
+    for (const targetItemId of plan.value.pageLinkTargetIds) {
+      const target = await getItem(tx, targetItemId);
+      if (target === null || target.lifecycle === "purged" || target.kind === "file") {
+        return err("relationship.endpoint-unavailable", "Internal page-link target is unavailable");
+      }
+    }
+  }
   const revisionId = generateUuidV7();
   await tx
     .insert(pageDocuments)
@@ -250,6 +264,39 @@ async function executeReplacePageDocument(
         body: plan.value.document.body,
       },
     });
+  if (plan.value.pageLinkTargetIds !== undefined) {
+    const existing = await tx
+      .select()
+      .from(relationships)
+      .where(
+        and(
+          eq(relationships.sourceItemId, plan.value.item.id),
+          eq(relationships.relationType, "page:link"),
+          isNull(relationships.removedRevisionId),
+        ),
+      );
+    const desired = new Set(plan.value.pageLinkTargetIds);
+    for (const relationship of existing) {
+      if (!desired.has(relationship.targetItemId as Uuid)) {
+        await tx
+          .update(relationships)
+          .set({ removedRevisionId: revisionId })
+          .where(eq(relationships.id, relationship.id));
+      }
+      desired.delete(relationship.targetItemId as Uuid);
+    }
+    for (const targetItemId of desired) {
+      await tx.insert(relationships).values({
+        id: generateUuidV7(),
+        workspaceId: context.workspaceId,
+        sourceItemId: plan.value.item.id,
+        targetItemId,
+        relationType: "page:link",
+        metadata: {},
+        createdRevisionId: revisionId,
+      });
+    }
+  }
   await tx
     .update(items)
     .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })

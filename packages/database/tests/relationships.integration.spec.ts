@@ -61,6 +61,43 @@ async function relate(source: Uuid, target: Uuid): Promise<Uuid> {
 }
 
 describe("relationship endpoint stability (FR-010/FR-011)", () => {
+  it("stores an internal page link without creating a hierarchy placement", async () => {
+    const source = await createItem("page", "Source");
+    const child = await createItem("page", "Placed child", source);
+    const sourceRow = await context.handle.db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, source));
+    const outcome = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      command: {
+        type: "page.document.replace",
+        itemId: source,
+        baseRevisionId: sourceRow[0]?.currentRevisionId as Uuid,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: { blocks: [] },
+        },
+        pageLinkTargetIds: [child],
+      },
+    });
+    expect(outcome.result.status).toBe("accepted");
+    const links = await context.handle.db
+      .select()
+      .from(schema.relationships)
+      .where(eq(schema.relationships.sourceItemId, source));
+    expect(links[0]?.relationType).toBe("page:link");
+    expect(links[0]?.targetItemId).toBe(child);
+    const placements = await context.handle.db
+      .select()
+      .from(schema.placements)
+      .where(eq(schema.placements.itemId, child));
+    expect(placements[0]?.parentItemId).toBe(source);
+  });
+
   it("survives rename and move of both endpoints", async () => {
     const source = await createItem("page", "Source");
     const target = await createItem("page", "Target");

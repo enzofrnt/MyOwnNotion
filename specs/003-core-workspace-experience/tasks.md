@@ -171,9 +171,27 @@ improvement over today's raw-JSON textarea.
 
 ---
 
+## Phase 9: User Story 6 — Internal page links (P2)
+
+**Goal**: an owner can mention a locally available page without changing the
+hierarchy, and the mention remains a stable, visibly distinct internal link.
+
+**Independent test**: create `Index`, child page `Child`, and separate page
+`Reference`; insert a link to `Reference`, reload, rename/move it, and confirm
+the tree still contains only the real child while the mention resolves to the
+same target.
+
+- [X] T075 [P] [US6] Add `pageLink` mark validation, normalisation, and model round-trip tests in `packages/domain/tests/document-validate.spec.ts`, `packages/domain/tests/document-normalise.property.spec.ts`, and `apps/web/tests/editor-round-trip.property.spec.ts` (FR-001a, FR-027)
+- [X] T076 [US6] Implement the `pageLink` mark and target identity conversion in `packages/domain/src/document/block.ts`, `packages/domain/src/document/validate.ts`, `apps/web/src/features/editor/to-tiptap.ts`, and `apps/web/src/features/editor/from-tiptap.ts` (FR-001a, FR-028)
+- [X] T077 [US6] Add an accessible page picker and internal-link mark extension in `apps/web/src/features/editor/page-link-control.tsx`, `apps/web/src/features/editor/page-link.ts`, and `apps/web/src/features/editor/editor-surface.tsx`, using locally available page-compatible items and a distinct visual affordance (FR-027, FR-028)
+- [X] T078 [US6] Reconcile `page:link` relationship edges atomically with page-document replacement and preserve them in the local projection in `packages/database/src/mutations/execute-command.ts`, `packages/client-core/src/outbox/apply-to-projection.ts`, and `apps/web/src/features/editor/editor-view.tsx` (FR-025, FR-027)
+- [ ] T079 [US6] Add the responsive Playwright journey proving child placement and page link remain separate through reload, offline use, rename, move, and conversion in `tests/e2e/page-links.spec.ts` (US6/AC1–AC4, SC-011, SC-012)
+
+---
+
 ## Dependencies
 
-**Phase order**: Setup → Foundational → US1 → US2 → US3 → US4 → US5 → Polish.
+**Phase order**: Setup → Foundational → US1 → US2 → US3 → US4 → US5 → US6 → Polish.
 
 **Hard blocks**:
 
@@ -183,6 +201,8 @@ improvement over today's raw-JSON textarea.
 - T048 (the tree) blocks T049–T057.
 - US4 depends on US1 and US3 having screens to be responsive about — it is a phase over existing surfaces, not new ones.
 - T074 depends on everything.
+- US6 depends on the document model (Phase 2), the editor surface (US1), and
+  feature 001's typed relationship mutation and local projection.
 
 **Soft ordering**: US5 is independent of US2, US3, and US4 and could move earlier if the deployment story becomes urgent. It is last because it is P3.
 
@@ -195,6 +215,9 @@ improvement over today's raw-JSON textarea.
 - **Phase 4**: T041 and T042 are separate components; T045–T047 are independent cases.
 - **Phase 5**: T050–T054 and T057 touch different files; T059 and T060 are independent.
 - **Phase 8**: T071, T072, T073 are fully independent.
+- **Phase 9**: T075 and T079 are independent test/documentation work; T077 is
+  independent of the domain and persistence tasks once the conversion contract
+  is fixed.
 
 ---
 
@@ -207,10 +230,12 @@ the test of whether the story boundaries are real.
 **Then US2**, because the two P1 stories together are the actual promise: the
 writing works, and the interface tells the truth about it.
 
-**Then US3, US4, US5** in priority order, each a self-contained increment.
+**Then US3, US4, US5, and US6** in priority order, each a self-contained
+increment. US6 is the first consumer of the explicit distinction between
+hierarchy placement and page-link relation.
 
 **Batching**: per the standing preference for large pull requests, group
 Phases 1–2 into one, Phase 3 into one, Phase 4 into one, Phases 5–6 into one,
-and Phases 7–8 into one. Each still has a green local gate and a green CI before
+and Phases 7–9 into one. Each still has a green local gate and a green CI before
 it merges — the batching changes how much lands per pull request, not what has
 to pass.

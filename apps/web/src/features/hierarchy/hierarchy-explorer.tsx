@@ -713,7 +713,13 @@ export function HierarchyExplorer({
 
       {selectedItem !== null && selectedItem.kind === "page" ? (
         <>
-          <EditorView service={service} itemId={selectedItem.id} />
+          <EditorView
+            service={service}
+            itemId={selectedItem.id}
+            itemRevisionId={selectedItem.currentRevisionId}
+            items={items}
+            onOpenPage={(itemId) => setSelectedId(itemId as Uuid)}
+          />
           <AttachmentPanel pageId={selectedItem.id} onChanged={() => void refresh()} />
         </>
       ) : null}

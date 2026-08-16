@@ -19,7 +19,7 @@
  * touches its own internals.
  */
 
-import type { BlockDocument } from "@myownnotion/domain";
+import type { BlockDocument, Uuid } from "@myownnotion/domain";
 import { normaliseDocument, serialiseDocument } from "@myownnotion/domain";
 import {
   documentArbitrary,
@@ -54,6 +54,20 @@ function canonical(document: BlockDocument): unknown {
 }
 
 describe("model → editor → model", () => {
+  it("preserves an internal page link target through the editor schema", () => {
+    const targetItemId = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2057" as Uuid;
+    const document: BlockDocument = {
+      blocks: [
+        {
+          type: "paragraph",
+          id: "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056" as Uuid,
+          content: [{ text: "Reference", marks: [{ type: "pageLink", targetItemId }] }],
+        },
+      ],
+    };
+    expect(canonical(throughEditor(document))).toEqual(canonical(document));
+  });
+
   it("is the identity on generated documents", () => {
     fc.assert(
       fc.property(

@@ -123,6 +123,38 @@ async function writeLocalRevision(
   return id;
 }
 
+async function reconcileLocalPageLinks(
+  db: LocalDatabase,
+  sourceItemId: Uuid,
+  targetItemIds: readonly Uuid[],
+): Promise<void> {
+  const current = await db.relationships.where("sourceItemId").equals(sourceItemId).toArray();
+  const active = current.filter((relationship) => relationship.relationType === "page:link");
+  const desired = new Set(targetItemIds);
+  for (const relationship of active) {
+    if (!desired.has(relationship.targetItemId)) {
+      await db.relationships.delete(relationship.id);
+    }
+    desired.delete(relationship.targetItemId);
+  }
+  for (const targetItemId of desired) {
+    const target = await db.items.get(targetItemId);
+    if (target === undefined || target.kind === "file" || target.lifecycle === "purged") {
+      throw new LocalValidationError(
+        "relationship.endpoint-unavailable",
+        "Internal page-link target is not available locally",
+      );
+    }
+    await db.relationships.add({
+      id: generateUuidV7(),
+      sourceItemId,
+      targetItemId,
+      relationType: "page:link",
+      metadata: {},
+    });
+  }
+}
+
 /**
  * The rows a command will write, sealed, computed before any transaction opens.
  *
@@ -325,6 +357,9 @@ export async function applyCommandToProjection(
         prepared.revisionId,
       );
       await db.items.put(prepared.item);
+      if (command.pageLinkTargetIds !== undefined) {
+        await reconcileLocalPageLinks(db, command.itemId, command.pageLinkTargetIds);
+      }
       return [revisionId];
     }
 

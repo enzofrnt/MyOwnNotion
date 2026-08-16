@@ -133,6 +133,7 @@ compose.override.yaml
 - A stale causal base returns a structured conflict containing competing revision identities. The local command and content remain durable until the later conflict-resolution workflow resolves them.
 - `compose.yaml` and its development override bind API, web, and database ports to loopback only. No supported production composition exists before authentication.
 - Placement identities are client-generatable like every other canonical identity: `CreatePlacement` accepts an optional client UUIDv7 `id` that the server persists verbatim. Without it, an offline client that creates an item and then queues a move against its locally generated placement id would see the move rejected after reconciliation because the server had assigned a different placement identity (decision recorded 2026-08-07 during implementation).
+- Internal page links use the existing typed relationship model with the reserved namespaced relation type `page:link`. The relationship endpoint is the canonical target identity; the page document carries the inline display mention, and saving a document reconciles its page-link edges atomically with the document revision. A page-link edge never creates or changes a hierarchy placement, even when its target is a descendant.
 
 ## Development Toolchain
 

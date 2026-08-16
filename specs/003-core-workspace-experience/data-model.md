@@ -99,11 +99,19 @@ The content of a text-bearing block. An array of nodes, in document order.
 | `text` | string | May be empty only if the array itself would otherwise be empty; adjacent nodes with identical marks are merged on normalisation, so `["a"]["b"]` never survives as two nodes. |
 | `marks` | `Mark[]` (optional) | Absent means unmarked. |
 
-**Marks**: `bold`, `italic`, `strikethrough`, `code`, and `link`. Only `link`
-carries data: `{ type: "link", href: string }`. `href` must be a parseable
-absolute URL with an `http:`, `https:`, or `mailto:` scheme — a `javascript:`
-URL is rejected at validation, not merely unrendered, so it cannot reach the
-stored document from a paste.
+**Marks**: `bold`, `italic`, `strikethrough`, `code`, `link`, and `pageLink`.
+The external `link` carries `{ type: "link", href: string }`; `href` must be a
+parseable absolute URL with an `http:`, `https:`, or `mailto:` scheme. The
+internal `pageLink` carries `{ type: "pageLink", targetItemId: UUIDv7 }` and
+never carries a path or hierarchy placement. Both marks preserve the visible
+text in the inline node. A `javascript:` URL is rejected at validation, not
+merely unrendered, so it cannot reach the stored document from a paste.
+
+The canonical relationship projection represents each distinct source/target
+pair with one `relationType: "page:link"` edge. Repeated mentions in one page
+remain separate inline marks but share that edge. Saving the document and
+reconciling the edge set is one mutation boundary; a descendant target is
+allowed because this edge is not part of the placement graph.
 
 Normalisation is defined and total: marks are sorted by type, adjacent nodes
 with equal mark sets are merged, and empty text nodes are dropped. This exists

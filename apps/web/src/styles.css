@@ -206,6 +206,33 @@ input[type="text"] {
   margin-bottom: 0.5rem;
 }
 
+.page-link-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+  padding: 0.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.page-link-control label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.page-link {
+  color: var(--link, #4ea1ff);
+  text-decoration: underline dotted;
+}
+
+.page-link::after {
+  content: " ↗";
+  font-size: 0.8em;
+  text-decoration: none;
+}
+
 .muted {
   color: var(--muted);
   font-size: 0.8rem;

@@ -90,10 +90,14 @@ failure mode.
 |---|---|---|---|
 | **Hierarchy child** | placement with `kind = 'hierarchy'` | a page **or** a folder | the tree disclosure, for both kinds |
 | **Content attachment** | placement with `kind = 'attachment'` | a page only | the attachments control, pages only |
+| **Internal page link** | `page:link` relationship plus an inline `pageLink` mark | a page-compatible item | an in-content link, never a tree child |
 
 A standalone file filed under a folder is a *hierarchy child* and always was
 legal. A file bound to a page's text is an *attachment*. Same table, different
 `kind`, different meaning — and a page is the only item that has both.
+An internal page link is the third relation: it stores the target's canonical
+identity and is deliberately independent from hierarchy placement. Conversion
+changes `kind`, not the target identity or the relation endpoint.
 
 ---
 

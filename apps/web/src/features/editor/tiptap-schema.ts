@@ -24,6 +24,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import StarterKit from "@tiptap/starter-kit";
 import { BlockIdentity } from "./block-identity.ts";
+import { PageLink } from "./page-link.ts";
 import { UnknownBlock } from "./unknown-block.ts";
 
 /**
@@ -53,6 +54,7 @@ export function editorExtensions() {
     TaskList,
     TaskItem.configure({ nested: true }),
     BlockIdentity,
+    PageLink,
     UnknownBlock,
   ];
 }

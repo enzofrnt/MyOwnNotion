@@ -145,6 +145,8 @@ export const ReplacePageDocumentSchema = Type.Object(
   {
     baseRevisionId: UuidSchema,
     document: PageDocumentSchema,
+    /** Stable targets extracted from pageLink marks for relation indexing. */
+    pageLinkTargetIds: Type.Optional(Type.Array(UuidSchema, { maxItems: 1000 })),
   },
   { additionalProperties: false },
 );
