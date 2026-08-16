@@ -31,6 +31,27 @@ function convertButton(page: import("@playwright/test").Page, name: string) {
   return page.getByTestId(`convert-${name}`);
 }
 
+/**
+ * Clicks the conversion control and waits for the *item* to have changed.
+ *
+ * Waiting only on the sync queue is not enough: the click starts asynchronous
+ * work, and the queue can look settled before that work has enqueued anything.
+ * The control's own label is the observable outcome — it says "to folder" on a
+ * page and "to page" on a folder — so waiting for it to flip waits for the
+ * thing the test is actually about.
+ */
+async function convertAndSettle(
+  page: import("@playwright/test").Page,
+  name: string,
+  becomes: "page" | "folder",
+): Promise<void> {
+  await convertButton(page, name).click();
+  await expect(convertButton(page, name)).toHaveText(becomes === "page" ? "to folder" : "to page", {
+    timeout: 30_000,
+  });
+  await waitForSynchronized(page);
+}
+
 test.describe("turning a folder into a page", () => {
   test("keeps every child and gains somewhere to write", async ({ page }) => {
     // US1 end to end. The non-destructive direction, which needs no
@@ -50,8 +71,7 @@ test.describe("turning a folder into a page", () => {
     await createChildItem(page, folder, "page", second);
     await waitForSynchronized(page);
 
-    await convertButton(page, folder).click();
-    await waitForSynchronized(page);
+    await convertAndSettle(page, folder, "page");
 
     // No dialog: nothing was lost, so nothing was asked.
     await expect(page.getByTestId("convert-confirmation")).toBeHidden();
@@ -71,8 +91,7 @@ test.describe("turning a folder into a page", () => {
     await createRootItem(page, "folder", folder);
     await waitForSynchronized(page);
 
-    await convertButton(page, folder).click();
-    await waitForSynchronized(page);
+    await convertAndSettle(page, folder, "page");
     await selectItem(page, folder);
 
     await typeIntoEditor(page, "now it has words");
@@ -102,8 +121,7 @@ test.describe("turning a page into a folder", () => {
     await createRootItem(page, "page", empty);
     await waitForSynchronized(page);
 
-    await convertButton(page, empty).click();
-    await waitForSynchronized(page);
+    await convertAndSettle(page, empty, "folder");
 
     await expect(page.getByTestId("convert-confirmation")).toBeHidden();
   });
