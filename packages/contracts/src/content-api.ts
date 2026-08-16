@@ -73,6 +73,8 @@ export const ItemSchema = Type.Object({
   // Optional so a client reading an older response, or a snapshot written
   // before favourites existed, is not rejected by its own contract.
   favourite: Type.Optional(Type.Boolean()),
+  /** The owner asked for this to be kept on their devices (feature 005). */
+  offlineIntent: Type.Optional(Type.Boolean()),
   pageDocument: Type.Optional(Type.Union([PageDocumentSchema, Type.Null()])),
   placements: Type.Array(PlacementSchema),
 });

@@ -177,6 +177,8 @@ describe("item.create", () => {
         trashedAt: null,
         purgeAfter: null,
         favourite: false,
+        offlineIntent: false,
+        localAvailability: "present",
         pageDocument: null,
         file: { mediaType: "image/png", originalName: "diagram.png", byteLength: 4 },
       }),

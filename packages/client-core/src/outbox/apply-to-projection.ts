@@ -205,6 +205,9 @@ export async function prepareProjectionWrite(
           trashedAt: null,
           purgeAfter: null,
           favourite: false,
+          offlineIntent: false,
+          // Just created here, so this device necessarily holds it.
+          localAvailability: "present",
           pageDocument:
             command.kind === "page"
               ? (command.pageDocument ?? {

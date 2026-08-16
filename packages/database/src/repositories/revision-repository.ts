@@ -190,6 +190,10 @@ export async function buildItemSnapshot(
     trashedAt: item.trashedAt?.toISOString() ?? null,
     purgeAfter: item.purgeAfter?.toISOString() ?? null,
     favourite: item.favourite,
+    // In the snapshot for the same reason as `favourite`: the projection on
+    // every other device is fed from these, so an attribute left out is one the
+    // owner's other devices never learn about.
+    offlineIntent: item.offlineIntent,
   };
   if (item.kind === "page") {
     const documentRows = await tx

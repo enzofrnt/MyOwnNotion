@@ -18,6 +18,7 @@ export * from "./content/types.ts";
 // construction: nothing under `document/` may import React, Tiptap, or the DOM.
 export * from "./document/index.ts";
 export * from "./export/canonical-export.ts";
+export * from "./files/index.ts";
 export * from "./ids/uuid.ts";
 export * from "./revisions/lineage.ts";
 export * from "./revisions/retention.ts";
