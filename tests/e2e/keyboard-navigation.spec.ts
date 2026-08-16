@@ -208,3 +208,22 @@ test.describe("acting on an item from the keyboard", () => {
     await expect(row(page, name)).toBeVisible();
   });
 });
+
+test.describe("what a branch says when it has nothing to show", () => {
+  // A branch that is open and has lost its children shows BranchState, but the
+  // path to it from a journey is narrow: a folder with no children has no
+  // disclosure to open in the first place. The component is used and its
+  // wording is asserted by the accessibility audit; the per-branch offline and
+  // error states are not reachable with the current all-or-nothing projection,
+  // and validation.md records FR-015 as unfinished rather than claiming them.
+
+  test("the workspace says it is empty before anything exists", async ({ page }) => {
+    await openWorkspace(page);
+    // Either the tree has rows from a previous test in this worker, or the
+    // empty statement is present — never blank space with neither.
+    const hasRows = (await page.getByRole("treeitem").count()) > 0;
+    if (!hasRows) {
+      await expect(page.getByTestId("empty-state")).toBeVisible();
+    }
+  });
+});

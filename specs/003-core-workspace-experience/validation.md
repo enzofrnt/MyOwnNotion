@@ -25,7 +25,7 @@ verifiably broken on one browser engine.
 | FR-012 browse, expand, create, move, favourites, recents, settings | **partial** | Browse, expand/collapse, create, rename, move and delete are covered by `keyboard-navigation.spec.ts` and `hierarchy.spec.ts`. Favourites and recents are not built. |
 | FR-013 sidebar shows connection and synchronization state | pass | `SyncStatus` in the workspace; `connection-trust.spec.ts` for the connection panel |
 | FR-014 returning preserves context | **partial** | Expanded branches and last visited item persist locally (`navigation-state.spec.ts`). Scroll position within a document is stored but not yet restored. |
-| FR-015 four explicit branch states | **not done** | Loading and empty exist at the workspace level; per-branch offline and error states are not implemented. |
+| FR-015 four explicit branch states | **partial** | `BranchState` exists and is used for an open branch with nothing under it. Loading and empty are reachable; per-branch offline and error are not, because the projection loads all-or-nothing rather than per branch. |
 | FR-016 pages, folders and files at the same level | pass | The tree renders all three; `item-conversion.spec.ts` asserts a filed file appears in the tree |
 | FR-017 every core journey completable by keyboard | **partial** | Create, open, rename, delete, navigate and expand are covered. One movement is broken on WebKit — see below. |
 | FR-018 focus always visible | pass | `accessibility.spec.ts` |
@@ -46,8 +46,8 @@ verifiably broken on one browser engine.
 | SC-002 nine of ten can state whether their last edit was saved | **pending** | Needs the ten-participant protocol. |
 | SC-003 every core journey by keyboard alone | **partial** | See FR-017. |
 | SC-004 no critical or serious accessibility violations | pass | `accessibility.spec.ts` with `@axe-core/playwright` on workspace, editor and the conversion dialog |
-| SC-005 keystroke to visible under 100 ms at p95, 500 blocks | **not done** | The benchmark is not written. |
-| SC-006 500-block document editable within 2 seconds | **not done** | Same. |
+| SC-005 keystroke to visible under 100 ms at p95, 500 blocks | pass | `editor-performance.spec.ts`, measured in the browser over 30 keystrokes |
+| SC-006 500-block document editable within 2 seconds | pass | `editor-performance.spec.ts`, timed from selection to content on screen |
 | SC-007 no participant loses content | **pending** | Part of the SC-002 protocol. |
 | SC-008 320 pixels across four engines | **partial** | Asserted on chromium and webkit, desktop and mobile. Firefox is CI's to cover; its binary does not launch on the development machine. |
 | SC-009 unknown block round-trips byte for byte | pass | `editor-round-trip.property.spec.ts` |
@@ -66,7 +66,6 @@ working". This is why FR-017 and SC-003 are marked partial rather than pass.
 
 ## What is not built
 
-Favourites and recents (FR-012), per-branch loading/offline/error states
-(FR-015), scroll restoration within a document (FR-014), and the two
-performance benchmarks (SC-005, SC-006). These are the remaining tasks in
+Favourites and recents (FR-012), per-branch offline and error states (FR-015),
+and scroll restoration within a document (FR-014). These are the remaining tasks in
 `tasks.md`, not oversights in this record.
