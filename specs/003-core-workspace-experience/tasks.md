@@ -106,7 +106,7 @@ improvement over today's raw-JSON textarea.
 - [X] T044 [US2] Playwright journey in `tests/e2e/save-state.spec.ts` — the offline round trip, asserting no moment at which "saved" appears before confirmation
 - [X] T045 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a rotation write block produces the blocked state with all three statements present
 - [X] T046 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — an unexpected close leaves the last completed edit present on reopen (FR-009, US1 scenario 4)
-- [ ] T047 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a page open in two tabs: the second does not silently overwrite the first tab's newer content (spec edge case)
+- [X] T047 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a page open in two tabs: the second does not silently overwrite the first tab's newer content (spec edge case)
 
 **Checkpoint**: US1 and US2 together are the product's core promise — writing that works and a truthful statement about it.
 
