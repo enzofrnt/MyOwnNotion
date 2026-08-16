@@ -20,6 +20,7 @@ import {
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
+import { setDataKeyWriteBlock } from "./reset-installation.ts";
 
 function indicator(page: import("@playwright/test").Page) {
   return page.getByTestId("save-state");
@@ -139,6 +140,69 @@ test.describe("as assistive technology sees it", () => {
     const name = uniqueName("NotJustColour");
     await openPage(page, name);
     await expect(page.getByTestId("save-state-label")).not.toBeEmpty();
+  });
+});
+
+test.describe("when the server refuses the write", () => {
+  // A real refusal, produced by a real rotation deadline rather than by an
+  // intercepted response. What is being tested is that the three statements
+  // FR-010 requires reach the owner through the whole stack — a mocked 4xx
+  // would prove the component renders and nothing about the path that gets
+  // there.
+  test.afterEach(async () => {
+    // Unconditional: a policy left in place blocks writes for every journey
+    // that follows, and those failures point nowhere near this file.
+    await setDataKeyWriteBlock(false);
+  });
+
+  /**
+   * A page that exists, and then a block.
+   *
+   * The block has to arrive second. It refuses *every* protected write, so
+   * installing it first means the page cannot be created either — which is also
+   * the shape of the real situation: an owner has notes already, and saving
+   * stops working.
+   */
+  async function pageThenBlock(page: import("@playwright/test").Page, name: string): Promise<void> {
+    await openWorkspace(page);
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await setDataKeyWriteBlock(true);
+  }
+
+  test("says what is refused, that the content is readable, and what would fix it", async ({
+    page,
+  }) => {
+    const name = uniqueName("Blocked");
+    await pageThenBlock(page, name);
+    await typeIntoEditor(page, "Notes taken while saving was paused");
+    await page.getByTestId("save-document").click();
+
+    const notice = page.getByTestId("blocked-notice");
+    await expect(notice).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("blocked-what")).not.toBeEmpty();
+    // The one an owner is really asking. "Is my work gone" deserves an answer
+    // in words, on the screen where the refusal appeared.
+    await expect(page.getByTestId("blocked-readable")).toContainText(/still here|still readable/i);
+    await expect(page.getByTestId("blocked-resolution")).not.toBeEmpty();
+    // Announced, not merely shown (FR-020).
+    await expect(notice).toHaveAttribute("role", "alert");
+  });
+
+  test("the indicator agrees with the notice", async ({ page }) => {
+    const name = uniqueName("BlockedState");
+    await pageThenBlock(page, name);
+    await typeIntoEditor(page, "More notes");
+    await page.getByTestId("save-document").click();
+
+    // Two views of one derivation. If they could disagree, one of them would be
+    // reading something other than the outbox — which is the whole point of
+    // deriving the state rather than tracking it.
+    await expect(page.getByTestId("blocked-notice")).toBeVisible({ timeout: 30_000 });
+    await expect(indicator(page)).toHaveAttribute("data-state", "blocked");
+    await expect(indicator(page)).not.toContainText("Saved");
   });
 });
 

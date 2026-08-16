@@ -20,6 +20,7 @@ import {
   type SafeError,
   type Uuid,
   validateCreateItem,
+  validateFavouriteItem,
   validateRenameItem,
   validateReplacePageDocument,
 } from "@myownnotion/domain";
@@ -173,6 +174,55 @@ async function executeRenameItem(
   });
 }
 
+/**
+ * Marks or unmarks a favourite, with a revision like any other item change.
+ *
+ * A revision for a shortcut looks heavy, and it is deliberate: the browser
+ * projection learns about items through revisions, so a change that skipped the
+ * lineage would be invisible on every other device — which is precisely the
+ * property FR-012 asks for by making favourites per-installation.
+ */
+async function executeFavouriteItem(
+  tx: Transaction,
+  context: MutationContext,
+  command: Extract<MutationCommand, { type: "item.favourite" }>,
+): Promise<DomainResult<CommandExecution>> {
+  const item = await getItem(tx, command.itemId);
+  const view = {
+    getItem: (id: Uuid) => (id === item?.id ? item : null),
+    getActivePlacements: () => [] as const,
+    getActiveChildren: () => [] as const,
+  };
+  const plan = validateFavouriteItem(view, command);
+  if (!plan.ok) {
+    return plan as DomainResult<CommandExecution>;
+  }
+  const revisionId = generateUuidV7();
+  await tx
+    .update(items)
+    .set({
+      favourite: plan.value.favourite,
+      currentRevisionId: revisionId,
+      updatedAt: context.acceptedAt,
+    })
+    .where(eq(items.id, plan.value.item.id));
+  const snapshot = await buildItemSnapshot(tx, plan.value.item.id);
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: plan.value.item.id,
+    mutationId: context.mutationId,
+    parentRevisionIds: [plan.value.item.currentRevisionId],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  await supersedeRevision(tx, plan.value.item.currentRevisionId, context.acceptedAt);
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [plan.value.item.id],
+    primaryItemId: plan.value.item.id,
+  });
+}
+
 async function executeReplacePageDocument(
   tx: Transaction,
   context: MutationContext,
@@ -308,6 +358,8 @@ export async function executeCommand(
       return executeCreateItem(tx, context, command);
     case "item.rename":
       return executeRenameItem(tx, context, command);
+    case "item.favourite":
+      return executeFavouriteItem(tx, context, command);
     case "item.convert": {
       const result = await executeConvertItem(tx, {
         command,

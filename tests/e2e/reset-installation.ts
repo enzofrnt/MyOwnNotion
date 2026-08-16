@@ -103,6 +103,49 @@ export async function resetSecurityInstallation(): Promise<void> {
 }
 
 /**
+ * Puts the installation past its data-key write-block deadline, or lifts it.
+ *
+ * Exported here rather than kept inside the rotation journeys because the
+ * blocked *save state* is a content concern: the only honest way to see what an
+ * owner sees when a write is refused is to have the server actually refuse one.
+ *
+ * Always paired with `setDataKeyWriteBlock(false)` in a fixture teardown. A
+ * policy left behind blocks every write in every journey that runs afterwards,
+ * and the failures land nowhere near the test that caused them.
+ */
+export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
+  const client = new pg.Client({ connectionString: connectionString() });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ id: string }>(`SELECT id FROM installations LIMIT 1`);
+    const installationId = rows[0]?.id;
+    if (installationId === undefined) {
+      throw new Error("no installation row: the API has not started against this database");
+    }
+    if (!blocked) {
+      await client.query(`DELETE FROM rotation_policies WHERE installation_id = $1`, [
+        installationId,
+      ]);
+      return;
+    }
+    const day = 24 * 60 * 60 * 1000;
+    await client.query(
+      `INSERT INTO rotation_policies
+         (id, installation_id, kind, mode, due_interval_days, due_at, write_block_at,
+          current_generation, state)
+       VALUES (gen_random_uuid(), $1, 'data-key', 'scheduled', 365, $2, $3, 1, 'write-block')
+       ON CONFLICT (installation_id, kind) DO UPDATE
+         SET due_at = EXCLUDED.due_at,
+             write_block_at = EXCLUDED.write_block_at,
+             state = EXCLUDED.state`,
+      [installationId, new Date(Date.now() - 400 * day), new Date(Date.now() - day)],
+    );
+  } finally {
+    await client.end();
+  }
+}
+
+/**
  * Reads the committed counts the bootstrap journeys assert against.
  *
  * `workspaceCount` counts workspaces the installation is *bound* to, by

@@ -43,6 +43,7 @@ function itemRow(overrides: Partial<LocalItemRow> = {}): LocalItemRow {
     currentRevisionId: generateUuidV7(),
     trashedAt: null,
     purgeAfter: null,
+    favourite: false,
     pageDocument: {
       format: "myownnotion.document+json",
       formatVersion: 1,

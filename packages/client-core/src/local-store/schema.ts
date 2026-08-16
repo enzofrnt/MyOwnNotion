@@ -22,6 +22,14 @@ export interface LocalItemRow {
   readonly currentRevisionId: Uuid;
   readonly trashedAt: string | null;
   readonly purgeAfter: string | null;
+  /**
+   * Kept in the clear, unlike the title.
+   *
+   * It is a flag, not content: it says an item was singled out, never which
+   * one in any readable sense, and the favourites list has to be orderable
+   * before the database is unlocked.
+   */
+  readonly favourite: boolean;
   readonly pageDocument: {
     readonly format: "myownnotion.document+json";
     readonly formatVersion: number;
@@ -127,7 +135,7 @@ export interface LocalMetaRow {
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 3;
+export const LOCAL_SCHEMA_VERSION = 4;
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -189,7 +197,7 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
   // reason — without touching a single stored row. Nothing existing can be
   // `blocked`, because nothing wrote that value before this version, so the
   // upgrade needs no migration function at all.
-  db.version(LOCAL_SCHEMA_VERSION).stores({
+  db.version(3).stores({
     items: "id, kind, lifecycle",
     placements: "id, itemId, parentKey, [parentKey+kind]",
     relationships: "id, sourceItemId, targetItemId",
@@ -198,6 +206,30 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
     conflicts: "mutationId, capturedAt",
     meta: "key",
   });
+  // Version 4 adds `favourite` to stored items. It is written rather than
+  // defaulted at read time so that one place decides what an item that predates
+  // favourites is — and so a query can trust the field exists.
+  db.version(LOCAL_SCHEMA_VERSION)
+    .stores({
+      items: "id, kind, lifecycle",
+      placements: "id, itemId, parentKey, [parentKey+kind]",
+      relationships: "id, sourceItemId, targetItemId",
+      revisionHeaders: "id, itemId, local",
+      outbox: "mutationId, status, enqueueOrder",
+      conflicts: "mutationId, capturedAt",
+      meta: "key",
+    })
+    .upgrade(async (tx) => {
+      // Modifiable without unsealing: `favourite` is in the clear, so nothing
+      // here needs the device key — which matters, because an upgrade runs
+      // when the database opens and the key may not be available yet.
+      await tx
+        .table("items")
+        .toCollection()
+        .modify((row: { favourite?: boolean }) => {
+          row.favourite = false;
+        });
+    });
   return db;
 }
 

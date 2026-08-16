@@ -19,6 +19,7 @@ import { EditorView } from "../editor/editor-view.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
 import { BranchState } from "../navigation/branch-state.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
+import { Sidebar } from "../navigation/sidebar.tsx";
 import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { FileNode } from "./file-node.tsx";
 import { ItemDetails } from "./item-details.tsx";
@@ -73,6 +74,26 @@ function buildTree(items: ProjectedItem[]): TreeNode[] {
 }
 
 /**
+ * Whether a row is a branch, and so carries a disclosure and `aria-expanded`.
+ *
+ * A folder always is, whether or not anything is in it yet: a folder exists in
+ * order to contain, and an empty one is the case that most needs an explanation
+ * rather than blank space — FR-015's four states are unreachable for a branch
+ * that cannot be opened.
+ *
+ * A page or a file is a branch only when it actually has children. This is the
+ * narrower reading, and it is the one `contracts/ui-semantics.md` specifies:
+ * `aria-expanded="false"` on a row that will never open announces a branch that
+ * does not exist, which is worse than saying nothing. A page *can* hold
+ * children, so the temptation is to treat it like a folder; the difference is
+ * that an empty page is a document the owner is reading, not a container they
+ * are looking into.
+ */
+function isBranch(node: TreeNode): boolean {
+  return node.item.kind === "folder" || node.children.length > 0;
+}
+
+/**
  * The rows an owner can currently see, in the order they appear.
  *
  * Keyboard movement walks this list rather than the tree, because "the next
@@ -85,7 +106,12 @@ function flatten(nodes: TreeNode[], expanded: ReadonlySet<string>): TreeNode[] {
   );
 }
 
-export function HierarchyExplorer() {
+export function HierarchyExplorer({
+  onOpenSettings,
+}: {
+  /** Settings live outside the workspace, so the shortcut asks rather than routes. */
+  readonly onOpenSettings: () => void;
+}) {
   const service = useMemo(() => localContent(), []);
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
@@ -198,6 +224,14 @@ export function HierarchyExplorer() {
   const createItem = useCallback(
     async (kind: "page" | "folder", parentItemId: Uuid | null) => {
       const name = newItemName.trim() || (kind === "page" ? "Untitled page" : "Untitled folder");
+      // Cleared before the write, not after it. The name is already captured
+      // above, and clearing afterwards means the field is emptied whenever the
+      // mutation happens to finish — including after the owner has started
+      // typing the next name, which then vanishes as they type it. It showed up
+      // as an intermittent WebKit failure where an item arrived called
+      // "Untitled page": the clear from the previous creation had landed
+      // between the test filling the field and clicking the button.
+      setNewItemName("");
       const keys = siblingKeys(parentItemId);
       const positionKey = safeKeyBetween(keys[keys.length - 1] ?? null, null);
       await runCommand("item.create", {
@@ -215,7 +249,6 @@ export function HierarchyExplorer() {
             }
           : {}),
       });
-      setNewItemName("");
       if (parentItemId !== null) {
         // Open the branch we just put something into. Creating a page inside a
         // collapsed folder and being shown nothing is indistinguishable from
@@ -319,7 +352,7 @@ export function HierarchyExplorer() {
         id: node.item.id,
         name: node.item.name,
         level: 1,
-        hasChildren: node.children.length > 0,
+        hasChildren: isBranch(node),
         expanded: expanded.has(node.item.id),
         parentId:
           node.item.placements.find((entry) => entry.kind === "hierarchy")?.parentItemId ?? null,
@@ -437,14 +470,14 @@ export function HierarchyExplorer() {
           role="treeitem"
           aria-level={level}
           aria-selected={isSelected}
-          {...(node.children.length > 0 ? { "aria-expanded": expanded.has(node.item.id) } : {})}
+          {...(isBranch(node) ? { "aria-expanded": expanded.has(node.item.id) } : {})}
           tabIndex={isSelected || (selectedId === null && level === 1) ? 0 : -1}
           className="tree-row"
           data-testid={`tree-item-${node.item.name}`}
           data-item-id={node.item.id}
           onClick={() => setSelectedId(node.item.id)}
         >
-          {node.children.length > 0 ? (
+          {isBranch(node) ? (
             <button
               type="button"
               className="tree-twisty"
@@ -545,6 +578,31 @@ export function HierarchyExplorer() {
             ) : null}
             <button
               type="button"
+              // The label states the action, not the current state: "Favourite
+              // X" on a row that is already one would leave a screen-reader
+              // user unable to tell which of the two it is.
+              aria-label={
+                node.item.favourite
+                  ? `Remove ${node.item.name} from favourites`
+                  : `Add ${node.item.name} to favourites`
+              }
+              aria-pressed={node.item.favourite}
+              data-testid={`favourite-${node.item.name}`}
+              onClick={() =>
+                // Deliberately without a causal base. The command carries the
+                // state being asked for, so two devices starring the same page
+                // agree rather than conflict — and asking an owner to resolve a
+                // conflict between "favourite" and "favourite" would be absurd.
+                void runCommand("item.favourite", {
+                  itemId: node.item.id,
+                  favourite: !node.item.favourite,
+                })
+              }
+            >
+              {node.item.favourite ? "★" : "☆"}
+            </button>
+            <button
+              type="button"
               aria-label={`Trash ${node.item.name}`}
               onClick={() =>
                 void runCommand("item.trash", { itemId: node.item.id }, [
@@ -629,6 +687,15 @@ export function HierarchyExplorer() {
             New root page
           </button>
         </div>
+
+        {/* Inside the collapsible region: at 320 pixels the shortcuts are part
+            of navigation, and leaving them on screen while the tree is put away
+            would defeat the point of putting it away. */}
+        <Sidebar
+          items={items}
+          onOpen={(itemId) => setSelectedId(itemId)}
+          onOpenSettings={onOpenSettings}
+        />
 
         {tree.length === 0 ? (
           <p className="empty-state" data-testid="empty-state">

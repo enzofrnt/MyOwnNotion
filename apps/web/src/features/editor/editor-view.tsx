@@ -31,6 +31,8 @@ import {
 } from "@myownnotion/domain";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { BlockedNotice } from "../save-state/blocked-notice.tsx";
+import { ConflictNotice } from "../save-state/conflict-notice.tsx";
 import { SaveStateIndicator } from "../save-state/save-state-indicator.tsx";
 import { EditorSurface, type EditorSurfaceHandle } from "./editor-surface.tsx";
 
@@ -205,6 +207,11 @@ export function EditorView({
       />
 
       <SaveStateIndicator service={service} itemId={itemId} />
+      {/* Below the indicator, not instead of it: the line says which state the
+          document is in, and these say what to do about the two states an owner
+          cannot act on from a single word. */}
+      <BlockedNotice service={service} itemId={itemId} />
+      <ConflictNotice service={service} itemId={itemId} onResolved={() => setSavedLocally(false)} />
 
       <div className="field-row">
         <button

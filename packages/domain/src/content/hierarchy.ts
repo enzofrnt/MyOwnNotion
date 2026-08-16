@@ -292,6 +292,27 @@ export function validateRenameItem(
 }
 
 /**
+ * Whether an item may be marked, or unmarked, as a favourite (FR-012).
+ *
+ * A trashed item cannot be favourited: a shortcut list that leads to the
+ * trash is a list the owner learns to distrust. Unmarking is not exempt —
+ * a trashed item is already out of every list, so there is nothing to undo.
+ */
+export function validateFavouriteItem(
+  view: HierarchyView,
+  command: { readonly itemId: Uuid; readonly favourite: boolean },
+): DomainResult<{ readonly item: CanonicalItem; readonly favourite: boolean }> {
+  const item = view.getItem(command.itemId);
+  if (item === null) {
+    return err("item.not-found", "Item does not exist");
+  }
+  if (item.lifecycle !== "active") {
+    return err("item.not-active", "Only active items can be favourited");
+  }
+  return ok({ item, favourite: command.favourite });
+}
+
+/**
  * Collects the complete reachable active branch under `rootItemId`
  * (inclusive), traversing active hierarchy placements iteratively.
  */

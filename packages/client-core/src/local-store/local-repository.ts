@@ -41,6 +41,7 @@ function itemRowFrom(dto: ItemDto): LocalItemRow {
     currentRevisionId: dto.currentRevisionId as Uuid,
     trashedAt: dto.trashedAt ?? null,
     purgeAfter: dto.purgeAfter ?? null,
+    favourite: dto.favourite ?? false,
     pageDocument:
       dto.pageDocument == null
         ? null

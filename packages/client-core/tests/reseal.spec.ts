@@ -44,6 +44,7 @@ function plaintextRow(name: string): LocalItemRow {
     currentRevisionId: generateUuidV7() as Uuid,
     trashedAt: null,
     purgeAfter: null,
+    favourite: false,
     pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: { text: name } },
     file: null,
   };

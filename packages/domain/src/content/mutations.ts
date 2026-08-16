@@ -21,6 +21,7 @@ export const COMMAND_TYPES = [
   "item.create",
   "item.rename",
   "item.convert",
+  "item.favourite",
   "item.trash",
   "item.restore",
   "placement.move",
@@ -55,6 +56,18 @@ export type MutationCommand =
       readonly targetKind: "page" | "folder";
       /** Carried in the command so a replay cannot destroy unconfirmed content. */
       readonly confirmedDestruction: boolean;
+    }
+  | {
+      readonly type: "item.favourite";
+      readonly itemId: Uuid;
+      /**
+       * The state being asked for, not a toggle.
+       *
+       * A toggle command replayed twice lands on the opposite answer from the
+       * one the owner gave, and the outbox replays. Naming the desired state
+       * makes the command idempotent by construction.
+       */
+      readonly favourite: boolean;
     }
   | { readonly type: "item.trash"; readonly itemId: Uuid }
   | {
@@ -222,6 +235,14 @@ export function parseMutationCommand(
       // caller destroy content by omitting a field.
       const confirmedDestruction = payload["confirmedDestruction"] === true;
       return ok({ type: "item.convert", itemId, targetKind, confirmedDestruction });
+    }
+    case "item.favourite": {
+      const itemId = requireUuid(payload, "itemId");
+      const favourite = payload["favourite"];
+      if (itemId === null || typeof favourite !== "boolean") {
+        return invalid();
+      }
+      return ok({ type: "item.favourite", itemId, favourite });
     }
     case "item.trash": {
       const itemId = requireUuid(payload, "itemId");

@@ -20,6 +20,20 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
+/**
+ * Opens a branch, or leaves it open if it already is.
+ *
+ * Clicking the disclosure unconditionally is a coin toss: creating a child can
+ * leave its parent open, and the click then *closes* it — after which the test
+ * waits for a row that is no longer rendered.
+ */
+async function openBranch(page: import("@playwright/test").Page, name: string): Promise<void> {
+  const toggle = page.getByTestId(`toggle-${name}`);
+  if ((await page.getByTestId(`tree-item-${name}`).getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+}
+
 function row(page: import("@playwright/test").Page, name: string) {
   return page.getByTestId(`tree-item-${name}`);
 }
@@ -210,12 +224,11 @@ test.describe("acting on an item from the keyboard", () => {
 });
 
 test.describe("what a branch says when it has nothing to show", () => {
-  // A branch that is open and has lost its children shows BranchState, but the
-  // path to it from a journey is narrow: a folder with no children has no
-  // disclosure to open in the first place. The component is used and its
-  // wording is asserted by the accessibility audit; the per-branch offline and
-  // error states are not reachable with the current all-or-nothing projection,
-  // and validation.md records FR-015 as unfinished rather than claiming them.
+  // These were unreachable until every branch got a disclosure. A folder with
+  // no children used to render no twisty at all, so the one owner who most
+  // needs to be told which of the four situations they are in — the one looking
+  // at a folder that appears to contain nothing — was the one who could not be
+  // told. Being a branch is now a property of the kind, not of the contents.
 
   test("the workspace says it is empty before anything exists", async ({ page }) => {
     await openWorkspace(page);
@@ -225,5 +238,127 @@ test.describe("what a branch says when it has nothing to show", () => {
     if (!hasRows) {
       await expect(page.getByTestId("empty-state")).toBeVisible();
     }
+  });
+
+  test("an opened folder with nothing in it says so", async ({ page }) => {
+    const folder = uniqueName("EmptyBranch");
+    await openWorkspace(page);
+    await createRootItem(page, "folder", folder);
+    await waitForSynchronized(page);
+
+    await openBranch(page, folder);
+    await expect(page.getByTestId("branch-state-empty")).toBeVisible();
+  });
+
+  test("offline, the same branch says the content is not on this device", async ({
+    page,
+    context,
+  }) => {
+    const folder = uniqueName("OfflineBranch");
+    await openWorkspace(page);
+    await createRootItem(page, "folder", folder);
+    await waitForSynchronized(page);
+
+    await context.setOffline(true);
+    try {
+      await openBranch(page, folder);
+      // The distinction that matters: "empty" and "not fetched" look identical
+      // as blank space, and reading the second as the first is how an owner
+      // concludes their notes are gone.
+      await expect(page.getByTestId("branch-state-offline")).toBeVisible();
+      await expect(page.getByTestId("branch-state-empty")).toHaveCount(0);
+    } finally {
+      await context.setOffline(false);
+    }
+  });
+
+  test("after a failed command, the branch says it could not be loaded", async ({ page }) => {
+    const parent = uniqueName("ErrorParent");
+    const child = uniqueName("ErrorChild");
+    const watched = uniqueName("ErrorBranch");
+    await openWorkspace(page);
+    await createRootItem(page, "folder", parent);
+    await createChildItem(page, parent, "folder", child);
+    await createRootItem(page, "folder", watched);
+    await waitForSynchronized(page);
+
+    await openBranch(page, watched);
+    await expect(page.getByTestId("branch-state-empty")).toBeVisible();
+
+    // Moving a folder into its own child is a cycle, refused by the domain on
+    // this device before anything is sent. A name past the length limit looked
+    // like the easier trigger and is not one: the client accepts it and only
+    // the server refuses, so the explorer never learns of it.
+    await page.getByTestId(`tree-item-${parent}`).click();
+    await openBranch(page, parent);
+    await page.getByRole("button", { name: `Move selected item into ${child}` }).click();
+
+    await expect(page.getByTestId("branch-state-error")).toBeVisible();
+    await expect(page.getByTestId("branch-state-error")).toHaveAttribute("role", "alert");
+  });
+
+  test("the four states are distinguishable from one another", async ({ page }) => {
+    // FR-015 asks for distinguishable, not merely present. Each state carries
+    // its own test id and its own wording, so the assertion is that the empty
+    // one does not read like the offline one.
+    const folder = uniqueName("DistinctBranch");
+    await openWorkspace(page);
+    await createRootItem(page, "folder", folder);
+    await waitForSynchronized(page);
+    await openBranch(page, folder);
+
+    const empty = await page.getByTestId("branch-state-empty").textContent();
+    expect(empty?.trim()).not.toBe("");
+    expect(empty).not.toMatch(/not available on this device/i);
+  });
+});
+
+test.describe("shortcuts to what matters", () => {
+  test("a page marked as a favourite appears in the favourites list", async ({ page }) => {
+    const name = uniqueName("Starred");
+    await openWorkspace(page);
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+
+    await expect(page.getByTestId("favourites-empty")).toBeVisible();
+    await page.getByTestId(`favourite-${name}`).click();
+
+    await expect(page.getByTestId(`favourites-${name}`)).toBeVisible({ timeout: 30_000 });
+    // Marked, and saying so: a control whose pressed state is only a glyph
+    // leaves a screen-reader user unable to tell whether it worked.
+    await expect(page.getByTestId(`favourite-${name}`)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("unmarking removes it again", async ({ page }) => {
+    const name = uniqueName("Unstarred");
+    await openWorkspace(page);
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+
+    await page.getByTestId(`favourite-${name}`).click();
+    await expect(page.getByTestId(`favourites-${name}`)).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId(`favourite-${name}`).click();
+    await expect(page.getByTestId(`favourites-${name}`)).toHaveCount(0, { timeout: 30_000 });
+  });
+
+  test("a newly changed page is at the top of the recents", async ({ page }) => {
+    const older = uniqueName("Older");
+    const newer = uniqueName("Newer");
+    await openWorkspace(page);
+    await createRootItem(page, "page", older);
+    await createRootItem(page, "page", newer);
+    await waitForSynchronized(page);
+
+    const recents = page.getByTestId("recents").getByRole("button");
+    await expect(recents.first()).toHaveText(newer);
+  });
+
+  test("settings are reachable from the sidebar", async ({ page }) => {
+    await openWorkspace(page);
+    await page.getByTestId("open-settings").click();
+    // FR-012 lists settings among the places the sidebar must reach; landing
+    // somewhere that is not the settings screen would satisfy the letter of it
+    // and none of the point.
+    await expect(page.getByTestId("toggle-security-settings")).toHaveText(/back to workspace/i);
   });
 });

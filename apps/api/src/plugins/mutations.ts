@@ -103,6 +103,49 @@ async function sealPayloads(
   }
 }
 
+/**
+ * The guarantees every accepted write carries, whichever route accepted it.
+ *
+ * Extracted because the offline batch route had neither of them. That route is
+ * not a secondary path — it is the one the browser client uses for everything
+ * it queued while offline, which is most of what an owner writes. Two rules
+ * that the single-command routes enforced were therefore absent from the busiest
+ * one: a rotation write block did not refuse the write, and the content was
+ * committed without being sealed.
+ *
+ * Both live inside the mutation's transaction. A check taken before it can be
+ * overtaken by a block committing in between, and sealing outside it would let
+ * content commit without its envelope.
+ */
+export function acceptedWriteGuards(
+  command: MutationCommand,
+  protectedContent: ProtectedContent | undefined,
+  rotationPolicies: RotationPolicyService | undefined,
+) {
+  if (protectedContent === undefined) {
+    // Feature-001 harnesses build an app with no security layer at all and must
+    // keep writing; there is nothing to seal and no policy to consult.
+    return {};
+  }
+  return {
+    onAccepted: async (
+      tx: Transaction,
+      accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
+    ) => {
+      // Throws, so the whole mutation rolls back: a refused write leaves
+      // neither content nor envelope behind.
+      await rotationPolicies?.assertWritesAllowed(tx);
+      await sealPayloads(
+        protectedContent,
+        tx,
+        command,
+        accepted.primaryItemId,
+        accepted.revisionIds,
+      );
+    },
+  };
+}
+
 export async function handleMutation(input: {
   readonly db: Database;
   readonly workspaceId: Uuid;
@@ -146,30 +189,7 @@ export async function handleMutation(input: {
     // Sealing happens inside the mutation's transaction. Content and its
     // envelope commit together or neither does, and there is no second round
     // trip on the request path.
-    ...(protectedContent === undefined
-      ? {}
-      : {
-          onAccepted: async (
-            tx: Transaction,
-            accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
-          ) => {
-            // Checked inside the transaction, not before it. A decision taken
-            // on the request path could be overtaken by a block committing in
-            // between, and the write it let through would be sealed under a
-            // key the policy had already stopped.
-            //
-            // It throws, so the whole mutation rolls back: a refused write
-            // leaves neither content nor envelope behind.
-            await input.rotationPolicies?.assertWritesAllowed(tx);
-            await sealPayloads(
-              protectedContent,
-              tx,
-              command,
-              accepted.primaryItemId,
-              accepted.revisionIds,
-            );
-          },
-        }),
+    ...acceptedWriteGuards(command, protectedContent, input.rotationPolicies),
   });
 
   const { result } = outcome;

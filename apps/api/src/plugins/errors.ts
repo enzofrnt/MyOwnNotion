@@ -16,6 +16,7 @@ import {
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ProtectedContentUnavailableError } from "../security/content-resolution.ts";
 import { requestContext } from "../security/request-context.ts";
+import { RotationWriteBlockedError } from "../security/rotation-policy-service.ts";
 
 export interface ProblemBody {
   readonly type: string;
@@ -140,6 +141,20 @@ export function registerErrorHandling(app: FastifyInstance): void {
         code: "protected_read_failed",
       };
       return reply.status(500).header("content-type", "application/problem+json").send(problem);
+    }
+
+    // A refused write is a decision, not a fault. Without this it fell through
+    // to the 500 below and reached the client as "unexpected server error" —
+    // so the block was enforced and never explained, which is the one outcome
+    // FR-010 rules out: an owner cannot act on a refusal they cannot read.
+    if (error instanceof RotationWriteBlockedError) {
+      const problem: ProblemBody = {
+        type: "https://myownnotion.dev/problems/write_blocked",
+        title: error.message,
+        status: 409,
+        code: "write_blocked",
+      };
+      return reply.status(409).header("content-type", "application/problem+json").send(problem);
     }
 
     const statusCode =

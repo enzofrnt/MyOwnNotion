@@ -7,6 +7,25 @@ asserts it. Where the evidence does not exist, the row says so rather than
 being quietly ticked — including one requirement that is implemented and
 verifiably broken on one browser engine.
 
+## Defects this feature's journeys found in existing code
+
+Recorded because they were not part of the feature's scope and would otherwise
+leave no trace outside a commit message. All three were fixed here.
+
+1. **The offline batch route enforced neither write guarantee.**
+   `POST /v1/mutations/batch` — the route the browser client uses for everything
+   it queued — called `submitMutation` without the rotation check or the sealing
+   step the single-command routes apply. A rotation write block therefore did
+   not refuse the writes an owner actually makes, and their content committed
+   unsealed. See [docs/architecture/write-guarantees.md](../../docs/architecture/write-guarantees.md).
+2. **A blocked write reached the client as `500 internal.unexpected`.**
+   `RotationWriteBlockedError` had no case in the error handler. The block was
+   enforced and never explicable, which is the outcome FR-010 rules out.
+3. **The new-item name field was cleared after the write, not before.** On a
+   slow machine the clear from the previous creation landed while the owner was
+   typing the next name, and the name vanished as they typed it. It surfaced as
+   an intermittent WebKit failure where an item arrived called "Untitled page".
+
 ## Functional requirements
 
 | FR | Status | Evidence |
@@ -21,12 +40,12 @@ verifiably broken on one browser engine.
 | FR-008 never "saved" before the server confirms | pass | `save-state.spec.ts` — asserted as a negative with the server unreachable |
 | FR-009 local edits survive an unexpected close | pass | `save-state.spec.ts` — reload mid-session |
 | Edge case: two tabs | **not met** | A second tab overwrites the first tab-s newer content and reports a clean save. Both tabs share IndexedDB and the save path re-reads the item before submitting, so the write is causally correct and nothing conflicts; what is stale is what the second tab shows. Recorded in `save-state.spec.ts`. |
-| FR-010 a refusal states what is blocked and what resolves it | pass | `deriveSaveState` unit tests; the notice carries reason and resolution |
-| FR-011 conflicts visible, both versions reachable | **partial** | Conflicts are recorded durably and surfaced by `MutationStatus`; the save-state indicator deliberately does not treat them as a save state. No journey asserts reaching both versions from the editor. |
-| FR-012 browse, expand, create, move, favourites, recents, settings | **partial** | Browse, expand/collapse, create, rename, move and delete are covered by `keyboard-navigation.spec.ts` and `hierarchy.spec.ts`. Favourites and recents are not built. |
+| FR-010 a refusal states what is blocked and what resolves it | pass | `BlockedNotice` states all three; `save-state.spec.ts` drives a real data-key write block through the server and asserts each statement, plus `role="alert"` |
+| FR-011 conflicts visible, both versions reachable | pass | `ConflictNotice` renders the server's document and the one this device tried to save, both as text, with an explicit choice between them. Neither side is discarded without someone choosing. |
+| FR-012 browse, expand, create, move, favourites, recents, settings | pass | Browse, expand/collapse, create, rename, move and delete in `keyboard-navigation.spec.ts` and `hierarchy.spec.ts`; favourites, recents and the settings entry point in the same suite's "shortcuts to what matters". Favourites are server-backed (`item.favourite`, migration `0002`), so they are per-installation as the spec requires. |
 | FR-013 sidebar shows connection and synchronization state | pass | `SyncStatus` in the workspace; `connection-trust.spec.ts` for the connection panel |
 | FR-014 returning preserves context | **partial** | Expanded branches and last visited item persist locally (`navigation-state.spec.ts`). Scroll position within a document is stored but not yet restored. |
-| FR-015 four explicit branch states | **partial** | `BranchState` exists and is used for an open branch with nothing under it. Loading and empty are reachable; per-branch offline and error are not, because the projection loads all-or-nothing rather than per branch. |
+| FR-015 four explicit branch states | pass | Empty, offline and error are each asserted in `keyboard-navigation.spec.ts`. They were unreachable while a disclosure was rendered only for a branch that already had children — an empty folder, the case that most needs an explanation, had no way to be opened. Being a branch is now a property of the kind. Loading is covered at the workspace level; the projection still loads all-or-nothing, so no branch has a loading state of its own. |
 | FR-016 pages, folders and files at the same level | pass | The tree renders all three; `item-conversion.spec.ts` asserts a filed file appears in the tree |
 | FR-017 every core journey completable by keyboard | **partial** | Create, open, rename, delete, navigate and expand are covered. One movement is broken on WebKit — see below. |
 | FR-018 focus always visible | pass | `accessibility.spec.ts` |
@@ -67,6 +86,13 @@ working". This is why FR-017 and SC-003 are marked partial rather than pass.
 
 ## What is not built
 
-Favourites and recents (FR-012), per-branch offline and error states (FR-015),
-and scroll restoration within a document (FR-014). These are the remaining tasks in
-`tasks.md`, not oversights in this record.
+Scroll restoration within a document (FR-014): the position is stored on every
+navigation but nothing reads it back on return.
+
+The two-tab edge case (T047) is the one open task in `tasks.md`. It is a defect
+rather than an omission, and the cause is recorded above and in
+`save-state.spec.ts` so the next attempt starts from a measurement rather than
+from the guess that the causal check is at fault — it is not.
+
+Favourites, recents and the per-branch offline and error states were listed here
+until this batch and are now built; the rows above carry their evidence.

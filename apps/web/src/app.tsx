@@ -147,7 +147,7 @@ export function App(props: AppProps = {}) {
             <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
           </>
         ) : (
-          <HierarchyExplorer />
+          <HierarchyExplorer onOpenSettings={() => setShowSecurity(true)} />
         )}
       </main>
     </div>
