@@ -17,6 +17,7 @@ import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
+import { BranchState } from "../navigation/branch-state.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
 import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { FileNode } from "./file-node.tsx";
@@ -516,9 +517,20 @@ export function HierarchyExplorer() {
             leave its rows in the accessibility tree and in the tab order, so a
             screen reader would announce children of a folder the owner has
             closed. */}
-        {node.children.length > 0 && expanded.has(node.item.id) ? (
-          // biome-ignore lint/a11y/useSemanticElements: role="group" on ul is the canonical ARIA tree substructure
-          <ul role="group">{node.children.map((child) => renderNode(child, level + 1))}</ul>
+        {expanded.has(node.item.id) ? (
+          node.children.length > 0 ? (
+            // biome-ignore lint/a11y/useSemanticElements: role="group" on ul is the canonical ARIA tree substructure
+            <ul role="group">{node.children.map((child) => renderNode(child, level + 1))}</ul>
+          ) : (
+            // An opened branch with nothing under it says which of the four
+            // situations it is in. Blank space reads as "empty" whichever one
+            // is true, and the two that are not empty are the ones where being
+            // wrong costs something: an owner who reads "not on this device"
+            // as "empty" concludes their notes are gone.
+            <BranchState
+              kind={problem !== null ? "error" : navigator.onLine ? "empty" : "offline"}
+            />
+          )
         ) : null}
       </li>
     );

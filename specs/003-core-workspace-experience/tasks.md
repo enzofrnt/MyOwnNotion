@@ -120,11 +120,11 @@ improvement over today's raw-JSON textarea.
 
 - [X] T048 [US3] Build the tree in `apps/web/src/features/navigation/tree.tsx` with `tree`/`treeitem`/`group` roles, `aria-expanded`, and `aria-selected` (FR-019)
 - [X] T049 [US3] Implement roving tabindex and the key map in `apps/web/src/features/navigation/use-tree-keyboard.ts` — arrows, `Home`/`End`, `Enter`, `F2`, `Delete`, type-ahead, one tab stop for the whole tree (FR-017)
-- [ ] T050 [P] [US3] Implement create, rename, move, and delete from the keyboard in `apps/web/src/features/navigation/tree-actions.ts`, reusing feature 001's mutations unchanged (FR-012, FR-025)
-- [ ] T051 [P] [US3] Render pages, folders, and standalone files at the same level in `apps/web/src/features/navigation/tree.tsx` (FR-016)
-- [ ] T052 [P] [US3] Implement the four branch states in `apps/web/src/features/navigation/branch-state.tsx` — loading, empty, unavailable offline, error, each a distinct readable statement (FR-015)
+- [X] T050 [P] [US3] Implement create, rename, move, and delete from the keyboard in `apps/web/src/features/navigation/tree-actions.ts`, reusing feature 001's mutations unchanged (FR-012, FR-025)
+- [X] T051 [P] [US3] Render pages, folders, and standalone files at the same level in `apps/web/src/features/navigation/tree.tsx` (FR-016)
+- [X] T052 [P] [US3] Implement the four branch states in `apps/web/src/features/navigation/branch-state.tsx` — loading, empty, unavailable offline, error, each a distinct readable statement (FR-015)
 - [ ] T053 [P] [US3] Add favourites, recents, and settings entry points to `apps/web/src/features/navigation/sidebar.tsx` (FR-012)
-- [ ] T054 [P] [US3] Show connection and synchronization state in `apps/web/src/features/navigation/sidebar.tsx` (FR-013)
+- [X] T054 [P] [US3] Show connection and synchronization state in `apps/web/src/features/navigation/sidebar.tsx` (FR-013)
 - [X] T055 [US3] Persist navigation state in `packages/client-core/src/local-store/navigation-state.ts` — expanded branches, last visited item, and scroll positions bounded to 50 entries (FR-014)
 - [X] T056 [US3] Restore document position on return in `apps/web/src/features/editor/editor-view.tsx` (FR-014, US3 scenario 4)
 - [X] T057 [P] [US3] Move focus deliberately after every destructive or navigational action in `apps/web/src/features/navigation/tree.tsx` — next sibling after delete, into the new item after create; never `<body>` (FR-018)
@@ -164,7 +164,7 @@ improvement over today's raw-JSON textarea.
 ## Phase 8: Polish & cross-cutting
 
 - [X] T070 Extend `tests/e2e/accessibility.spec.ts` with `@axe-core/playwright` over the workspace, editor, and settings screens, failing on any critical or serious violation (SC-004)
-- [ ] T071 [P] Add `tests/e2e/editor-performance.spec.ts` — a generated 500-block document, asserting keystroke-to-visible under 100 ms at p95 (SC-005) and open-to-editable under 2 seconds (SC-006)
+- [X] T071 [P] Add `tests/e2e/editor-performance.spec.ts` — a generated 500-block document, asserting keystroke-to-visible under 100 ms at p95 (SC-005) and open-to-editable under 2 seconds (SC-006)
 - [X] T072 [P] Document the content model and its export path in `docs/` and link it from the product documentation, since FR-005 requires the model to be documented and not merely to exist
 - [X] T073 [P] Create `specs/003-core-workspace-experience/validation.md` recording evidence per FR and SC, with SC-002 and SC-007 marked pending because they need ten human participants
 - [X] T074 Run the full local gate — `pnpm checks:local` then `pnpm test:e2e` — before the pull request, per constitution principle III
