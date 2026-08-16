@@ -147,10 +147,10 @@ reads.
 Placed last because nothing above depends on resumability to be *testable*,
 and it is the largest single piece.
 
-- [ ] T045 [P] Contract test in `apps/api/tests/uploads.spec.ts` — `HEAD` reports the server's offset; a `PATCH` at a disagreeing offset is refused rather than corrected
-- [ ] T046 `packages/database/src/repositories/content/upload-repository.ts` — the upload lifecycle, including expiry of abandoned uploads
-- [ ] T047 `apps/api/src/routes/uploads.ts` — `POST`, `HEAD`, `PATCH` per [contracts/file-transfer.md](./contracts/file-transfer.md)
-- [ ] T048 Refuse an oversized upload in `apps/api/src/routes/uploads.ts` before accepting a byte, stating the limit and the reason (FR-008, FR-009)
+- [X] T045 [P] Contract test in `apps/api/tests/uploads.spec.ts` — `HEAD` reports the server's offset; a `PATCH` at a disagreeing offset is refused rather than corrected
+- [X] T046 `packages/database/src/repositories/content/upload-repository.ts` — the upload lifecycle, including expiry of abandoned uploads
+- [X] T047 `apps/api/src/routes/uploads.ts` — `POST`, `HEAD`, `PATCH` per [contracts/file-transfer.md](./contracts/file-transfer.md)
+- [X] T048 Refuse an oversized upload in `apps/api/src/routes/uploads.ts` before accepting a byte, stating the limit and the reason (FR-008, FR-009)
 - [ ] T049 Complete an upload in one transaction in `packages/database/src/repositories/content/upload-repository.ts` — hash, deduplicate against `file_contents`, set `verified_at`, create the logical file and its placement (FR-007)
 - [ ] T050 [P] Client-side resume in `apps/web/src/features/files/upload.ts` — seek to the server's offset, never to a locally remembered one
 - [ ] T051 [P] Report `uploading`, `verifying`, `synchronized` and `blocked` in `apps/web/src/features/files/transfer-state.tsx`, mirroring the save states of feature 003
