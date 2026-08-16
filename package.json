@@ -24,6 +24,7 @@
     "test:migration": "vitest run --project database-integration packages/database/tests/migrations.integration.spec.ts",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test --fail-on-flaky-tests",
+    "test:e2e:firefox-container": "bash scripts/test-e2e-firefox-container.sh",
     "test:performance": "vitest run --project performance",
     "test:security": "vitest run --project domain --project contracts --project database-integration --project api-contract --project workspace-contract security",
     "security:audit": "pnpm audit --audit-level=high --prod",

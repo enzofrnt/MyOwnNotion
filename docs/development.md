@@ -176,6 +176,34 @@ pnpm test:e2e
 pnpm compose:check
 ```
 
+### Firefox end-to-end tests on macOS
+
+The patched Firefox binary downloaded by Playwright currently hangs during
+startup on the macOS development workstation, in both headless and headed
+modes, before the first page is created. The symptom is a Firefox process at
+100% CPU with a `RenderCompositorSWGL failed mapping default framebuffer` log.
+This is a browser/runtime issue, not an application-test failure.
+
+Run Firefox journeys in the official Playwright Linux container instead. The
+container uses the same Playwright version as the repository and reaches the
+host PostgreSQL service through `host.docker.internal`:
+
+```bash
+docker compose up -d --wait postgres
+pnpm db:migrate
+pnpm test:e2e:firefox-container -- --project=firefox-desktop
+```
+
+Additional Playwright arguments are forwarded after `--`, for example:
+
+```bash
+pnpm test:e2e:firefox-container -- --project=firefox-desktop --grep "first-run gate"
+```
+
+This is the required local path for Firefox on macOS. Chromium and WebKit may
+still run directly on the host. The container is headless by default; failed
+journeys retain the usual Playwright traces and screenshots for debugging.
+
 `pnpm checks:local` runs that whole sequence in one command. Pushing a work
 branch triggers no automated gate: **the pull request is the first gate**, so
 run the local checks before you push.
