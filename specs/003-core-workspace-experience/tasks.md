@@ -100,13 +100,13 @@ improvement over today's raw-JSON textarea.
 - [X] T038 [P] [US2] Unit tests in `packages/client-core/tests/save-state.spec.ts` — each of the four states, the offline presentation of `unsaved`, and the precedence when several rows exist
 - [X] T039 [US2] Build the save-state indicator in `apps/web/src/features/save-state/save-state-indicator.tsx` — four visually distinct states (FR-007, SC-010)
 - [X] T040 [US2] Ensure `saved` is only shown on the absence of outbox rows in `apps/web/src/features/save-state/save-state-indicator.tsx` — never on optimistic application or a timer (FR-008)
-- [ ] T041 [P] [US2] Present the blocked state in `apps/web/src/features/save-state/blocked-notice.tsx` — what is refused, that existing content is still readable, what would resolve it (FR-010)
-- [ ] T042 [P] [US2] Surface conflicts in `apps/web/src/features/save-state/conflict-notice.tsx` — the conflict visible and both versions reachable, never a silent loss (FR-011)
+- [X] T041 [P] [US2] Present the blocked state in `apps/web/src/features/save-state/blocked-notice.tsx` — what is refused, that existing content is still readable, what would resolve it (FR-010)
+- [X] T042 [P] [US2] Surface conflicts in `apps/web/src/features/save-state/conflict-notice.tsx` — the conflict visible and both versions reachable, never a silent loss (FR-011)
 - [X] T043 [US2] Announce transitions into blocked and conflict through a polite live region in `apps/web/src/features/save-state/save-state-indicator.tsx` (FR-020)
 - [X] T044 [US2] Playwright journey in `tests/e2e/save-state.spec.ts` — the offline round trip, asserting no moment at which "saved" appears before confirmation
-- [ ] T045 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a rotation write block produces the blocked state with all three statements present
+- [X] T045 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a rotation write block produces the blocked state with all three statements present
 - [X] T046 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — an unexpected close leaves the last completed edit present on reopen (FR-009, US1 scenario 4)
-- [ ] T047 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a page open in two tabs: the second does not silently overwrite the first tab's newer content (spec edge case)
+- [X] T047 [P] [US2] Playwright case in `tests/e2e/save-state.spec.ts` — a page open in two tabs: the second does not silently overwrite the first tab's newer content (spec edge case)
 
 **Checkpoint**: US1 and US2 together are the product's core promise — writing that works and a truthful statement about it.
 
@@ -123,13 +123,13 @@ improvement over today's raw-JSON textarea.
 - [X] T050 [P] [US3] Implement create, rename, move, and delete from the keyboard in `apps/web/src/features/navigation/tree-actions.ts`, reusing feature 001's mutations unchanged (FR-012, FR-025)
 - [X] T051 [P] [US3] Render pages, folders, and standalone files at the same level in `apps/web/src/features/navigation/tree.tsx` (FR-016)
 - [X] T052 [P] [US3] Implement the four branch states in `apps/web/src/features/navigation/branch-state.tsx` — loading, empty, unavailable offline, error, each a distinct readable statement (FR-015)
-- [ ] T053 [P] [US3] Add favourites, recents, and settings entry points to `apps/web/src/features/navigation/sidebar.tsx` (FR-012)
+- [X] T053 [P] [US3] Add favourites, recents, and settings entry points to `apps/web/src/features/navigation/sidebar.tsx` (FR-012)
 - [X] T054 [P] [US3] Show connection and synchronization state in `apps/web/src/features/navigation/sidebar.tsx` (FR-013)
 - [X] T055 [US3] Persist navigation state in `packages/client-core/src/local-store/navigation-state.ts` — expanded branches, last visited item, and scroll positions bounded to 50 entries (FR-014)
 - [X] T056 [US3] Restore document position on return in `apps/web/src/features/editor/editor-view.tsx` (FR-014, US3 scenario 4)
 - [X] T057 [P] [US3] Move focus deliberately after every destructive or navigational action in `apps/web/src/features/navigation/tree.tsx` — next sibling after delete, into the new item after create; never `<body>` (FR-018)
 - [X] T058 [US3] Playwright journey in `tests/e2e/keyboard-navigation.spec.ts` — the full create/rename/move/open journey with no pointer input, asserting a visible focus indicator at each step (SC-003)
-- [ ] T059 [P] [US3] Playwright case in `tests/e2e/keyboard-navigation.spec.ts` — each of the four branch states is reachable and distinguishable (FR-015)
+- [X] T059 [P] [US3] Playwright case in `tests/e2e/keyboard-navigation.spec.ts` — each of the four branch states is reachable and distinguishable (FR-015)
 - [X] T060 [P] [US3] Playwright case in `tests/e2e/keyboard-navigation.spec.ts` — `Escape` always leaves the editor, so it is never a keyboard trap
 
 ---
@@ -141,7 +141,7 @@ improvement over today's raw-JSON textarea.
 **Independent test**: complete User Story 1 at a 320-pixel viewport with no horizontal page scrolling at any point.
 
 - [X] T061 [US4] Make the workspace layout responsive from 320 pixels in `apps/web/src/styles.css` and `apps/web/src/app.tsx` (FR-021)
-- [ ] T062 [US4] Turn the sidebar into a dismissable overlay at narrow widths in `apps/web/src/features/navigation/sidebar.tsx` — closable by `Escape` and a visible control, returning focus to its trigger (US4 scenario 2)
+- [X] T062 [US4] Turn the sidebar into a dismissable overlay at narrow widths in `apps/web/src/features/navigation/sidebar.tsx` — closable by `Escape` and a visible control, returning focus to its trigger (US4 scenario 2)
 - [X] T063 [P] [US4] Contain wide content — code blocks, long links — inside their own scroll containers in `apps/web/src/styles.css` so the page never widens
 - [X] T064 [P] [US4] Ensure touch targets are at least 44×44 pixels across the editor and tree controls in `apps/web/src/styles.css`
 - [X] T065 [US4] Playwright journey in `tests/e2e/narrow-viewport.spec.ts` — US1 completed at 320 pixels, asserting `scrollWidth <= clientWidth + 1` on every core screen (SC-008)

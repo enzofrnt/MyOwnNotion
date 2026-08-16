@@ -26,10 +26,27 @@ import {
 /** The narrowest viewport the product supports. */
 const NARROW = { width: 320, height: 640 };
 
+/**
+ * Opens the workspace at a narrow width with the tree showing.
+ *
+ * Below the breakpoint the tree is a panel that can be closed, so a test that
+ * goes looking for a row without checking it is open is racing the layout. It
+ * showed up as a WebKit-only flake, which is where the render was slow enough
+ * to lose.
+ */
+async function openNarrowWorkspace(page: import("@playwright/test").Page): Promise<void> {
+  await openWorkspace(page);
+  const toggle = page.getByTestId("toggle-tree");
+  if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "false") {
+    await toggle.click();
+  }
+  await expect(page.getByTestId("workspace-tree")).toBeVisible();
+}
+
 test.describe("at 320 pixels", () => {
   test("the workspace does not scroll sideways", async ({ page }) => {
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowRoot");
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
@@ -41,7 +58,7 @@ test.describe("at 320 pixels", () => {
     // The usual culprit: a URL or an identifier with no break opportunity. It
     // has to wrap or scroll inside the editor rather than widen the page.
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowPage");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
@@ -60,7 +77,7 @@ test.describe("at 320 pixels", () => {
     // The independent test the specification names for US4: the whole writing
     // journey, at 320 pixels, with no horizontal scrolling at any point.
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowWrite");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
@@ -82,7 +99,7 @@ test.describe("at 320 pixels", () => {
 
   test("the save state stays readable", async ({ page }) => {
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowState");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
@@ -97,12 +114,66 @@ test.describe("at 320 pixels", () => {
     // aesthetic: a smaller target is one an owner misses, and missing a
     // "trash" button is worse than missing a "save" one.
     await page.setViewportSize(NARROW);
-    await openWorkspace(page);
+    await openNarrowWorkspace(page);
     const name = uniqueName("NarrowTargets");
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
 
     const box = await page.getByTestId(`convert-${name}`).boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
+  });
+});
+
+test.describe("the collapsible tree", () => {
+  test("can be hidden and shown again on a phone", async ({ page }) => {
+    // US4 scenario 2. At 320 pixels the tree and the editor cannot both be on
+    // screen and be usable, so the tree has to get out of the way — and come
+    // back.
+    await page.setViewportSize(NARROW);
+    await openNarrowWorkspace(page);
+    const name = uniqueName("Collapsible");
+    await createRootItem(page, "folder", name);
+    await waitForSynchronized(page);
+
+    await expect(page.getByTestId("workspace-tree")).toBeVisible();
+    await page.getByTestId("toggle-tree").click();
+    await expect(page.getByTestId("workspace-tree")).toBeHidden();
+
+    await page.getByTestId("toggle-tree").click();
+    await expect(page.getByTestId("workspace-tree")).toBeVisible();
+  });
+
+  test("closes on Escape and gives focus back to the control", async ({ page }) => {
+    // Leaving focus inside a panel that is no longer on screen is how a
+    // keyboard journey ends without anyone noticing.
+    await page.setViewportSize(NARROW);
+    await openNarrowWorkspace(page);
+    const name = uniqueName("Escapable");
+    await createRootItem(page, "folder", name);
+    await waitForSynchronized(page);
+
+    await page.getByTestId(`tree-item-${name}`).focus();
+    await page.keyboard.press("Escape");
+
+    await expect(page.getByTestId("workspace-tree")).toBeHidden();
+    await expect(page.getByTestId("toggle-tree")).toBeFocused();
+  });
+
+  test("declares whether it is open", async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await openWorkspace(page);
+    await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "true");
+    await page.getByTestId("toggle-tree").click();
+    await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("stays out of the way on a desktop", async ({ page }) => {
+    // The control exists in the markup at every width; above the breakpoint it
+    // is not shown, because the tree is always in view and a toggle would be
+    // one more thing to explain.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+    await expect(page.getByTestId("toggle-tree")).toBeHidden();
+    await expect(page.getByTestId("workspace-tree")).toBeVisible();
   });
 });

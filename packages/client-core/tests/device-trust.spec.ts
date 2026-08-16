@@ -56,6 +56,7 @@ async function seedLocalWork(): Promise<void> {
       currentRevisionId: generateUuidV7(),
       trashedAt: null,
       purgeAfter: null,
+      favourite: false,
       pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
       file: null,
     })) as never,

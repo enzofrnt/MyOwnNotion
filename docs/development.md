@@ -204,6 +204,13 @@ This is the required local path for Firefox on macOS. Chromium and WebKit may
 still run directly on the host. The container is headless by default; failed
 journeys retain the usual Playwright traces and screenshots for debugging.
 
+**Run the container and the host suites one after the other, never at the same
+time.** Both reach the same PostgreSQL database, and every journey resets the
+canonical content in its `beforeEach`, so two concurrent suites delete each
+other's fixtures. The failures that follow look nothing like the cause: rows
+that never appear, and journeys that normally take a second taking twenty. Run
+Firefox first or last, but alone.
+
 `pnpm checks:local` runs that whole sequence in one command. Pushing a work
 branch triggers no automated gate: **the pull request is the first gate**, so
 run the local checks before you push.

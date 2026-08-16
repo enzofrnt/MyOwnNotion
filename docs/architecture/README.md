@@ -2,6 +2,13 @@
 
 Les décisions transversales validées seront consignées ici sous forme de documents courts, reliés depuis le `plan.md` de la fonctionnalité qui les introduit.
 
+## Documents
+
+- [`write-guarantees.md`](write-guarantees.md) : les deux garanties que porte
+  toute écriture acceptée — blocage de rotation respecté, contenu protégé scellé
+  — et pourquoi elles vivent en un seul endroit.
+- [`document-model.md`](document-model.md) : le format de document par blocs.
+
 ## Frontières envisagées
 
 - `apps/web` : expérience utilisateur web et orchestration côté client.

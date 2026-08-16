@@ -648,3 +648,47 @@ code,
     min-width: 2.75rem;
   }
 }
+
+/* Favourites, recents, and settings (feature 003, FR-012).
+   Above the tree rather than beside it: at 320 pixels there is no beside, and a
+   shortcut list that only exists on a wide screen is not a shortcut. */
+.sidebar {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border, #d4d4d8);
+}
+
+.sidebar h2 {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.sidebar .tree-row {
+  padding-block: 0.25rem;
+}
+
+/* The collapsible tree (feature 003, US4 scenario 2).
+   Above the breakpoint the tree is always in view and the toggle would be one
+   more control to explain, so the control is hidden and the region always
+   open. */
+.tree-toggle {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .tree-toggle {
+    display: inline-block;
+    min-height: 2.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Removed from the document rather than visually hidden: a tree hidden with
+     opacity or height keeps its rows in the tab order and in the accessibility
+     tree, so a keyboard user would still walk through a panel that is not on
+     screen. */
+  div.workspace-tree[data-open="false"] {
+    display: none;
+  }
+}

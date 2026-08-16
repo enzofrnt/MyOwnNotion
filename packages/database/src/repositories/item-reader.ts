@@ -17,6 +17,7 @@ export interface ItemReadModel {
   readonly currentRevisionId: Uuid;
   readonly trashedAt: string | null;
   readonly purgeAfter: string | null;
+  readonly favourite: boolean;
   readonly pageDocument: {
     readonly format: "myownnotion.document+json";
     readonly formatVersion: number;
@@ -85,6 +86,7 @@ export async function readItems(
       currentRevisionId: row.currentRevisionId as Uuid,
       trashedAt: row.trashedAt?.toISOString() ?? null,
       purgeAfter: row.purgeAfter?.toISOString() ?? null,
+      favourite: row.favourite,
       pageDocument:
         row.kind === "page"
           ? document === undefined

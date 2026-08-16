@@ -31,8 +31,41 @@ import {
 } from "@myownnotion/domain";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { BlockedNotice } from "../save-state/blocked-notice.tsx";
+import { ConflictNotice } from "../save-state/conflict-notice.tsx";
 import { SaveStateIndicator } from "../save-state/save-state-indicator.tsx";
 import { EditorSurface, type EditorSurfaceHandle } from "./editor-surface.tsx";
+
+/** The stored body, as it was read, for comparing one reading with another. */
+function bodyFingerprint(body: unknown): string {
+  return JSON.stringify(body ?? null);
+}
+
+/**
+ * Whether a stored body holds anything an owner would mind losing.
+ *
+ * The guard below exists to protect work, so it has to know the difference
+ * between "someone wrote something here" and "a document row now exists". They
+ * are not the same: converting a folder into a page materialises an empty
+ * document, and the reconciler then brings that empty document back to this
+ * tab — a change to the stored body that destroys nothing and must not block
+ * the owner from typing their first words.
+ */
+function bodyHoldsContent(body: unknown): boolean {
+  const read = readDocumentBody(body);
+  if (read.kind === "legacy") {
+    return Object.keys(read.body).length > 0;
+  }
+  if (!read.result.ok) {
+    // Unreadable is not empty. Refusing to overwrite something this client
+    // cannot parse is the cautious answer, and the cautious answer is right
+    // when the alternative is destroying it.
+    return true;
+  }
+  return read.result.document.blocks.some(
+    (block) => block.type !== "paragraph" || block.content.length > 0,
+  );
+}
 
 type LoadState =
   | { readonly kind: "loading" }
@@ -58,6 +91,31 @@ export function EditorView({
   // component can honestly claim today: the server confirmation it would need
   // to say "saved" is exactly what FR-008 forbids assuming.
   const [savedLocally, setSavedLocally] = useState(false);
+  /**
+   * The revision this editor was opened on (T047, spec edge case: two tabs).
+   *
+   * Checked at save time rather than watched, and that is forced by how the
+   * store works rather than chosen for simplicity. Two tabs share one
+   * IndexedDB but `service.subscribe` is a set of listeners held in memory, so
+   * a tab is never told about a write made in another one. A watcher built on
+   * it cannot fire — which is exactly why the first attempt at this guard
+   * never triggered.
+   *
+   * What made the overwrite silent is subtle: the save path re-reads the item
+   * immediately before submitting, so the base revision it uses is genuinely
+   * current and nothing conflicts. The write is causally correct and still
+   * wrong, because the document it writes was composed against a version this
+   * tab last saw some time ago.
+   *
+   * The *body* is remembered, not the revision id. Revision ids change for
+   * reasons that have nothing to do with the document: reconciliation replaces
+   * a local revision with the server's once a mutation is accepted, and a
+   * conversion writes a new revision without touching the content. Comparing
+   * ids therefore refused perfectly good saves — a folder converted to a page
+   * could not accept its first words. What the guard actually needs to ask is
+   * "has the stored document changed under me", so that is what it compares.
+   */
+  const openedBody = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +123,7 @@ export function EditorView({
       if (cancelled) {
         return;
       }
+      openedBody.current = bodyFingerprint(item?.pageDocument?.body);
       if (item === null) {
         setState({ kind: "unavailable", reason: "This page is not available on this device yet." });
         return;
@@ -109,6 +168,24 @@ export function EditorView({
       setSaveError("This page is not available on this device.");
       return;
     }
+    const storedBody = item.pageDocument?.body;
+    if (
+      openedBody.current !== null &&
+      bodyFingerprint(storedBody) !== openedBody.current &&
+      // Only content is worth refusing over. An empty document appearing where
+      // there was none is the system catching up with this owner's own
+      // conversion, not another tab's work.
+      bodyHoldsContent(storedBody)
+    ) {
+      // Refused, not merged, and not overwritten. Only the owner can say which
+      // version they want, and the one thing that must not happen is the one
+      // that used to: replacing content this tab never displayed, and
+      // reporting it as saved.
+      setSaveError(
+        "This page changed somewhere else — another tab, or another device — after you opened it here. Saving now would replace that newer version. Copy anything you need, then reload to continue from the current one.",
+      );
+      return;
+    }
 
     const edited = normaliseDocument(current);
     const result = await service.mutate(
@@ -129,6 +206,11 @@ export function EditorView({
       setSaveError(`${result.error.code}: ${result.error.title}`);
       return;
     }
+    // This tab's own write is now the stored document, so it becomes the
+    // baseline. Without this the guard above would refuse the owner's *second*
+    // save in the same sitting, blaming a change they made themselves.
+    const saved = await service.getItem(itemId);
+    openedBody.current = bodyFingerprint(saved?.pageDocument?.body);
     setSavedLocally(true);
   }, [service, itemId]);
 
@@ -205,6 +287,11 @@ export function EditorView({
       />
 
       <SaveStateIndicator service={service} itemId={itemId} />
+      {/* Below the indicator, not instead of it: the line says which state the
+          document is in, and these say what to do about the two states an owner
+          cannot act on from a single word. */}
+      <BlockedNotice service={service} itemId={itemId} />
+      <ConflictNotice service={service} itemId={itemId} onResolved={() => setSavedLocally(false)} />
 
       <div className="field-row">
         <button
@@ -224,7 +311,7 @@ export function EditorView({
           </span>
         ) : null}
         {saveError !== null ? (
-          <span className="status-banner" data-state="error" role="alert">
+          <span className="status-banner" data-state="error" role="alert" data-testid="save-error">
             {saveError}
           </span>
         ) : null}

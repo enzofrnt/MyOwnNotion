@@ -128,4 +128,16 @@ export class Outbox {
   async conflicts() {
     return this.#db.conflicts.toArray();
   }
+
+  /**
+   * Drops a conflict record once the owner has decided between the versions.
+   *
+   * Only ever called from a deliberate choice. A conflict that expires, or that
+   * a background pass tidies away, is a version of the owner's work discarded
+   * without anyone deciding to discard it — which is the failure the durable
+   * record exists to prevent.
+   */
+  async resolveConflict(mutationId: Uuid): Promise<void> {
+    await this.#db.conflicts.delete(mutationId);
+  }
 }

@@ -176,6 +176,7 @@ describe("item.create", () => {
         currentRevisionId: revisionId,
         trashedAt: null,
         purgeAfter: null,
+        favourite: false,
         pageDocument: null,
         file: { mediaType: "image/png", originalName: "diagram.png", byteLength: 4 },
       }),

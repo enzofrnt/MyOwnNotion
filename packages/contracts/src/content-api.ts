@@ -70,6 +70,9 @@ export const ItemSchema = Type.Object({
   currentRevisionId: UuidSchema,
   trashedAt: Type.Optional(NullableDateTime),
   purgeAfter: Type.Optional(NullableDateTime),
+  // Optional so a client reading an older response, or a snapshot written
+  // before favourites existed, is not rejected by its own contract.
+  favourite: Type.Optional(Type.Boolean()),
   pageDocument: Type.Optional(Type.Union([PageDocumentSchema, Type.Null()])),
   placements: Type.Array(PlacementSchema),
 });
@@ -124,6 +127,19 @@ export const ConvertItemSchema = Type.Object(
   { additionalProperties: false },
 );
 export type ConvertItemDto = Static<typeof ConvertItemSchema>;
+
+/**
+ * Marking an item as a favourite, or removing the mark (feature 003, FR-012).
+ *
+ * The desired state is carried explicitly rather than toggled. The offline
+ * outbox replays commands, and a toggle replayed an even number of times lands
+ * on the answer the owner did not give.
+ */
+export const FavouriteItemSchema = Type.Object(
+  { favourite: Type.Boolean() },
+  { additionalProperties: false },
+);
+export type FavouriteItemDto = Static<typeof FavouriteItemSchema>;
 
 export const ReplacePageDocumentSchema = Type.Object(
   {

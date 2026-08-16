@@ -7,6 +7,8 @@ import {
   ConvertItemSchema,
   type CreateItemDto,
   CreateItemSchema,
+  type FavouriteItemDto,
+  FavouriteItemSchema,
   ItemSchema,
   ItemsListResponseSchema,
   MutationResultSchema,
@@ -184,6 +186,30 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
           // anything — it only passes the owner's answer through.
           confirmedDestruction: body.confirmedDestruction === true,
         },
+      });
+    },
+  );
+
+  app.post(
+    "/v1/items/:itemId/favourite",
+    {
+      schema: {
+        params: ItemParamsSchema,
+        body: FavouriteItemSchema,
+        response: { 200: MutationResultSchema },
+      },
+    },
+    async (request, reply) => {
+      const { itemId } = request.params as { itemId: string };
+      const body = request.body as FavouriteItemDto;
+      return handleMutation({
+        db: context.db,
+        workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
+        rotationPolicies: context.rotationPolicies,
+        request,
+        reply,
+        command: { type: "item.favourite", itemId: itemId as Uuid, favourite: body.favourite },
       });
     },
   );

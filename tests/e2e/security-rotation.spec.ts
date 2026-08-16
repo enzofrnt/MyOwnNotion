@@ -21,7 +21,11 @@ import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
 import { resetCanonicalContent } from "./reset-content.ts";
-import { resetSecurityInstallation, seedCommittedOwner } from "./reset-installation.ts";
+import {
+  clearRotationPolicies,
+  resetSecurityInstallation,
+  seedCommittedOwner,
+} from "./reset-installation.ts";
 
 const PASSWORD = "correct horse battery staple";
 const DAY = 24 * 60 * 60 * 1000;
@@ -120,6 +124,22 @@ test.beforeEach(async () => {
   await resetCanonicalContent();
   await seedCommittedOwner();
   await seedPassword();
+});
+
+test.afterEach(async () => {
+  // The seeded policies are removed here, and that is not tidiness.
+  //
+  // This file is last alphabetically, and its final case seeds a *write block*.
+  // Every policy it wrote therefore outlived the file and greeted the next
+  // browser project with an installation that refuses every write — so the
+  // first journeys of that project could not create anything, and failed
+  // looking like an unrelated tree bug.
+  //
+  // The leak is older than the failure it caused. It was harmless only because
+  // the batch route did not enforce the block; making that route honour it, as
+  // it always should have, is what turned a dormant leak into three red tests
+  // per project.
+  await clearRotationPolicies();
 });
 
 async function openSecurity(page: import("@playwright/test").Page): Promise<void> {

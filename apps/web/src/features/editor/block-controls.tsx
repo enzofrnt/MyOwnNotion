@@ -49,7 +49,21 @@ export function BlockControls({ editor }: { readonly editor: Editor }) {
       <button
         type="button"
         data-testid="insert-block"
-        onClick={() => editor.chain().focus().insertContent({ type: "paragraph" }).run()}
+        // Inserted *at the end of the selection*, never over it.
+        //
+        // `insertContent` replaces whatever is selected. That is harmless for a
+        // caret, and destructive for a node selection — which is exactly what
+        // clicking a block this client cannot render produces, because an
+        // unrenderable block is an atom and selecting it selects the whole
+        // node. "Insert a block" then deleted the one block whose preservation
+        // the format guarantees (FR-006), with no undo prompt and no warning.
+        onClick={() =>
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(editor.state.selection.to, { type: "paragraph" })
+            .run()
+        }
       >
         Insert block
       </button>

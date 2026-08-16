@@ -189,6 +189,7 @@ export async function buildItemSnapshot(
     lifecycle: item.lifecycle,
     trashedAt: item.trashedAt?.toISOString() ?? null,
     purgeAfter: item.purgeAfter?.toISOString() ?? null,
+    favourite: item.favourite,
   };
   if (item.kind === "page") {
     const documentRows = await tx

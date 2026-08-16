@@ -25,6 +25,10 @@ export async function createRootItem(
   name: string,
 ): Promise<void> {
   await page.getByLabel("Name", { exact: true }).fill(name);
+  // See `createChildItem`: the name must still be in the field when the button
+  // is pressed, and that was not guaranteed until the explorer stopped clearing
+  // it after the write.
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue(name);
   await page
     .getByRole("button", { name: kind === "page" ? "New root page" : "New root folder" })
     .click();
@@ -50,6 +54,13 @@ export async function createChildItem(
   // here that does not retry, so a re-render landing between resolving the
   // locator and scrolling it detached the element and failed the journey —
   // intermittently, which is the worst way for it to fail.
+  // Asserted before the click, not assumed. The field is shared with the last
+  // creation, which used to clear it after its write completed — so a slow
+  // machine could empty it between the fill above and the click below, and the
+  // item arrived called "Untitled page". The failure then surfaced fifteen
+  // seconds later as "the row never appeared", which points at everything
+  // except the cause.
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue(name);
   await page.getByRole("button", { name: `New ${kind} inside ${parentName}` }).click();
   await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
 }
