@@ -532,3 +532,18 @@ textarea {
   min-height: 2.75rem;
   padding: 0 0.75rem;
 }
+
+/* A file input sizes itself from the native button's label, whose width comes
+   from the system font — 347px on the Linux runners against a 320px viewport,
+   and comfortably narrower on macOS. That difference is why this overflowed
+   only in CI. Constraining it costs nothing: the control is still operable,
+   and the page stops scrolling sideways (FR-021). */
+input[type="file"] {
+  max-width: 100%;
+}
+
+/* The row holding it wraps for the same reason: a label and a file input side
+   by side do not fit at 320px in every font. */
+.field-row {
+  flex-wrap: wrap;
+}
