@@ -46,11 +46,16 @@ Do not begin feature implementation before `spec.md`, `plan.md`, and `tasks.md` 
 - Treat user data, offline behavior, synchronization, permissions, and migrations as explicit design concerns.
 - Add tests for changed behavior and run the relevant checks before marking tasks complete.
 - Before every branch push, read the current gate inventory in
-  `docs/development.md` and run `pnpm checks:local` successfully. Targeted tests
-  are useful while iterating but are not pre-push evidence. A host-runtime
-  incompatibility (such as Playwright Firefox on macOS) MUST use the documented
-  equivalent container path; an unavailable required gate blocks the push
-  rather than being silently skipped.
+  `docs/development.md`. For code, dependency, migration, build, deployment,
+  configuration, executable-schema, or mixed changes, run `pnpm checks:local`
+  successfully. A host-runtime incompatibility (such as Playwright Firefox on
+  macOS) MUST use the documented equivalent container path; an unavailable
+  required gate blocks the push rather than being silently skipped.
+- A documentation-only change does not run the application test, build, image,
+  or container suites. It MUST be limited to maintained prose or Spec Kit
+  artifacts with no executable consumer, and MUST pass the documentation-only
+  checks listed in `docs/development.md`. If path ownership or runtime impact is
+  uncertain, treat the change as mixed and run `pnpm checks:local`.
 - Prefer small, reversible changes. Do not silently expand feature scope.
 - Do not hand-edit generated files under `.agents/skills/`, `.cursor/skills/`, or shared `.specify/` templates unless intentionally customizing Spec Kit. Refresh them with the Specify CLI instead.
 

@@ -181,23 +181,52 @@ export TEST_DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/m
 Without either, the aggregate coverage percentage cannot be reproduced
 locally: the DB and API suites contribute to it, so their files report 0% and
 drag the total below the threshold. Development and targeted non-database tests
-may continue, but a branch MUST NOT be pushed until the Docker-backed pre-push
-gate has run successfully on this machine or an equivalent development
-environment. CI is confirmation of local evidence, not a substitute for it.
+may continue, but a branch that requires the application pre-push gate MUST NOT
+be pushed until the Docker-backed gate has run successfully on this machine or
+an equivalent development environment. The documentation-only exception below
+does not require Docker. CI is confirmation of required local evidence, not a
+substitute for it.
 
 ## Before you push
+
+First classify the complete diff against its merge base.
+
+A change is **documentation-only** when every changed file is maintained prose
+or a Spec Kit artifact with no executable consumer. Typical examples are
+Markdown under `docs/` or `specs/`, plus repository guidance such as
+`AGENTS.md`, `README.md`, or `CONTRIBUTING.md`. OpenAPI documents, security
+schemas, fixtures, generated templates, scripts, workflow files, configuration,
+and documentation consumed by tests are not documentation-only.
+
+For a documentation-only change, run all of the following that apply:
+
+```bash
+git diff --check
+# Review links, headings, terminology, and references in every changed document.
+# For Spec Kit artifacts, run the feature prerequisite and cross-artifact
+# consistency checks described by the relevant project skills.
+```
+
+Do not start application tests, browser suites, builds, image builds, security
+scans, or Compose checks for a documentation-only change. Record the checks
+performed in the pull request.
+
+For code, dependency, migration, build, deployment, configuration,
+executable-schema, or mixed changes, run:
 
 ```bash
 pnpm checks:local
 ```
 
-This is a hard pre-push gate, not a suggested smoke test. It runs the local
-equivalents of every repository-controlled PR job: toolchain policy, shell,
-format/lint, strict types, aggregate coverage, the separately observable
-database/migration and contract suites, the complete browser/viewport matrix,
-production and multi-architecture image builds, dependency/secret/static/
-license security checks, and Compose boundaries. Every command must finish
-successfully against the exact commit that will be pushed.
+This is the hard pre-push gate for executable or potentially executable
+changes, not a suggested smoke test. It runs the local equivalents of every
+repository-controlled PR job: toolchain policy, shell, format/lint, strict
+types, aggregate coverage, the separately observable database/migration and
+contract suites, the complete browser/viewport matrix, production and
+multi-architecture image builds, dependency/secret/static/license security
+checks, and Compose boundaries. Every command must finish successfully against
+the exact commit that will be pushed. If classification is uncertain, fail
+closed to this full gate.
 
 Targeted tests are still the fastest feedback while editing, but they are not
 pre-push evidence. Do not push with a known failure, an interrupted gate, or a
@@ -251,7 +280,7 @@ that never appear, and journeys that normally take a second taking twenty. Run
 Firefox first or last, but alone.
 
 Pushing a work branch triggers no automated gate: **the pull request is the
-first remote gate**, so the local gate must pass before every push.
+first remote gate**, so the applicable local gate must pass before every push.
 
 ### Pull-request test impact policy
 
@@ -277,8 +306,10 @@ branch protection therefore never relies on a skipped or missing check.
 
 Selection is intentionally limited to pull requests. Pushes to `main`, version
 tags through the reusable gate, manual diagnostics, and `pnpm checks:local`
-always run the full corpus. Those runs are both release evidence and the safety
-net that exposes an incomplete ownership map.
+always run the full corpus. Documentation-only work branches use the targeted
+local policy above; executable or mixed work branches still run
+`pnpm checks:local` in full before push. Full runs are both release evidence and
+the safety net that exposes an incomplete ownership map.
 
 Useful local diagnostics:
 

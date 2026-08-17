@@ -239,3 +239,17 @@ Phases 1–2 into one, Phase 3 into one, Phase 4 into one, Phases 5–6 into one
 and Phases 7–9 into one. Each still has a green local gate and a green CI before
 it merges — the batching changes how much lands per pull request, not what has
 to pass.
+
+## Deferred editor evolution
+
+No unchecked implementation task is added to feature 003 for the broader
+Notion-like experience. Its research and plan now define the adoption and
+ownership boundary, but contextual menus, drag handles, floating formatting,
+colours, collapsible sections, simple document tables, richer embeds, and the
+editor design system require their own specification and task list.
+
+That follow-up depends on feature 003 for the editor model, feature 005 for any
+file-backed block, and feature 006 for multi-device feedback or conflict
+interaction. Databases and saved views remain a separate feature. This keeps
+the completed task history truthful and prevents a documentation-only change
+from pretending that new user-visible behaviour has been implemented.

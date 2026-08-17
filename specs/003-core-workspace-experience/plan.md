@@ -170,6 +170,36 @@ the page-document mutation validates the explicit target set and reconciles
 `page-link` rows transactionally so the relationship index cannot drift from
 the saved document.
 
+## Follow-up editor evolution
+
+Feature 003 remains the editor foundation rather than becoming an evergreen
+bucket for every Notion-inspired capability. The richer interaction layer is a
+new, independently specified feature after the foundations it consumes are
+stable. Its feature number is assigned only after the current roadmap numbering
+is reconciled; this plan does not reserve one by guesswork.
+
+The follow-up is sequenced by ownership:
+
+| Increment | Dependency | Technical boundary |
+|-----------|------------|--------------------|
+| Writing refinement: contextual block menu, drag handle, floating toolbar, colours, collapsible sections, simple document tables, cohesive visual system | Feature 003 | May reuse open-source Tiptap extensions or UI source, but continues through `toTiptap` / `fromTiptap`. |
+| Media and file blocks | Feature 005 | Uses the canonical logical-file, transfer, preview, and local-availability contracts; the editor never creates a parallel upload store. |
+| Multi-device editing feedback and richer conflict interaction | Feature 006 | Uses the canonical outbox, change stream, revisions, and conflict resolution; no second collaboration document becomes authoritative. |
+| Databases and saved views | Separate database feature | A custom node may host a view, but typed properties, queries, filters, sorting, grouping, and view state stay outside the editor document. |
+
+The official Tiptap Notion-like template is reference material, not the plan.
+Any later proposal to use its Pro-licensed template, Cloud services,
+collaboration backend, AI services, or another hosted dependency must document
+licence cost, private-data flow, offline behaviour, self-hosting, replacement,
+and failure modes before implementation. Open-source components may be adopted
+selectively after compatibility with React 19, the accessibility contract, and
+the owned document model is demonstrated.
+
+Every new block type still requires a domain representation, validation,
+conversion in both directions, export behaviour, unknown-client preservation,
+version compatibility, and tests proving the round trip. A template component
+that renders correctly but cannot satisfy those invariants is not adoptable.
+
 ## Complexity Tracking
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
