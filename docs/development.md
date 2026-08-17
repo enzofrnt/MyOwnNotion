@@ -223,21 +223,84 @@ Firefox first or last, but alone.
 Pushing a work branch triggers no automated gate: **the pull request is the
 first remote gate**, so the local gate must pass before every push.
 
+### Pull-request test impact policy
+
+Pull-request CI calculates one versioned impact plan before starting test jobs.
+The policy lives in `ci/test-impact.json`; its executable implementation is
+`scripts/ci/test-impact.ts`. The generated `test-impact.json` is uploaded with
+the run and the same selection is rendered in the GitHub job summary.
+
+The policy has three outcomes for each changed path:
+
+- maintained Markdown and other declared non-executable paths with no test
+  consumer start no application test process;
+- supported TypeScript sources use Vitest's static dependency graph, while E2E
+  journeys use the explicit owner map in `ci/test-impact.json`;
+- lockfiles, global fixtures/configuration, missing comparison data, and any
+  unknown executable path fail closed to the complete relevant corpus.
+
+A changed test always runs directly. Test-consumed documents, such as the
+committed OpenAPI and security schemas, map to their contract tests even though
+they live under `specs/`. Unit, integration, contract, and E2E jobs remain
+present when their selection is empty and report a successful explicit no-op;
+branch protection therefore never relies on a skipped or missing check.
+
+Selection is intentionally limited to pull requests. Pushes to `main`, version
+tags through the reusable gate, manual diagnostics, and `pnpm checks:local`
+always run the full corpus. Those runs are both release evidence and the safety
+net that exposes an incomplete ownership map.
+
+Useful local diagnostics:
+
+```bash
+pnpm ci:test-impact --event pull_request --ref refs/pull/1/merge \
+  --base HEAD~1 --head HEAD --pr-number 1 --changed docs/development.md
+pnpm ci:test:affected --plan test-impact.json --group unit
+```
+
+When adding or renaming a Playwright `tests/e2e/*.spec.ts` journey, add it to
+`e2eJourneys` in the same change. Policy contract tests fail if any maintained
+journey is missing, duplicated, ownerless, or points to a nonexistent consumer.
+
+### CI cache boundaries
+
+Every Node job uses `actions/setup-node`'s pnpm store cache. Installs remain
+`--frozen-lockfile`: a hit avoids package downloads but does not replace
+lockfile validation or pnpm's materialization step. E2E jobs separately cache
+Playwright browser binaries by runner OS, architecture, and the installed
+Playwright version; the system dependency check still runs on every selected
+browser job.
+
+Container jobs use BuildKit's GitHub Actions backend in `mode=max`, with
+separate `api-…` and `web-…` scopes. Pull requests use a scope owned by their PR
+number, `main` uses the trusted `main` scope, and releases use an exact
+`release-<sha>` scope. Main and release publication never import a `pr-…` scope,
+so untrusted layers cannot become trusted publication input. Cache loss or
+eviction only makes the clean operation slower; it never counts as gate
+evidence.
+
+Superseded runs for the same pull request are cancelled automatically. Main,
+release, manual, and unrelated pull-request runs use distinct concurrency
+groups and cannot cancel one another.
+
 Write mode for formatting is separate on purpose: `pnpm format:write` and
 `pnpm lint --write` change files, the `:check`/`ci` variants never do.
 
 ### Delivery gate inventory
 
-The same named scripts run at all three stages — local checks, the pull
-request, and `main`. `scripts/ci/check-toolchain.ts` fails when any of them is
-missing from `package.json`, so the gate cannot silently lose a check.
+The same gate responsibilities exist at all three stages — local checks, the
+pull request, and `main`. Local and trusted runs execute the complete named
+scripts. A pull request may instead run the equivalent affected subset through
+`ci:test:affected`, using the policy above. `scripts/ci/check-toolchain.ts`
+fails when any complete or selective entry point is missing from
+`package.json`, so the gate cannot silently lose a check.
 
 | Script | Stage | Blocking rule | Artifact |
 | --- | --- | --- | --- |
 | `toolchain:check` | local, PR, main | Unpinned toolchain, foreign lockfile, or a missing gate script blocks | — |
 | `shell:check` `format:check` `lint:ci` `typecheck` | local, PR, main | Any finding blocks | — |
-| `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:security` | local, PR, main | Any failure blocks | — |
-| `test:e2e` (`test:e2e:local` on macOS) | local, PR, main | Any failed journey blocks | Playwright report |
+| `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:security` | full locally/main; affected subset or explicit no-op on PR | Any selected failure blocks; unknown impact selects the full suites | — |
+| `test:e2e` (`test:e2e:local` on macOS) | full locally/main; owned journeys or explicit no-op on PR | Any selected journey blocks; unknown impact selects every journey | Playwright report per browser/viewport |
 | `security:audit` | local, PR, main | Any high/critical vulnerability or an unavailable audit blocks | `dependency-audit.json` |
 | `security:secrets` | local, PR, main | Any detected secret or a scanner failure blocks | `secret-scan.sarif` |
 | `security:static` | local, PR, main | Any high-confidence finding or an analyzer failure blocks | `static-security.sarif` |

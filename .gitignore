@@ -28,6 +28,7 @@ coverage/
 # Test artifacts
 playwright-report/
 test-results/
+/test-impact.json
 
 # Development blob store and database data
 .dev-blobs/

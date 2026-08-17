@@ -140,6 +140,8 @@ for (const [engine, expected] of Object.entries(requiredEngines)) {
 const requiredGateScripts = [
   // Toolchain and style
   "toolchain:check",
+  "ci:test-impact",
+  "ci:test:affected",
   "shell:check",
   "format:check",
   "lint:ci",
