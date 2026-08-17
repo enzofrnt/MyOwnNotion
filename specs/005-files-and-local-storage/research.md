@@ -65,9 +65,22 @@ self-hosted, and it is expected to work offline. A remote editor fails both.
   proves heavy, and the fallback if it does — the preview path is independent
   of the editing path, so this remains available without redesign.
 
-**Consequence**: the editor's assets ship with the application and are served
-from its own origin, which is also what makes the sandboxing in decision 3
-enforceable.
+**How it is served**: as a container in this installation's own Compose stack,
+behind the same reverse proxy, rather than as assets vendored into the
+repository. Both are self-hosted and neither reaches a third party; the
+container wins on two practical grounds. The Draw.io web application is tens of
+megabytes of build output, and committing it would put a vendored third-party
+bundle into every clone and every diff for the life of the project. Compose is
+also already the deployment story: the product ships images and pins them, so
+one more pinned image is a smaller change than a new class of committed
+artefact.
+
+The cost is that the editor must be pinned like any other image and updated
+deliberately, which is the same discipline the other services already carry.
+
+**Consequence**: the editor is served from this installation, which is also
+what makes the sandboxing in decision 3 enforceable — a third-party origin
+could not be sandboxed without breaking the editor it is meant to contain.
 
 ## Decision 3 — Preview isolation: sandboxed iframe on a separate origin-like context
 

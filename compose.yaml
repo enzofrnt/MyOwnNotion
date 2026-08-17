@@ -134,6 +134,36 @@ services:
       - no-new-privileges:true
     restart: unless-stopped
 
+  # The diagram editor, served by this installation (feature 005, FR-011).
+  #
+  # Self-hosted deliberately, and it is a privacy decision rather than a
+  # preference. The obvious integration — an iframe pointing at
+  # `embed.diagrams.net` — sends the owner's diagram to a third party on every
+  # edit, and a diagram of one's own infrastructure is exactly what an owner
+  # would never knowingly post to a public service. It would also break offline
+  # use, which the product promises.
+  #
+  # Pinned like every other image here: an editor that silently updates is an
+  # editor whose behaviour changes under a deployment nobody touched.
+  drawio:
+    image: ${MYOWNNOTION_DRAWIO_IMAGE:-jgraph/drawio:24.7.17}
+    environment:
+      TZ: UTC
+      # No telemetry, no external fetches, no plugin marketplace: the point of
+      # hosting it is that nothing leaves this installation.
+      DRAWIO_SELF_CONTAINED: "1"
+    ports:
+      - "127.0.0.1:${MYOWNNOTION_DRAWIO_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
 secrets:
   # Externally managed deployment wrapping key. The host path is supplied by the
   # hosting administrator; it is never committed and never baked into an image.

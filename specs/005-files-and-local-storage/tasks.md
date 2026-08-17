@@ -16,8 +16,8 @@ by inspection.
 ## Phase 1: Setup
 
 - [ ] T001 Add the tus server dependency and pin it, then record it in `docs/development.md` alongside the existing toolchain table
-- [ ] T002 [P] Vendor the Draw.io editor assets under `apps/web/public/drawio/` with the upstream version recorded in a `VERSION` file beside them
-- [ ] T003 [P] Add `MYOWNNOTION_MAX_FILE_BYTES` to `.env.example` with the 2 GB default and a note that the real bound is what the proxy and storage carry
+- [X] T002 [P] Vendor the Draw.io editor assets under `apps/web/public/drawio/` with the upstream version recorded in a `VERSION` file beside them
+- [X] T003 [P] Add `MYOWNNOTION_MAX_FILE_BYTES` to `.env.example` with the 2 GB default and a note that the real bound is what the proxy and storage carry
 
 ---
 
@@ -103,8 +103,8 @@ unrecognised one; each previews or states name, type and size with a download.
 - [X] T027 [US3] `apps/web/src/features/files/file-preview.tsx` — a sandboxed frame fed opaque bytes, with no same-origin access (FR-013)
 - [X] T028 [P] [US3] Preview PDF, SVG, PNG, JPEG, GIF and WebP through that one frame in `apps/web/src/features/files/file-preview.tsx` (FR-010)
 - [X] T029 [P] [US3] `apps/web/src/features/files/unsupported-file.tsx` — name, type, size and a download or external-open action (FR-012)
-- [ ] T030 [US3] `apps/web/src/features/files/drawio-editor.tsx` — the vendored engine, served from this origin, never `diagrams.net`
-- [ ] T031 [US3] Save a Draw.io edit through the ordinary save path in `apps/web/src/features/files/drawio-editor.tsx` so its state is reported like any other content (FR-011)
+- [X] T030 [US3] `apps/web/src/features/files/drawio-editor.tsx` — the vendored engine, served from this origin, never `diagrams.net`
+- [X] T031 [US3] Save a Draw.io edit through the ordinary save path in `apps/web/src/features/files/drawio-editor.tsx` so its state is reported like any other content (FR-011)
 - [ ] T032 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` asserting no request leaves this origin while editing a diagram — a request to `diagrams.net` fails the test
 
 **Checkpoint**: files are useful, and previewing one is not a risk.
