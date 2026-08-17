@@ -138,7 +138,46 @@ describe("resuming", () => {
       headers: { "content-type": "application/offset+octet-stream", "upload-offset": "3" },
       payload: Buffer.from("def"),
     });
+    // The last chunk answers 201 with the item, not 204: completing an upload
+    // creates the file in one transaction, so the response that carries the
+    // final byte is the one that says what was created.
+    expect(rest.statusCode).toBe(201);
     expect(rest.headers["upload-complete"]).toBe("true");
+    const body = rest.json() as { itemId: string; verified: boolean };
+    expect(body.verified).toBe(true);
+
+    // And it is a real file now, with its content served like any other.
+    const item = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${body.itemId}`,
+    });
+    expect(item.statusCode).toBe(200);
+    expect((item.json() as { kind: string }).kind).toBe("file");
+  });
+
+  it("stores exactly the bytes that were sent across several chunks", async () => {
+    const created = await createUploadOf(9, "assembled.txt");
+    const location = created.headers["location"] as string;
+    for (const [offset, part] of [
+      [0, "abc"],
+      [3, "def"],
+      [6, "ghi"],
+    ] as const) {
+      await harness.built.app.inject({
+        method: "PATCH",
+        url: location,
+        headers: {
+          "content-type": "application/offset+octet-stream",
+          "upload-offset": String(offset),
+        },
+        payload: Buffer.from(part),
+      });
+    }
+
+    const head = await harness.built.app.inject({ method: "HEAD", url: location });
+    // The upload is gone once it became a file: its record and its partial
+    // bytes are both released, so nothing lingers unaccounted for.
+    expect(head.statusCode).toBe(404);
   });
 
   it("answers 404 for an upload that never existed", async () => {

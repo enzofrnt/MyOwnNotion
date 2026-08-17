@@ -2,7 +2,7 @@
  * Shared application context passed to every route module.
  */
 
-import type { ContentStore } from "@myownnotion/blob-store";
+import type { ContentStore, PartialUploadStore } from "@myownnotion/blob-store";
 import type { Database } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
 import type { ProtectedContent } from "./security/protected-content.ts";
@@ -13,6 +13,13 @@ export interface AppContext {
   readonly workspaceId: Uuid;
   readonly schemaVersion: number;
   readonly contentStore: ContentStore;
+  /**
+   * Where an unfinished transfer accumulates (feature 005).
+   *
+   * Separate from `contentStore` because a partial upload has no digest yet, and
+   * the content store's whole invariant is that a key *is* a digest.
+   */
+  readonly partialUploads: PartialUploadStore;
   /**
    * Present only when the security layer is configured.
    *
