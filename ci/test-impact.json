@@ -389,6 +389,43 @@
       }
     },
     {
+      "test": "tests/e2e/live-sync.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/change-stream.ts",
+          "apps/api/src/routes/changes.ts",
+          "apps/api/src/sync/change-notifier.ts",
+          "packages/database/src/repositories/change-repository.ts"
+        ],
+        "prefixes": ["apps/web/src/features/sync/", "packages/client-core/src/reconciliation/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/conflict-resolution.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/features/save-state/conflict-notice.tsx"],
+        "prefixes": [
+          "apps/web/src/features/sync/",
+          "packages/domain/src/sync/",
+          "packages/client-core/src/reconciliation/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/protocol-compatibility.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/plugins/protocol.ts",
+          "apps/api/src/routes/change-stream.ts",
+          "packages/domain/src/sync/protocol-version.ts"
+        ],
+        "prefixes": ["apps/api/src/security/device-"],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/save-state.spec.ts",
       "owners": {
         "exact": [],

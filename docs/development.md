@@ -15,6 +15,33 @@ commands you run locally, and what blocks a merge.
 | Shell | ShellCheck + shfmt, pinned versions | `scripts/ci/check-shell.ts`, `.github/workflows/ci.yml` |
 | Tests | Vitest + fast-check + Playwright | `vitest.config.ts`, `vitest.workspace.ts`, `playwright.config.ts` |
 | Database | PostgreSQL 18 | `compose.yaml` |
+| Sync protocol | version 1 | `packages/domain/src/sync/protocol-version.ts` |
+
+### The sync protocol version is part of the toolchain
+
+`packages/domain/src/sync/protocol-version.ts` declares three numbers, and a
+release has to think about all three:
+
+| Constant | Meaning |
+| --- | --- |
+| `PROTOCOL_VERSION` | what this server speaks, sent on every response as `X-MyOwnNotion-Protocol` |
+| `MINIMUM_WRITE_VERSION` | the oldest client still allowed to write |
+| `MINIMUM_READ_VERSION` | the oldest client still allowed to read |
+
+**The window is two stable versions.** A stable server accepts the matching
+stable client and the one immediately before it, for as long as their protocol
+stays compatible. That is what makes an upgrade something an owner can do at
+their own pace on each device instead of all at once.
+
+Raising `MINIMUM_WRITE_VERSION` is therefore a decision with a date attached: it
+stops a device that is one release behind from writing. Raising
+`MINIMUM_READ_VERSION` is heavier still, because a client that can read can at
+least copy an owner's work out of a machine that is behind, and refusing reads
+takes that away. Prefer read-only over refused whenever a read is safe.
+
+`MINIMUM_READ_VERSION` must never exceed `MINIMUM_WRITE_VERSION`; inverted, the
+read-only state would be unreachable and the pair would express nothing a single
+number could not. A unit test holds that invariant.
 
 ### pnpm is the only Node.js package manager
 

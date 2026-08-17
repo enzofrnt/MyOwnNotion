@@ -6,5 +6,6 @@
  * Both belong where a test can exhaust them without a browser or a server.
  */
 
+export * from "./change-nature.ts";
 export * from "./merge-documents.ts";
 export * from "./protocol-version.ts";

@@ -31,6 +31,7 @@ import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
+import { announceCommitted } from "../sync/change-notifier.ts";
 
 /** 2 GB by default, and bounded in practice by what the deployment carries. */
 const DEFAULT_MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024;
@@ -90,6 +91,12 @@ async function completeUpload(
 
   const itemId = generateUuidV7();
   const mutationId = generateUuidV7();
+  // Announced after the transaction, never from inside it (feature 006). A file
+  // is the case where the difference is most visible: the notification is worth
+  // little if the other device fetches before the row is there, and it would then
+  // wait for the next unrelated change to discover a file it was already told
+  // about.
+  let committedSequence: number | undefined;
   try {
     await runMutation(context.db, async (tx) => {
       const stored = await context.contentStore.ingest(bytes, (sha256, byteLength) =>
@@ -122,7 +129,7 @@ async function completeUpload(
         acceptedAt,
         resultRevisionIds: [execution.value.revisionId],
       });
-      await recordChange(tx, {
+      committedSequence = await recordChange(tx, {
         workspaceId: context.workspaceId,
         mutationId,
         revisionIds: [execution.value.revisionId],
@@ -137,6 +144,7 @@ async function completeUpload(
     throw error;
   }
 
+  announceCommitted(committedSequence);
   await context.partialUploads.discard(upload.id);
   return { ok: true, itemId };
 }

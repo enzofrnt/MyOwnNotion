@@ -17,6 +17,7 @@ import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from
 import { ProtectedContentUnavailableError } from "../security/content-resolution.ts";
 import { requestContext } from "../security/request-context.ts";
 import { RotationWriteBlockedError } from "../security/rotation-policy-service.ts";
+import { ProtocolTooOldError, REQUIRED_PROTOCOL_HEADER } from "./protocol.ts";
 
 export interface ProblemBody {
   readonly type: string;
@@ -157,6 +158,25 @@ export function registerErrorHandling(app: FastifyInstance): void {
       return reply.status(409).header("content-type", "application/problem+json").send(problem);
     }
 
+    // A client too old to write safely (FR-018, FR-019). 426 rather than 409:
+    // the situation is not a conflict between two writes, it is "this device
+    // must be upgraded before it may write", and the title carries the version
+    // needed because "please update" without a number leaves someone comparing
+    // two things they cannot see.
+    if (error instanceof ProtocolTooOldError) {
+      const problem: ProblemBody = {
+        type: "https://myownnotion.dev/problems/protocol.too_old",
+        title: error.reason,
+        status: 426,
+        code: "protocol.too_old",
+      };
+      return reply
+        .status(426)
+        .header("content-type", "application/problem+json")
+        .header(REQUIRED_PROTOCOL_HEADER, String(error.requiredVersion))
+        .send(problem);
+    }
+
     const statusCode =
       error.statusCode !== undefined && error.statusCode >= 400 ? error.statusCode : 500;
     if (statusCode >= 500) {
@@ -209,6 +229,10 @@ export function registerErrorHandling(app: FastifyInstance): void {
 const SECURITY_PROBLEM_TITLES: Record<SafeProblemCode, { title: string; status: number }> = {
   authentication_failed: { title: "Authentication failed", status: 401 },
   authentication_required: { title: "Authentication required", status: 401 },
+  // 401, and deliberately not 403: the credential itself is what stopped being
+  // acceptable. A device told 403 would keep its session and keep retrying;
+  // told 401 it drops it, which is what an owner meant by revoking it.
+  device_revoked: { title: "This device's access was withdrawn", status: 401 },
   // 428, not 401: the session is valid and the caller is who they say they
   // are. What is missing is a precondition — a fresh proof of possession — and
   // a client that received 401 would reasonably discard the session and send

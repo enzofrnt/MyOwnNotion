@@ -222,6 +222,16 @@ export function containsUnredactedField(value: unknown, depth = 0): boolean {
 export const SAFE_PROBLEM_CODES = [
   "authentication_failed",
   "authentication_required",
+  /**
+   * This device's access was withdrawn (feature 006, FR-021).
+   *
+   * Distinct from `authentication_failed`, and this is one of the few places
+   * where being specific is right rather than an oracle: the caller already
+   * knows which device it is, so the code discloses nothing it did not have.
+   * What it buys is that the device can say so and stop writing instead of
+   * prompting for a sign-in that will never succeed.
+   */
+  "device_revoked",
   "recent_authentication_required",
   "csrf_validation_failed",
   "rate_limited",

@@ -46,6 +46,14 @@ test.describe("revision history (US5)", () => {
     page,
     request,
   }) => {
+    // The stream is cut before anything else, because this journey is about a
+    // head that is stale *in the interface*. With live synchronization a
+    // connected tab hears the competing edit below within a second and stops
+    // being stale, which is an improvement and not what is under test here.
+    // Cutting only the stream leaves every other request working, so the restore
+    // still reaches the server and is refused for the reason it should be.
+    await page.route("**/v1/changes/stream", (route) => route.abort("connectionrefused"));
+
     await openWorkspace(page);
     const pageName = uniqueName("StaleHeadPage");
     await createRootItem(page, "page", pageName);

@@ -88,6 +88,26 @@ export async function listChangesAfter(
   };
 }
 
+/**
+ * The oldest position still served, or 0 when the feed is empty (feature 006).
+ *
+ * Nothing prunes the feed today, so this is 1 for any workspace that has ever
+ * written. It exists anyway, because the alternative is a stream that decides
+ * "this cursor is too old" from a constant, and a constant would keep answering
+ * the same way on the day retention starts — which is the day the answer stops
+ * being true. Asking the table means compaction becomes correct by itself when
+ * pruning arrives, rather than by someone remembering to revisit this.
+ */
+export async function oldestRetainedSequence(tx: Transaction, workspaceId: Uuid): Promise<number> {
+  const rows = await tx
+    .select({ sequence: changes.sequence })
+    .from(changes)
+    .where(eq(changes.workspaceId, workspaceId))
+    .orderBy(asc(changes.sequence))
+    .limit(1);
+  return rows[0]?.sequence ?? 0;
+}
+
 /** Latest sequence for the workspace (0 when no change exists yet). */
 export async function currentSequence(tx: Transaction, workspaceId: Uuid): Promise<number> {
   const rows = await tx

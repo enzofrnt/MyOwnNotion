@@ -43,6 +43,17 @@ export type ProtocolAccess =
   /** Too old to trust with either. */
   | { readonly kind: "refused"; readonly requiredVersion: number };
 
+export interface ProtocolWindow {
+  readonly minimumRead: number;
+  readonly minimumWrite: number;
+}
+
+/** The window this build actually enforces. */
+export const CURRENT_PROTOCOL_WINDOW: ProtocolWindow = {
+  minimumRead: MINIMUM_READ_VERSION,
+  minimumWrite: MINIMUM_WRITE_VERSION,
+};
+
 /**
  * What a client announcing `clientVersion` is allowed to do.
  *
@@ -52,17 +63,29 @@ export type ProtocolAccess =
  * upgrade time. The version becomes mandatory when the first incompatible change
  * ships, which is the moment it starts carrying information.
  */
-export function protocolAccessFor(clientVersion: number | null): ProtocolAccess {
+export function protocolAccessFor(
+  clientVersion: number | null,
+  /**
+   * The window to judge against; the current build's by default.
+   *
+   * A parameter rather than a hard reference to the constants, because at
+   * version 1 the refusal branches are unreachable — the minimums and the
+   * current version coincide, so no client can be too old yet. Without a way to
+   * state a different window, the refusal path would ship untested and would
+   * first be exercised on the day it starts refusing real owners' devices.
+   */
+  window: ProtocolWindow = CURRENT_PROTOCOL_WINDOW,
+): ProtocolAccess {
   if (clientVersion === null || !Number.isFinite(clientVersion)) {
     return { kind: "full" };
   }
-  if (clientVersion >= MINIMUM_WRITE_VERSION) {
+  if (clientVersion >= window.minimumWrite) {
     return { kind: "full" };
   }
-  if (clientVersion >= MINIMUM_READ_VERSION) {
-    return { kind: "read-only", requiredVersion: MINIMUM_WRITE_VERSION };
+  if (clientVersion >= window.minimumRead) {
+    return { kind: "read-only", requiredVersion: window.minimumWrite };
   }
-  return { kind: "refused", requiredVersion: MINIMUM_READ_VERSION };
+  return { kind: "refused", requiredVersion: window.minimumRead };
 }
 
 /**

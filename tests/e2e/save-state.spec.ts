@@ -220,11 +220,25 @@ test.describe("the same page open in two tabs", () => {
   // Nor could a watcher fix it: `service.subscribe` is a set of listeners held
   // in memory, so no tab is ever told what another one wrote. The check has to
   // happen where both facts are available at once — at save time.
+  //
+  // Feature 006 changed the *reachability* of this situation without changing
+  // the guarantee. A live tab now hears the other tab's write within a second
+  // and catches up, so it is no longer stale and its next save is an ordinary
+  // edit on top of the newer version — which is better and is not what these
+  // tests are about. What they are about is the tab that *cannot* hear it: a
+  // laptop that lost its connection, a proxy that dropped the stream. So the
+  // stream is cut on the stale tab, which is what makes it genuinely stale
+  // rather than merely uninformed.
+  const deafenToLiveChanges = async (target: import("@playwright/test").Page): Promise<void> => {
+    await target.route("**/v1/changes/stream", (route) => route.abort("connectionrefused"));
+  };
+
   test("the tab that fell behind refuses to overwrite the newer version", async ({
     page,
     context,
   }) => {
     const name = uniqueName("TwoTabs");
+    await deafenToLiveChanges(page);
     await openPage(page, name);
     await typeIntoEditor(page, "written in the first tab");
     await page.getByTestId("save-document").click();
@@ -259,6 +273,7 @@ test.describe("the same page open in two tabs", () => {
     // assertion that would have caught the original defect: it reads the
     // document back and finds the second tab's words, not the stale tab's.
     const name = uniqueName("TwoTabsKeeps");
+    await deafenToLiveChanges(page);
     await openPage(page, name);
     await typeIntoEditor(page, "first tab text");
     await page.getByTestId("save-document").click();

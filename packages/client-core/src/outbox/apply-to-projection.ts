@@ -225,7 +225,10 @@ export async function prepareProjectionWrite(
     case "item.convert":
     case "item.favourite":
     case "item.offline":
-    case "page.document.replace": {
+    case "page.document.replace":
+    // A resolution writes the same body an edit does, so it prepares the same
+    // row. What differs is the lineage, and the lineage is written below.
+    case "document.resolve-conflict": {
       const row = await db.items.get(command.itemId);
       // A missing row is not an error here. The write step raises the domain
       // failure with the message the caller expects, and duplicating that
@@ -252,7 +255,10 @@ export async function prepareProjectionWrite(
           "Converting a page with content to a folder destroys that content",
         );
       }
-      if (command.type === "page.document.replace") {
+      if (
+        command.type === "page.document.replace" ||
+        command.type === "document.resolve-conflict"
+      ) {
         const pageLinks = validatePageLinkTargetSet(
           command.document,
           command.pageLinkTargetIds ?? [],
@@ -390,6 +396,30 @@ export async function applyCommandToProjection(
         db,
         command.itemId,
         [item.currentRevisionId],
+        now,
+        prepared.revisionId,
+      );
+      await db.items.put(prepared.item);
+      await reconcileLocalPageLinks(db, command.itemId, command.pageLinkTargetIds ?? []);
+      return [revisionId];
+    }
+
+    case "document.resolve-conflict": {
+      const item = await db.items.get(command.itemId);
+      if (item === undefined || item.kind !== "page") {
+        throw new LocalValidationError("item.not-found", "Page is not available locally");
+      }
+      if (prepared.item === undefined || prepared.revisionId === undefined) {
+        throw new LocalValidationError("item.not-found", "The write was not prepared");
+      }
+      // Both parents locally too, so the projection tells the same story about
+      // this revision as the server will. A local revision with one parent would
+      // make the device's own history disagree with the workspace's about the
+      // one entry an owner is most likely to go looking for.
+      const revisionId = await writeLocalRevision(
+        db,
+        command.itemId,
+        [...command.resolvedRevisionIds],
         now,
         prepared.revisionId,
       );

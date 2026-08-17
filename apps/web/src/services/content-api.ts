@@ -39,6 +39,18 @@ export class ContentApi {
     this.#baseUrl = baseUrl.replace(/\/$/, "");
   }
 
+  /**
+   * Where the live change stream lives (feature 006).
+   *
+   * A URL rather than a method returning events, because `EventSource` is the
+   * thing doing the connecting: it reconnects on its own and resends
+   * `Last-Event-ID` without being asked, and wrapping it in a promise-shaped
+   * method would mean reimplementing both.
+   */
+  changeStreamUrl(): string {
+    return `${this.#baseUrl}/v1/changes/stream`;
+  }
+
   async #request<T>(
     path: string,
     init: RequestInit & { mutationId?: Uuid } = {},

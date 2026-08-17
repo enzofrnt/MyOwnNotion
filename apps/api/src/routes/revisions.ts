@@ -9,8 +9,8 @@ import {
   RestoreRevisionSchema,
   RevisionSchema,
 } from "@myownnotion/contracts";
-import { getRevision, loadParentEdges } from "@myownnotion/database";
-import { classifyLineage, type Uuid } from "@myownnotion/domain";
+import { getRevision, loadParentEdges, readRevisionAttribution } from "@myownnotion/database";
+import { classifyLineage, describeChangeNature, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
@@ -28,9 +28,10 @@ export function registerRevisionRoutes(app: FastifyInstance, context: AppContext
     },
     async (request, reply) => {
       const { revisionId } = request.params as { revisionId: string };
-      const revision = await context.db.transaction(async (tx) =>
-        getRevision(tx, revisionId as Uuid),
-      );
+      const { revision, attribution } = await context.db.transaction(async (tx) => ({
+        revision: await getRevision(tx, revisionId as Uuid),
+        attribution: await readRevisionAttribution(tx, revisionId as Uuid),
+      }));
       if (revision === null) {
         return sendProblem(reply, { code: "revision.not-found", title: "Revision does not exist" });
       }
@@ -51,6 +52,16 @@ export function registerRevisionRoutes(app: FastifyInstance, context: AppContext
         mutationId: revision.mutationId,
         parentRevisionIds: revision.parentRevisionIds,
         acceptedAt: revision.acceptedAt,
+        // The date, the device and the nature — the three things FR-022 asks a
+        // history to identify. Nulls carried through rather than smoothed over:
+        // "unknown" is a fact about this revision, and hiding it would make an
+        // unattributed entry indistinguishable from an attributed one.
+        authoredByDeviceId: attribution.deviceId,
+        authoredByDeviceName: attribution.deviceName,
+        changeNature:
+          attribution.commandType === null
+            ? "changed"
+            : describeChangeNature(attribution.commandType),
         snapshotRetained: !expired,
         snapshot: revision.snapshot,
         snapshotExpiresAt: revision.snapshotExpiresAt,

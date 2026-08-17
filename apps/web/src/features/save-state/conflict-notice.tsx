@@ -25,9 +25,10 @@
  */
 
 import type { ConflictRecordRow } from "@myownnotion/client-core";
-import { exportMarkdown, readDocumentBody } from "@myownnotion/domain";
+import { exportMarkdown, readDocumentBody, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { ConflictResolution } from "../sync/conflict-resolution.tsx";
 
 /** The conflicts that concern one item, and that carry a readable document. */
 function conflictsForItem(rows: readonly ConflictRecordRow[], itemId: string): ConflictRecordRow[] {
@@ -71,6 +72,10 @@ export function ConflictNotice({
 }) {
   const [conflicts, setConflicts] = useState<ConflictRecordRow[]>([]);
   const [serverText, setServerText] = useState<string | null>(null);
+  // Closed by default. The two whole versions above answer "what did I write?",
+  // which is the first question; the comparison answers "which parts do I keep?",
+  // which is a longer piece of work and should be entered deliberately.
+  const [comparing, setComparing] = useState(false);
 
   const refresh = useCallback(async () => {
     setConflicts(conflictsForItem(await service.outbox.conflicts(), itemId));
@@ -121,6 +126,21 @@ export function ConflictNotice({
     return null;
   }
 
+  if (comparing) {
+    return (
+      <ConflictResolution
+        service={service}
+        itemId={itemId as Uuid}
+        onResolved={() => {
+          setComparing(false);
+          void refresh();
+          onResolved();
+        }}
+        onCancel={() => setComparing(false)}
+      />
+    );
+  }
+
   return (
     <section
       className="status-banner"
@@ -149,6 +169,17 @@ export function ConflictNotice({
             </pre>
 
             <div className="tree-actions">
+              {/* The route out of an all-or-nothing choice. Without this, an
+                  owner whose two devices each changed a different paragraph has
+                  to discard one of them wholesale — which is the outcome FR-014
+                  exists to avoid. */}
+              <button
+                type="button"
+                data-testid={`conflict-compare-${row.mutationId}`}
+                onClick={() => setComparing(true)}
+              >
+                Compare part by part
+              </button>
               <button
                 type="button"
                 data-testid={`conflict-keep-mine-${row.mutationId}`}
