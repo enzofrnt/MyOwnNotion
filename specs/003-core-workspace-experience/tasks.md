@@ -191,7 +191,7 @@ same target.
 
 ## Dependencies
 
-**Phase order**: Setup → Foundational → US1 → US2 → US3 → US4 → US5 → US6 → Polish.
+**Phase order**: Setup → Foundational → US1 → US2 → US3 → US4 → US5 → Polish → US6.
 
 **Hard blocks**:
 
