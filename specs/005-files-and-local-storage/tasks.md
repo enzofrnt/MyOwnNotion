@@ -152,7 +152,7 @@ and it is the largest single piece.
 - [X] T047 `apps/api/src/routes/uploads.ts` — `POST`, `HEAD`, `PATCH` per [contracts/file-transfer.md](./contracts/file-transfer.md)
 - [X] T048 Refuse an oversized upload in `apps/api/src/routes/uploads.ts` before accepting a byte, stating the limit and the reason (FR-008, FR-009)
 - [ ] T049 Complete an upload in one transaction in `packages/database/src/repositories/content/upload-repository.ts` — hash, deduplicate against `file_contents`, set `verified_at`, create the logical file and its placement (FR-007)
-- [ ] T050 [P] Client-side resume in `apps/web/src/features/files/upload.ts` — seek to the server's offset, never to a locally remembered one
+- [X] T050 [P] Client-side resume in `apps/web/src/features/files/upload.ts` — seek to the server's offset, never to a locally remembered one
 - [ ] T051 [P] Report `uploading`, `verifying`, `synchronized` and `blocked` in `apps/web/src/features/files/transfer-state.tsx`, mirroring the save states of feature 003
 - [ ] T052 [P] Playwright journey in `tests/e2e/file-transfer.spec.ts` — an interrupted transfer resumes rather than restarting, and a partial upload never appears in the tree
 
