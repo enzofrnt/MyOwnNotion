@@ -266,3 +266,121 @@ describe("copy-on-write content replacement (FR-030/FR-036)", () => {
     expect(body.competingRevisionIds?.length).toBe(1);
   });
 });
+
+describe("what uses a file (feature 005, FR-005)", () => {
+  it("names the page a file is attached to", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Usage host" });
+    const result = await importFile("used.txt", "used bytes", {
+      kind: "attachment",
+      parentItemId: page.itemId,
+      positionKey: "U1x",
+    });
+    expect(result.status).toBe(201);
+
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${result.itemId}/usages`,
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as {
+      usages: Array<{ usedByItemId: string; usedByName: string; usageKind: string }>;
+    };
+    expect(body.usages).toHaveLength(1);
+    // The name travels with the id, because this is read while an owner decides
+    // whether to destroy something and a bare identifier decides nothing.
+    expect(body.usages[0]?.usedByName).toBe("Usage host");
+    expect(body.usages[0]?.usedByItemId).toBe(page.itemId);
+    expect(body.usages[0]?.usageKind).toBe("attachment");
+  });
+
+  it("answers with an empty list for a file nothing points at", async () => {
+    const result = await importFile("lonely.txt", "lonely bytes", {
+      kind: "hierarchy",
+      parentItemId: null,
+      positionKey: "U2x",
+    });
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${result.itemId}/usages`,
+    });
+    // A file at the workspace root is placed, not used: nothing would break if
+    // it went away, which is the question this endpoint answers.
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { usages: unknown[] }).usages).toEqual([]);
+  });
+
+  it("answers for an unknown id rather than failing", async () => {
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${generateUuidV7()}/usages`,
+    });
+    // An empty answer, not a 404: the caller asked what uses a file, and
+    // "nothing" is a complete answer even when the file is gone.
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { usages: unknown[] }).usages).toEqual([]);
+  });
+});
+
+describe("serving file content inertly (feature 005, FR-013)", () => {
+  it("sets all three headers that stop a file acting as code", async () => {
+    // A file is arbitrary bytes the owner got elsewhere, and SVG and PDF can
+    // carry script. Served inline from this origin, that script would run with
+    // the application's privileges against everything they have written.
+    const result = await importFile("diagram.svg", "<svg xmlns='http://www.w3.org/2000/svg'/>", {
+      kind: "hierarchy",
+      parentItemId: null,
+      positionKey: "S1x",
+    });
+    expect(result.status).toBe(201);
+
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${result.itemId}/content`,
+    });
+    expect(response.statusCode).toBe(200);
+    // Each closes a different door, and each has a known bypass shape alone.
+    expect(response.headers["content-disposition"]).toMatch(/^attachment/);
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["content-security-policy"]).toContain("sandbox");
+    expect(response.headers["content-security-policy"]).toContain("default-src 'none'");
+  });
+
+  it("returns the stored bytes unchanged", async () => {
+    const body = "exact bytes, byte for byte";
+    const result = await importFile("exact.txt", body, {
+      kind: "hierarchy",
+      parentItemId: null,
+      positionKey: "S2x",
+    });
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${result.itemId}/content`,
+    });
+    expect(response.body).toBe(body);
+  });
+
+  it("carries a filename that survives being non-ASCII", async () => {
+    const result = await importFile("réunion annuelle.txt", "notes", {
+      kind: "hierarchy",
+      parentItemId: null,
+      positionKey: "S3x",
+    });
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${result.itemId}/content`,
+    });
+    // RFC 5987 encoding rather than a bare filename: a header is not arbitrary
+    // text, and a mangled name is the sort of thing nobody notices until they
+    // are looking for a file they cannot find.
+    expect(response.headers["content-disposition"]).toContain("filename*=UTF-8''");
+    expect(response.headers["content-disposition"]).toContain("r%C3%A9union");
+  });
+
+  it("answers not-found for a file that does not exist", async () => {
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/files/${generateUuidV7()}/content`,
+    });
+    expect(response.statusCode).toBe(404);
+  });
+});

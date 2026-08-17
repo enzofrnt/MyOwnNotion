@@ -146,6 +146,23 @@ function parseBlock(value: JsonValue, path: string, problems: ValidationProblem[
     case "divider":
       return { type: "divider", id };
 
+    case "fileEmbed": {
+      const fileItemId = parseId(value["fileItemId"], `${path}.fileItemId`, problems);
+      if (fileItemId === null) {
+        // Refused rather than dropped. An embed pointing nowhere is not a
+        // harmless malformation: the usage index is built from these, and a
+        // silently discarded one is a file that later reports itself unused
+        // while a page still shows it.
+        return null;
+      }
+      const caption = value["caption"];
+      if (caption !== null && caption !== undefined && typeof caption !== "string") {
+        problems.push({ path: `${path}.caption`, message: "`caption` must be a string or null" });
+        return null;
+      }
+      return { type: "fileEmbed", id, fileItemId, caption: caption ?? null };
+    }
+
     case "bulletedListItem":
     case "numberedListItem":
     case "quote":

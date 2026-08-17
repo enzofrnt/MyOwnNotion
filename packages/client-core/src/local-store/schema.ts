@@ -30,6 +30,20 @@ export interface LocalItemRow {
    * before the database is unlocked.
    */
   readonly favourite: boolean;
+  /** The owner's instruction that this be kept locally (feature 005, FR-016). */
+  readonly offlineIntent: boolean;
+  /**
+   * What *this* device holds, which no other device can answer for it.
+   *
+   * Three states rather than two, and the distinction is the point:
+   * `offloaded` means this device had the content and released it to stay
+   * within its budget, `never-fetched` means it has simply never been opened
+   * here. Collapsed into "not here" they read identically, and they are not the
+   * same thing to an owner deciding whether something is safe. Neither ever
+   * reads as *missing*: content the server holds is not lost because this
+   * laptop has not fetched it.
+   */
+  readonly localAvailability: "present" | "offloaded" | "never-fetched";
   readonly pageDocument: {
     readonly format: "myownnotion.document+json";
     readonly formatVersion: number;
@@ -135,7 +149,7 @@ export interface LocalMetaRow {
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 4;
+export const LOCAL_SCHEMA_VERSION = 5;
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -209,7 +223,7 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
   // Version 4 adds `favourite` to stored items. It is written rather than
   // defaulted at read time so that one place decides what an item that predates
   // favourites is — and so a query can trust the field exists.
-  db.version(LOCAL_SCHEMA_VERSION)
+  db.version(4)
     .stores({
       items: "id, kind, lifecycle",
       placements: "id, itemId, parentKey, [parentKey+kind]",
@@ -228,6 +242,33 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
         .toCollection()
         .modify((row: { favourite?: boolean }) => {
           row.favourite = false;
+        });
+    });
+  // Version 5 adds the owner's offline instruction and what this device
+  // actually holds (feature 005). `localAvailability` is indexed because the
+  // eviction pass queries by it, and answering "what can I release" by opening
+  // every row would mean unsealing the whole projection to reclaim space.
+  db.version(LOCAL_SCHEMA_VERSION)
+    .stores({
+      items: "id, kind, lifecycle, localAvailability",
+      placements: "id, itemId, parentKey, [parentKey+kind]",
+      relationships: "id, sourceItemId, targetItemId",
+      revisionHeaders: "id, itemId, local",
+      outbox: "mutationId, status, enqueueOrder",
+      conflicts: "mutationId, capturedAt",
+      meta: "key",
+    })
+    .upgrade(async (tx) => {
+      await tx
+        .table("items")
+        .toCollection()
+        .modify((row: { offlineIntent?: boolean; localAvailability?: string }) => {
+          row.offlineIntent = false;
+          // Everything already in the projection is here because it was
+          // fetched. Defaulting to `never-fetched` would tell an owner their
+          // existing pages are not on this device, which is both false and
+          // alarming.
+          row.localAvailability = "present";
         });
     });
   return db;

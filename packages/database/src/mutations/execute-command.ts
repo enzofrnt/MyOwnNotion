@@ -30,6 +30,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { recordChange } from "../repositories/change-repository.ts";
 import { executeConvertItem } from "../repositories/content/conversion-repository.ts";
+import { rebuildEmbedUsages } from "../repositories/content/usage-repository.ts";
 import {
   executeAddFilePlacement,
   executeRemovePlacement,
@@ -317,6 +318,11 @@ async function executeReplacePageDocument(
         body: plan.value.document.body,
       },
     });
+  // Both indexes derived from this document are rebuilt here, inside the same
+  // transaction that writes it. They answer different questions — which pages
+  // this one links to, and which files it embeds — and share one reason for
+  // being here rather than after the commit: an index written in a second
+  // transaction has a window in which it disagrees with the page it describes.
   const reconciled = await reconcilePageLinks(tx, {
     workspaceId: context.workspaceId,
     sourceItemId: plan.value.item.id,
@@ -326,6 +332,10 @@ async function executeReplacePageDocument(
   if (!reconciled.ok) {
     return reconciled as DomainResult<CommandExecution>;
   }
+  // For file usages that window is the dangerous one: the deletion
+  // confirmation shown during it says "nothing uses this" about a file the
+  // page still shows (FR-004).
+  await rebuildEmbedUsages(tx, plan.value.item.id, plan.value.document.body);
   await tx
     .update(items)
     .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })

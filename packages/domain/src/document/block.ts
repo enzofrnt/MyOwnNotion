@@ -135,6 +135,27 @@ export interface DividerBlock {
 }
 
 /**
+ * A file shown inside a page (feature 005, FR-001).
+ *
+ * Carries the file's item id and nothing else about the file. Name, media type
+ * and size live on the logical file, and copying them here would create a
+ * second place to update when the owner renames it — which is precisely how a
+ * reference comes to disagree with what it points at.
+ *
+ * An older client that predates this block type sees it as an unknown block and
+ * writes it back untouched, so embedding a file on one device never destroys it
+ * from another.
+ */
+export interface FileEmbedBlock {
+  readonly type: "fileEmbed";
+  readonly id: Uuid;
+  /** The item id of the logical file being shown. */
+  readonly fileItemId: Uuid;
+  /** Optional caption written by the owner, not taken from the file. */
+  readonly caption: string | null;
+}
+
+/**
  * A block whose type this client version does not recognise (FR-006).
  *
  * It is data, not an error. `raw` holds the value exactly as it was parsed and
@@ -173,7 +194,8 @@ export type KnownBlock =
   | CheckboxBlock
   | QuoteBlock
   | CodeBlock
-  | DividerBlock;
+  | DividerBlock
+  | FileEmbedBlock;
 
 export type Block = KnownBlock | UnknownBlock;
 
@@ -189,6 +211,7 @@ export const KNOWN_BLOCK_TYPES: readonly KnownBlockType[] = [
   "quote",
   "code",
   "divider",
+  "fileEmbed",
 ];
 
 const KNOWN_BLOCK_TYPE_SET: ReadonlySet<string> = new Set(KNOWN_BLOCK_TYPES);

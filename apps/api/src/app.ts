@@ -38,6 +38,7 @@ import { registerRevisionRoutes } from "./routes/revisions.ts";
 import { registerRecoveryRoutes } from "./routes/security-recovery.ts";
 import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
+import { registerUploadRoutes } from "./routes/uploads.ts";
 import { AuditService } from "./security/audit-service.ts";
 import { resolvePrincipal } from "./security/authentication-hook.ts";
 import { renderBootstrapKit } from "./security/bootstrap-kit.ts";
@@ -503,6 +504,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   registerPlacementRoutes(app, context);
   registerPageDocumentRoutes(app, context);
   registerFileRoutes(app, context);
+  registerUploadRoutes(app, context);
   registerRelationshipRoutes(app, context);
   registerRevisionRoutes(app, context);
   registerChangeRoutes(app, context);

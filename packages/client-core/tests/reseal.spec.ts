@@ -45,6 +45,8 @@ function plaintextRow(name: string): LocalItemRow {
     trashedAt: null,
     purgeAfter: null,
     favourite: false,
+    offlineIntent: false,
+    localAvailability: "present",
     pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: { text: name } },
     file: null,
   };

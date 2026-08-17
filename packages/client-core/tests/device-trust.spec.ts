@@ -57,6 +57,8 @@ async function seedLocalWork(): Promise<void> {
       trashedAt: null,
       purgeAfter: null,
       favourite: false,
+      offlineIntent: false,
+      localAvailability: "present",
       pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
       file: null,
     })) as never,

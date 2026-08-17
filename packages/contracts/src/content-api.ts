@@ -73,10 +73,50 @@ export const ItemSchema = Type.Object({
   // Optional so a client reading an older response, or a snapshot written
   // before favourites existed, is not rejected by its own contract.
   favourite: Type.Optional(Type.Boolean()),
+  /** The owner asked for this to be kept on their devices (feature 005). */
+  offlineIntent: Type.Optional(Type.Boolean()),
   pageDocument: Type.Optional(Type.Union([PageDocumentSchema, Type.Null()])),
+  /**
+   * Present for a file item (feature 005, FR-002).
+   *
+   * The read model has carried this since feature 001; it simply never reached
+   * the client, so an attachment list could show a name and a size it had
+   * inferred but not the type the server actually stored.
+   */
+  file: Type.Optional(
+    Type.Union([
+      Type.Object({
+        mediaType: Type.String(),
+        originalName: Type.String(),
+        byteLength: Type.Number(),
+      }),
+      Type.Null(),
+    ]),
+  ),
   placements: Type.Array(PlacementSchema),
 });
 export type ItemDto = Static<typeof ItemSchema>;
+
+/**
+ * One place a file is referenced from (feature 005, FR-005).
+ *
+ * `usedByName` travels with the id because this list is read at the moment a
+ * deletion is being confirmed: a list of identifiers tells an owner nothing
+ * about what they are about to break.
+ */
+export const FileUsageSchema = Type.Object({
+  usedByItemId: UuidSchema,
+  usedByName: Type.String(),
+  usageKind: Type.Union([
+    Type.Literal("attachment"),
+    Type.Literal("embed"),
+    Type.Literal("hierarchy"),
+  ]),
+  blockId: Type.Optional(Type.Union([UuidSchema, Type.Null()])),
+});
+export type FileUsageDto = Static<typeof FileUsageSchema>;
+
+export const FileUsagesResponseSchema = Type.Object({ usages: Type.Array(FileUsageSchema) });
 
 export const CreatePlacementSchema = Type.Object(
   {

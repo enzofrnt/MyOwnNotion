@@ -18,6 +18,7 @@ export interface ItemReadModel {
   readonly trashedAt: string | null;
   readonly purgeAfter: string | null;
   readonly favourite: boolean;
+  readonly offlineIntent: boolean;
   readonly pageDocument: {
     readonly format: "myownnotion.document+json";
     readonly formatVersion: number;
@@ -87,6 +88,7 @@ export async function readItems(
       trashedAt: row.trashedAt?.toISOString() ?? null,
       purgeAfter: row.purgeAfter?.toISOString() ?? null,
       favourite: row.favourite,
+      offlineIntent: row.offlineIntent,
       pageDocument:
         row.kind === "page"
           ? document === undefined

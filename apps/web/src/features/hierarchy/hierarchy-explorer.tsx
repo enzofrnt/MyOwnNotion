@@ -749,7 +749,15 @@ export function HierarchyExplorer({
             items={items}
             onOpenPage={openPageLink}
           />
-          <AttachmentPanel pageId={selectedItem.id} onChanged={() => void refresh()} />
+          <AttachmentPanel
+            pageId={selectedItem.id}
+            onChanged={() => void refresh()}
+            // A usage is only reachable if selecting it actually goes there
+            // (FR-005); a list that names pages without opening them leaves the
+            // owner to find them by hand. `openPageLink` is the same journey a
+            // page link takes, so both arrive the same way.
+            onOpenUsage={(itemId) => openPageLink(itemId)}
+          />
         </>
       ) : null}
       {selectedItem !== null ? (

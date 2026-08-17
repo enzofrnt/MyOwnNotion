@@ -42,6 +42,11 @@ function itemRowFrom(dto: ItemDto): LocalItemRow {
     trashedAt: dto.trashedAt ?? null,
     purgeAfter: dto.purgeAfter ?? null,
     favourite: dto.favourite ?? false,
+    offlineIntent: dto.offlineIntent ?? false,
+    // Arriving in a snapshot means the server sent it, so this device now has
+    // whatever the snapshot carried. Content fetched lazily later is what moves
+    // to the other two states.
+    localAvailability: "present",
     pageDocument:
       dto.pageDocument == null
         ? null

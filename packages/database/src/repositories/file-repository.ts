@@ -23,6 +23,7 @@ import {
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
 import { fileContents, items, lifecycleEvents, logicalFiles, placements } from "../schema/index.ts";
+import { recordPlacementUsage, removePlacementUsage } from "./content/usage-repository.ts";
 import { getActivePlacements, getItem, getPlacement } from "./hierarchy-repository.ts";
 import { buildItemSnapshot, insertRevision, supersedeRevision } from "./revision-repository.ts";
 
@@ -154,6 +155,16 @@ export async function executeImportFile(
     positionKey: input.placement.positionKey,
     createdRevisionId: revisionId,
   });
+  // Importing is the commonest way a file comes to be used at all, so the usage
+  // has to be recorded here too. Recording it only in `executeAddFilePlacement`
+  // left every imported attachment reporting "used nowhere else" — which is the
+  // under-reporting direction, the one that tells an owner it is safe to
+  // destroy something a page still shows.
+  await recordPlacementUsage(tx, {
+    fileItemId: input.itemId,
+    parentItemId: input.placement.parentItemId,
+    kind: input.placement.kind,
+  });
   const snapshot = await buildItemSnapshot(tx, input.itemId);
   await insertRevision(tx, {
     id: revisionId,
@@ -198,6 +209,14 @@ export async function executeAddFilePlacement(
     parentItemId: plan.value.parentItemId,
     positionKey: plan.value.positionKey,
     createdRevisionId: revisionId,
+  });
+  // The placement is a usage: it is what a deletion confirmation has to name
+  // (FR-004). Recorded here, in the same transaction as the placement itself,
+  // so the two cannot disagree.
+  await recordPlacementUsage(tx, {
+    fileItemId: file.id,
+    parentItemId: plan.value.parentItemId,
+    kind: plan.value.kind,
   });
   await tx
     .update(items)
@@ -246,6 +265,17 @@ export async function executeRemovePlacement(
     .update(placements)
     .set({ removedAt: input.acceptedAt, removedRevisionId: revisionId })
     .where(and(eq(placements.id, placement.id), isNull(placements.removedAt)));
+  // The usage goes with the placement. An index that keeps it would over-report
+  // — and over-reporting is not the harmless direction here either: it blocks a
+  // deletion the owner is entitled to make and sends them looking for a page
+  // that no longer references the file.
+  if (placement.parentItemId !== null) {
+    await removePlacementUsage(tx, {
+      fileItemId: placement.itemId as Uuid,
+      parentItemId: placement.parentItemId as Uuid,
+      kind: placement.kind as "attachment" | "hierarchy",
+    });
+  }
 
   if (plan.value.type === "file-trashed") {
     await tx
