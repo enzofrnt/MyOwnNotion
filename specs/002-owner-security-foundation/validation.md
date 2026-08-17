@@ -54,8 +54,8 @@ missing from `package.json`, and `docs/development.md` documents the same list.
 
 | Stage | Scripts |
 | --- | --- |
-| Local checks (pre-push, no automated gate on a branch push) | `checks:local` — `toolchain:check`, `shell:check`, `format:check`, `lint:ci`, `typecheck`, `test:unit`, `test:property`, `test:integration`, `test:contract`, `test:migration`, `build`, `compose:check` |
-| Pull request (first automated gate) | all local checks plus `test:e2e`, `test:security`, `security:audit`, `security:secrets`, `security:static`, `security:licenses`, `images:build` (built and discarded; no `packages: write`) |
+| Local checks (required pre-push; no automated gate on a branch push) | `checks:local` — toolchain, shell, format/lint, types, aggregate coverage, database/migrations, contracts, the complete E2E matrix (`test:e2e:local`), production and multi-architecture builds, dependency/secret/static/license security checks, and Compose boundaries. Runtime exceptions use the equivalent path in `docs/development.md`; unavailable evidence blocks the push. |
+| Pull request (first automated gate) | the same repository-controlled gates plus GitHub-hosted artifact/SARIF publication and the pinned Trivy container scan; no PR job has `packages: write` |
 | `main` | the identical gate, plus `publish-commit-images` in the same run for the exact candidate SHA |
 | Version tag `v[0-9]+.[0-9]+.[0-9]+` | the reusable gate at the tag commit, then `release:gate` verifying `candidate_sha == github.sha` before any publication |
 

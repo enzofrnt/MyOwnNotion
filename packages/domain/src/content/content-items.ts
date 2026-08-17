@@ -5,6 +5,8 @@
  * Replacing a page document requires the caller's causal base to match the
  * accepted head so silent overwrites are impossible.
  */
+
+import { pageLinkTargets, readDocumentBody } from "../document/index.ts";
 import type { Uuid } from "../ids/uuid.ts";
 import { validatePageDocument } from "./hierarchy.ts";
 import { type CanonicalItem, type DomainResult, err, ok, type PageDocument } from "./types.ts";
@@ -20,7 +22,32 @@ export interface ReplacePageDocumentPlan {
   readonly item: CanonicalItem;
   readonly document: PageDocument;
   readonly parentRevisionId: Uuid;
-  readonly pageLinkTargetIds?: readonly Uuid[];
+  readonly pageLinkTargetIds: readonly Uuid[];
+}
+
+/** Proves that the derived relationship index is exactly the document marks. */
+export function validatePageLinkTargetSet(
+  document: PageDocument,
+  targetItemIds: readonly Uuid[],
+): DomainResult<Uuid[]> {
+  const supplied = [...new Set(targetItemIds)];
+  const read = readDocumentBody(document.body);
+  if (read.kind === "blocks" && !read.result.ok) {
+    return err("validation.invalid-payload", "Page-link targets require a valid block document");
+  }
+  const extracted =
+    read.kind === "blocks" && read.result.ok ? pageLinkTargets(read.result.document) : [];
+  const suppliedSet = new Set(supplied);
+  if (
+    suppliedSet.size !== extracted.length ||
+    extracted.some((targetItemId) => !suppliedSet.has(targetItemId))
+  ) {
+    return err(
+      "validation.invalid-payload",
+      "Page-link targets must match the links stored in the document",
+    );
+  }
+  return ok(extracted);
 }
 
 export function validateReplacePageDocument(
@@ -46,12 +73,14 @@ export function validateReplacePageDocument(
       competingRevisionIds: [item.currentRevisionId],
     });
   }
+  const pageLinks = validatePageLinkTargetSet(document.value, command.pageLinkTargetIds ?? []);
+  if (!pageLinks.ok) {
+    return pageLinks as DomainResult<ReplacePageDocumentPlan>;
+  }
   return ok({
     item,
     document: document.value,
-    ...(command.pageLinkTargetIds !== undefined
-      ? { pageLinkTargetIds: [...new Set(command.pageLinkTargetIds)] }
-      : {}),
+    pageLinkTargetIds: pageLinks.value,
     parentRevisionId: item.currentRevisionId,
   });
 }

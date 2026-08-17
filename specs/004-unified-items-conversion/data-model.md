@@ -97,7 +97,11 @@ legal. A file bound to a page's text is an *attachment*. Same table, different
 `kind`, different meaning — and a page is the only item that has both.
 An internal page link is the third relation: it stores the target's canonical
 identity and is deliberately independent from hierarchy placement. Conversion
-changes `kind`, not the target identity or the relation endpoint.
+changes `kind`, not the target identity or the relation endpoint. This describes
+an item used as the **target** of a link. When the converted item is itself the
+source page, page-to-folder conversion destroys its document after confirmation
+and removes the outgoing `page:link` edges derived from those now-destroyed
+mentions in the same transaction; links coming into that stable item remain.
 
 ---
 

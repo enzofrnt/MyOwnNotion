@@ -14,6 +14,7 @@ import {
   endpointAvailability,
   err,
   generateUuidV7,
+  INTERNAL_PAGE_LINK_RELATION_TYPE,
   ok,
   type Uuid,
   validateCreateRelationship,
@@ -103,6 +104,12 @@ export async function executeRemoveRelationship(
   const relationship = rows[0];
   if (relationship === undefined || relationship.removedRevisionId !== null) {
     return err("relationship.not-found", "Relationship does not exist");
+  }
+  if (relationship.relationType === INTERNAL_PAGE_LINK_RELATION_TYPE) {
+    return err(
+      "validation.invalid-payload",
+      "Internal page links must be removed by editing the page document",
+    );
   }
   const source = await getItem(tx, relationship.sourceItemId as Uuid);
   if (source === null) {

@@ -23,9 +23,9 @@
 
 import type { ConvertItemCommand, DomainResult, Uuid } from "@myownnotion/domain";
 import { generateUuidV7, planConversion } from "@myownnotion/domain";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Transaction } from "../../client.ts";
-import { items, pageDocuments } from "../../schema/index.ts";
+import { items, pageDocuments, relationships } from "../../schema/index.ts";
 import { protectedEnvelopes } from "../../schema/security/index.ts";
 import { getItem } from "../hierarchy-repository.ts";
 
@@ -140,6 +140,20 @@ export async function executeConvertItem(
         and(
           eq(protectedEnvelopes.entityId, plan.value.item.id),
           eq(protectedEnvelopes.entityType, PAGE_BODY_ENTITY_TYPE),
+        ),
+      );
+    // A page-link edge is a projection of a mention in this document. Once
+    // the source document is destroyed there is no mention left to index.
+    // Incoming links are untouched: they target the stable item identity and
+    // must survive this conversion.
+    await tx
+      .update(relationships)
+      .set({ removedRevisionId: revisionId })
+      .where(
+        and(
+          eq(relationships.sourceItemId, plan.value.item.id),
+          eq(relationships.relationType, "page:link"),
+          isNull(relationships.removedRevisionId),
         ),
       );
   }

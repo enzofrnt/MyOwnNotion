@@ -185,7 +185,7 @@ same target.
 - [X] T076 [US6] Implement the `pageLink` mark and target identity conversion in `packages/domain/src/document/block.ts`, `packages/domain/src/document/validate.ts`, `apps/web/src/features/editor/to-tiptap.ts`, and `apps/web/src/features/editor/from-tiptap.ts` (FR-001a, FR-028)
 - [X] T077 [US6] Add an accessible page picker and internal-link mark extension in `apps/web/src/features/editor/page-link-control.tsx`, `apps/web/src/features/editor/page-link.ts`, and `apps/web/src/features/editor/editor-surface.tsx`, using locally available page-compatible items and a distinct visual affordance (FR-027, FR-028)
 - [X] T078 [US6] Reconcile `page:link` relationship edges atomically with page-document replacement and preserve them in the local projection in `packages/database/src/mutations/execute-command.ts`, `packages/client-core/src/outbox/apply-to-projection.ts`, and `apps/web/src/features/editor/editor-view.tsx` (FR-025, FR-027)
-- [ ] T079 [US6] Add the responsive Playwright journey proving child placement and page link remain separate through reload, offline use, rename, move, and conversion in `tests/e2e/page-links.spec.ts` (US6/AC1–AC4, SC-011, SC-012)
+- [X] T079 [US6] Add the responsive Playwright journey proving child placement and page link remain separate through reload, offline use, rename, move, and conversion in `tests/e2e/page-links.spec.ts` (US6/AC1–AC4, SC-011, SC-012)
 
 ---
 

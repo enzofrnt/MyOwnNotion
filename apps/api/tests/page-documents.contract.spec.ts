@@ -37,7 +37,24 @@ describe("page-document replacement (T058)", () => {
       headers: idempotencyHeaders(),
       payload: {
         baseRevisionId: source.revisionId,
-        document: document("internal reference"),
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: {
+            blocks: [
+              {
+                type: "paragraph",
+                id: generateUuidV7(),
+                content: [
+                  {
+                    text: "internal reference",
+                    marks: [{ type: "pageLink", targetItemId: target.itemId }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
         pageLinkTargetIds: [target.itemId],
       },
     });
@@ -55,6 +72,56 @@ describe("page-document replacement (T058)", () => {
           relationship.relationType === "page:link" && relationship.targetItemId === target.itemId,
       ),
     ).toBe(true);
+  });
+
+  it("rejects a page-link index that does not match the saved document", async () => {
+    const source = await createItemViaApi(harness, { kind: "page", name: "Mismatch source" });
+    const target = await createItemViaApi(harness, { kind: "page", name: "Mismatch target" });
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: source.revisionId,
+        document: document("no internal link mark"),
+        pageLinkTargetIds: [target.itemId],
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { code: string }).code).toBe("validation.invalid-payload");
+  });
+
+  it("rejects page-link marks when the explicit index is omitted", async () => {
+    const source = await createItemViaApi(harness, { kind: "page", name: "Omitted index source" });
+    const target = await createItemViaApi(harness, { kind: "page", name: "Omitted index target" });
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${source.itemId}/document`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: source.revisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: {
+            blocks: [
+              {
+                type: "paragraph",
+                id: generateUuidV7(),
+                content: [
+                  {
+                    text: "internal reference",
+                    marks: [{ type: "pageLink", targetItemId: target.itemId }],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { code: string }).code).toBe("validation.invalid-payload");
   });
 
   it("replaces a page document and returns the new revision", async () => {

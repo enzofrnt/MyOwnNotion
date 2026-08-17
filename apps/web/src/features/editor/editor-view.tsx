@@ -20,13 +20,13 @@
  */
 
 import type { ProjectedItem } from "@myownnotion/client-core";
-import type { Block, BlockDocument, JsonObject, Uuid } from "@myownnotion/domain";
+import type { BlockDocument, JsonObject, Uuid } from "@myownnotion/domain";
 import {
-  childrenOf,
   DOCUMENT_FORMAT,
   DOCUMENT_FORMAT_VERSION,
   emptyDocument,
   normaliseDocument,
+  pageLinkTargets,
   readDocumentBody,
   serialiseDocument,
   upgradeLegacyBody,
@@ -75,24 +75,6 @@ type LoadState =
   /** A version 1 body, shown as it is and not converted until an edit. */
   | { readonly kind: "legacy"; readonly body: JsonObject }
   | { readonly kind: "unavailable"; readonly reason: string };
-
-function pageLinkTargets(document: BlockDocument): Uuid[] {
-  const targets = new Set<Uuid>();
-  const visit = (blocks: readonly Block[]): void => {
-    for (const block of blocks) {
-      if (block.type !== "unknown" && "content" in block) {
-        for (const inline of block.content) {
-          for (const mark of inline.marks ?? []) {
-            if (mark.type === "pageLink") targets.add(mark.targetItemId);
-          }
-        }
-      }
-      visit(childrenOf(block));
-    }
-  };
-  visit(document.blocks);
-  return [...targets];
-}
 
 export function EditorView({
   service,

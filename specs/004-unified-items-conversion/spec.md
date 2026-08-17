@@ -187,6 +187,10 @@ of them, and confirm the order is unchanged after a reload.
 - Converting an item that is the target of an internal page-link relationship:
   the reference must still resolve, because the identity did not change, and
   the link must not be added to the hierarchy.
+- Converting a source page that contains internal page links into a folder: the
+  inline mentions are editorial content and are destroyed only after the normal
+  confirmation; their derived outgoing `page:link` edges are removed in the
+  same conversion, while links targeting the converted item remain.
 - Converting a page whose content is unreadable — a corrupt or undecryptable
   body: the destruction must not be presented as routine when the interface
   cannot show what is being destroyed.

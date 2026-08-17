@@ -321,7 +321,7 @@ describe("page.document.replace", () => {
       metadata: { label: "unrelated" },
     });
 
-    const replaceLinks = async (targetItemIds: readonly Uuid[]) => {
+    const replaceLinks = async (targetItemIds: readonly Uuid[], includeIndex = true) => {
       const baseRevisionId = (await readItem(source.itemId))?.currentRevisionId as Uuid;
       return await applyLocalMutation(
         db,
@@ -333,10 +333,21 @@ describe("page.document.replace", () => {
             baseRevisionId,
             document: {
               format: "myownnotion.document+json",
-              formatVersion: 1,
-              body: { text: "linked document" },
+              formatVersion: 2,
+              body: {
+                blocks: [
+                  {
+                    type: "paragraph",
+                    id: generateUuidV7(),
+                    content: targetItemIds.map((targetItemId) => ({
+                      text: "linked target",
+                      marks: [{ type: "pageLink", targetItemId }],
+                    })),
+                  },
+                ],
+              },
             },
-            pageLinkTargetIds: targetItemIds,
+            ...(includeIndex ? { pageLinkTargetIds: targetItemIds } : {}),
           },
           baseRevisionIds: [baseRevisionId],
         },
@@ -365,6 +376,12 @@ describe("page.document.replace", () => {
       (relationship) => relationship.relationType === "page:link",
     );
     expect(pageLinks[0]?.id).toBe(retainedPageLinkId);
+
+    expect((await replaceLinks([], false)).ok).toBe(true);
+    pageLinks = (await db.relationships.toArray()).filter(
+      (relationship) => relationship.relationType === "page:link",
+    );
+    expect(pageLinks).toHaveLength(0);
     expect(await db.relationships.get(unrelatedRelationshipId)).toMatchObject({
       relationType: "link",
       metadata: { label: "unrelated" },
@@ -375,6 +392,7 @@ describe("page.document.replace", () => {
     const source = await createItem("page", "Source", null);
     const baseRevisionId = (await readItem(source.itemId))?.currentRevisionId as Uuid;
     const before = await readItem(source.itemId);
+    const unavailableTargetId = generateUuidV7();
 
     const result = await applyLocalMutation(
       db,
@@ -386,10 +404,23 @@ describe("page.document.replace", () => {
           baseRevisionId,
           document: {
             format: "myownnotion.document+json",
-            formatVersion: 1,
-            body: { text: "invalid link" },
+            formatVersion: 2,
+            body: {
+              blocks: [
+                {
+                  type: "paragraph",
+                  id: generateUuidV7(),
+                  content: [
+                    {
+                      text: "invalid link",
+                      marks: [{ type: "pageLink", targetItemId: unavailableTargetId }],
+                    },
+                  ],
+                },
+              ],
+            },
           },
-          pageLinkTargetIds: [generateUuidV7()],
+          pageLinkTargetIds: [unavailableTargetId],
         },
         baseRevisionIds: [baseRevisionId],
       },
@@ -644,6 +675,30 @@ describe("item.restore", () => {
 });
 
 describe("relationship commands", () => {
+  it("rejects direct creation of the page:link relation reserved for documents", async () => {
+    const source = await createItem("page", "Source", null);
+    const target = await createItem("page", "Target", null);
+    const relationshipId = generateUuidV7();
+    const result = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "relationship.create",
+        payload: {
+          id: relationshipId,
+          sourceItemId: source.itemId,
+          targetItemId: target.itemId,
+          relationType: "page:link",
+        },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+    expect(result.ok).toBe(false);
+    expect(await db.relationships.get(relationshipId)).toBeUndefined();
+  });
+
   it("creates a typed relationship with metadata", async () => {
     const source = await createItem("page", "Source", null);
     const target = await createItem("page", "Target", null);
@@ -749,6 +804,73 @@ describe("relationship commands", () => {
     if (!result.ok) {
       expect(result.error.code).toBe("item.not-found");
     }
+  });
+});
+
+describe("item.convert page-link projection", () => {
+  it("destroys a source document and its outgoing page-link index together", async () => {
+    const source = await createItem("page", "Source", null);
+    const target = await createItem("page", "Target", null);
+    const sourceBase = (await readItem(source.itemId))?.currentRevisionId as Uuid;
+    const linked = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "page.document.replace",
+        payload: {
+          itemId: source.itemId,
+          baseRevisionId: sourceBase,
+          document: {
+            format: "myownnotion.document+json",
+            formatVersion: 2,
+            body: {
+              blocks: [
+                {
+                  type: "paragraph",
+                  id: generateUuidV7(),
+                  content: [
+                    {
+                      text: "Target",
+                      marks: [{ type: "pageLink", targetItemId: target.itemId }],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          pageLinkTargetIds: [target.itemId],
+        },
+        baseRevisionIds: [sourceBase],
+      },
+      now,
+      codec,
+    );
+    expect(linked.ok).toBe(true);
+
+    const current = await readItem(source.itemId);
+    const converted = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.convert",
+        payload: {
+          itemId: source.itemId,
+          targetKind: "folder",
+          confirmedDestruction: true,
+        },
+        baseRevisionIds: [current?.currentRevisionId as Uuid],
+      },
+      now,
+      codec,
+    );
+    expect(converted.ok).toBe(true);
+    expect(await readItem(source.itemId)).toMatchObject({ kind: "folder", pageDocument: null });
+    expect(
+      (await db.relationships.toArray()).filter(
+        (relationship) =>
+          relationship.sourceItemId === source.itemId && relationship.relationType === "page:link",
+      ),
+    ).toHaveLength(0);
   });
 });
 

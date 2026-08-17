@@ -18,14 +18,10 @@
 # attempted registry write therefore fails for lack of permission rather than
 # succeeding silently.
 #
-# Deliberately absent for now: the vulnerability-scanning jobs T100 and T101
-# also describe — dependency audit, secret scan, static security analysis,
-# license policy, and the container scan. They are deferred until the
-# application is functionally complete, so they land against something worth
-# auditing rather than blocking construction. The scripts already exist
-# (`pnpm security:audit|secrets|static|licenses`) and can be run by hand in the
-# meantime; only their wiring into the gate is postponed. T100 and T101 stay
-# unchecked in tasks.md until they are wired in.
+# Dependency audit, secret scan, static analysis, license policy, and the
+# container scan are all blocking jobs below and are required by
+# `quality-gate`. Their underlying repository scripts also run in the local
+# pre-push gate; GitHub-only SARIF publication remains a CI responsibility.
 name: CI
 
 on:

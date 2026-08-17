@@ -11,6 +11,9 @@ import { type CanonicalItem, type DomainResult, err, ok } from "./types.ts";
 /** Owned namespaced vocabulary, e.g. `link:references`, `embed:file`. */
 const RELATION_TYPE_PATTERN = /^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$/;
 
+/** Managed only by page-document replacement so the index cannot drift. */
+export const INTERNAL_PAGE_LINK_RELATION_TYPE = "page:link";
+
 export function isValidRelationType(value: string): boolean {
   return RELATION_TYPE_PATTERN.test(value) && value.length <= 128;
 }
@@ -40,6 +43,12 @@ export function validateCreateRelationship(
   }
   if (!isValidRelationType(command.relationType)) {
     return err("validation.invalid-payload", "Relation type must use the namespaced vocabulary");
+  }
+  if (command.relationType === INTERNAL_PAGE_LINK_RELATION_TYPE) {
+    return err(
+      "validation.invalid-payload",
+      "Internal page links must be managed through the page document",
+    );
   }
   const source = getItem(command.sourceItemId);
   if (source === null || source.lifecycle === "purged") {

@@ -111,7 +111,11 @@ The canonical relationship projection represents each distinct source/target
 pair with one `relationType: "page:link"` edge. Repeated mentions in one page
 remain separate inline marks but share that edge. Saving the document and
 reconciling the edge set is one mutation boundary; a descendant target is
-allowed because this edge is not part of the placement graph.
+allowed because this edge is not part of the placement graph. The explicit
+target set, when supplied, must exactly match the validated marks in the saved
+document. Every document replacement derives and reconciles the edge set even
+when that optional transport field is absent, and the reserved `page:link` type
+cannot be created or removed through the generic relationship commands.
 
 Normalisation is defined and total: marks are sorted by type, adjacent nodes
 with equal mark sets are merged, and empty text nodes are dropped. This exists

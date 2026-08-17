@@ -11,10 +11,12 @@ import {
   type CanonicalItem,
   generateUuidV7,
   type HierarchyView,
+  INTERNAL_PAGE_LINK_RELATION_TYPE,
   type MutationCommand,
   type Placement,
   TRASH_RETENTION_MS,
   type Uuid,
+  validatePageLinkTargetSet,
   wouldCreateCycle,
 } from "@myownnotion/domain";
 import {
@@ -246,6 +248,15 @@ export async function prepareProjectionWrite(
           "Converting a page with content to a folder destroys that content",
         );
       }
+      if (command.type === "page.document.replace") {
+        const pageLinks = validatePageLinkTargetSet(
+          command.document,
+          command.pageLinkTargetIds ?? [],
+        );
+        if (!pageLinks.ok) {
+          throw new LocalValidationError("validation.invalid-payload", pageLinks.error.title);
+        }
+      }
 
       const edited = ((): LocalItemRow => {
         switch (command.type) {
@@ -254,11 +265,15 @@ export async function prepareProjectionWrite(
           case "item.favourite":
             return { ...opened, favourite: command.favourite, currentRevisionId: revisionId };
           case "item.convert":
-            // The kind is the only field that changes. The document is left as
-            // it is: the server decides whether it may be destroyed, and a
-            // client that dropped it locally first would have destroyed content
-            // the server may still refuse to lose.
-            return { ...opened, kind: command.targetKind, currentRevisionId: revisionId };
+            return {
+              ...opened,
+              kind: command.targetKind,
+              // Confirmation was checked above using the same domain rule as
+              // the server. Once accepted, a folder cannot retain a hidden
+              // page body that could later resurrect on an offline conversion.
+              pageDocument: command.targetKind === "folder" ? null : opened.pageDocument,
+              currentRevisionId: revisionId,
+            };
           default:
             return {
               ...opened,
@@ -338,6 +353,21 @@ export async function applyCommandToProjection(
         prepared.revisionId,
       );
       await db.items.put(prepared.item);
+      if (
+        command.type === "item.convert" &&
+        item.kind === "page" &&
+        command.targetKind === "folder"
+      ) {
+        const outgoing = await db.relationships
+          .where("sourceItemId")
+          .equals(command.itemId)
+          .toArray();
+        await db.relationships.bulkDelete(
+          outgoing
+            .filter((relationship) => relationship.relationType === "page:link")
+            .map((relationship) => relationship.id),
+        );
+      }
       return [revisionId];
     }
 
@@ -357,9 +387,7 @@ export async function applyCommandToProjection(
         prepared.revisionId,
       );
       await db.items.put(prepared.item);
-      if (command.pageLinkTargetIds !== undefined) {
-        await reconcileLocalPageLinks(db, command.itemId, command.pageLinkTargetIds);
-      }
+      await reconcileLocalPageLinks(db, command.itemId, command.pageLinkTargetIds ?? []);
       return [revisionId];
     }
 
@@ -464,6 +492,12 @@ export async function applyCommandToProjection(
     }
 
     case "relationship.create": {
+      if (command.relationType === INTERNAL_PAGE_LINK_RELATION_TYPE) {
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          "Internal page links must be managed through the page document",
+        );
+      }
       const revisionId = await writeLocalRevision(db, command.sourceItemId, [], now);
       await db.relationships.add({
         id: command.id,
@@ -479,6 +513,12 @@ export async function applyCommandToProjection(
       const relationship = await db.relationships.get(command.relationshipId);
       if (relationship === undefined) {
         throw new LocalValidationError("item.not-found", "Relationship is not available locally");
+      }
+      if (relationship.relationType === INTERNAL_PAGE_LINK_RELATION_TYPE) {
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          "Internal page links must be removed by editing the page document",
+        );
       }
       const revisionId = await writeLocalRevision(db, relationship.sourceItemId, [], now);
       await db.relationships.delete(command.relationshipId);
