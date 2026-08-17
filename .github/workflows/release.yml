@@ -91,10 +91,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish immutable version-tagged images
-        # Two tags, both immutable: the version and the commit. No `latest`,
-        # deliberately — a moving tag means a deployment cannot name what it is
-        # running, and a rollback cannot name what to go back to.
+      - name: Read immutable release inputs
+        id: release-meta
         run: |
           set -euo pipefail
           owner=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
@@ -105,44 +103,88 @@ jobs:
           node_base=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)
           nginx_base=$(jq -r '.bases.nginx | "\(.ref)@\(.digest)"' docker/base-images.json)
           platforms=$(jq -r '.platforms | join(",")' docker/base-images.json)
-
-          publish() {
-            local target="$1"; shift
-            docker buildx build --platform "$platforms" --push \
-              --file "docker/${target}.Dockerfile" \
-              --build-arg "NODE_BASE=$node_base" \
-              "$@" \
-              --provenance=true --sbom=true \
-              --label "org.opencontainers.image.source=$source_url" \
-              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-              --label "org.opencontainers.image.version=$version" \
-              --label "org.opencontainers.image.licenses=AGPL-3.0-or-later" \
-              --label "org.opencontainers.image.title=myownnotion-${target}" \
-              --annotation "index:org.opencontainers.image.source=$source_url" \
-              --annotation "index:org.opencontainers.image.revision=$GITHUB_SHA" \
-              --annotation "index:org.opencontainers.image.version=$version" \
-              --annotation "index:org.opencontainers.image.description=MyOwnNotion ${target}" \
-              --metadata-file "release-${target}.json" \
-              --tag "${registry}-${target}:${version}" \
-              --tag "${registry}-${target}:sha-${GITHUB_SHA}" .
-          }
-
-          publish api
-          publish web --build-arg "NGINX_BASE=$nginx_base"
-
+          echo "registry=$registry" >> "$GITHUB_OUTPUT"
+          echo "source_url=$source_url" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "node=$node_base" >> "$GITHUB_OUTPUT"
+          echo "nginx=$nginx_base" >> "$GITHUB_OUTPUT"
+          echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
+      - name: Publish immutable version-tagged API image
+        id: release-api
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          platforms: ${{ steps.release-meta.outputs.platforms }}
+          push: true
+          provenance: true
+          sbom: true
+          build-args: NODE_BASE=${{ steps.release-meta.outputs.node }}
+          tags: |
+            ${{ steps.release-meta.outputs.registry }}-api:${{ steps.release-meta.outputs.version }}
+            ${{ steps.release-meta.outputs.registry }}-api:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ steps.release-meta.outputs.source_url }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+            org.opencontainers.image.title=myownnotion-api
+          annotations: |
+            index:org.opencontainers.image.source=${{ steps.release-meta.outputs.source_url }}
+            index:org.opencontainers.image.revision=${{ github.sha }}
+            index:org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
+            index:org.opencontainers.image.description=MyOwnNotion api
+          cache-from: type=gha,scope=api-release-${{ github.sha }}
+          cache-to: type=gha,mode=max,scope=api-release-${{ github.sha }},ignore-error=true
+      - name: Publish immutable version-tagged web image
+        id: release-web
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: docker/web.Dockerfile
+          platforms: ${{ steps.release-meta.outputs.platforms }}
+          push: true
+          provenance: true
+          sbom: true
+          build-args: |
+            NODE_BASE=${{ steps.release-meta.outputs.node }}
+            NGINX_BASE=${{ steps.release-meta.outputs.nginx }}
+          tags: |
+            ${{ steps.release-meta.outputs.registry }}-web:${{ steps.release-meta.outputs.version }}
+            ${{ steps.release-meta.outputs.registry }}-web:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ steps.release-meta.outputs.source_url }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0-or-later
+            org.opencontainers.image.title=myownnotion-web
+          annotations: |
+            index:org.opencontainers.image.source=${{ steps.release-meta.outputs.source_url }}
+            index:org.opencontainers.image.revision=${{ github.sha }}
+            index:org.opencontainers.image.version=${{ steps.release-meta.outputs.version }}
+            index:org.opencontainers.image.description=MyOwnNotion web
+          cache-from: type=gha,scope=web-release-${{ github.sha }}
+          cache-to: type=gha,mode=max,scope=web-release-${{ github.sha }},ignore-error=true
+      - name: Record released digests for the validated commit
+        env:
+          API_DIGEST: ${{ steps.release-api.outputs.digest }}
+          WEB_DIGEST: ${{ steps.release-web.outputs.digest }}
+          PLATFORMS: ${{ steps.release-meta.outputs.platforms }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+        run: |
           jq -n \
             --arg sha "$GITHUB_SHA" \
-            --arg version "$version" \
-            --arg platforms "$platforms" \
-            --slurpfile api release-api.json \
-            --slurpfile web release-web.json \
+            --arg version "$VERSION" \
+            --arg platforms "$PLATFORMS" \
+            --arg api "$API_DIGEST" \
+            --arg web "$WEB_DIGEST" \
             '{
                candidateSha: $sha,
                version: $version,
                platforms: ($platforms | split(",")),
                images: {
-                 api: $api[0]["containerimage.digest"],
-                 web: $web[0]["containerimage.digest"]
+                 api: $api,
+                 web: $web
                }
              }' > released-images.json
           cat released-images.json

@@ -24,6 +24,7 @@ const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const workflows = path.join(repoRoot, ".github", "workflows");
 const release = readFileSync(path.join(workflows, "release.yml"), "utf8");
 const ci = readFileSync(path.join(workflows, "ci.yml"), "utf8");
+const gha = (expression: string): string => `\${{ ${expression} }}`;
 const ruleset = JSON.parse(
   readFileSync(path.join(repoRoot, ".github", "rulesets", "main.json"), "utf8"),
 ) as {
@@ -98,8 +99,18 @@ describe("the gate a release depends on", () => {
 
 describe("what gets published", () => {
   it("carries an immutable version tag and an immutable commit tag", () => {
-    expect(release).toMatch(/--tag "\$\{registry\}-\$\{target\}:\$\{version\}"/);
-    expect(release).toMatch(/--tag "\$\{registry\}-\$\{target\}:sha-\$\{GITHUB_SHA\}"/);
+    expect(release).toContain(
+      `${gha("steps.release-meta.outputs.registry")}-api:${gha("steps.release-meta.outputs.version")}`,
+    );
+    expect(release).toContain(
+      `${gha("steps.release-meta.outputs.registry")}-web:${gha("steps.release-meta.outputs.version")}`,
+    );
+    expect(release).toContain(
+      `${gha("steps.release-meta.outputs.registry")}-api:sha-${gha("github.sha")}`,
+    );
+    expect(release).toContain(
+      `${gha("steps.release-meta.outputs.registry")}-web:sha-${gha("github.sha")}`,
+    );
   });
 
   it("publishes no moving tag", () => {
@@ -131,15 +142,16 @@ describe("what gets published", () => {
   });
 
   it("attaches provenance and an SBOM", () => {
-    expect(release).toContain("--provenance=true");
-    expect(release).toContain("--sbom=true");
+    expect(release).toContain("provenance: true");
+    expect(release).toContain("sbom: true");
   });
 
   it("records the digests it published", () => {
     // The evidence a rollback needs: what was pushed, for which commit, on
     // which platforms. A tag can be argued about; a digest cannot.
     expect(release).toContain("released-images.json");
-    expect(release).toContain("containerimage.digest");
+    expect(release).toContain("steps.release-api.outputs.digest");
+    expect(release).toContain("steps.release-web.outputs.digest");
     expect(release).toContain("if-no-files-found: error");
   });
 
@@ -148,8 +160,27 @@ describe("what gets published", () => {
     // unattached: no Packages tab, no visible provenance. On the index as well
     // as the config, because a multi-architecture push publishes a manifest
     // list and GHCR reads the link from the index.
-    expect(release).toContain("org.opencontainers.image.source=$source_url");
-    expect(release).toContain("index:org.opencontainers.image.source=$source_url");
+    expect(release).toContain(
+      `org.opencontainers.image.source=${gha("steps.release-meta.outputs.source_url")}`,
+    );
+    expect(release).toContain(
+      `index:org.opencontainers.image.source=${gha("steps.release-meta.outputs.source_url")}`,
+    );
+  });
+
+  it("reuses only exact-release trusted cache scopes", () => {
+    expect(release).toContain(`cache-from: type=gha,scope=api-release-${gha("github.sha")}`);
+    expect(release).toContain(`cache-from: type=gha,scope=web-release-${gha("github.sha")}`);
+    expect(release).toContain(`cache-to: type=gha,mode=max,scope=api-release-${gha("github.sha")}`);
+    expect(release).toContain(`cache-to: type=gha,mode=max,scope=web-release-${gha("github.sha")}`);
+    expect(release).not.toContain("scope=api-pr-");
+    expect(release).not.toContain("scope=web-pr-");
+  });
+
+  it("keeps publication independent from cache export availability", () => {
+    const exports = [...release.matchAll(/^ +cache-to: (.+)$/gm)].map((match) => match[1] ?? "");
+    expect(exports).toHaveLength(2);
+    expect(exports.every((entry) => entry.includes("ignore-error=true"))).toBe(true);
   });
 });
 

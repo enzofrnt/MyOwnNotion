@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://myownnotion.local/contracts/impact-plan.schema.json",
+  "title": "CI impact plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "event",
+    "baseSha",
+    "headSha",
+    "changedPaths",
+    "deletedPaths",
+    "mode",
+    "vitest",
+    "e2e",
+    "cacheScope",
+    "reasons",
+    "unknownPaths"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "event": { "type": "string", "minLength": 1 },
+    "baseSha": { "type": ["string", "null"] },
+    "headSha": { "type": "string", "minLength": 1 },
+    "changedPaths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "deletedPaths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "mode": { "enum": ["none", "affected", "full"] },
+    "vitest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "sourceFiles", "testFiles", "groups"],
+      "properties": {
+        "mode": { "enum": ["none", "related", "direct", "mixed", "full"] },
+        "sourceFiles": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "testFiles": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "groups": {
+          "type": "array",
+          "items": { "enum": ["unit", "integration", "contract"] },
+          "uniqueItems": true
+        }
+      }
+    },
+    "e2e": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "testFiles", "matrix"],
+      "properties": {
+        "mode": { "enum": ["none", "selected", "full"] },
+        "testFiles": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "matrix": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["project"],
+            "properties": { "project": { "type": "string", "minLength": 1 } }
+          }
+        }
+      }
+    },
+    "cacheScope": { "type": "string", "minLength": 1 },
+    "reasons": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "unknownPaths": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+  }
+}

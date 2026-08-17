@@ -23,6 +23,7 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const ci = readFileSync(path.join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
+const gha = (expression: string): string => `\${{ ${expression} }}`;
 
 /** The five security jobs FR-035 requires to be individually observable. */
 const SECURITY_JOBS = [
@@ -93,7 +94,16 @@ describe("the five security jobs", () => {
 describe("the aggregate", () => {
   it("requires every build and test job as well", () => {
     const needs = qualityGateNeeds();
-    for (const job of ["lint", "typecheck", "unit", "integration", "contract", "e2e", "build"]) {
+    for (const job of [
+      "impact",
+      "lint",
+      "typecheck",
+      "unit",
+      "integration",
+      "contract",
+      "e2e",
+      "build",
+    ]) {
       expect(needs, `${job} does not block the gate`).toContain(job);
     }
   });
@@ -112,6 +122,78 @@ describe("the aggregate", () => {
     // some branch-protection configurations it is simply never reported.
     const block = /\n {2}quality-gate:\n([\s\S]*?)\n {2}[a-z]/.exec(ci)?.[1] ?? "";
     expect(block).toContain("if: always()");
+  });
+});
+
+describe("safe reusable work", () => {
+  it("uses the lockfile-aware pnpm store cache", () => {
+    expect(ci).toContain("cache: pnpm");
+    expect(ci).toContain("pnpm install --frozen-lockfile");
+  });
+
+  it("keys Playwright browsers by runner and pinned runtime version", () => {
+    expect(ci).toContain(
+      `key: playwright-${gha("runner.os")}-${gha("runner.arch")}-${gha("steps.playwright-version.outputs.value")}`,
+    );
+    expect(ci).toContain("pnpm exec playwright install --with-deps");
+  });
+
+  it("uses separate maximal BuildKit scopes for API and web", () => {
+    expect(ci).toContain(
+      `cache-from: type=gha,scope=api-${gha("needs.impact.outputs.cache_scope")}`,
+    );
+    expect(ci).toContain(
+      `cache-to: type=gha,mode=max,scope=api-${gha("needs.impact.outputs.cache_scope")}`,
+    );
+    expect(ci).toContain(
+      `cache-from: type=gha,scope=web-${gha("needs.impact.outputs.cache_scope")}`,
+    );
+    expect(ci).toContain(
+      `cache-to: type=gha,mode=max,scope=web-${gha("needs.impact.outputs.cache_scope")}`,
+    );
+  });
+
+  it("does not turn an unavailable cache export into gate evidence", () => {
+    const exports = [...ci.matchAll(/^ +cache-to: (.+)$/gm)].map((match) => match[1] ?? "");
+    expect(exports.length).toBeGreaterThan(0);
+    expect(exports.every((entry) => entry.includes("ignore-error=true"))).toBe(true);
+  });
+
+  it("lets trusted main publication import only the main scope", () => {
+    const block = /\n {2}publish-commit-images:\n([\s\S]*?)$/.exec(ci)?.[1] ?? "";
+    expect(block).toContain("cache-from: type=gha,scope=api-main");
+    expect(block).toContain("cache-from: type=gha,scope=web-main");
+    expect(block).not.toContain("scope=api-pr-");
+    expect(block).not.toContain("scope=web-pr-");
+  });
+});
+
+describe("affected test topology", () => {
+  it("retains and uploads the exact machine-readable plan", () => {
+    expect(ci).toMatch(/^ {2}impact:$/m);
+    expect(ci).toContain("fetch-depth: 0");
+    expect(ci).toContain("name: test-impact-plan");
+    expect(ci).toContain("path: test-impact.json");
+  });
+
+  it("keeps required Vitest jobs present for empty selections", () => {
+    expect(ci).toContain("No impacted unit tests");
+    expect(ci).toContain("No impacted integration tests");
+    expect(ci).toContain("No impacted contract tests");
+    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group unit");
+    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group integration");
+    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group contract");
+  });
+
+  it("uses a dynamic E2E matrix with an explicit no-op sentinel", () => {
+    expect(ci).toContain(`include: ${gha("fromJSON(needs.impact.outputs.e2e_matrix)")}`);
+    expect(ci).toContain("if: matrix.project == 'none'");
+    expect(ci).toContain(`playwright-report-${gha("matrix.project")}`);
+  });
+
+  it("cancels only superseded runs for the same pull request", () => {
+    expect(ci).toContain("format('pr-{0}', github.event.pull_request.number)");
+    expect(ci).toContain(`cancel-in-progress: ${gha("github.event_name == 'pull_request'")}`);
   });
 });
 

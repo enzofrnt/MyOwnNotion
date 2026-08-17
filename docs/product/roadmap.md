@@ -119,6 +119,21 @@ validation de tous les critères de sortie V1. La fondation Compose/env, reverse
 proxy externe, CI, GHCR et releases immuables requise par FR-030 à FR-035 est
 portée par la feature 002 et n’est pas dupliquée ici.
 
+### 016 — CI cache and selective tests
+
+**État** : implémentée et validée localement ; prête pour la pull request
+**Dépendance** : 002
+**Dossier** : [`specs/016-ci-cache-selective-tests`](../../specs/016-ci-cache-selective-tests/)
+**Canevas** : sections 38 à 42
+
+Cette maintenance transversale est avancée avant les features 006 à 015 parce
+que la durée de la CI ralentit déjà chaque livraison. Elle complète la fondation
+de la feature 002 avec des caches cloisonnés par niveau de confiance, une
+sélection conservatrice des tests impactés, une matrice navigateur isolée, des
+preuves de sélection lisibles et l’annulation des exécutions de pull request
+devenues obsolètes. Elle ne réduit ni le contrôle local complet, ni les gates de
+`main`, de release, de sécurité, de construction ou de publication.
+
 ## Après la V1
 
 ### 009 — Databases and structured tasks

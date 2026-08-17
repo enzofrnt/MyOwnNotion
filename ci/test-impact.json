@@ -1,0 +1,460 @@
+{
+  "version": 1,
+  "nonExecutable": {
+    "exact": ["AGENTS.md", "README.md"],
+    "prefixes": ["docs/", "specs/"],
+    "suffixes": [".md"]
+  },
+  "vitestNoImpact": {
+    "exact": [
+      ".dockerignore",
+      ".editorconfig",
+      ".gitignore",
+      "biome.jsonc",
+      "docker/api.Dockerfile",
+      "docker/web.Dockerfile"
+    ],
+    "prefixes": [".github/ISSUE_TEMPLATE/", ".github/PULL_REQUEST_TEMPLATE/", "tests/e2e/"],
+    "suffixes": []
+  },
+  "e2eNoImpact": {
+    "exact": [
+      ".dockerignore",
+      ".editorconfig",
+      ".env.example",
+      ".github/rulesets/main.json",
+      ".github/workflows/release.yml",
+      ".gitignore",
+      "biome.jsonc",
+      "docker/api.Dockerfile",
+      "docker/base-images.json",
+      "docker/web-nginx.conf",
+      "docker/web.Dockerfile",
+      "scripts/ci/build-images.ts",
+      "scripts/ci/check-compose.ts",
+      "scripts/ci/check-release-gate.ts",
+      "scripts/ci/check-shell.ts",
+      "scripts/ci/check-toolchain.ts",
+      "scripts/ci/license-policy.ts",
+      "scripts/ci/scan-secrets.ts",
+      "scripts/ci/static-security.ts"
+    ],
+    "prefixes": [".github/ISSUE_TEMPLATE/", ".github/PULL_REQUEST_TEMPLATE/", "tests/contract/"],
+    "suffixes": []
+  },
+  "fullVitest": {
+    "exact": [
+      ".github/workflows/ci.yml",
+      "ci/test-impact.json",
+      "package.json",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "scripts/ci/run-affected-vitest.ts",
+      "scripts/ci/test-impact.ts",
+      "tsconfig.base.json",
+      "tsconfig.json",
+      "vitest.config.ts",
+      "vitest.workspace.ts"
+    ],
+    "prefixes": ["tests/fixtures/"],
+    "suffixes": ["/package.json", "/tsconfig.json"]
+  },
+  "fullE2e": {
+    "exact": [
+      ".github/workflows/ci.yml",
+      "apps/api/src/app.ts",
+      "apps/api/src/context.ts",
+      "apps/api/src/server.ts",
+      "apps/web/src/app.tsx",
+      "apps/web/src/main.tsx",
+      "apps/web/src/styles.css",
+      "ci/test-impact.json",
+      "compose.override.yaml",
+      "compose.yaml",
+      "package.json",
+      "playwright.config.ts",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "scripts/ci/run-affected-vitest.ts",
+      "scripts/ci/test-impact.ts",
+      "scripts/db/migrate.ts",
+      "scripts/test-e2e-firefox-container.sh",
+      "scripts/test-e2e-local.sh",
+      "tests/e2e/fixtures.ts",
+      "tests/e2e/global-setup.ts",
+      "tests/e2e/helpers.ts",
+      "tests/e2e/reset-content.ts",
+      "tests/e2e/reset-installation.ts"
+    ],
+    "prefixes": ["apps/api/src/plugins/", "packages/database/migrations/", "tests/fixtures/"],
+    "suffixes": ["/package.json"]
+  },
+  "vitestConsumers": [
+    {
+      "paths": {
+        "exact": ["specs/001-content-foundations/contracts/content-api.openapi.yaml"],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/openapi.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
+        "exact": ["specs/002-owner-security-foundation/contracts/admin-cli.md"],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/admin-cli.contract.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
+        "exact": ["specs/002-owner-security-foundation/contracts/security-api.openapi.yaml"],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/admin-cli.contract.spec.ts", "tests/contract/security-api.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
+        "exact": ["specs/002-owner-security-foundation/contracts/security-artifacts.schema.json"],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/security-artifacts.schema.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
+        "exact": [
+          ".github/workflows/ci.yml",
+          ".github/rulesets/main.json",
+          ".github/workflows/release.yml",
+          "docker/base-images.json"
+        ],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/release-artifacts.spec.ts", "tests/contract/release-gates.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
+        "exact": [".env.example", "compose.override.yaml", "compose.yaml", "docker/web-nginx.conf"],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/compose-security.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
+        "exact": [
+          "ci/test-impact.json",
+          "specs/016-ci-cache-selective-tests/contracts/impact-plan.schema.json"
+        ],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/test-impact.spec.ts"],
+      "groups": ["contract"]
+    }
+  ],
+  "e2eJourneys": [
+    {
+      "test": "tests/e2e/accessibility.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "prefixes": ["apps/web/src/components/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/authentication.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/authentication.ts",
+          "apps/web/src/features/auth/login-page.tsx"
+        ],
+        "prefixes": [
+          "apps/api/src/security/authentication-",
+          "apps/api/src/security/password-",
+          "apps/api/src/security/session-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/block-editor.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/page-documents.ts"],
+        "prefixes": ["apps/web/src/features/editor/", "packages/domain/src/document/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/bootstrap.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/bootstrap.ts",
+          "apps/api/src/routes/installation.ts",
+          "apps/web/src/features/auth/bootstrap-page.tsx"
+        ],
+        "prefixes": ["apps/api/src/security/bootstrap-", "packages/domain/src/security/bootstrap"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/connection-trust.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/health.ts"],
+        "prefixes": [
+          "apps/web/src/features/connection/",
+          "apps/api/src/security/cookie-",
+          "apps/api/src/security/csrf"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/devices.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/devices.ts",
+          "apps/web/src/features/security/device-panel.tsx"
+        ],
+        "prefixes": ["apps/api/src/security/device-", "packages/domain/src/security/device-"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/editor-performance.spec.ts",
+      "owners": {
+        "exact": [],
+        "prefixes": ["apps/web/src/features/editor/", "packages/domain/src/document/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/file-preview.spec.ts",
+      "owners": {
+        "exact": [],
+        "prefixes": [
+          "apps/web/src/features/files/drawio-",
+          "apps/web/src/features/files/file-preview",
+          "packages/blob-store/src/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/file-transfer.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/uploads.ts"],
+        "prefixes": [
+          "apps/web/src/features/files/transfer-",
+          "apps/web/src/features/files/upload",
+          "packages/client-core/src/local-store/",
+          "packages/blob-store/src/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/files.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/files.ts"],
+        "prefixes": [
+          "apps/web/src/features/files/",
+          "apps/web/src/features/attachments/",
+          "packages/domain/src/files/",
+          "packages/database/src/repositories/file-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/hierarchy.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/items.ts", "apps/api/src/routes/placements.ts"],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "packages/domain/src/content/hierarchy",
+          "packages/domain/src/content/file-placements",
+          "packages/database/src/repositories/hierarchy-",
+          "packages/database/src/repositories/move-branch"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/interrupted-mutations.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/mutation-batch.ts"],
+        "prefixes": [
+          "packages/client-core/src/outbox/",
+          "packages/database/src/mutations/",
+          "apps/api/src/plugins/mutations"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/item-conversion.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/features/navigation/convert-item.tsx"],
+        "prefixes": [
+          "packages/domain/src/content/conversion",
+          "packages/database/src/repositories/content/conversion-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/keyboard-navigation.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/features/navigation/use-tree-keyboard.ts"],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/sidebar"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/narrow-viewport.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "prefixes": ["apps/web/src/features/hierarchy/", "apps/web/src/features/navigation/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/offline-availability.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/service-worker.ts"],
+        "prefixes": [
+          "apps/web/src/services/local-",
+          "apps/web/src/services/storage-",
+          "packages/client-core/src/local-store/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/offline-reconciliation.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/changes.ts", "apps/api/src/routes/snapshots.ts"],
+        "prefixes": [
+          "packages/client-core/src/reconciliation/",
+          "packages/client-core/src/outbox/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/page-links.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/features/editor/page-link.ts",
+          "apps/web/src/features/editor/page-link-control.tsx"
+        ],
+        "prefixes": ["packages/domain/src/document/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/relationships.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/relationships.ts"],
+        "prefixes": [
+          "packages/domain/src/content/relationships",
+          "packages/database/src/repositories/relationship-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/revision-restore.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/revisions.ts"],
+        "prefixes": [
+          "apps/web/src/features/history/",
+          "packages/domain/src/revisions/",
+          "packages/database/src/repositories/revision-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/save-state.spec.ts",
+      "owners": {
+        "exact": [],
+        "prefixes": [
+          "apps/web/src/features/save-state/",
+          "packages/client-core/src/save-state/",
+          "packages/client-core/src/outbox/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/security-content-regression.spec.ts",
+      "owners": {
+        "exact": [],
+        "prefixes": [
+          "apps/api/src/security/protected-",
+          "apps/api/src/security/content-",
+          "packages/domain/src/security/envelope",
+          "packages/domain/src/security/crypto",
+          "packages/client-core/src/security/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/security-recovery.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/security-recovery.ts"],
+        "prefixes": [
+          "apps/web/src/features/security/recovery-",
+          "apps/api/src/security/recovery-",
+          "apps/api/src/security/administrative-recovery",
+          "packages/domain/src/security/recovery-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/security-rotation.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/security-rotation.ts"],
+        "prefixes": [
+          "apps/web/src/features/security/key-rotation",
+          "apps/api/src/security/rotation-",
+          "packages/domain/src/security/data-key-",
+          "packages/domain/src/security/wrapping-key-",
+          "packages/domain/src/security/rotation-",
+          "packages/database/src/repositories/security/rotation-"
+        ],
+        "suffixes": []
+      }
+    }
+  ],
+  "e2eIgnored": [
+    "tests/e2e/fixtures.ts",
+    "tests/e2e/global-setup.ts",
+    "tests/e2e/helpers.ts",
+    "tests/e2e/reset-content.ts",
+    "tests/e2e/reset-installation.ts"
+  ],
+  "e2eProjects": [
+    "chromium-desktop",
+    "firefox-desktop",
+    "webkit-desktop",
+    "chromium-mobile",
+    "webkit-mobile"
+  ]
+}
