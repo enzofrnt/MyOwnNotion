@@ -161,3 +161,70 @@ test.describe("automated accessibility audit", () => {
     ).toEqual([]);
   });
 });
+
+test.describe("the file surfaces (feature 005)", () => {
+  /** The axe audit, restricted to critical and serious as elsewhere here. */
+  async function fileViolations(page: import("@playwright/test").Page) {
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    return results.violations
+      .filter(
+        (violation: { impact?: string | null | undefined }) =>
+          violation.impact === "critical" || violation.impact === "serious",
+      )
+      .map((violation: { id: string; help: string }) => `${violation.id}: ${violation.help}`);
+  }
+
+  async function pageWithAttachment(
+    page: import("@playwright/test").Page,
+  ): Promise<{ pageName: string; fileName: string }> {
+    const pageName = uniqueName("A11yFiles");
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    await selectItem(page, pageName);
+    const fileName = `${uniqueName("a11y")}.txt`;
+    await page.getByTestId("attachment-upload").setInputFiles({
+      name: fileName,
+      mimeType: "text/plain",
+      buffer: Buffer.from("bytes for the audit"),
+    });
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    return { pageName, fileName };
+  }
+
+  test("the attachment list has no critical or serious violations", async ({ page }) => {
+    await pageWithAttachment(page);
+    expect(await fileViolations(page)).toEqual([]);
+  });
+
+  test("the deletion confirmation has no critical or serious violations", async ({ page }) => {
+    const { fileName } = await pageWithAttachment(page);
+    await waitForSynchronized(page);
+    await page.getByTestId(`delete-file-${fileName}`).click();
+    await expect(page.getByTestId("delete-file-confirmation")).toBeVisible({ timeout: 30_000 });
+    // A dialogue is where an owner makes an irreversible decision, so its
+    // semantics matter more than anywhere else on the screen.
+    expect(await fileViolations(page)).toEqual([]);
+  });
+
+  test("the storage panel has no critical or serious violations", async ({ page }) => {
+    await openWorkspace(page);
+    await expect(page.getByTestId("storage-panel")).toBeVisible({ timeout: 30_000 });
+    expect(await fileViolations(page)).toEqual([]);
+  });
+
+  test("the preview frame is labelled for assistive technology", async ({ page }) => {
+    const { fileName } = await pageWithAttachment(page);
+    await page.getByTestId(`preview-file-${fileName}`).click();
+    // An unlabelled frame is announced as "frame" and nothing else, which tells
+    // a screen-reader user that something is there and not what.
+    await expect(
+      page.getByTestId("file-unsupported").or(page.getByTestId("file-preview")),
+    ).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(await fileViolations(page)).toEqual([]);
+  });
+});

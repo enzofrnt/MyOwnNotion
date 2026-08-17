@@ -153,7 +153,7 @@ and it is the largest single piece.
 - [X] T048 Refuse an oversized upload in `apps/api/src/routes/uploads.ts` before accepting a byte, stating the limit and the reason (FR-008, FR-009)
 - [X] T049 Complete an upload in one transaction in `packages/database/src/repositories/content/upload-repository.ts` — hash, deduplicate against `file_contents`, set `verified_at`, create the logical file and its placement (FR-007)
 - [X] T050 [P] Client-side resume in `apps/web/src/features/files/upload.ts` — seek to the server's offset, never to a locally remembered one
-- [ ] T051 [P] Report `uploading`, `verifying`, `synchronized` and `blocked` in `apps/web/src/features/files/transfer-state.tsx`, mirroring the save states of feature 003
+- [X] T051 [P] Report `uploading`, `verifying`, `synchronized` and `blocked` in `apps/web/src/features/files/transfer-state.tsx`, mirroring the save states of feature 003
 - [ ] T052 [P] Playwright journey in `tests/e2e/file-transfer.spec.ts` — an interrupted transfer resumes rather than restarting, and a partial upload never appears in the tree
 
 ---
@@ -161,9 +161,9 @@ and it is the largest single piece.
 ## Phase 8: Polish
 
 - [X] T053 [P] `docs/architecture/file-handling.md` — why previews are sandboxed, why Draw.io is self-hosted, and what admits content to eviction
-- [ ] T054 [P] Accessibility pass over the attachment list, the preview frame, the deletion dialogue and the storage panel; add them to `tests/e2e/accessibility.spec.ts`
-- [ ] T055 [P] Narrow-viewport pass at 320 px for the same four surfaces, asserted in `tests/e2e/narrow-viewport.spec.ts`
-- [ ] T056 Write `specs/005-files-and-local-storage/validation.md` with evidence per requirement, marking anything unfinished as unfinished rather than ticking it
+- [X] T054 [P] Accessibility pass over the attachment list, the preview frame, the deletion dialogue and the storage panel; add them to `tests/e2e/accessibility.spec.ts`
+- [X] T055 [P] Narrow-viewport pass at 320 px for the same four surfaces, asserted in `tests/e2e/narrow-viewport.spec.ts`
+- [X] T056 Write `specs/005-files-and-local-storage/validation.md` with evidence per requirement, marking anything unfinished as unfinished rather than ticking it
 
 ---
 

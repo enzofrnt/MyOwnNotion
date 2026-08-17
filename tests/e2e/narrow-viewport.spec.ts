@@ -177,3 +177,49 @@ test.describe("the collapsible tree", () => {
     await expect(page.getByTestId("workspace-tree")).toBeVisible();
   });
 });
+
+test.describe("the file surfaces at 320 pixels", () => {
+  test("the attachment list and the storage panel do not scroll sideways", async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await openNarrowWorkspace(page);
+    const name = uniqueName("NarrowFiles");
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+
+    const fileName = `${uniqueName("narrow")}.txt`;
+    await page.getByTestId("attachment-upload").setInputFiles({
+      name: fileName,
+      mimeType: "text/plain",
+      buffer: Buffer.from("bytes at 320px"),
+    });
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+
+    // Nine fields per row is a lot to fit in 320 pixels, which is exactly why
+    // this is asserted rather than assumed.
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("the deletion confirmation fits on a phone", async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await openNarrowWorkspace(page);
+    const name = uniqueName("NarrowDelete");
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+
+    const fileName = `${uniqueName("narrowdel")}.txt`;
+    await page.getByTestId("attachment-upload").setInputFiles({
+      name: fileName,
+      mimeType: "text/plain",
+      buffer: Buffer.from("about to be deleted"),
+    });
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    await waitForSynchronized(page);
+
+    await page.getByTestId(`delete-file-${fileName}`).click();
+    await expect(page.getByTestId("delete-file-confirmation")).toBeVisible({ timeout: 30_000 });
+    // A confirmation an owner cannot read in full is one they accept blind.
+    await expectNoHorizontalOverflow(page);
+  });
+});
