@@ -1145,7 +1145,26 @@ Le produit doit exposer localement :
 - la version de chaque composant ;
 - des métriques utiles à l'exploitation sans contenu utilisateur.
 
-Les journaux doivent être structurés, horodatés, associés à un niveau et dotés d'un identifiant de corrélation lorsque plusieurs services participent à une opération.
+Les journaux doivent être structurés, horodatés, associés à un niveau, identifier
+clairement le service émetteur et être dotés d'un identifiant de corrélation
+lorsque plusieurs services participent à une opération. Leur présentation
+destinée à un opérateur doit rester propre et immédiatement lisible : les champs
+essentiels, les niveaux et les erreurs doivent être visuellement distincts, avec
+une convention cohérente entre tous les services.
+
+Lorsque la sortie est affichée dans un terminal interactif compatible, les
+niveaux peuvent être distingués par des couleurs cohérentes, activées
+automatiquement par défaut. Le niveau reste toujours écrit explicitement et
+aucune information ne doit être portée uniquement par la couleur. Les couleurs
+doivent pouvoir être forcées ou désactivées par configuration.
+
+Lorsque la détection automatique constate que la sortie n'est pas reliée à un
+terminal interactif, notamment lorsqu'un conteneur écrit vers un collecteur, un
+fichier ou une redirection, les journaux doivent rester structurés et directement
+exploitables par une machine, sans code de contrôle de terminal. Un forçage
+explicite peut remplacer cette détection pour un environnement atypique. Le choix
+automatique ou configuré de présentation ne doit modifier ni les événements
+émis, ni leur niveau, ni leurs champs, ni les règles d'expurgation.
 
 Un journal d'audit doit couvrir au minimum :
 
@@ -1176,6 +1195,10 @@ Compose doit permettre :
 - de restaurer ;
 - d'inspecter les services et leur santé ;
 - de construire les images localement pour le diagnostic.
+
+Les journaux de chaque service doivent être disponibles sur ses sorties standard
+afin que les commandes usuelles de Compose permettent de les consulter et que la
+plateforme d'hébergement puisse les collecter sans fichier interne au conteneur.
 
 ### 36.1 Stack complète
 

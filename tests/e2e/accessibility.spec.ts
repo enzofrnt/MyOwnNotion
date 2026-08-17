@@ -82,7 +82,9 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await expect(page.getByRole("button", { name: "New root folder" })).toBeInViewport();
     const name = uniqueName("Responsive");
     await createRootItem(page, "folder", name);
-    await page.getByTestId(`tree-item-${name}`).scrollIntoViewIfNeeded();
+    // Selecting proves the newly rendered row is operable and uses Playwright's
+    // retryable click/scroll path if WebKit replaces it during reconciliation.
+    await selectItem(page, name);
     await expect(page.getByTestId(`tree-item-${name}`)).toBeInViewport();
     // No horizontal overflow: the document is not wider than the viewport.
     const overflow = await page.evaluate(

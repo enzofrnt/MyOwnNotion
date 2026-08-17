@@ -2,11 +2,101 @@
  * Structured safe logging with private-content redaction (T091, FR-022).
  */
 
+import { Writable } from "node:stream";
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
-import { REDACT_PATHS, registerLogging } from "../src/plugins/logging.ts";
+import { createApplicationLogger, REDACT_PATHS, registerLogging } from "../src/plugins/logging.ts";
+
+function captureDestination(): { destination: Writable; read: () => string } {
+  const chunks: string[] = [];
+  return {
+    destination: new Writable({
+      write(chunk, _encoding, callback) {
+        chunks.push(chunk.toString());
+        callback();
+      },
+    }),
+    read: () => chunks.join(""),
+  };
+}
+
+async function emitLog(options: Parameters<typeof registerLogging>[0]): Promise<string> {
+  const captured = captureDestination();
+  const app = Fastify({
+    logger: registerLogging({ ...options, destination: captured.destination }),
+  });
+  app.get("/health", async () => ({ ok: true }));
+  await app.inject({ method: "GET", url: "/health" });
+  await app.close();
+  return captured.read();
+}
 
 describe("logging configuration (T091)", () => {
+  it("emits parseable ANSI-free JSON with stable metadata on non-TTY output", async () => {
+    const output = await emitLog({
+      env: { MYOWNNOTION_LOG_COLOR: "auto", NODE_ENV: "production" },
+      isTTY: false,
+    });
+    expect(output).not.toContain("\u001B[");
+    const records = output
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(records.length).toBeGreaterThan(0);
+    expect(records.every((record) => record["service"] === "api")).toBe(true);
+    expect(records.every((record) => record["environment"] === "production")).toBe(true);
+    expect(records.some((record) => record["msg"] === "request completed")).toBe(true);
+  });
+
+  it.each([
+    { color: "auto", isTTY: true, ansi: true },
+    { color: "always", isTTY: false, ansi: true },
+    { color: "never", isTTY: true, ansi: false },
+  ] as const)("renders readable terminal output for $color (TTY=$isTTY)", async (sample) => {
+    const output = await emitLog({
+      env: { MYOWNNOTION_LOG_COLOR: sample.color },
+      isTTY: sample.isTTY,
+    });
+    expect(output).toContain("INFO");
+    expect(output).toContain("request completed");
+    expect(output.includes("\u001B[")).toBe(sample.ansi);
+    expect(() => JSON.parse(output.trim().split("\n")[0] ?? "")).toThrow();
+  });
+
+  it("rejects unknown color modes and levels", () => {
+    expect(() =>
+      registerLogging({ env: { MYOWNNOTION_LOG_COLOR: "sometimes" }, isTTY: false }),
+    ).toThrow(/MYOWNNOTION_LOG_COLOR.*auto, always, never/);
+    expect(() =>
+      registerLogging({ env: { MYOWNNOTION_LOG_LEVEL: "verbose" }, isTTY: false }),
+    ).toThrow(/MYOWNNOTION_LOG_LEVEL.*trace.*silent/);
+  });
+
+  it("applies the configured minimum level", () => {
+    expect(registerLogging({ env: { MYOWNNOTION_LOG_LEVEL: "warn" }, isTTY: false }).level).toBe(
+      "warn",
+    );
+  });
+
+  it("gives non-Fastify application processes the same structured policy", () => {
+    const captured = captureDestination();
+    const logger = createApplicationLogger({
+      env: { MYOWNNOTION_LOG_COLOR: "auto", NODE_ENV: "production" },
+      isTTY: false,
+      destination: captured.destination,
+    });
+    logger.info({ migrationCount: 2 }, "database migrations applied");
+
+    const record = JSON.parse(captured.read().trim()) as Record<string, unknown>;
+    expect(record).toMatchObject({
+      service: "api",
+      environment: "production",
+      migrationCount: 2,
+      msg: "database migrations applied",
+    });
+    expect(captured.read()).not.toContain("\u001B[");
+  });
+
   it("redacts request bodies, auth headers, names, documents, and snapshots", () => {
     for (const required of [
       "req.body",

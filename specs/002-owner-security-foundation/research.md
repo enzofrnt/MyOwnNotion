@@ -353,6 +353,32 @@ missing security category and satisfies the constitution's publication gate.
 category evidence is ambiguous); warning-only findings (rejected: unsafe merge
 and publication); manual-only scans (rejected: not reproducible).
 
+## Decision 17: Select log presentation from the output destination
+
+**Decision**: Keep Pino/Fastify as the structured logging source and select a
+human renderer only for an interactive terminal. Emit newline-delimited JSON
+unchanged for non-TTY output. Expose `MYOWNNOTION_LOG_COLOR=auto|always|never`
+and `MYOWNNOTION_LOG_LEVEL`, with `auto` and `info` as safe defaults.
+
+**Rationale**: Container runtimes already collect standard streams and expect
+machine-readable records. Embedding ANSI codes in those records harms search,
+parsing, and alerting, while raw JSON is unnecessarily hostile during local
+terminal work. Destination detection satisfies both audiences without making
+development and production call different logging APIs. A single factory also
+keeps redaction and request serialization from drifting as features are added.
+
+**Alternatives rejected**:
+
+- Always-pretty output was rejected because orchestrators receive decorated
+  text instead of structured records.
+- Always-JSON output was rejected because it does not meet the local operator
+  readability goal.
+- Per-feature loggers and direct `console.*` calls were rejected because each
+  becomes a new redaction, metadata, and destination policy.
+- File logging inside the container was rejected because it bypasses standard
+  container collection and creates rotation/retention state in an ephemeral
+  filesystem.
+
 ## Resolved planning questions
 
 The plan now fixes the technology, recovery authorization/delivery state axes,

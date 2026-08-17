@@ -15,6 +15,9 @@
 import path from "node:path";
 import process from "node:process";
 import { migrate } from "@myownnotion/database";
+import { createApplicationLogger } from "./plugins/logging.ts";
+
+const logger = createApplicationLogger();
 
 /**
  * Where the reviewed SQL lives inside the image.
@@ -29,18 +32,27 @@ const migrationsDir =
 
 const connectionString = process.env["DATABASE_URL"];
 if (!connectionString) {
-  console.error("DATABASE_URL is required");
+  logger.fatal({ errorCode: "database_url_missing" }, "database migration configuration refused");
   process.exit(1);
 }
 
 try {
   const applied = await migrate(connectionString, { migrationsDir });
   if (applied.length === 0) {
-    console.info("Database is already up to date.");
+    logger.info({ migrationCount: 0 }, "database is already up to date");
   } else {
-    console.info(`Applied migrations: ${applied.join(", ")}`);
+    logger.info(
+      { migrationCount: applied.length, migrations: applied },
+      "database migrations applied",
+    );
   }
 } catch (error) {
-  console.error("Migration failed:", error);
+  logger.fatal(
+    {
+      errorCode: "database_migration_failed",
+      errorType: error instanceof Error ? error.name : "UnknownError",
+    },
+    "database migration failed",
+  );
   process.exit(1);
 }

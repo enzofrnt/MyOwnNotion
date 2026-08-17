@@ -229,6 +229,24 @@ describe("container hardening", () => {
   });
 });
 
+describe("structured container logging", () => {
+  it("passes the documented level and destination-aware color policy to the API", () => {
+    const environment = base.services?.["api"]?.environment;
+    expect(environment?.["MYOWNNOTION_LOG_LEVEL"]).toContain("MYOWNNOTION_LOG_LEVEL:-info");
+    expect(environment?.["MYOWNNOTION_LOG_COLOR"]).toContain("MYOWNNOTION_LOG_COLOR:-auto");
+    expect(envExample).toContain("MYOWNNOTION_LOG_LEVEL=info");
+    expect(envExample).toContain("MYOWNNOTION_LOG_COLOR=auto");
+  });
+
+  it("uses standard streams rather than mounting an application log file", () => {
+    const apiVolumes = base.services?.["api"]?.volumes ?? [];
+    expect(apiVolumes).toEqual(["file-store:/var/lib/myownnotion/blobs"]);
+    expect(apiVolumes.join(" ")).not.toMatch(/log/i);
+    expect(base.services?.["api"]?.environment).not.toHaveProperty("LOG_FILE");
+    expect(base.services?.["api"]?.environment).not.toHaveProperty("MYOWNNOTION_LOG_FILE");
+  });
+});
+
 describe("images", () => {
   it("selects every image by an exact tag or digest, never latest", () => {
     // `latest` is only as fresh as the last publish. Pulling it can hand an

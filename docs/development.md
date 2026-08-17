@@ -52,6 +52,36 @@ Every published port binds to `127.0.0.1` only.
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
 
+### Server logging
+
+The API has one logger factory in `apps/api/src/plugins/logging.ts`. In an
+interactive terminal it renders compact single-line logs with colored severity
+labels. In Docker/Compose it writes one JSON object per line to stdout without
+ANSI codes, so the container runtime can parse and route records. Configure
+verbosity with `MYOWNNOTION_LOG_LEVEL`; use
+`MYOWNNOTION_LOG_COLOR=auto|always|never` only when the destination is known.
+`auto` is the safe default.
+
+Feature code uses the logger Fastify already provides:
+
+```ts
+request.log.info({ itemId, operation: "move" }, "content item moved");
+```
+
+- Use `request.log`/`reply.log` for request work and `app.log` for lifecycle or
+  background work.
+- Put stable safe context in the first object and a stable message second.
+- Never instantiate a feature-owned logger or use `console.*` for server
+  events; doing so bypasses shared metadata, output selection, and redaction.
+- Never interpolate private content, names, bodies, credentials, tokens, kits,
+  cookies, authorization values, or key material into a message or field.
+- Extend and test the central allowlist/redaction policy when a feature needs a
+  new field. Do not locally disable a serializer or redaction path.
+
+Inspect container output with `docker compose logs --no-color api`. Application
+containers do not own log files or rotation; retention belongs to the Docker
+logging driver or the deployment's collector.
+
 ### Running the published stack locally
 
 `docker compose up -d` also loads `compose.override.yaml`, which builds the
