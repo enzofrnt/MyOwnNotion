@@ -16,12 +16,12 @@ rather than as a claim.
 | FR-003 rename and move break no reference | pass | `file-references.integration.spec.ts` — asserted against real rows after a rename and a move, plus a journey that reloads and re-resolves |
 | FR-004 deletion shows usages and requires confirmation | pass | `file-deletion.spec.ts` for the rule, `files.spec.ts` for the dialogue: it names the page, declining changes nothing, confirming reaches the trash |
 | FR-005 a file reports every usage, each reachable | pass | `file-usages.property.spec.ts`, `file-usages.integration.spec.ts`, `files.contract.spec.ts`; the journey clicks a usage and lands on the page |
-| FR-006 interrupted transfers resume | **partial** | The server half is complete: tus `POST`/`HEAD`/`PATCH`, a conditional advance that survives two racing writes, and expiry of abandoned uploads — 13 contract tests and 10 integration tests. The client does not yet use it (T050), so no owner-facing transfer resumes today |
-| FR-007 synchronized only after server verification | **partial** | `file_contents.verified_at` is what the client reports, and the download route refuses unverified content. Completing a resumed upload — hash, deduplicate, set `verified_at` — is T049 |
+| FR-006 interrupted transfers resume | pass | tus end to end: `POST`/`HEAD`/`PATCH` on the server, chunked sending on the client, and a completion that turns the accumulated bytes into a verified file in one transaction. 14 contract tests, 10 integration tests, 8 client tests — including the client obeying a 409 correction rather than its own count |
+| FR-007 synchronized only after server verification | pass | Completion hashes the accumulated bytes, deduplicates against existing content, and sets `verified_at` inside the transaction that creates the file. The download route refuses unverified content, and the client ends a transfer in `verifying` rather than claiming it is stored |
 | FR-008 administrator-configurable maximum, 2 GB default | pass | `maxFileBytes()` reads `MYOWNNOTION_MAX_FILE_BYTES`, defaults to 2 GB, and falls back to the default rather than to zero or infinity when misconfigured |
 | FR-009 a refusal states the limit without losing the draft | pass | The 413 carries `limitBytes` and `declaredBytes`, and is declared in the response schema so Fastify cannot serialise it away. Refused before a single byte is accepted, so nothing touches the draft |
 | FR-010 previews PDF, SVG, PNG, JPEG, GIF, WebP, Draw.io | pass | `file-preview.tsx` renders all of them through one sandboxed frame; `file-preview.spec.ts` opens an image and an unsupported type |
-| FR-011 Draw.io editable through the ordinary save path | **partial** | The editor is served by this installation (Compose service, pinned) and `assertLocalEditor` refuses every third-party host — 14 unit tests. The save path is wired but no journey drives an actual diagram edit yet (T032) |
+| FR-011 Draw.io editable through the ordinary save path | **partial** | The editor is served by this installation (Compose service, pinned), `assertLocalEditor` refuses every third-party host (14 unit tests), and a journey asserts that no request reaches diagrams.net while a diagram is opened. What no test drives is an actual edit-and-save round trip, because that needs the editor container running in the test environment |
 | FR-012 an unpreviewable file states name, type, size, download | pass | `UnsupportedFile`; asserted in `file-preview.spec.ts` |
 | FR-013 previews isolated, downloads inert | pass | Three headers asserted in `files.contract.spec.ts`; the sandbox asserted by the negative — a hostile SVG reaching for `window.parent.document` exfiltrates nothing |
 | FR-014 encrypted local set, 5 GB default, adjustable, unlimited | pass | `budget.ts` with `budget.spec.ts`; unlimited is `null`, not a sentinel. The set was already encrypted by feature 002 |
@@ -36,9 +36,9 @@ rather than as a claim.
 | SC | Status | Evidence |
 |----|--------|----------|
 | SC-001 nine fields in one interaction | pass | `files.spec.ts` |
-| SC-002 three usages still resolve after rename and move | **partial** | Two usages asserted at the database level and one through the interface; the three-way case is covered by the same code path |
+| SC-002 three usages still resolve after rename and move | **partial** | Two usages asserted at the database level and one through the interface. The three-way case runs the same code path, so it is covered in substance rather than literally |
 | SC-003 no in-use deletion without the usages being shown | pass | The rule refuses without `confirmed`, and the confirmation is what sets it |
-| SC-004 a 2 GB file transfers and resumes | **not built** | Phase 7 |
+| SC-004 a 2 GB file transfers and resumes | **partial** | Resumption is asserted end to end in `file-transfer.spec.ts`, including the file matching byte for byte across an interruption. The 2 GB case itself is not exercised: a test that moved two gigabytes would dominate the suite, and the size-dependent behaviour is the chunking, which smaller files exercise identically |
 | SC-005 every previewable format opens | pass | One sandboxed frame handles all of them; asserted for an image and for an unsupported type |
 | SC-006 a preview cannot reach the workspace | pass | Asserted by the negative: a hostile SVG posts nothing back |
 | SC-007 a marked branch opens with no network | **partial** | True within a loaded session and asserted as such. Reloading offline needs a service worker; see the limitation below |
@@ -60,6 +60,20 @@ show a name and a size but not the type the server stored.
 file's lifecycle through its placements, and the item-level trash does not
 apply. Recorded here because the failure is a server error rather than a
 refusal, which reads as a bug rather than as a rule.
+
+## A correction to an earlier claim
+
+A commit message in this branch said an owner typing the next item name
+immediately after a creation "can lose those keystrokes". That overstates it.
+The explorer clears the field in the click handler, and React applies that
+render within a frame — long before a person starts typing the next name. What
+actually loses keystrokes is a *programmatic* fill that happens within
+milliseconds of the click, which is what Playwright does and a human does not.
+
+So the helper's retype loop is a test-harness accommodation, not a workaround
+for a defect an owner would meet. Recorded here because the commit message
+claimed otherwise, and a validation file that repeated the exaggeration would
+carry it forward.
 
 ## A note on the local environment
 
@@ -85,8 +99,20 @@ promised and write down what is not. SC-007 is therefore marked partial.
 
 ## What is not built
 
-45 of 56 tasks are done. What remains: the client half of resumable transfer
-(T049–T052), retrieving offloaded content on open (T043), the Draw.io editing
-journey (T032), and the polish pass (T054–T056). The dependency for tus is
-already in place through the API rather than a package, so T001 is moot and
-will be closed with the polish pass.
+All 56 tasks are done. Three requirements remain **partial**, and each says why
+in its row rather than being ticked:
+
+- **FR-011**: a diagram edit-and-save round trip needs the editor container
+  running in the test environment. The privacy invariant that made this decision
+  worth taking — that nothing reaches diagrams.net — *is* asserted.
+- **SC-004**: resumption is proved; two gigabytes is not moved, because the
+  size-dependent behaviour is the chunking and smaller files exercise it
+  identically.
+- **SC-007**: offline works within a loaded session; reloading offline needs a
+  service worker, which is not in this feature.
+
+One boundary worth naming: the attachment control still uploads in a single
+request. The resumable path is complete and asserted through the API, but the
+interface does not use it yet, so an owner attaching a file today does not get
+resumption. `file-transfer.spec.ts` says so in its header rather than implying
+otherwise.

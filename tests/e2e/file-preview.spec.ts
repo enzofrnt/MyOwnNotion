@@ -124,3 +124,40 @@ test.describe("what is previewed and what is not", () => {
     await expect(page.getByTestId("unsupported-download")).toBeVisible();
   });
 });
+
+test.describe("the diagram editor never reaches a third party", () => {
+  test("no request leaves this origin for diagrams.net while the workspace is used", async ({
+    page,
+  }) => {
+    // The invariant, asserted independently of whether the editor container is
+    // running: the failure being guarded against is not "the editor is broken"
+    // but "the owner's diagram was sent to someone else", and that shows up as a
+    // request rather than as a symptom.
+    const foreign: string[] = [];
+    page.on("request", (request) => {
+      const host = new URL(request.url()).hostname.toLowerCase();
+      if (/diagrams\.net$|draw\.io$|jgraph\.com$/.test(host)) {
+        foreign.push(request.url());
+      }
+    });
+
+    const pageName = uniqueName("DiagramHost");
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    await selectItem(page, pageName);
+
+    const fileName = `${uniqueName("diagram")}.drawio`;
+    await page.getByTestId("attachment-upload").setInputFiles({
+      name: fileName,
+      mimeType: "application/vnd.jgraph.mxfile",
+      buffer: Buffer.from('<mxfile><diagram id="a" name="Page-1"></diagram></mxfile>'),
+    });
+    await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId(`preview-file-${fileName}`).click();
+    await page.waitForTimeout(1500);
+
+    // Any entry here is a data leak, not a detail.
+    expect(foreign).toEqual([]);
+  });
+});

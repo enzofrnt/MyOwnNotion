@@ -13,8 +13,20 @@
  * happened — which is worse than any failure that announces itself.
  */
 
-import { advanceUpload, createUpload, getUpload, isComplete } from "@myownnotion/database";
-import { isUuid, type Uuid } from "@myownnotion/domain";
+import {
+  advanceUpload,
+  createUpload,
+  DomainRejection,
+  deleteUpload,
+  executeImportFile,
+  findVerifiedContentByDigest,
+  getUpload,
+  isComplete,
+  recordChange,
+  runMutation,
+  schema,
+} from "@myownnotion/database";
+import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
@@ -49,6 +61,84 @@ export function parseUploadMetadata(header: string | undefined): Record<string, 
     parsed[key] = encoded === undefined ? "" : Buffer.from(encoded, "base64").toString("utf8");
   }
   return parsed;
+}
+
+/**
+ * Turns a finished upload into a file, in one transaction (T049, FR-007).
+ *
+ * Everything that makes the file real happens together: the bytes are hashed,
+ * matched against existing content so a resumed upload of something already held
+ * deduplicates like any other, `verified_at` is set, and the logical file and its
+ * placement are created. Either the file exists completely or it does not exist
+ * at all — there is no state in which an item points at unverified bytes.
+ *
+ * The partial file is discarded only after the transaction commits. Discarding
+ * first would, on a failed commit, leave the upload recorded as complete with
+ * its bytes gone and no file to show for them.
+ */
+async function completeUpload(
+  context: AppContext,
+  upload: { readonly id: Uuid; readonly mediaType: string; readonly originalName: string },
+): Promise<{ ok: true; itemId: Uuid } | { ok: false; error: SafeError }> {
+  const bytes = await context.partialUploads.read(upload.id);
+  if (bytes === null) {
+    return {
+      ok: false,
+      error: { code: "item.not-found", title: "The transferred bytes could not be read" },
+    };
+  }
+
+  const itemId = generateUuidV7();
+  const mutationId = generateUuidV7();
+  try {
+    await runMutation(context.db, async (tx) => {
+      const stored = await context.contentStore.ingest(bytes, (sha256, byteLength) =>
+        findVerifiedContentByDigest(tx, sha256, byteLength),
+      );
+      const execution = await executeImportFile(tx, {
+        mutationId,
+        workspaceId: context.workspaceId,
+        itemId,
+        name: upload.originalName,
+        mediaType: upload.mediaType,
+        content: stored,
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        acceptedAt: new Date(),
+      });
+      if (!execution.ok) {
+        throw new DomainRejection(execution.error);
+      }
+      // The mutation record and the change envelope belong in the same
+      // transaction as the file. Without them the file exists and no client
+      // learns of it: the change feed is how every other device finds out, so
+      // an item outside it is invisible everywhere except here.
+      const acceptedAt = new Date();
+      await tx.insert(schema.mutations).values({
+        id: mutationId,
+        workspaceId: context.workspaceId,
+        commandType: "file.import",
+        status: "accepted",
+        submittedAt: acceptedAt,
+        acceptedAt,
+        resultRevisionIds: [execution.value.revisionId],
+      });
+      await recordChange(tx, {
+        workspaceId: context.workspaceId,
+        mutationId,
+        revisionIds: [execution.value.revisionId],
+        changedItemIds: [execution.value.itemId],
+      });
+      await deleteUpload(tx, upload.id);
+    });
+  } catch (error) {
+    if (error instanceof DomainRejection) {
+      return { ok: false, error: error.safeError };
+    }
+    throw error;
+  }
+
+  await context.partialUploads.discard(upload.id);
+  return { ok: true, itemId };
 }
 
 export function registerUploadRoutes(app: FastifyInstance, context: AppContext): void {
@@ -164,6 +254,11 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
 
     const body = request.body;
     const chunk = Buffer.isBuffer(body) ? body : Buffer.from(String(body ?? ""));
+    // The offset is recorded *before* the bytes are appended, and that order is
+    // the safe one. If the record advances and the append then fails, the client
+    // is told a position the file has not reached and the next HEAD reveals the
+    // gap; if the bytes were appended first and the record failed, the file
+    // would silently contain a chunk nothing accounts for.
     const outcome = await advanceUpload(context.db, {
       id: uploadId as Uuid,
       atOffset: offset,
@@ -189,11 +284,26 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
       });
     }
 
+    await context.partialUploads.append(uploadId, chunk);
+
     const upload = await getUpload(context.db, uploadId as Uuid);
+    const complete = upload !== null && isComplete(upload);
+    if (complete && upload !== null) {
+      const finished = await completeUpload(context, upload);
+      if (!finished.ok) {
+        return sendProblem(reply, finished.error);
+      }
+      return reply
+        .status(201)
+        .header("upload-offset", String(outcome.receivedLength))
+        .header("upload-complete", "true")
+        .header("tus-resumable", "1.0.0")
+        .send({ itemId: finished.itemId, verified: true });
+    }
     return reply
       .status(204)
       .header("upload-offset", String(outcome.receivedLength))
-      .header("upload-complete", upload !== null && isComplete(upload) ? "true" : "false")
+      .header("upload-complete", "false")
       .header("tus-resumable", "1.0.0")
       .send();
   });

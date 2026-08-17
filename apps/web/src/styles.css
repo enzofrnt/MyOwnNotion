@@ -238,6 +238,21 @@ input[type="text"] {
   font-size: 0.8rem;
 }
 
+/* Links, which had no style at all until feature 005 added the first one.
+   An unstyled anchor takes the browser's default dark blue, which on this dark
+   surface fails the contrast threshold outright — caught by the axe audit over
+   the file surfaces rather than by looking, because it looks merely dull rather
+   than unreadable. */
+a {
+  color: var(--accent);
+  text-underline-offset: 0.2em;
+}
+
+a:hover,
+a:focus-visible {
+  color: #a8bcff;
+}
+
 textarea {
   width: 100%;
   min-height: 6rem;

@@ -101,6 +101,27 @@ Un transfert en cours ne possède ni item ni placement. « Un transfert partiel
 n'apparaît jamais comme un fichier complet » est donc une propriété de la forme
 des données, pas un contrôle qu'il faut penser à écrire.
 
+**Un upload partiel n'est pas un blob.** Un blob est adressé par l'empreinte de
+son contenu, et un transfert inachevé n'a pas encore d'empreinte — c'est
+précisément ce qui le rend partiel. Le forcer dans le magasin de blobs
+demanderait soit d'inventer une clé qui n'est pas une empreinte, brisant l'unique
+invariant de ce magasin, soit de hacher à chaque morceau, ce qui pour un fichier
+de 2 Go signifie hacher 2 Go des centaines de fois. Les transferts en cours ont
+donc leur propre magasin, indexé par identité d'upload, et ne deviennent un blob
+qu'une fois complets — hachés une seule fois.
+
+**L'ordre d'écriture est celui qui pardonne.** L'offset est enregistré en base
+*avant* que les octets soient ajoutés au fichier. Si l'enregistrement avance et
+que l'ajout échoue, le client se voit annoncer une position que le fichier n'a
+pas atteinte, et le `HEAD` suivant révèle l'écart. Dans l'autre ordre, le fichier
+contiendrait silencieusement un morceau dont rien ne rend compte.
+
+La complétion est transactionnelle : hachage, déduplication, `verified_at`,
+fichier logique, placement, enregistrement de mutation et enveloppe de
+changement. Le fichier partiel n'est effacé qu'**après** la validation — l'effacer
+avant laisserait, sur un échec, un upload marqué complet dont les octets ont
+disparu.
+
 ## Limite connue : recharger hors ligne
 
 Le contenu marqué s'ouvre sans réseau **dans une session déjà chargée**.

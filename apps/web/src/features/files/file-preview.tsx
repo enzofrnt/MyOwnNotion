@@ -19,7 +19,7 @@
  * each of those alone has a known bypass shape.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 
 /** What the application renders inside its own sandboxed frame. */
@@ -48,13 +48,31 @@ export function FilePreview({
   fileName,
   mediaType,
   byteLength,
+  availability = "present",
+  onFetched,
 }: {
   readonly fileItemId: string;
   readonly fileName: string;
   readonly mediaType: string;
   readonly byteLength: number;
+  /**
+   * What this device holds (T043, FR-018).
+   *
+   * Opening something the device released fetches it, and says so while it
+   * does. The distinction from `present` matters even though the fetch is the
+   * same request: an owner who was told the file is not held locally and then
+   * sees it open has learnt how their device behaves, and one who saw an
+   * unexplained pause has learnt that it is slow.
+   */
+  readonly availability?: "present" | "offloaded" | "never-fetched";
+  /** Called once the bytes are here, so the projection can record it. */
+  readonly onFetched?: () => void;
 }) {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
+  // Held in a ref so the fetch effect never re-runs because the callback's
+  // identity changed. See the note on the effect's dependency list.
+  const notifyFetched = useRef(onFetched);
+  notifyFetched.current = onFetched;
 
   useEffect(() => {
     if (!canPreview(mediaType)) {
@@ -71,6 +89,10 @@ export function FilePreview({
           setLoad({ kind: "failed", reason: "This file could not be loaded." });
           return;
         }
+        // Fetched successfully, so this device now holds it again. Recorded by
+        // the caller through `onFetched`, because this component renders and the
+        // projection is not its to write.
+        notifyFetched.current?.();
         // Re-typed from what the server stored rather than from what the blob
         // claims: the response is deliberately served as an attachment, and the
         // frame needs a type it will render.
@@ -95,6 +117,12 @@ export function FilePreview({
         URL.revokeObjectURL(revoke);
       }
     };
+    // Deliberately not depending on `onFetched`. Callers pass an inline closure
+    // that refreshes their list, so a dependency here would be: fetch →
+    // onFetched → refresh → re-render → new closure → fetch, without end. The
+    // ref below keeps the callback current without making the effect re-run,
+    // which is the same shape the tree's Escape handler uses for the same
+    // reason.
   }, [fileItemId, mediaType]);
 
   if (!canPreview(mediaType)) {
@@ -111,15 +139,31 @@ export function FilePreview({
   if (load.kind === "failed") {
     return (
       <p className="status-banner" data-state="error" role="alert" data-testid="preview-failed">
-        {load.reason}
+        {availability === "present"
+          ? load.reason
+          : // Not held here and not reachable: the file exists, the connection
+            // does not. Saying "could not be loaded" alone would let an owner
+            // conclude it is gone.
+            `${fileName} is not on this device and could not be fetched. It is still on the server; try again when you have a connection.`}
       </p>
     );
   }
 
   if (load.kind === "loading") {
+    // Says *why* it is waiting, not merely that it is. Offline, it says the
+    // connection is what is missing rather than implying the file is — the
+    // sentence this feature works hardest to avoid.
+    const because =
+      availability === "present"
+        ? `Loading ${fileName}…`
+        : typeof navigator !== "undefined" && !navigator.onLine
+          ? `${fileName} is not on this device, and there is no connection to fetch it. It is still on the server.`
+          : availability === "offloaded"
+            ? `Fetching ${fileName} again — this device had released it to stay within its storage limit.`
+            : `Fetching ${fileName} for the first time on this device…`;
     return (
       <p className="muted" role="status" aria-busy="true" data-testid="preview-loading">
-        Loading {fileName}…
+        {because}
       </p>
     );
   }

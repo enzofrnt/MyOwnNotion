@@ -15,7 +15,7 @@ by inspection.
 
 ## Phase 1: Setup
 
-- [ ] T001 Add the tus server dependency and pin it, then record it in `docs/development.md` alongside the existing toolchain table
+- [X] T001 Add the tus server dependency and pin it, then record it in `docs/development.md` alongside the existing toolchain table
 - [X] T002 [P] Vendor the Draw.io editor assets under `apps/web/public/drawio/` with the upstream version recorded in a `VERSION` file beside them
 - [X] T003 [P] Add `MYOWNNOTION_MAX_FILE_BYTES` to `.env.example` with the 2 GB default and a note that the real bound is what the proxy and storage carry
 
@@ -105,7 +105,7 @@ unrecognised one; each previews or states name, type and size with a download.
 - [X] T029 [P] [US3] `apps/web/src/features/files/unsupported-file.tsx` — name, type, size and a download or external-open action (FR-012)
 - [X] T030 [US3] `apps/web/src/features/files/drawio-editor.tsx` — the vendored engine, served from this origin, never `diagrams.net`
 - [X] T031 [US3] Save a Draw.io edit through the ordinary save path in `apps/web/src/features/files/drawio-editor.tsx` so its state is reported like any other content (FR-011)
-- [ ] T032 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` asserting no request leaves this origin while editing a diagram — a request to `diagrams.net` fails the test
+- [X] T032 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` asserting no request leaves this origin while editing a diagram — a request to `diagrams.net` fails the test
 
 **Checkpoint**: files are useful, and previewing one is not a risk.
 
@@ -135,7 +135,7 @@ reads.
 - [X] T040 [US4] Run the eviction pass in `packages/client-core/src/local-store/budget.ts` when measured usage exceeds the limit, recording what was released and why (FR-017, FR-018)
 - [X] T041 [P] [US4] `apps/web/src/features/files/storage-panel.tsx` — limit, usage, breakdown, and what was offloaded (FR-019)
 - [X] T042 [P] [US4] Mark offloaded and never-fetched content in `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` and the attachment list, never as missing
-- [ ] T043 [US4] Retrieve offloaded content on open in `apps/web/src/features/files/file-preview.tsx`, saying so while it fetches; offline, say the connection is what is missing
+- [X] T043 [US4] Retrieve offloaded content on open in `apps/web/src/features/files/file-preview.tsx`, saying so while it fetches; offline, say the connection is what is missing
 - [X] T044 [P] [US4] Playwright journey in `tests/e2e/offline-availability.spec.ts` — a marked branch opens with no network; at the limit, an unsynchronized change survives
 
 **Checkpoint**: the product is local-first rather than a website that caches.
@@ -151,19 +151,19 @@ and it is the largest single piece.
 - [X] T046 `packages/database/src/repositories/content/upload-repository.ts` — the upload lifecycle, including expiry of abandoned uploads
 - [X] T047 `apps/api/src/routes/uploads.ts` — `POST`, `HEAD`, `PATCH` per [contracts/file-transfer.md](./contracts/file-transfer.md)
 - [X] T048 Refuse an oversized upload in `apps/api/src/routes/uploads.ts` before accepting a byte, stating the limit and the reason (FR-008, FR-009)
-- [ ] T049 Complete an upload in one transaction in `packages/database/src/repositories/content/upload-repository.ts` — hash, deduplicate against `file_contents`, set `verified_at`, create the logical file and its placement (FR-007)
+- [X] T049 Complete an upload in one transaction in `packages/database/src/repositories/content/upload-repository.ts` — hash, deduplicate against `file_contents`, set `verified_at`, create the logical file and its placement (FR-007)
 - [X] T050 [P] Client-side resume in `apps/web/src/features/files/upload.ts` — seek to the server's offset, never to a locally remembered one
-- [ ] T051 [P] Report `uploading`, `verifying`, `synchronized` and `blocked` in `apps/web/src/features/files/transfer-state.tsx`, mirroring the save states of feature 003
-- [ ] T052 [P] Playwright journey in `tests/e2e/file-transfer.spec.ts` — an interrupted transfer resumes rather than restarting, and a partial upload never appears in the tree
+- [X] T051 [P] Report `uploading`, `verifying`, `synchronized` and `blocked` in `apps/web/src/features/files/transfer-state.tsx`, mirroring the save states of feature 003
+- [X] T052 [P] Playwright journey in `tests/e2e/file-transfer.spec.ts` — an interrupted transfer resumes rather than restarting, and a partial upload never appears in the tree
 
 ---
 
 ## Phase 8: Polish
 
 - [X] T053 [P] `docs/architecture/file-handling.md` — why previews are sandboxed, why Draw.io is self-hosted, and what admits content to eviction
-- [ ] T054 [P] Accessibility pass over the attachment list, the preview frame, the deletion dialogue and the storage panel; add them to `tests/e2e/accessibility.spec.ts`
-- [ ] T055 [P] Narrow-viewport pass at 320 px for the same four surfaces, asserted in `tests/e2e/narrow-viewport.spec.ts`
-- [ ] T056 Write `specs/005-files-and-local-storage/validation.md` with evidence per requirement, marking anything unfinished as unfinished rather than ticking it
+- [X] T054 [P] Accessibility pass over the attachment list, the preview frame, the deletion dialogue and the storage panel; add them to `tests/e2e/accessibility.spec.ts`
+- [X] T055 [P] Narrow-viewport pass at 320 px for the same four surfaces, asserted in `tests/e2e/narrow-viewport.spec.ts`
+- [X] T056 Write `specs/005-files-and-local-storage/validation.md` with evidence per requirement, marking anything unfinished as unfinished rather than ticking it
 
 ---
 

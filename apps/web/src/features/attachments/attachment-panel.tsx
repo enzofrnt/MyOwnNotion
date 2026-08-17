@@ -216,6 +216,8 @@ export function AttachmentPanel({
                 fileName={row.item.name}
                 mediaType={file?.mediaType ?? "application/octet-stream"}
                 byteLength={file?.byteLength ?? 0}
+                availability={row.availability}
+                onFetched={() => void refresh()}
               />
             );
           })()

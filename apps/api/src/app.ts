@@ -8,7 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import multipart from "@fastify/multipart";
-import { ContentStore, FilesystemBlobStore } from "@myownnotion/blob-store";
+import { ContentStore, FilesystemBlobStore, PartialUploadStore } from "@myownnotion/blob-store";
 import {
   createDatabase,
   createInstallation,
@@ -168,6 +168,9 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
 async function composeApp(options: BuildAppOptions, database: DatabaseHandle): Promise<BuiltApp> {
   const workspace = await getOrCreateWorkspace(database.db);
   const contentStore = new ContentStore(new FilesystemBlobStore(options.blobRoot));
+  // Partial uploads live beside the blobs but not among them: they have no
+  // digest until they are complete, and the content store is keyed by digest.
+  const partialUploads = new PartialUploadStore(options.blobRoot);
 
   /**
    * Set only when the security layer is configured.
@@ -187,6 +190,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     workspaceId: workspace.id,
     schemaVersion: workspace.schemaVersion,
     contentStore,
+    partialUploads,
     get rotationPolicies() {
       return rotationPolicies;
     },
