@@ -12,8 +12,10 @@
  * is not part of the latency the requirement describes. The observed figure is
  * recorded in validation.md.
  */
+import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures.ts";
 import {
+  apiOrigin,
   createRootItem,
   openSecondDevice,
   openWorkspace,
@@ -93,40 +95,52 @@ test.describe("live synchronization (US1)", () => {
 
 test.describe("catching up after an absence (US2)", () => {
   test("a device that was away receives every change it missed", async ({
-    page,
     browser,
     baseURL,
+    request,
   }) => {
-    const second = await openSecondDevice(browser, baseURL);
+    const away = await openSecondDevice(browser, baseURL);
     try {
-      await openWorkspace(page);
-      await openWorkspace(second.page);
+      await openWorkspace(away.page);
 
-      // The second device goes away: its API is unreachable, so it hears nothing
-      // and can fetch nothing.
-      await second.page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-      await second.page.route("**/health", (route) => route.abort("connectionrefused"));
+      // The device goes away: its API is unreachable, so it hears nothing and can
+      // fetch nothing.
+      await away.page.route("**/v1/**", (route) => route.abort("connectionrefused"));
+      await away.page.route("**/health", (route) => route.abort("connectionrefused"));
 
+      // The changes are made through the API rather than through a second
+      // browser, and that is a deliberate narrowing. This journey is about what
+      // the *absent* device receives; how the changes were produced is
+      // incidental, and producing five of them by typing into one shared name
+      // field is a race that has nothing to do with catch-up — it failed exactly
+      // there, on a phone-sized viewport, pointing at a creation rather than at
+      // the property under test.
       const names: string[] = [];
-      // Enough changes that a "last one wins" implementation would be visibly
-      // wrong rather than accidentally right.
       for (let index = 0; index < 5; index += 1) {
         const name = uniqueName(`WhileAway${index}`);
         names.push(name);
-        await createRootItem(page, "folder", name);
+        const created = await request.post(`${apiOrigin()}/v1/items`, {
+          headers: { "idempotency-key": randomUUID() },
+          data: {
+            id: randomUUID(),
+            kind: "folder",
+            name,
+            placement: { kind: "hierarchy", parentItemId: null, positionKey: `V${index}` },
+          },
+        });
+        expect(created.status(), await created.text()).toBe(201);
       }
-      await waitForSynchronized(page);
 
       // It comes back, without being reloaded. The stream reconnects by itself
       // and the catch-up follows from that, which is the property under test.
-      await second.page.unroute("**/v1/**");
-      await second.page.unroute("**/health");
+      await away.page.unroute("**/v1/**");
+      await away.page.unroute("**/health");
 
       for (const name of names) {
-        await expect(second.page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 30_000 });
+        await expect(away.page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 30_000 });
       }
     } finally {
-      await second.context.close();
+      await away.context.close();
     }
   });
 });

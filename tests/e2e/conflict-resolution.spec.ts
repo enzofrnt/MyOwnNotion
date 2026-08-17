@@ -17,6 +17,7 @@ import {
   selectItem,
   typeIntoEditor,
   uniqueName,
+  waitForEditor,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -30,6 +31,7 @@ import {
  * inside the existing block rather than making a new one.
  */
 async function appendInPlace(page: Page, text: string): Promise<void> {
+  await waitForEditor(page);
   const surface = page.getByTestId("block-editor").locator(".ProseMirror");
   await surface.click();
   await page.keyboard.press("ControlOrMeta+End");

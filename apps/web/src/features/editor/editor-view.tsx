@@ -156,19 +156,21 @@ export function EditorView({
 
   useEffect(() => {
     let cancelled = false;
-    const requestedRevisionId = openedRevisionId;
     void service.getItem(itemId).then((item) => {
       if (cancelled) {
         return;
       }
       openedBody.current = bodyFingerprint(item?.pageDocument?.body);
-      if (
-        requestedRevisionId !== undefined &&
-        item !== null &&
-        item.currentRevisionId !== requestedRevisionId
-      ) {
-        return;
-      }
+      // There used to be a second guard here, dropping the response when the
+      // item's revision no longer matched the one the effect was opened for. It
+      // was load-bearing only while this effect re-ran on every revision change:
+      // a superseded response could then arrive after a newer one. Now that the
+      // opened revision is pinned, that guard could never become satisfied — a
+      // revision that had moved on by the time the read resolved left the editor
+      // saying "Loading this page…" forever, with no later run to rescue it.
+      //
+      // `cancelled` is what actually orders these responses, and it always was:
+      // it is set by the cleanup React runs before the next effect.
       if (item === null) {
         setState({ kind: "unavailable", reason: "This page is not available on this device yet." });
         return;
@@ -197,7 +199,11 @@ export function EditorView({
     return () => {
       cancelled = true;
     };
-  }, [service, itemId, openedRevisionId]);
+    // The item, and nothing about its revision: this loads a page once when it is
+    // opened. Re-running it because another device advanced the revision is the
+    // behaviour that discarded unsaved typing, and there is no longer anything in
+    // here that reads the revision at all.
+  }, [service, itemId]);
 
   const surface = useRef<EditorSurfaceHandle | null>(null);
 

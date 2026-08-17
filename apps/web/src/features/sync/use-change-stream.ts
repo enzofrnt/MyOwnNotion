@@ -170,10 +170,14 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
           syncAttempt = 0;
           return;
         }
-        // Still unreachable. Backed off to a ceiling so an hour-long outage is
-        // not an hour of requests per second.
+        // Still unreachable. Backed off, but to a low ceiling: this is the delay
+        // an owner waits *after their connection comes back* before their other
+        // devices' work appears, and a long one is indefensible. Half a minute of
+        // staring at a stale page because the last attempt happened to land at
+        // the start of a long sleep is worse than the handful of cheap failed
+        // requests a five-second ceiling costs during the outage itself.
         syncAttempt += 1;
-        syncRetry = setTimeout(pursue, Math.min(1_000 * 2 ** (syncAttempt - 1), 30_000));
+        syncRetry = setTimeout(pursue, Math.min(1_000 * 2 ** (syncAttempt - 1), 5_000));
       });
     };
 
@@ -265,7 +269,10 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
             return;
           }
           attempt += 1;
-          const delay = Math.min(1_000 * 2 ** (attempt - 1), 30_000);
+          // Capped near `EventSource`'s own retry cadence. A longer ceiling
+          // would make this reconnection slower than the one the browser
+          // performs for itself, which is the opposite of why it exists.
+          const delay = Math.min(1_000 * 2 ** (attempt - 1), 10_000);
           retry = setTimeout(connect, delay);
         });
       };
@@ -273,8 +280,35 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
 
     connect();
 
+    /**
+     * The browser saying the network is back.
+     *
+     * Both backoffs exist for an outage whose end nobody can predict — but this
+     * is the browser predicting it. Sleeping through a signal the platform just
+     * handed us would leave an owner watching a stale page for seconds after
+     * their connection visibly returned, which is the one moment they are most
+     * likely to be looking.
+     */
+    const onOnline = (): void => {
+      if (stopped) {
+        return;
+      }
+      attempt = 0;
+      syncAttempt = 0;
+      if (retry !== null) {
+        clearTimeout(retry);
+        retry = null;
+      }
+      if (source === null || source.readyState === EventSource.CLOSED) {
+        connect();
+      }
+      pursue();
+    };
+    window.addEventListener("online", onOnline);
+
     return () => {
       stopped = true;
+      window.removeEventListener("online", onOnline);
       if (retry !== null) {
         clearTimeout(retry);
       }
