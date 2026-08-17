@@ -22,6 +22,7 @@ export const COMMAND_TYPES = [
   "item.rename",
   "item.convert",
   "item.favourite",
+  "item.offline",
   "item.trash",
   "item.restore",
   "placement.move",
@@ -68,6 +69,16 @@ export type MutationCommand =
        * makes the command idempotent by construction.
        */
       readonly favourite: boolean;
+    }
+  | {
+      readonly type: "item.offline";
+      readonly itemId: Uuid;
+      /**
+       * The state being asked for, like `item.favourite` and for the same
+       * reason: the outbox replays, and a toggle replayed an even number of
+       * times lands on the answer the owner did not give.
+       */
+      readonly offline: boolean;
     }
   | { readonly type: "item.trash"; readonly itemId: Uuid }
   | {
@@ -244,6 +255,14 @@ export function parseMutationCommand(
         return invalid();
       }
       return ok({ type: "item.favourite", itemId, favourite });
+    }
+    case "item.offline": {
+      const itemId = requireUuid(payload, "itemId");
+      const offline = payload["offline"];
+      if (itemId === null || typeof offline !== "boolean") {
+        return invalid();
+      }
+      return ok({ type: "item.offline", itemId, offline });
     }
     case "item.trash": {
       const itemId = requireUuid(payload, "itemId");

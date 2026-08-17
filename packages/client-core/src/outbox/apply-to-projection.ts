@@ -224,6 +224,7 @@ export async function prepareProjectionWrite(
     case "item.rename":
     case "item.convert":
     case "item.favourite":
+    case "item.offline":
     case "page.document.replace": {
       const row = await db.items.get(command.itemId);
       // A missing row is not an error here. The write step raises the domain
@@ -267,6 +268,8 @@ export async function prepareProjectionWrite(
             return { ...opened, name: command.name.trim(), currentRevisionId: revisionId };
           case "item.favourite":
             return { ...opened, favourite: command.favourite, currentRevisionId: revisionId };
+          case "item.offline":
+            return { ...opened, offlineIntent: command.offline, currentRevisionId: revisionId };
           case "item.convert":
             return {
               ...opened,
@@ -340,6 +343,7 @@ export async function applyCommandToProjection(
 
     case "item.convert":
     case "item.favourite":
+    case "item.offline":
     case "item.rename": {
       const item = await db.items.get(command.itemId);
       if (item === undefined) {

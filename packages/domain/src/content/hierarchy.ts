@@ -313,6 +313,27 @@ export function validateFavouriteItem(
 }
 
 /**
+ * Whether an item may be marked to stay on the owner's devices (FR-016).
+ *
+ * A trashed item is refused for the same reason as a favourite: keeping the
+ * trash on every device is not what "always available offline" means, and the
+ * marking would survive a restore it never asked for.
+ */
+export function validateOfflineIntent(
+  view: HierarchyView,
+  command: { readonly itemId: Uuid; readonly offline: boolean },
+): DomainResult<{ readonly item: CanonicalItem; readonly offline: boolean }> {
+  const item = view.getItem(command.itemId);
+  if (item === null) {
+    return err("item.not-found", "Item does not exist");
+  }
+  if (item.lifecycle !== "active") {
+    return err("item.not-active", "Only active items can be kept available offline");
+  }
+  return ok({ item, offline: command.offline });
+}
+
+/**
  * Collects the complete reachable active branch under `rootItemId`
  * (inclusive), traversing active hierarchy placements iteratively.
  */

@@ -13,6 +13,7 @@ import {
   generateUuidV7,
   parseMutationCommand,
   validateFavouriteItem,
+  validateOfflineIntent,
 } from "../src/index.ts";
 
 function itemWith(lifecycle: CanonicalItem["lifecycle"]): CanonicalItem {
@@ -77,6 +78,49 @@ describe("what may be favourited", () => {
     const result = validateFavouriteItem(viewOf(itemWith("active")), {
       itemId: generateUuidV7(),
       favourite: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.code).toBe("item.not-found");
+  });
+});
+
+describe("keeping an item available offline", () => {
+  it("carries the state asked for, so a replay is idempotent", () => {
+    const itemId = generateUuidV7();
+    const parsed = parseMutationCommand("item.offline", { itemId, offline: true });
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok && parsed.value).toEqual({ type: "item.offline", itemId, offline: true });
+  });
+
+  it("refuses a missing or non-boolean state", () => {
+    const itemId = generateUuidV7();
+    expect(parseMutationCommand("item.offline", { itemId }).ok).toBe(false);
+    expect(parseMutationCommand("item.offline", { itemId, offline: 1 }).ok).toBe(false);
+  });
+
+  it("marks and unmarks an active item", () => {
+    const item = itemWith("active");
+    for (const offline of [true, false]) {
+      const result = validateOfflineIntent(viewOf(item), { itemId: item.id, offline });
+      expect(result.ok).toBe(true);
+      expect(result.ok && result.value.offline).toBe(offline);
+    }
+  });
+
+  it("refuses a trashed item", () => {
+    // Keeping the trash on every device is not what "always available offline"
+    // means, and the marking would survive a restore that never asked for it.
+    const result = validateOfflineIntent(viewOf(itemWith("trashed")), {
+      itemId: itemWith("trashed").id,
+      offline: true,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("reports a missing item rather than succeeding silently", () => {
+    const result = validateOfflineIntent(viewOf(itemWith("active")), {
+      itemId: generateUuidV7(),
+      offline: true,
     });
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.code).toBe("item.not-found");

@@ -123,20 +123,20 @@ reads.
 ### Tests for User Story 4
 
 - [X] T033 [P] [US4] Property test in `packages/domain/tests/eviction.property.spec.ts` — for any workspace and any limit, the plan never releases unsynchronized changes, unresolved conflicts, or content under an offline intent
-- [ ] T034 [P] [US4] Unit test in `packages/client-core/tests/availability.spec.ts` — `offloaded` and `never-fetched` stay distinct through a full cycle
+- [X] T034 [P] [US4] Unit test in `packages/client-core/tests/availability.spec.ts` — `offloaded` and `never-fetched` stay distinct through a full cycle
 
 ### Implementation for User Story 4
 
 - [X] T035 [US4] `packages/domain/src/files/eviction.ts` — the priority order of [data-model.md](./data-model.md), pure and total; recoverability admits, size and age only order
-- [ ] T036 [US4] `item.offline` command across `packages/domain/src/content/mutations.ts`, `packages/database/src/mutations/execute-command.ts`, `packages/contracts/src/content-api.ts` and `apps/api/src/routes/items.ts`, carrying the desired state rather than toggling (FR-016)
-- [ ] T037 [US4] Resolve a folder's offline intent by inheritance at read time in `packages/database/src/repositories/item-reader.ts`, so moving a branch cannot strand a stale marking
-- [ ] T038 [P] [US4] `packages/client-core/src/local-store/availability.ts` — the three states and the transitions between them
-- [ ] T039 [P] [US4] `packages/client-core/src/local-store/budget.ts` — measure with `navigator.storage.estimate()`, request `persist()`, record the measurement time
-- [ ] T040 [US4] Run the eviction pass in `packages/client-core/src/local-store/budget.ts` when measured usage exceeds the limit, recording what was released and why (FR-017, FR-018)
-- [ ] T041 [P] [US4] `apps/web/src/features/files/storage-panel.tsx` — limit, usage, breakdown, and what was offloaded (FR-019)
-- [ ] T042 [P] [US4] Mark offloaded and never-fetched content in `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` and the attachment list, never as missing
+- [X] T036 [US4] `item.offline` command across `packages/domain/src/content/mutations.ts`, `packages/database/src/mutations/execute-command.ts`, `packages/contracts/src/content-api.ts` and `apps/api/src/routes/items.ts`, carrying the desired state rather than toggling (FR-016)
+- [X] T037 [US4] Resolve a folder's offline intent by inheritance at read time in `packages/database/src/repositories/item-reader.ts`, so moving a branch cannot strand a stale marking
+- [X] T038 [P] [US4] `packages/client-core/src/local-store/availability.ts` — the three states and the transitions between them
+- [X] T039 [P] [US4] `packages/client-core/src/local-store/budget.ts` — measure with `navigator.storage.estimate()`, request `persist()`, record the measurement time
+- [X] T040 [US4] Run the eviction pass in `packages/client-core/src/local-store/budget.ts` when measured usage exceeds the limit, recording what was released and why (FR-017, FR-018)
+- [X] T041 [P] [US4] `apps/web/src/features/files/storage-panel.tsx` — limit, usage, breakdown, and what was offloaded (FR-019)
+- [X] T042 [P] [US4] Mark offloaded and never-fetched content in `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` and the attachment list, never as missing
 - [ ] T043 [US4] Retrieve offloaded content on open in `apps/web/src/features/files/file-preview.tsx`, saying so while it fetches; offline, say the connection is what is missing
-- [ ] T044 [P] [US4] Playwright journey in `tests/e2e/offline-availability.spec.ts` — a marked branch opens with no network; at the limit, an unsynchronized change survives
+- [X] T044 [P] [US4] Playwright journey in `tests/e2e/offline-availability.spec.ts` — a marked branch opens with no network; at the limit, an unsynchronized change survives
 
 **Checkpoint**: the product is local-first rather than a website that caches.
 
@@ -160,7 +160,7 @@ and it is the largest single piece.
 
 ## Phase 8: Polish
 
-- [ ] T053 [P] `docs/architecture/file-handling.md` — why previews are sandboxed, why Draw.io is self-hosted, and what admits content to eviction
+- [X] T053 [P] `docs/architecture/file-handling.md` — why previews are sandboxed, why Draw.io is self-hosted, and what admits content to eviction
 - [ ] T054 [P] Accessibility pass over the attachment list, the preview frame, the deletion dialogue and the storage panel; add them to `tests/e2e/accessibility.spec.ts`
 - [ ] T055 [P] Narrow-viewport pass at 320 px for the same four surfaces, asserted in `tests/e2e/narrow-viewport.spec.ts`
 - [ ] T056 Write `specs/005-files-and-local-storage/validation.md` with evidence per requirement, marking anything unfinished as unfinished rather than ticking it

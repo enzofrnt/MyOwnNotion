@@ -126,3 +126,71 @@ describe("marking a favourite", () => {
     expect((await readItem(itemId))?.favourite).toBe(false);
   });
 });
+
+describe("keeping an item available offline", () => {
+  it("stores the instruction and clears it again", async () => {
+    const itemId = await createPage("Oa");
+    expect((await readItem(itemId))?.offlineIntent).toBe(false);
+
+    const marked = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "item.offline",
+      command: { type: "item.offline", itemId, offline: true },
+    });
+    expect(marked.result.status).toBe("accepted");
+    expect((await readItem(itemId))?.offlineIntent).toBe(true);
+
+    const cleared = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "item.offline",
+      command: { type: "item.offline", itemId, offline: false },
+    });
+    expect(cleared.result.status).toBe("accepted");
+    expect((await readItem(itemId))?.offlineIntent).toBe(false);
+  });
+
+  it("puts the instruction in the revision snapshot, so every device learns it", async () => {
+    const itemId = await createPage("Ob");
+    await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "item.offline",
+      command: { type: "item.offline", itemId, offline: true },
+    });
+
+    const item = await readItem(itemId);
+    const currentRevisionId = item?.currentRevisionId;
+    expect(currentRevisionId).toBeDefined();
+    const [revision] = await context.handle.db
+      .select()
+      .from(schema.revisions)
+      .where(eq(schema.revisions.id, currentRevisionId as Uuid));
+
+    // The projection on every other device is fed from these. An instruction
+    // outside the lineage would stay on the device that gave it, which is the
+    // opposite of what "keep this available" means for an owner with a laptop
+    // and a phone.
+    const snapshot = revision?.snapshot as { offlineIntent?: boolean } | undefined;
+    expect(snapshot?.offlineIntent).toBe(true);
+  });
+
+  it("refuses a trashed item", async () => {
+    const itemId = await createPage("Oc");
+    await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "item.trash",
+      command: { type: "item.trash", itemId },
+    });
+
+    const outcome = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "item.offline",
+      command: { type: "item.offline", itemId, offline: true },
+    });
+    expect(outcome.result.status).toBe("rejected");
+  });
+});

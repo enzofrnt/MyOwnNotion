@@ -8,6 +8,9 @@ Les décisions transversales validées seront consignées ici sous forme de docu
   toute écriture acceptée — blocage de rotation respecté, contenu protégé scellé
   — et pourquoi elles vivent en un seul endroit.
 - [`document-model.md`](document-model.md) : le format de document par blocs.
+- [`file-handling.md`](file-handling.md) : pourquoi les prévisualisations sont
+  en bac à sable, pourquoi l'éditeur de diagrammes est auto-hébergé, et ce qui
+  admet un contenu à l'éviction.
 
 ## Frontières envisagées
 
