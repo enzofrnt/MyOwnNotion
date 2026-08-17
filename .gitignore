@@ -80,3 +80,7 @@ Thumbs.db
 # Written by the containerised Playwright run, which installs into the
 # mounted checkout. Never part of the repository.
 .pnpm-store/
+
+# Per-project logs from the local Playwright matrix.
+.e2e-logs/
+.dev-blobs-e2e/

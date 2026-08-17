@@ -16,7 +16,50 @@ import { test as base } from "@playwright/test";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { seedCommittedOwner, seedSession } from "./reset-installation.ts";
 
-export const test = base.extend<{ freshContent: null }>({
+/**
+ * Refuses a Firefox run on a macOS host, before a browser is launched.
+ *
+ * Playwright's patched Firefox hangs before opening a page on the macOS
+ * development runtime, and the way it hangs is what makes this worth a guard: it
+ * does not fail. It sits at 100% of a core until somebody notices, and one
+ * forgotten instance burned more than twenty hours of CPU in a single day on a
+ * laptop — slowing every other suite, including the ones with nothing to do with
+ * it. A trap that expensive is closed where somebody steps in it, not in a
+ * paragraph they read afterwards.
+ *
+ * Refused here rather than by leaving the project out of the config: the project
+ * list must be the same on every platform, or "CI runs all five" stops being
+ * checkable from a developer machine — and a contract test checks it.
+ *
+ * Inside the pinned Linux image the platform is Linux, so nothing is refused,
+ * which is the whole point.
+ */
+function assertBrowserRunsHere(projectName: string): void {
+  if (projectName === "firefox-desktop" && process.platform === "darwin") {
+    throw new Error(
+      "firefox-desktop cannot run on a macOS host: Playwright's Firefox hangs before opening a page and then burns a core indefinitely. Run `pnpm test:e2e:local` (which routes it to the pinned Linux image) or `pnpm test:e2e:firefox-container` to run it alone.",
+    );
+  }
+}
+
+export const test = base.extend<{ runnableHere: null; freshContent: null }>({
+  /**
+   * Declared before `freshContent`, and depending on nothing.
+   *
+   * Fixture order is what makes this work. Playwright creates a fixture's
+   * dependencies before the fixture itself, so a guard that asked for `context`
+   * would launch the browser it is trying to prevent — which is exactly what the
+   * first attempt did, and it hung for four hundred seconds before being killed.
+   * This one takes only `testInfo`, so it runs and throws while the browser is
+   * still unrequested.
+   */
+  runnableHere: [
+    async ({}, use, testInfo) => {
+      assertBrowserRunsHere(testInfo.project.name);
+      await use(null);
+    },
+    { auto: true },
+  ],
   freshContent: [
     async ({ context, baseURL }, use) => {
       await resetCanonicalContent();

@@ -263,7 +263,21 @@ export async function readSessionCookie(
  * into "version 1version 2" and made a revision assertion pass for the wrong
  * reason.
  */
+/**
+ * Waits for the editor to be on screen and ready to take a click.
+ *
+ * On a phone-sized viewport the editor arrives later than the tree row that
+ * opens it, so a journey that selects an item and types immediately is racing
+ * the layout. It failed as `locator.click` timing out after a minute, pointing
+ * at the click rather than at the wait that was missing — which is the least
+ * useful place for it to point.
+ */
+export async function waitForEditor(page: Page): Promise<void> {
+  await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+}
+
 export async function typeIntoEditor(page: Page, text: string): Promise<void> {
+  await waitForEditor(page);
   const surface = page.getByTestId("block-editor").locator(".ProseMirror");
   await surface.click();
   await page.keyboard.press("ControlOrMeta+a");
@@ -356,4 +370,22 @@ export async function openSecondDevice(
 export async function saveDocument(page: Page): Promise<void> {
   await page.getByTestId("save-document").click();
   await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 15_000 });
+}
+
+/**
+ * Where the API this run is talking to actually lives.
+ *
+ * A journey that needs to act as "another device" goes straight to the API
+ * rather than through the browser, and until now each one wrote
+ * `http://127.0.0.1:3001` itself. That was already fragile — a dev server from
+ * another checkout on 3001 made those journeys silently exercise foreign code —
+ * and it becomes wrong outright once the local matrix runs several stacks at
+ * once, each on its own port: the request would land on another project's API,
+ * or on nothing at all.
+ *
+ * Derived from the same variable the Playwright config gives the server, so the
+ * two cannot disagree.
+ */
+export function apiOrigin(): string {
+  return `http://127.0.0.1:${process.env["MYOWNNOTION_API_PORT"] ?? "3001"}`;
 }

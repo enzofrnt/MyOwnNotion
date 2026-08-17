@@ -15,6 +15,24 @@ function apiProxy() {
 }
 
 /**
+ * The port to serve on, and a refusal to serve on any other one.
+ *
+ * `strictPort` matters more than the port itself. Vite's default is to take the
+ * next free port when the configured one is busy, which is friendly for a person
+ * watching the terminal and wrong for everything else: the local Playwright
+ * matrix runs several stacks at once and waits on a specific port for each. A
+ * server that quietly moved would leave one stack waiting on a port nobody is
+ * listening to — or, worse, would let it connect to *another stack's* server and
+ * report on the wrong workspace.
+ */
+function portPolicy() {
+  return {
+    port: Number(process.env["MYOWNNOTION_WEB_PORT"] ?? 5173),
+    strictPort: true,
+  };
+}
+
+/**
  * Workbox retains only the versioned application shell (T021): precached
  * build assets let the app boot offline, while canonical content always
  * comes from the Dexie projection — never from HTTP caches.
@@ -48,10 +66,12 @@ export default defineConfig({
   ],
   server: {
     host: "127.0.0.1",
+    ...portPolicy(),
     proxy: apiProxy(),
   },
   preview: {
     host: "127.0.0.1",
+    ...portPolicy(),
     proxy: apiProxy(),
   },
   build: {

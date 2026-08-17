@@ -78,11 +78,13 @@
       "scripts/ci/run-affected-vitest.ts",
       "scripts/ci/test-impact.ts",
       "scripts/db/migrate.ts",
+      "scripts/e2e/run-local-matrix.ts",
       "scripts/test-e2e-firefox-container.sh",
       "scripts/test-e2e-local.sh",
       "tests/e2e/fixtures.ts",
       "tests/e2e/global-setup.ts",
       "tests/e2e/helpers.ts",
+      "tests/e2e/projects.ts",
       "tests/e2e/reset-content.ts",
       "tests/e2e/reset-installation.ts"
     ],

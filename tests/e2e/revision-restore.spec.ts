@@ -3,6 +3,7 @@
  */
 import { expect, test } from "./fixtures.ts";
 import {
+  apiOrigin,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -75,9 +76,9 @@ test.describe("revision history (US5)", () => {
     await expect(page.getByTestId("revision-preview")).toBeVisible();
 
     // Another device advances the head between preview and restore.
-    const current = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const currentBody = (await current.json()) as { currentRevisionId: string };
-    const competing = await request.put(`http://127.0.0.1:3001/v1/pages/${itemId}/document`, {
+    const competing = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { "idempotency-key": crypto.randomUUID() },
       data: {
         baseRevisionId: currentBody.currentRevisionId,

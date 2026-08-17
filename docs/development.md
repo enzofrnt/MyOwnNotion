@@ -175,6 +175,68 @@ substitutes for the behavioral layers.
 `test:unit` when Docker is unavailable. Everything else in that command runs
 without it.
 
+### The browser matrix locally
+
+```bash
+pnpm test:e2e:local          # every project, in parallel
+pnpm test:e2e:local -- --grep "live sync"   # arguments pass through
+```
+
+**Every browser project runs at once, each on its own stack.** The matrix used
+to run one project after another, and the reason was not the browsers: every
+journey resets the same database, so two projects sharing one would delete each
+other's content mid-test. That is a statement about shared state, so
+`scripts/e2e/run-local-matrix.ts` gives each project state of its own instead of
+making them take turns —
+
+| Isolated per project | Why |
+| --- | --- |
+| its own database, created and dropped by the runner | the reason the suites were sequential |
+| its own API and web ports (from 3301 and 5473) | five dev servers have to coexist |
+| its own blob root | otherwise file journeys read each other's bytes |
+| its own deployment key | a shared file is a shared fate if a run rewrites it |
+
+PostgreSQL itself is *not* isolated: one server, several databases. Starting
+five servers would cost more than the parallelism saves.
+
+The runner refuses to start when one of its ports is taken, and says which.
+That check is not politeness. Playwright's `reuseExistingServer` is on locally,
+so a port held by another checkout is silently *adopted* — and the matrix then
+reports on code nobody is looking at. That has happened, and it cost more than
+the failed run it replaced.
+
+**Two projects at a time by default, not five.** A stack is a browser, a Vite
+server and an API process, and what gives way under saturation is not the machine
+but the journeys — a click waiting on a render, an assertion budgeted for a quiet
+machine. Five at once failed differently on every attempt; three was green once
+and then failed twice, both times on WebKit, which is the expensive engine. Two is
+what proved repeatable on a fourteen-core laptop, and it still runs the matrix in
+about nine minutes against sixteen sequentially.
+
+The number is measured rather than derived from the core count, because cores are
+not the scarce resource here — memory and the dev servers are.
+`MYOWNNOTION_E2E_JOBS` raises it on a machine with room, or lowers it to `1` to
+reproduce a sequential run. A gate that is green two times in three is not a gate.
+
+`MYOWNNOTION_E2E_API_PORT_BASE` and `MYOWNNOTION_E2E_WEB_PORT_BASE` move the port
+range, which is rarely needed.
+
+Each project's full output is written to `.e2e-logs/<project>.log`, always —
+five runs interleaving into one terminal is unreadable, and a summary is at the
+mercy of whatever the caller piped it through. Failure artefacts go to
+`test-results/<project>/`, one directory per stack: Playwright *clears* its
+output directory when it starts, so a shared one means each stack deleting the
+traces and screenshots of the others.
+
+On macOS, Firefox runs inside the pinned Linux image, because Playwright's
+patched Firefox hangs before opening a page on the macOS development runtime.
+That project starts its servers inside the container and reaches PostgreSQL
+through `host.docker.internal`, so it needs a database of its own and nothing
+else. It runs alongside the others rather than after them.
+
+`pnpm test:e2e` remains the single-stack command CI uses, and the one to reach
+for when debugging one journey.
+
 ### Security test harness
 
 `tests/fixtures/security.ts` is the entry point for the controlled clock,
