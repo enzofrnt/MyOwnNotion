@@ -46,21 +46,24 @@ export type StreamState =
   /** This client is too old for this server and must be updated (FR-018). */
   | "needs-update";
 
+/**
+ * What this hook reports, and deliberately only this.
+ *
+ * The announced stream position used to be here too, as React state labelled
+ * "for diagnostics" — and nothing ever rendered it. Every change anywhere in the
+ * workspace therefore re-rendered this component and the sidebar around it, for a
+ * value nobody could see. State that is never displayed is churn with no benefit,
+ * and churn under somebody's cursor is a click racing a re-render.
+ *
+ * The device's own cursor is the authority on what it holds in any case; an
+ * announced position is advisory even where it is read.
+ */
 export interface ChangeStreamStatus {
   readonly state: StreamState;
-  /** The last position the server told this device about, for diagnostics. */
-  readonly lastAnnouncedCursor: string | null;
   /** What the server said, when it refused — shown verbatim to the owner. */
   readonly refusal: string | null;
 }
 
-/**
- * Opens the stream for as long as the component is mounted.
- *
- * `EventSource` rather than a polling loop, and no reconnection logic of our
- * own: the browser reconnects with backoff and resends `Last-Event-ID`. Code
- * here to do the same would be code that has to agree with it.
- */
 /**
  * Asks the server *why* the stream will not open.
  *
@@ -117,7 +120,6 @@ async function diagnose(
 export function useChangeStream(service: LocalContentService | null): ChangeStreamStatus {
   const [state, setState] = useState<StreamState>("connecting");
   const [refusal, setRefusal] = useState<string | null>(null);
-  const [lastAnnouncedCursor, setLastAnnouncedCursor] = useState<string | null>(null);
 
   // Held in a ref so the effect below does not depend on it. Depending on the
   // service would reopen the stream whenever the caller re-rendered with a new
@@ -193,19 +195,8 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
       });
     };
 
-    const onAdvanced = (event: MessageEvent<string>) => {
+    const onAdvanced = () => {
       setState("live");
-      try {
-        const payload = JSON.parse(event.data) as { cursor?: unknown };
-        if (typeof payload.cursor === "string") {
-          setLastAnnouncedCursor(payload.cursor);
-        }
-      } catch {
-        // A position we could not read is still a reason to reconcile: the
-        // device's own cursor is what the fetch uses, so the announcement's
-        // contents are advisory. Refusing to sync because the note was
-        // unreadable would turn a cosmetic problem into a stale workspace.
-      }
       // Not awaited: `synchronize()` coalesces concurrent callers, so a burst of
       // events becomes one pass plus at most one follow-up.
       pursue();
@@ -334,5 +325,5 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
     // and a reopened stream is a device that briefly hears nothing.
   }, [service]);
 
-  return { state, lastAnnouncedCursor, refusal };
+  return { state, refusal };
 }
