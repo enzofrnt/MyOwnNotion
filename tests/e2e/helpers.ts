@@ -19,16 +19,36 @@ export async function openWorkspace(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Types a name into the shared field and makes sure it is still there.
+ *
+ * The field is a controlled input, and the explorer clears it when a creation
+ * starts. React batches that clear, so its render can land *after* a later
+ * `fill()` and wipe what was just typed — which is what a human would see as
+ * their typing vanishing, and what CI saw as an empty field where a name
+ * belonged.
+ *
+ * So the value is retyped until it sticks, which is also what a person would
+ * do. `toHaveValue` alone only waits; it cannot put the name back.
+ */
+async function typeItemName(page: Page, name: string): Promise<void> {
+  const field = page.getByLabel("Name", { exact: true });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await field.fill(name);
+    if ((await field.inputValue()) === name) {
+      return;
+    }
+  }
+  // Asserted so a persistent failure reports the value rather than a timeout.
+  await expect(field).toHaveValue(name);
+}
+
 export async function createRootItem(
   page: Page,
   kind: "page" | "folder",
   name: string,
 ): Promise<void> {
-  await page.getByLabel("Name", { exact: true }).fill(name);
-  // See `createChildItem`: the name must still be in the field when the button
-  // is pressed, and that was not guaranteed until the explorer stopped clearing
-  // it after the write.
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue(name);
+  await typeItemName(page, name);
   await page
     .getByRole("button", { name: kind === "page" ? "New root page" : "New root folder" })
     .click();
@@ -48,19 +68,16 @@ export async function createChildItem(
   kind: "page" | "folder",
   name: string,
 ): Promise<void> {
-  await page.getByLabel("Name", { exact: true }).fill(name);
+  // Retyped until it sticks: the field is shared with the previous creation,
+  // whose clear can land here. Without this the item arrived called "Untitled
+  // page" and the failure surfaced fifteen seconds later as "the row never
+  // appeared", which points at everything except the cause.
+  await typeItemName(page, name);
   // No explicit `scrollIntoViewIfNeeded`: `click()` already scrolls, and it
   // retries when the element is replaced. The explicit call was the only step
   // here that does not retry, so a re-render landing between resolving the
   // locator and scrolling it detached the element and failed the journey —
   // intermittently, which is the worst way for it to fail.
-  // Asserted before the click, not assumed. The field is shared with the last
-  // creation, which used to clear it after its write completed — so a slow
-  // machine could empty it between the fill above and the click below, and the
-  // item arrived called "Untitled page". The failure then surfaced fifteen
-  // seconds later as "the row never appeared", which points at everything
-  // except the cause.
-  await expect(page.getByLabel("Name", { exact: true })).toHaveValue(name);
   await page.getByRole("button", { name: `New ${kind} inside ${parentName}` }).click();
   await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
 }
