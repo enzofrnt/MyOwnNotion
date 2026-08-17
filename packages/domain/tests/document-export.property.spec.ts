@@ -11,7 +11,7 @@
  * nothing is silently dropped pins down the guarantee.
  */
 
-import { exportMarkdown, isUnknownBlock } from "@myownnotion/domain";
+import { exportMarkdown, generateUuidV7, isUnknownBlock } from "@myownnotion/domain";
 import {
   documentArbitrary,
   documentWithUnknownBlockArbitrary,
@@ -66,5 +66,19 @@ describe("exportMarkdown", () => {
         }
       }),
     );
+  });
+
+  it("exports internal page links as stable application identities", () => {
+    const targetItemId = generateUuidV7();
+    const markdown = exportMarkdown({
+      blocks: [
+        {
+          type: "paragraph",
+          id: generateUuidV7(),
+          content: [{ text: "Reference", marks: [{ type: "pageLink", targetItemId }] }],
+        },
+      ],
+    });
+    expect(markdown).toContain(`[Reference](myownnotion://page/${targetItemId})`);
   });
 });

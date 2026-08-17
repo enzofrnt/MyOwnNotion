@@ -17,13 +17,14 @@ and stating that recovery is only possible within the revision retention
 window). In both directions the item identity and everything below it in the
 hierarchy are preserved."
 
-**Product-canvas scope**: sections 11 (pages, folders and hierarchy) and 12
-(sidebar and navigation), both amended in the same change that raised this
-feature.
+**Product-canvas scope**: sections 10 (stable identities and relation types),
+11 (pages, folders and hierarchy), 12 (sidebar and navigation), and 13 (page
+content and links), all amended in the same change that raised this feature.
 
 **Dependencies**: feature 001 (content foundations), whose canonical item kind
 is currently fixed at creation and never changes; feature 003 (core workspace
-experience), which supplies the block editor a converted page opens in.
+experience), which supplies the block editor and internal page-link mark a
+converted page opens in.
 
 **Exclusions**: this feature does not add attachment *behaviour* — importing,
 previewing and quotas remain with the files feature. It changes which item may
@@ -169,6 +170,9 @@ of them, and confirm the order is unchanged after a reload.
    **then** the order is unchanged.
 2. **Given** an item anywhere in the tree, **when** the owner moves it to
    another parent, **then** it keeps its identity and its own children.
+3. **Given** an item targeted by an internal page link, **when** it is
+   converted, **then** the link keeps resolving to that same canonical item
+   and does not become a hierarchy placement.
 
 ---
 
@@ -180,8 +184,13 @@ of them, and confirm the order is unchanged after a reload.
 - Converting while offline: the conversion follows the same offline rules as
   every other change, and its confirmation must not promise a durability the
   device cannot yet have.
-- Converting an item that is the target of a relationship: the reference must
-  still resolve, because the identity did not change.
+- Converting an item that is the target of an internal page-link relationship:
+  the reference must still resolve, because the identity did not change, and
+  the link must not be added to the hierarchy.
+- Converting a source page that contains internal page links into a folder: the
+  inline mentions are editorial content and are destroyed only after the normal
+  confirmation; their derived outgoing `page:link` edges are removed in the
+  same conversion, while links targeting the converted item remain.
 - Converting a page whose content is unreadable — a corrupt or undecryptable
   body: the destruction must not be presented as routine when the interface
   cannot show what is being destroyed.
@@ -211,7 +220,8 @@ of them, and confirm the order is unchanged after a reload.
 - **FR-005**: The owner MUST be able to convert a folder into a page.
 - **FR-006**: The owner MUST be able to convert a page into a folder.
 - **FR-007**: Conversion MUST preserve the item's identity, so that every
-  existing reference to it continues to resolve.
+  existing reference, including a non-hierarchical internal page link, continues
+  to resolve.
 - **FR-008**: Conversion MUST preserve every hierarchy child, its parent
   relationship and its order, in both directions and without exception.
 - **FR-009**: Converting a folder into a page MUST NOT destroy anything and
@@ -238,6 +248,9 @@ of them, and confirm the order is unchanged after a reload.
   folder, and MUST reflect a conversion without requiring a reload.
 - **FR-018**: Conversion MUST be reachable and completable using the keyboard
   alone, and its confirmation MUST be announced to assistive technology.
+- **FR-018a**: Conversion MUST preserve the distinction between a hierarchy
+  child and an internal page link; a page link MUST NOT be rendered or stored as
+  a new child placement.
 
 **Preserving what exists**
 

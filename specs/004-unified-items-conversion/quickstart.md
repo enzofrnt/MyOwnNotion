@@ -78,6 +78,14 @@ By hand, and worth doing once for the warning alone:
 4. Accept: the text is gone, both child pages are still there and in order.
 5. Restore the revision from before the conversion: the text comes back.
 
+## Preserving an internal page link through conversion
+
+1. Create a source page and a target page; insert the target as an internal
+   page link in the source document, without making it a child.
+2. Convert the target between page and folder.
+3. Confirm the source link still points to the same target identity and the
+   target has not acquired a new hierarchy placement.
+
 ## The two disclosures (US3, FR-015, FR-016)
 
 Put a file **under** a page in the hierarchy, and attach a different file to the

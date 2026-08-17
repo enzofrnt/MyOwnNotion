@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: >-
     Development contract for canonical pages, folders, files, placements,
-    relationships, lifecycle, lineage, and export. This feature does not make
+    relationships (including non-hierarchical internal page links), lifecycle, lineage, and export. This feature does not make
     the API safe for public exposure; authentication is specified separately.
 servers:
   - url: http://127.0.0.1:3000
@@ -128,7 +128,7 @@ paths:
               properties:
                 baseRevisionId: { $ref: '#/components/schemas/Uuid' }
                 document: { $ref: '#/components/schemas/PageDocument' }
-              additionalProperties: false
+                additionalProperties: false
       responses:
         '200':
           description: Page document replaced with a new revision
@@ -648,6 +648,8 @@ components:
         id: { $ref: '#/components/schemas/Uuid' }
         sourceItemId: { $ref: '#/components/schemas/Uuid' }
         targetItemId: { $ref: '#/components/schemas/Uuid' }
+        # `page-link` is the reserved non-hierarchical edge used by inline
+        # references in page documents; it never creates a placement.
         relationType: { type: string, pattern: '^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$' }
         metadata: { type: object }
       additionalProperties: false

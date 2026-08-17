@@ -150,31 +150,38 @@ export TEST_DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/m
 
 Without either, the aggregate coverage percentage cannot be reproduced
 locally: the DB and API suites contribute to it, so their files report 0% and
-drag the total below the threshold. Validate coverage in CI in that case.
+drag the total below the threshold. Development and targeted non-database tests
+may continue, but a branch MUST NOT be pushed until the Docker-backed pre-push
+gate has run successfully on this machine or an equivalent development
+environment. CI is confirmation of local evidence, not a substitute for it.
 
 ## Before you push
 
 ```bash
-pnpm toolchain:check
-pnpm format:check
-pnpm lint
-pnpm shell:check
-pnpm typecheck
-pnpm test:unit
-pnpm test:property
-pnpm build
+pnpm checks:local
 ```
 
-Then, with Docker available:
+This is a hard pre-push gate, not a suggested smoke test. It runs the local
+equivalents of every repository-controlled PR job: toolchain policy, shell,
+format/lint, strict types, aggregate coverage, the separately observable
+database/migration and contract suites, the complete browser/viewport matrix,
+production and multi-architecture image builds, dependency/secret/static/
+license security checks, and Compose boundaries. Every command must finish
+successfully against the exact commit that will be pushed.
 
-```bash
-pnpm test:integration
-pnpm test:contract
-pnpm test:migration
-pnpm test:coverage
-pnpm test:e2e
-pnpm compose:check
-```
+Targeted tests are still the fastest feedback while editing, but they are not
+pre-push evidence. Do not push with a known failure, an interrupted gate, or a
+required check silently skipped. If a local runtime cannot execute a check, use
+the documented equivalent runtime. If no equivalent is available, stop and
+report the blocker instead of delegating discovery of it to the pull request.
+
+The container vulnerability job itself is implemented by a pinned GitHub
+Action. When dependency manifests, lockfiles, Dockerfiles, or pinned base-image
+digests change, run an equivalent local Trivy scan before pushing or do not
+push. When none of those inputs changed, a green scan for the branch's current
+base commit is valid unchanged-input evidence; the PR reruns and confirms it.
+SARIF upload and GitHub Security-tab publication are GitHub-only presentation
+steps, not local product validation.
 
 ### Firefox end-to-end tests on macOS
 
@@ -184,7 +191,9 @@ modes, before the first page is created. The symptom is a Firefox process at
 100% CPU with a `RenderCompositorSWGL failed mapping default framebuffer` log.
 This is a browser/runtime issue, not an application-test failure.
 
-Run Firefox journeys in the official Playwright Linux container instead. The
+`pnpm checks:local` invokes `pnpm test:e2e:local`. On macOS that wrapper runs
+Chromium and WebKit directly, then runs Firefox in the official Playwright
+Linux container. The
 container uses the same Playwright version as the repository and reaches the
 host PostgreSQL service through `host.docker.internal`:
 
@@ -211,9 +220,8 @@ other's fixtures. The failures that follow look nothing like the cause: rows
 that never appear, and journeys that normally take a second taking twenty. Run
 Firefox first or last, but alone.
 
-`pnpm checks:local` runs that whole sequence in one command. Pushing a work
-branch triggers no automated gate: **the pull request is the first gate**, so
-run the local checks before you push.
+Pushing a work branch triggers no automated gate: **the pull request is the
+first remote gate**, so the local gate must pass before every push.
 
 Write mode for formatting is separate on purpose: `pnpm format:write` and
 `pnpm lint --write` change files, the `:check`/`ci` variants never do.
@@ -229,13 +237,14 @@ missing from `package.json`, so the gate cannot silently lose a check.
 | `toolchain:check` | local, PR, main | Unpinned toolchain, foreign lockfile, or a missing gate script blocks | — |
 | `shell:check` `format:check` `lint:ci` `typecheck` | local, PR, main | Any finding blocks | — |
 | `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:security` | local, PR, main | Any failure blocks | — |
-| `test:e2e` | PR, main | Any failed journey blocks | Playwright report |
-| `security:audit` | PR, main | Any high/critical vulnerability or an unavailable audit blocks | `dependency-audit.json` |
+| `test:e2e` (`test:e2e:local` on macOS) | local, PR, main | Any failed journey blocks | Playwright report |
+| `security:audit` | local, PR, main | Any high/critical vulnerability or an unavailable audit blocks | `dependency-audit.json` |
 | `security:secrets` | local, PR, main | Any detected secret or a scanner failure blocks | `secret-scan.sarif` |
 | `security:static` | local, PR, main | Any high-confidence finding or an analyzer failure blocks | `static-security.sarif` |
-| `security:licenses` | PR, main | Any denied or unresolvable license blocks | `license-policy.json` |
+| `security:licenses` | local, PR, main | Any denied or unresolvable license blocks | `license-policy.json` |
 | `build` `compose:check` | local, PR, main | Build failure or a Compose boundary violation blocks | — |
-| `images:build` | PR, main | Unpinned base digest or a build failure blocks; builds on every candidate and pushes nothing | `image-build.json` |
+| `images:build` | local, PR, main | Unpinned base digest or a build failure blocks; builds on every candidate and pushes nothing | `image-build.json` |
+| pinned Trivy container scan | conditional local evidence, PR, main | Any high/critical vulnerability with a fix, or an unavailable required scan, blocks | `container-scan.sarif` |
 | `release:gate` | tag | Missing, stale, foreign-commit, or artifact-less gate evidence blocks publication | — |
 
 Base images are pinned by manifest-list digest in `docker/base-images.json`.

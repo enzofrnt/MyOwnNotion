@@ -138,7 +138,13 @@ function renderNode(node: Inline): string {
 
 function wrapLink(text: string, marks: readonly Mark[]): string {
   const link = marks.find((mark): mark is Extract<Mark, { type: "link" }> => mark.type === "link");
-  return link === undefined ? text : `[${text}](${link.href})`;
+  if (link !== undefined) {
+    return `[${text}](${link.href})`;
+  }
+  const pageLink = marks.find(
+    (mark): mark is Extract<Mark, { type: "pageLink" }> => mark.type === "pageLink",
+  );
+  return pageLink === undefined ? text : `[${text}](myownnotion://page/${pageLink.targetItemId})`;
 }
 
 /** Escapes the characters that would otherwise become Markdown syntax. */

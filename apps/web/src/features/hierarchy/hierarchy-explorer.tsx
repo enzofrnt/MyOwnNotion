@@ -9,7 +9,7 @@
 
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { readNavigationState, writeNavigationState } from "@myownnotion/client-core";
-import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
+import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
 import { localContent } from "../../services/local-content.ts";
@@ -195,6 +195,35 @@ export function HierarchyExplorer({
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedId) ?? null,
     [items, selectedId],
+  );
+
+  const openPageLink = useCallback(
+    (rawItemId: string) => {
+      setProblem(null);
+      if (!isUuid(rawItemId)) {
+        setProblem({
+          code: "validation.invalid-identifier",
+          title: "The internal page link has an invalid target identity",
+        });
+        return;
+      }
+      if (items.some((item) => item.id === rawItemId)) {
+        setSelectedId(rawItemId);
+        return;
+      }
+      if (trashedItems.some((item) => item.id === rawItemId)) {
+        setProblem({
+          code: "item.not-active",
+          title: "This internal page link points to an item in the trash",
+        });
+        return;
+      }
+      setProblem({
+        code: "item.not-found",
+        title: "This internal page link target is unavailable on this device",
+      });
+    },
+    [items, trashedItems],
   );
 
   const runCommand = useCallback(
@@ -713,7 +742,13 @@ export function HierarchyExplorer({
 
       {selectedItem !== null && selectedItem.kind === "page" ? (
         <>
-          <EditorView service={service} itemId={selectedItem.id} />
+          <EditorView
+            service={service}
+            itemId={selectedItem.id}
+            itemRevisionId={selectedItem.currentRevisionId}
+            items={items}
+            onOpenPage={openPageLink}
+          />
           <AttachmentPanel pageId={selectedItem.id} onChanged={() => void refresh()} />
         </>
       ) : null}

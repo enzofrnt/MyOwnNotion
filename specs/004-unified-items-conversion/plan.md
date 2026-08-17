@@ -31,7 +31,8 @@ Everything else follows. `item.convert` becomes a named mutation alongside
 destructive-direction guard in the domain where no client can skip it (FR-014).
 Page → folder deletes the page document and its protected envelope inside the
 same transaction as the kind change, so an item is never a folder that still
-owns a document.
+owns a document. Typed `page:link` relationships remain keyed by canonical
+identity and are never rewritten as hierarchy placements by conversion.
 
 ## Technical Context
 

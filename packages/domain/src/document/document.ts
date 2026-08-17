@@ -14,6 +14,7 @@
  * split its text nodes, and the property would be untestable rather than false.
  */
 
+import type { Uuid } from "../ids/uuid.ts";
 import {
   type Block,
   childrenOf,
@@ -39,6 +40,35 @@ export interface BlockDocument {
 
 export function emptyDocument(): BlockDocument {
   return { blocks: [] };
+}
+
+/**
+ * Stable targets mentioned by internal page-link marks.
+ *
+ * The visible document can mention the same item more than once, while the
+ * relationship projection deliberately stores one edge per source/target
+ * pair. Keeping this extraction in the editor-independent model gives the
+ * browser, server validation, and revision restore one definition of that set
+ * instead of separate approximations.
+ */
+export function pageLinkTargets(document: BlockDocument): Uuid[] {
+  const targets = new Set<Uuid>();
+  const visit = (blocks: readonly Block[]): void => {
+    for (const block of blocks) {
+      if (hasInlineContent(block)) {
+        for (const inline of block.content) {
+          for (const mark of inline.marks ?? []) {
+            if (mark.type === "pageLink") {
+              targets.add(mark.targetItemId);
+            }
+          }
+        }
+      }
+      visit(childrenOf(block));
+    }
+  };
+  visit(document.blocks);
+  return [...targets];
 }
 
 // ---------------------------------------------------------------------------
@@ -94,9 +124,11 @@ function normaliseMarks(marks: readonly Mark[] | undefined): readonly Mark[] | u
     if (byType !== 0) {
       return byType;
     }
-    const leftHref = left.type === "link" ? left.href : "";
-    const rightHref = right.type === "link" ? right.href : "";
-    return leftHref < rightHref ? -1 : leftHref > rightHref ? 1 : 0;
+    const leftValue =
+      left.type === "link" ? left.href : left.type === "pageLink" ? left.targetItemId : "";
+    const rightValue =
+      right.type === "link" ? right.href : right.type === "pageLink" ? right.targetItemId : "";
+    return leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
   });
   return unique;
 }
@@ -105,7 +137,15 @@ function marksKey(marks: readonly Mark[] | undefined): string {
   if (marks === undefined) {
     return "";
   }
-  return marks.map((mark) => (mark.type === "link" ? `link:${mark.href}` : mark.type)).join("|");
+  return marks
+    .map((mark) =>
+      mark.type === "link"
+        ? `link:${mark.href}`
+        : mark.type === "pageLink"
+          ? `pageLink:${mark.targetItemId}`
+          : mark.type,
+    )
+    .join("|");
 }
 
 /**

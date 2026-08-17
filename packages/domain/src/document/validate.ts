@@ -261,6 +261,17 @@ function parseMark(value: JsonValue, path: string, problems: ValidationProblem[]
       }
       return { type: "link", href };
     }
+    case "pageLink": {
+      const targetItemId = value["targetItemId"];
+      if (typeof targetItemId !== "string" || !isUuid(targetItemId)) {
+        problems.push({
+          path: `${path}.targetItemId`,
+          message: "an internal page link must declare a target UUID",
+        });
+        return null;
+      }
+      return { type: "pageLink", targetItemId: targetItemId as Uuid };
+    }
     default:
       // An unrecognised mark is dropped rather than failing the document: it
       // carries no content of its own, and its text survives either way.

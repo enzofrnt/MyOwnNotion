@@ -60,7 +60,221 @@ async function relate(source: Uuid, target: Uuid): Promise<Uuid> {
   return id;
 }
 
+async function replacePageLinks(
+  source: Uuid,
+  baseRevisionId: Uuid,
+  targetItemIds: readonly Uuid[],
+): Promise<Uuid> {
+  const outcome = await submitMutation(context.handle.db, {
+    workspaceId: context.workspaceId,
+    mutationId: generateUuidV7(),
+    commandType: "page.document.replace",
+    command: {
+      type: "page.document.replace",
+      itemId: source,
+      baseRevisionId,
+      document: {
+        format: "myownnotion.document+json",
+        formatVersion: 2,
+        body: {
+          blocks:
+            targetItemIds.length === 0
+              ? []
+              : [
+                  {
+                    type: "paragraph",
+                    id: generateUuidV7(),
+                    content: targetItemIds.map((targetItemId) => ({
+                      text: "Target",
+                      marks: [{ type: "pageLink", targetItemId }],
+                    })),
+                  },
+                ],
+        },
+      },
+      pageLinkTargetIds: targetItemIds,
+    },
+  });
+  expect(outcome.result.status).toBe("accepted");
+  return (outcome.result.revisionIds as Uuid[])[0] as Uuid;
+}
+
 describe("relationship endpoint stability (FR-010/FR-011)", () => {
+  it("stores an internal page link without creating a hierarchy placement", async () => {
+    const source = await createItem("page", "Source");
+    const child = await createItem("page", "Placed child", source);
+    const sourceRow = await context.handle.db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, source));
+    const outcome = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      command: {
+        type: "page.document.replace",
+        itemId: source,
+        baseRevisionId: sourceRow[0]?.currentRevisionId as Uuid,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: {
+            blocks: [
+              {
+                type: "paragraph",
+                id: generateUuidV7(),
+                content: [{ text: "Child", marks: [{ type: "pageLink", targetItemId: child }] }],
+              },
+            ],
+          },
+        },
+        pageLinkTargetIds: [child],
+      },
+    });
+    expect(outcome.result.status).toBe("accepted");
+    const links = await context.handle.db
+      .select()
+      .from(schema.relationships)
+      .where(eq(schema.relationships.sourceItemId, source));
+    expect(links[0]?.relationType).toBe("page:link");
+    expect(links[0]?.targetItemId).toBe(child);
+    const placements = await context.handle.db
+      .select()
+      .from(schema.placements)
+      .where(eq(schema.placements.itemId, child));
+    expect(placements[0]?.parentItemId).toBe(source);
+  });
+
+  it("restores the page-link index with a retained document revision", async () => {
+    const source = await createItem("page", "Restore link source");
+    const target = await createItem("page", "Restore link target");
+    const sourceRows = await context.handle.db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, source));
+    const linkedRevisionId = await replacePageLinks(
+      source,
+      sourceRows[0]?.currentRevisionId as Uuid,
+      [target],
+    );
+    const unlinkedRevisionId = await replacePageLinks(source, linkedRevisionId, []);
+
+    const restored = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "revision.restore",
+      command: {
+        type: "revision.restore",
+        revisionId: linkedRevisionId,
+        currentRevisionId: unlinkedRevisionId,
+      },
+    });
+    expect(restored.result.status).toBe("accepted");
+    const listed = await context.handle.db.transaction(async (tx) =>
+      listRelationships(tx, context.workspaceId, source),
+    );
+    expect(
+      listed.some(
+        (relationship) =>
+          relationship.relationType === "page:link" && relationship.targetItemId === target,
+      ),
+    ).toBe(true);
+  });
+
+  it("removes stale page-link edges when a link-free save omits the optional index", async () => {
+    const source = await createItem("page", "Omitted empty index source");
+    const target = await createItem("page", "Omitted empty index target");
+    const sourceRows = await context.handle.db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, source));
+    const linkedRevisionId = await replacePageLinks(
+      source,
+      sourceRows[0]?.currentRevisionId as Uuid,
+      [target],
+    );
+
+    const unlinked = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "page.document.replace",
+      command: {
+        type: "page.document.replace",
+        itemId: source,
+        baseRevisionId: linkedRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: { blocks: [] },
+        },
+      },
+    });
+    expect(unlinked.result.status).toBe("accepted");
+    const listed = await context.handle.db.transaction(async (tx) =>
+      listRelationships(tx, context.workspaceId, source),
+    );
+    expect(listed.some((relationship) => relationship.relationType === "page:link")).toBe(false);
+  });
+
+  it("removes outgoing page links when their source is converted to a folder", async () => {
+    const source = await createItem("page", "Converted source");
+    const target = await createItem("page", "Converted source target");
+    const sourceRows = await context.handle.db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, source));
+    const linkedRevisionId = await replacePageLinks(
+      source,
+      sourceRows[0]?.currentRevisionId as Uuid,
+      [target],
+    );
+    const converted = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "item.convert",
+      command: {
+        type: "item.convert",
+        itemId: source,
+        targetKind: "folder",
+        confirmedDestruction: true,
+      },
+    });
+    expect(converted.result.status).toBe("accepted");
+    expect(linkedRevisionId).toBeTruthy();
+    const listed = await context.handle.db.transaction(async (tx) =>
+      listRelationships(tx, context.workspaceId, source),
+    );
+    expect(listed.some((relationship) => relationship.relationType === "page:link")).toBe(false);
+  });
+
+  it("rejects generic removal of a page link while its document mark remains", async () => {
+    const source = await createItem("page", "Managed removal source");
+    const target = await createItem("page", "Managed removal target");
+    const sourceRows = await context.handle.db
+      .select()
+      .from(schema.items)
+      .where(eq(schema.items.id, source));
+    await replacePageLinks(source, sourceRows[0]?.currentRevisionId as Uuid, [target]);
+    const linkRows = await context.handle.db
+      .select()
+      .from(schema.relationships)
+      .where(eq(schema.relationships.sourceItemId, source));
+    const relationshipId = linkRows.find((row) => row.relationType === "page:link")?.id as Uuid;
+
+    const removed = await submitMutation(context.handle.db, {
+      workspaceId: context.workspaceId,
+      mutationId: generateUuidV7(),
+      commandType: "relationship.remove",
+      command: { type: "relationship.remove", relationshipId },
+    });
+    expect(removed.result.status).toBe("rejected");
+    expect(removed.result.problem?.code).toBe("validation.invalid-payload");
+    const listed = await context.handle.db.transaction(async (tx) =>
+      listRelationships(tx, context.workspaceId, source),
+    );
+    expect(listed.some((relationship) => relationship.id === relationshipId)).toBe(true);
+  });
+
   it("survives rename and move of both endpoints", async () => {
     const source = await createItem("page", "Source");
     const target = await createItem("page", "Target");

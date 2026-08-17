@@ -105,6 +105,7 @@ export class LocalValidationError extends Error {
     | "item.not-found"
     | "containment.cycle-rejected"
     | "validation.invalid-payload"
+    | "relationship.endpoint-unavailable"
     | "placement.not-found"
     // Feature 004. The client refuses a destructive conversion for the same
     // reason the server does, and refuses it *first*: applying it optimistically

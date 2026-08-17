@@ -128,15 +128,19 @@ export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
                       ? (relationship.targetAvailability ?? "active")
                       : (relationship.sourceAvailability ?? "active")}
                   </span>
-                  <span className="tree-actions">
-                    <button
-                      type="button"
-                      aria-label="Remove relationship"
-                      onClick={() => void removeRelationship(relationship.id as Uuid)}
-                    >
-                      unlink
-                    </button>
-                  </span>
+                  {relationship.relationType === "page:link" ? (
+                    <span className="muted">managed in the page document</span>
+                  ) : (
+                    <span className="tree-actions">
+                      <button
+                        type="button"
+                        aria-label="Remove relationship"
+                        onClick={() => void removeRelationship(relationship.id as Uuid)}
+                      >
+                        unlink
+                      </button>
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

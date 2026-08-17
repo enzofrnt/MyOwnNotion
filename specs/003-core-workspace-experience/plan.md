@@ -21,11 +21,15 @@ boundary in the web app, and a block type this client does not recognise
 survives a round trip because our converter parks its original JSON in an
 opaque node rather than handing it to a schema that would strip it.
 
-Everything else follows from existing machinery. The save state is derived from
-feature 001's outbox rather than tracked separately; the sealed body is still a
-`Record<string, unknown>` so feature 002's envelopes need no change at all; the
-server never parses a document body and therefore cannot — and must not — take
-part in the v1 → v2 transition.
+Everything else follows from existing machinery. Internal page links are the
+one cross-boundary addition: the editor stores a stable target identity in a
+`pageLink` mark, and the page-document mutation reconciles the corresponding
+`page-link` relationship without changing hierarchy placements. The save state
+is derived from feature 001's outbox rather than tracked separately; the sealed
+body is still a `Record<string, unknown>` so feature 002's envelopes need no
+change at all. The server does not need to interpret the complete editor model,
+but validates the explicit page-link target set and updates the canonical
+relation index in the same transaction as the document revision.
 
 ## Technical Context
 
@@ -37,10 +41,11 @@ ProseMirror** (new, web app only, behind a conversion boundary);
 `@axe-core/playwright` (new, test-only, for SC-004). No new server or domain
 runtime dependency.
 
-**Storage**: Unchanged. PostgreSQL through Drizzle on the server, Dexie
-(IndexedDB) for the local projection. The document body is a JSON column on the
-server and a sealed envelope in both places; this feature changes what is
-*inside* the body, which neither store inspects.
+**Storage**: PostgreSQL through Drizzle on the server, Dexie (IndexedDB) for
+the local projection. The document body is a JSON column on the server and a
+sealed envelope in both places. Page-link target identities are also kept in
+the typed relationship projection so backlinks and diagnostics do not require
+decrypting every document.
 
 **Testing**: Vitest for domain, contract, and integration levels; fast-check
 for the model round-trip properties; Playwright for every user-visible journey,
@@ -63,12 +68,13 @@ asserted by inspection.
 **Constraints**: Editing MUST refuse rather than degrade when the device key is
 unavailable (spec edge case, FR-026). The interface MUST NOT show "saved"
 before the server confirms (FR-008). An unrecognised block MUST round-trip
-byte for byte (SC-009). No change to canonical identities, revision lineage, or
-mutation semantics (FR-025).
+byte for byte (SC-009). Internal page links MUST preserve target identity
+without creating placements (FR-001a, FR-027, FR-028). No change to canonical
+identities, revision lineage, or mutation semantics (FR-025).
 
 **Scale/Scope**: One owner, one workspace. Documents up to 500 blocks are the
 tested envelope; the tree is expected in the hundreds to low thousands of items.
-Five user stories, 26 functional requirements, 10 success criteria.
+Six user stories, 28 functional requirements, 12 success criteria.
 
 ## Constitution Check
 
@@ -78,12 +84,12 @@ Five user stories, 26 functional requirements, 10 success criteria.
 |-----------|---------|----------------------------|
 | I. User Ownership and Local Resilience | **PASS** | Editing works from the local projection with no network; the document model has a documented Markdown export path (FR-005), which is what makes "exportable in durable formats" true rather than aspirational. |
 | II. One Spec, Any Agent | **PASS** | Everything lives under `specs/003-core-workspace-experience/`. Product intent stays in `spec.md`, decisions here, progress in `tasks.md`. The product canvas is cited by section, and the section-14 exclusion is recorded in the spec rather than left implicit. |
-| III. Incremental, Verifiable Delivery | **PASS** | Five independently testable stories, each with its own Playwright journey at the responsive viewport. The document model gets property tests because a round-trip guarantee stated in prose is not a guarantee. |
+| III. Incremental, Verifiable Delivery | **PASS** | Six independently testable stories, each with its own Playwright journey at the responsive viewport. The document model gets property tests because a round-trip guarantee stated in prose is not a guarantee. |
 | IV. Privacy and Security by Default | **PASS** | No new boundary and no weakening of one. The body stays sealed on the server and in the projection; the editor never sees an unsealed store, and refuses to accept edits when the device key is unavailable. No document content is logged. |
 | V. Simple, Modular Architecture | **PASS** | One new domain module and one editor feature module. Tiptap is a real vendor dependency, so it is confined behind a conversion boundary — see Complexity Tracking, where the coupling and its exit are written down rather than assumed away. |
 | VI. Accessible and Predictable Experience | **PASS** | This principle is most of the feature: FR-017 to FR-020 make keyboard, focus, semantics, and announcements acceptance criteria, and SC-003 to SC-006 make them measurable from the owner's side. |
 | VII. Reproducible Toolchains and Enforced Quality | **PASS** | pnpm only, TypeScript only, new dependencies added to the existing workspace lock. The two new dev-time additions ride the existing CI gates; no new toolchain. |
-| VIII. Canonical Product Direction | **⚠ PASS with a required amendment** | The spec's scope is canvas sections 7 and 11–13. The roadmap currently lists 11–14 for feature 003, and section 14 is excluded here on the constitution's authority. The constitution requires the canvas and affected artifacts to be updated in the same change, so **amending `docs/product/roadmap.md` is a task in this feature**, not a follow-up. |
+| VIII. Canonical Product Direction | **PASS** | The spec's scope is canvas sections 7 and 11–13, including the canvas distinction between placements and internal page links. The roadmap's section-14 exclusion remains recorded in the spec and task history. |
 
 **Constraint checks.** Tiptap is named by the constitution as the initial
 candidate *provided* the internal content model and export path are preserved —
@@ -133,6 +139,8 @@ apps/web/src/features/editor/          # NEW — everything Tiptap touches
 ├── tiptap-schema.ts                   # ProseMirror nodes mirroring the model
 ├── to-tiptap.ts / from-tiptap.ts      # The conversion boundary, both directions
 ├── unknown-block.ts                   # The opaque node that makes FR-006 true
+├── page-link.ts                       # Internal page-link mark and presentation
+├── page-link-control.tsx              # Accessible local page picker
 ├── slash-menu.tsx                     # FR-002
 └── block-controls.tsx                 # FR-003
 
@@ -146,6 +154,7 @@ tests/e2e/                             # Playwright journeys, one file per story
 ├── keyboard-navigation.spec.ts        # US3
 ├── narrow-viewport.spec.ts            # US4
 ├── connection-trust.spec.ts           # US5
+├── page-links.spec.ts                 # US6
 ├── editor-performance.spec.ts         # SC-005, SC-006
 └── accessibility.spec.ts              # EXTENDED — axe on the new screens
 ```
@@ -156,8 +165,10 @@ domain package rather than in `apps/web` for a specific reason: FR-005 requires
 the model to be independent of the editing library, and a model that lives next
 to the editor drifts into it. Putting it where neither React nor Tiptap can be
 imported makes the independence a fact the type checker enforces rather than a
-promise in a document. The server is not modified at all — it stores the body it
-is given and, since feature 002, cannot read it.
+promise in a document. The server remains ignorant of editor rendering, but
+the page-document mutation validates the explicit target set and reconciles
+`page-link` rows transactionally so the relationship index cannot drift from
+the saved document.
 
 ## Complexity Tracking
 

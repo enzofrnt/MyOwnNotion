@@ -41,7 +41,8 @@ export type Mark =
   | { readonly type: "italic" }
   | { readonly type: "strikethrough" }
   | { readonly type: "code" }
-  | { readonly type: "link"; readonly href: string };
+  | { readonly type: "link"; readonly href: string }
+  | { readonly type: "pageLink"; readonly targetItemId: Uuid };
 
 export type MarkType = Mark["type"];
 
@@ -53,7 +54,14 @@ export type MarkType = Mark["type"];
  * fixed point to compare against; without one, "the document is unchanged"
  * would depend on the order the editor happened to apply them in.
  */
-export const MARK_ORDER: readonly MarkType[] = ["bold", "italic", "strikethrough", "code", "link"];
+export const MARK_ORDER: readonly MarkType[] = [
+  "bold",
+  "italic",
+  "strikethrough",
+  "code",
+  "link",
+  "pageLink",
+];
 
 /** A run of text with a uniform set of marks. */
 export interface Inline {

@@ -42,6 +42,17 @@ Expected result:
 
 Expected result: the valid branch move is atomic; the cycle attempt is rejected and leaves the prior tree unchanged.
 
+## Validate internal page links versus hierarchy children
+
+1. Create a page `Index` with a child page `Child` placed beneath it.
+2. From `Index`'s editor, insert an internal link to a separate page `Reference`.
+3. Confirm `Child` appears in the hierarchy while `Reference` appears only as a link in the document and as a `page-link` relationship.
+4. Move or rename `Reference`, then follow the link again.
+5. Link `Index` to `Child` and confirm the link remains non-hierarchical and does not create a cycle or a second placement.
+
+Expected result: hierarchy placements and internal page links remain separate,
+stable, and independently visible after reload.
+
 ## Validate file identity and placements
 
 1. Import one file into a page.

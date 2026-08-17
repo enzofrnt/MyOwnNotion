@@ -150,6 +150,20 @@ Typed non-hierarchical edge between canonical items.
 
 Relationships to trashed or purged items remain diagnosable. A later graph spec decides visibility, not this model.
 
+The reserved `page:link` relationship type represents an internal page
+reference. It is separate from `Placement(kind=hierarchy)`: its source is the
+page whose document contains the mention, its target is the referenced
+canonical page-compatible item, and it never changes `parent_item_id`, sibling
+order, or descendant membership. Several inline mentions of the same target
+share one canonical `page-link` edge; removing the last mention removes that
+edge in the same document mutation. A target may be a descendant without
+creating a hierarchy cycle because the edge is not a placement. `page:link` is
+reserved: generic relationship creation/removal cannot mutate it independently
+from the document. Restoring a retained document revision reconciles this edge
+set from the restored marks, and destroying a source page's document during
+page-to-folder conversion removes its outgoing page-link edges in that same
+conversion. Incoming links remain attached to the stable target identity.
+
 ## Mutation
 
 One accepted or rejected command boundary.
@@ -243,7 +257,11 @@ The browser stores a versioned projection, not a second independent source of tr
 
 ### LocalProjection
 
-Contains loaded item state, placements, page documents, file metadata, relationships, and revision headers keyed by the same stable IDs as the server. It may omit file bytes and unloaded content, but must never fabricate a different canonical identity.
+Contains loaded item state, placements, page documents, file metadata,
+relationships (including `page-link` endpoints), and revision headers keyed by
+the same stable IDs as the server. It may omit file bytes and unloaded content,
+but must never fabricate a different canonical identity or turn a relationship
+into a placement.
 
 ### OutboxMutation
 

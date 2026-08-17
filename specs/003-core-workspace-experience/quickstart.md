@@ -89,6 +89,28 @@ By hand:
 Each of the four states is captured by the e2e run, which is what SC-010 asks
 for.
 
+## Linking a page without nesting it (US6, FR-001a, FR-027, FR-028, SC-011, SC-012)
+
+```bash
+pnpm test:e2e -- page-links
+```
+
+By hand:
+
+1. Create `Index`, a child page `Child` beneath it, and a separate page
+   `Reference` elsewhere in the tree.
+2. Open `Index`, use the page-link control, choose `Reference`, and insert the
+   mention.
+3. Confirm the link has the internal-link presentation and `Child` remains the
+   only hierarchy child under `Index`.
+4. Rename or move `Reference`, reload `Index`, and follow the mention.
+5. Repeat with `Child` as the target and confirm no cycle or second placement is
+   created.
+
+Expected result: the document preserves the link target identity and the
+sidebar preserves the hierarchy independently, including when the server is
+temporarily unavailable after both pages were loaded locally.
+
 ## Keyboard only (US3, SC-003)
 
 ```bash

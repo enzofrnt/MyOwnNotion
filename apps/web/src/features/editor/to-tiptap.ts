@@ -203,8 +203,14 @@ function convertMarks(
           return { type: "strike" };
         case "code":
           return { type: "code" };
-        default:
+        case "link":
           return { type: "link", attrs: { href: mark.href } };
+        case "pageLink":
+          return { type: "pageLink", attrs: { targetItemId: mark.targetItemId } };
+        default: {
+          const exhaustive: never = mark;
+          return exhaustive;
+        }
       }
     }),
   };

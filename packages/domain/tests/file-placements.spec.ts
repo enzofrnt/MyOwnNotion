@@ -385,6 +385,19 @@ describe("validateCreateRelationship", () => {
     }
   });
 
+  it("reserves page:link for atomic page-document reconciliation", () => {
+    const result = validateCreateRelationship(getItem, {
+      id: generateUuidV7(),
+      sourceItemId: source,
+      targetItemId: target,
+      relationType: "page:link",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("validation.invalid-payload");
+    }
+  });
+
   it("rejects a missing source", () => {
     const result = validateCreateRelationship(getItem, {
       id: generateUuidV7(),

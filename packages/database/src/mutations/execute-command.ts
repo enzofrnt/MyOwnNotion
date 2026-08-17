@@ -14,8 +14,10 @@ import {
   generateUuidV7,
   type MutationCommand,
   ok,
+  pageLinkTargets,
   planRestoreRevision,
   type QueuedMutationResult,
+  readDocumentBody,
   replayResult,
   type SafeError,
   type Uuid,
@@ -24,7 +26,7 @@ import {
   validateRenameItem,
   validateReplacePageDocument,
 } from "@myownnotion/domain";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { recordChange } from "../repositories/change-repository.ts";
 import { executeConvertItem } from "../repositories/content/conversion-repository.ts";
@@ -45,7 +47,13 @@ import {
   insertRevision,
   supersedeRevision,
 } from "../repositories/revision-repository.ts";
-import { items, mutations, pageDocuments, placements as placementsTable } from "../schema/index.ts";
+import {
+  items,
+  mutations,
+  pageDocuments,
+  placements as placementsTable,
+  relationships,
+} from "../schema/index.ts";
 import { runMutation } from "./run-mutation.ts";
 
 export interface CommandExecution {
@@ -59,6 +67,65 @@ export interface MutationContext {
   readonly workspaceId: Uuid;
   readonly mutationId: Uuid;
   readonly acceptedAt: Date;
+}
+
+/**
+ * Reconciles the derived page-link index with one saved document state.
+ * Existing edges remain valid when a target is later trashed or purged: that
+ * is how the reference keeps reporting the original identity as unavailable.
+ * A normal edit may not introduce a new unavailable target, while restoring a
+ * retained historical document may recreate that diagnostic edge.
+ */
+async function reconcilePageLinks(
+  tx: Transaction,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly sourceItemId: Uuid;
+    readonly revisionId: Uuid;
+    readonly targetItemIds: readonly Uuid[];
+    readonly allowUnavailableTargets?: boolean;
+  },
+): Promise<DomainResult<void>> {
+  const existing = await tx
+    .select()
+    .from(relationships)
+    .where(
+      and(
+        eq(relationships.sourceItemId, input.sourceItemId),
+        eq(relationships.relationType, "page:link"),
+        isNull(relationships.removedRevisionId),
+      ),
+    );
+  const desired = new Set(input.targetItemIds);
+  for (const relationship of existing) {
+    if (!desired.has(relationship.targetItemId as Uuid)) {
+      await tx
+        .update(relationships)
+        .set({ removedRevisionId: input.revisionId })
+        .where(eq(relationships.id, relationship.id));
+    }
+    desired.delete(relationship.targetItemId as Uuid);
+  }
+  for (const targetItemId of desired) {
+    const target = await getItem(tx, targetItemId);
+    if (
+      target === null ||
+      target.kind === "file" ||
+      (!input.allowUnavailableTargets && target.lifecycle === "purged")
+    ) {
+      return err("relationship.endpoint-unavailable", "Internal page-link target is unavailable");
+    }
+    await tx.insert(relationships).values({
+      id: generateUuidV7(),
+      workspaceId: input.workspaceId,
+      sourceItemId: input.sourceItemId,
+      targetItemId,
+      relationType: "page:link",
+      metadata: {},
+      createdRevisionId: input.revisionId,
+    });
+  }
+  return ok(undefined);
 }
 
 async function executeCreateItem(
@@ -250,6 +317,15 @@ async function executeReplacePageDocument(
         body: plan.value.document.body,
       },
     });
+  const reconciled = await reconcilePageLinks(tx, {
+    workspaceId: context.workspaceId,
+    sourceItemId: plan.value.item.id,
+    revisionId,
+    targetItemIds: plan.value.pageLinkTargetIds,
+  });
+  if (!reconciled.ok) {
+    return reconciled as DomainResult<CommandExecution>;
+  }
   await tx
     .update(items)
     .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
@@ -330,6 +406,19 @@ async function executeRestoreRevision(
           body: restoredDocument.body,
         },
       });
+    const read = readDocumentBody(restoredDocument.body);
+    const restoredPageLinkTargets =
+      read.kind === "blocks" && read.result.ok ? pageLinkTargets(read.result.document) : [];
+    const reconciled = await reconcilePageLinks(tx, {
+      workspaceId: context.workspaceId,
+      sourceItemId: item.id,
+      revisionId,
+      targetItemIds: restoredPageLinkTargets,
+      allowUnavailableTargets: true,
+    });
+    if (!reconciled.ok) {
+      return reconciled as DomainResult<CommandExecution>;
+    }
   }
   const snapshot = await buildItemSnapshot(tx, item.id);
   await insertRevision(tx, {

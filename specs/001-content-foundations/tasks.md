@@ -291,3 +291,14 @@ All tasks use the required checkbox, sequential `T###` identifier, optional `[P]
 
 - [X] T105 Persist competing revision identities with the mutation record so a replayed conflict can return them: add a column in a new reviewed migration under `packages/database/migrations/`, write it in `packages/database/src/mutations/execute-command.ts`, return it from `replayResult` in `packages/domain/src/content/mutations.ts`, and cover "first response lost, mutation replayed, competing identity still available" in `apps/api/tests/mutations.contract.spec.ts`. Today the identities live only in the in-memory error and are lost on replay, leaving the owner unable to compare versions, per FR-042 (partial)
 - [X] T106 Isolate canonical content per Playwright project so journey evidence stops depending on how many items earlier projects created: reset content per project (or give each project its own database) around `tests/e2e/global-setup.ts` and `playwright.config.ts`. Global setup currently runs once per run, so ~135 items accumulate by `webkit-mobile` and unrelated journeys fail on a 10 s timeout alone, per Constitution III (partial)
+
+## Phase 13: Internal page links
+
+**Purpose**: Add the explicitly separate, non-hierarchical page-link relation
+required by FR-045–FR-047 and the product canvas sections 10, 11 and 13.
+
+- [X] T107 [P] Add domain and editor conversion tests for the `pageLink` inline mark, including a descendant target that does not create a placement, in `packages/domain/tests/document-validate.spec.ts` and `apps/web/tests/editor-round-trip.property.spec.ts` (FR-045, FR-046)
+- [X] T108 [P] Extend the canonical relationship contract and page-document mutation tests for the reserved `page:link` relation type, stable target identity, and atomic document/relation reconciliation in `packages/database/tests/relationships.integration.spec.ts`, `apps/api/tests/page-documents.contract.spec.ts`, and `specs/001-content-foundations/contracts/content-api.openapi.yaml` (FR-045–FR-047)
+- [X] T109 Implement the `pageLink` mark in `packages/domain/src/document/block.ts`, validation/normalisation, Tiptap conversion, and the canonical page-link relation synchronization in `packages/database/src/mutations/execute-command.ts` and `packages/client-core/src/outbox/apply-to-projection.ts` (FR-045–FR-047)
+- [X] T110 [P] Add an accessible page picker and distinct internal-link rendering in `apps/web/src/features/editor/page-link-control.tsx`, `apps/web/src/features/editor/page-link.ts`, `apps/web/src/features/editor/editor-surface.tsx`, and `apps/web/src/styles.css` (FR-045, FR-047)
+- [X] T111 Add the responsive Playwright journey proving that a page can contain both a hierarchy child and an internal page link, and that rename/move/conversion preserve the link target in `tests/e2e/page-links.spec.ts` (US3/AC5–AC6, SC-015)

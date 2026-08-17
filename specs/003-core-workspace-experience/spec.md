@@ -21,6 +21,11 @@ feature 005; real-time multi-device transport belongs to feature 006; search
 belongs to feature 008. (These numbers shifted when feature 004, unified items
 and conversion, was inserted after 003 shipped its editor.)
 
+This feature also consumes the product-canvas distinction between hierarchy
+placements and internal page links: a page can display a child below it in the
+tree and mention another page inline without turning that mention into a
+placement.
+
 ---
 
 ## Why this feature exists
@@ -185,6 +190,39 @@ non-local address and confirm the interface warns clearly and unmistakably.
 
 ---
 
+### User Story 6 — Mention another page without nesting it (Priority: P2)
+
+The owner writes in a page and inserts a reference to another page. The
+referenced page opens from the mention, but remains where it already lives in
+the hierarchy. A page can therefore contain both a real child and a link to a
+page elsewhere.
+
+**Why this priority**: Page references are a core knowledge-workflow primitive,
+and confusing them with children changes the workspace structure. The editor
+must make the distinction explicit before later backlinks and graph views can
+rely on it.
+
+**Independent test**: Create `Index` with child page `Child` and separate page
+`Reference`, insert a link to `Reference` in `Index`, reload, and confirm that
+the tree still has only `Child` below `Index` while the document contains a
+working internal link to `Reference`.
+
+**Acceptance scenarios**:
+
+1. **Given** a page and another page elsewhere in the hierarchy, **when** the
+   owner inserts an internal page link, **then** the document shows a link to
+   the target without adding or moving a hierarchy placement.
+2. **Given** a page with a child page and an internal link, **when** the owner
+   reads the page and its sidebar, **then** the child is represented by the
+   hierarchy presentation and the reference by a visibly distinct link.
+3. **Given** an internal link to a page, **when** the target is renamed, moved,
+   or converted, **then** following the link still resolves to the same stable
+   identity.
+4. **Given** the owner links to a descendant, **when** the document is saved,
+   **then** no hierarchy cycle or second placement is created.
+
+---
+
 ### Edge Cases
 
 - A page whose stored document contains a block type this client version does
@@ -202,6 +240,13 @@ non-local address and confirm the interface warns clearly and unmistakably.
 - Paste from an external application containing rich text: the result must be
   representable in the internal model, and anything that is not must be
   reduced to text rather than stored as something the export path cannot emit.
+- A page links to one of its descendants: the link remains non-hierarchical and
+  must not create a second placement or a cycle.
+- The same target is mentioned twice: the document preserves both labels while
+  the canonical relation index keeps one typed edge for the source and target.
+- The target is available locally while the server is offline: the owner can
+  still insert and follow the link, and the pending relation change remains
+  durable with the document change.
 
 ---
 
@@ -214,6 +259,9 @@ non-local address and confirm the interface warns clearly and unmistakably.
 - **FR-001**: The editor MUST support at minimum these block types: paragraph,
   heading (at least three levels), bulleted list, numbered list, checkbox,
   quote, code, divider, and link.
+- **FR-001a**: The editor MUST distinguish an external link from an internal
+  page link. An internal page link MUST carry the stable target identity and
+  MUST NOT be represented as a hierarchy child or placement.
 - **FR-002**: The owner MUST be able to insert a block through a slash command,
   a visible insertion control, and Markdown-style input shortcuts.
 - **FR-003**: Blocks MUST be selectable, movable, transformable into another
@@ -283,6 +331,12 @@ non-local address and confirm the interface warns clearly and unmistakably.
 - **FR-026**: This feature MUST NOT weaken any boundary established by feature
   002; in particular, document bodies MUST continue to be sealed on the server
   and in the local projection.
+- **FR-027**: The owner MUST be able to insert an internal page link by choosing
+  from locally available page-compatible items, and the link MUST remain
+  usable offline once its target is present locally.
+- **FR-028**: Internal page links MUST have a visually and semantically
+  distinguishable presentation from hierarchy children and external links,
+  without requiring the owner to inspect raw identifiers.
 
 ### Key Entities
 
@@ -296,6 +350,9 @@ non-local address and confirm the interface warns clearly and unmistakably.
 - **Navigation state**: the expanded branches, the current selection, and the
   scroll position that make returning to a page feel like returning rather than
   arriving.
+- **Page link**: an inline reference carrying a stable canonical target
+  identity and display text. It is not a hierarchy placement; repeated mentions
+  may point to one canonical `page-link` relationship.
 
 ---
 
@@ -325,6 +382,11 @@ non-local address and confirm the interface warns clearly and unmistakably.
   through an edit and a save with that block unchanged, byte for byte.
 - **SC-010**: The four save states named in FR-007 are each reachable and
   visually distinct, demonstrated by a recorded run of each.
+- **SC-011**: An owner can insert an internal link to a locally available page
+  in under 30 seconds, and the link remains present after reload and offline
+  navigation.
+- **SC-012**: In 100% of page-link journeys, a linked target is not added as a
+  hierarchy child, including when the target is a descendant of the source.
 
 ---
 
@@ -367,5 +429,7 @@ non-local address and confirm the interface warns clearly and unmistakably.
 - Real-time transport, multi-device catch-up, and visual conflict resolution
   beyond making a conflict visible (sections 19–20) — feature 006.
 - Search (section 21) — feature 008.
+- Backlinks, full-text link search, and graph presentation — later features;
+  this slice only creates and renders the canonical page-link reference.
 - Public sharing, plugins, import from other products, and collaborative
   editing — permanently out of scope for V1 or governed by their own specs.

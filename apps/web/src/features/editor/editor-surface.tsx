@@ -18,11 +18,13 @@
  * anything to observe.
  */
 
+import type { ProjectedItem } from "@myownnotion/client-core";
 import type { BlockDocument } from "@myownnotion/domain";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useCallback, useImperativeHandle } from "react";
+import { useCallback, useEffect, useImperativeHandle } from "react";
 import { BlockControls } from "./block-controls.tsx";
 import { fromTiptap } from "./from-tiptap.ts";
+import { PageLinkControl } from "./page-link-control.tsx";
 import { SlashMenu } from "./slash-menu.tsx";
 import { editorExtensions } from "./tiptap-schema.ts";
 import { toTiptap } from "./to-tiptap.ts";
@@ -36,10 +38,16 @@ export function EditorSurface({
   document,
   editable,
   handleRef,
+  currentItemId,
+  items,
+  onOpenPage,
 }: {
   readonly document: BlockDocument;
   readonly editable: boolean;
   readonly handleRef: React.RefObject<EditorSurfaceHandle | null>;
+  readonly currentItemId: string;
+  readonly items: readonly ProjectedItem[];
+  readonly onOpenPage?: ((itemId: string) => void) | undefined;
 }) {
   const editor = useEditor({
     extensions: editorExtensions(),
@@ -54,6 +62,17 @@ export function EditorSurface({
       },
     },
   });
+
+  useEffect(() => {
+    if (editor === null || editor.isDestroyed) {
+      return;
+    }
+    // `useEditor` creates the instance before an async page load can resolve.
+    // Keep the instance aligned with that loaded document as well as with the
+    // initial content, otherwise a remounted page can display the empty
+    // bootstrap document while the projection already contains saved content.
+    editor.commands.setContent(toTiptap(document), { emitUpdate: false });
+  }, [editor, document]);
 
   const read = useCallback(
     () => (editor === null || editor.isDestroyed ? null : fromTiptap(editor.getJSON())),
@@ -76,12 +95,39 @@ export function EditorSurface({
     <>
       <BlockControls editor={editor} />
       <SlashMenu editor={editor} />
+      {editable ? (
+        <PageLinkControl editor={editor} currentItemId={currentItemId} items={items} />
+      ) : null}
       {/* The test id sits on a wrapper: Tiptap renders its own container and
           does not forward arbitrary DOM props, so an attribute placed on
           `EditorContent` never reaches the document. */}
-      <div data-testid="block-editor">
+      <section
+        data-testid="block-editor"
+        aria-label="Page content editor"
+        onClick={(event) => {
+          const target = (event.target as HTMLElement).closest<HTMLElement>(
+            "[data-page-link-target]",
+          );
+          const pageId = target?.dataset["pageLinkTarget"];
+          if (pageId !== undefined && pageId !== "" && onOpenPage !== undefined) {
+            event.preventDefault();
+            onOpenPage(pageId);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          const target = (event.target as HTMLElement).closest<HTMLElement>(
+            "[data-page-link-target]",
+          );
+          const pageId = target?.dataset["pageLinkTarget"];
+          if (pageId !== undefined && pageId !== "" && onOpenPage !== undefined) {
+            event.preventDefault();
+            onOpenPage(pageId);
+          }
+        }}
+      >
         <EditorContent editor={editor} />
-      </div>
+      </section>
     </>
   );
 }

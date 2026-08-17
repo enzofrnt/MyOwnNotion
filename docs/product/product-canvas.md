@@ -305,6 +305,19 @@ Chaque objet synchronisable doit posséder :
 
 Déplacer ou renommer un objet ne doit pas changer son identité ni casser silencieusement ses références.
 
+Une référence vers une page n'est pas une relation de hiérarchie. Le modèle
+doit distinguer explicitement :
+
+- le **placement hiérarchique**, qui fait d'un élément un enfant visible sous
+  un parent dans l'arborescence ;
+- le **lien interne de page**, qui pointe vers un autre élément canonique sans
+  le déplacer, le dupliquer ou en faire un enfant.
+
+Les deux relations peuvent coexister pour une même paire d'éléments. Un lien
+interne peut donc viser une page située ailleurs dans l'arborescence, y compris
+un descendant, sans modifier l'arborescence. Les déplacements, renommages et
+conversions doivent conserver l'identité de la cible et la résolution du lien.
+
 ---
 
 ## 11. Pages, dossiers et hiérarchie
@@ -344,6 +357,12 @@ confondre :
   autonomes rangés en dessous d'elle, exactement comme un dossier en range ;
 - **ses pièces jointes de contenu** — les fichiers liés au texte de la page
   elle-même.
+
+Le contenu de la page peut également contenir des **liens internes vers des
+pages**. Ce sont des références non hiérarchiques : elles n'ajoutent aucun
+enfant à la page et ne remplacent pas ses placements. Une page peut donc
+contenir à la fois un enfant placé sous elle et un lien vers une autre page
+située ailleurs.
 
 L'interface expose les deux séparément : les enfants se déplient comme pour un
 dossier, les pièces jointes de contenu par un bouton dédié. Un dossier n'a que
@@ -414,6 +433,11 @@ jointes de contenu. Un dossier n'a que le premier. Confondre les deux ferait
 disparaître de l'arbre les fichiers rangés sous une page, ou ferait apparaître
 dans la hiérarchie des pièces jointes qui n'y sont pas.
 
+Dans le contenu éditorial, un lien interne vers une page doit être
+reconnaissable comme tel et ne doit jamais être rendu comme un enfant de
+l'arborescence. L'interface peut utiliser une icône de lien pour ce type de
+référence et une indication distincte pour les éléments placés sous la page.
+
 La barre latérale doit aussi permettre de convertir une page en dossier et
 inversement (11.4).
 
@@ -444,6 +468,13 @@ Les blocs comprennent au minimum :
 - images ;
 - fichiers ;
 - contenus intégrés.
+
+Parmi les liens, l'éditeur doit distinguer les liens externes et les liens
+internes vers des pages. Un lien interne conserve l'identifiant canonique de
+sa cible, affiche son libellé dans le contenu et ouvre la cible sans créer de
+placement hiérarchique. Les références internes doivent rester intactes après
+un renommage, un déplacement ou une conversion de la cible ; leurs relations
+inverses peuvent ensuite alimenter les backlinks.
 
 Les blocs peuvent être sélectionnés, déplacés, transformés, dupliqués, regroupés et supprimés. Les actions d'édition courantes doivent être annulables et rétablissables.
 

@@ -43,6 +43,9 @@ export function registerPageDocumentRoutes(app: FastifyInstance, context: AppCon
             formatVersion: body.document.formatVersion,
             body: body.document.body as Record<string, unknown>,
           },
+          ...(body.pageLinkTargetIds !== undefined
+            ? { pageLinkTargetIds: body.pageLinkTargetIds as Uuid[] }
+            : {}),
         },
       });
     },

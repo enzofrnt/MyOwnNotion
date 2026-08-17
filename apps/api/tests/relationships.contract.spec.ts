@@ -67,6 +67,24 @@ describe("relationship contract (T067)", () => {
     expect(response.statusCode).toBe(400);
   });
 
+  it("rejects direct creation of the page:link relation reserved for documents", async () => {
+    const source = await createItemViaApi(harness, { kind: "page", name: "Reserved source" });
+    const target = await createItemViaApi(harness, { kind: "page", name: "Reserved target" });
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: generateUuidV7(),
+        sourceItemId: source.itemId,
+        targetItemId: target.itemId,
+        relationType: "page:link",
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { code: string }).code).toBe("validation.invalid-payload");
+  });
+
   it("exposes endpoint availability diagnostics after trash", async () => {
     const source = await createItemViaApi(harness, { kind: "page", name: "Diag source" });
     const target = await createItemViaApi(harness, { kind: "page", name: "Diag target" });

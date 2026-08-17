@@ -8,6 +8,16 @@
 
 **Input**: User description: "Define durable foundations for a personal self-hosted knowledge workspace whose pages, folders, files, relationships, revisions, synchronization, backups, graph, sharing, and future clients can evolve without replacing the canonical content model."
 
+**Product-canvas scope**: sections 10 (modèle canonique des contenus), 11
+(pages, dossiers et hiérarchie), 13 (éditeur par blocs), 19 (synchronisation
+des relations), 21 (recherche) et 22 (graphe de connaissances).
+
+**Clarification ajoutée**: un placement hiérarchique et un lien interne vers
+une page sont deux relations distinctes. Le premier place un enfant dans
+l'arborescence ; le second conserve une référence vers une cible canonique
+sans créer de placement, y compris lorsque la cible se trouve ailleurs ou est
+un descendant.
+
 ## Clarifications
 
 ### Session 2026-08-07
@@ -90,6 +100,8 @@ As the owner, I can reorganize or rename content without breaking references so 
 2. **Given** a file used by a page, **When** the file is moved elsewhere in the hierarchy, **Then** the page still refers to the same file.
 3. **Given** an item removed from active use, **When** another item still references it, **Then** the reference is preserved as recoverable or explicitly marked unavailable rather than silently redirected.
 4. **Given** one canonical file shown in several locations, **When** its content is updated through any location, **Then** every location continues to resolve to the updated canonical file without creating hidden copies.
+5. **Given** a page contains both a child page placed beneath it and an internal link to another page, **When** the page is read or its hierarchy is changed, **Then** the placement remains an arborescence child while the internal link remains a separate reference to its stable target.
+6. **Given** an internal page link targets an item that is renamed, moved, or converted, **When** the owner follows or inspects the link, **Then** it still resolves to that same canonical identity or reports that identity's unavailable state without redirecting it.
 
 ---
 
@@ -134,6 +146,8 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - Two imports share a name, size, format, or preview but differ in content; they must never be treated as physically identical on those attributes alone.
 - Two logically distinct files currently share deduplicated physical content and one is edited; the edit must not alter the other logical file.
 - An item is removed while still referenced by a page, graph relation, or future share selection.
+- A page links to one of its descendants: the link remains non-hierarchical and must not create a second placement or a cycle.
+- The same target page is linked more than once from one document: the document may show multiple mentions, while the canonical relation index remains one typed edge for that source and target.
 - A canonical export or snapshot is prepared for a backup while an item is in its 30-day trash period; the item and its recovery metadata must remain represented in that backup input.
 - The 30-day trash period expires while an item is still referenced; permanent deletion must preserve a diagnosable unavailable reference rather than redirecting it.
 - A client supplies an unknown content type or a revision whose ancestor is unavailable.
@@ -191,6 +205,9 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - **FR-042**: A rejected concurrent mutation MUST remain locally recoverable with its base and competing revision identities and MUST NOT be automatically discarded or overwritten.
 - **FR-043**: The interface MUST display offline, pending, synchronizing, synchronized, and unresolved-conflict states without claiming server durability for local-only work.
 - **FR-044**: Every hierarchy placement MUST have an explicit stable sibling order that the owner can change without changing canonical item identity.
+- **FR-045**: The canonical model MUST distinguish a hierarchy placement from an internal page link; an internal page link MUST reference a stable canonical item without creating, moving, or duplicating a hierarchy placement.
+- **FR-046**: A page link MUST remain resolvable to the same canonical identity after the target is renamed, moved, or converted, and MUST remain diagnosable when the target is trashed or purged.
+- **FR-047**: A canonical snapshot, change envelope, local projection, and durable export MUST preserve the type and endpoints of internal page-link relationships separately from hierarchy placements.
 
 ### Key Entities
 
@@ -203,6 +220,7 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - **File Placement**: One visible use of a canonical file, either as a page attachment or as a terminal item in the hierarchy.
 - **File Content**: The immutable byte content referenced by one or more independently identified logical files when verified physical deduplication is in use.
 - **Relationship**: A typed connection between stable item identities, distinct from hierarchy membership.
+- **Internal Page Link**: A `page-link` relationship rendered from a page's editorial content. It stores the target identity independently from the target's placement and may be mentioned multiple times while representing one canonical typed edge.
 - **Revision**: An immutable description of an accepted canonical change and its causal parent or parents.
 - **Lifecycle State**: The active, trashed, or permanently removed status of an item, including the trash-entry time and 30-day recovery deadline, subject to reference-integrity rules.
 - **Mutation**: A validated set of intended changes accepted or rejected as one observable unit.
@@ -225,6 +243,7 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - **SC-012**: After initial loading, all core offline acceptance scenarios pass after a client reload with the server fully unavailable.
 - **SC-013**: Fault-injection tests at each local persistence boundary produce zero cases where the interface reports success without both the local state and matching pending-change record being durable.
 - **SC-014**: Reconnection tests submit every queued mutation exactly once logically despite repeated transport delivery and preserve 100% of rejected concurrent work as an explicit unresolved conflict.
+- **SC-015**: A fixture containing one placed child and one non-hierarchical internal page link preserves both relations independently through rename, move, conversion, export, and reload; the link never appears as a second hierarchy placement.
 
 ## Assumptions
 

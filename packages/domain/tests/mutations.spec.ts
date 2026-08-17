@@ -87,6 +87,33 @@ describe("typed mutation dispatch (T073)", () => {
     }
   });
 
+  it("preserves the optional internal page-link target set", () => {
+    const targetItemId = generateUuidV7();
+    const parsed = parseMutationCommand("page.document.replace", {
+      itemId: generateUuidV7(),
+      baseRevisionId: generateUuidV7(),
+      document: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+      pageLinkTargetIds: [targetItemId],
+    });
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok && parsed.value.type === "page.document.replace") {
+      expect(parsed.value.pageLinkTargetIds).toEqual([targetItemId]);
+    }
+  });
+
+  it.each(["not-an-array", ["not-a-uuid"]])(
+    "rejects an invalid internal page-link target set %#",
+    (pageLinkTargetIds) => {
+      const parsed = parseMutationCommand("page.document.replace", {
+        itemId: generateUuidV7(),
+        baseRevisionId: generateUuidV7(),
+        document: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+        pageLinkTargetIds,
+      });
+      expect(parsed.ok).toBe(false);
+    },
+  );
+
   it("restore with explicit null fallback is distinguished from no fallback", () => {
     const itemId = generateUuidV7();
     const withNull = parseMutationCommand("item.restore", {

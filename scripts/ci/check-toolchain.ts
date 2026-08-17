@@ -151,6 +151,7 @@ const requiredGateScripts = [
   "test:contract",
   "test:migration",
   "test:e2e",
+  "test:e2e:local",
   "test:security",
   // Security gate jobs
   "security:audit",

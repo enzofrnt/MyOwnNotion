@@ -110,6 +110,56 @@ describe("validateReplacePageDocument", () => {
     }
   });
 
+  it("accepts a page-link target set only when it matches the document marks", () => {
+    const targetItemId = generateUuidV7();
+    const linkedDocument = document({
+      formatVersion: 2,
+      body: {
+        blocks: [
+          {
+            type: "paragraph",
+            id: generateUuidV7(),
+            content: [
+              { text: "Target", marks: [{ type: "pageLink", targetItemId }] },
+              { text: " again", marks: [{ type: "pageLink", targetItemId }] },
+            ],
+          },
+        ],
+      },
+    });
+    const matching = validateReplacePageDocument(page, {
+      itemId: pageId,
+      baseRevisionId: page?.currentRevisionId as Uuid,
+      document: linkedDocument,
+      pageLinkTargetIds: [targetItemId, targetItemId],
+    });
+    expect(matching.ok).toBe(true);
+    if (matching.ok) {
+      expect(matching.value.pageLinkTargetIds).toEqual([targetItemId]);
+    }
+
+    const mismatching = validateReplacePageDocument(page, {
+      itemId: pageId,
+      baseRevisionId: page?.currentRevisionId as Uuid,
+      document: linkedDocument,
+      pageLinkTargetIds: [],
+    });
+    expect(mismatching.ok).toBe(false);
+    if (!mismatching.ok) {
+      expect(mismatching.error.code).toBe("validation.invalid-payload");
+    }
+
+    const omitted = validateReplacePageDocument(page, {
+      itemId: pageId,
+      baseRevisionId: page?.currentRevisionId as Uuid,
+      document: linkedDocument,
+    });
+    expect(omitted.ok).toBe(false);
+    if (!omitted.ok) {
+      expect(omitted.error.code).toBe("validation.invalid-payload");
+    }
+  });
+
   it("rejects a missing item", () => {
     const result = validateReplacePageDocument(null, {
       itemId: generateUuidV7(),

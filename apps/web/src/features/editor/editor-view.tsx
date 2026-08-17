@@ -19,12 +19,14 @@
  * outright rather than degraded to a plaintext write (FR-026).
  */
 
+import type { ProjectedItem } from "@myownnotion/client-core";
 import type { BlockDocument, JsonObject, Uuid } from "@myownnotion/domain";
 import {
   DOCUMENT_FORMAT,
   DOCUMENT_FORMAT_VERSION,
   emptyDocument,
   normaliseDocument,
+  pageLinkTargets,
   readDocumentBody,
   serialiseDocument,
   upgradeLegacyBody,
@@ -77,12 +79,19 @@ type LoadState =
 export function EditorView({
   service,
   itemId,
+  itemRevisionId,
   editingAllowed = true,
+  items = [],
+  onOpenPage,
 }: {
   readonly service: LocalContentService;
   readonly itemId: Uuid;
+  /** Reload when reconciliation replaces the selected item's projection. */
+  readonly itemRevisionId?: Uuid;
   /** False when the device key is unavailable and nothing can be sealed. */
   readonly editingAllowed?: boolean;
+  readonly items?: readonly ProjectedItem[];
+  readonly onOpenPage?: (itemId: string) => void;
 }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -119,11 +128,19 @@ export function EditorView({
 
   useEffect(() => {
     let cancelled = false;
+    const requestedRevisionId = itemRevisionId;
     void service.getItem(itemId).then((item) => {
       if (cancelled) {
         return;
       }
       openedBody.current = bodyFingerprint(item?.pageDocument?.body);
+      if (
+        requestedRevisionId !== undefined &&
+        item !== null &&
+        item.currentRevisionId !== requestedRevisionId
+      ) {
+        return;
+      }
       if (item === null) {
         setState({ kind: "unavailable", reason: "This page is not available on this device yet." });
         return;
@@ -152,7 +169,7 @@ export function EditorView({
     return () => {
       cancelled = true;
     };
-  }, [service, itemId]);
+  }, [service, itemId, itemRevisionId]);
 
   const surface = useRef<EditorSurfaceHandle | null>(null);
 
@@ -198,6 +215,7 @@ export function EditorView({
           formatVersion: DOCUMENT_FORMAT_VERSION,
           body: serialiseDocument(edited),
         },
+        pageLinkTargetIds: pageLinkTargets(edited),
       },
       [item.currentRevisionId],
     );
@@ -280,10 +298,13 @@ export function EditorView({
           subscribed components can still read from for one render, which is
           precisely the crash this split was made to remove. */}
       <EditorSurface
-        key={itemId}
+        key={`${itemId}:${itemRevisionId ?? "unknown"}`}
         document={state.document}
         editable={editingAllowed}
         handleRef={surface}
+        currentItemId={itemId}
+        items={items}
+        onOpenPage={onOpenPage}
       />
 
       <SaveStateIndicator service={service} itemId={itemId} />

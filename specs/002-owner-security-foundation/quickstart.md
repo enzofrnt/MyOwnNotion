@@ -237,21 +237,14 @@ blob remnants.
 Run the complete local gate:
 
 ```sh
-pnpm toolchain:check
-pnpm format:check
-pnpm lint:ci
-pnpm shell:check
-pnpm typecheck
-pnpm test:unit
-pnpm test:property
-pnpm test:integration
-pnpm test:contract
-pnpm db:test-migrations
-pnpm test:e2e
-pnpm build
-docker compose config
-docker compose up -d --wait
+pnpm checks:local
 ```
+
+This command is required before every branch push and mirrors all
+repository-controlled pull-request jobs. Targeted tests do not replace it. A
+local runtime incompatibility must use the equivalent path documented in
+`docs/development.md` (including containerized Firefox on macOS); an
+unavailable required gate blocks the push.
 
 Inspect `.github/workflows/ci.yml` and `.github/workflows/release.yml`. `ci.yml`
 must be the single quality-gate workflow. It triggers directly on every
