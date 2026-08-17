@@ -61,6 +61,20 @@ file's lifecycle through its placements, and the item-level trash does not
 apply. Recorded here because the failure is a server error rather than a
 refusal, which reads as a bug rather than as a rule.
 
+## A correction to an earlier claim
+
+A commit message in this branch said an owner typing the next item name
+immediately after a creation "can lose those keystrokes". That overstates it.
+The explorer clears the field in the click handler, and React applies that
+render within a frame — long before a person starts typing the next name. What
+actually loses keystrokes is a *programmatic* fill that happens within
+milliseconds of the click, which is what Playwright does and a human does not.
+
+So the helper's retype loop is a test-harness accommodation, not a workaround
+for a defect an owner would meet. Recorded here because the commit message
+claimed otherwise, and a validation file that repeated the exaggeration would
+carry it forward.
+
 ## A note on the local environment
 
 For part of this work the journeys ran against a *different checkout*: a Vite
