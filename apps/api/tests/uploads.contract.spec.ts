@@ -166,3 +166,52 @@ describe("upload metadata", () => {
     expect(parseUploadMetadata("")).toEqual({});
   });
 });
+
+describe("refusals during a transfer", () => {
+  it("refuses a chunk for an upload that does not exist", async () => {
+    const response = await harness.built.app.inject({
+      method: "PATCH",
+      url: `/v1/uploads/${generateUuidV7()}`,
+      headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
+      payload: Buffer.from("orphan"),
+    });
+    // 404 rather than creating one: an upload the server never issued is not
+    // something a client may bring into being by writing to it.
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("refuses a chunk that would exceed the declared length", async () => {
+    const created = await createUploadOf(4);
+    const location = created.headers["location"] as string;
+    const response = await harness.built.app.inject({
+      method: "PATCH",
+      url: location,
+      headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
+      payload: Buffer.from("far too many bytes"),
+    });
+    // The declared length is a promise the client made; letting it overrun
+    // would mean the size shown before the transfer was fiction.
+    expect(response.statusCode).toBe(400);
+    const still = await harness.built.app.inject({ method: "HEAD", url: location });
+    expect(still.headers["upload-offset"]).toBe("0");
+  });
+
+  it("refuses a nonsensical offset", async () => {
+    const created = await createUploadOf(10);
+    const response = await harness.built.app.inject({
+      method: "PATCH",
+      url: created.headers["location"] as string,
+      headers: { "content-type": "application/offset+octet-stream", "upload-offset": "-3" },
+      payload: Buffer.from("x"),
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("refuses an identifier that is not an upload identity", async () => {
+    const response = await harness.built.app.inject({
+      method: "HEAD",
+      url: "/v1/uploads/not-a-uuid",
+    });
+    expect(response.statusCode).toBe(404);
+  });
+});
