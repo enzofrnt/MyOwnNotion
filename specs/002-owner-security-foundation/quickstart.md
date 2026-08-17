@@ -294,6 +294,26 @@ artifact-less results. Third-party actions used for these jobs are pinned by
 full commit SHA in implementation. `workflow_dispatch` invokes this same gate
 for diagnostics only and cannot publish images or release artifacts.
 
+## 13. Validate structured container logging
+
+Run the focused contract suite, then inspect both output modes:
+
+```sh
+pnpm vitest run --project api-contract apps/api/tests/logging.spec.ts
+MYOWNNOTION_LOG_COLOR=always pnpm --filter @myownnotion/api dev
+docker compose up -d --build api web
+docker compose logs --no-color api
+```
+
+The interactive process must show compact colored levels. Every Compose API
+line must remain a parseable JSON object without ANSI escape sequences and must
+arrive through the container standard streams. Exercise one request and one
+safe failure; confirm request ID, method/path, status, level, timestamp,
+service, environment, and message remain useful while bodies, authorization,
+cookies, credentials, tokens, private names/content, and key material do not
+appear. Repeat with `MYOWNNOTION_LOG_COLOR=never` to verify monochrome terminal
+output and with an invalid value to verify startup refusal.
+
 ## Evidence handoff
 
 Record commands, commit SHA, clock values, fixtures, raw counts, digests,

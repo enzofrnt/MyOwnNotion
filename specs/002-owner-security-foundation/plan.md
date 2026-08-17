@@ -404,11 +404,36 @@ image-selection validation for a compatible prior image, not full update
 orchestration. The plan does not claim these services, Dockerfiles, workflows,
 or evidence exist yet; their creation is implementation work in `tasks.md`.
 
+### Structured container logging
+
+The API owns one logging factory in `apps/api/src/plugins/logging.ts`; feature
+code uses the Fastify logger injected on the application/request and does not
+instantiate Pino, write directly to the console, or invent a second redaction
+policy. The factory keeps the existing safe request/response serializers and
+redaction paths, adds stable service/environment metadata, and selects output
+from the destination rather than from `NODE_ENV`:
+
+- a compatible interactive terminal receives a compact, single-line, readable
+  rendering with colored level labels;
+- a non-TTY destination, including Compose and an orchestrator, receives one
+  parseable JSON object per line with no ANSI escape sequence;
+- `MYOWNNOTION_LOG_COLOR=auto|always|never` can force or suppress color for a
+  known destination, while `auto` remains the deployment-safe default;
+- `MYOWNNOTION_LOG_LEVEL` controls verbosity and defaults to `info`.
+
+Compose passes both variables to `api` and relies on the process standard
+streams; it neither mounts a log file nor adds an application-side rotation
+mechanism. Contract tests cover the environment surface, non-TTY JSON/ANSI
+invariant, terminal rendering, invalid configuration, redaction, and the
+developer rule that future feature logs go through the shared logger. The
+operator/developer contract is recorded in
+`contracts/structured-logging.md` and `docs/development.md`.
+
 ## Verification matrix
 
 The canonical evidence fields, column names, run metadata, and status
 vocabulary are in [validation.md](validation.md). That ledger has one row for
-every FR-001 through FR-035 and one row for every SC-001 through SC-010; no
+every FR-001 through FR-035 and one row for every SC-001 through SC-011; no
 grouped requirement row or five-row rotation matrix is authoritative. Its seven
 canonical column names — `Requirement/criterion`, `Command or test path`,
 `Candidate SHA`, `Controlled clock/configuration`, `Raw evidence/artifact`,
@@ -440,14 +465,14 @@ following one-to-one paths:
 | FR-020 | `tests/contract/admin-cli.contract.spec.ts` |
 | FR-021 | `tests/contract/admin-cli.contract.spec.ts` |
 | FR-022 | `packages/database/tests/security-audit.integration.spec.ts` |
-| FR-023 | `packages/domain/tests/redaction.property.spec.ts` |
+| FR-023 | `packages/domain/tests/redaction.property.spec.ts`, `apps/api/tests/logging.spec.ts` |
 | FR-024 | `packages/domain/tests/security-canonical-identities.property.spec.ts` |
 | FR-025 | `packages/domain/tests/rotation-policy.clock.spec.ts` |
 | FR-026 | `apps/api/tests/key-rotation-policy.integration.spec.ts` |
 | FR-027 | `apps/api/tests/key-rotation-write-block.integration.spec.ts` |
 | FR-028 | `packages/database/tests/security-migration.integration.spec.ts` |
 | FR-029 | `apps/api/tests/security-migration-fault-injection.integration.spec.ts` |
-| FR-030 | `tests/contract/compose-security.spec.ts` |
+| FR-030 | `tests/contract/compose-security.spec.ts`, `apps/api/tests/logging.spec.ts` |
 | FR-031 | `tests/contract/compose-security.spec.ts` |
 | FR-032 | `tests/contract/release-artifacts.spec.ts` |
 | FR-033 | `tests/contract/release-gates.spec.ts` |
@@ -463,6 +488,7 @@ following one-to-one paths:
 | SC-008 | `tests/e2e/bootstrap.spec.ts`, `tests/e2e/authentication.spec.ts`, `tests/e2e/devices.spec.ts`, `tests/e2e/security-rotation.spec.ts`, `specs/002-owner-security-foundation/validation.md` |
 | SC-009 | `packages/domain/tests/rotation-policy.clock.spec.ts`, `specs/002-owner-security-foundation/validation.md` |
 | SC-010 | `packages/domain/tests/migration-state.property.spec.ts`, `packages/database/tests/security-migration.integration.spec.ts`, `apps/api/tests/security-migration-fault-injection.integration.spec.ts`, `specs/002-owner-security-foundation/validation.md` |
+| SC-011 | `apps/api/tests/logging.spec.ts`, `tests/contract/compose-security.spec.ts`, `specs/002-owner-security-foundation/validation.md` |
 
 ### Dedicated verification paths and why they exist
 

@@ -103,7 +103,7 @@ Every evidence record or supporting table must contain or reference all of:
 
 | Field | Required meaning |
 | --- | --- |
-| Requirement/criterion | Exact `FR-001`–`FR-035`, `SC-001`–`SC-010`, or named criterion |
+| Requirement/criterion | Exact `FR-001`–`FR-035`, `SC-001`–`SC-011`, or named criterion |
 | Command or test path | Reproducible command, test, workflow, contract, or inspection path |
 | Candidate SHA | Exact commit under test; for release, the candidate SHA and caller SHA comparison |
 | Controlled clock/configuration | Clock instant/fixture and relevant policy, environment, Compose, or workflow configuration |
@@ -472,7 +472,7 @@ away, and no feature-001 artifact was touched.
 
 ### Coverage
 
-Every FR-001 – FR-035 and SC-001 – SC-010 is named by at least one task. No
+Every FR-001 – FR-035 and SC-001 – SC-011 is named by at least one task. No
 task exists that references no requirement.
 
 ### Findings
@@ -545,6 +545,7 @@ never inside an acceptance criterion.
 | SC-008 | 10-participant owner-boundary protocol below; `tests/e2e/bootstrap.spec.ts`; `tests/e2e/authentication.spec.ts`; `tests/e2e/devices.spec.ts`; `tests/e2e/security-rotation.spec.ts` |  | Implemented responsive owner/security screens |  |  | `pending` |
 | SC-009 | `packages/domain/tests/rotation-policy.clock.spec.ts`; controlled-clock rotation matrix below |  | Both policies; exact eight states |  |  | `pending` |
 | SC-010 | `packages/domain/tests/migration-state.property.spec.ts`; `packages/database/tests/security-migration.integration.spec.ts`; `apps/api/tests/security-migration-fault-injection.integration.spec.ts`; six migration fault checkpoints below |  | Restart/fault-injection clock and config |  |  | `pending` |
+| SC-011 | `apps/api/tests/logging.spec.ts`; `tests/contract/compose-security.spec.ts`; `pnpm images:build` | final candidate | `auto|always|never`; TTY and non-TTY; linux/amd64 and linux/arm64 | 10 API logging tests and 21 Compose contract tests pass; official two-image multi-architecture build gate passes | Codex / 2026-08-17 | `pass` |
 
 ### SC-002 bootstrap usability protocol
 

@@ -73,6 +73,10 @@ services:
       TZ: UTC
       MYOWNNOTION_API_HOST: 0.0.0.0
       MYOWNNOTION_API_PORT: 3001
+      # `auto` sees Compose's non-TTY stdout and therefore emits parseable
+      # newline-delimited JSON with no ANSI decoration.
+      MYOWNNOTION_LOG_LEVEL: ${MYOWNNOTION_LOG_LEVEL:-info}
+      MYOWNNOTION_LOG_COLOR: ${MYOWNNOTION_LOG_COLOR:-auto}
       # Composed from the same values Postgres is initialised with, and
       # deliberately not read from DATABASE_URL: Compose auto-loads `.env`,
       # whose DATABASE_URL points at 127.0.0.1 for host-side development.

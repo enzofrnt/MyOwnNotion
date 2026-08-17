@@ -538,6 +538,20 @@
 
 - [X] T116 Add caching to `.github/workflows/ci.yml` wherever a step repeats work across runs: a shared pnpm store cache keyed on `pnpm-lock.yaml`, a Playwright browser cache keyed on the `@playwright/test` version, and buildx layer caching for `build-images` and `publish-commit-images` via GitHub Actions cache. Every cache MUST be keyed so a changed input misses rather than serving stale content, and no cache may be shared between a pull request and `main` in a way that lets an untrusted branch poison a `main` build. Deferred to the end deliberately: a cache that hides a real rebuild failure is worse than a slow gate, so it is added only once the gate is complete and its behaviour is known (FR-033, FR-035). *(Playwright browsers, keyed on the Playwright version alone: keying on the lockfile would miss the cache on every unrelated dependency change, and keying on less would serve browsers to a version that cannot drive them. `--with-deps` still runs on a hit, because the system libraries live outside the cached directory and a cached browser without them fails at launch with an error that says nothing about the cause.)* (NO CI here)
 
+## Phase 10: Structured Container Logging
+
+**Purpose**: Make server logs immediately readable for an operator while
+preserving machine-safe container output and one reusable developer contract.
+
+- [X] T121 [P] Record the destination-driven logging decision and operator/developer contract in `specs/002-owner-security-foundation/research.md`, `specs/002-owner-security-foundation/contracts/structured-logging.md`, and `specs/002-owner-security-foundation/quickstart.md` (FR-023, FR-030, SC-011). *(Destination selection, configuration, safe fields, developer usage, and container ownership are explicit in all three artifacts.)*
+- [X] T122 [P] Add failing API logging tests for `auto|always|never`, TTY/non-TTY selection, invalid configuration, stable metadata, non-TTY JSON without ANSI, and existing private-field redaction in `apps/api/tests/logging.spec.ts` (FR-023, FR-030, SC-011). *(Nine tests cover all presentation/configuration modes plus the pre-existing request/error leak checks.)*
+- [X] T123 Implement the single reusable Fastify/Pino logging factory, validated `MYOWNNOTION_LOG_LEVEL` and `MYOWNNOTION_LOG_COLOR` configuration, safe metadata/serializers, terminal presentation, and container JSON output in `apps/api/src/plugins/logging.ts` and `apps/api/src/migrate.ts` (FR-023, FR-030, SC-011). *(Pino remains the structured source; pino-pretty is a synchronous TTY-only destination, while non-TTY output is unchanged NDJSON. The non-Fastify factory also replaces direct console output in the existing Compose migration job.)*
+- [X] T124 Wire the logging environment contract into `.env.example` and the `api` service in `compose.yaml`, keeping logs on standard streams with no application-owned container log files (FR-030, SC-011).
+- [X] T125 Document mandatory use of `request.log`, `reply.log`, or `app.log` and forbid feature-owned loggers, direct server `console.*`, private interpolation, and redaction bypasses in `docs/development.md` (FR-023, SC-011).
+- [X] T126 Add/update Compose contract assertions for logging configuration, standard-stream collection, and absence of application log-file mounts in `tests/contract/compose-security.spec.ts` (FR-030, SC-011). *(The contract also requires both variables to remain documented.)*
+- [X] T127 Run the focused API/Compose contract tests and build the API image; record implementation notes and results on these tasks (FR-023, FR-030, SC-011). *(`31` focused tests passed; API typecheck and bundle passed; the official multi-architecture `pnpm images:build` gate passed for both API and web images.)*
+- [ ] T128 Run SpecKit Analyze and Converge for the changed artifacts, then run the repository pre-push gate once for the final candidate (FR-035, SC-011).
+
 ## Dependencies & Execution Order
 
 ### Phase dependencies
@@ -551,6 +565,9 @@
 - **US5 (Phase 7)** depends on US2, US3, and US4 for recent authentication, device reset, encrypted generations, and kits.
 - **US6 (Phase 8)** depends on US4 and US5 for encrypted destinations, migration identity checks, and delivery/recovery contracts.
 - **Polish (Phase 9)** depends on all six stories and is the final local-gate, Biome, contract, SpecKit Analyze, convergence, and evidence phase.
+- **Structured logging (Phase 10)** is a post-feature operational extension:
+  T121/T122 precede T123; T124–T126 follow the factory/contract; T127/T128 close
+  the implementation and evidence.
 
 ### Task-ID dependency gates
 
@@ -624,7 +641,7 @@ Full gates + Analyze + convergence/evidence
 - `[US1]`–`[US6]` labels map to the six stories in `specs/002-owner-security-foundation/spec.md`; setup, foundational, and polish tasks intentionally have no story label.
 - Every actionable task names one or more exact repository-relative file paths. Feature-001 identities are referenced, tested, and preserved; feature-001 artifacts are never scheduled for editing.
 
-## Requirement traceability (FR-001..FR-035 and SC-001..SC-010)
+## Requirement traceability (FR-001..FR-035 and SC-001..SC-011)
 
 Each row below is an explicit reference to the normative requirement in
 `specs/002-owner-security-foundation/spec.md` and to the validation ledger in
@@ -655,14 +672,14 @@ the exact implementation, test, workflow, or evidence paths above.
 | FR-020 | `spec.md` §Requirements; `validation.md` FR-020 | T008, T022, T073, T082, T086, T115 |
 | FR-021 | `spec.md` §Requirements; `validation.md` FR-021 | T008, T022, T073, T086, T115 |
 | FR-022 | `spec.md` §Requirements; `validation.md` FR-022 | T012, T017, T019, T020, T034, T048, T061, T072, T087, T115 |
-| FR-023 | `spec.md` §Requirements; `validation.md` FR-023 | T008, T012, T013, T015, T016, T017, T020, T032, T037, T039, T040, T042, T043, T045, T046, T053, T060, T061, T069, T073, T086, T115 |
+| FR-023 | `spec.md` §Requirements; `validation.md` FR-023 | T008, T012, T013, T015, T016, T017, T020, T032, T037, T039, T040, T042, T043, T045, T046, T053, T060, T061, T069, T073, T086, T115, T121, T122, T123, T125, T127, T128 |
 | FR-024 | `spec.md` §Requirements; `validation.md` FR-024 | T002, T007, T010, T011, T018, T019, T020, T021, T029, T031, T055, T057, T058, T059, T064, T065, T067, T068, T070, T082, T108, T111, T114, T115 |
 | FR-025 | `spec.md` §Requirements; `validation.md` FR-025 | T003, T013, T018, T074, T075, T083, T084, T085, T088, T089, T115 |
 | FR-026 | `spec.md` §Requirements; `validation.md` FR-026 | T018, T074, T075, T076, T080, T085, T088, T089, T115 |
 | FR-027 | `spec.md` §Requirements; `validation.md` FR-027 | T003, T018, T074, T076, T080, T083, T084, T085, T088, T089, T115 |
 | FR-028 | `spec.md` §Requirements; `validation.md` FR-028 | T009, T013, T019, T090, T091, T095, T096, T097, T105, T115 |
 | FR-029 | `spec.md` §Requirements; `validation.md` FR-029 | T003, T011, T090, T091, T095, T096, T097, T105, T115 |
-| FR-030 | `spec.md` §Requirements; `validation.md` FR-030 | T004, T007, T092, T098, T099, T107, T110, T115, T117, T118, T119 |
+| FR-030 | `spec.md` §Requirements; `validation.md` FR-030 | T004, T007, T092, T098, T099, T107, T110, T115, T117, T118, T119, T121, T122, T123, T124, T126, T127, T128 |
 | FR-031 | `spec.md` §Requirements; `validation.md` FR-031 | T004, T092, T098, T099, T107, T115, T118 |
 | FR-032 | `spec.md` §Requirements; `validation.md` FR-032 | T004, T005, T007, T092, T094, T098, T099, T101, T102, T103, T107, T115, T117 |
 | FR-033 | `spec.md` §Requirements; `validation.md` FR-033 | T001, T002, T005, T006, T007, T093, T100, T101, T102, T103, T104, T107, T109, T110, T115, T120 |
@@ -678,3 +695,4 @@ the exact implementation, test, workflow, or evidence paths above.
 | SC-008 | `spec.md` §Success Criteria; `validation.md` SC-008 | T033, T041, T066, T071, T080, T088, T106, T115 |
 | SC-009 | `spec.md` §Success Criteria; `validation.md` SC-009 | T003, T074, T075, T076, T077, T085, T089, T115 |
 | SC-010 | `spec.md` §Success Criteria; `validation.md` SC-010 | T003, T090, T091, T097, T105, T115 |
+| SC-011 | `spec.md` §Success Criteria; `validation.md` SC-011 | T121, T122, T123, T124, T125, T126, T127, T128 |
