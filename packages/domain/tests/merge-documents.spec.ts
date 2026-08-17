@@ -12,7 +12,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { type BlockDocument, generateUuidV7, mergeDocuments } from "../src/index.ts";
+import {
+  applyResolution,
+  type BlockDocument,
+  generateUuidV7,
+  mergeDocuments,
+} from "../src/index.ts";
 
 const A = "01a10000-0000-7000-8000-00000000000a" as never;
 const B = "01a10000-0000-7000-8000-00000000000b" as never;
@@ -185,5 +190,107 @@ describe("changes that need the owner", () => {
 
     const outcome = mergeDocuments(ancestor, local, remote);
     expect(outcome.kind === "needs-owner" && outcome.conflictedBlockIds).toEqual([A]);
+  });
+});
+
+/**
+ * What the owner's choices become (T024, FR-015, FR-016).
+ *
+ * `applyResolution` is where a decision turns into a document, so every branch
+ * here is a way of getting an owner's words wrong. The one that matters most is
+ * the *absence* of a decision: a conflicted block nobody answered must not
+ * disappear, because dropping it would destroy content the owner never chose to
+ * remove — which is the single thing this whole path exists to prevent.
+ */
+describe("applying the owner's resolution", () => {
+  /** A divergence on block A, with B unchanged on both sides. */
+  function divergence() {
+    const outcome = mergeDocuments(
+      doc(paragraph(A, "original"), paragraph(B, "untouched")),
+      doc(paragraph(A, "written here"), paragraph(B, "untouched")),
+      doc(paragraph(A, "written there"), paragraph(B, "untouched")),
+    );
+    if (outcome.kind !== "needs-owner") {
+      throw new Error("expected a conflict to resolve");
+    }
+    return outcome;
+  }
+
+  function textOf(document: BlockDocument): string[] {
+    return document.blocks.map((block) =>
+      "content" in block ? block.content.map((run) => run.text).join("") : "",
+    );
+  }
+
+  it("keeps the local side when that is what was chosen", () => {
+    const resolved = applyResolution({
+      outcome: divergence(),
+      choices: new Map([[A, "local"]]),
+    });
+    expect(textOf(resolved)).toEqual(["written here", "untouched"]);
+  });
+
+  it("keeps the remote side when that is what was chosen", () => {
+    const resolved = applyResolution({
+      outcome: divergence(),
+      choices: new Map([[A, "remote"]]),
+    });
+    expect(textOf(resolved)).toEqual(["written there", "untouched"]);
+  });
+
+  it("keeps both, local first, when the owner wants both", () => {
+    const resolved = applyResolution({
+      outcome: divergence(),
+      choices: new Map([[A, "both"]]),
+    });
+    // Local first is the documented order. It is not a preference for the local
+    // side: it is the only order either device has actually seen, and the screen
+    // lets the owner rearrange it afterwards.
+    expect(textOf(resolved)).toEqual(["written here", "written there", "untouched"]);
+  });
+
+  it("keeps the local side for a conflict nobody answered", () => {
+    // The assertion this function exists for. An unanswered block must not be
+    // dropped: that would destroy content the owner never chose to remove, and
+    // it would happen silently, in the one screen built to prevent exactly that.
+    const resolved = applyResolution({ outcome: divergence(), choices: new Map() });
+    expect(textOf(resolved)).toEqual(["written here", "untouched"]);
+  });
+
+  it("carries through a block only one side added", () => {
+    const outcome = mergeDocuments(
+      doc(paragraph(A, "original")),
+      doc(paragraph(A, "written here"), paragraph(B, "added here")),
+      doc(paragraph(A, "written there"), paragraph(C, "added there")),
+    );
+    if (outcome.kind !== "needs-owner") {
+      throw new Error("expected a conflict to resolve");
+    }
+    const resolved = applyResolution({ outcome, choices: new Map([[A, "local"]]) });
+    // Both additions survive: neither was contested, so neither is the owner's
+    // to decide. Losing one because the *other* block needed a decision would be
+    // a decision made on their behalf.
+    expect(textOf(resolved)).toEqual(["written here", "added here", "added there"]);
+  });
+
+  it("omits a block both sides deleted", () => {
+    const outcome = mergeDocuments(
+      doc(paragraph(A, "original"), paragraph(B, "doomed")),
+      doc(paragraph(A, "written here")),
+      doc(paragraph(A, "written there")),
+    );
+    if (outcome.kind !== "needs-owner") {
+      throw new Error("expected a conflict to resolve");
+    }
+    const resolved = applyResolution({ outcome, choices: new Map([[A, "both"]]) });
+    // Agreement, not a conflict. Both devices removed it, so restoring it would
+    // be the merge overruling two people who wanted the same thing.
+    expect(textOf(resolved)).toEqual(["written here", "written there"]);
+  });
+
+  it("is stable when applied twice to the same choices", () => {
+    const outcome = divergence();
+    const choices = new Map<string, "local" | "remote" | "both">([[A, "both"]]);
+    expect(applyResolution({ outcome, choices })).toEqual(applyResolution({ outcome, choices }));
   });
 });

@@ -178,9 +178,25 @@ without it.
 ### The browser matrix locally
 
 ```bash
-pnpm test:e2e:local          # every project, in parallel
+pnpm test:e2e:local          # fast feedback: projects in parallel
+pnpm test:e2e:gate           # the pre-push answer: one project at a time
 pnpm test:e2e:local -- --grep "live sync"   # arguments pass through
 ```
+
+**Two commands, because they answer different questions.** `test:e2e:local` runs
+projects side by side and is what to use while working. `test:e2e:gate` is the
+same runner with one project at a time, and it is what `checks:local` runs before
+a push.
+
+The split is not caution, it is a measured limit: a handful of journeys cannot
+share a machine with another browser. The clearest is the keyboard-navigation
+journey, which fails with `toBeFocused` receiving `inactive` — the operating
+system does not consider that window active, because another browser has the
+focus. No timeout can fix that, and no amount of it is the application's
+behaviour. Others simply miss their budget while three engines compete.
+
+CI is unaffected: it gives each project its own runner, so nothing there competes
+for anything.
 
 **Every browser project runs at once, each on its own stack.** The matrix used
 to run one project after another, and the reason was not the browsers: every

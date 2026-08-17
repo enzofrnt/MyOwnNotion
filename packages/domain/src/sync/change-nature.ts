@@ -11,21 +11,31 @@
  * internal name in front of someone who has no way to interpret it.
  */
 
+/**
+ * One phrase per command this repository owns.
+ *
+ * Kept in step with `COMMAND_TYPES` by a test that walks the list and refuses the
+ * fallback, which is how three mistakes here were found: two invented names for
+ * commands that do not exist (`placement.add`, `relationship.delete`) and two
+ * real commands with no phrase at all. Every entry for a favourited or offline
+ * item would have read "changed" — accurate, and useless to the person looking
+ * for what they did.
+ */
 const NATURES: Readonly<Record<string, string>> = {
   "item.create": "created",
   "item.rename": "renamed",
   "item.trash": "moved to trash",
   "item.restore": "restored from trash",
   "item.convert": "converted to another kind",
-  "item.purge": "permanently deleted",
+  "item.favourite": "marked as a favourite",
+  "item.offline": "marked to keep on this device",
   "page.document.replace": "edited",
   "placement.move": "moved",
-  "placement.add": "linked in a second place",
   "placement.remove": "unlinked from a place",
+  "file.placement.add": "attached to a page",
   "relationship.create": "related to another item",
-  "relationship.delete": "unrelated from another item",
+  "relationship.remove": "unrelated from another item",
   "file.import": "uploaded",
-  "file.content.replace": "replaced with new content",
   "revision.restore": "restored from history",
   // A conflict resolution. Named as what it is rather than as an edit, because
   // it is the one entry where two lines of work rejoined, and an owner looking

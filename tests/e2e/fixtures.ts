@@ -52,8 +52,14 @@ export const test = base.extend<{ runnableHere: null; freshContent: null }>({
    * first attempt did, and it hung for four hundred seconds before being killed.
    * This one takes only `testInfo`, so it runs and throws while the browser is
    * still unrequested.
+   *
+   * The empty destructuring pattern is how Playwright is told a fixture depends
+   * on nothing: it reads the destructured names to resolve dependencies, so a
+   * plain parameter would request the whole fixture object — `context` included,
+   * which is the browser this guard exists to keep from launching.
    */
   runnableHere: [
+    // biome-ignore lint/correctness/noEmptyPattern: required by Playwright to declare no fixture dependencies; see above.
     async ({}, use, testInfo) => {
       assertBrowserRunsHere(testInfo.project.name);
       await use(null);

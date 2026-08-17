@@ -162,10 +162,22 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
         clearTimeout(syncRetry);
         syncRetry = null;
       }
-      void serviceRef.current?.synchronize().then((state) => {
+      void serviceRef.current?.synchronize().then(() => {
         if (stopped) {
           return;
         }
+        // The state *now*, not the value that pass resolved with. Passes are
+        // coalesced: a caller arriving while one is running joins it and receives
+        // the state of the pass it joined, which can predate the announcement that
+        // prompted this call. A pass that began before the connection dropped
+        // resolves as "synced", and reading that would end the retry chain during
+        // an outage — leaving the device to wait for somebody else to write
+        // something before it ever tried again.
+        //
+        // This is the same trap as conflating "told about" with "applied", one
+        // level up: the answer has to come from the current state rather than from
+        // the reply to a question asked earlier.
+        const state = serviceRef.current?.getSnapshot().syncState ?? "offline";
         if (state !== "offline") {
           syncAttempt = 0;
           return;
