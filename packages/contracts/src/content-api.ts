@@ -181,6 +181,19 @@ export const FavouriteItemSchema = Type.Object(
 );
 export type FavouriteItemDto = Static<typeof FavouriteItemSchema>;
 
+/**
+ * Asking that an item stay on the owner's devices (feature 005, FR-016).
+ *
+ * The desired state, not a toggle, for the reason `FavouriteItemSchema` gives:
+ * the offline outbox replays, and a toggle replayed an even number of times
+ * lands on the answer the owner did not give.
+ */
+export const OfflineIntentSchema = Type.Object(
+  { offline: Type.Boolean() },
+  { additionalProperties: false },
+);
+export type OfflineIntentDto = Static<typeof OfflineIntentSchema>;
+
 export const ReplacePageDocumentSchema = Type.Object(
   {
     baseRevisionId: UuidSchema,

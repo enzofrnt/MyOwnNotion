@@ -16,6 +16,7 @@ import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
+import { StoragePanel } from "../files/storage-panel.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
 import { BranchState } from "../navigation/branch-state.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
@@ -531,6 +532,21 @@ export function HierarchyExplorer({
           )}
           <span className="tree-kind">{node.item.kind}</span>
           <span className="tree-name">{node.item.name}</span>
+          {/* Marked, never as "missing" (FR-018). Content the server holds is
+              not lost because this device released it or has not fetched it, and
+              the two are distinguished because they mean different things to an
+              owner deciding whether something is safe. */}
+          {node.item.localAvailability !== "present" ? (
+            <span
+              className="muted"
+              data-testid={`availability-${node.item.name}`}
+              data-availability={node.item.localAvailability}
+            >
+              {node.item.localAvailability === "offloaded"
+                ? "not on this device"
+                : "not fetched yet"}
+            </span>
+          ) : null}
           {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
           <span className="tree-actions">
             {node.item.kind !== "file" ? (
@@ -629,6 +645,29 @@ export function HierarchyExplorer({
               }
             >
               {node.item.favourite ? "★" : "☆"}
+            </button>
+            <button
+              type="button"
+              // The label states the action, not the state, for the same reason
+              // as the favourite control above.
+              aria-label={
+                node.item.offlineIntent
+                  ? `Stop keeping ${node.item.name} available offline`
+                  : `Keep ${node.item.name} available offline`
+              }
+              aria-pressed={node.item.offlineIntent}
+              data-testid={`offline-${node.item.name}`}
+              onClick={() =>
+                // No causal base, like the favourite: the command carries the
+                // state asked for, so two devices marking the same branch agree
+                // rather than conflict.
+                void runCommand("item.offline", {
+                  itemId: node.item.id,
+                  offline: !node.item.offlineIntent,
+                })
+              }
+            >
+              {node.item.offlineIntent ? "⭳kept" : "⭳"}
             </button>
             <button
               type="button"
@@ -739,6 +778,7 @@ export function HierarchyExplorer({
       </div>
 
       <MutationStatus service={service} />
+      <StoragePanel service={service} />
 
       {selectedItem !== null && selectedItem.kind === "page" ? (
         <>

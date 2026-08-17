@@ -23,6 +23,7 @@ import {
   type Uuid,
   validateCreateItem,
   validateFavouriteItem,
+  validateOfflineIntent,
   validateRenameItem,
   validateReplacePageDocument,
 } from "@myownnotion/domain";
@@ -250,6 +251,59 @@ async function executeRenameItem(
  * lineage would be invisible on every other device — which is precisely the
  * property FR-012 asks for by making favourites per-installation.
  */
+/**
+ * Marks an item to be kept on the owner's devices (feature 005, FR-016).
+ *
+ * A revision like any other item change, for the reason `item.favourite`
+ * documents: the browser projection learns about items through revisions, so a
+ * change outside the lineage never reaches the other devices — which is exactly
+ * the point of the instruction.
+ *
+ * For a folder this marks the folder only. Inheritance is resolved when the
+ * branch is read, so moving a branch cannot leave a stale marking behind and a
+ * newly added child is covered without anyone rewriting it.
+ */
+async function executeOfflineIntent(
+  tx: Transaction,
+  context: MutationContext,
+  command: Extract<MutationCommand, { type: "item.offline" }>,
+): Promise<DomainResult<CommandExecution>> {
+  const item = await getItem(tx, command.itemId);
+  const view = {
+    getItem: (id: Uuid) => (id === item?.id ? item : null),
+    getActivePlacements: () => [] as const,
+    getActiveChildren: () => [] as const,
+  };
+  const plan = validateOfflineIntent(view, command);
+  if (!plan.ok) {
+    return plan as DomainResult<CommandExecution>;
+  }
+  const revisionId = generateUuidV7();
+  await tx
+    .update(items)
+    .set({
+      offlineIntent: plan.value.offline,
+      currentRevisionId: revisionId,
+      updatedAt: context.acceptedAt,
+    })
+    .where(eq(items.id, plan.value.item.id));
+  const snapshot = await buildItemSnapshot(tx, plan.value.item.id);
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: plan.value.item.id,
+    mutationId: context.mutationId,
+    parentRevisionIds: [plan.value.item.currentRevisionId],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  await supersedeRevision(tx, plan.value.item.currentRevisionId, context.acceptedAt);
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [plan.value.item.id],
+    primaryItemId: plan.value.item.id,
+  });
+}
+
 async function executeFavouriteItem(
   tx: Transaction,
   context: MutationContext,
@@ -459,6 +513,8 @@ export async function executeCommand(
       return executeRenameItem(tx, context, command);
     case "item.favourite":
       return executeFavouriteItem(tx, context, command);
+    case "item.offline":
+      return executeOfflineIntent(tx, context, command);
     case "item.convert": {
       const result = await executeConvertItem(tx, {
         command,

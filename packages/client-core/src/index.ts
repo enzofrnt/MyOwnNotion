@@ -1,3 +1,4 @@
+export * from "./local-store/budget.ts";
 export * from "./local-store/local-repository.ts";
 export * from "./local-store/navigation-state.ts";
 export * from "./local-store/reseal.ts";

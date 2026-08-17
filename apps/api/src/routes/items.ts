@@ -12,6 +12,8 @@ import {
   ItemSchema,
   ItemsListResponseSchema,
   MutationResultSchema,
+  type OfflineIntentDto,
+  OfflineIntentSchema,
   type RestoreItemDto,
   type UpdateItemDto,
   UpdateItemSchema,
@@ -210,6 +212,30 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
         request,
         reply,
         command: { type: "item.favourite", itemId: itemId as Uuid, favourite: body.favourite },
+      });
+    },
+  );
+
+  app.post(
+    "/v1/items/:itemId/offline",
+    {
+      schema: {
+        params: ItemParamsSchema,
+        body: OfflineIntentSchema,
+        response: { 200: MutationResultSchema },
+      },
+    },
+    async (request, reply) => {
+      const { itemId } = request.params as { itemId: string };
+      const body = request.body as OfflineIntentDto;
+      return handleMutation({
+        db: context.db,
+        workspaceId: context.workspaceId,
+        protectedContent: context.protectedContent,
+        rotationPolicies: context.rotationPolicies,
+        request,
+        reply,
+        command: { type: "item.offline", itemId: itemId as Uuid, offline: body.offline },
       });
     },
   );

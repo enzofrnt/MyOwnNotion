@@ -16,20 +16,20 @@ rather than as a claim.
 | FR-003 rename and move break no reference | pass | `file-references.integration.spec.ts` — asserted against real rows after a rename and a move, plus a journey that reloads and re-resolves |
 | FR-004 deletion shows usages and requires confirmation | pass | `file-deletion.spec.ts` for the rule, `files.spec.ts` for the dialogue: it names the page, declining changes nothing, confirming reaches the trash |
 | FR-005 a file reports every usage, each reachable | pass | `file-usages.property.spec.ts`, `file-usages.integration.spec.ts`, `files.contract.spec.ts`; the journey clicks a usage and lands on the page |
-| FR-006 interrupted transfers resume | **not built** | Phase 7. The contract is written in `contracts/file-transfer.md`; no code yet |
-| FR-007 synchronized only after server verification | **partial** | `file_contents.verified_at` is set by feature 001 and is what the client reports; the resumable path that would set it after a resumed upload does not exist yet |
-| FR-008 administrator-configurable maximum, 2 GB default | **not built** | Phase 7 |
-| FR-009 a refusal states the limit without losing the draft | **not built** | Phase 7 |
-| FR-010 previews PDF, SVG, PNG, JPEG, GIF, WebP, Draw.io | **not built** | US3 |
-| FR-011 Draw.io editable through the ordinary save path | **not built** | US3 |
-| FR-012 an unpreviewable file states name, type, size, download | **not built** | US3 |
-| FR-013 previews isolated, downloads inert | **not built** | US3. The decision is recorded in `research.md`; nothing is implemented, so nothing is claimed |
-| FR-014 encrypted local set, 5 GB default, adjustable, unlimited | **not built** | US4 |
-| FR-015 what is retained in priority | **not built** | US4 |
-| FR-016 offline intent on a page, branch or file | **partial** | Stored end to end — column, snapshot, contract, local row — so it reaches every device; no interface sets it yet |
-| FR-017 eviction never releases unsynchronized work | **not built** | US4. The rule is specified in `data-model.md` and will be a pure function with property tests |
-| FR-018 offloaded content keeps title and metadata | **partial** | The three availability states exist in the local row and render distinctly; nothing offloads yet |
-| FR-019 the owner can see what holds local space | **not built** | US4 |
+| FR-006 interrupted transfers resume | **partial** | The server half is complete: tus `POST`/`HEAD`/`PATCH`, a conditional advance that survives two racing writes, and expiry of abandoned uploads — 13 contract tests and 10 integration tests. The client does not yet use it (T050), so no owner-facing transfer resumes today |
+| FR-007 synchronized only after server verification | **partial** | `file_contents.verified_at` is what the client reports, and the download route refuses unverified content. Completing a resumed upload — hash, deduplicate, set `verified_at` — is T049 |
+| FR-008 administrator-configurable maximum, 2 GB default | pass | `maxFileBytes()` reads `MYOWNNOTION_MAX_FILE_BYTES`, defaults to 2 GB, and falls back to the default rather than to zero or infinity when misconfigured |
+| FR-009 a refusal states the limit without losing the draft | pass | The 413 carries `limitBytes` and `declaredBytes`, and is declared in the response schema so Fastify cannot serialise it away. Refused before a single byte is accepted, so nothing touches the draft |
+| FR-010 previews PDF, SVG, PNG, JPEG, GIF, WebP, Draw.io | pass | `file-preview.tsx` renders all of them through one sandboxed frame; `file-preview.spec.ts` opens an image and an unsupported type |
+| FR-011 Draw.io editable through the ordinary save path | **partial** | The editor is served by this installation (Compose service, pinned) and `assertLocalEditor` refuses every third-party host — 14 unit tests. The save path is wired but no journey drives an actual diagram edit yet (T032) |
+| FR-012 an unpreviewable file states name, type, size, download | pass | `UnsupportedFile`; asserted in `file-preview.spec.ts` |
+| FR-013 previews isolated, downloads inert | pass | Three headers asserted in `files.contract.spec.ts`; the sandbox asserted by the negative — a hostile SVG reaching for `window.parent.document` exfiltrates nothing |
+| FR-014 encrypted local set, 5 GB default, adjustable, unlimited | pass | `budget.ts` with `budget.spec.ts`; unlimited is `null`, not a sentinel. The set was already encrypted by feature 002 |
+| FR-015 what is retained in priority | pass | `eviction.ts`, asserted by property tests over any workspace and any limit |
+| FR-016 offline intent on a page, branch or file | pass | `item.offline` end to end, with a control per row; `offline-availability.spec.ts` asserts the marking survives a reload because it travels in the revision |
+| FR-017 eviction never releases unsynchronized work | pass | Property tests in the domain, plus `budget.spec.ts` asserting a queued item is not released, plus a journey that lowers the limit with an unsent edit present |
+| FR-018 offloaded content keeps title and metadata | pass | `budget.spec.ts` asserts the row, its title and its metadata survive while the sealed body goes; the tree marks the state and never says missing |
+| FR-019 the owner can see what holds local space | pass | `storage-panel.tsx` shows usage, a breakdown, and whether the browser granted durability |
 
 ## Success criteria
 
@@ -39,11 +39,11 @@ rather than as a claim.
 | SC-002 three usages still resolve after rename and move | **partial** | Two usages asserted at the database level and one through the interface; the three-way case is covered by the same code path |
 | SC-003 no in-use deletion without the usages being shown | pass | The rule refuses without `confirmed`, and the confirmation is what sets it |
 | SC-004 a 2 GB file transfers and resumes | **not built** | Phase 7 |
-| SC-005 every previewable format opens | **not built** | US3 |
-| SC-006 a preview cannot reach the workspace | **not built** | US3 |
-| SC-007 a marked branch opens with no network | **not built** | US4 |
-| SC-008 no unsynchronized change is ever offloaded | **not built** | US4 |
-| SC-009 offloaded is distinguishable from held locally | **partial** | Distinguishable in the model and in the row rendering; not yet reachable, because nothing offloads |
+| SC-005 every previewable format opens | pass | One sandboxed frame handles all of them; asserted for an image and for an unsupported type |
+| SC-006 a preview cannot reach the workspace | pass | Asserted by the negative: a hostile SVG posts nothing back |
+| SC-007 a marked branch opens with no network | **partial** | True within a loaded session and asserted as such. Reloading offline needs a service worker; see the limitation below |
+| SC-008 no unsynchronized change is ever offloaded | pass | Property tests, a unit test on the applied plan, and a journey that lowers the limit with an unsent edit present |
+| SC-009 offloaded is distinguishable from held locally | pass | Three states in the row, marked in the tree, and asserted after a real offload in `budget.spec.ts` |
 
 ## Defects found in existing code
 
@@ -71,9 +71,22 @@ Freeing both ports cut the suite from 24 seconds to 5 and turned two failures
 into passes. Any local result that looks impossible is worth checking against
 `lsof -ti:3001,5173` before the code is blamed.
 
+## Known limitation: reloading offline
+
+Content marked to keep available offline opens with no network **within a
+session that is already loaded**. Reloading the application offline fails,
+because the shell itself is not cached — that needs a service worker, which
+feature 005 does not ship.
+
+Recorded here rather than worked around in the journey: the first version of
+`offline-availability.spec.ts` reloaded the page and failed with
+`ERR_INTERNET_DISCONNECTED`, and the honest response was to test what is
+promised and write down what is not. SC-007 is therefore marked partial.
+
 ## What is not built
 
-US3 (previewing and editing), US4 (offline availability), and phase 7
-(resumable transfer). 20 of 56 tasks are done: setup, foundations, and the
-two P1 stories that make up the MVP — files that are findable, truthfully
-described, and safe to move or delete.
+45 of 56 tasks are done. What remains: the client half of resumable transfer
+(T049–T052), retrieving offloaded content on open (T043), the Draw.io editing
+journey (T032), and the polish pass (T054–T056). The dependency for tus is
+already in place through the API rather than a package, so T001 is moot and
+will be closed with the polish pass.
