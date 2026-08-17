@@ -60,9 +60,17 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible();
 
     // Select with keyboard and navigate.
-    await page.getByTestId(`tree-item-${name}`).focus();
+    //
+    // The focus is asserted before the key is pressed, and that is not
+    // ceremony: the row was created a moment ago, so a render can still land
+    // between `focus()` and `press()` and replace the element — after which the
+    // key goes to the body and the selection never happens. This failed
+    // intermittently on webkit-mobile and on Firefox for exactly that reason.
+    const row = page.getByTestId(`tree-item-${name}`);
+    await row.focus();
+    await expect(row).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.getByTestId(`tree-item-${name}`)).toHaveAttribute("aria-selected", "true");
+    await expect(row).toHaveAttribute("aria-selected", "true");
   });
 
   test("the layout stays operable at the current viewport", async ({ page }) => {

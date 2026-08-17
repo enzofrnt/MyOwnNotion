@@ -105,7 +105,7 @@ unrecognised one; each previews or states name, type and size with a download.
 - [X] T029 [P] [US3] `apps/web/src/features/files/unsupported-file.tsx` — name, type, size and a download or external-open action (FR-012)
 - [X] T030 [US3] `apps/web/src/features/files/drawio-editor.tsx` — the vendored engine, served from this origin, never `diagrams.net`
 - [X] T031 [US3] Save a Draw.io edit through the ordinary save path in `apps/web/src/features/files/drawio-editor.tsx` so its state is reported like any other content (FR-011)
-- [ ] T032 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` asserting no request leaves this origin while editing a diagram — a request to `diagrams.net` fails the test
+- [X] T032 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` asserting no request leaves this origin while editing a diagram — a request to `diagrams.net` fails the test
 
 **Checkpoint**: files are useful, and previewing one is not a risk.
 
@@ -135,7 +135,7 @@ reads.
 - [X] T040 [US4] Run the eviction pass in `packages/client-core/src/local-store/budget.ts` when measured usage exceeds the limit, recording what was released and why (FR-017, FR-018)
 - [X] T041 [P] [US4] `apps/web/src/features/files/storage-panel.tsx` — limit, usage, breakdown, and what was offloaded (FR-019)
 - [X] T042 [P] [US4] Mark offloaded and never-fetched content in `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` and the attachment list, never as missing
-- [ ] T043 [US4] Retrieve offloaded content on open in `apps/web/src/features/files/file-preview.tsx`, saying so while it fetches; offline, say the connection is what is missing
+- [X] T043 [US4] Retrieve offloaded content on open in `apps/web/src/features/files/file-preview.tsx`, saying so while it fetches; offline, say the connection is what is missing
 - [X] T044 [P] [US4] Playwright journey in `tests/e2e/offline-availability.spec.ts` — a marked branch opens with no network; at the limit, an unsynchronized change survives
 
 **Checkpoint**: the product is local-first rather than a website that caches.
@@ -154,7 +154,7 @@ and it is the largest single piece.
 - [X] T049 Complete an upload in one transaction in `packages/database/src/repositories/content/upload-repository.ts` — hash, deduplicate against `file_contents`, set `verified_at`, create the logical file and its placement (FR-007)
 - [X] T050 [P] Client-side resume in `apps/web/src/features/files/upload.ts` — seek to the server's offset, never to a locally remembered one
 - [X] T051 [P] Report `uploading`, `verifying`, `synchronized` and `blocked` in `apps/web/src/features/files/transfer-state.tsx`, mirroring the save states of feature 003
-- [ ] T052 [P] Playwright journey in `tests/e2e/file-transfer.spec.ts` — an interrupted transfer resumes rather than restarting, and a partial upload never appears in the tree
+- [X] T052 [P] Playwright journey in `tests/e2e/file-transfer.spec.ts` — an interrupted transfer resumes rather than restarting, and a partial upload never appears in the tree
 
 ---
 
