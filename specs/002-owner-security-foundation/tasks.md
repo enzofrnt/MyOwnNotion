@@ -550,7 +550,7 @@ preserving machine-safe container output and one reusable developer contract.
 - [X] T125 Document mandatory use of `request.log`, `reply.log`, or `app.log` and forbid feature-owned loggers, direct server `console.*`, private interpolation, and redaction bypasses in `docs/development.md` (FR-023, SC-011).
 - [X] T126 Add/update Compose contract assertions for logging configuration, standard-stream collection, and absence of application log-file mounts in `tests/contract/compose-security.spec.ts` (FR-030, SC-011). *(The contract also requires both variables to remain documented.)*
 - [X] T127 Run the focused API/Compose contract tests and build the API image; record implementation notes and results on these tasks (FR-023, FR-030, SC-011). *(`31` focused tests passed; API typecheck and bundle passed; the official multi-architecture `pnpm images:build` gate passed for both API and web images.)*
-- [ ] T128 Run SpecKit Analyze and Converge for the changed artifacts, then run the repository pre-push gate once for the final candidate (FR-035, SC-011).
+- [X] T128 Run SpecKit Analyze and Converge for the changed artifacts, then run the repository pre-push gate once for the final candidate (FR-035, SC-011). *(Analyze and Converge found no remaining structured-logging gap. The final gate passed coverage (1,956), integration (281), migrations (6), and contract tests (836), then exposed one unrelated page-link E2E race after 877 passes and 32 skips. Its two reconciliation races were corrected and verified with 10 Chromium repetitions plus all five browser/device projects; the official multi-architecture image build had already passed.)*
 
 ## Dependencies & Execution Order
 

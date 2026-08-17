@@ -19,6 +19,10 @@ test("links to another page without nesting it, including a descendant", async (
   await createChildItem(page, source, "page", child);
   await createRootItem(page, "page", reference);
   await createRootItem(page, "folder", destination);
+  // Let the creation queue settle before interacting with editor-local state.
+  // A late reconciliation remounts this control and intentionally resets its
+  // selected target, which can otherwise disable the insert button mid-click.
+  await waitForSynchronized(page);
   await selectItem(page, source);
 
   const linkTarget = page.getByLabel("Page link target", { exact: true });
@@ -30,7 +34,14 @@ test("links to another page without nesting it, including a descendant", async (
 
   const targetId = await page.locator(".page-link").getAttribute("data-page-link-target");
   expect(targetId).toBeTruthy();
-  await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(1);
+  const childRow = page.getByTestId(`tree-item-${child}`);
+  // The link insertion can reconcile the tree with the source branch
+  // collapsed. Expand it before asserting placement: absence from a collapsed
+  // DOM branch is not absence from the hierarchy.
+  if ((await childRow.count()) === 0) {
+    await page.getByRole("button", { name: `Expand ${source}` }).click();
+  }
+  await expect(childRow).toHaveCount(1);
   await expect(page.getByTestId(`tree-item-${reference}`)).toHaveCount(1);
 
   // A page link is usable navigation, not merely decorated text.
