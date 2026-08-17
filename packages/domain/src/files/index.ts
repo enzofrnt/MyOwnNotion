@@ -7,4 +7,5 @@
  * caught by a test rather than by an owner.
  */
 export * from "./deletion.ts";
+export * from "./eviction.ts";
 export * from "./usages.ts";

@@ -122,12 +122,12 @@ reads.
 
 ### Tests for User Story 4
 
-- [ ] T033 [P] [US4] Property test in `packages/domain/tests/eviction.property.spec.ts` — for any workspace and any limit, the plan never releases unsynchronized changes, unresolved conflicts, or content under an offline intent
+- [X] T033 [P] [US4] Property test in `packages/domain/tests/eviction.property.spec.ts` — for any workspace and any limit, the plan never releases unsynchronized changes, unresolved conflicts, or content under an offline intent
 - [ ] T034 [P] [US4] Unit test in `packages/client-core/tests/availability.spec.ts` — `offloaded` and `never-fetched` stay distinct through a full cycle
 
 ### Implementation for User Story 4
 
-- [ ] T035 [US4] `packages/domain/src/files/eviction.ts` — the priority order of [data-model.md](./data-model.md), pure and total; recoverability admits, size and age only order
+- [X] T035 [US4] `packages/domain/src/files/eviction.ts` — the priority order of [data-model.md](./data-model.md), pure and total; recoverability admits, size and age only order
 - [ ] T036 [US4] `item.offline` command across `packages/domain/src/content/mutations.ts`, `packages/database/src/mutations/execute-command.ts`, `packages/contracts/src/content-api.ts` and `apps/api/src/routes/items.ts`, carrying the desired state rather than toggling (FR-016)
 - [ ] T037 [US4] Resolve a folder's offline intent by inheritance at read time in `packages/database/src/repositories/item-reader.ts`, so moving a branch cannot strand a stale marking
 - [ ] T038 [P] [US4] `packages/client-core/src/local-store/availability.ts` — the three states and the transitions between them
