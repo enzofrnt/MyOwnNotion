@@ -404,6 +404,25 @@ working internal link to `Reference`.
 - **Tiptap is the presumed editor library** per the constitution, but FR-005
   requires the internal content model and export path to be documented and
   independent of it. The specification does not assume any library behaviour.
+- **"Notion-like" names a product trajectory, not feature parity in this
+  slice.** This feature establishes the safe, usable writing baseline: the
+  minimum block vocabulary, insertion and transformation paths, navigation,
+  truthful save state, responsive behaviour, and accessibility. A broader
+  editor-experience feature may refine the interaction and visual quality only
+  after it declares its exact block catalogue, dependencies, exclusions, and
+  measurable acceptance criteria.
+- **Richer editor work follows the capability it consumes.** Pure writing
+  ergonomics may build on this feature. Image, file, and embedded-content blocks
+  depend on feature 005's file lifecycle. Multi-device editing feedback and
+  conflict interaction depend on feature 006. Structured databases and saved
+  views remain a separate feature even when a page renders an entry point to
+  them.
+- **An essential editing path cannot require an irreplaceable hosted service.**
+  Reusable editor components and templates may accelerate a later feature, but
+  adopting a commercial licence, hosted document service, collaboration
+  backend, or AI service is a separate explicit decision. The self-hosted,
+  offline-capable path and the editor-independent document model remain the
+  default.
 - **Offline editing already works** through feature 001's outbox and
   reconciliation. This feature adds the interface that explains it, not the
   mechanism.
@@ -431,5 +450,11 @@ working internal link to `Reference`.
 - Search (section 21) — feature 008.
 - Backlinks, full-text link search, and graph presentation — later features;
   this slice only creates and renders the canonical page-link reference.
+- Production-level visual and interaction refinement beyond the current
+  baseline — contextual block menus, drag handles, floating formatting tools,
+  colour controls, collapsible sections, simple inline tables, richer embeds,
+  and a cohesive editor design system — belongs to a dedicated follow-up
+  feature. Listing these examples records the boundary; it does not make them
+  requirements of feature 003.
 - Public sharing, plugins, import from other products, and collaborative
   editing — permanently out of scope for V1 or governed by their own specs.

@@ -50,3 +50,10 @@ should be amended, or a new feature raised for databases, before this ships.
 SC-002 and SC-007 depend on a usability protocol with ten participants, which
 cannot be satisfied by automated evidence. That is intentional and matches how
 feature 002 handled its equivalent criterion.
+
+**The broader Notion-like trajectory does not reopen this feature.** The spec
+now identifies which later work refines writing, which work depends on files or
+synchronization, and which work belongs to databases. Those notes add no new
+feature-003 requirement or acceptance scenario; research and planning hold the
+technical adoption detail, while a future feature must specify and validate the
+new user-visible behaviour before implementation.

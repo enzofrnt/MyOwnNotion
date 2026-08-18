@@ -11,16 +11,18 @@ user-visible interactive flow. Test tasks are therefore listed inside each story
 rather than deferred to a polish phase, and a story is not done when its
 implementation compiles.
 
-**Organisation**: one phase per user story, in priority order. Each story phase
-is a complete, independently testable increment — US1 alone is a shippable
-improvement over today's raw-JSON textarea.
+**Organisation**: one phase per user story, followed by a final cross-cutting
+polish phase. Story phases retain their approved delivery order rather than
+renumbering completed task identifiers after a later story is added. Each story
+phase is a complete, independently testable increment — US1 alone is a
+shippable improvement over today's raw-JSON textarea.
 
 ---
 
 ## Phase 1: Setup
 
 - [X] T001 Add Tiptap 3 (`@tiptap/react`, `@tiptap/starter-kit`, `@tiptap/pm`) to `apps/web/package.json` and refresh `pnpm-lock.yaml` — *deferred to the Phase 3 batch, where the dependency is actually used; adding it earlier would land an unused dependency*
-- [X] T002 [P] Add `@axe-core/playwright` as a root dev dependency in `package.json` for the SC-004 audit — *deferred to the Phase 8 batch, for the same reason*
+- [X] T002 [P] Add `@axe-core/playwright` as a root dev dependency in `package.json` for the SC-004 audit — *deferred to the Phase 9 batch, for the same reason*
 - [X] T003 [P] Create the `packages/domain/src/document/` module directory with an `index.ts` barrel exported from `packages/domain/src/index.ts`
 - [X] T004 [P] Amend `docs/product/roadmap.md` to move canvas section 14 (databases and views) out of feature 003 into its own future feature, per constitution principle VIII and the spec's Assumptions — *the roadmap turned out to contradict itself as well: section 14 was claimed by both 003 and 008*
 
@@ -161,17 +163,7 @@ improvement over today's raw-JSON textarea.
 
 ---
 
-## Phase 8: Polish & cross-cutting
-
-- [X] T070 Extend `tests/e2e/accessibility.spec.ts` with `@axe-core/playwright` over the workspace, editor, and settings screens, failing on any critical or serious violation (SC-004)
-- [X] T071 [P] Add `tests/e2e/editor-performance.spec.ts` — a generated 500-block document, asserting keystroke-to-visible under 100 ms at p95 (SC-005) and open-to-editable under 2 seconds (SC-006)
-- [X] T072 [P] Document the content model and its export path in `docs/` and link it from the product documentation, since FR-005 requires the model to be documented and not merely to exist
-- [X] T073 [P] Create `specs/003-core-workspace-experience/validation.md` recording evidence per FR and SC, with SC-002 and SC-007 marked pending because they need ten human participants
-- [X] T074 Run the full local gate — `pnpm checks:local` then `pnpm test:e2e` — before the pull request, per constitution principle III
-
----
-
-## Phase 9: User Story 6 — Internal page links (P2)
+## Phase 8: User Story 6 — Internal page links (P2)
 
 **Goal**: an owner can mention a locally available page without changing the
 hierarchy, and the mention remains a stable, visibly distinct internal link.
@@ -186,6 +178,16 @@ same target.
 - [X] T077 [US6] Add an accessible page picker and internal-link mark extension in `apps/web/src/features/editor/page-link-control.tsx`, `apps/web/src/features/editor/page-link.ts`, and `apps/web/src/features/editor/editor-surface.tsx`, using locally available page-compatible items and a distinct visual affordance (FR-027, FR-028)
 - [X] T078 [US6] Reconcile `page:link` relationship edges atomically with page-document replacement and preserve them in the local projection in `packages/database/src/mutations/execute-command.ts`, `packages/client-core/src/outbox/apply-to-projection.ts`, and `apps/web/src/features/editor/editor-view.tsx` (FR-025, FR-027)
 - [X] T079 [US6] Add the responsive Playwright journey proving child placement and page link remain separate through reload, offline use, rename, move, and conversion in `tests/e2e/page-links.spec.ts` (US6/AC1–AC4, SC-011, SC-012)
+
+---
+
+## Phase 9: Polish & cross-cutting
+
+- [X] T070 Extend `tests/e2e/accessibility.spec.ts` with `@axe-core/playwright` over the workspace, editor, and settings screens, failing on any critical or serious violation (SC-004)
+- [X] T071 [P] Add `tests/e2e/editor-performance.spec.ts` — a generated 500-block document, asserting keystroke-to-visible under 100 ms at p95 (SC-005) and open-to-editable under 2 seconds (SC-006)
+- [X] T072 [P] Document the content model and its export path in `docs/` and link it from the product documentation, since FR-005 requires the model to be documented and not merely to exist
+- [X] T073 [P] Create `specs/003-core-workspace-experience/validation.md` recording evidence per FR and SC, with SC-002 and SC-007 marked pending because they need ten human participants
+- [X] T074 Run the full local gate — `pnpm checks:local` then `pnpm test:e2e` — before the pull request, per constitution principle III
 
 ---
 
@@ -204,7 +206,10 @@ same target.
 - US6 depends on the document model (Phase 2), the editor surface (US1), and
   feature 001's typed relationship mutation and local projection.
 
-**Soft ordering**: US5 is independent of US2, US3, and US4 and could move earlier if the deployment story becomes urgent. It is last because it is P3.
+**Soft ordering**: US5 is independent of US2, US3, and US4 and could move
+earlier if the deployment story becomes urgent. It follows the original P2
+stories because it is P3; US6 was approved afterwards and remains a separate P2
+increment without renumbering the completed task identifiers.
 
 ---
 
@@ -214,10 +219,10 @@ same target.
 - **Phase 3**: T024 and T025 are separate components; T030, T031, T033, T034 are independent tests.
 - **Phase 4**: T041 and T042 are separate components; T045–T047 are independent cases.
 - **Phase 5**: T050–T054 and T057 touch different files; T059 and T060 are independent.
-- **Phase 8**: T071, T072, T073 are fully independent.
-- **Phase 9**: T075 and T079 are independent test/documentation work; T077 is
+- **Phase 8**: T075 and T079 are independent test/documentation work; T077 is
   independent of the domain and persistence tasks once the conversion contract
   is fixed.
+- **Phase 9**: T071, T072, T073 are fully independent.
 
 ---
 
@@ -230,12 +235,26 @@ the test of whether the story boundaries are real.
 **Then US2**, because the two P1 stories together are the actual promise: the
 writing works, and the interface tells the truth about it.
 
-**Then US3, US4, US5, and US6** in priority order, each a self-contained
-increment. US6 is the first consumer of the explicit distinction between
-hierarchy placement and page-link relation.
+**Then US3, US4, US5, and US6**, each as a self-contained increment. US6 was
+approved after the original story sequence and is the first consumer of the
+explicit distinction between hierarchy placement and page-link relation.
 
 **Batching**: per the standing preference for large pull requests, group
 Phases 1–2 into one, Phase 3 into one, Phase 4 into one, Phases 5–6 into one,
 and Phases 7–9 into one. Each still has a green local gate and a green CI before
 it merges — the batching changes how much lands per pull request, not what has
 to pass.
+
+## Deferred editor evolution
+
+No unchecked implementation task is added to feature 003 for the broader
+Notion-like experience. Its research and plan now define the adoption and
+ownership boundary, but contextual menus, drag handles, floating formatting,
+colours, collapsible sections, simple document tables, richer embeds, and the
+editor design system require their own specification and task list.
+
+That follow-up depends on feature 003 for the editor model, feature 005 for any
+file-backed block, and feature 006 for multi-device feedback or conflict
+interaction. Databases and saved views remain a separate feature. This keeps
+the completed task history truthful and prevents a documentation-only change
+from pretending that new user-visible behaviour has been implemented.

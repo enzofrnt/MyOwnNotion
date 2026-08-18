@@ -219,6 +219,83 @@ not a placement, so linking to a descendant cannot create a hierarchy cycle.
   document would create duplicate graph edges; the canonical relation is one
   source/target edge while the document preserves each visible mention.
 
+---
+
+## 8. How should the Tiptap Notion-like ecosystem shape later editor work?
+
+**Decision**: Treat Tiptap's official Notion-like template and UI components as
+research-backed accelerators for a later editor-experience feature, not as the
+stored format, the product specification, or an automatic runtime dependency.
+The default path remains the open-source editor core, selectively adopted
+components, the existing MyOwnNotion document model, and the existing
+conversion boundary.
+
+**Evidence**:
+
+- Tiptap publishes an official
+  [Notion-like editor template](https://tiptap.dev/docs/ui-components/templates/notion-like-editor)
+  with block drag and drop, slash and context menus, responsive light/dark UI,
+  rich formatting, mentions, emoji, media, collaboration, and AI. This proves
+  the target interaction model is practical on the selected editor engine.
+- The template requires a Start plan for production and is governed by the
+  Tiptap Pro licence. Collaboration and AI configuration use Tiptap services,
+  and image upload still requires an application server. It therefore cannot
+  be adopted wholesale without a deliberate licence, hosting, privacy, and
+  self-hosting decision.
+- Tiptap's
+  [UI components](https://tiptap.dev/docs/ui-components/getting-started/overview)
+  are copied into the consuming project as editable source. Components backed
+  by open-source extensions are MIT-licensed; components backed by paid
+  features are not open source and commonly depend on Tiptap services. The same
+  documentation currently warns that React 19 support is still being improved,
+  so compatibility must be proven against the repository's actual runtime
+  rather than inferred from the demo.
+- The open-source editor remains headless and extension-based. Official
+  extensions cover useful Notion-like primitives including
+  [drag handles](https://tiptap.dev/docs/editor/extensions/functionality/drag-handle),
+  [collapsible details](https://tiptap.dev/docs/editor/extensions/nodes/details),
+  [task lists](https://tiptap.dev/docs/editor/extensions/nodes/task-list),
+  [tables](https://tiptap.dev/docs/editor/extensions/nodes/table), and
+  [file drop/paste events](https://tiptap.dev/docs/editor/extensions/functionality/filehandler).
+  File handling deliberately does not upload or persist bytes, which keeps that
+  responsibility with feature 005.
+
+**Capability ownership**:
+
+| Capability | Owning work | Reason |
+|------------|-------------|--------|
+| Slash menu, Markdown shortcuts, block transformation, undo/redo, page links | Feature 003 baseline | Already required and verified here. |
+| Contextual block menu, drag handle, floating toolbar, colours, collapsible sections, simple document tables, editor design system | Dedicated editor-experience follow-up | These refine writing without redefining another domain. |
+| Images, files, uploads, embeds backed by stored bytes | Feature 005 plus the editor follow-up | The editor renders the interaction; feature 005 owns identity, transfer, availability, and safety. |
+| Multi-device editing feedback and conflict interaction | Feature 006 plus the editor follow-up | Feature 006 owns transport, catch-up, causal state, and resolution. |
+| Typed properties, database entries, filters, sorting, Kanban, gallery, and calendar views | Separate database feature | These are a data/query domain, even if surfaced inside a custom editor node. |
+| Presence, multi-user comments, and real-time co-editing | Out of scope under the constitution | The product is permanently single-owner and does not gain a second editing identity through an editor library. |
+
+**Adoption gate for a later feature**:
+
+1. Specify the user-visible interaction and block catalogue before choosing a
+   template or extension.
+2. Classify every dependency as open-source/local, commercially licensed, or
+   hosted, and record its replacement and offline path.
+3. Map every new block or mark into the MyOwnNotion model, validation,
+   Markdown export, unknown-content preservation, and version transition.
+4. Reuse feature 005 for file bytes and feature 006 for synchronization rather
+   than importing a second storage or collaboration source of truth.
+5. Re-run keyboard, 320-pixel, accessibility, performance, abrupt-close,
+   offline, and multi-device journeys for the richer surface.
+
+**Alternatives considered**:
+
+- *Adopt the complete official template now.* Rejected: it mixes open-source UI
+  acceleration with licensed and hosted capabilities, while this feature's
+  requirements are already implemented and its human validation remains the
+  unfinished work.
+- *Copy the visual design but store Tiptap JSON.* Rejected by Decision 1 and
+  FR-005: a UI shortcut does not justify changing the owner's durable format.
+- *Wait for databases before improving any editor interaction.* Rejected:
+  writing ergonomics is independently useful. Only database-backed blocks and
+  views need the database feature; the follow-up must keep that boundary clear.
+
 Every `NEEDS CLARIFICATION` from the Technical Context is closed by the
 decisions above. No open question blocks Phase 1.
 
@@ -230,3 +307,5 @@ decisions above. No open question blocks Phase 1.
 | Origin of the four save states | Decision 4, and [contracts/save-state.md](./contracts/save-state.md) |
 | Editor library | Decision 5 |
 | Accessibility verification method | Decision 6 |
+| Internal page-link representation | Decision 7 |
+| Notion-like component adoption and sequencing | Decision 8 |
