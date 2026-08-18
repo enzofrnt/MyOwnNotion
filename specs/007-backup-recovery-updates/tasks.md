@@ -76,13 +76,13 @@ manifest.
 ### Tests for User Story 1
 
 - [ ] T021 [P] [US1] Integration test in `packages/database/tests/restore.integration.spec.ts` — every item, file, relationship and revision the manifest lists is present after a restore
-- [ ] T022 [P] [US1] Contract test in `apps/api/tests/restore-guards.spec.ts` — the six pre-flight steps run in order and the first failure stops before any write
+- [X] T022 [P] [US1] Contract test in `apps/api/tests/restore-guards.spec.ts` — the six pre-flight steps run in order and the first failure stops before any write
 
 ### Implementation for User Story 1
 
-- [ ] T023 [US1] `apps/api/src/backup/restore-service.ts` — read the archive, check the manifest, and write into a target workspace
-- [ ] T024 [US1] The six pre-flight steps of FR-015, each refusing with what is missing rather than a generic failure
-- [ ] T025 [US1] Refuse an incompatible version, naming both (FR-016), using `compatibility.ts`
+- [X] T023 [US1] `apps/api/src/backup/restore-service.ts` — read the archive, check the manifest, and write into a target workspace
+- [X] T024 [US1] The six pre-flight steps of FR-015, each refusing with what is missing rather than a generic failure
+- [X] T025 [US1] Refuse an incompatible version, naming both (FR-016), using `compatibility.ts`
 - [ ] T026 [US1] Record a `restoration_attempt` when it starts, and finish it — an unfinished row is how an interruption is recognised
 - [ ] T027 [US1] Refuse to report health at startup while an unfinished restoration exists, and say how to resume or roll back (FR-017)
 - [ ] T028 [P] [US1] `apps/api/src/admin/commands/restore-apply.ts` — `--dry-run`, `--yes`, and no assumed consent when there is no terminal
