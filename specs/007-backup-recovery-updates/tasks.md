@@ -48,13 +48,13 @@ restore, and this phase is what produces it.*
 
 - [X] T009 [P] [US2] Unit test in `packages/domain/tests/backup-manifest.spec.ts` — a manifest missing a digest, naming a file that is absent, or carrying content is refused
 - [X] T010 [P] [US2] Unit test in `packages/domain/tests/retention.spec.ts` — the last verified backup is never deletable, whatever its age
-- [ ] T011 [P] [US2] Contract test in `apps/api/tests/backup-archive.contract.spec.ts` — a produced archive contains no seeded secret, session or key
+- [X] T011 [P] [US2] Contract test in `apps/api/tests/backup-archive.contract.spec.ts` — a produced archive contains no seeded secret, session or key
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] `apps/api/src/backup/backup-service.ts` — build the archive from the canonical export plus the content store, at one cursor, streamed
-- [ ] T013 [US2] Encrypt before transfer in the same service, reusing feature 002's material — the plaintext archive never reaches a destination
-- [ ] T014 [US2] Verify after creation and after transfer, recording a row per stage; the second re-reads through the boundary
+- [X] T012 [US2] `apps/api/src/backup/backup-service.ts` — build the archive from the canonical export plus the content store, at one cursor, streamed
+- [X] T013 [US2] Encrypt before transfer in the same service, reusing feature 002's material — the plaintext archive never reaches a destination
+- [X] T014 [US2] Verify after creation and after transfer, recording a row per stage; the second re-reads through the boundary
 - [ ] T015 [US2] `packages/database/src/repositories/backup-repository.ts` — record backups, verifications and the query behind "a recent verified backup remains"
 - [ ] T016 [US2] `apps/api/src/backup/schedule.ts` — 04:00 in the configured zone, not holding the process open, and safe across a daylight-saving change
 - [ ] T017 [P] [US2] `apps/api/src/admin/commands/backup-run.ts` and `backup-verify.ts` with the exit codes of [contracts/admin-commands.md](./contracts/admin-commands.md)

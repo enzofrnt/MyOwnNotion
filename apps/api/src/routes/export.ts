@@ -29,7 +29,15 @@ import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 
-async function buildManifest(context: AppContext) {
+/**
+ * One transactionally consistent read of the whole workspace.
+ *
+ * Exported rather than private because the backup archive is built from exactly
+ * this (feature 007): a backup format of its own would be a second description
+ * of the same workspace, and two descriptions drift the first time either
+ * changes — with the drift surfacing only when somebody restores.
+ */
+export async function buildManifest(context: AppContext) {
   return context.db.transaction(async (tx) => {
     const sequence = await currentSequence(tx, context.workspaceId);
     const active = await listItems(tx, context.workspaceId, { lifecycle: "active" });
