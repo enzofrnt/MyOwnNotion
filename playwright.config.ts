@@ -1,5 +1,6 @@
 import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+import { BROWSER_PROJECTS } from "./tests/e2e/projects.ts";
 
 const isCI = process.env["CI"] === "true" || process.env["CI"] === "1";
 
@@ -27,14 +28,12 @@ const publicOrigin = process.env["MYOWNNOTION_PUBLIC_ORIGIN"] ?? `http://${webHo
 const deploymentKeyFile =
   process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"] ?? path.resolve("secrets", "deployment-key.e2e");
 
-/** Browser/viewport matrix: Chromium, Firefox, and WebKit, desktop and mobile. */
-const BROWSER_PROJECTS = [
-  { name: "chromium-desktop", device: "Desktop Chrome" },
-  { name: "firefox-desktop", device: "Desktop Firefox" },
-  { name: "webkit-desktop", device: "Desktop Safari" },
-  { name: "chromium-mobile", device: "Pixel 7" },
-  { name: "webkit-mobile", device: "iPhone 14" },
-] as const;
+/**
+ * Browser/viewport matrix: Chromium, Firefox, and WebKit, desktop and mobile.
+ *
+ * Imported rather than written here, because the local parallel runner allocates
+ * one isolated stack per project and must be looking at the same list.
+ */
 
 /**
  * Every changed interactive flow gets a journey here, executed against
@@ -64,6 +63,11 @@ export default defineConfig({
   // Content isolation is per test, via the auto fixture in
   // tests/e2e/fixtures.ts — Playwright project dependencies run all at once
   // up front and so cannot isolate one project from another (T106).
+  // Every project is declared on every platform, deliberately. A project list
+  // that changed with the host would make "CI runs all five" unverifiable from a
+  // developer machine — and one of the contract tests checks exactly that.
+  // Firefox-on-macOS is refused at the start of a test instead, in
+  // tests/e2e/fixtures.ts, where it can say what to run.
   projects: BROWSER_PROJECTS.map(({ name, device }) => ({
     name,
     use: { ...devices[device] },

@@ -15,6 +15,33 @@ commands you run locally, and what blocks a merge.
 | Shell | ShellCheck + shfmt, pinned versions | `scripts/ci/check-shell.ts`, `.github/workflows/ci.yml` |
 | Tests | Vitest + fast-check + Playwright | `vitest.config.ts`, `vitest.workspace.ts`, `playwright.config.ts` |
 | Database | PostgreSQL 18 | `compose.yaml` |
+| Sync protocol | version 1 | `packages/domain/src/sync/protocol-version.ts` |
+
+### The sync protocol version is part of the toolchain
+
+`packages/domain/src/sync/protocol-version.ts` declares three numbers, and a
+release has to think about all three:
+
+| Constant | Meaning |
+| --- | --- |
+| `PROTOCOL_VERSION` | what this server speaks, sent on every response as `X-MyOwnNotion-Protocol` |
+| `MINIMUM_WRITE_VERSION` | the oldest client still allowed to write |
+| `MINIMUM_READ_VERSION` | the oldest client still allowed to read |
+
+**The window is two stable versions.** A stable server accepts the matching
+stable client and the one immediately before it, for as long as their protocol
+stays compatible. That is what makes an upgrade something an owner can do at
+their own pace on each device instead of all at once.
+
+Raising `MINIMUM_WRITE_VERSION` is therefore a decision with a date attached: it
+stops a device that is one release behind from writing. Raising
+`MINIMUM_READ_VERSION` is heavier still, because a client that can read can at
+least copy an owner's work out of a machine that is behind, and refusing reads
+takes that away. Prefer read-only over refused whenever a read is safe.
+
+`MINIMUM_READ_VERSION` must never exceed `MINIMUM_WRITE_VERSION`; inverted, the
+read-only state would be unreachable and the pair would express nothing a single
+number could not. A unit test holds that invariant.
 
 ### pnpm is the only Node.js package manager
 
@@ -147,6 +174,84 @@ substitutes for the behavioral layers.
 ¹ `tests/contract/export.spec.ts` needs PostgreSQL, so it fails inside
 `test:unit` when Docker is unavailable. Everything else in that command runs
 without it.
+
+### The browser matrix locally
+
+```bash
+pnpm test:e2e:local          # fast feedback: projects in parallel
+pnpm test:e2e:gate           # the pre-push answer: one project at a time
+pnpm test:e2e:local -- --grep "live sync"   # arguments pass through
+```
+
+**Two commands, because they answer different questions.** `test:e2e:local` runs
+projects side by side and is what to use while working. `test:e2e:gate` is the
+same runner with one project at a time, and it is what `checks:local` runs before
+a push.
+
+The split is not caution, it is a measured limit: a handful of journeys cannot
+share a machine with another browser. The clearest is the keyboard-navigation
+journey, which fails with `toBeFocused` receiving `inactive` — the operating
+system does not consider that window active, because another browser has the
+focus. No timeout can fix that, and no amount of it is the application's
+behaviour. Others simply miss their budget while three engines compete.
+
+CI is unaffected: it gives each project its own runner, so nothing there competes
+for anything.
+
+**Every browser project runs at once, each on its own stack.** The matrix used
+to run one project after another, and the reason was not the browsers: every
+journey resets the same database, so two projects sharing one would delete each
+other's content mid-test. That is a statement about shared state, so
+`scripts/e2e/run-local-matrix.ts` gives each project state of its own instead of
+making them take turns —
+
+| Isolated per project | Why |
+| --- | --- |
+| its own database, created and dropped by the runner | the reason the suites were sequential |
+| its own API and web ports (from 3301 and 5473) | five dev servers have to coexist |
+| its own blob root | otherwise file journeys read each other's bytes |
+| its own deployment key | a shared file is a shared fate if a run rewrites it |
+
+PostgreSQL itself is *not* isolated: one server, several databases. Starting
+five servers would cost more than the parallelism saves.
+
+The runner refuses to start when one of its ports is taken, and says which.
+That check is not politeness. Playwright's `reuseExistingServer` is on locally,
+so a port held by another checkout is silently *adopted* — and the matrix then
+reports on code nobody is looking at. That has happened, and it cost more than
+the failed run it replaced.
+
+**Two projects at a time by default, not five.** A stack is a browser, a Vite
+server and an API process, and what gives way under saturation is not the machine
+but the journeys — a click waiting on a render, an assertion budgeted for a quiet
+machine. Five at once failed differently on every attempt; three was green once
+and then failed twice, both times on WebKit, which is the expensive engine. Two is
+what proved repeatable on a fourteen-core laptop, and it still runs the matrix in
+about nine minutes against sixteen sequentially.
+
+The number is measured rather than derived from the core count, because cores are
+not the scarce resource here — memory and the dev servers are.
+`MYOWNNOTION_E2E_JOBS` raises it on a machine with room, or lowers it to `1` to
+reproduce a sequential run. A gate that is green two times in three is not a gate.
+
+`MYOWNNOTION_E2E_API_PORT_BASE` and `MYOWNNOTION_E2E_WEB_PORT_BASE` move the port
+range, which is rarely needed.
+
+Each project's full output is written to `.e2e-logs/<project>.log`, always —
+five runs interleaving into one terminal is unreadable, and a summary is at the
+mercy of whatever the caller piped it through. Failure artefacts go to
+`test-results/<project>/`, one directory per stack: Playwright *clears* its
+output directory when it starts, so a shared one means each stack deleting the
+traces and screenshots of the others.
+
+On macOS, Firefox runs inside the pinned Linux image, because Playwright's
+patched Firefox hangs before opening a page on the macOS development runtime.
+That project starts its servers inside the container and reaches PostgreSQL
+through `host.docker.internal`, so it needs a database of its own and nothing
+else. It runs alongside the others rather than after them.
+
+`pnpm test:e2e` remains the single-stack command CI uses, and the one to reach
+for when debugging one journey.
 
 ### Security test harness
 

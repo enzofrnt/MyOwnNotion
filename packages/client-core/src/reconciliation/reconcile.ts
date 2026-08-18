@@ -16,8 +16,14 @@ import type {
   ItemDto,
   QueuedMutationDto,
   QueuedMutationResultDto,
+  RevisionDto,
 } from "@myownnotion/contracts";
-import type { Uuid } from "@myownnotion/domain";
+import {
+  type BlockDocument,
+  mergeDocuments,
+  readDocumentBody,
+  type Uuid,
+} from "@myownnotion/domain";
 import { LocalRepository } from "../local-store/local-repository.ts";
 import { type LocalDatabase, META_KEYS } from "../local-store/schema.ts";
 import { Outbox } from "../outbox/outbox.ts";
@@ -38,6 +44,17 @@ export interface ReconcileTransport {
   currentSnapshot(): Promise<
     { ok: true; value: CanonicalSnapshotDto } | { ok: false; offline: boolean }
   >;
+  /**
+   * One revision's retained content, for the automatic merge (feature 006).
+   *
+   * Optional so that a transport written before this feature — and every test
+   * double built against it — keeps working. Without it, no merge is attempted
+   * and a divergence is recorded as a conflict, which is the behaviour that
+   * existed before: less convenient, never wrong.
+   */
+  getRevision?(
+    revisionId: Uuid,
+  ): Promise<{ ok: true; value: RevisionDto } | { ok: false; offline: boolean }>;
 }
 
 export interface ReconcileOutcome {
@@ -66,6 +83,91 @@ function isWriteBlock(code: string | undefined): boolean {
   return code === "write_blocked" || code === "rotation.write-blocked";
 }
 
+/**
+ * Reads a revision's body as blocks, or gives up.
+ *
+ * Gives up on a legacy body rather than converting one. A legacy document has no
+ * block identities, so "the same block changed on both sides" is not a question
+ * that can be asked about it — and a merge that guessed would be guessing about
+ * an owner's words.
+ */
+function blocksOf(document: unknown): BlockDocument | null {
+  const read = readDocumentBody(document);
+  return read.kind === "blocks" && read.result.ok ? read.result.document : null;
+}
+
+/**
+ * Tries to merge a refused edit with the head that beat it (T025, FR-013).
+ *
+ * Returns the payload to resubmit, or `null` when the owner has to decide. Every
+ * `null` here is a decision to ask rather than to guess, and the reasons to ask
+ * are deliberately broad: an unavailable revision, a legacy body, a missing
+ * transport method, more than one competing revision. None of those are
+ * conflicts, but in all of them a merge would be operating on less than it
+ * needs — and the cost of asking unnecessarily is an interruption, while the cost
+ * of merging wrongly is lost work.
+ */
+async function tryAutomaticMerge(
+  transport: ReconcileTransport,
+  row: { commandType: string; payload: Record<string, unknown>; baseRevisionIds: Uuid[] },
+  competingRevisionIds: readonly Uuid[],
+): Promise<{ payload: Record<string, unknown>; baseRevisionIds: Uuid[] } | null> {
+  if (row.commandType !== "page.document.replace" || transport.getRevision === undefined) {
+    return null;
+  }
+  const competing = competingRevisionIds[0];
+  const ancestorId = row.baseRevisionIds[0];
+  if (competing === undefined || competingRevisionIds.length !== 1 || ancestorId === undefined) {
+    return null;
+  }
+
+  const [ancestorRead, remoteRead] = await Promise.all([
+    transport.getRevision(ancestorId),
+    transport.getRevision(competing),
+  ]);
+  if (!ancestorRead.ok || !remoteRead.ok) {
+    // Often because the snapshot passed its retention window. The three-way
+    // comparison needs the common ancestor, and without it the honest answer is
+    // that this cannot be merged safely.
+    return null;
+  }
+
+  const ancestorSnapshot = ancestorRead.value.snapshot as Record<string, unknown> | null;
+  const remoteSnapshot = remoteRead.value.snapshot as Record<string, unknown> | null;
+  const ancestor = blocksOf(snapshotBody(ancestorSnapshot));
+  const remote = blocksOf(snapshotBody(remoteSnapshot));
+  const local = blocksOf((row.payload["document"] as { body?: unknown } | undefined)?.body);
+  if (ancestor === null || remote === null || local === null) {
+    return null;
+  }
+
+  const outcome = mergeDocuments(ancestor, local, remote);
+  if (outcome.kind !== "merged") {
+    return null;
+  }
+  const document = row.payload["document"] as Record<string, unknown>;
+  return {
+    payload: {
+      ...row.payload,
+      document: { ...document, body: outcome.document },
+      // Rebased onto the head that refused it. Keeping the old base would have
+      // the server refuse the merged result for the same reason it refused the
+      // original.
+      baseRevisionId: competing,
+    },
+    baseRevisionIds: [competing],
+  };
+}
+
+/** Where a revision snapshot keeps the page body. */
+function snapshotBody(snapshot: Record<string, unknown> | null): unknown {
+  if (snapshot === null) {
+    return null;
+  }
+  const document = snapshot["pageDocument"] as { body?: unknown } | undefined;
+  return document?.body;
+}
+
 export async function reconcile(
   db: LocalDatabase,
   transport: ReconcileTransport,
@@ -80,6 +182,17 @@ export async function reconcile(
   let accepted = 0;
   let conflicts = 0;
   let blocked = 0;
+  /**
+   * Mutations already merged and requeued in this pass.
+   *
+   * A bound, not a cache. A requeued mutation goes back to `pending`, so the
+   * submission loop picks it up again — and if the head moved once more it can be
+   * refused, merged and requeued again, indefinitely, on a workspace where
+   * another device is writing steadily. One merge per mutation per pass means the
+   * second refusal becomes a conflict the owner is told about, which is slower
+   * but terminates.
+   */
+  const alreadyMerged = new Set<string>();
 
   // Submit the durable queue in stable order.
   for (;;) {
@@ -121,6 +234,29 @@ export async function reconcile(
         accepted += 1;
         await outbox.acknowledge(mutationId);
       } else if (result.status === "conflict") {
+        // Before asking the owner anything: most "conflicts" are two devices
+        // touching different paragraphs of the same page, and asking about those
+        // teaches an owner that the question is noise (FR-013). A merge is
+        // attempted, and only a genuine divergence — the same block changed on
+        // both sides, or deleted on one and rewritten on the other — becomes a
+        // conflict record.
+        const row = pending.find((queued) => queued.mutationId === mutationId);
+        const merged =
+          row === undefined || alreadyMerged.has(mutationId)
+            ? null
+            : await tryAutomaticMerge(
+                transport,
+                row,
+                (result.competingRevisionIds ?? []) as Uuid[],
+              );
+        if (merged !== null) {
+          alreadyMerged.add(mutationId);
+          // Requeued as an ordinary edit based on the head that beat it. Not as
+          // a resolution: nothing needed deciding, so recording a two-parent
+          // revision would put a conflict in the history that never happened.
+          await outbox.requeueMerged(mutationId, merged.payload, merged.baseRevisionIds);
+          continue;
+        }
         conflicts += 1;
         await outbox.captureConflict(
           mutationId,

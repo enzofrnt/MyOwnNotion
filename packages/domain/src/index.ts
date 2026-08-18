@@ -39,3 +39,4 @@ export * from "./security/rotation-policy.ts";
 export * from "./security/session-policy.ts";
 export * from "./security/types.ts";
 export * from "./security/wrapping-key-rotation.ts";
+export * from "./sync/index.ts";

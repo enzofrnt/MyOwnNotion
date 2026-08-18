@@ -20,9 +20,10 @@ import {
   type ReconcileTransport,
   reconcile,
   resealPlaintextProjection,
+  resolveConflictLocally,
 } from "@myownnotion/client-core";
-import type { ItemDto } from "@myownnotion/contracts";
-import { generateUuidV7, type SafeError, type Uuid } from "@myownnotion/domain";
+import type { ItemDto, RevisionDto } from "@myownnotion/contracts";
+import { generateUuidV7, type PageDocument, type SafeError, type Uuid } from "@myownnotion/domain";
 import { ContentApi } from "./content-api.ts";
 import { IndexedDbKeyStorage } from "./local-key-storage.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
@@ -120,12 +121,36 @@ export class LocalContentService {
     ) {
       this.#syncState = "conflict";
     }
-    this.#snapshot = {
+    const next: LocalContentSnapshot = {
       syncState: this.#syncState,
       pendingCount: this.#pendingCount,
       conflictCount: this.#conflictCount,
       storagePersisted: this.#storagePersisted,
     };
+    // Replaced only when something actually differs, and this is not an
+    // optimisation. `useSyncExternalStore` compares snapshots by reference, so
+    // handing out a fresh object for an unchanged state re-renders every
+    // subscriber — including the whole content tree.
+    //
+    // That was survivable while notifications were rare: a device only ever
+    // notified itself, when it wrote. Live synchronization made every change
+    // anywhere in the workspace produce one, and a tree that re-renders under
+    // somebody's cursor is a click that never lands — Playwright reported it as
+    // `element was detached from the DOM, retrying`, forever, until the test
+    // gave up after a minute.
+    if (
+      next.syncState !== this.#snapshot.syncState ||
+      next.pendingCount !== this.#snapshot.pendingCount ||
+      next.conflictCount !== this.#snapshot.conflictCount ||
+      next.storagePersisted !== this.#snapshot.storagePersisted
+    ) {
+      this.#snapshot = next;
+    }
+    // Listeners are told regardless, because they are not all watching the
+    // snapshot: the content tree uses this signal to re-read its items, and a
+    // change arriving from another device moves items without moving any of the
+    // four fields above. Suppressing the call would leave the tree stale, which
+    // is the one thing live synchronization exists to prevent.
     for (const listener of this.#listeners) {
       listener();
     }
@@ -154,6 +179,16 @@ export class LocalContentService {
         const result = await this.api.currentSnapshot();
         return result.ok
           ? { ok: true, value: result.value }
+          : { ok: false, offline: result.offline };
+      },
+      // Only the automatic merge uses this, and only when an edit was refused.
+      // A revision whose snapshot has passed its retention window comes back as
+      // a failure here, which the merge reads as "cannot be merged safely" and
+      // turns into a conflict the owner decides — never into a guess.
+      getRevision: async (revisionId) => {
+        const result = await this.api.getRevision(revisionId);
+        return result.ok
+          ? { ok: true, value: result.value as unknown as RevisionDto }
           : { ok: false, offline: result.offline };
       },
     };
@@ -259,6 +294,36 @@ export class LocalContentService {
         result.error.code === "storage.unavailable";
       await this.#notify(storageFailed ? "quota-failure" : undefined);
       return { ok: false, error: result.error };
+    }
+    await this.#notify("pending");
+    void this.synchronize();
+    return { ok: true };
+  }
+
+  /**
+   * Commits the owner's resolution of a conflict (feature 006, FR-016).
+   *
+   * A method of its own rather than a `mutate` call, because the ordering rule it
+   * carries is not something a caller should have to know: the resolution is
+   * written durably *before* the conflict record is cleared, so a crash between
+   * the two leaves a queued resolution rather than neither.
+   */
+  async resolveConflict(input: {
+    readonly conflictMutationId: Uuid;
+    readonly itemId: Uuid;
+    readonly localRevisionId: Uuid;
+    readonly remoteRevisionId: Uuid;
+    readonly document: PageDocument;
+    readonly pageLinkTargetIds?: readonly Uuid[];
+  }): Promise<{ ok: true } | { ok: false; error: SafeError }> {
+    await this.#unlock();
+    const outcome = await resolveConflictLocally(this.db, this.#codec, {
+      mutationId: generateUuidV7(),
+      ...input,
+    });
+    if (!outcome.ok) {
+      await this.#notify(undefined);
+      return { ok: false, error: { code: outcome.code, title: outcome.title } as SafeError };
     }
     await this.#notify("pending");
     void this.synchronize();

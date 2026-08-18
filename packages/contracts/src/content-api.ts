@@ -253,6 +253,24 @@ export const RevisionSchema = Type.Object({
   mutationId: UuidSchema,
   parentRevisionIds: Type.Array(UuidSchema),
   acceptedAt: Type.String({ format: "date-time" }),
+  /**
+   * Which device wrote this, and what kind of change it was (feature 006,
+   * FR-022).
+   *
+   * The device is nullable and the name optional, because a revision written
+   * before this feature has no device to name and a device the owner deleted has
+   * no name to give. Both are reported as unknown rather than filled in: a
+   * history that guesses is worse than one that admits a gap.
+   *
+   * What is deliberately absent is anything technical (FR-023) — no session
+   * identifier, no key generation, nothing derived from key material. A history
+   * is read and exported, so a secret recorded here would leak through every
+   * path that shows it.
+   */
+  authoredByDeviceId: Type.Optional(Type.Union([UuidSchema, Type.Null()])),
+  authoredByDeviceName: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  /** What the change was, in the owner's terms rather than a command name. */
+  changeNature: Type.Optional(Type.String()),
   snapshotRetained: Type.Boolean(),
   snapshot: Type.Optional(
     Type.Union([Type.Object({}, { additionalProperties: true }), Type.Null()]),

@@ -7,5 +7,6 @@ export * from "./outbox/apply-local-mutation.ts";
 export * from "./outbox/apply-to-projection.ts";
 export * from "./outbox/outbox.ts";
 export * from "./reconciliation/reconcile.ts";
+export * from "./reconciliation/resolve-conflict.ts";
 export * from "./save-state/derive.ts";
 export * from "./security/index.ts";

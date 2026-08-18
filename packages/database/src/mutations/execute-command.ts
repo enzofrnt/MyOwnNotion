@@ -26,6 +26,7 @@ import {
   validateOfflineIntent,
   validateRenameItem,
   validateReplacePageDocument,
+  validateResolveConflict,
 } from "@myownnotion/domain";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
@@ -411,6 +412,85 @@ async function executeReplacePageDocument(
   });
 }
 
+/**
+ * Commits an owner's conflict resolution as a revision with two parents
+ * (feature 006, FR-016).
+ *
+ * Almost the same body as `executeReplacePageDocument`, and deliberately not
+ * factored together with it. The two differ in what they do to history — one
+ * parent versus two, and which revisions start their retention clock — and that
+ * is precisely the part a shared helper would hide behind a flag. A reader
+ * asking "does resolving destroy either version?" can answer it from this
+ * function alone.
+ */
+async function executeResolveConflict(
+  tx: Transaction,
+  context: MutationContext,
+  command: Extract<MutationCommand, { type: "document.resolve-conflict" }>,
+): Promise<DomainResult<CommandExecution>> {
+  const item = await getItem(tx, command.itemId);
+  const plan = validateResolveConflict(item, command);
+  if (!plan.ok) {
+    return plan as DomainResult<CommandExecution>;
+  }
+  const revisionId = generateUuidV7();
+  await tx
+    .insert(pageDocuments)
+    .values({
+      pageId: plan.value.item.id,
+      format: plan.value.document.format,
+      formatVersion: plan.value.document.formatVersion,
+      body: plan.value.document.body,
+    })
+    .onConflictDoUpdate({
+      target: pageDocuments.pageId,
+      set: {
+        format: plan.value.document.format,
+        formatVersion: plan.value.document.formatVersion,
+        body: plan.value.document.body,
+      },
+    });
+  const reconciled = await reconcilePageLinks(tx, {
+    workspaceId: context.workspaceId,
+    sourceItemId: plan.value.item.id,
+    revisionId,
+    targetItemIds: plan.value.pageLinkTargetIds,
+  });
+  if (!reconciled.ok) {
+    return reconciled as DomainResult<CommandExecution>;
+  }
+  await rebuildEmbedUsages(tx, plan.value.item.id, plan.value.document.body);
+  await tx
+    .update(items)
+    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
+    .where(eq(items.id, plan.value.item.id));
+  const snapshot = await buildItemSnapshot(tx, plan.value.item.id);
+  // Both parents. This single line is what makes FR-016 structural: the two
+  // versions the owner chose between remain reachable as ancestors of the
+  // resolution, so "the originals are kept" is a fact about the graph rather
+  // than a promise about a retention job.
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: plan.value.item.id,
+    mutationId: context.mutationId,
+    parentRevisionIds: plan.value.parentRevisionIds,
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  // Both clocks start, not just the head's. A superseded snapshot is retained
+  // for its window and then pruned; the *headers and parent edges are never
+  // deleted*, so the lineage survives the pruning and the resolution keeps
+  // reading as a place where two lines of work rejoined.
+  for (const parentRevisionId of plan.value.parentRevisionIds) {
+    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
+  }
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [plan.value.item.id],
+    primaryItemId: plan.value.item.id,
+  });
+}
+
 async function executeRestoreRevision(
   tx: Transaction,
   context: MutationContext,
@@ -612,6 +692,8 @@ export async function executeCommand(
     }
     case "page.document.replace":
       return executeReplacePageDocument(tx, context, command);
+    case "document.resolve-conflict":
+      return executeResolveConflict(tx, context, command);
     case "relationship.create": {
       const result = await executeCreateRelationship(tx, {
         mutationId: context.mutationId,
@@ -653,6 +735,22 @@ export async function executeCommand(
 export interface SubmitOutcome {
   readonly result: QueuedMutationResult;
   readonly primaryItemId?: Uuid;
+  /**
+   * The feed position this mutation reached, once it is committed (feature 006).
+   *
+   * Returned rather than published from inside the transaction, and that is the
+   * whole point of carrying it out here. A notification sent before the commit
+   * tells a device to fetch a cursor the database has not reached yet: the fetch
+   * returns nothing, the device believes it is up to date, and the change it was
+   * told about is the one it will never ask for again. So the position leaves as
+   * a value, and the caller — which is the code that knows the transaction
+   * returned — decides to announce it.
+   *
+   * Absent for a replay and for a rejection: neither appended anything, and
+   * announcing a position that did not move would make every retry look like a
+   * change to every connected device.
+   */
+  readonly committedSequence?: number;
 }
 
 function conflictStatus(error: SafeError): "conflict" | "rejected" {
@@ -744,7 +842,7 @@ export async function submitMutation(
         acceptedAt,
         resultRevisionIds: execution.value.revisionIds,
       });
-      await recordChange(tx, {
+      const committedSequence = await recordChange(tx, {
         workspaceId: input.workspaceId,
         mutationId: input.mutationId,
         revisionIds: execution.value.revisionIds,
@@ -769,6 +867,7 @@ export async function submitMutation(
           status: "accepted" as const,
           revisionIds: execution.value.revisionIds,
         },
+        committedSequence,
         ...(execution.value.primaryItemId !== undefined
           ? { primaryItemId: execution.value.primaryItemId }
           : {}),

@@ -9,6 +9,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  apiOrigin,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -85,9 +86,9 @@ test.describe("offline continuity (US6)", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible();
 
     // Meanwhile the server accepts a competing revision (another device).
-    const current = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const currentBody = (await current.json()) as { currentRevisionId: string };
-    const competing = await request.put(`http://127.0.0.1:3001/v1/pages/${itemId}/document`, {
+    const competing = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { "idempotency-key": crypto.randomUUID() },
       data: {
         baseRevisionId: currentBody.currentRevisionId,

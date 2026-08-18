@@ -16,8 +16,10 @@ import {
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import {
+  authorizedDevices,
   items,
   logicalFiles,
+  mutations,
   pageDocuments,
   placements,
   revisionParents,
@@ -64,6 +66,77 @@ export async function insertRevision(tx: Transaction, input: InsertRevisionInput
 }
 
 /**
+ * Records which device produced this mutation's revisions (T037, FR-022).
+ *
+ * One statement keyed by the mutation rather than a parameter on
+ * `insertRevision`. Fifteen call sites construct a revision — every command,
+ * every file operation, a conversion — and threading an attribution through all
+ * of them would mean fifteen chances to forget, in a set that grows with every
+ * feature. Keyed by the mutation, a revision this mutation wrote cannot be
+ * missed, including one written by a path added later.
+ *
+ * The device comes from the authenticated request, never from the payload. A
+ * client-asserted author is a history an owner cannot trust, and the one thing
+ * a history is for is being trusted.
+ */
+export async function attributeRevisionsToDevice(
+  tx: Transaction,
+  input: { readonly mutationId: Uuid; readonly deviceId: string },
+): Promise<void> {
+  await tx
+    .update(revisions)
+    .set({ authoredByDeviceId: input.deviceId })
+    .where(eq(revisions.mutationId, input.mutationId));
+}
+
+/**
+ * What a history entry says about a revision's author and nature (FR-022).
+ *
+ * Both fields are nullable and both mean the same thing when they are: nothing
+ * is known. A device the owner has since deleted leaves a name behind that no
+ * longer resolves, and a revision written before attribution existed has no
+ * device at all. Neither is filled in with a guess.
+ *
+ * Note what this does not read: no session, no key generation, nothing derived
+ * from key material (FR-023). A history is read on screen and carried out in an
+ * export, so anything technical recorded here would leak through every one of
+ * those paths.
+ */
+export interface RevisionAttribution {
+  readonly deviceId: string | null;
+  readonly deviceName: string | null;
+  /** The command that produced it, for the domain to phrase in owner's terms. */
+  readonly commandType: string | null;
+}
+
+export async function readRevisionAttribution(
+  tx: Transaction,
+  revisionId: Uuid,
+): Promise<RevisionAttribution> {
+  const rows = await tx
+    .select({
+      deviceId: revisions.authoredByDeviceId,
+      deviceName: authorizedDevices.name,
+      commandType: mutations.commandType,
+    })
+    .from(revisions)
+    // Both joins are left joins on purpose. An inner join would drop the
+    // revision entirely when its device was deleted — turning "author unknown"
+    // into "this revision does not exist", which is a lie about content the
+    // owner can still see.
+    .leftJoin(authorizedDevices, eq(authorizedDevices.id, revisions.authoredByDeviceId))
+    .leftJoin(mutations, eq(mutations.id, revisions.mutationId))
+    .where(eq(revisions.id, revisionId))
+    .limit(1);
+  const row = rows[0];
+  return {
+    deviceId: row?.deviceId ?? null,
+    deviceName: row?.deviceName ?? null,
+    commandType: row?.commandType ?? null,
+  };
+}
+
+/**
  * Marks a superseded head's snapshot for 24-hour retention (FR-026).
  * Unresolved-conflict and trash protections are applied at pruning time,
  * never here — supersession only starts the clock.
@@ -98,6 +171,7 @@ export async function getRevision(
     mutationId: row.mutationId as Uuid,
     parentRevisionIds: parents.map((parent) => parent.parentRevisionId as Uuid),
     acceptedAt: row.acceptedAt.toISOString(),
+    authoredByDeviceId: (row.authoredByDeviceId as Uuid | null) ?? null,
     snapshot: (row.snapshot as Record<string, unknown> | null) ?? null,
     snapshotExpiresAt: row.snapshotExpiresAt?.toISOString() ?? null,
   };

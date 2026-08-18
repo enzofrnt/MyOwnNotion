@@ -315,3 +315,65 @@ export async function seedSession(): Promise<string | null> {
     await client.end();
   }
 }
+
+/**
+ * Issues a session on a *new* device (feature 006).
+ *
+ * `seedSession` reuses the one seeded device, which is right for a journey about
+ * content and wrong for every journey about several devices: two contexts sharing
+ * one device row cannot be told apart, so revoking "the other device" would
+ * revoke both. This inserts a device of its own and returns both identities, so a
+ * test can revoke one and watch the other keep working.
+ */
+export async function seedSessionOnNewDevice(
+  name = "Second end-to-end device",
+): Promise<{ secret: string; deviceId: string } | null> {
+  const client = new pg.Client({ connectionString: connectionString() });
+  await client.connect();
+  try {
+    const { rows: owners } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
+    const ownerId = owners[0]?.id;
+    if (ownerId === undefined) {
+      return null;
+    }
+    const deviceId = randomUUID();
+    await client.query(
+      `INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
+       VALUES ($1, $2, $3, $4, 'active')`,
+      [deviceId, ownerId, `e2e-binding-${deviceId}`, name],
+    );
+    const secret = randomBytes(32).toString("base64url");
+    const now = new Date();
+    await client.query(
+      `INSERT INTO sessions
+         (id, owner_id, device_id, session_secret_hash, auth_method,
+          issued_at, last_seen_at, expires_at, recent_auth_at, state)
+       VALUES ($1, $2, $3, $4, 'password', $5, $5, $6, $5, 'active')`,
+      [
+        randomUUID(),
+        ownerId,
+        deviceId,
+        digestSessionSecret(secret),
+        now,
+        new Date(now.getTime() + 30 * 24 * 60 * 60_000),
+      ],
+    );
+    return { secret, deviceId };
+  } finally {
+    await client.end();
+  }
+}
+
+/** Revokes one device, the way the owner's device screen does. */
+export async function revokeDevice(deviceId: string): Promise<void> {
+  const client = new pg.Client({ connectionString: connectionString() });
+  await client.connect();
+  try {
+    await client.query(
+      `UPDATE authorized_devices SET state = 'revoked', revoked_at = now() WHERE id = $1`,
+      [deviceId],
+    );
+  } finally {
+    await client.end();
+  }
+}

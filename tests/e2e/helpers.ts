@@ -4,7 +4,8 @@
  * The security section at the bottom adds the virtual-authenticator, mounted
  * secret, and readiness helpers the feature-002 journeys need (T003).
  */
-import { expect, type Page } from "@playwright/test";
+import { type Browser, type BrowserContext, expect, type Page } from "@playwright/test";
+import { seedSessionOnNewDevice } from "./reset-installation.ts";
 
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -262,7 +263,21 @@ export async function readSessionCookie(
  * into "version 1version 2" and made a revision assertion pass for the wrong
  * reason.
  */
+/**
+ * Waits for the editor to be on screen and ready to take a click.
+ *
+ * On a phone-sized viewport the editor arrives later than the tree row that
+ * opens it, so a journey that selects an item and types immediately is racing
+ * the layout. It failed as `locator.click` timing out after a minute, pointing
+ * at the click rather than at the wait that was missing — which is the least
+ * useful place for it to point.
+ */
+export async function waitForEditor(page: Page): Promise<void> {
+  await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+}
+
 export async function typeIntoEditor(page: Page, text: string): Promise<void> {
+  await waitForEditor(page);
   const surface = page.getByTestId("block-editor").locator(".ProseMirror");
   await surface.click();
   await page.keyboard.press("ControlOrMeta+a");
@@ -305,4 +320,72 @@ export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
     report.overflow,
     `viewport ${report.limit}px, overflow ${report.overflow}px, offenders:\n${report.offenders.join("\n")}`,
   ).toBeLessThanOrEqual(1);
+}
+
+/**
+ * Opens a second signed-in device (feature 006).
+ *
+ * The shared fixture seeds a session cookie onto the *test's* context, so a
+ * context created inside a test would land on the sign-in page and every
+ * multi-device journey would fail as an authentication problem. This mints a
+ * second session and seeds it, which is also what a second device genuinely is:
+ * its own session against the same owner.
+ *
+ * It is a *distinct* device row, not a second session on the seeded one. Two
+ * contexts sharing one device cannot be told apart, so a journey that revokes
+ * "the other device" would revoke the one it is watching from.
+ *
+ * The caller closes the context. Returning it rather than a page makes that
+ * ownership obvious — a leaked context holds a browser alive for the whole run.
+ */
+export async function openSecondDevice(
+  browser: Browser,
+  baseURL: string | undefined,
+): Promise<{ context: BrowserContext; page: Page; deviceId: string | null }> {
+  const context = await browser.newContext();
+  const seeded = await seedSessionOnNewDevice();
+  if (seeded !== null && baseURL !== undefined) {
+    await context.addCookies([
+      {
+        name: "mn_dev_session",
+        value: seeded.secret,
+        url: baseURL,
+        httpOnly: true,
+        sameSite: "Strict",
+      },
+    ]);
+  }
+  const page = await context.newPage();
+  return { context, page, deviceId: seeded?.deviceId ?? null };
+}
+
+/**
+ * Saves the open document and waits for the confirmation.
+ *
+ * The editor does not autosave — saving is an explicit button — so a journey
+ * that types and then synchronizes is a journey that measures nothing: the text
+ * never leaves the editor's own state. Waiting for the confirmation rather than
+ * for a timeout is what makes the following assertions about the *saved* document.
+ */
+export async function saveDocument(page: Page): Promise<void> {
+  await page.getByTestId("save-document").click();
+  await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 15_000 });
+}
+
+/**
+ * Where the API this run is talking to actually lives.
+ *
+ * A journey that needs to act as "another device" goes straight to the API
+ * rather than through the browser, and until now each one wrote
+ * `http://127.0.0.1:3001` itself. That was already fragile — a dev server from
+ * another checkout on 3001 made those journeys silently exercise foreign code —
+ * and it becomes wrong outright once the local matrix runs several stacks at
+ * once, each on its own port: the request would land on another project's API,
+ * or on nothing at all.
+ *
+ * Derived from the same variable the Playwright config gives the server, so the
+ * two cannot disagree.
+ */
+export function apiOrigin(): string {
+  return `http://127.0.0.1:${process.env["MYOWNNOTION_API_PORT"] ?? "3001"}`;
 }

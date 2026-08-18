@@ -6,6 +6,8 @@
  * work: "pending" and "offline" explicitly say changes are local.
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { ConnectionState } from "../features/sync/connection-state.tsx";
+import { useChangeStream } from "../features/sync/use-change-stream.ts";
 import type { LocalContentService } from "../services/local-content.ts";
 import { storageDiagnostics } from "../services/storage-manager.ts";
 
@@ -23,6 +25,11 @@ const LABELS: Record<string, string> = {
 export function SyncStatus({ service }: { readonly service: LocalContentService }) {
   const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot);
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
+  // Opened here rather than in the shell because this is the component that is
+  // mounted for exactly as long as the workspace is on screen, and the stream's
+  // lifetime should be the workspace's. Mounting it in the shell would hold a
+  // connection open behind the security screen, where nothing consumes it.
+  const stream = useChangeStream(service);
 
   useEffect(() => {
     void storageDiagnostics().then((diagnostics) => {
@@ -48,6 +55,7 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
         {snapshot.conflictCount > 0 ? ` (${snapshot.conflictCount} unresolved conflicts)` : ""}
         {snapshot.storagePersisted === false ? " — durable storage was not granted" : ""}
       </p>
+      <ConnectionState status={stream} />
       {quotaWarning !== null ? (
         <p
           className="status-banner"

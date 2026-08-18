@@ -80,6 +80,31 @@ export class Outbox {
   }
 
   /**
+   * The refused edit, merged with the head that beat it, queued again
+   * (feature 006, FR-013).
+   *
+   * Keeps the same mutation identity on purpose. The identity is what makes a
+   * resubmission idempotent, and a fresh one would let the original arrive later
+   * — from a retry the client already gave up on — and overwrite the merge with
+   * the version that lost.
+   *
+   * The row is rewritten rather than added beside the old one for the same
+   * reason: two rows for one intention are two writes, and the second would
+   * refuse for exactly the reason the first did.
+   */
+  async requeueMerged(
+    mutationId: Uuid,
+    payload: Record<string, unknown>,
+    baseRevisionIds: Uuid[],
+  ): Promise<void> {
+    await this.#db.outbox.update(mutationId, {
+      status: "pending" as OutboxStatus,
+      payload,
+      baseRevisionIds,
+    });
+  }
+
+  /**
    * The server refused for a condition retrying cannot clear.
    *
    * The row stays in the queue rather than being captured as a conflict: the
