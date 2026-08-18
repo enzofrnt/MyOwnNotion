@@ -6,6 +6,26 @@ They follow the shape feature 002 established for the security commands — buil
 help, a reliable exit code, a non-interactive mode — so an operator who has used
 one has used all of them.
 
+## Exit codes
+
+**The table feature 002 established, not a new one.** A second vocabulary inside
+one CLI is how an operator learns that exit codes cannot be trusted, so these
+commands reuse the existing meanings rather than numbering their own failures.
+
+| Code | Name | Used here for |
+| --- | --- | --- |
+| 0 | ok | it worked |
+| 2 | usage | the caller named a backup that does not exist, or misused a flag |
+| 3 | refused | a precondition said no: an incompatible version, a missing confirmation |
+| 4 | keyUnavailable | the material needed to read or write the archive is not there |
+| 5 | integrityFailure | the archive exists and does not match what it claims |
+| 7 | unexpected | anything else |
+
+The distinction that matters most is **5 against 7**: an operator scripting a
+backup needs to know whether there is an artefact to investigate or nothing at
+all, and a single failure code would send them looking for a file that may not
+exist.
+
 ## `backup run`
 
 Produces a backup now, verifies it, transfers it, verifies it again.
@@ -14,15 +34,10 @@ Produces a backup now, verifies it, transfers it, verifies it again.
 myownnotion backup run [--destination <name>] [--json]
 ```
 
-| Exit | Meaning |
-| --- | --- |
-| 0 | produced, transferred and verified at both stages |
-| 1 | produced but not verified, or not transferred — the backup exists and is not to be trusted |
-| 2 | not produced |
-
-**1 is distinct from 2 on purpose.** An operator scripting this needs to know
-whether there is an artefact to investigate or nothing at all, and a single
-non-zero code would make them look for a file that may not exist.
+Exit 0 when both verifications pass. Exit 5 when the archive was produced and
+one of them failed — the artefact exists and is not to be trusted. Exit 4 when
+the sealing material is unavailable, because that is a mounting problem rather
+than a backup problem and an operator should be sent to the right place.
 
 ## `backup verify`
 
@@ -32,7 +47,7 @@ Re-checks a backup that already exists, at the destination.
 myownnotion backup verify [--id <backup-id>] [--latest] [--json]
 ```
 
-Exit 0 when the named backup passes; 1 when it fails; 2 when it cannot be found.
+Exit 0 when it passes, 5 when it fails, 2 when the named backup does not exist.
 Recording a fresh verification row rather than updating the old one, so a backup
 that passed and later failed keeps both facts.
 
@@ -49,8 +64,8 @@ having it: the safe rehearsal must be the easy one to run. It records a
 `restoration_attempt` of kind `test`, which is what the interface reads to say
 when the owner last rehearsed.
 
-Exit 0 on a full restore, 1 when the restore failed, 2 when the backup could not
-be read at all.
+Exit 0 on a full restore, 5 when the archive could not be read back faithfully,
+2 when the backup does not exist.
 
 ## `restore apply`
 

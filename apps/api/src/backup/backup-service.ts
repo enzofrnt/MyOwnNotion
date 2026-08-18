@@ -46,6 +46,17 @@ export interface BackupOutcome {
   readonly byteLength: number;
   readonly digest: string;
   readonly cursor: string;
+  /**
+   * The provenance an owner needs to go back cleanly.
+   *
+   * Surfaced here rather than left inside the sealed archive because the
+   * *record* has to carry it too: choosing which backup to restore, and deciding
+   * whether this installation can read it, both happen before anything is
+   * decrypted.
+   */
+  readonly applicationVersion: string;
+  readonly schemaVersion: number;
+  readonly recordFormatVersion: number;
   /** Why it was produced; a pre-update backup is what an update looks for. */
   readonly reason: BackupReason;
   readonly verifiedAfterCreation: boolean;
@@ -225,6 +236,9 @@ export class BackupService {
           byteLength: built.byteLength,
           digest: built.digest,
           cursor: built.manifest.cursor,
+          applicationVersion: built.manifest.applicationVersion,
+          schemaVersion: built.manifest.schemaVersion,
+          recordFormatVersion: built.manifest.recordFormatVersion,
           reason,
           verifiedAfterCreation: false,
           verifiedAfterTransfer: false,
@@ -245,6 +259,9 @@ export class BackupService {
         byteLength: built.byteLength,
         digest: built.digest,
         cursor: built.manifest.cursor,
+        applicationVersion: built.manifest.applicationVersion,
+        schemaVersion: built.manifest.schemaVersion,
+        recordFormatVersion: built.manifest.recordFormatVersion,
         reason,
         verifiedAfterCreation: true,
         verifiedAfterTransfer,
