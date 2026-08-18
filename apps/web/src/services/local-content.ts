@@ -121,12 +121,36 @@ export class LocalContentService {
     ) {
       this.#syncState = "conflict";
     }
-    this.#snapshot = {
+    const next: LocalContentSnapshot = {
       syncState: this.#syncState,
       pendingCount: this.#pendingCount,
       conflictCount: this.#conflictCount,
       storagePersisted: this.#storagePersisted,
     };
+    // Replaced only when something actually differs, and this is not an
+    // optimisation. `useSyncExternalStore` compares snapshots by reference, so
+    // handing out a fresh object for an unchanged state re-renders every
+    // subscriber — including the whole content tree.
+    //
+    // That was survivable while notifications were rare: a device only ever
+    // notified itself, when it wrote. Live synchronization made every change
+    // anywhere in the workspace produce one, and a tree that re-renders under
+    // somebody's cursor is a click that never lands — Playwright reported it as
+    // `element was detached from the DOM, retrying`, forever, until the test
+    // gave up after a minute.
+    if (
+      next.syncState !== this.#snapshot.syncState ||
+      next.pendingCount !== this.#snapshot.pendingCount ||
+      next.conflictCount !== this.#snapshot.conflictCount ||
+      next.storagePersisted !== this.#snapshot.storagePersisted
+    ) {
+      this.#snapshot = next;
+    }
+    // Listeners are told regardless, because they are not all watching the
+    // snapshot: the content tree uses this signal to re-read its items, and a
+    // change arriving from another device moves items without moving any of the
+    // four fields above. Suppressing the call would leave the tree stale, which
+    // is the one thing live synchronization exists to prevent.
     for (const listener of this.#listeners) {
       listener();
     }

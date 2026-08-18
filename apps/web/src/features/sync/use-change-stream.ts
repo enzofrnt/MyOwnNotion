@@ -195,11 +195,47 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
       });
     };
 
-    const onAdvanced = () => {
+    /**
+     * Whether this announcement refers to something this device already holds.
+     *
+     * A device hears its own writes: it makes a change, the server appends it, and
+     * the stream announces it straight back. Reconciling for that is a pass that
+     * fetches nothing — and a pass still tells every subscriber, which re-reads
+     * the content tree and rebuilds it under whatever the owner is pointing at.
+     * That is how a click stops landing; Playwright reported it as `element was
+     * detached from the DOM, retrying`, over and over, until the test gave up
+     * after a minute.
+     *
+     * Compared against the device's *applied* cursor, which is the only thing
+     * that knows what it holds. Unreadable on either side means "cannot tell",
+     * and cannot-tell reconciles: being told twice is cheap, missing a change is
+     * not.
+     */
+    const alreadyHeld = async (announced: string | null): Promise<boolean> => {
+      if (announced === null) {
+        return false;
+      }
+      const applied = await serviceRef.current?.repository.getLastChangeCursor();
+      const here = Number.parseInt(applied ?? "", 10);
+      const there = Number.parseInt(announced, 10);
+      return Number.isSafeInteger(here) && Number.isSafeInteger(there) && here >= there;
+    };
+
+    const onAdvanced = (event: MessageEvent<string>) => {
       setState("live");
-      // Not awaited: `synchronize()` coalesces concurrent callers, so a burst of
-      // events becomes one pass plus at most one follow-up.
-      pursue();
+      let announced: string | null = null;
+      try {
+        const payload = JSON.parse(event.data) as { cursor?: unknown };
+        announced = typeof payload.cursor === "string" ? payload.cursor : null;
+      } catch {
+        // An unreadable announcement is still a reason to reconcile: the fetch
+        // uses the device's own cursor, so the note's contents are advisory.
+      }
+      void alreadyHeld(announced).then((held) => {
+        if (!held) {
+          pursue();
+        }
+      });
     };
 
     /**
