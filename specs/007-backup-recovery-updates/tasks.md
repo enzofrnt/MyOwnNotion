@@ -55,8 +55,8 @@ restore, and this phase is what produces it.*
 - [X] T012 [US2] `apps/api/src/backup/backup-service.ts` — build the archive from the canonical export plus the content store, at one cursor, streamed
 - [X] T013 [US2] Encrypt before transfer in the same service, reusing feature 002's material — the plaintext archive never reaches a destination
 - [X] T014 [US2] Verify after creation and after transfer, recording a row per stage; the second re-reads through the boundary
-- [ ] T015 [US2] `packages/database/src/repositories/backup-repository.ts` — record backups, verifications and the query behind "a recent verified backup remains"
-- [ ] T016 [US2] `apps/api/src/backup/schedule.ts` — 04:00 in the configured zone, not holding the process open, and safe across a daylight-saving change
+- [X] T015 [US2] `packages/database/src/repositories/backup-repository.ts` — record backups, verifications and the query behind "a recent verified backup remains"
+- [X] T016 [US2] `apps/api/src/backup/schedule.ts` — 04:00 in the configured zone, not holding the process open, and safe across a daylight-saving change
 - [ ] T017 [P] [US2] `apps/api/src/admin/commands/backup-run.ts` and `backup-verify.ts` with the exit codes of [contracts/admin-commands.md](./contracts/admin-commands.md)
 - [ ] T018 [P] [US2] `apps/web/src/features/backup/backup-panel.tsx` — when the last verified backup succeeded, and the 26-hour warning stated plainly
 - [ ] T019 [US2] Retention pass that deletes only after confirming a more recent verified backup remains
