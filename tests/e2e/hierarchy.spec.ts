@@ -60,6 +60,12 @@ test.describe("hierarchy organization (US1)", () => {
     // flake, which is only where the timing was slow enough to lose reliably.
     await waitForSynchronized(page);
 
+    // Startup navigation hydration must finish before the tree becomes
+    // interactive. Otherwise it can arrive here and collapse the parent after
+    // createChildItem opened it, detaching the reorder control mid-click.
+    await expect(page.getByTestId(`tree-item-${parent}`)).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByTestId(`tree-item-${second}`)).toBeVisible();
+
     // Move "second" up; order persists after reload.
     await page.getByRole("button", { name: `Move ${second} up` }).click();
     // Wait for the optimistic reorder to land before waiting for the queue to
@@ -95,6 +101,7 @@ test.describe("hierarchy organization (US1)", () => {
     // round trip to every mutation — real added latency, not a test artefact,
     // and the reason to move sealing inside the mutation transaction.
     await expect(page.getByTestId(`tree-item-${root}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(`tree-item-${root}`)).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible({ timeout: 15_000 });
     await waitForSynchronized(page);
   });

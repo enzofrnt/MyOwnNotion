@@ -123,9 +123,8 @@ export function HierarchyExplorer({
   // which is workable at ten items and unusable at a hundred.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // Guards the persistence effect below. Without it that effect can fire before
-  // the stored state has been read — a subscription refresh flips `loadState`
-  // to ready while `expanded` is still empty — and write the empty set back,
-  // erasing every open branch on the way in.
+  // the stored state has been read and write the empty set back, erasing every
+  // open branch on the way in.
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   /**
@@ -142,9 +141,12 @@ export function HierarchyExplorer({
   const closeTreeRef = useRef<() => void>(() => {});
 
   const refresh = useCallback(async () => {
-    setItems(await service.listActiveItems());
-    setTrashedItems(await service.listTrashedItems());
-    setLoadState("ready");
+    const [activeItems, trash] = await Promise.all([
+      service.listActiveItems(),
+      service.listTrashedItems(),
+    ]);
+    setItems(activeItems);
+    setTrashedItems(trash);
   }, [service]);
 
   useEffect(() => {
@@ -155,14 +157,22 @@ export function HierarchyExplorer({
       if ((await service.listActiveItems()).length === 0) {
         await service.seedFromServer();
       }
+      // Which branches were open is device ergonomics, not content: it lives
+      // in the local projection and never syncs. Restoring it is what makes
+      // returning to the workspace feel like returning (FR-014).
+      const navigation = await readNavigationState(service.db);
+      if (cancelled) {
+        return;
+      }
+      setExpanded(new Set(navigation.expandedItemIds));
+      setNavigationLoaded(true);
+      await refresh();
       if (!cancelled) {
-        // Which branches were open is device ergonomics, not content: it lives
-        // in the local projection and never syncs. Restoring it is what makes
-        // returning to the workspace feel like returning (FR-014).
-        const navigation = await readNavigationState(service.db);
-        setExpanded(new Set(navigation.expandedItemIds));
-        setNavigationLoaded(true);
-        await refresh();
+        // Subscription notifications can refresh the projection while the
+        // service initializes. The workspace must not become interactive until
+        // navigation hydration has also completed, or that late hydration can
+        // collapse a branch the owner has just opened.
+        setLoadState("ready");
       }
     })();
     const unsubscribe = service.subscribe(() => {
