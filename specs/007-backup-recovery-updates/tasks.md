@@ -23,12 +23,12 @@ migrates without one — and neither reports an error at the time.
 
 **Nothing in phases 3 to 6 can start until this phase is done.**
 
-- [ ] T003 Write migration `packages/database/migrations/0005_backups.sql` — `backups`, `backup_verifications`, `restoration_attempts`, idempotent and self-recording like `0004`
-- [ ] T004 Extend `packages/database/src/schema/index.ts` with the three tables, and say in a comment why verifications are rows rather than columns
-- [ ] T005 [P] `packages/domain/src/backup/archive-manifest.ts` — the manifest shape, its validation, and the digest rule; pure and total
-- [ ] T006 [P] `packages/domain/src/backup/compatibility.ts` — whether this installation can read a given backup, returning what to say when it cannot
-- [ ] T007 [P] `packages/domain/src/backup/retention.ts` — which backups may be deleted, given that a recent verified one must remain
-- [ ] T008 `apps/api/src/backup/destinations/destination.ts` — the three-method boundary, and `filesystem.ts` implementing it
+- [X] T003 Write migration `packages/database/migrations/0005_backups.sql` — `backups`, `backup_verifications`, `restoration_attempts`, idempotent and self-recording like `0004`
+- [X] T004 Extend `packages/database/src/schema/index.ts` with the three tables, and say in a comment why verifications are rows rather than columns
+- [X] T005 [P] `packages/domain/src/backup/archive-manifest.ts` — the manifest shape, its validation, and the digest rule; pure and total
+- [X] T006 [P] `packages/domain/src/backup/compatibility.ts` — whether this installation can read a given backup, returning what to say when it cannot
+- [X] T007 [P] `packages/domain/src/backup/retention.ts` — which backups may be deleted, given that a recent verified one must remain
+- [X] T008 `apps/api/src/backup/destinations/destination.ts` — the three-method boundary, and `filesystem.ts` implementing it
 
 **Checkpoint**: the pieces exist; nothing is user-visible yet.
 
@@ -46,8 +46,8 @@ restore, and this phase is what produces it.*
 
 ### Tests for User Story 2
 
-- [ ] T009 [P] [US2] Unit test in `packages/domain/tests/backup-manifest.spec.ts` — a manifest missing a digest, naming a file that is absent, or carrying content is refused
-- [ ] T010 [P] [US2] Unit test in `packages/domain/tests/retention.spec.ts` — the last verified backup is never deletable, whatever its age
+- [X] T009 [P] [US2] Unit test in `packages/domain/tests/backup-manifest.spec.ts` — a manifest missing a digest, naming a file that is absent, or carrying content is refused
+- [X] T010 [P] [US2] Unit test in `packages/domain/tests/retention.spec.ts` — the last verified backup is never deletable, whatever its age
 - [ ] T011 [P] [US2] Contract test in `apps/api/tests/backup-archive.contract.spec.ts` — a produced archive contains no seeded secret, session or key
 
 ### Implementation for User Story 2
