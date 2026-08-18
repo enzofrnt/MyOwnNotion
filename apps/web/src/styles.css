@@ -747,3 +747,82 @@ code,
     display: none;
   }
 }
+
+/* Conflict resolution (feature 006, FR-014, FR-015).
+
+   A table, because the data is a table: one row per part that diverged, one
+   column per version. A grid of divs would render the same and would tell a
+   screen reader nothing about which cell belongs to which version, which is the
+   only information this screen exists to convey. */
+.conflict-columns {
+  width: 100%;
+  border-collapse: collapse;
+  /* The three versions are prose and can be long. The table scrolls inside its
+     own container rather than pushing the page sideways. */
+  display: block;
+  overflow-x: auto;
+}
+
+.conflict-columns caption {
+  text-align: left;
+  padding-bottom: 0.5rem;
+}
+
+.conflict-columns th,
+.conflict-columns td {
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  vertical-align: top;
+  text-align: left;
+}
+
+.conflict-columns pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* Each version stays legible without becoming the whole screen. */
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.conflict-columns fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.conflict-columns legend {
+  padding: 0;
+}
+
+@media (max-width: 640px) {
+  /* Three columns do not exist at this width, and shrinking them to fit would
+     produce three unreadable strips. Each row becomes a stack, and the header
+     row is removed from view — every cell carries its own label instead, so the
+     version each one belongs to is never in doubt. */
+  .conflict-columns thead {
+    display: none;
+  }
+
+  .conflict-columns tr {
+    display: block;
+    border: 1px solid var(--border);
+    margin-bottom: 0.75rem;
+  }
+
+  .conflict-columns td {
+    display: block;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .conflict-columns td::before {
+    content: attr(data-column);
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+}

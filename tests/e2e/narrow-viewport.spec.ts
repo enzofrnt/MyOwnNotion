@@ -223,3 +223,23 @@ test.describe("the file surfaces at 320 pixels", () => {
     await expectNoHorizontalOverflow(page);
   });
 });
+
+/**
+ * The connection state and the resolution screen at 320 pixels (T042, feature 006).
+ *
+ * The resolution screen is the widest thing in this product: three versions of
+ * the same text side by side. At this width the columns stack and each cell
+ * carries its own label — see the media query in `styles.css`. What is asserted
+ * here is the consequence: the *page* still does not scroll sideways.
+ */
+test.describe("live synchronization on a phone (feature 006)", () => {
+  test("the connection state does not widen the page", async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await openNarrowWorkspace(page);
+    await expect(page.getByTestId("live-connection-state")).toBeVisible({ timeout: 15_000 });
+    // The sentence is long — "keeping your changes on this device until the
+    // connection returns" — which is exactly the kind of text that pushes a
+    // narrow layout sideways if it is not allowed to wrap.
+    await expectNoHorizontalOverflow(page);
+  });
+});

@@ -12,9 +12,9 @@
  */
 
 import { expect, test } from "./fixtures.ts";
-import { openWorkspace, uniqueName } from "./helpers.ts";
+import { apiOrigin, openWorkspace, uniqueName } from "./helpers.ts";
 
-const API = "http://127.0.0.1:3001";
+const API = apiOrigin();
 
 function metadata(filename: string): string {
   const encode = (value: string) => Buffer.from(value, "utf8").toString("base64");

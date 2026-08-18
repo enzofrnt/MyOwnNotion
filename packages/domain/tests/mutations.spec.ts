@@ -41,6 +41,11 @@ describe("typed mutation dispatch (T073)", () => {
         baseRevisionId: revisionId,
         document: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
       },
+      "document.resolve-conflict": {
+        itemId,
+        resolvedRevisionIds: [revisionId, generateUuidV7()],
+        document: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+      },
       "relationship.create": {
         id: generateUuidV7(),
         sourceItemId: itemId,
@@ -78,6 +83,20 @@ describe("typed mutation dispatch (T073)", () => {
       [
         "page.document.replace",
         { itemId: generateUuidV7(), baseRevisionId: generateUuidV7(), document: { format: "md" } },
+      ],
+      // A resolution of one revision with itself resolves nothing, and would
+      // write a two-parent revision whose parents are the same — a conflict that
+      // never existed, permanently in the history.
+      [
+        "document.resolve-conflict",
+        (() => {
+          const same = generateUuidV7();
+          return {
+            itemId: generateUuidV7(),
+            resolvedRevisionIds: [same, same],
+            document: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+          };
+        })(),
       ],
       ["relationship.create", { id: generateUuidV7(), sourceItemId: generateUuidV7() }],
       ["revision.restore", { revisionId: generateUuidV7() }],

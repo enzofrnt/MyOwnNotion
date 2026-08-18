@@ -20,6 +20,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures.ts";
 import {
+  apiOrigin,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -50,9 +51,9 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     await selectItem(page, name);
 
     const itemId = await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id");
-    const current = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
-    const seeded = await request.put(`http://127.0.0.1:3001/v1/pages/${itemId}/document`, {
+    const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
@@ -89,9 +90,9 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     await selectItem(page, name);
 
     const itemId = await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id");
-    const current = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
-    await request.put(`http://127.0.0.1:3001/v1/pages/${itemId}/document`, {
+    await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,

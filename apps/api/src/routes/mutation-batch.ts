@@ -13,8 +13,10 @@ import { parseMutationCommand, type Uuid } from "@myownnotion/domain";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { type ProblemBody, problemFromSafeError } from "../plugins/errors.ts";
-import { acceptedWriteGuards } from "../plugins/mutations.ts";
+import { acceptedWriteGuards, attributionFor } from "../plugins/mutations.ts";
+import { requireWriteProtocol } from "../plugins/protocol.ts";
 import { RotationWriteBlockedError } from "../security/rotation-policy-service.ts";
+import { announceCommitted } from "../sync/change-notifier.ts";
 
 interface BatchBody {
   mutations: Array<{
@@ -43,8 +45,26 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
       },
     },
     async (request) => {
+      // The whole batch, not each row. Every queued mutation comes from the
+      // same client at the same version, so a per-row check would ask the same
+      // question fifty times and answer it fifty times identically — and a
+      // partially accepted batch from a client that cannot write safely is the
+      // outcome the gate exists to prevent.
+      requireWriteProtocol(request);
+
       const body = request.body as BatchBody;
       const results: BatchResultDto[] = [];
+      /**
+       * The furthest position this batch reached (feature 006, FR-001).
+       *
+       * One announcement for the whole batch rather than one per mutation. A
+       * device that comes back from a day offline can flush fifty queued writes,
+       * and fifty notifications would ask every other device to fetch fifty
+       * times to arrive at the state the last one already describes. The
+       * position is cumulative, so the highest one says everything the others
+       * would have.
+       */
+      let furthestSequence: number | undefined;
 
       for (const queued of body.mutations) {
         const parsed = parseMutationCommand(queued.commandType, {
@@ -76,6 +96,11 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
               parsed.value,
               context.protectedContent,
               context.rotationPolicies,
+              // The device is attributed here too, and for the same reason the
+              // guards are: this is the route the browser uses for everything it
+              // queued, so an unattributed batch would leave most of an owner's
+              // history unable to say where the change came from.
+              attributionFor(request, queued.mutationId as Uuid),
             ),
           });
         } catch (error) {
@@ -98,6 +123,9 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
           });
           continue;
         }
+        if (outcome.committedSequence !== undefined) {
+          furthestSequence = Math.max(furthestSequence ?? 0, outcome.committedSequence);
+        }
         const result = outcome.result;
         results.push({
           mutationId: result.mutationId,
@@ -112,6 +140,7 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
         });
       }
 
+      announceCommitted(furthestSequence);
       return { results };
     },
   );

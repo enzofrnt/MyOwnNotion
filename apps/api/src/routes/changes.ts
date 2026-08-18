@@ -13,6 +13,7 @@ import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
+import { resolveProtectedContent } from "../security/content-resolution.ts";
 
 export function registerChangeRoutes(app: FastifyInstance, context: AppContext): void {
   app.get(
@@ -42,7 +43,15 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
         const itemIds = [
           ...new Set(changes.changes.flatMap((change) => change.changedItemIds)),
         ] as Uuid[];
-        const items = await readItems(tx, itemIds);
+        // Resolved, like every other read that returns content. This is the path
+        // a device uses to catch up, so unresolved bodies here mean a change
+        // arrives as a page that has gone blank — worse than not arriving,
+        // because the device then overwrites what it had with the blank.
+        const items = await resolveProtectedContent(
+          tx,
+          await readItems(tx, itemIds),
+          context.protectedContent,
+        );
         const itemsById = new Map(items.map((item) => [item.id, item]));
         return {
           changes: changes.changes.map((change) => ({

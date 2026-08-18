@@ -21,8 +21,10 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import type { AppContext } from "./context.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
+import { registerProtocolAnnouncement } from "./plugins/protocol.ts";
 import { registerAuthenticationRoutes } from "./routes/authentication.ts";
 import { registerBootstrapRoutes } from "./routes/bootstrap.ts";
+import { registerChangeStreamRoutes } from "./routes/change-stream.ts";
 import { registerChangeRoutes } from "./routes/changes.ts";
 import { registerDeviceRoutes } from "./routes/devices.ts";
 import { registerExportRoutes } from "./routes/export.ts";
@@ -184,6 +186,13 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   /** Set with the rest of the security layer; absent leaves feature-001 alone. */
   let rotationPolicies: RotationPolicyService | undefined;
   let keyHierarchy: KeyHierarchy | undefined;
+  /**
+   * Set with the rest of the security layer (feature 006).
+   *
+   * The change stream consults it to refuse a revoked device, so revocation is
+   * enforced by the server rather than by asking the client to stop.
+   */
+  let devices: DeviceService | undefined;
 
   const context: AppContext = {
     db: database.db,
@@ -198,6 +207,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       // A getter, because the security block that assigns it runs after this
       // object is built and the content routes read it per request.
       return protectedContent;
+    },
+    get devices() {
+      return devices;
     },
   };
 
@@ -218,6 +230,10 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   });
 
   registerErrorHandling(app);
+  // Before any route, so the version is on every response including the ones
+  // that fail (T007, FR-017). A client that only ever sees errors still needs
+  // to learn it is the one that is out of date.
+  registerProtocolAnnouncement(app);
   registerHealthRoutes(app, context);
 
   // Security surface. `loadSecurityConfig` throws on an incoherent
@@ -442,8 +458,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       require: requireOwner,
     });
 
+    devices = new DeviceService({ db: database.db, now });
     registerDeviceRoutes(app, {
-      devices: new DeviceService({ db: database.db, now }),
+      devices,
       audit,
       installationId: INSTALLATION_ID,
       require: requireOwner,
@@ -512,6 +529,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   registerRelationshipRoutes(app, context);
   registerRevisionRoutes(app, context);
   registerChangeRoutes(app, context);
+  registerChangeStreamRoutes(app, context);
   registerSnapshotRoutes(app, context);
   registerMutationBatchRoutes(app, context);
   registerExportRoutes(app, context);

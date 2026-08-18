@@ -23,6 +23,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures.ts";
 import {
+  apiOrigin,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -171,7 +172,7 @@ test.describe("a block this client does not recognise", () => {
     const name = uniqueName("UnknownBlockPage");
     const itemId = await openPage(page, name);
 
-    const current = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
 
     const unknownBlock = {
@@ -180,7 +181,7 @@ test.describe("a block this client does not recognise", () => {
       columns: ["todo", "doing"],
       nested: { deep: [1, 2, 3] },
     };
-    const seeded = await request.put(`http://127.0.0.1:3001/v1/pages/${itemId}/document`, {
+    const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
@@ -217,7 +218,7 @@ test.describe("a block this client does not recognise", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
 
-    const after = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const after = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const body = (await after.json()) as {
       pageDocument: { body: { blocks: Record<string, unknown>[] } };
     };
@@ -236,10 +237,10 @@ test.describe("a page written before the block editor existed", () => {
     const name = uniqueName("LegacyPage");
     const itemId = await openPage(page, name);
 
-    const current = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
     const legacyBody = { text: "written by an older client", count: 3 };
-    const seeded = await request.put(`http://127.0.0.1:3001/v1/pages/${itemId}/document`, {
+    const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
@@ -262,7 +263,7 @@ test.describe("a page written before the block editor existed", () => {
     await expect(page.getByTestId("legacy-document-body")).toContainText("older client");
 
     // Nothing was written merely by looking at it: the head has not moved.
-    const afterOpen = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const afterOpen = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const afterHead = ((await afterOpen.json()) as { currentRevisionId: string }).currentRevisionId;
     if (seededHead !== undefined) {
       expect(afterHead).toBe(seededHead);

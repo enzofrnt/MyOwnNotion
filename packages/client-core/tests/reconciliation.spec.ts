@@ -116,7 +116,15 @@ class FakeTransport implements ReconcileTransport {
         };
       }
       const conflict = this.conflictIds.get(mutation.mutationId);
-      if (conflict !== undefined) {
+      // A stale base, and only while it *is* stale. The real server accepts a
+      // resubmission once its base names the current head, which is exactly what
+      // the automatic merge does before requeuing — a double that refused
+      // regardless of base would make a correct merge look like a failed one.
+      const rebasedOntoHead =
+        conflict !== undefined &&
+        conflict.length > 0 &&
+        conflict.every((revisionId) => mutation.baseRevisionIds.includes(revisionId));
+      if (conflict !== undefined && !rebasedOntoHead) {
         return {
           mutationId: mutation.mutationId,
           status: "conflict" as const,
@@ -163,6 +171,25 @@ class FakeTransport implements ReconcileTransport {
       return { ok: false as const, offline: true };
     }
     return { ok: true as const, value: this.snapshot };
+  }
+
+  /**
+   * Revision snapshots the automatic merge reads (feature 006).
+   *
+   * Absent by default, and that absence is itself behaviour worth having: a
+   * transport without this method attempts no merge and records a conflict, which
+   * is what every test written before the merge existed relies on.
+   */
+  revisions = new Map<string, Record<string, unknown> | null>();
+
+  async getRevision(revisionId: Uuid) {
+    if (!this.revisions.has(revisionId)) {
+      return { ok: false as const, offline: false };
+    }
+    return {
+      ok: true as const,
+      value: { snapshot: this.revisions.get(revisionId) } as never,
+    };
   }
 }
 
@@ -334,5 +361,173 @@ describe("reconciliation (T044)", () => {
     // The mutation was accepted before catch-up, so it is no longer queued,
     // but nothing was lost: it is acknowledged, not dropped.
     expect(transport.acceptedIds.has(pending)).toBe(true);
+  });
+});
+
+/**
+ * Merging instead of asking (T025, FR-013).
+ *
+ * The point of these two is the difference between them. Both are refusals from
+ * the server for the same reason — the base is no longer the head — and only one
+ * of them is a question for the owner. Getting that wrong in either direction has
+ * a cost: asking about every reconnection teaches somebody that the question is
+ * noise, and merging a genuine divergence decides on their behalf.
+ */
+describe("the automatic merge (feature 006)", () => {
+  const BLOCK_A = "01a10000-0000-7000-8000-0000000b100a";
+  const BLOCK_B = "01a10000-0000-7000-8000-0000000b100b";
+
+  function body(blocks: Array<{ id: string; text: string }>) {
+    return {
+      blocks: blocks.map((block) => ({
+        id: block.id,
+        type: "paragraph",
+        content: [{ text: block.text }],
+      })),
+    };
+  }
+
+  /** Queues an edit whose base the server will report as stale. */
+  async function enqueueEdit(
+    itemId: Uuid,
+    baseRevisionId: Uuid,
+    blocks: Array<{ id: string; text: string }>,
+  ): Promise<Uuid> {
+    const mutationId = generateUuidV7();
+    const result = await applyLocalMutation(
+      db,
+      {
+        mutationId,
+        commandType: "page.document.replace",
+        payload: {
+          itemId,
+          baseRevisionId,
+          document: {
+            format: "myownnotion.document+json",
+            formatVersion: 1,
+            body: body(blocks),
+          },
+          pageLinkTargetIds: [],
+        },
+        baseRevisionIds: [baseRevisionId],
+      },
+      () => new Date(),
+      codec,
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    return mutationId;
+  }
+
+  async function pageWithBody(blocks: Array<{ id: string; text: string }>): Promise<Uuid> {
+    const itemId = generateUuidV7();
+    const created = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.create",
+        payload: {
+          id: itemId,
+          kind: "page",
+          name: "Merged",
+          placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 1,
+            body: body(blocks),
+          },
+        },
+        baseRevisionIds: [],
+      },
+      () => new Date(),
+      codec,
+    );
+    expect(created.ok).toBe(true);
+    return itemId;
+  }
+
+  it("requeues the merged edit when the two sides touched different blocks", async () => {
+    const ancestorId = generateUuidV7();
+    const remoteId = generateUuidV7();
+    const itemId = await pageWithBody([{ id: BLOCK_A, text: "one" }]);
+    // Local added B; remote edited A. Nothing is contested.
+    const mutationId = await enqueueEdit(itemId, ancestorId, [
+      { id: BLOCK_A, text: "one" },
+      { id: BLOCK_B, text: "added locally" },
+    ]);
+
+    const transport = new FakeTransport();
+    transport.conflictIds.set(mutationId, [remoteId]);
+    transport.revisions.set(ancestorId, {
+      pageDocument: { body: body([{ id: BLOCK_A, text: "one" }]) },
+    });
+    transport.revisions.set(remoteId, {
+      pageDocument: { body: body([{ id: BLOCK_A, text: "edited remotely" }]) },
+    });
+
+    const outcome = await reconcile(db, transport, codec);
+
+    // Nothing to ask about, and nothing left queued: the merged edit was rebased
+    // onto the head that refused it and accepted on the next submission within
+    // the same pass.
+    expect(outcome.conflicts).toBe(0);
+    expect(await db.conflicts.count()).toBe(0);
+    expect(await db.outbox.get(mutationId)).toBeUndefined();
+
+    // And what reached the server carried both sides. Asserting the outcome
+    // alone would pass for a merge that quietly dropped one of them, which is
+    // the failure worth catching.
+    const resubmitted = transport.submissions
+      .flat()
+      .filter((submitted) => submitted.mutationId === mutationId);
+    const last = resubmitted[resubmitted.length - 1];
+    expect(last?.baseRevisionIds).toEqual([remoteId]);
+    expect(JSON.stringify(last?.payload)).toContain("edited remotely");
+    expect(JSON.stringify(last?.payload)).toContain("added locally");
+  });
+
+  it("records a conflict when both sides changed the same block", async () => {
+    const ancestorId = generateUuidV7();
+    const remoteId = generateUuidV7();
+    const itemId = await pageWithBody([{ id: BLOCK_A, text: "original" }]);
+    const mutationId = await enqueueEdit(itemId, ancestorId, [
+      { id: BLOCK_A, text: "written here" },
+    ]);
+
+    const transport = new FakeTransport();
+    transport.conflictIds.set(mutationId, [remoteId]);
+    transport.revisions.set(ancestorId, {
+      pageDocument: { body: body([{ id: BLOCK_A, text: "original" }]) },
+    });
+    transport.revisions.set(remoteId, {
+      pageDocument: { body: body([{ id: BLOCK_A, text: "written there" }]) },
+    });
+
+    const outcome = await reconcile(db, transport, codec);
+
+    // The owner decides. A merge here would pick a winner between two people's
+    // words, which no rule can do without being wrong half the time.
+    expect(outcome.conflicts).toBe(1);
+    expect(await db.conflicts.count()).toBe(1);
+  });
+
+  it("records a conflict when the common ancestor is no longer retained", async () => {
+    const ancestorId = generateUuidV7();
+    const remoteId = generateUuidV7();
+    const itemId = await pageWithBody([{ id: BLOCK_A, text: "original" }]);
+    const mutationId = await enqueueEdit(itemId, ancestorId, [
+      { id: BLOCK_A, text: "written here" },
+    ]);
+
+    const transport = new FakeTransport();
+    transport.conflictIds.set(mutationId, [remoteId]);
+    // The ancestor's snapshot passed its retention window: only the remote is
+    // readable. Without the common state there is no three-way comparison, and
+    // guessing would be guessing about somebody's words.
+    transport.revisions.set(remoteId, {
+      pageDocument: { body: body([{ id: BLOCK_A, text: "written there" }]) },
+    });
+
+    const outcome = await reconcile(db, transport, codec);
+    expect(outcome.conflicts).toBe(1);
   });
 });

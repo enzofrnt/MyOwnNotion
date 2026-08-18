@@ -15,8 +15,32 @@ interface RevisionView {
   id: string;
   parentRevisionIds: string[];
   acceptedAt: string;
+  /** Which device, when the server knows — see `describeAuthor` below. */
+  authoredByDeviceId?: string | null;
+  authoredByDeviceName?: string | null;
+  changeNature?: string;
   snapshotRetained: boolean;
   snapshot: Record<string, unknown> | null;
+}
+
+/**
+ * How a device is named in a history entry (FR-022).
+ *
+ * Three cases, and the third is the one worth being careful about. A named
+ * device reads as its name. A device the owner has since deleted has an
+ * identifier and no name, so the identifier is shown — it is not friendly, but
+ * it distinguishes two deleted devices from each other, which "unknown device"
+ * would not. A revision written before attribution existed has neither, and says
+ * so plainly rather than borrowing the name of whoever is looking.
+ */
+function describeAuthor(revision: RevisionView): string {
+  if (typeof revision.authoredByDeviceName === "string" && revision.authoredByDeviceName !== "") {
+    return revision.authoredByDeviceName;
+  }
+  if (typeof revision.authoredByDeviceId === "string") {
+    return `a device that has since been removed (${revision.authoredByDeviceId})`;
+  }
+  return "an unrecorded device";
 }
 
 export function RevisionRestore({
@@ -105,11 +129,24 @@ export function RevisionRestore({
       </div>
       {preview !== null ? (
         <div data-testid="revision-preview">
+          {/* Date, device and nature, in that order and in one sentence: they
+              are the three things an owner needs to recognise an entry, and
+              splitting them across three lines makes a list of entries harder
+              to scan rather than easier. */}
+          <p className="muted" data-testid="revision-attribution">
+            {preview.changeNature ?? "changed"} on {preview.acceptedAt} from{" "}
+            {describeAuthor(preview)}
+          </p>
           <p className="muted">
-            Accepted {preview.acceptedAt} — parents:{" "}
+            Parents:{" "}
             {preview.parentRevisionIds.length === 0
               ? "none (creation)"
               : preview.parentRevisionIds.join(", ")}
+            {/* Two parents is not a curiosity: it is where two devices' work
+                rejoined, and it is the evidence that both originals were kept. */}
+            {preview.parentRevisionIds.length > 1
+              ? " — this revision joined two versions, and both remain reachable through it"
+              : ""}
           </p>
           <pre className="muted" data-testid="revision-snapshot">
             {JSON.stringify(preview.snapshot, null, 2)}

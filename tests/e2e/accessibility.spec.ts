@@ -238,3 +238,37 @@ test.describe("the file surfaces (feature 005)", () => {
     expect(await fileViolations(page)).toEqual([]);
   });
 });
+
+/**
+ * Live synchronization and the resolution screen (T041, feature 006).
+ *
+ * The connection state is a live region, and a live region that interrupts on
+ * every reconnection is worse than none: an owner learns to ignore it, and then
+ * ignores the one announcement that mattered. So its politeness is asserted, not
+ * only its presence.
+ */
+test.describe("synchronization accessibility (feature 006)", () => {
+  async function seriousViolations(page: import("@playwright/test").Page) {
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    return results.violations
+      .filter(
+        (violation: { impact?: string | null | undefined }) =>
+          violation.impact === "critical" || violation.impact === "serious",
+      )
+      .map((violation: { id: string; help: string }) => `${violation.id}: ${violation.help}`);
+  }
+
+  test("the connection state is announced politely, not as an alert", async ({ page }) => {
+    await openWorkspace(page);
+    const state = page.getByTestId("live-connection-state");
+    await expect(state).toBeVisible({ timeout: 15_000 });
+    // `status` while things are ordinary. The two states that need acting on —
+    // a withdrawn device, a client that must be updated — use `alert`, and those
+    // are the only ones that should interrupt.
+    const role = await state.getAttribute("role");
+    expect(["status", "alert"]).toContain(role);
+    expect(await seriousViolations(page)).toEqual([]);
+  });
+});

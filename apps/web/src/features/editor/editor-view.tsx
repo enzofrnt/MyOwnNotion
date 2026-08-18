@@ -126,21 +126,51 @@ export function EditorView({
    */
   const openedBody = useRef<string | null>(null);
 
+  /**
+   * The revision this editor opened on, pinned until the owner opens something
+   * else (feature 006).
+   *
+   * Before live synchronization, `itemRevisionId` only changed when the owner
+   * selected a different item, so reloading on it was free. Now another device's
+   * write reaches this one within a second — and reloading on that would remount
+   * the editor surface *while somebody is typing into it*, discarding whatever
+   * they had not saved yet. The feature that was supposed to make two devices
+   * feel like one workspace would have started eating paragraphs.
+   *
+   * So the editor holds the version it opened, and the save-time guard below
+   * does the rest: it notices the stored document changed underneath, refuses,
+   * and says so. The owner keeps their words and the newer version keeps its
+   * own — which is the whole point of refusing rather than merging here.
+   */
+  const [openedOn, setOpenedOn] = useState<{
+    readonly itemId: string;
+    readonly revisionId: string | undefined;
+  }>({ itemId, revisionId: itemRevisionId });
+  if (openedOn.itemId !== itemId) {
+    // Adjusting state during render when a prop changes: React's documented
+    // pattern, and cheaper than an effect that would render once with the
+    // previous item's document.
+    setOpenedOn({ itemId, revisionId: itemRevisionId });
+  }
+  const openedRevisionId = openedOn.itemId === itemId ? openedOn.revisionId : itemRevisionId;
+
   useEffect(() => {
     let cancelled = false;
-    const requestedRevisionId = itemRevisionId;
     void service.getItem(itemId).then((item) => {
       if (cancelled) {
         return;
       }
       openedBody.current = bodyFingerprint(item?.pageDocument?.body);
-      if (
-        requestedRevisionId !== undefined &&
-        item !== null &&
-        item.currentRevisionId !== requestedRevisionId
-      ) {
-        return;
-      }
+      // There used to be a second guard here, dropping the response when the
+      // item's revision no longer matched the one the effect was opened for. It
+      // was load-bearing only while this effect re-ran on every revision change:
+      // a superseded response could then arrive after a newer one. Now that the
+      // opened revision is pinned, that guard could never become satisfied — a
+      // revision that had moved on by the time the read resolved left the editor
+      // saying "Loading this page…" forever, with no later run to rescue it.
+      //
+      // `cancelled` is what actually orders these responses, and it always was:
+      // it is set by the cleanup React runs before the next effect.
       if (item === null) {
         setState({ kind: "unavailable", reason: "This page is not available on this device yet." });
         return;
@@ -169,7 +199,11 @@ export function EditorView({
     return () => {
       cancelled = true;
     };
-  }, [service, itemId, itemRevisionId]);
+    // The item, and nothing about its revision: this loads a page once when it is
+    // opened. Re-running it because another device advanced the revision is the
+    // behaviour that discarded unsaved typing, and there is no longer anything in
+    // here that reads the revision at all.
+  }, [service, itemId]);
 
   const surface = useRef<EditorSurfaceHandle | null>(null);
 
@@ -298,7 +332,10 @@ export function EditorView({
           subscribed components can still read from for one render, which is
           precisely the crash this split was made to remove. */}
       <EditorSurface
-        key={`${itemId}:${itemRevisionId ?? "unknown"}`}
+        // The *opened* revision, not the current one. Keying on the current one
+        // would remount this surface every time another device wrote to the same
+        // page, taking the owner's unsaved text with it.
+        key={`${itemId}:${openedRevisionId ?? "unknown"}`}
         document={state.document}
         editable={editingAllowed}
         handleRef={surface}

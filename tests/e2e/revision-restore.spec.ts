@@ -3,6 +3,7 @@
  */
 import { expect, test } from "./fixtures.ts";
 import {
+  apiOrigin,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -46,6 +47,14 @@ test.describe("revision history (US5)", () => {
     page,
     request,
   }) => {
+    // The stream is cut before anything else, because this journey is about a
+    // head that is stale *in the interface*. With live synchronization a
+    // connected tab hears the competing edit below within a second and stops
+    // being stale, which is an improvement and not what is under test here.
+    // Cutting only the stream leaves every other request working, so the restore
+    // still reaches the server and is refused for the reason it should be.
+    await page.route("**/v1/changes/stream", (route) => route.abort("connectionrefused"));
+
     await openWorkspace(page);
     const pageName = uniqueName("StaleHeadPage");
     await createRootItem(page, "page", pageName);
@@ -67,9 +76,9 @@ test.describe("revision history (US5)", () => {
     await expect(page.getByTestId("revision-preview")).toBeVisible();
 
     // Another device advances the head between preview and restore.
-    const current = await request.get(`http://127.0.0.1:3001/v1/items/${itemId}`);
+    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const currentBody = (await current.json()) as { currentRevisionId: string };
-    const competing = await request.put(`http://127.0.0.1:3001/v1/pages/${itemId}/document`, {
+    const competing = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { "idempotency-key": crypto.randomUUID() },
       data: {
         baseRevisionId: currentBody.currentRevisionId,

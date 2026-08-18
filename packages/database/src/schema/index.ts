@@ -308,6 +308,14 @@ export const revisions = pgTable(
       .notNull()
       .references(() => mutations.id),
     acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Which device wrote this (feature 006, FR-022).
+     *
+     * Nullable because revisions written before this feature have no device to
+     * name, and a default would put a false statement in a history the owner
+     * reads. "Device unknown" is honest; a guess is worse than silence.
+     */
+    authoredByDeviceId: uuid("authored_by_device_id"),
     snapshot: jsonb("snapshot"),
     snapshotExpiresAt: timestamp("snapshot_expires_at", { withTimezone: true }),
     lineageDigest: text("lineage_digest").notNull(),

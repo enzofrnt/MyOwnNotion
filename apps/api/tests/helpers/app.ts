@@ -24,6 +24,14 @@ export interface ApiHarnessOptions {
    */
   readonly security?: BuildAppOptions["security"];
   readonly now?: BuildAppOptions["now"];
+  /**
+   * Turns the server log back on for one suite.
+   *
+   * Off by default because a passing suite's log is noise. Worth having as a
+   * switch: a redacted 500 is deliberately uninformative to the caller, so
+   * without this the only way to see why one happened is to edit this helper.
+   */
+  readonly logger?: boolean;
 }
 
 export async function createApiHarness(options: ApiHarnessOptions = {}): Promise<ApiHarness> {
@@ -32,7 +40,7 @@ export async function createApiHarness(options: ApiHarnessOptions = {}): Promise
   const built = await buildApp({
     databaseUrl: postgres.connectionString,
     blobRoot,
-    logger: false,
+    logger: options.logger ?? false,
     ...(options.security === undefined ? {} : { security: options.security }),
     ...(options.now === undefined ? {} : { now: options.now }),
   });

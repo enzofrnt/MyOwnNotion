@@ -9,6 +9,7 @@
  */
 
 import {
+  attributeRevisionsToDevice,
   type Database,
   readItem,
   readItemName,
@@ -20,8 +21,26 @@ import {
 import { isUuid, type MutationCommand, type Uuid } from "@myownnotion/domain";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { ProtectedContent } from "../security/protected-content.ts";
+import { requestContext } from "../security/request-context.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
+import { announceCommitted } from "../sync/change-notifier.ts";
 import { sendProblem } from "./errors.ts";
+import { requireWriteProtocol } from "./protocol.ts";
+
+/**
+ * The attribution to record for this request, if it has one (FR-022).
+ *
+ * Returns `undefined` for an anonymous request rather than inventing a device.
+ * A history entry reading "device unknown" is honest; one that guesses is worse
+ * than silence, and this is the only place that decides which it is.
+ */
+export function attributionFor(
+  request: FastifyRequest,
+  mutationId: Uuid,
+): { readonly mutationId: Uuid; readonly deviceId: string } | undefined {
+  const principal = requestContext(request).principal;
+  return principal.kind === "owner" ? { mutationId, deviceId: principal.deviceId } : undefined;
+}
 
 export function mutationIdFrom(request: FastifyRequest): Uuid | null {
   const header = request.headers["idempotency-key"];
@@ -66,7 +85,11 @@ async function sealPayloads(
     await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot });
   }
 
-  if (command.type === "page.document.replace") {
+  if (command.type === "page.document.replace" || command.type === "document.resolve-conflict") {
+    // A resolution writes a page body exactly as an edit does, so it is sealed
+    // by the same branch. Sealing is about what a command *stored*, never about
+    // why it stored it — and a resolution left out of this list would be the one
+    // write that commits an owner's words in the clear.
     await protectedContent.writePageBody(tx, {
       pageId: command.itemId,
       recordVersion: 1,
@@ -121,10 +144,21 @@ export function acceptedWriteGuards(
   command: MutationCommand,
   protectedContent: ProtectedContent | undefined,
   rotationPolicies: RotationPolicyService | undefined,
+  /**
+   * Which mutation this is and which device is writing it (FR-022).
+   *
+   * The device comes from the request's principal, never from the payload: a
+   * history whose author the client could choose is a history an owner cannot
+   * trust, and being trusted is the only thing a history is for. Absent for an
+   * anonymous request and for the feature-001 harness, which has no devices —
+   * and "device unknown" is then recorded honestly as null.
+   */
+  attribution?: { readonly mutationId: Uuid; readonly deviceId: string } | undefined,
 ) {
-  if (protectedContent === undefined) {
+  if (protectedContent === undefined && attribution === undefined) {
     // Feature-001 harnesses build an app with no security layer at all and must
-    // keep writing; there is nothing to seal and no policy to consult.
+    // keep writing; there is nothing to seal, no policy to consult, and no
+    // device to name.
     return {};
   }
   return {
@@ -132,6 +166,12 @@ export function acceptedWriteGuards(
       tx: Transaction,
       accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
     ) => {
+      if (attribution !== undefined) {
+        await attributeRevisionsToDevice(tx, attribution);
+      }
+      if (protectedContent === undefined) {
+        return;
+      }
       // Throws, so the whole mutation rolls back: a refused write leaves
       // neither content nor envelope behind.
       await rotationPolicies?.assertWritesAllowed(tx);
@@ -168,6 +208,12 @@ export async function handleMutation(input: {
    */
   readonly rotationPolicies?: RotationPolicyService | undefined;
 }): Promise<FastifyReply> {
+  // Before anything is read or written. A client too old to write safely is
+  // refused with the version it needs (FR-018), and refusing here rather than
+  // inside the transaction means the refusal costs nothing and cannot leave a
+  // partial write behind.
+  requireWriteProtocol(input.request);
+
   const mutationId = mutationIdFrom(input.request);
   if (mutationId === null) {
     return sendProblem(input.reply, {
@@ -189,8 +235,17 @@ export async function handleMutation(input: {
     // Sealing happens inside the mutation's transaction. Content and its
     // envelope commit together or neither does, and there is no second round
     // trip on the request path.
-    ...acceptedWriteGuards(command, protectedContent, input.rotationPolicies),
+    ...acceptedWriteGuards(
+      command,
+      protectedContent,
+      input.rotationPolicies,
+      attributionFor(input.request, mutationId),
+    ),
   });
+
+  // After the transaction returned, which is the only moment a device can be
+  // told to read and find the change there (feature 006, FR-001).
+  announceCommitted(outcome.committedSequence);
 
   const { result } = outcome;
   if (result.status === "accepted" || result.status === "already-accepted") {

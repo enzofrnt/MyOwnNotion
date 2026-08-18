@@ -29,6 +29,7 @@ export const COMMAND_TYPES = [
   "placement.remove",
   "file.placement.add",
   "page.document.replace",
+  "document.resolve-conflict",
   "relationship.create",
   "relationship.remove",
   "revision.restore",
@@ -104,6 +105,27 @@ export type MutationCommand =
       readonly type: "page.document.replace";
       readonly itemId: Uuid;
       readonly baseRevisionId: Uuid;
+      readonly document: PageDocument;
+      readonly pageLinkTargetIds?: readonly Uuid[];
+    }
+  /**
+   * The owner's resolution of a genuine divergence (feature 006, FR-014, FR-016).
+   *
+   * Distinct from `page.document.replace` for one reason that matters: it names
+   * *both* revisions it resolves, and the revision it produces descends from
+   * both. That is what makes "the original versions are kept" a property of the
+   * lineage rather than a retention policy someone has to honour — neither source
+   * is rewritten, and both stay reachable as ancestors forever.
+   *
+   * It is also why this is not a replace with extra arguments. A replace has one
+   * parent, so recording the second would be recording it somewhere the lineage
+   * does not look.
+   */
+  | {
+      readonly type: "document.resolve-conflict";
+      readonly itemId: Uuid;
+      /** Both conflicting revisions, in no significant order. */
+      readonly resolvedRevisionIds: readonly [Uuid, Uuid];
       readonly document: PageDocument;
       readonly pageLinkTargetIds?: readonly Uuid[];
     }
@@ -334,6 +356,42 @@ export function parseMutationCommand(
         baseRevisionId,
         document,
         ...(rawTargets !== undefined ? { pageLinkTargetIds: pageLinkTargetIds as Uuid[] } : {}),
+      });
+    }
+    case "document.resolve-conflict": {
+      const itemId = requireUuid(payload, "itemId");
+      const document = parsePageDocument(payload["document"]);
+      const rawResolved = payload["resolvedRevisionIds"];
+      if (itemId === null || document === null || !Array.isArray(rawResolved)) {
+        return invalid();
+      }
+      // Exactly two, and distinct. One would be an ordinary edit wearing this
+      // command's name; three would be a shape nothing produces and nothing
+      // reads. And a "resolution" of a revision with itself resolves nothing —
+      // accepting it would write a two-parent revision whose parents are the
+      // same, which reads in the history as a conflict that never existed.
+      const resolved = rawResolved.map((value) => (isUuid(value) ? value : null));
+      if (
+        resolved.length !== 2 ||
+        resolved.some((value) => value === null) ||
+        resolved[0] === resolved[1]
+      ) {
+        return invalid();
+      }
+      const rawTargets = payload["pageLinkTargetIds"];
+      if (rawTargets !== undefined && !Array.isArray(rawTargets)) {
+        return invalid();
+      }
+      const targets = (rawTargets ?? []).map((target) => (isUuid(target) ? target : null));
+      if (targets.some((target) => target === null)) {
+        return invalid();
+      }
+      return ok({
+        type: "document.resolve-conflict",
+        itemId,
+        resolvedRevisionIds: [resolved[0], resolved[1]] as [Uuid, Uuid],
+        document,
+        ...(rawTargets !== undefined ? { pageLinkTargetIds: targets as Uuid[] } : {}),
       });
     }
     case "relationship.create": {

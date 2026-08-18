@@ -35,6 +35,14 @@ export interface RevisionHeader {
   readonly mutationId: Uuid;
   readonly parentRevisionIds: ReadonlyArray<Uuid>;
   readonly acceptedAt: string;
+  /**
+   * Which device wrote this, or null when there is nothing to say (FR-022).
+   *
+   * Null for every revision written before device attribution existed. Reported
+   * as unknown rather than attributed to a guess, because a history that invents
+   * an author is worse than one that admits a gap.
+   */
+  readonly authoredByDeviceId?: Uuid | null;
 }
 
 export interface RevisionWithSnapshot extends RevisionHeader {
