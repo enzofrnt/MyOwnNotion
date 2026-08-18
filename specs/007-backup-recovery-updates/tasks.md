@@ -75,7 +75,7 @@ manifest.
 
 ### Tests for User Story 1
 
-- [ ] T021 [P] [US1] Integration test in `packages/database/tests/restore.integration.spec.ts` — every item, file, relationship and revision the manifest lists is present after a restore
+- [X] T021 [P] [US1] Integration test in `packages/database/tests/restore.integration.spec.ts` — every item, file, relationship and revision the manifest lists is present after a restore
 - [X] T022 [P] [US1] Contract test in `apps/api/tests/restore-guards.spec.ts` — the six pre-flight steps run in order and the first failure stops before any write
 
 ### Implementation for User Story 1
@@ -100,12 +100,12 @@ data is untouched.
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Integration test in `packages/database/tests/restore.integration.spec.ts` — a rehearsal leaves the live workspace byte-identical
-- [ ] T030 [P] [US3] Unit test that a rehearsal never opens the live database at all, which is what makes FR-018 structural
+- [X] T029 [P] [US3] Integration test in `packages/database/tests/restore.integration.spec.ts` — a rehearsal leaves the live workspace byte-identical
+- [X] T030 [P] [US3] Unit test that a rehearsal never opens the live database at all, which is what makes FR-018 structural
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Restore into a disposable database and drop it afterwards, reusing the harness that already creates them
+- [X] T031 [US3] Restore into a disposable database and drop it afterwards, reusing the harness that already creates them
 - [ ] T032 [US3] `apps/api/src/admin/commands/restore-test.ts` — the safe rehearsal, needing no confirmation
 - [ ] T033 [P] [US3] `apps/web/src/features/backup/restore-rehearsal.tsx` — the date, the result, the invitation after a month, and no secret
 - [ ] T034 [P] [US3] Playwright journey in `tests/e2e/backup.spec.ts` — a rehearsal is offered, run, and its result shown
@@ -124,14 +124,14 @@ confirm no migration ran.
 ### Tests for User Story 4
 
 - [ ] T035 [P] [US4] Integration test in `packages/database/tests/update-guard.integration.spec.ts` — a failed backup verification stops the migration, and the schema is unchanged
-- [ ] T036 [P] [US4] Contract test in `apps/api/tests/version-inspect.spec.ts` — the command reports the versions, the pending migration and whether a verified backup exists
+- [X] T036 [P] [US4] Contract test in `apps/api/tests/version-inspect.spec.ts` — the command reports the versions, the pending migration and whether a verified backup exists
 
 ### Implementation for User Story 4
 
-- [ ] T037 [US4] `apps/api/src/backup/update-guard.ts` — detect the version change at startup, before the migrator
-- [ ] T038 [US4] Take a `pre-update` backup associated with the version being left, verify it, and refuse to migrate when either fails
-- [ ] T039 [US4] Retain what is needed to return: the previous image, the previous format when reversible, and the matching backup (FR-025)
-- [ ] T040 [US4] Report an update as successful only after health and integrity checks both pass (FR-026)
+- [X] T037 [US4] `apps/api/src/backup/update-guard.ts` — detect the version change at startup, before the migrator
+- [X] T038 [US4] Take a `pre-update` backup associated with the version being left, verify it, and refuse to migrate when either fails
+- [X] T039 [US4] Retain what is needed to return: the previous image, the previous format when reversible, and the matching backup (FR-025)
+- [X] T040 [US4] Report an update as successful only after health and integrity checks both pass (FR-026)
 - [ ] T041 [P] [US4] `apps/api/src/admin/commands/version-inspect.ts`
 
 **Checkpoint**: the most dangerous operation this product performs has a net under it.
