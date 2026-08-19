@@ -18,9 +18,10 @@ the external reverse-proxy boundary, the CI quality gate and its named script
 inventory, GHCR publication of immutable commit-addressable images, and the
 immutable release foundation.
 
-**Feature 007 owns only** final V1 release-readiness hardening and validation.
-It does not re-specify or duplicate the baseline above. A row belonging to that
-baseline is evidenced here, not in feature 007.
+**Feature 007 owns** backup, recovery, update safeguards, and their operational
+validation. **Feature 008 owns** protected private search indexes. Neither
+feature re-specifies or duplicates the baseline above. A row belonging to that
+baseline is evidenced here, not in either later feature.
 
 **Feature 001 remains the identity authority.** The canonical workspace,
 content items, revisions, and file contents keep their existing IDs. Security
@@ -689,7 +690,7 @@ publish.
 | --- | --- | --- | --- | --- | --- | --- |
 | FR-032/SC-007 | Immutable Compose image selection and compatible prior-image rollback inspection |  |  | Current/prior refs and digests, pre/post data digests, health, rollback result |  | `pending` |
 
-Backup scheduling, backup transfer, and general restore orchestration are
-excluded and remain owned by feature 006. Final V1 cross-feature hardening and
-validation remain owned by feature 007; this ledger covers feature 002's
+Backup scheduling, backup transfer, general restore orchestration, and update
+safeguards are excluded and remain owned by feature 007. Protected private
+search indexes remain owned by feature 008; this ledger covers feature 002's
 baseline secure delivery foundation only.

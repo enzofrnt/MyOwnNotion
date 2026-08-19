@@ -60,7 +60,7 @@ the canvas's reference set.
 | V. Simple, modular architecture | pass | No new service, no new dependency, no second ordering authority, no second conflict detector. |
 | VI. Accessible and predictable experience | pass | Six visible states named by the spec; the resolution screen is a keyboard journey; nothing silently prefers a version. |
 | VII. Reproducible toolchains | pass | TypeScript only; SSE needs no package. |
-| VIII. Canonical product direction | pass | Canvas sections 9 and 17 to 20, without absorbing search (007) or the desktop clients (014). |
+| VIII. Canonical product direction | pass | Canvas sections 9 and 17 to 20, without absorbing search (008) or the desktop clients (014). |
 
 No violations, so [Complexity Tracking](#complexity-tracking) stays empty.
 

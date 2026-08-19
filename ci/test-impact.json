@@ -103,6 +103,15 @@
     },
     {
       "paths": {
+        "exact": ["specs/008-search/contracts/search-api.openapi.yaml"],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/openapi.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
         "exact": ["specs/002-owner-security-foundation/contracts/admin-cli.md"],
         "prefixes": [],
         "suffixes": []
@@ -162,6 +171,21 @@
       },
       "tests": ["tests/contract/test-impact.spec.ts"],
       "groups": ["contract"]
+    },
+    {
+      "paths": {
+        "exact": [
+          "apps/api/src/search/search-service.ts",
+          "apps/web/src/features/search/search.worker.ts",
+          "apps/web/src/services/search.ts",
+          "packages/client-core/src/search/local-search-source.ts",
+          "packages/database/src/repositories/search-source-repository.ts"
+        ],
+        "prefixes": ["packages/domain/src/search/"],
+        "suffixes": []
+      },
+      "tests": ["tests/performance/search.perf.spec.ts"],
+      "groups": ["unit"]
     }
   ],
   "e2eJourneys": [
@@ -169,7 +193,7 @@
       "test": "tests/e2e/accessibility.spec.ts",
       "owners": {
         "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
-        "prefixes": ["apps/web/src/components/"],
+        "prefixes": ["apps/web/src/components/", "apps/web/src/features/search/"],
         "suffixes": []
       }
     },
@@ -447,6 +471,43 @@
           "apps/web/src/features/save-state/",
           "packages/client-core/src/save-state/",
           "packages/client-core/src/outbox/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/search.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/search.ts",
+          "apps/web/src/services/search.ts",
+          "apps/web/src/services/content-api.ts",
+          "packages/contracts/src/content-api.ts",
+          "packages/database/src/repositories/search-source-repository.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/search/",
+          "apps/web/src/features/search/",
+          "packages/client-core/src/search/",
+          "packages/domain/src/search/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/search-offline.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/services/local-content.ts",
+          "apps/web/src/services/local-key-storage.ts",
+          "apps/web/src/services/search.ts",
+          "packages/client-core/src/search/local-search-source.ts",
+          "packages/client-core/src/search/merge-search-results.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/search/",
+          "packages/client-core/src/search/",
+          "packages/domain/src/search/"
         ],
         "suffixes": []
       }

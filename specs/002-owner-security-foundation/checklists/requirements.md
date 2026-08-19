@@ -36,7 +36,9 @@
 - [x] FR-020 requires a protected local CLI compatibility-inspection operation and explicitly excludes remote administrator APIs and sessions.
 - [x] FR-033 defines the manual diagnostic CI trigger as quality-gate-only and non-publishing.
 - [x] FR-033/FR-034 enumerate dependency vulnerability audit, secret scanning, static application/security analysis, container image vulnerability scan, and license-policy check, with failed, missing, skipped, cancelled, and stale required checks blocking merge or publication as applicable.
-- [x] Roadmap ownership assigns the FR-030–FR-035 baseline secure delivery foundation to feature 002, final V1 cross-feature hardening/validation to feature 007, and backup scheduling/transfer/general restore orchestration to feature 006.
+- [x] Roadmap ownership assigns the FR-030–FR-035 baseline secure delivery
+  foundation to feature 002, backup/recovery/update safeguards to feature 007,
+  and protected private search indexes to feature 008.
 - [x] FR-001–FR-035 and SC-001–SC-011 remain unique and complete.
 
 ## Validation Notes
@@ -51,7 +53,11 @@
 - V1 hosting-administrator operations are local-CLI-only, including an explicit protected local CLI compatibility-inspection operation, with no remote administrator API/session, bearer channel, or placeholder authentication scheme; owner-facing authenticated API operations use the owner session and recent authentication where required.
 - Recovery uses two separate canonical axes: authorization (`provisional`, `active`, `superseded`, `revoked`, `rejected`) and delivery/confirmation (`prepared`, `downloadable`, `download-consumed`, `confirmed`, `expired`). Bootstrap and authenticated replacement share the delivery vocabulary; only download consumption plus explicit offline confirmation activates a provisional kit; replacement supersedes the active kit and advances the epoch atomically; expiry affects only an unconfirmed opportunity.
 - FR-033/FR-034 and SC-007 explicitly cover the five required security-gate categories, the manual quality-gate-only diagnostic trigger, and blocking on failed/missing/skipped/cancelled/stale checks. SC-002 requires at least 20 clean-install trials by at least 5 representative self-host operators, with at least 19 within five minutes after prerequisites and every pre-confirmation state at `0/0`. SC-008 requires at least 10 representative participants, with at least 9 correctly identifying all four requested security concepts.
-- The roadmap assigns the baseline secure Compose/env/reverse-proxy/CI/GHCR/release foundation to feature 002, final V1 cross-feature release-readiness hardening and validation to feature 007, and backup scheduling/transfer/general restore orchestration to feature 006; feature-001 T105 and T106 are recorded as complete there.
+- The roadmap assigns the baseline secure
+  Compose/env/reverse-proxy/CI/GHCR/release foundation to feature 002,
+  backup/recovery/update safeguards to feature 007, and protected private
+  search indexes to feature 008; feature-001 T105 and T106 are recorded as
+  complete in the baseline delivery work.
 - No clarification markers remain. The specification is ready for `$speckit-analyze`; after Analyze passes, it is ready for implementation. `$speckit-clarify` is not required.
 - Revalidated on 2026-08-17 after adding the operator-readable logging contract: interactive terminals use consistent severity colors by default, automatic non-interactive output remains structured and free of terminal control codes, explicit force/disable overrides are supported, and color never carries information by itself.
 

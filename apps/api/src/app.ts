@@ -42,10 +42,12 @@ import { registerPageDocumentRoutes } from "./routes/page-documents.ts";
 import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
+import { registerSearchRoutes } from "./routes/search.ts";
 import { registerRecoveryRoutes } from "./routes/security-recovery.ts";
 import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
 import { registerUploadRoutes } from "./routes/uploads.ts";
+import { createDatabaseSearchService, type SearchService } from "./search/search-service.ts";
 import { AuditService } from "./security/audit-service.ts";
 import { resolvePrincipal } from "./security/authentication-hook.ts";
 import { renderBootstrapKit } from "./security/bootstrap-kit.ts";
@@ -197,6 +199,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
    * enforced by the server rather than by asking the client to stop.
    */
   let devices: DeviceService | undefined;
+  let search: SearchService | undefined;
 
   const context: AppContext = {
     db: database.db,
@@ -214,6 +217,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     },
     get devices() {
       return devices;
+    },
+    get search() {
+      return search;
     },
   };
 
@@ -363,6 +369,21 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
           );
         },
       }),
+    });
+
+    search = createDatabaseSearchService({
+      db: database.db,
+      workspaceId: workspace.id,
+      protectedContent,
+    });
+    registerSearchRoutes(app, { service: search });
+    // Search readiness must never delay the rest of the application. The
+    // route reports a safe rebuilding state until this atomic build completes.
+    void search.rebuild().catch((error: unknown) => {
+      app.log.error(
+        { errorName: error instanceof Error ? error.name : "unknown" },
+        "workspace search rebuild failed",
+      );
     });
 
     const requireOwner = registerAuthenticationRoutes(app, {

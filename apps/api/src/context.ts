@@ -5,6 +5,7 @@
 import type { ContentStore, PartialUploadStore } from "@myownnotion/blob-store";
 import type { Database } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
+import type { SearchService } from "./search/search-service.ts";
 import type { DeviceService } from "./security/device-service.ts";
 import type { ProtectedContent } from "./security/protected-content.ts";
 import type { RotationPolicyService } from "./security/rotation-policy-service.ts";
@@ -40,4 +41,6 @@ export interface AppContext {
    * has a reason not to cooperate.
    */
   readonly devices?: DeviceService | undefined;
+  /** Transient private workspace index, present once the search feature is wired. */
+  readonly search?: SearchService | undefined;
 }

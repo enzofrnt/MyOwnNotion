@@ -25,7 +25,7 @@ import {
 import type { ItemDto, RevisionDto } from "@myownnotion/contracts";
 import { generateUuidV7, type PageDocument, type SafeError, type Uuid } from "@myownnotion/domain";
 import { ContentApi } from "./content-api.ts";
-import { IndexedDbKeyStorage } from "./local-key-storage.ts";
+import { IndexedDbKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
 
 /**
@@ -43,6 +43,11 @@ export interface LocalContentSnapshot {
 }
 
 type Listener = () => void;
+export type LocalProjectionChange =
+  | { readonly kind: "upsert"; readonly itemIds: readonly Uuid[] }
+  | { readonly kind: "rebuild" }
+  | { readonly kind: "clear" };
+type ProjectionListener = (change: LocalProjectionChange) => void | Promise<void>;
 
 export class LocalContentService {
   readonly db: LocalDatabase;
@@ -54,6 +59,7 @@ export class LocalContentService {
   #conflictCount = 0;
   #storagePersisted: boolean | null = null;
   #listeners = new Set<Listener>();
+  #projectionListeners = new Set<ProjectionListener>();
   /** The reconciliation pass currently running, if any. See `synchronize`. */
   #inFlightSync: Promise<SyncState> | null = null;
   /** Set when a caller arrives mid-pass; triggers exactly one follow-up pass. */
@@ -83,6 +89,10 @@ export class LocalContentService {
       conflictCount: 0,
       storagePersisted: null,
     };
+    subscribeLocalKeyStorageCleared(async () => {
+      this.#keys.lock();
+      await this.#emitProjection({ kind: "clear" });
+    });
   }
 
   /**
@@ -106,6 +116,17 @@ export class LocalContentService {
   };
 
   getSnapshot = (): LocalContentSnapshot => this.#snapshot;
+
+  subscribeProjection = (listener: ProjectionListener): (() => void) => {
+    this.#projectionListeners.add(listener);
+    return () => this.#projectionListeners.delete(listener);
+  };
+
+  async #emitProjection(change: LocalProjectionChange): Promise<void> {
+    await Promise.all(
+      [...this.#projectionListeners].map(async (listener) => await listener(change)),
+    );
+  }
 
   async #notify(state?: SyncState): Promise<void> {
     if (state !== undefined) {
@@ -241,6 +262,7 @@ export class LocalContentService {
     await this.#notify("syncing");
     await this.#unlock();
     const outcome = await reconcile(this.db, this.#transport(), this.#codec);
+    await this.#emitProjection({ kind: "rebuild" });
     const state: SyncState = outcome.offline
       ? "offline"
       : outcome.conflicts > 0 || (await this.outbox.conflicts()).length > 0
@@ -295,6 +317,13 @@ export class LocalContentService {
       await this.#notify(storageFailed ? "quota-failure" : undefined);
       return { ok: false, error: result.error };
     }
+    const headers = await this.db.revisionHeaders.bulkGet([...result.value.localRevisionIds]);
+    const itemIds = [
+      ...new Set(headers.flatMap((header) => (header === undefined ? [] : [header.itemId]))),
+    ];
+    if (itemIds.length > 0) {
+      await this.#emitProjection({ kind: "upsert", itemIds });
+    }
     await this.#notify("pending");
     void this.synchronize();
     return { ok: true };
@@ -325,6 +354,7 @@ export class LocalContentService {
       await this.#notify(undefined);
       return { ok: false, error: { code: outcome.code, title: outcome.title } as SafeError };
     }
+    await this.#emitProjection({ kind: "upsert", itemIds: [input.itemId] });
     await this.#notify("pending");
     void this.synchronize();
     return { ok: true };
@@ -342,8 +372,15 @@ export class LocalContentService {
       cursor: snapshot.value.cursor,
       items: snapshot.value.items as ItemDto[],
     });
+    await this.#emitProjection({ kind: "rebuild" });
     await this.#notify("synced");
     return true;
+  }
+
+  /** Locks decrypted local data and drops every transient search token. */
+  async lockLocalData(): Promise<void> {
+    this.#keys.lock();
+    await this.#emitProjection({ kind: "clear" });
   }
 }
 

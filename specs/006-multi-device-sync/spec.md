@@ -38,7 +38,7 @@ belonging to one person, never several people — there is no presence, no
 awareness of who is typing, and no real-time co-editing.
 
 **Out of scope**: real-time collaborative editing between people (permanently
-out of scope per the constitution), search indexing (feature 007), and the
+out of scope per the constitution), search indexing (feature 008), and the
 desktop clients that will consume this transport (feature 014). Device
 authorisation and revocation mechanics come from feature 002; this feature
 specifies what synchronization must do *when* a device is revoked.

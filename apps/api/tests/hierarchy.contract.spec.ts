@@ -2,8 +2,10 @@
  * Create/list/reorder/move/trash/restore API contract tests (T026, US1).
  */
 
+import { readItem } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import type { SearchService } from "../src/search/search-service.ts";
 import {
   type ApiHarness,
   createApiHarness,
@@ -26,6 +28,44 @@ describe("health", () => {
     const response = await harness.built.app.inject({ method: "GET", url: "/health" });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ready", schemaVersion: 1 });
+  });
+
+  it("reports only the redacted search lifecycle and progress", async () => {
+    const original = Object.getOwnPropertyDescriptor(harness.built.context, "search");
+    Object.defineProperty(harness.built.context, "search", {
+      configurable: true,
+      value: {
+        status: () => ({
+          state: "degraded",
+          generation: 3,
+          indexedCount: 7,
+          expectedCount: 9,
+          failureCode: "search.rebuild-failed",
+        }),
+      },
+    });
+    try {
+      const response = await harness.built.app.inject({ method: "GET", url: "/health" });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        status: "ready",
+        schemaVersion: 1,
+        search: {
+          state: "degraded",
+          generation: 3,
+          indexedCount: 7,
+          expectedCount: 9,
+          failureCode: "search.rebuild-failed",
+        },
+      });
+      expect(response.body).not.toContain("query");
+      expect(response.body).not.toContain("title");
+      expect(response.body).not.toContain("snippet");
+    } finally {
+      if (original !== undefined) {
+        Object.defineProperty(harness.built.context, "search", original);
+      }
+    }
   });
 });
 
@@ -89,23 +129,39 @@ describe("item creation contract", () => {
       name: "Replayed",
       placement: { kind: "hierarchy" as const, parentItemId: null, positionKey: "Vr" },
     };
-    const first = await harness.built.app.inject({
-      method: "POST",
-      url: "/v1/items",
-      headers: idempotencyHeaders(mutationId),
-      payload,
+    const applyCommittedChanges = vi.fn(async (changedItemIds: readonly string[]) => {
+      expect(changedItemIds).toContain(payload.id);
+      expect((await readItem(harness.built.context.db, payload.id))?.name).toBe("Replayed");
     });
-    const second = await harness.built.app.inject({
-      method: "POST",
-      url: "/v1/items",
-      headers: idempotencyHeaders(mutationId),
-      payload: { ...payload, id: generateUuidV7(), name: "Different" },
+    const originalSearch = Object.getOwnPropertyDescriptor(harness.built.context, "search");
+    Object.defineProperty(harness.built.context, "search", {
+      configurable: true,
+      value: { applyCommittedChanges } as unknown as SearchService,
     });
-    expect(first.statusCode).toBe(201);
-    expect(second.statusCode).toBe(200);
-    const firstBody = first.json() as { revisionIds: string[] };
-    const secondBody = second.json() as { revisionIds: string[] };
-    expect(secondBody.revisionIds).toEqual(firstBody.revisionIds);
+    try {
+      const first = await harness.built.app.inject({
+        method: "POST",
+        url: "/v1/items",
+        headers: idempotencyHeaders(mutationId),
+        payload,
+      });
+      const second = await harness.built.app.inject({
+        method: "POST",
+        url: "/v1/items",
+        headers: idempotencyHeaders(mutationId),
+        payload: { ...payload, id: generateUuidV7(), name: "Different" },
+      });
+      expect(first.statusCode).toBe(201);
+      expect(second.statusCode).toBe(200);
+      const firstBody = first.json() as { revisionIds: string[] };
+      const secondBody = second.json() as { revisionIds: string[] };
+      expect(secondBody.revisionIds).toEqual(firstBody.revisionIds);
+      expect(applyCommittedChanges).toHaveBeenCalledTimes(1);
+    } finally {
+      if (originalSearch !== undefined) {
+        Object.defineProperty(harness.built.context, "search", originalSearch);
+      }
+    }
   });
 });
 

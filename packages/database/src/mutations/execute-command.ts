@@ -735,6 +735,8 @@ export async function executeCommand(
 export interface SubmitOutcome {
   readonly result: QueuedMutationResult;
   readonly primaryItemId?: Uuid;
+  /** Canonical identities affected by a newly committed mutation. */
+  readonly changedItemIds?: readonly Uuid[];
   /**
    * The feed position this mutation reached, once it is committed (feature 006).
    *
@@ -868,6 +870,7 @@ export async function submitMutation(
           revisionIds: execution.value.revisionIds,
         },
         committedSequence,
+        changedItemIds: execution.value.changedItemIds,
         ...(execution.value.primaryItemId !== undefined
           ? { primaryItemId: execution.value.primaryItemId }
           : {}),

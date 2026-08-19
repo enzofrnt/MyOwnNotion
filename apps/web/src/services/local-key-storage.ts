@@ -21,6 +21,12 @@ import type { SecureKeyStorage, SecureStorageKind, StoredLocalKey } from "@myown
 const DATABASE = "myownnotion-device-key";
 const STORE = "key";
 const RECORD = "device";
+const clearedListeners = new Set<() => void | Promise<void>>();
+
+export function subscribeLocalKeyStorageCleared(listener: () => void | Promise<void>): () => void {
+  clearedListeners.add(listener);
+  return () => clearedListeners.delete(listener);
+}
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -80,5 +86,6 @@ export class IndexedDbKeyStorage implements SecureKeyStorage {
 
   async clear(): Promise<void> {
     await withStore("readwrite", (store) => store.delete(RECORD));
+    await Promise.all([...clearedListeners].map(async (listener) => await listener()));
   }
 }

@@ -45,6 +45,11 @@ export const REDACT_PATHS = [
   "document",
   "name",
   "snapshot",
+  "query",
+  "title",
+  "snippet",
+  "results[*].title",
+  "results[*].snippet",
   "err.config",
 ];
 
@@ -91,7 +96,10 @@ export function registerLogging(options: RegisterLoggingOptions = {}): SafeLogge
     },
     serializers: {
       req(request: { method: string; url: string; id?: unknown }) {
-        return { method: request.method, url: request.url, id: request.id };
+        // Query strings are never operational metadata. Dropping them here
+        // also protects malformed or legacy GET attempts that never reach the
+        // POST-only search route but would otherwise be logged by Fastify.
+        return { method: request.method, url: request.url.split("?", 1)[0], id: request.id };
       },
       res(reply: { statusCode: number }) {
         return { statusCode: reply.statusCode };

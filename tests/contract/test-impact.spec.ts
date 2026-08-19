@@ -120,6 +120,32 @@ describe("pull-request selection", () => {
     );
   });
 
+  it("maps the shared search surface to online, offline and accessibility journeys", () => {
+    const plan = pullRequestPlan(["apps/web/src/features/search/search-dialog.tsx"]);
+    expect(plan.e2e.testFiles).toEqual(
+      expect.arrayContaining([
+        "tests/e2e/accessibility.spec.ts",
+        "tests/e2e/search.spec.ts",
+        "tests/e2e/search-offline.spec.ts",
+      ]),
+    );
+  });
+
+  it("keeps the search performance corpus attached to every indexed source change", () => {
+    const plan = pullRequestPlan(["packages/domain/src/search/search-index.ts"]);
+
+    expect(plan.vitest.mode).toBe("mixed");
+    expect(plan.vitest.testFiles).toContain("tests/performance/search.perf.spec.ts");
+    expect(plan.vitest.groups).toContain("unit");
+    expect(plan.e2e.testFiles).toEqual(
+      expect.arrayContaining(["tests/e2e/search.spec.ts", "tests/e2e/search-offline.spec.ts"]),
+    );
+    expect(commandsForVitestGroup(plan, "unit")).toContainEqual([
+      "pnpm",
+      ["exec", "vitest", "run", "--passWithNoTests", "tests/performance/search.perf.spec.ts"],
+    ]);
+  });
+
   it("always runs a changed test directly", () => {
     const plan = pullRequestPlan(["apps/web/tests/sidebar.spec.ts"]);
     expect(plan.vitest.mode).toBe("direct");

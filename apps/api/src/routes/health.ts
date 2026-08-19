@@ -40,9 +40,11 @@ export function registerHealthRoutes(app: FastifyInstance, context: AppContext):
             "Do not serve this workspace as healthy. Re-run the same restore command to resume from its verified archive, or restore the safety backup created immediately before it.",
         });
       }
+      const search = context.search?.status();
       return reply.status(200).send({
         status: "ready" as const,
         schemaVersion: context.schemaVersion,
+        ...(search === undefined ? {} : { search }),
       });
     },
   );

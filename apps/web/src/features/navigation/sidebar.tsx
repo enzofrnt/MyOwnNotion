@@ -85,16 +85,22 @@ export function Sidebar({
   items,
   onOpen,
   onOpenSettings,
+  onOpenSearch,
 }: {
   readonly items: readonly ProjectedItem[];
   readonly onOpen: (itemId: ProjectedItem["id"]) => void;
   readonly onOpenSettings: () => void;
+  readonly onOpenSearch: () => void;
 }) {
   const favourites = favouritesOf(items);
   const recents = recentsOf(items);
 
   return (
     <nav className="sidebar" aria-label="Workspace shortcuts" data-testid="sidebar">
+      <button type="button" className="search-trigger" onClick={onOpenSearch}>
+        Search <kbd>Ctrl/⌘ K</kbd>
+      </button>
+
       <section aria-labelledby="sidebar-favourites-heading">
         <h2 id="sidebar-favourites-heading">Favourites</h2>
         <ShortcutList

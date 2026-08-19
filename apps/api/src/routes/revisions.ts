@@ -118,6 +118,7 @@ export function registerRevisionRoutes(app: FastifyInstance, context: AppContext
         workspaceId: context.workspaceId,
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
+        search: context.search,
         request,
         reply,
         command: {

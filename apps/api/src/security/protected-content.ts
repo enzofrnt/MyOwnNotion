@@ -87,6 +87,23 @@ export class ProtectedContent {
     return JSON.parse(Buffer.from(opened).toString("utf8")) as T;
   }
 
+  async #readMany<T>(
+    executor: Database | Transaction,
+    entityType: string,
+    entityIds: readonly string[],
+  ): Promise<ReadonlyMap<string, T>> {
+    if (entityIds.length === 0) {
+      return new Map();
+    }
+    const opened = await this.#deps.records.readMany(executor, { entityType, entityIds });
+    return new Map(
+      [...opened].map(([entityId, value]) => [
+        entityId,
+        JSON.parse(Buffer.from(value).toString("utf8")) as T,
+      ]),
+    );
+  }
+
   /** Seals an item's name. The title is the most exposed field in a dump. */
   async writeItemName(
     executor: Database | Transaction,
@@ -103,6 +120,13 @@ export class ProtectedContent {
 
   async readItemName(executor: Database | Transaction, itemId: string): Promise<string | null> {
     return await this.#read<string>(executor, PROTECTED_ENTITY_TYPES.itemName, itemId);
+  }
+
+  async readItemNames(
+    executor: Database | Transaction,
+    itemIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>> {
+    return await this.#readMany<string>(executor, PROTECTED_ENTITY_TYPES.itemName, itemIds);
   }
 
   /** Seals a page's document body. */
@@ -125,6 +149,13 @@ export class ProtectedContent {
     recordVersion?: number,
   ): Promise<T | null> {
     return await this.#read<T>(executor, PROTECTED_ENTITY_TYPES.pageBody, pageId, recordVersion);
+  }
+
+  async readPageBodies<T>(
+    executor: Database | Transaction,
+    pageIds: readonly string[],
+  ): Promise<ReadonlyMap<string, T>> {
+    return await this.#readMany<T>(executor, PROTECTED_ENTITY_TYPES.pageBody, pageIds);
   }
 
   /**

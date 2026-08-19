@@ -37,6 +37,7 @@ export function registerPlacementRoutes(app: FastifyInstance, context: AppContex
         workspaceId: context.workspaceId,
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
+        search: context.search,
         request,
         reply,
         successStatus: 201,
@@ -68,6 +69,7 @@ export function registerPlacementRoutes(app: FastifyInstance, context: AppContex
         workspaceId: context.workspaceId,
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
+        search: context.search,
         request,
         reply,
         command: {
@@ -95,6 +97,7 @@ export function registerPlacementRoutes(app: FastifyInstance, context: AppContex
         workspaceId: context.workspaceId,
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
+        search: context.search,
         request,
         reply,
         command: { type: "placement.remove", placementId: placementId as Uuid },

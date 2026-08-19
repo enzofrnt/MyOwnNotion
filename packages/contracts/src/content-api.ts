@@ -378,6 +378,81 @@ export const MutationBatchResponseSchema = Type.Object({
   results: Type.Array(QueuedMutationResultSchema),
 });
 
+// ---------------------------------------------------------------------------
+// Private workspace search (feature 008)
+// ---------------------------------------------------------------------------
+
+export const SearchRequestSchema = Type.Object(
+  {
+    query: Type.String({ minLength: 1, maxLength: 512 }),
+    kinds: Type.Optional(Type.Array(ItemKindSchema, { uniqueItems: true, maxItems: 3 })),
+    branchRootItemId: Type.Optional(Type.Union([UuidSchema, Type.Null()])),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 50, default: 20 })),
+    cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
+  },
+  { additionalProperties: false },
+);
+export type SearchRequestDto = Static<typeof SearchRequestSchema>;
+
+export const SearchPathSegmentSchema = Type.Object(
+  {
+    itemId: UuidSchema,
+    title: DisplayNameSchema,
+  },
+  { additionalProperties: false },
+);
+
+export const SearchResultSchema = Type.Object(
+  {
+    itemId: UuidSchema,
+    revisionId: UuidSchema,
+    kind: ItemKindSchema,
+    title: DisplayNameSchema,
+    path: Type.Array(SearchPathSegmentSchema),
+    matchedField: Type.Union([
+      Type.Literal("title"),
+      Type.Literal("fileName"),
+      Type.Literal("body"),
+    ]),
+    snippet: Type.Union([Type.String({ maxLength: 320 }), Type.Null()]),
+    conflict: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type SearchResultDto = Static<typeof SearchResultSchema>;
+
+export const SearchResponseSchema = Type.Object(
+  {
+    coverage: Type.Literal("complete"),
+    generation: Type.Integer({ minimum: 1 }),
+    results: Type.Array(SearchResultSchema, { maxItems: 50 }),
+    nextCursor: Type.Union([Type.String(), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+export type SearchResponseDto = Static<typeof SearchResponseSchema>;
+
+export const SearchProblemCodeSchema = Type.Union([
+  Type.Literal("search.empty-query"),
+  Type.Literal("search.query-too-long"),
+  Type.Literal("search.invalid-filter"),
+  Type.Literal("search.invalid-cursor"),
+  Type.Literal("search.cursor-stale"),
+  Type.Literal("search.building"),
+  Type.Literal("search.degraded"),
+]);
+
+export const SearchUnavailableProblemSchema = Type.Intersect([
+  ProblemSchema,
+  Type.Object({
+    code: SearchProblemCodeSchema,
+    searchState: Type.Union([Type.Literal("building"), Type.Literal("degraded")]),
+    indexedCount: Type.Integer({ minimum: 0 }),
+    expectedCount: Type.Integer({ minimum: 0 }),
+  }),
+]);
+export type SearchUnavailableProblemDto = Static<typeof SearchUnavailableProblemSchema>;
+
 export const CanonicalSnapshotSchema = Type.Object({
   workspaceId: UuidSchema,
   schemaVersion: Type.Integer({ minimum: 1 }),
@@ -388,10 +463,31 @@ export const CanonicalSnapshotSchema = Type.Object({
 });
 export type CanonicalSnapshotDto = Static<typeof CanonicalSnapshotSchema>;
 
-export const HealthResponseSchema = Type.Object({
-  status: Type.Literal("ready"),
-  schemaVersion: Type.Integer({ minimum: 1 }),
-});
+export const SearchHealthSchema = Type.Object(
+  {
+    state: Type.Union([
+      Type.Literal("cold"),
+      Type.Literal("building"),
+      Type.Literal("ready"),
+      Type.Literal("degraded"),
+    ]),
+    generation: Type.Union([Type.Integer({ minimum: 1 }), Type.Null()]),
+    indexedCount: Type.Integer({ minimum: 0 }),
+    expectedCount: Type.Integer({ minimum: 0 }),
+    failureCode: Type.Union([Type.String({ maxLength: 128 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+export const HealthResponseSchema = Type.Object(
+  {
+    status: Type.Literal("ready"),
+    schemaVersion: Type.Integer({ minimum: 1 }),
+    /** Safe operational state only; never titles, snippets, queries or keys. */
+    search: Type.Optional(SearchHealthSchema),
+  },
+  { additionalProperties: false },
+);
 
 export const ExportStatusSchema = Type.Object({
   exportId: UuidSchema,

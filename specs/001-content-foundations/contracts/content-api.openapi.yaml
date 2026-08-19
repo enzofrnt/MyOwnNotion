@@ -32,6 +32,8 @@ paths:
                 properties:
                   status: { const: ready }
                   schemaVersion: { type: integer, minimum: 1 }
+                  search: { $ref: '#/components/schemas/SearchHealth' }
+                additionalProperties: false
   /v1/items:
     get:
       tags: [Items]
@@ -558,6 +560,23 @@ components:
       enum: [active, trashed, purged]
     PlacementKind:
       enum: [hierarchy, attachment]
+    SearchHealth:
+      type: object
+      required: [state, generation, indexedCount, expectedCount, failureCode]
+      properties:
+        state:
+          enum: [cold, building, ready, degraded]
+        generation:
+          oneOf:
+            - { type: integer, minimum: 1 }
+            - { type: 'null' }
+        indexedCount: { type: integer, minimum: 0 }
+        expectedCount: { type: integer, minimum: 0 }
+        failureCode:
+          oneOf:
+            - { type: string, maxLength: 128 }
+            - { type: 'null' }
+      additionalProperties: false
     PageDocument:
       type: object
       required: [format, formatVersion, body]
