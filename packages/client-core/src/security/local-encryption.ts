@@ -41,6 +41,8 @@ export const LOCAL_ENTITY_TYPES = {
   relationshipMetadata: "local.relationship.metadata",
   outboxPayload: "local.outbox.payload",
   conflictPayload: "local.conflict.payload",
+  databaseDefinition: "local.database.definition",
+  databaseEntryValues: "local.database.entry-values",
 } as const;
 
 export interface LocalEnvelope {

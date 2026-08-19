@@ -40,23 +40,23 @@ persistance protégée et projection locale qui bloquent toutes les stories.
 
 ### Tests fondamentaux
 
-- [ ] T004 [P] Écrire les tests de décimaux, dates civiles, instants, valeurs absentes, options et relations dans packages/domain/tests/databases/values.spec.ts (FR-009 à FR-013, FR-050)
-- [ ] T005 [P] Écrire les tests de définition garantissant titre unique, propriétés/options stables, vues actives et rôles compatibles dans packages/domain/tests/databases/schema.spec.ts (FR-006 à FR-010, FR-016 à FR-018, FR-030)
-- [ ] T006 [P] Écrire les propriétés fast-check de filtres ALL/ANY, tris déterministes, groupes uniques et invariance à l'ordre d'entrée dans packages/domain/tests/databases/query.property.spec.ts (FR-019 à FR-021, SC-005, SC-006)
-- [ ] T007 [P] Écrire les tests de fusion à trois voies des définitions et valeurs, dont suppression contre édition et type contre valeur, dans packages/domain/tests/databases/merge.spec.ts (FR-037, FR-038, SC-007)
-- [ ] T008 [P] Étendre le validateur OpenAPI pour charger contracts/database-api.openapi.yaml et ses références dans tests/contract/openapi.spec.ts (FR-009, FR-019, FR-043)
-- [ ] T009 [P] Écrire les tests de migration montante, interruption/reprise, contraintes d'identité et rollback de 0007_databases.sql dans packages/database/tests/migrations.integration.spec.ts (FR-003 à FR-006, FR-039)
+- [X] T004 [P] Écrire les tests de décimaux, dates civiles, instants, valeurs absentes, options et relations dans packages/domain/tests/databases/values.spec.ts (FR-009 à FR-013, FR-050)
+- [X] T005 [P] Écrire les tests de définition garantissant titre unique, propriétés/options stables, vues actives et rôles compatibles dans packages/domain/tests/databases/schema.spec.ts (FR-006 à FR-010, FR-016 à FR-018, FR-030)
+- [X] T006 [P] Écrire les propriétés fast-check de filtres ALL/ANY, tris déterministes, groupes uniques et invariance à l'ordre d'entrée dans packages/domain/tests/databases/query.property.spec.ts (FR-019 à FR-021, SC-005, SC-006)
+- [X] T007 [P] Écrire les tests de fusion à trois voies des définitions et valeurs, dont suppression contre édition et type contre valeur, dans packages/domain/tests/databases/merge.spec.ts (FR-037, FR-038, SC-007)
+- [X] T008 [P] Étendre le validateur OpenAPI pour charger contracts/database-api.openapi.yaml et ses références dans tests/contract/openapi.spec.ts (FR-009, FR-019, FR-043)
+- [X] T009 [P] Écrire les tests de migration montante, interruption/reprise, contraintes d'identité et rollback de 0007_databases.sql dans packages/database/tests/migrations.integration.spec.ts (FR-003 à FR-006, FR-039)
 
 ### Implémentation fondamentale
 
-- [ ] T010 Définir DatabaseDefinition, DatabaseProperty, DatabaseView, TaskRoleMapping, EntryValues et leurs unions dans packages/domain/src/databases/types.ts selon data-model.md
-- [ ] T011 Implémenter validation/normalisation des décimaux, dates, instants, options, absence et relations dans packages/domain/src/databases/values.ts pour satisfaire T004
-- [ ] T012 Implémenter validation de définition, aperçu d'impact et règles de conversion/retrait dans packages/domain/src/databases/schema.ts pour satisfaire T005
-- [ ] T013 Implémenter opérateurs typés, ALL/ANY, groupes et ordre stable partagé dans packages/domain/src/databases/query.ts pour satisfaire T006
-- [ ] T014 Implémenter les fusions pures DatabaseDefinition et EntryValues par identités stables dans packages/domain/src/databases/merge.ts pour satisfaire T007
-- [ ] T015 Définir les schémas TypeBox de base, définition, entrée, requête et problèmes sûrs dans packages/contracts/src/content-api.ts conformément au contrat OpenAPI
-- [ ] T016 Ajouter `databases` et `database_entries` au schéma Drizzle et créer packages/database/migrations/0007_databases.sql avec toutes les FK, checks et index de data-model.md
-- [ ] T017 Ajouter les types protégés `database.definition` et `database.entry-values`, leurs codecs serveur et les formes locales scellées dans apps/api/src/security/protected-content.ts, packages/client-core/src/security/local-record-codec.ts et packages/client-core/src/local-store/schema.ts
+- [X] T010 Définir DatabaseDefinition, DatabaseProperty, DatabaseView, TaskRoleMapping, EntryValues et leurs unions dans packages/domain/src/databases/types.ts selon data-model.md
+- [X] T011 Implémenter validation/normalisation des décimaux, dates, instants, options, absence et relations dans packages/domain/src/databases/values.ts pour satisfaire T004
+- [X] T012 Implémenter validation de définition, aperçu d'impact et règles de conversion/retrait dans packages/domain/src/databases/schema.ts pour satisfaire T005
+- [X] T013 Implémenter opérateurs typés, ALL/ANY, groupes et ordre stable partagé dans packages/domain/src/databases/query.ts pour satisfaire T006
+- [X] T014 Implémenter les fusions pures DatabaseDefinition et EntryValues par identités stables dans packages/domain/src/databases/merge.ts pour satisfaire T007
+- [X] T015 Définir les schémas TypeBox de base, définition, entrée, requête et problèmes sûrs dans packages/contracts/src/content-api.ts conformément au contrat OpenAPI
+- [X] T016 Ajouter `databases` et `database_entries` au schéma Drizzle et créer packages/database/migrations/0007_databases.sql avec toutes les FK, checks et index de data-model.md
+- [X] T017 Ajouter les types protégés `database.definition` et `database.entry-values`, leurs codecs serveur et les formes locales scellées dans apps/api/src/security/protected-content.ts, packages/client-core/src/security/local-record-codec.ts et packages/client-core/src/local-store/schema.ts
 
 **Checkpoint**: Les mêmes valeurs, définitions, requêtes et fusions produisent
 un résultat identique dans Node et le navigateur ; les nouvelles lignes ne

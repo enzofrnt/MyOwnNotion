@@ -8,7 +8,7 @@
  * a second source of truth.
  */
 
-import type { Uuid } from "@myownnotion/domain";
+import type { DatabaseDefinition, EntryValues, Uuid } from "@myownnotion/domain";
 import { Dexie, type EntityTable } from "dexie";
 // The envelope type, not the codec: `local-encryption.ts` knows nothing about
 // the projection, so this is a leaf dependency rather than a cycle.
@@ -133,6 +133,30 @@ export interface ConflictRecordRow {
 export interface LocalMetaRow {
   readonly key: string;
   readonly value: unknown;
+}
+
+/** Open in memory; `definition` is replaced by ciphertext before persistence. */
+export interface LocalDatabaseRow {
+  readonly itemId: Uuid;
+  readonly definitionVersion: number;
+  readonly definition: DatabaseDefinition;
+}
+
+export interface SealedLocalDatabaseRow extends Omit<LocalDatabaseRow, "definition"> {
+  readonly sealedDefinition: LocalEnvelope;
+}
+
+/** Open in memory; values are sealed before the later version-6 Dexie write. */
+export interface LocalDatabaseEntryRow {
+  readonly entryItemId: Uuid;
+  readonly databaseId: Uuid;
+  readonly valueVersion: number;
+  readonly availability: "present" | "offloaded" | "never-fetched";
+  readonly values: EntryValues;
+}
+
+export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow, "values"> {
+  readonly sealedValues: LocalEnvelope;
 }
 
 /**

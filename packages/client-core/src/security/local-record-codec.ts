@@ -19,9 +19,13 @@
 import type { Uuid } from "@myownnotion/domain";
 import type {
   ConflictRecordRow,
+  LocalDatabaseEntryRow,
+  LocalDatabaseRow,
   LocalItemRow,
   LocalRelationshipRow,
   OutboxMutationRow,
+  SealedLocalDatabaseEntryRow,
+  SealedLocalDatabaseRow,
   SealedLocalItemRow,
 } from "../local-store/schema.ts";
 import { LOCAL_ENTITY_TYPES, type LocalCipher, type LocalEnvelope } from "./local-encryption.ts";
@@ -147,6 +151,50 @@ export class LocalRecordCodec {
         this.#binding(LOCAL_ENTITY_TYPES.relationshipMetadata, row.id, recordVersion),
         sealedMetadata,
       )) as Record<string, unknown>,
+    };
+  }
+
+  async sealDatabase(row: LocalDatabaseRow): Promise<SealedLocalDatabaseRow> {
+    const { definition, ...rest } = row;
+    return {
+      ...rest,
+      sealedDefinition: await this.#cipher.seal(
+        this.#binding(LOCAL_ENTITY_TYPES.databaseDefinition, row.itemId, row.definitionVersion),
+        definition,
+      ),
+    };
+  }
+
+  async openDatabase(row: SealedLocalDatabaseRow): Promise<LocalDatabaseRow> {
+    const { sealedDefinition, ...rest } = row;
+    return {
+      ...rest,
+      definition: (await this.#cipher.open(
+        this.#binding(LOCAL_ENTITY_TYPES.databaseDefinition, row.itemId, row.definitionVersion),
+        sealedDefinition,
+      )) as LocalDatabaseRow["definition"],
+    };
+  }
+
+  async sealDatabaseEntry(row: LocalDatabaseEntryRow): Promise<SealedLocalDatabaseEntryRow> {
+    const { values, ...rest } = row;
+    return {
+      ...rest,
+      sealedValues: await this.#cipher.seal(
+        this.#binding(LOCAL_ENTITY_TYPES.databaseEntryValues, row.entryItemId, row.valueVersion),
+        values,
+      ),
+    };
+  }
+
+  async openDatabaseEntry(row: SealedLocalDatabaseEntryRow): Promise<LocalDatabaseEntryRow> {
+    const { sealedValues, ...rest } = row;
+    return {
+      ...rest,
+      values: (await this.#cipher.open(
+        this.#binding(LOCAL_ENTITY_TYPES.databaseEntryValues, row.entryItemId, row.valueVersion),
+        sealedValues,
+      )) as LocalDatabaseEntryRow["values"],
     };
   }
 

@@ -14,6 +14,7 @@ import {
   boolean,
   check,
   customType,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -83,6 +84,7 @@ export const items = pgTable(
     // and 'folder' since feature 004, and a placement must not break when it
     // changes — see specs/004-unified-items-conversion/research.md, decision 1.
     uniqueIndex("items_id_is_file_unique").on(table.id, table.isFile),
+    uniqueIndex("items_id_workspace_unique").on(table.id, table.workspaceId),
     index("items_workspace_lifecycle_idx").on(table.workspaceId, table.lifecycle),
     check("items_kind_check", sql`${table.kind} IN ('page', 'folder', 'file')`),
     check("items_lifecycle_check", sql`${table.lifecycle} IN ('active', 'trashed', 'purged')`),
@@ -321,6 +323,74 @@ export const revisions = pgTable(
     lineageDigest: text("lineage_digest").notNull(),
   },
   (table) => [index("revisions_item_idx").on(table.itemId)],
+);
+
+/**
+ * A structured database is a capability attached to a canonical page.
+ * Labels, properties, views and values are deliberately absent: those private
+ * payloads live in protected records keyed by the structural versions here.
+ */
+export const databases = pgTable(
+  "databases",
+  {
+    itemId: uuid("item_id")
+      .primaryKey()
+      .references(() => items.id),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    definitionVersion: integer("definition_version").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("databases_item_workspace_unique").on(table.itemId, table.workspaceId),
+    index("databases_workspace_idx").on(table.workspaceId),
+    foreignKey({
+      name: "databases_item_workspace_fk",
+      columns: [table.itemId, table.workspaceId],
+      foreignColumns: [items.id, items.workspaceId],
+    }),
+    check("databases_definition_version_check", sql`${table.definitionVersion} >= 1`),
+  ],
+);
+
+/** One active database membership per canonical entry page. */
+export const databaseEntries = pgTable(
+  "database_entries",
+  {
+    entryItemId: uuid("entry_item_id")
+      .primaryKey()
+      .references(() => items.id),
+    databaseId: uuid("database_id")
+      .notNull()
+      .references(() => databases.itemId),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    valueVersion: integer("value_version").notNull(),
+    addedRevisionId: uuid("added_revision_id")
+      .notNull()
+      .references(() => revisions.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("database_entries_database_idx").on(table.databaseId),
+    index("database_entries_workspace_idx").on(table.workspaceId),
+    foreignKey({
+      name: "database_entries_item_workspace_fk",
+      columns: [table.entryItemId, table.workspaceId],
+      foreignColumns: [items.id, items.workspaceId],
+    }),
+    foreignKey({
+      name: "database_entries_database_workspace_fk",
+      columns: [table.databaseId, table.workspaceId],
+      foreignColumns: [databases.itemId, databases.workspaceId],
+    }),
+    check("database_entries_not_self_check", sql`${table.entryItemId} <> ${table.databaseId}`),
+    check("database_entries_value_version_check", sql`${table.valueVersion} >= 1`),
+  ],
 );
 
 export const revisionParents = pgTable(
