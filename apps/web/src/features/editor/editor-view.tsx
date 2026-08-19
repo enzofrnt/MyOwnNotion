@@ -175,6 +175,16 @@ export function EditorView({
         setState({ kind: "unavailable", reason: "This page is not available on this device yet." });
         return;
       }
+      if (item.localAvailability !== "present") {
+        setState({
+          kind: "unavailable",
+          reason:
+            item.localAvailability === "offloaded"
+              ? "This page's content was released from this device. Reconnect to download it again."
+              : "This page's content has not been downloaded to this device yet. Reconnect to open it.",
+        });
+        return;
+      }
       if (item.pageDocument == null) {
         setState({ kind: "ready", document: emptyDocument() });
         return;

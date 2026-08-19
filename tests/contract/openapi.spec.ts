@@ -19,6 +19,9 @@ import {
   QueuedMutationResultSchema,
   QueuedMutationSchema,
   RevisionSchema,
+  SearchRequestSchema,
+  SearchResponseSchema,
+  SearchResultSchema,
 } from "@myownnotion/contracts";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
@@ -39,10 +42,21 @@ const documentPath = path.resolve(
   "../../specs/001-content-foundations/contracts/content-api.openapi.yaml",
 );
 const openapi = parse(readFileSync(documentPath, "utf8")) as OpenApiDocument;
+const searchDocumentPath = path.resolve(
+  import.meta.dirname,
+  "../../specs/008-search/contracts/search-api.openapi.yaml",
+);
+const searchOpenapi = parse(readFileSync(searchDocumentPath, "utf8")) as OpenApiDocument;
 
 function requiredOf(schemaName: string): string[] {
   const schema = openapi.components.schemas[schemaName];
   expect(schema, `OpenAPI schema ${schemaName} must exist`).toBeDefined();
+  return schema?.required ?? [];
+}
+
+function requiredOfSearch(schemaName: string): string[] {
+  const schema = searchOpenapi.components.schemas[schemaName];
+  expect(schema, `Search OpenAPI schema ${schemaName} must exist`).toBeDefined();
   return schema?.required ?? [];
 }
 
@@ -123,5 +137,45 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
       compare.post.responses["200"]?.content["application/json"]?.schema.properties.classification
         .enum;
     expect(contractEnum).toEqual(["identical", "left-ancestor", "right-ancestor", "concurrent"]);
+  });
+});
+
+describe("search OpenAPI contract", () => {
+  it("uses an authenticated POST body and never a query-string route", () => {
+    expect(searchOpenapi.openapi).toMatch(/^3\.1\./);
+    expect(Object.keys(searchOpenapi.paths)).toEqual(["/v1/search"]);
+    const operation = searchOpenapi.paths["/v1/search"]?.post as {
+      security?: unknown[];
+      requestBody?: { required?: boolean };
+      parameters?: Array<{ in?: string }>;
+    };
+    expect(operation.security).toEqual([{ ownerSession: [] }]);
+    expect(operation.requestBody?.required).toBe(true);
+    expect(operation.parameters ?? []).not.toContainEqual(expect.objectContaining({ in: "query" }));
+  });
+
+  it("documents bounded queries, pages and every safe failure state", () => {
+    const request = searchOpenapi.components.schemas.SearchRequest as {
+      properties?: Record<string, { minLength?: number; maxLength?: number; maximum?: number }>;
+    };
+    expect(request.properties?.query).toMatchObject({ minLength: 1, maxLength: 512 });
+    expect(request.properties?.limit).toMatchObject({ maximum: 50 });
+
+    const searchPath = searchOpenapi.paths["/v1/search"];
+    expect(searchPath).toBeDefined();
+    const responses = (searchPath as { post: { responses: Record<string, unknown> } }).post
+      .responses;
+    expect(Object.keys(responses).sort()).toEqual(["200", "400", "401", "409", "503"]);
+  });
+
+  it.each([
+    ["SearchRequest", SearchRequestSchema],
+    ["SearchResponse", SearchResponseSchema],
+    ["SearchResult", SearchResultSchema],
+  ] as const)("runtime %s requires every search OpenAPI-required field", (name, schema) => {
+    const runtime = runtimeRequired(schema as { required?: string[] });
+    for (const field of requiredOfSearch(name)) {
+      expect(runtime, `${name}.${field} must be required at runtime`).toContain(field);
+    }
   });
 });

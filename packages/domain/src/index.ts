@@ -24,6 +24,7 @@ export * from "./ids/uuid.ts";
 export * from "./revisions/lineage.ts";
 export * from "./revisions/retention.ts";
 export * from "./revisions/types.ts";
+export * from "./search/index.ts";
 // Platform-independent security rules only. The crypto implementation lives
 // behind the `@myownnotion/domain/security` subpath because it needs
 // `node:crypto`, which cannot enter a browser bundle.

@@ -145,6 +145,13 @@ async function completeUpload(
   }
 
   announceCommitted(committedSequence);
+  if (committedSequence !== undefined && context.search !== undefined) {
+    try {
+      await context.search.applyCommittedChanges([itemId], committedSequence);
+    } catch {
+      // The file is canonical already; search invalidates and rebuilds itself.
+    }
+  }
   await context.partialUploads.discard(upload.id);
   return { ok: true, itemId };
 }

@@ -26,6 +26,7 @@ import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import { mutationIdFrom } from "../plugins/mutations.ts";
+import { announceCommitted } from "../sync/change-notifier.ts";
 
 interface ParsedUpload {
   readonly bytes: Uint8Array;
@@ -182,14 +183,22 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
             acceptedAt,
             resultRevisionIds: [execution.value.revisionId],
           });
-          await recordChange(tx, {
+          const committedSequence = await recordChange(tx, {
             workspaceId: context.workspaceId,
             mutationId,
             revisionIds: [execution.value.revisionId],
             changedItemIds: [execution.value.itemId],
           });
-          return execution.value;
+          return { ...execution.value, committedSequence };
         });
+        announceCommitted(result.committedSequence);
+        if (context.search !== undefined) {
+          try {
+            await context.search.applyCommittedChanges([result.itemId], result.committedSequence);
+          } catch {
+            // The file committed; search invalidates and rebuilds itself.
+          }
+        }
         const item = await readItem(context.db, result.itemId);
         return reply.status(201).send({
           mutationId,
@@ -347,14 +356,22 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
             acceptedAt,
             resultRevisionIds: [execution.value.revisionId],
           });
-          await recordChange(tx, {
+          const committedSequence = await recordChange(tx, {
             workspaceId: context.workspaceId,
             mutationId,
             revisionIds: [execution.value.revisionId],
             changedItemIds: [execution.value.itemId],
           });
-          return execution.value;
+          return { ...execution.value, committedSequence };
         });
+        announceCommitted(result.committedSequence);
+        if (context.search !== undefined) {
+          try {
+            await context.search.applyCommittedChanges([result.itemId], result.committedSequence);
+          } catch {
+            // The replacement committed; search invalidates and rebuilds itself.
+          }
+        }
         const item = await readItem(context.db, result.itemId);
         return reply.status(200).send({
           mutationId,

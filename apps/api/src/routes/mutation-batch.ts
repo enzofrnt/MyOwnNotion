@@ -65,6 +65,7 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
        * would have.
        */
       let furthestSequence: number | undefined;
+      const changedItemIds = new Set<Uuid>();
 
       for (const queued of body.mutations) {
         const parsed = parseMutationCommand(queued.commandType, {
@@ -125,6 +126,9 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
         }
         if (outcome.committedSequence !== undefined) {
           furthestSequence = Math.max(furthestSequence ?? 0, outcome.committedSequence);
+          for (const itemId of outcome.changedItemIds ?? []) {
+            changedItemIds.add(itemId);
+          }
         }
         const result = outcome.result;
         results.push({
@@ -141,6 +145,17 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
       }
 
       announceCommitted(furthestSequence);
+      if (
+        furthestSequence !== undefined &&
+        changedItemIds.size > 0 &&
+        context.search !== undefined
+      ) {
+        try {
+          await context.search.applyCommittedChanges([...changedItemIds], furthestSequence);
+        } catch {
+          // The accepted batch remains successful; search invalidates and rebuilds itself.
+        }
+      }
       return { results };
     },
   );

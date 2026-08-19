@@ -16,6 +16,8 @@ import type {
   QueuedMutationDto,
   QueuedMutationResultDto,
   RelationshipDto,
+  SearchRequestDto,
+  SearchResponseDto,
 } from "@myownnotion/contracts";
 import type { Uuid } from "@myownnotion/domain";
 
@@ -87,6 +89,13 @@ export class ContentApi {
 
   async health(): Promise<ApiResult<{ status: "ready"; schemaVersion: number }>> {
     return this.#request("/health");
+  }
+
+  async search(request: SearchRequestDto): Promise<ApiResult<SearchResponseDto>> {
+    return this.#request("/v1/search", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
   }
 
   async listItems(filter?: {

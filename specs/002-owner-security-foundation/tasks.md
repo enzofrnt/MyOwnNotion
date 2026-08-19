@@ -6,7 +6,11 @@
 
 **Scope guard**: Preserve feature-001 canonical identities and models from `specs/001-content-foundations/`; do not edit feature-001 specification artifacts, create a second owner/account/workspace, or add excluded public-sharing, MCP, desktop, backup, or editor behavior.
 
-**Ownership guard**: Feature 002 owns the baseline Compose/env contract, external reverse-proxy boundary, CI quality gate, GHCR publication, and immutable release foundation in FR-030–FR-035. Feature 007 retains only final V1 release-readiness hardening and validation; do not duplicate this baseline in feature 007.
+**Ownership guard**: Feature 002 owns the baseline Compose/env contract,
+external reverse-proxy boundary, CI quality gate, GHCR publication, and
+immutable release foundation in FR-030–FR-035. Feature 007 owns backup,
+recovery, and update safeguards; feature 008 owns private workspace search.
+Neither feature duplicates this baseline.
 
 **V1 administration boundary**: Hosting-administrator operations are the protected local CLI in `contracts/admin-cli.md` only. Do not schedule or implement remote administrator HTTP routes, bearer capabilities, API tokens, or any other administrator transport; owner-facing security API operations remain session-cookie plus CSRF protected.
 

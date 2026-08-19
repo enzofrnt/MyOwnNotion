@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
+import { WorkspaceSearchService } from "../../services/search.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { StoragePanel } from "../files/storage-panel.tsx";
@@ -22,6 +23,8 @@ import { BranchState } from "../navigation/branch-state.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
 import { Sidebar } from "../navigation/sidebar.tsx";
 import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
+import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
+import type { SearchBranchOption } from "../search/search-filters.tsx";
 import { FileNode } from "./file-node.tsx";
 import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
@@ -107,6 +110,19 @@ function flatten(nodes: TreeNode[], expanded: ReadonlySet<string>): TreeNode[] {
   );
 }
 
+function searchBranchOptions(
+  nodes: readonly TreeNode[],
+  ancestors: readonly string[] = [],
+): SearchBranchOption[] {
+  return nodes.flatMap((node) => {
+    const path = [...ancestors, node.item.name];
+    return [
+      { itemId: node.item.id, label: path.join(" / ") },
+      ...searchBranchOptions(node.children, path),
+    ];
+  });
+}
+
 export function HierarchyExplorer({
   onOpenSettings,
 }: {
@@ -114,6 +130,7 @@ export function HierarchyExplorer({
   readonly onOpenSettings: () => void;
 }) {
   const service = useMemo(() => localContent(), []);
+  const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -135,10 +152,43 @@ export function HierarchyExplorer({
    * state is set and never read.
    */
   const [treeOpen, setTreeOpen] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
   const treeToggle = useRef<HTMLButtonElement | null>(null);
+  const searchReturnFocus = useRef<HTMLElement | null>(null);
   // Held in a ref so the key listener does not have to be rebound whenever the
   // callback identity changes.
   const closeTreeRef = useRef<() => void>(() => {});
+
+  const openSearch = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      searchReturnFocus.current = document.activeElement;
+    }
+    setSearchOpen(true);
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    queueMicrotask(() => searchReturnFocus.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (isSearchShortcut(event) && !searchOpen) {
+        event.preventDefault();
+        openSearch();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [openSearch, searchOpen]);
+
+  useEffect(() => {
+    const nextSearch = new WorkspaceSearchService(service);
+    setSearch(nextSearch);
+    return () => {
+      void nextSearch.dispose();
+    };
+  }, [service]);
 
   const refresh = useCallback(async () => {
     const [activeItems, trash] = await Promise.all([
@@ -202,6 +252,7 @@ export function HierarchyExplorer({
   }, [service, expanded, selectedId, navigationLoaded]);
 
   const tree = useMemo(() => buildTree(items), [items]);
+  const searchBranches = useMemo(() => searchBranchOptions(tree), [tree]);
   const visibleNodes = useMemo(() => flatten(tree, expanded), [tree, expanded]);
   const selectedItem = useMemo(
     () => items.find((item) => item.id === selectedId) ?? null,
@@ -773,7 +824,17 @@ export function HierarchyExplorer({
           items={items}
           onOpen={(itemId) => setSelectedId(itemId)}
           onOpenSettings={onOpenSettings}
+          onOpenSearch={openSearch}
         />
+
+        {searchOpen && search !== null ? (
+          <SearchDialog
+            search={search}
+            branches={searchBranches}
+            onOpen={(itemId) => setSelectedId(itemId)}
+            onClose={closeSearch}
+          />
+        ) : null}
 
         {tree.length === 0 ? (
           <p className="empty-state" data-testid="empty-state">

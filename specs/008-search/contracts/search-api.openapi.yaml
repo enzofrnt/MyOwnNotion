@@ -1,0 +1,212 @@
+openapi: 3.1.0
+info:
+  title: MyOwnNotion Search API
+  version: 1.0.0
+  description: >
+    Authenticated owner-only full-workspace search. Query text is carried in
+    the request body so it is absent from URLs and access logs.
+paths:
+  /v1/search:
+    post:
+      operationId: searchWorkspace
+      summary: Search the private canonical workspace
+      security:
+        - ownerSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: One complete page from a ready index generation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Invalid query, filter, limit, or cursor shape
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Owner authentication required
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "409":
+          description: Cursor belongs to another query or index generation
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: Index is rebuilding or degraded; no partial server page
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/SearchUnavailableProblem"
+components:
+  securitySchemes:
+    ownerSession:
+      type: apiKey
+      in: cookie
+      name: myownnotion_session
+  schemas:
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 512
+        kinds:
+          type: array
+          uniqueItems: true
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/ItemKind"
+        branchRootItemId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: "null"
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+        cursor:
+          type: string
+          minLength: 1
+          maxLength: 1024
+    SearchResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - coverage
+        - generation
+        - results
+        - nextCursor
+      properties:
+        coverage:
+          const: complete
+        generation:
+          type: integer
+          minimum: 1
+        results:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        nextCursor:
+          oneOf:
+            - type: string
+            - type: "null"
+    SearchResult:
+      type: object
+      additionalProperties: false
+      required:
+        - itemId
+        - revisionId
+        - kind
+        - title
+        - path
+        - matchedField
+        - snippet
+        - conflict
+      properties:
+        itemId:
+          type: string
+          format: uuid
+        revisionId:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/ItemKind"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        path:
+          type: array
+          items:
+            $ref: "#/components/schemas/PathSegment"
+        matchedField:
+          type: string
+          enum:
+            - title
+            - fileName
+            - body
+        snippet:
+          oneOf:
+            - type: string
+              maxLength: 320
+            - type: "null"
+        conflict:
+          type: boolean
+    PathSegment:
+      type: object
+      additionalProperties: false
+      required:
+        - itemId
+        - title
+      properties:
+        itemId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+    ItemKind:
+      type: string
+      enum:
+        - page
+        - folder
+        - file
+    Problem:
+      type: object
+      additionalProperties: true
+      required:
+        - title
+        - status
+        - code
+      properties:
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: string
+    SearchUnavailableProblem:
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          required:
+            - searchState
+            - indexedCount
+            - expectedCount
+          properties:
+            searchState:
+              type: string
+              enum:
+                - building
+                - degraded
+            indexedCount:
+              type: integer
+              minimum: 0
+            expectedCount:
+              type: integer
+              minimum: 0

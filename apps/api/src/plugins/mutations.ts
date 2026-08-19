@@ -20,6 +20,7 @@ import {
 } from "@myownnotion/database";
 import { isUuid, type MutationCommand, type Uuid } from "@myownnotion/domain";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { SearchService } from "../search/search-service.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { requestContext } from "../security/request-context.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
@@ -207,6 +208,8 @@ export async function handleMutation(input: {
    * builds an app with no security layer and must keep writing.
    */
   readonly rotationPolicies?: RotationPolicyService | undefined;
+  /** Refreshes the transient index after, and only after, a canonical commit. */
+  readonly search?: SearchService | undefined;
 }): Promise<FastifyReply> {
   // Before anything is read or written. A client too old to write safely is
   // refused with the version it needs (FR-018), and refusing here rather than
@@ -246,6 +249,18 @@ export async function handleMutation(input: {
   // After the transaction returned, which is the only moment a device can be
   // told to read and find the change there (feature 006, FR-001).
   announceCommitted(outcome.committedSequence);
+  if (
+    outcome.committedSequence !== undefined &&
+    outcome.changedItemIds !== undefined &&
+    input.search !== undefined
+  ) {
+    try {
+      await input.search.applyCommittedChanges(outcome.changedItemIds, outcome.committedSequence);
+    } catch {
+      // The canonical write already committed. Search invalidates itself and
+      // rebuilds; the owner still receives the successful mutation result.
+    }
+  }
 
   const { result } = outcome;
   if (result.status === "accepted" || result.status === "already-accepted") {

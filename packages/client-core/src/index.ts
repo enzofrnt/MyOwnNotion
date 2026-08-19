@@ -9,4 +9,5 @@ export * from "./outbox/outbox.ts";
 export * from "./reconciliation/reconcile.ts";
 export * from "./reconciliation/resolve-conflict.ts";
 export * from "./save-state/derive.ts";
+export * from "./search/index.ts";
 export * from "./security/index.ts";

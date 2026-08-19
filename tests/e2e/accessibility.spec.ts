@@ -143,6 +143,20 @@ test.describe("automated accessibility audit", () => {
     ).toEqual([]);
   });
 
+  test("the search dialog has no critical or serious violations", async ({ page }) => {
+    await openWorkspace(page);
+    await page.keyboard.press("ControlOrMeta+k");
+    await expect(page.getByRole("dialog", { name: "Search the workspace" })).toBeVisible();
+
+    const found = await violations(page);
+    expect(
+      found.map(
+        (violation: { id: string; help: string; impact?: string | null | undefined }) =>
+          `${violation.id}: ${violation.help}`,
+      ),
+    ).toEqual([]);
+  });
+
   test("the conversion confirmation has no critical or serious violations", async ({ page }) => {
     // Audited deliberately: a dialog is not on screen at load, so an audit that
     // only visits pages never sees it — and a destructive confirmation is
