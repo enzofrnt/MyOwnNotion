@@ -42,6 +42,9 @@ export interface InstallationRecord {
   readonly ownerId: string | null;
   readonly workspaceId: string | null;
   readonly schemaVersion: number;
+  readonly applicationVersion: string | null;
+  readonly previousApplicationVersion: string | null;
+  readonly previousBackupId: string | null;
 }
 
 export interface InstallationStatus extends InstallationRecord {
@@ -58,7 +61,44 @@ function toRecord(row: typeof installations.$inferSelect): InstallationRecord {
     ownerId: row.ownerId,
     workspaceId: row.workspaceId,
     schemaVersion: row.schemaVersion,
+    applicationVersion: row.applicationVersion,
+    previousApplicationVersion: row.previousApplicationVersion,
+    previousBackupId: row.previousBackupId,
   };
+}
+
+/** Records the first build observed after the version columns were introduced. */
+export async function recordInitialApplicationVersion(
+  executor: Executor,
+  input: { readonly installationId: string; readonly applicationVersion: string },
+): Promise<void> {
+  await executor
+    .update(installations)
+    .set({ applicationVersion: input.applicationVersion, updatedAt: new Date() })
+    .where(eq(installations.id, input.installationId));
+}
+
+/** Commits update provenance only after the guarded migration has succeeded. */
+export async function recordApplicationUpdate(
+  executor: Executor,
+  input: {
+    readonly installationId: string;
+    readonly from: string;
+    readonly to: string;
+    readonly backupId: string;
+    readonly schemaVersion: number;
+  },
+): Promise<void> {
+  await executor
+    .update(installations)
+    .set({
+      applicationVersion: input.to,
+      previousApplicationVersion: input.from,
+      previousBackupId: input.backupId,
+      schemaVersion: input.schemaVersion,
+      updatedAt: new Date(),
+    })
+    .where(eq(installations.id, input.installationId));
 }
 
 /** Reads the singleton, or null before the installation row exists. */

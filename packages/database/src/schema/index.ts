@@ -416,3 +416,123 @@ export const exports = pgTable(
     check("exports_status_check", sql`${table.status} IN ('pending', 'ready', 'failed')`),
   ],
 );
+
+/**
+ * Backups, their verifications, and restoration attempts (feature 007).
+ *
+ * Three tables rather than one. The split that matters is the second: a backup
+ * is verified after creation *and* again after transfer, and those are different
+ * facts with different failure modes — an archive can be sound on disk and
+ * corrupt at the destination.
+ */
+export const backups = pgTable(
+  "backups",
+  {
+    id: uuid("id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * The change-feed position this archive represents.
+     *
+     * Consistency is not a separate mechanism here: the product already orders
+     * every change, so "one moment" is a number it already has. It also makes a
+     * restored workspace placeable — an owner can say what they lost in changes
+     * rather than in minutes.
+     */
+    cursor: text("cursor").notNull(),
+    applicationVersion: text("application_version").notNull(),
+    schemaVersion: integer("schema_version").notNull(),
+    recordFormatVersion: integer("record_format_version").notNull(),
+    byteLength: bigint("byte_length", { mode: "number" }).notNull(),
+    digest: text("digest").notNull(),
+    /**
+     * Null while the archive exists only locally.
+     *
+     * A backup produced and not yet transferred is a real state, and one that
+     * must not be read as a failure — retention depends on telling them apart.
+     */
+    destination: text("destination"),
+    remoteName: text("remote_name"),
+    reason: text("reason").notNull().default("scheduled"),
+    /** For a pre-update backup: the version being moved to. */
+    supersededByVersion: text("superseded_by_version"),
+  },
+  (table) => [
+    check("backups_reason_check", sql`${table.reason} IN ('scheduled', 'manual', 'pre-update')`),
+    check(
+      "backups_remote_pair_check",
+      sql`(${table.destination} IS NULL) = (${table.remoteName} IS NULL)`,
+    ),
+    index("backups_created_idx").on(table.workspaceId, table.createdAt),
+  ],
+);
+
+/**
+ * One row per check performed against a backup.
+ *
+ * Rows rather than columns, and this is what the table exists to make possible:
+ * a verification is an event that happened at a time, and a backup can be
+ * checked again later — after a destination outage, or because the owner asked.
+ * Columns would keep only the last answer and would silently overwrite the
+ * history of a backup that passed and then failed.
+ */
+export const backupVerifications = pgTable(
+  "backup_verifications",
+  {
+    id: uuid("id").primaryKey(),
+    backupId: uuid("backup_id")
+      .notNull()
+      .references(() => backups.id, { onDelete: "cascade" }),
+    stage: text("stage").notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+    outcome: text("outcome").notNull(),
+    /** A safe reason. Never a path, a credential, or anything from the archive. */
+    detail: text("detail"),
+  },
+  (table) => [
+    check(
+      "backup_verifications_stage_check",
+      sql`${table.stage} IN ('after-creation', 'after-transfer')`,
+    ),
+    check("backup_verifications_outcome_check", sql`${table.outcome} IN ('passed', 'failed')`),
+    index("backup_verifications_passed_idx").on(table.backupId, table.stage, table.checkedAt),
+  ],
+);
+
+export const restorationAttempts = pgTable(
+  "restoration_attempts",
+  {
+    id: uuid("id").primaryKey(),
+    backupId: uuid("backup_id")
+      .notNull()
+      .references(() => backups.id),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Null while running.
+     *
+     * A row left null by a process that is no longer alive *is* the interrupted
+     * state FR-017 is about. The installation reads it at startup and refuses to
+     * present itself as healthy, rather than inferring health from the absence
+     * of an error.
+     */
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    kind: text("kind").notNull(),
+    outcome: text("outcome"),
+    detail: text("detail"),
+    restoredItemCount: integer("restored_item_count"),
+  },
+  (table) => [
+    check("restoration_attempts_kind_check", sql`${table.kind} IN ('test', 'destructive')`),
+    check(
+      "restoration_attempts_outcome_check",
+      sql`${table.outcome} IS NULL OR ${table.outcome} IN ('succeeded', 'failed')`,
+    ),
+    check(
+      "restoration_attempts_finished_check",
+      sql`(${table.finishedAt} IS NULL) = (${table.outcome} IS NULL)`,
+    ),
+    index("restoration_attempts_started_idx").on(table.startedAt),
+  ],
+);

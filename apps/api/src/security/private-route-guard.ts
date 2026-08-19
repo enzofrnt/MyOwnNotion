@@ -137,6 +137,8 @@ export const ROUTE_READINESS: Readonly<Record<string, ReadinessRequirement>> = {
   "/v1/auth/passkeys": "initialized",
   "/v1/auth/password": "initialized",
   "/v1/devices": "initialized",
+  "/v1/backups/status": "initialized",
+  "/v1/backups/rehearsals": "protected",
   "/v1/security/recovery-kits": "protected",
   "/v1/security/rotations": "initialized",
   "/v1/security/audit": "initialized",

@@ -24,6 +24,22 @@ const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const baseImagesPath = path.join(repoRoot, "docker", "base-images.json");
 const artifactPath = path.join(repoRoot, "image-build.json");
 
+function buildIdentity(): string {
+  const candidateSha = process.env["GITHUB_SHA"]?.trim();
+  if (candidateSha !== undefined && candidateSha !== "") {
+    return `sha-${candidateSha}`;
+  }
+  try {
+    return `sha-${execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim()}`;
+  } catch {
+    return "development";
+  }
+}
+
 interface BaseImage {
   ref: string;
   digest: string;
@@ -40,6 +56,8 @@ interface Target {
   dockerfile: string;
   /** Build arguments naming the digest-pinned bases this target consumes. */
   baseArgs: Record<string, string>;
+  /** Non-secret metadata embedded in the image. */
+  buildArgs?: Record<string, string>;
 }
 
 const targets: Target[] = [
@@ -47,6 +65,9 @@ const targets: Target[] = [
     name: "api",
     dockerfile: "docker/api.Dockerfile",
     baseArgs: { NODE_BASE: "node" },
+    buildArgs: {
+      APPLICATION_VERSION: buildIdentity(),
+    },
   },
   {
     name: "web",
@@ -151,6 +172,9 @@ for (const target of targets) {
       process.exit(1);
     }
     args.push("--build-arg", `${argument}=${base.ref}@${base.digest}`);
+  }
+  for (const [argument, value] of Object.entries(target.buildArgs ?? {})) {
+    args.push("--build-arg", `${argument}=${value}`);
   }
   // No `--push` and no `--load`: the gate builds and discards.
   args.push(".");

@@ -13,6 +13,7 @@
 #   - builds for linux/amd64 and linux/arm64 from the same definition.
 
 ARG NODE_BASE
+ARG APPLICATION_VERSION=0.1.0
 
 FROM --platform=$BUILDPLATFORM ${NODE_BASE} AS builder
 WORKDIR /app
@@ -49,9 +50,11 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 
 
 FROM ${NODE_BASE} AS runtime
+ARG APPLICATION_VERSION=0.1.0
 WORKDIR /app
 ENV NODE_ENV=production \
     TZ=UTC \
+    MYOWNNOTION_APPLICATION_VERSION=${APPLICATION_VERSION} \
     MYOWNNOTION_API_HOST=0.0.0.0 \
     MYOWNNOTION_API_PORT=3001
 
@@ -71,7 +74,7 @@ RUN apt-get update \
  && rm -rf /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 # Durable blob volume and mounted-secret directory are provided by Compose.
-RUN mkdir -p /var/lib/myownnotion/blobs \
+RUN mkdir -p /var/lib/myownnotion/blobs /var/lib/myownnotion/backups \
  && chown -R node:node /var/lib/myownnotion
 
 # `dist/` holds both entrypoints: `server.mjs` and the `migrate.mjs` the

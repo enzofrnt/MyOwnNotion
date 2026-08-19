@@ -30,8 +30,10 @@ playwright-report/
 test-results/
 /test-impact.json
 
-# Development blob store and database data
+# Development blob store, backups, and database data
 .dev-blobs/
+.dev-backups/
+.dev-backups-e2e/
 .postgres-data/
 
 # Local environment and secrets

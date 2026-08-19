@@ -79,6 +79,44 @@ Every published port binds to `127.0.0.1` only.
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
 
+### Backup and recovery commands
+
+Administrative recovery runs locally, with the same mounted deployment key as
+the API. It is not exposed as a destructive HTTP endpoint.
+
+```bash
+pnpm admin backup run --json
+pnpm admin backup verify --latest --json
+pnpm admin restore test --latest --json
+pnpm admin restore apply --id <backup-id> --dry-run
+pnpm admin version inspect --json
+```
+
+`restore test` creates and migrates a disposable PostgreSQL database, writes the
+whole archive into it, then drops it. It never opens the live database as a
+restore target. `restore apply` first checks the key, archive integrity,
+compatibility and scope, takes a safety backup, and finally requires either the
+interactive `RESTORE` confirmation or `--yes`. Without a terminal it refuses to
+assume consent. Use `--dry-run` to perform the checks without writing or taking
+the safety backup.
+
+The filesystem destination defaults to `.dev-backups/` locally. In Compose it
+uses the durable `backup-store` volume, separate from the original blob volume.
+To use Google Drive, set `MYOWNNOTION_BACKUP_DESTINATION=google-drive`, mount an
+access-token file, and set both Drive variables documented in `.env.example`.
+
+If `/health` reports `restoration-incomplete`, do not treat the installation as
+ready. Re-run the same `restore apply --id …` command after fixing the cause, or
+deploy the safety backup recorded immediately before the attempt.
+
+Both `pnpm db:migrate` and the Compose migration job run the update guard. On a
+version change, it produces and re-reads a `pre-update` backup before any pending
+migration. A failed verification stops the process with the previous schema
+untouched. `pnpm admin version inspect` shows the running and recorded versions,
+pending migrations, and whether a verified backup exists for the version being
+left. After an update it also names the exact previous `sha-…` image tag, the
+matching backup, and the previous schema and encrypted-record format versions.
+
 ### Server logging
 
 The API has one logger factory in `apps/api/src/plugins/logging.ts`. In an

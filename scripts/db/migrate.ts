@@ -9,7 +9,13 @@
  * migration entrypoint applies exactly the same files the same way.
  */
 import process from "node:process";
-import { migrate } from "@myownnotion/database";
+import { APPLICATION_VERSION } from "../../apps/api/src/application-version.ts";
+import {
+  createBackupDestination,
+  loadBackupConfig,
+} from "../../apps/api/src/backup/backup-config.ts";
+import { runGuardedMigrations } from "../../apps/api/src/backup/guarded-migration.ts";
+import { loadDeploymentKey } from "../../apps/api/src/security/deployment-key.ts";
 
 const connectionString = process.env["DATABASE_URL"];
 if (!connectionString) {
@@ -18,7 +24,14 @@ if (!connectionString) {
 }
 
 try {
-  const applied = await migrate(connectionString);
+  const applied = await runGuardedMigrations({
+    connectionString,
+    runningVersion: APPLICATION_VERSION,
+    installationId: "018f2b7c-0000-7000-8000-000000000001",
+    blobRoot: process.env["MYOWNNOTION_BLOB_ROOT"]?.trim() || "./.dev-blobs",
+    destination: createBackupDestination(loadBackupConfig()),
+    deploymentKey: () => loadDeploymentKey(process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"]).bytes,
+  });
   if (applied.length === 0) {
     console.info("Database is already up to date.");
   } else {

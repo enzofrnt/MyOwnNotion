@@ -100,6 +100,7 @@ describe("the aggregate", () => {
       "typecheck",
       "unit",
       "integration",
+      "reference-backups",
       "contract",
       "e2e",
       "build",
@@ -222,6 +223,18 @@ describe("who may publish", () => {
     // `packages: write`", which is exactly the property being asserted.
     expect(block).not.toMatch(/^ +packages: write$/m);
     expect(block).not.toContain("--push");
+  });
+
+  it("embeds the immutable candidate identity in every API image", () => {
+    const apiBuilds = [
+      ...ci.matchAll(/file: docker\/api\.Dockerfile([\s\S]*?)(?=\n +(?:- name:|tags:))/g),
+    ];
+    expect(apiBuilds.length).toBeGreaterThanOrEqual(3);
+    for (const build of apiBuilds) {
+      expect(build[1], "an API image build omitted its immutable application version").toContain(
+        `APPLICATION_VERSION=sha-${gha("github.sha")}`,
+      );
+    }
   });
 
   it("publishes only from a push to main, behind a successful gate", () => {

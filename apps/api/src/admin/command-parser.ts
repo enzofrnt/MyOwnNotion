@@ -30,6 +30,8 @@ export interface ParsedCommand {
 
 /** Flags that take a value; everything else is a boolean switch. */
 const VALUE_FLAGS = new Set([
+  "id",
+  "destination",
   "target",
   "source",
   "generation",

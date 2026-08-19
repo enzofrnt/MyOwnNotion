@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BootstrapPage } from "./features/auth/bootstrap-page.tsx";
 import { LoginPage } from "./features/auth/login-page.tsx";
+import { BackupPanel } from "./features/backup/backup-panel.tsx";
 import { ConnectionStatus } from "./features/connection/connection-status.tsx";
 import { HierarchyExplorer } from "./features/hierarchy/hierarchy-explorer.tsx";
 import { SecuritySettings } from "./features/security/security-settings.tsx";
@@ -22,6 +23,8 @@ import { ContentApi } from "./services/content-api.ts";
 import { SecurityApi } from "./services/security-api.ts";
 
 type Gate = "checking" | "bootstrap" | "login" | "workspace";
+type WorkspaceView = "workspace" | "security" | "backups";
+const BACKUP_STATUS_POLL_MS = 15 * 60 * 1000;
 
 export interface AppProps {
   /** Injected in tests; defaults to the same-origin client. */
@@ -40,7 +43,23 @@ export function App(props: AppProps = {}) {
   const [api] = useState(() => props.api ?? new SecurityApi());
   const [gate, setGate] = useState<Gate>("checking");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [showSecurity, setShowSecurity] = useState(false);
+  const [view, setView] = useState<WorkspaceView>("workspace");
+  const [workspaceBackupStale, setWorkspaceBackupStale] = useState(false);
+
+  const loadBackupStatus = useCallback(async () => {
+    const result = await api.backupStatus();
+    if (!result.ok) {
+      throw new Error(result.problem.code);
+    }
+    return result.value;
+  }, [api]);
+
+  const runBackupRehearsal = useCallback(async () => {
+    const result = await api.runBackupRehearsal();
+    if (!result.ok) {
+      throw new Error(result.problem.code);
+    }
+  }, [api]);
 
   /**
    * Decides which of the three states this browser is in.
@@ -85,13 +104,40 @@ export function App(props: AppProps = {}) {
     void resolveGate();
   }, [resolveGate]);
 
+  useEffect(() => {
+    if (gate !== "workspace" || view !== "workspace") {
+      return;
+    }
+    let cancelled = false;
+    const refresh = () =>
+      loadBackupStatus()
+        .then((status) => {
+          if (!cancelled) {
+            setWorkspaceBackupStale(status.stale);
+          }
+        })
+        .catch(() => {
+          // An unavailable status is not evidence that a backup is stale. The
+          // backup screen reports that uncertainty explicitly when opened.
+        });
+    void refresh();
+    // SC-007 promises the warning within an hour of crossing the threshold,
+    // including when the owner leaves one workspace tab open all day. Fifteen
+    // minutes gives that guarantee without turning status into noisy traffic.
+    const timer = window.setInterval(() => void refresh(), BACKUP_STATUS_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [gate, loadBackupStatus, view]);
+
   const onSignedIn = useCallback(() => {
     void resolveGate();
   }, [resolveGate]);
 
   const onSignedOut = useCallback(() => {
     setSessionId(null);
-    setShowSecurity(false);
+    setView("workspace");
     setGate("login");
   }, []);
 
@@ -126,17 +172,52 @@ export function App(props: AppProps = {}) {
       <header className="app-header">
         <h1>MyOwnNotion</h1>
         <p className="app-subtitle">Canonical content workspace</p>
-        <button
-          type="button"
-          className="link"
-          onClick={() => setShowSecurity((shown) => !shown)}
-          data-testid="toggle-security-settings"
-        >
-          {showSecurity ? "Back to workspace" : "Security"}
-        </button>
+        {view === "workspace" ? (
+          <>
+            <button
+              type="button"
+              className="link"
+              onClick={() => setView("backups")}
+              data-testid="open-backups"
+            >
+              Backups
+            </button>
+            <button
+              type="button"
+              className="link"
+              onClick={() => setView("security")}
+              data-testid="toggle-security-settings"
+            >
+              Security
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="link"
+            onClick={() => setView("workspace")}
+            data-testid="back-to-workspace"
+          >
+            Back to workspace
+          </button>
+        )}
       </header>
       <main className="app-main">
-        {showSecurity ? (
+        {view === "workspace" && workspaceBackupStale ? (
+          <p
+            className="status-banner"
+            data-state="error"
+            role="alert"
+            data-testid="workspace-backup-stale"
+          >
+            <strong>No verified backup in more than a day.</strong> This workspace is not currently
+            protected against losing this machine.{" "}
+            <button type="button" className="link" onClick={() => setView("backups")}>
+              Review backups
+            </button>
+          </p>
+        ) : null}
+        {view === "security" ? (
           <>
             {/* On the security screen rather than in the workspace chrome: an
                 owner checks who they are talking to when they are thinking
@@ -146,8 +227,10 @@ export function App(props: AppProps = {}) {
             <ConnectionStatus api={connectionApi} />
             <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
           </>
+        ) : view === "backups" ? (
+          <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />
         ) : (
-          <HierarchyExplorer onOpenSettings={() => setShowSecurity(true)} />
+          <HierarchyExplorer onOpenSettings={() => setView("security")} />
         )}
       </main>
     </div>

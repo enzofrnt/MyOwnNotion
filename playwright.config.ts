@@ -27,6 +27,7 @@ const webHost = process.env["MYOWNNOTION_WEB_HOST"] ?? "localhost";
 const publicOrigin = process.env["MYOWNNOTION_PUBLIC_ORIGIN"] ?? `http://${webHost}:${webPort}`;
 const deploymentKeyFile =
   process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"] ?? path.resolve("secrets", "deployment-key.e2e");
+const backupRoot = process.env["MYOWNNOTION_BACKUP_ROOT"] ?? path.resolve(".dev-backups-e2e");
 
 /**
  * Browser/viewport matrix: Chromium, Firefox, and WebKit, desktop and mobile.
@@ -84,6 +85,7 @@ export default defineConfig({
           process.env["DATABASE_URL"] ??
           "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
         MYOWNNOTION_BLOB_ROOT: process.env["MYOWNNOTION_BLOB_ROOT"] ?? "./.dev-blobs",
+        MYOWNNOTION_BACKUP_ROOT: backupRoot,
         MYOWNNOTION_PUBLIC_ORIGIN: publicOrigin,
         MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
         MYOWNNOTION_DEPLOYMENT_KEY_FILE: deploymentKeyFile,

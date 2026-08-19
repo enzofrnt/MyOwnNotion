@@ -1,170 +1,114 @@
 /**
- * Snapshot retention and restore-as-new-descendant rules (T083, US5).
+ * Which backups may be deleted (T010, FR-010, FR-011).
  *
- * Superseded content stays complete for 24 hours (FR-026) and only becomes
- * prunable when nothing else still needs it. Restoration never rewrites
- * ancestry: it plans a new revision parented on the actual current head, and a
- * stale expected head must surface as an explicit conflict (FR-015/FR-027).
+ * The assertions worth having are all about the floor, not the calendar. A
+ * retention pass that only counts days will, on the week transfers have been
+ * failing, delete the last backup that was ever verified — at the exact moment
+ * its absence costs everything.
  */
 
-import {
-  asChangeCursor,
-  canPruneSnapshot,
-  generateUuidV7,
-  INITIAL_CHANGE_CURSOR,
-  planRestoreRevision,
-  REVISION_SNAPSHOT_RETENTION_MS,
-  type RevisionWithSnapshot,
-  snapshotExpiry,
-} from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
+import {
+  backupIsStale,
+  backupsToDelete,
+  DEFAULT_RETENTION_DAYS,
+  type RetainableBackup,
+} from "../src/index.ts";
 
-const SUPERSEDED_AT = new Date("2026-08-09T12:00:00.000Z");
-const EXPIRES_AT = new Date(SUPERSEDED_AT.getTime() + REVISION_SNAPSHOT_RETENTION_MS);
+const NOW = new Date("2026-08-18T04:00:00.000Z");
 
-const UNPROTECTED = {
-  isCurrentHead: false,
-  isConflictProtected: false,
-  isRetentionProtected: false,
-} as const;
-
-function revision(overrides: Partial<RevisionWithSnapshot> = {}): RevisionWithSnapshot {
-  return {
-    id: generateUuidV7(),
-    itemId: generateUuidV7(),
-    mutationId: generateUuidV7(),
-    parentRevisionIds: [],
-    acceptedAt: SUPERSEDED_AT.toISOString(),
-    snapshot: { body: { text: "retained" } },
-    snapshotExpiresAt: EXPIRES_AT.toISOString(),
-    ...overrides,
-  };
+function daysAgo(days: number): Date {
+  return new Date(NOW.getTime() - days * 24 * 60 * 60 * 1000);
 }
 
-describe("snapshotExpiry", () => {
-  it("is exactly 24 hours after the content was superseded", () => {
-    expect(snapshotExpiry(SUPERSEDED_AT).toISOString()).toBe(
-      new Date("2026-08-10T12:00:00.000Z").toISOString(),
+function backup(id: string, days: number, verified: boolean): RetainableBackup {
+  return { id, createdAt: daysAgo(days), verifiedAtDestination: verified };
+}
+
+const policy = { retainDays: DEFAULT_RETENTION_DAYS, now: NOW };
+
+describe("deleting old backups", () => {
+  it("deletes one that is past retention when a newer verified backup remains", () => {
+    const deletable = backupsToDelete(
+      [backup("old", 200, true), backup("recent", 1, true)],
+      policy,
     );
-  });
-});
-
-describe("canPruneSnapshot", () => {
-  it("keeps content throughout the 24-hour window", () => {
-    const oneMsEarly = () => new Date(EXPIRES_AT.getTime() - 1);
-    expect(canPruneSnapshot(revision(), UNPROTECTED, oneMsEarly)).toBe(false);
+    expect(deletable).toEqual(["old"]);
   });
 
-  it("allows pruning once the window has elapsed", () => {
-    expect(canPruneSnapshot(revision(), UNPROTECTED, () => EXPIRES_AT)).toBe(true);
-  });
-
-  it("never prunes an already pruned snapshot", () => {
-    expect(canPruneSnapshot(revision({ snapshot: null }), UNPROTECTED, () => EXPIRES_AT)).toBe(
-      false,
+  it("keeps a backup that is past retention when nothing newer is verified", () => {
+    // The case the rule exists for. Transfers have been failing for a week, so
+    // the only verified copy is the old one — and a calendar would delete it.
+    const deletable = backupsToDelete(
+      [backup("old", 200, true), backup("recent", 1, false)],
+      policy,
     );
+    expect(deletable).toEqual([]);
   });
 
-  it("never prunes a revision with no recorded expiry", () => {
-    expect(
-      canPruneSnapshot(revision({ snapshotExpiresAt: null }), UNPROTECTED, () => EXPIRES_AT),
-    ).toBe(false);
+  it("deletes nothing when no backup has ever been verified at the destination", () => {
+    // Deleting here would remove the only copies that exist, on the authority of
+    // a calendar and nothing else.
+    const deletable = backupsToDelete([backup("a", 300, false), backup("b", 200, false)], policy);
+    expect(deletable).toEqual([]);
   });
 
-  it("never prunes the current head", () => {
-    expect(
-      canPruneSnapshot(revision(), { ...UNPROTECTED, isCurrentHead: true }, () => EXPIRES_AT),
-    ).toBe(false);
+  it("never deletes the newest verified backup, however old it is", () => {
+    const deletable = backupsToDelete([backup("ancient", 900, true)], policy);
+    expect(deletable).toEqual([]);
   });
 
-  it("never prunes content an unresolved conflict still needs", () => {
-    expect(
-      canPruneSnapshot(revision(), { ...UNPROTECTED, isConflictProtected: true }, () => EXPIRES_AT),
-    ).toBe(false);
+  it("keeps a backup that is old but still within retention", () => {
+    const deletable = backupsToDelete(
+      [backup("inside", DEFAULT_RETENTION_DAYS - 1, true), backup("newest", 0, true)],
+      policy,
+    );
+    expect(deletable).toEqual([]);
   });
 
-  it("never prunes content trash or backup rules still need", () => {
-    expect(
-      canPruneSnapshot(
-        revision(),
-        { ...UNPROTECTED, isRetentionProtected: true },
-        () => EXPIRES_AT,
-      ),
-    ).toBe(false);
+  it("never proposes a set of deletions that would leave nothing verified", () => {
+    // Two old verified backups: each is individually "safe because the other
+    // exists", and deleting both is not. Deciding them together is what makes
+    // that impossible to express.
+    const deletable = backupsToDelete(
+      [backup("older", 400, true), backup("old", 300, true)],
+      policy,
+    );
+    const survivors = ["older", "old"].filter((id) => !deletable.includes(id));
+    expect(survivors.length).toBeGreaterThan(0);
+    expect(deletable).toEqual(["older"]);
   });
 
-  it("uses the real clock when no clock is supplied", () => {
-    const longExpired = revision({ snapshotExpiresAt: "2000-01-01T00:00:00.000Z" });
-    const farFuture = revision({ snapshotExpiresAt: "2999-01-01T00:00:00.000Z" });
-    expect(canPruneSnapshot(longExpired, UNPROTECTED)).toBe(true);
-    expect(canPruneSnapshot(farFuture, UNPROTECTED)).toBe(false);
+  it("honours a configured retention window", () => {
+    const deletable = backupsToDelete([backup("old", 10, true), backup("new", 1, true)], {
+      retainDays: 7,
+      now: NOW,
+    });
+    expect(deletable).toEqual(["old"]);
   });
 });
 
-describe("planRestoreRevision", () => {
-  it("parents the restoration on the actual current head instead of rewriting history", () => {
-    const source = revision();
-    const head = generateUuidV7();
-
-    const result = planRestoreRevision(source, head, {
-      revisionId: source.id,
-      expectedCurrentRevisionId: head,
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.parentRevisionId).toBe(head);
-      expect(result.value.restoredSnapshot).toEqual(source.snapshot);
-      expect(result.value.sourceRevision.id).toBe(source.id);
-    }
+describe("warning about staleness", () => {
+  it("says nothing while a verified backup is recent", () => {
+    expect(backupIsStale(daysAgo(0), NOW)).toBe(false);
   });
 
-  it("rejects an unknown revision", () => {
-    const result = planRestoreRevision(null, generateUuidV7(), {
-      revisionId: generateUuidV7(),
-      expectedCurrentRevisionId: generateUuidV7(),
-    });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("revision.not-found");
-    }
+  it("tolerates a schedule that runs a little late", () => {
+    // Twenty-five hours is a daily backup that started an hour behind. Warning
+    // here would produce a warning most mornings, and a warning an owner sees
+    // daily is one they stop reading.
+    const twentyFiveHoursAgo = new Date(NOW.getTime() - 25 * 60 * 60 * 1000);
+    expect(backupIsStale(twentyFiveHoursAgo, NOW)).toBe(false);
   });
 
-  it("rejects restoring content that has already expired", () => {
-    const source = revision({ snapshot: null });
-    const head = generateUuidV7();
-
-    const result = planRestoreRevision(source, head, {
-      revisionId: source.id,
-      expectedCurrentRevisionId: head,
-    });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("revision.snapshot-expired");
-    }
+  it("warns once a day has genuinely been missed", () => {
+    const twentySevenHoursAgo = new Date(NOW.getTime() - 27 * 60 * 60 * 1000);
+    expect(backupIsStale(twentySevenHoursAgo, NOW)).toBe(true);
   });
 
-  it("reports a conflict with the competing head when the expected head is stale", () => {
-    const source = revision();
-    const actualHead = generateUuidV7();
-
-    const result = planRestoreRevision(source, actualHead, {
-      revisionId: source.id,
-      expectedCurrentRevisionId: generateUuidV7(), // the owner's stale belief
-    });
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.code).toBe("mutation.conflict");
-      expect(result.error.competingRevisionIds).toEqual([actualHead]);
-    }
-  });
-});
-
-describe("change cursors", () => {
-  it("treats the empty cursor as the beginning of history", () => {
-    expect(INITIAL_CHANGE_CURSOR).toBe("");
-  });
-
-  it("brands an opaque cursor value without altering it", () => {
-    expect(asChangeCursor("seq:42")).toBe("seq:42");
+  it("warns when nothing has ever been verified at the destination", () => {
+    // A backup that never left the machine protects against nothing this
+    // feature exists to protect against.
+    expect(backupIsStale(null, NOW)).toBe(true);
   });
 });

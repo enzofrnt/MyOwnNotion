@@ -61,6 +61,20 @@ export const installations = pgTable(
     /** The exact feature-001 workspace ID. Security never regenerates it. */
     workspaceId: uuid("workspace_id"),
     schemaVersion: integer("schema_version").notNull(),
+    /**
+     * The build that last ran here (feature 007).
+     *
+     * Nullable, and the nullability is the decision. An installation that
+     * predates this column has never recorded a version, and the first startup
+     * after the migration must not read that silence as a version change — it
+     * would demand a backup of a version nobody can name and refuse to migrate
+     * on the strength of it. Null means unknown, which the guard records and
+     * carries on from.
+     */
+    applicationVersion: text("application_version"),
+    /** What to go back to, and which backup belongs to it (FR-025). */
+    previousApplicationVersion: text("previous_application_version"),
+    previousBackupId: uuid("previous_backup_id"),
     createdAt: utc("created_at").notNull().defaultNow(),
     updatedAt: utc("updated_at").notNull().defaultNow(),
   },

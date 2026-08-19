@@ -189,6 +189,18 @@
       }
     },
     {
+      "test": "tests/e2e/backup.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/backups.ts",
+          "apps/web/src/services/security-api.ts",
+          "packages/database/src/repositories/backup-repository.ts"
+        ],
+        "prefixes": ["apps/web/src/features/backup/", "packages/domain/src/backup/"],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/block-editor.spec.ts",
       "owners": {
         "exact": ["apps/api/src/routes/page-documents.ts"],
