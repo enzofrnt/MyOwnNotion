@@ -1,0 +1,925 @@
+openapi: 3.1.0
+info:
+  title: MyOwnNotion Databases and Structured Tasks API
+  version: 0.1.0
+  description: |
+    Owner-authenticated read and write boundary for feature 009. Every write is
+    executed as the same typed, idempotent command accepted by
+    POST /v1/mutations/batch. Private view configurations and values are sent
+    in JSON request bodies, never URL query strings.
+servers:
+  - url: /
+security:
+  - ownerSession: []
+paths:
+  /v1/databases:
+    post:
+      operationId: createDatabase
+      summary: Create a page-backed database with title property and first view
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDatabaseRequest"
+      responses:
+        "201":
+          description: Database created atomically
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseMutationResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+
+  /v1/databases/{databaseId}:
+    parameters:
+      - $ref: "#/components/parameters/DatabaseId"
+    get:
+      operationId: getDatabase
+      summary: Read one current database definition
+      responses:
+        "200":
+          description: Current opened definition and structural state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Database"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+
+  /v1/databases/{databaseId}/definition/impact:
+    parameters:
+      - $ref: "#/components/parameters/DatabaseId"
+    post:
+      operationId: previewDatabaseDefinitionImpact
+      summary: Preview destructive effects of a candidate definition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceDefinitionCandidate"
+      responses:
+        "200":
+          description: Impact tied to the candidate, current revision, and affected identities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DefinitionImpact"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+
+  /v1/databases/{databaseId}/definition:
+    parameters:
+      - $ref: "#/components/parameters/DatabaseId"
+    put:
+      operationId: replaceDatabaseDefinition
+      summary: Replace schema, views, and task-role mappings atomically
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceDefinitionRequest"
+      responses:
+        "200":
+          description: Definition committed as one host-page revision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseMutationResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/ConflictProblem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+
+  /v1/databases/{databaseId}/entries:
+    parameters:
+      - $ref: "#/components/parameters/DatabaseId"
+    post:
+      operationId: createDatabaseEntry
+      summary: Create a canonical page and its database membership
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEntryRequest"
+      responses:
+        "201":
+          description: Entry, values, placement, and relationships committed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntryMutationResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/ConflictProblem"
+        "503":
+          $ref: "#/components/responses/Problem"
+
+  /v1/databases/{databaseId}/entries/{entryId}:
+    parameters:
+      - $ref: "#/components/parameters/DatabaseId"
+      - $ref: "#/components/parameters/EntryId"
+    get:
+      operationId: getDatabaseEntry
+      summary: Read one page entry and its current structured values
+      responses:
+        "200":
+          description: Current entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseEntry"
+        "401":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+
+  /v1/databases/{databaseId}/entries/{entryId}/values:
+    parameters:
+      - $ref: "#/components/parameters/DatabaseId"
+      - $ref: "#/components/parameters/EntryId"
+    put:
+      operationId: replaceDatabaseEntryValues
+      summary: Replace one entry's values and property relationships atomically
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceEntryValuesRequest"
+      responses:
+        "200":
+          description: Values committed as one entry-page revision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EntryMutationResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/ConflictProblem"
+        "422":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
+
+  /v1/databases/{databaseId}/query:
+    parameters:
+      - $ref: "#/components/parameters/DatabaseId"
+    post:
+      operationId: queryDatabaseView
+      summary: Execute one saved view against a complete server projection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatabaseQuery"
+      responses:
+        "200":
+          description: Stable page of evaluated entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseQueryPage"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: Cursor or view generation is stale
+          content:
+            application/problem+json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Problem"
+                  - type: object
+                    properties:
+                      code:
+                        const: database.cursor-stale
+        "503":
+          description: Structured projection is building or degraded
+          content:
+            application/problem+json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Problem"
+                  - type: object
+                    required: [projectionState]
+                    properties:
+                      projectionState:
+                        enum: [building, degraded]
+
+components:
+  securitySchemes:
+    ownerSession:
+      type: apiKey
+      in: cookie
+      name: myownnotion_session
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    DatabaseId:
+      name: databaseId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    EntryId:
+      name: entryId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+
+  responses:
+    Problem:
+      description: Safe problem document without private content
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    ConflictProblem:
+      description: Competing revisions retained for explicit resolution
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Problem"
+              - type: object
+                required: [competingRevisionIds]
+                properties:
+                  competingRevisionIds:
+                    type: array
+                    minItems: 1
+                    items:
+                      $ref: "#/components/schemas/Uuid"
+
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+        invalidFields:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [field, code]
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+        competingRevisionIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+
+    PlacementInput:
+      type: object
+      additionalProperties: false
+      required: [id, parentItemId, positionKey]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        parentItemId:
+          oneOf:
+            - $ref: "#/components/schemas/Uuid"
+            - type: "null"
+        positionKey:
+          type: string
+          minLength: 1
+          maxLength: 255
+
+    PageDocument:
+      type: object
+      additionalProperties: false
+      required: [format, formatVersion, body]
+      properties:
+        format:
+          const: myownnotion.document+json
+        formatVersion:
+          type: integer
+          minimum: 1
+        body:
+          type: object
+          additionalProperties: true
+
+    CreateDatabaseRequest:
+      type: object
+      additionalProperties: false
+      required:
+        [id, name, placement, titlePropertyId, initialViewId, initialViewName]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 512
+        placement:
+          $ref: "#/components/schemas/PlacementInput"
+        titlePropertyId:
+          $ref: "#/components/schemas/Uuid"
+        initialViewId:
+          $ref: "#/components/schemas/Uuid"
+        initialViewName:
+          type: string
+          minLength: 1
+          maxLength: 512
+
+    PropertyOption:
+      type: object
+      additionalProperties: false
+      required: [id, label, positionKey, tone, state]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        label:
+          type: string
+          minLength: 1
+          maxLength: 512
+        positionKey:
+          type: string
+          minLength: 1
+        tone:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*$"
+        state:
+          enum: [active, retired]
+
+    DatabaseProperty:
+      type: object
+      additionalProperties: false
+      required: [id, name, type, positionKey, state, config]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 512
+        type:
+          enum:
+            [title, text, number, date, status, select, multi-select, checkbox, relation]
+        positionKey:
+          type: string
+          minLength: 1
+        state:
+          enum: [active, retired]
+        config:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              maxProperties: 0
+            - type: object
+              additionalProperties: false
+              required: [mode]
+              properties:
+                mode:
+                  enum: [date, instant]
+            - type: object
+              additionalProperties: false
+              required: [options]
+              properties:
+                options:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PropertyOption"
+            - type: object
+              additionalProperties: false
+              required: [cardinality]
+              properties:
+                cardinality:
+                  enum: [one, many]
+
+    PropertyValue:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [kind, value]
+          properties:
+            kind:
+              const: text
+            value:
+              type: string
+        - type: object
+          additionalProperties: false
+          required: [kind, decimal]
+          properties:
+            kind:
+              const: number
+            decimal:
+              type: string
+              pattern: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        - type: object
+          additionalProperties: false
+          required: [kind, date]
+          properties:
+            kind:
+              const: date
+            date:
+              type: string
+              format: date
+        - type: object
+          additionalProperties: false
+          required: [kind, instant]
+          properties:
+            kind:
+              const: instant
+            instant:
+              type: string
+              format: date-time
+        - type: object
+          additionalProperties: false
+          required: [kind, optionId]
+          properties:
+            kind:
+              enum: [status, select]
+            optionId:
+              $ref: "#/components/schemas/Uuid"
+        - type: object
+          additionalProperties: false
+          required: [kind, optionIds]
+          properties:
+            kind:
+              const: multi-select
+            optionIds:
+              type: array
+              uniqueItems: true
+              items:
+                $ref: "#/components/schemas/Uuid"
+        - type: object
+          additionalProperties: false
+          required: [kind, checked]
+          properties:
+            kind:
+              const: checkbox
+            checked:
+              type: boolean
+
+    ValuesMap:
+      type: object
+      propertyNames:
+        format: uuid
+      additionalProperties:
+        $ref: "#/components/schemas/PropertyValue"
+
+    RelationTargetsMap:
+      type: object
+      propertyNames:
+        format: uuid
+      additionalProperties:
+        type: array
+        uniqueItems: true
+        items:
+          $ref: "#/components/schemas/Uuid"
+
+    FilterCriterion:
+      type: object
+      additionalProperties: false
+      required: [id, propertyId, operator]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        propertyId:
+          $ref: "#/components/schemas/Uuid"
+        operator:
+          enum:
+            - equals
+            - not-equals
+            - is-empty
+            - is-not-empty
+            - contains
+            - not-contains
+            - before
+            - after
+            - between
+            - less-than
+            - greater-than
+        operand:
+          description: Typed and validated against the referenced property.
+
+    SortCriterion:
+      type: object
+      additionalProperties: false
+      required: [propertyId, direction, missing]
+      properties:
+        propertyId:
+          $ref: "#/components/schemas/Uuid"
+        direction:
+          enum: [ascending, descending]
+        missing:
+          enum: [first, last]
+
+    ViewPropertyPresentation:
+      type: object
+      additionalProperties: false
+      required: [propertyId, visible, positionKey]
+      properties:
+        propertyId:
+          $ref: "#/components/schemas/Uuid"
+        visible:
+          type: boolean
+        positionKey:
+          type: string
+          minLength: 1
+        width:
+          type: integer
+          minimum: 80
+          maximum: 800
+
+    DatabaseView:
+      type: object
+      additionalProperties: false
+      required:
+        [id, name, type, positionKey, state, properties, filter, sorts, group, options]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 512
+        type:
+          enum: [table, board, gallery, list, calendar]
+        positionKey:
+          type: string
+          minLength: 1
+        state:
+          enum: [active, retired]
+        properties:
+          type: array
+          items:
+            $ref: "#/components/schemas/ViewPropertyPresentation"
+        filter:
+          type: object
+          additionalProperties: false
+          required: [mode, criteria]
+          properties:
+            mode:
+              enum: [all, any]
+            criteria:
+              type: array
+              items:
+                $ref: "#/components/schemas/FilterCriterion"
+        sorts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SortCriterion"
+        group:
+          oneOf:
+            - type: "null"
+            - type: object
+              additionalProperties: false
+              required: [propertyId]
+              properties:
+                propertyId:
+                  $ref: "#/components/schemas/Uuid"
+        options:
+          type: object
+          additionalProperties: true
+
+    TaskRoleMapping:
+      type: object
+      additionalProperties: false
+      required: [statusPropertyId, dueDatePropertyId, priorityPropertyId]
+      properties:
+        statusPropertyId:
+          $ref: "#/components/schemas/Uuid"
+        dueDatePropertyId:
+          oneOf:
+            - $ref: "#/components/schemas/Uuid"
+            - type: "null"
+        priorityPropertyId:
+          oneOf:
+            - $ref: "#/components/schemas/Uuid"
+            - type: "null"
+
+    DatabaseDefinition:
+      type: object
+      additionalProperties: false
+      required: [format, formatVersion, databaseId, properties, views, taskRoles]
+      properties:
+        format:
+          const: myownnotion.database-definition+json
+        formatVersion:
+          const: 1
+        databaseId:
+          $ref: "#/components/schemas/Uuid"
+        properties:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/DatabaseProperty"
+        views:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/DatabaseView"
+        taskRoles:
+          oneOf:
+            - $ref: "#/components/schemas/TaskRoleMapping"
+            - type: "null"
+
+    ReplaceDefinitionCandidate:
+      type: object
+      additionalProperties: false
+      required: [baseRevisionId, definition]
+      properties:
+        baseRevisionId:
+          $ref: "#/components/schemas/Uuid"
+        definition:
+          $ref: "#/components/schemas/DatabaseDefinition"
+
+    DefinitionImpact:
+      type: object
+      additionalProperties: false
+      required:
+        [destructive, affectedEntryCount, affectedValueCount, reasons, impactDigest]
+      properties:
+        destructive:
+          type: boolean
+        affectedEntryCount:
+          type: integer
+          minimum: 0
+        affectedValueCount:
+          type: integer
+          minimum: 0
+        reasons:
+          type: array
+          items:
+            enum:
+              [property-retired, property-type-changed, option-retired, task-role-invalidated]
+        impactDigest:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: |
+            Deterministic digest of the base revision, normalized candidate,
+            and affected identities. A complete local projection may compute
+            it offline; the server recomputes it before commit.
+
+    ReplaceDefinitionRequest:
+      allOf:
+        - $ref: "#/components/schemas/ReplaceDefinitionCandidate"
+        - type: object
+          properties:
+            impactConfirmation:
+              type: object
+              additionalProperties: false
+              required: [digest, decision]
+              properties:
+                digest:
+                  type: string
+                  pattern: "^[a-f0-9]{64}$"
+                decision:
+                  enum: [preserve-incompatible, discard-confirmed]
+
+    CreateEntryRequest:
+      type: object
+      additionalProperties: false
+      required: [id, title, placement, values, relationTargets]
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 512
+        placement:
+          $ref: "#/components/schemas/PlacementInput"
+        document:
+          $ref: "#/components/schemas/PageDocument"
+        values:
+          $ref: "#/components/schemas/ValuesMap"
+        relationTargets:
+          $ref: "#/components/schemas/RelationTargetsMap"
+
+    ReplaceEntryValuesRequest:
+      type: object
+      additionalProperties: false
+      required: [baseRevisionId, values, relationTargets]
+      properties:
+        baseRevisionId:
+          $ref: "#/components/schemas/Uuid"
+        values:
+          $ref: "#/components/schemas/ValuesMap"
+        relationTargets:
+          $ref: "#/components/schemas/RelationTargetsMap"
+
+    Database:
+      type: object
+      additionalProperties: false
+      required: [databaseId, definitionRevisionId, lifecycle, name, definition]
+      properties:
+        databaseId:
+          $ref: "#/components/schemas/Uuid"
+        definitionRevisionId:
+          $ref: "#/components/schemas/Uuid"
+        lifecycle:
+          enum: [active, trashed, purged]
+        name:
+          type: string
+        definition:
+          $ref: "#/components/schemas/DatabaseDefinition"
+
+    DatabaseEntry:
+      type: object
+      additionalProperties: false
+      required:
+        [databaseId, entryId, revisionId, lifecycle, title, document, values, relationTargets]
+      properties:
+        databaseId:
+          $ref: "#/components/schemas/Uuid"
+        entryId:
+          $ref: "#/components/schemas/Uuid"
+        revisionId:
+          $ref: "#/components/schemas/Uuid"
+        lifecycle:
+          enum: [active, trashed, purged]
+        title:
+          type: string
+        document:
+          oneOf:
+            - $ref: "#/components/schemas/PageDocument"
+            - type: "null"
+        values:
+          $ref: "#/components/schemas/ValuesMap"
+        relationTargets:
+          $ref: "#/components/schemas/RelationTargetsMap"
+
+    DatabaseQuery:
+      type: object
+      additionalProperties: false
+      required: [viewId]
+      properties:
+        viewId:
+          $ref: "#/components/schemas/Uuid"
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 100
+        cursor:
+          type: string
+          minLength: 1
+          maxLength: 2048
+
+    QueryRow:
+      type: object
+      additionalProperties: false
+      required: [entryId, revisionId, title, values, relationTargets, groupId]
+      properties:
+        entryId:
+          $ref: "#/components/schemas/Uuid"
+        revisionId:
+          $ref: "#/components/schemas/Uuid"
+        title:
+          type: string
+        values:
+          $ref: "#/components/schemas/ValuesMap"
+        relationTargets:
+          $ref: "#/components/schemas/RelationTargetsMap"
+        groupId:
+          oneOf:
+            - type: string
+            - type: "null"
+
+    GroupSummary:
+      type: object
+      additionalProperties: false
+      required: [id, label, count]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        count:
+          type: integer
+          minimum: 0
+
+    DatabaseQueryPage:
+      type: object
+      additionalProperties: false
+      required:
+        [databaseId, viewId, definitionRevisionId, generation, coverage,
+         availableCount, expectedCount, rows, groups, nextCursor]
+      properties:
+        databaseId:
+          $ref: "#/components/schemas/Uuid"
+        viewId:
+          $ref: "#/components/schemas/Uuid"
+        definitionRevisionId:
+          $ref: "#/components/schemas/Uuid"
+        generation:
+          type: integer
+          minimum: 1
+        coverage:
+          enum: [complete, partial]
+        availableCount:
+          type: integer
+          minimum: 0
+        expectedCount:
+          type: integer
+          minimum: 0
+        rows:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/QueryRow"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupSummary"
+        nextCursor:
+          oneOf:
+            - type: string
+            - type: "null"
+
+    DatabaseMutationResult:
+      type: object
+      additionalProperties: false
+      required: [mutationId, revisionIds, database]
+      properties:
+        mutationId:
+          $ref: "#/components/schemas/Uuid"
+        revisionIds:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Uuid"
+        database:
+          $ref: "#/components/schemas/Database"
+
+    EntryMutationResult:
+      type: object
+      additionalProperties: false
+      required: [mutationId, revisionIds, entry]
+      properties:
+        mutationId:
+          $ref: "#/components/schemas/Uuid"
+        revisionIds:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Uuid"
+        entry:
+          $ref: "#/components/schemas/DatabaseEntry"
