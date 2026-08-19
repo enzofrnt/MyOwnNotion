@@ -197,7 +197,7 @@ gates avant publication.
 - [X] T066 [P] Mettre à jour docs/development.md avec les commandes ciblées et le jeu de performance de recherche sans dupliquer quickstart.md
 - [X] T067 Exécuter tous les scénarios de specs/008-search/quickstart.md et consigner leurs sorties utiles dans specs/008-search/validation.md
 - [X] T068 Exécuter format, lint, typecheck, unit, integration, contract, performance et la matrice Playwright ciblée, corriger chaque échec et consigner le résultat dans specs/008-search/validation.md
-- [ ] T069 Exécuter pnpm checks:local sur le commit final exact conformément à docs/development.md et enregistrer le résultat dans specs/008-search/validation.md
+- [X] T069 Exécuter pnpm checks:local sur le commit final exact conformément à docs/development.md et enregistrer le résultat dans specs/008-search/validation.md
 - [X] T070 Lancer speckit-converge, ajouter toute tâche manquante à specs/008-search/tasks.md, l'implémenter et ne laisser aucune case ouverte avant le push
 
 ---

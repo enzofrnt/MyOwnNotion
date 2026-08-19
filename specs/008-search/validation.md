@@ -1,7 +1,7 @@
 # Validation: Recherche initiale du workspace
 
-Ce document accumule les preuves par checkpoint. Le gate local final reste
-ouvert tant que toutes ses tâches ne sont pas cochées.
+Ce document accumule les preuves par checkpoint. Toutes les tâches et le gate
+local final sont validés.
 
 ## Checkpoint US1 — recherche complète en ligne
 
@@ -175,6 +175,7 @@ de purge incomplète.
 | suite de contrat complète | 999/999 |
 | suite de performance complète | 10/10 |
 | recherche, offline et audit axe ciblés, cinq projets Playwright | 110/110, 5/5 projets, 77 s |
+| gate local final exact | PASS sur `3980e7d5` |
 
 ### Performance de référence
 
@@ -225,8 +226,26 @@ Les 10 000 rejeux idempotents prennent 41,4 ms et produisent zéro doublon.
   pas. La détection du contexte worker utilise maintenant une frontière
   structurelle explicite, compatible avec les deux configurations.
 
-## Encore ouvert
+## Gate local final exact
 
-- Le dernier passage de `speckit-converge` ne trouve plus aucun écart ni tâche à
-  ajouter. Seul `pnpm checks:local` reste à exécuter sur le commit exact avant
-  publication.
+Le 20 août 2026, `pnpm checks:local` a terminé avec succès sur le commit
+`3980e7d5` (`feat(search): close freshness and convergence gaps`). Le binaire
+`shfmt` 3.12.0 demandé par le dépôt a été placé en tête du `PATH`, sans modifier
+le code ni la configuration du projet.
+
+- politique de toolchain, shell, format, lint et typecheck : PASS ;
+- couverture : 180 fichiers et 2 252 tests, seuils globaux respectés ;
+- intégration : 298/298 ; migrations : 6/6 ; contrats : 999/999 ;
+- E2E : 5/5 projets en 944 s — Chromium, Firefox et WebKit desktop, Chromium et
+  WebKit mobile ;
+- build applicatif et images API/Web `linux/amd64` + `linux/arm64` : PASS ;
+- audit de dépendances : aucune vulnérabilité haute ou critique, une modérée ;
+- secrets : 735 fichiers, 0 résultat ; analyse statique : 518 fichiers,
+  0 résultat ; licences : 298 packages de production, 0 violation ;
+- contrat Compose : PASS.
+
+## Clôture
+
+Le dernier passage de `speckit-converge` ne trouve plus aucun écart ni tâche à
+ajouter. Toutes les tâches T001 à T080 sont réalisées et la feature est prête à
+être publiée.
