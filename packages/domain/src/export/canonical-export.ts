@@ -16,6 +16,9 @@ export const CANONICAL_EXPORT_FORMAT = "myownnotion.export+json";
 export const CANONICAL_EXPORT_VERSION = 1;
 
 export interface ExportedItem extends CanonicalItem {
+  /** Per-installation choices needed to reproduce the owner's workspace. */
+  readonly favourite: boolean;
+  readonly offlineIntent: boolean;
   readonly pageDocument: PageDocument | null;
   readonly file: {
     readonly mediaType: string;

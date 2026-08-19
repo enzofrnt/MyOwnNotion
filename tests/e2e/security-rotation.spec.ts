@@ -238,7 +238,7 @@ test.describe("a blocked installation", () => {
     await seedPolicy({ kind: "data-key", dueInDays: -400, blockInDays: -1, state: "write-block" });
     await openSecurity(page);
 
-    await page.getByTestId("toggle-security-settings").click();
+    await page.getByTestId("back-to-workspace").click();
     await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
   });
 });

@@ -54,14 +54,16 @@ say what they lost, in changes, rather than in minutes.
 - *Quiescing writes during the backup.* Correct and unacceptable: the workspace
   would be unwritable for the duration, nightly, forever.
 
-## Decision 3 — The destination boundary is three methods
+## Decision 3 — The destination boundary is four small operations
 
-**Decision**: A destination can `put(name, stream)`, `list()` and `delete(name)`.
-Nothing else.
+**Decision**: A destination can `put(name, stream)`, `list()`, `read(name)` and
+`delete(name)`. Nothing else. `read` is required because verification after
+transfer must hash the object returned by the destination rather than the local
+staging file.
 
 **Rationale**: The boundary exists so a second destination can be added (FR-009),
 and a boundary is only worth having if the simplest implementation is honest.
-Three methods are what a filesystem directory can implement without pretending —
+These four operations are what a filesystem directory can implement without pretending —
 no folder ids, no resumable-upload tokens, no revisions. Anything richer would
 be Google Drive's interface wearing a generic name, and the filesystem
 implementation would become a stub that passes tests the real one would fail.

@@ -23,6 +23,8 @@ docker run --rm --ipc=host \
     --workdir /work \
     --env CI=1 \
     --env DATABASE_URL="${database_url}" \
+    --env MYOWNNOTION_BLOB_ROOT=/tmp/myownnotion-blobs \
+    --env MYOWNNOTION_BACKUP_ROOT=/tmp/myownnotion-backups \
     "${playwright_image}" \
     bash -lc 'corepack enable pnpm && pnpm install --frozen-lockfile && exec pnpm exec playwright test --fail-on-flaky-tests "$@"' \
     -- "$@"

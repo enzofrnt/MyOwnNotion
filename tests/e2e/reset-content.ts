@@ -14,11 +14,25 @@ export async function resetCanonicalContent(): Promise<void> {
   const client = new pg.Client({ connectionString });
   await client.connect();
   try {
+    await client.query("BEGIN");
+    // `installations.previous_backup_id` points back to backups. PostgreSQL's
+    // TRUNCATE ... CASCADE follows that relationship by truncating the
+    // installation itself, even when the column is null; the API then keeps
+    // serving from a process whose installation row vanished. Clear the
+    // optional provenance and delete backup records in dependency order.
+    await client.query(`UPDATE installations SET previous_backup_id = NULL`);
+    await client.query(`DELETE FROM restoration_attempts`);
+    await client.query(`DELETE FROM backup_verifications`);
+    await client.query(`DELETE FROM backups`);
     await client.query(
       `TRUNCATE items, placements, page_documents, logical_files, file_contents,
         relationships, revisions, revision_parents, mutations, changes,
         lifecycle_events, exports CASCADE`,
     );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     await client.end();
   }

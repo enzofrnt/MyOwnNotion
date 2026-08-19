@@ -113,6 +113,11 @@ describe("what gets published", () => {
     );
   });
 
+  it("embeds the immutable commit identity in the API runtime", () => {
+    const apiBuild = /file: docker\/api\.Dockerfile([\s\S]*?)\n +tags:/.exec(release)?.[1] ?? "";
+    expect(apiBuild).toContain(`APPLICATION_VERSION=sha-${gha("github.sha")}`);
+  });
+
   it("publishes no moving tag", () => {
     // Asserted across both workflows, because one `latest` anywhere is enough
     // to make every deployment ambiguous.

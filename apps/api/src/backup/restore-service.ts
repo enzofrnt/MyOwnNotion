@@ -23,12 +23,8 @@
  */
 
 import { randomUUID } from "node:crypto";
-import {
-  type BackupManifest,
-  backupCompatibility,
-  readBackupManifest,
-  type Uuid,
-} from "@myownnotion/domain";
+import { type BackupManifest, backupCompatibility, type Uuid } from "@myownnotion/domain";
+import { decodeBackupArchive, inspectBackupArchive } from "./archive-format.ts";
 
 export type PreflightStep =
   | "key-access"
@@ -73,12 +69,6 @@ export interface PreflightInput {
   readonly kind: "test" | "destructive";
 }
 
-interface ArchiveBody {
-  readonly manifest: unknown;
-  readonly canonicalExport: string;
-  readonly files: Record<string, string>;
-}
-
 /**
  * Runs the six checks in order and stops at the first failure.
  *
@@ -100,38 +90,11 @@ export async function preflight(input: PreflightInput): Promise<PreflightOutcome
 
   // 2. Archive integrity — the manifest first, because everything after it
   //    depends on the manifest being trustworthy.
-  let body: ArchiveBody;
-  try {
-    body = JSON.parse(opened.toString("utf8")) as ArchiveBody;
-  } catch {
-    return {
-      ok: false,
-      failedAt: "archive-integrity",
-      reason: "This archive could not be read: its contents are not in the expected form.",
-    };
+  const inspected = inspectBackupArchive(opened);
+  if (!inspected.ok) {
+    return { ok: false, failedAt: "archive-integrity", reason: inspected.reason };
   }
-  const read = readBackupManifest(body.manifest);
-  if (!read.ok) {
-    return {
-      ok: false,
-      failedAt: "archive-integrity",
-      // Every problem, not the first: an operator fixing one fault at a time
-      // with a slow check between each turns a recovery into an afternoon.
-      reason: `This archive's manifest is not valid: ${read.problems
-        .map((problem) => `${problem.field} ${problem.message}`)
-        .join("; ")}`,
-    };
-  }
-  const manifest = read.manifest;
-  const present = Object.keys(body.files ?? {});
-  const missing = manifest.files.filter((file) => !present.includes(file.digest));
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      failedAt: "archive-integrity",
-      reason: `This archive is missing ${missing.length} file(s) its manifest lists. Restoring it would produce a workspace with holes in it.`,
-    };
-  }
+  const manifest = inspected.manifest;
 
   // 3. Version compatibility.
   const verdict = backupCompatibility(input.installation, {
@@ -197,6 +160,8 @@ export interface RestoreTarget {
   readonly writeRelationship: (relationship: unknown) => Promise<void>;
   readonly writeRevision: (revision: unknown) => Promise<void>;
   readonly writeFile: (digest: string, bytes: Buffer) => Promise<void>;
+  /** Flushes writes that require every item and revision to exist first. */
+  readonly finish?: () => Promise<void>;
 }
 
 export interface RestoreResult {
@@ -213,7 +178,7 @@ export interface RestoreResult {
  * that stops short of it.
  */
 export async function applyArchive(archive: Buffer, target: RestoreTarget): Promise<RestoreResult> {
-  const body = JSON.parse(archive.toString("utf8")) as ArchiveBody;
+  const body = decodeBackupArchive(archive);
   const exported = JSON.parse(body.canonicalExport) as {
     items: unknown[];
     relationships: unknown[];
@@ -224,19 +189,20 @@ export async function applyArchive(archive: Buffer, target: RestoreTarget): Prom
   // broken reference the moment it is written, and the window between the two
   // is a window in which an interrupted restore leaves exactly that.
   let restoredFileCount = 0;
-  for (const [digest, encoded] of Object.entries(body.files ?? {})) {
-    await target.writeFile(digest, Buffer.from(encoded, "base64"));
+  for (const [digest, bytes] of body.files) {
+    await target.writeFile(digest, bytes);
     restoredFileCount += 1;
-  }
-  for (const revision of exported.revisions) {
-    await target.writeRevision(revision);
   }
   for (const item of exported.items) {
     await target.writeItem(item);
   }
+  for (const revision of exported.revisions) {
+    await target.writeRevision(revision);
+  }
   for (const relationship of exported.relationships) {
     await target.writeRelationship(relationship);
   }
+  await target.finish?.();
 
   return { restoredItemCount: exported.items.length, restoredFileCount };
 }

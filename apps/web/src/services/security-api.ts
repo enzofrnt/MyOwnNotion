@@ -83,6 +83,26 @@ export interface RecoveryStatusView {
   readonly notice: string;
 }
 
+/** Safe backup facts returned to the authenticated owner. */
+export interface BackupStatusView {
+  readonly lastVerifiedAt: string | null;
+  readonly lastVerifiedBackupId: string | null;
+  readonly latestBackupAt: string | null;
+  readonly latestBackupId: string | null;
+  readonly latestCreationVerification: "passed" | "failed" | null;
+  readonly latestTransferVerification: "passed" | "failed" | null;
+  readonly lastRehearsalAt: string | null;
+  readonly lastRehearsalOutcome: "succeeded" | "failed" | null;
+  readonly stale: boolean;
+  readonly rehearsalDue: boolean;
+}
+
+export interface BackupRehearsalResult {
+  readonly outcome: "succeeded";
+  readonly restoredItemCount: number;
+  readonly restoredFileCount: number;
+}
+
 export type SecurityResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly problem: ClientProblem };
@@ -470,6 +490,17 @@ export class SecurityApi {
 
   async recoveryStatus(): Promise<SecurityResult<RecoveryStatusView>> {
     return await this.#authenticatedJson<RecoveryStatusView>("/v1/security/recovery");
+  }
+
+  async backupStatus(): Promise<SecurityResult<BackupStatusView>> {
+    return await this.#authenticatedJson<BackupStatusView>("/v1/backups/status");
+  }
+
+  async runBackupRehearsal(): Promise<SecurityResult<BackupRehearsalResult>> {
+    return await this.#authenticatedJson<BackupRehearsalResult>("/v1/backups/rehearsals", {
+      method: "POST",
+      csrf: true,
+    });
   }
 
   async prepareRecoveryReplacement(): Promise<SecurityResult<{ kitId: string }>> {

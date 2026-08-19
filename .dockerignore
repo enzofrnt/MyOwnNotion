@@ -46,6 +46,8 @@ tests/
 
 # Local data volumes
 .dev-blobs/
+.dev-backups/
+.dev-backups-e2e/
 .postgres-data/
 
 # Docs, specs, and container definitions (not build inputs)

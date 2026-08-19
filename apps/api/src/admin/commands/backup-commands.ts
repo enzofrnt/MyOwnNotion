@@ -17,10 +17,12 @@ import { randomUUID } from "node:crypto";
 import {
   backupsWithVerification,
   type Database,
+  deleteBackup,
   recordBackup,
   recordVerification,
 } from "@myownnotion/database";
 import { backupsToDelete, DEFAULT_RETENTION_DAYS, type Uuid } from "@myownnotion/domain";
+import { sql } from "drizzle-orm";
 import type { BackupService } from "../../backup/backup-service.ts";
 import type { BackupDestination } from "../../backup/destinations/destination.ts";
 import { type CommandResult, EXIT_CODES } from "../command-output.ts";
@@ -28,7 +30,7 @@ import { type CommandResult, EXIT_CODES } from "../command-output.ts";
 export interface BackupCommandDeps {
   readonly db: Database;
   readonly workspaceId: Uuid;
-  readonly service: BackupService;
+  readonly service: Pick<BackupService, "run" | "inspectStored">;
   readonly destination: BackupDestination;
   readonly retainDays?: number;
   readonly now?: () => Date;
@@ -45,10 +47,26 @@ export interface BackupCommandDeps {
 export async function runBackupCommand(
   deps: BackupCommandDeps,
   reason: "scheduled" | "manual" | "pre-update" = "manual",
+  supersededByVersion?: string,
 ): Promise<CommandResult> {
-  const outcome = await deps.service.run(reason);
+  return await deps.db.transaction(async (tx) => {
+    // The transaction-scoped advisory lock is shared by API schedules, host
+    // commands and migration jobs. It is released automatically on every exit,
+    // including a crashed command, and refuses a concurrent run before either
+    // process creates a staging file.
+    const lockResult = await tx.execute(
+      sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${`myownnotion.backup:${deps.workspaceId}`}, 0)) AS acquired`,
+    );
+    const acquired = (lockResult as unknown as { rows: Array<{ acquired: boolean }> }).rows[0]
+      ?.acquired;
+    if (acquired !== true) {
+      return {
+        code: EXIT_CODES.refused,
+        message: "another backup is already running; try again after it finishes",
+      };
+    }
 
-  await deps.db.transaction(async (tx) => {
+    const outcome = await deps.service.run(reason);
     await recordBackup(tx, {
       id: outcome.backupId as Uuid,
       workspaceId: deps.workspaceId,
@@ -59,10 +77,12 @@ export async function runBackupCommand(
       byteLength: outcome.byteLength,
       digest: outcome.digest,
       reason: outcome.reason,
-      // Recorded only once the transfer was attempted and the object was found
-      // where it was put: a destination named for an object that is not there
-      // would make retention believe in a copy that does not exist.
-      ...(outcome.verifiedAfterTransfer
+      ...(supersededByVersion === undefined ? {} : { supersededByVersion }),
+      // A completed transfer remains addressable even when read-back fails: an
+      // operator can verify it again and retention can eventually remove it.
+      // A failed `put` records a local-only backup instead, because the
+      // destination promises to remove its partial object.
+      ...(outcome.transferred
         ? { destination: deps.destination.name, remoteName: outcome.name }
         : {}),
     });
@@ -82,29 +102,29 @@ export async function runBackupCommand(
         ...(outcome.verifiedAfterTransfer ? {} : { detail: outcome.detail }),
       });
     }
-  });
 
-  if (!outcome.verifiedAfterCreation || !outcome.verifiedAfterTransfer) {
+    if (!outcome.verifiedAfterCreation || !outcome.verifiedAfterTransfer) {
+      return {
+        code: EXIT_CODES.integrityFailure,
+        message: "the backup was produced and could not be verified",
+        data: {
+          backupId: outcome.backupId,
+          verifiedAfterCreation: outcome.verifiedAfterCreation,
+          verifiedAfterTransfer: outcome.verifiedAfterTransfer,
+        },
+      };
+    }
+
     return {
-      code: EXIT_CODES.integrityFailure,
-      message: "the backup was produced and could not be verified",
+      code: EXIT_CODES.ok,
+      message: "backup produced, transferred and verified",
       data: {
         backupId: outcome.backupId,
-        verifiedAfterCreation: outcome.verifiedAfterCreation,
-        verifiedAfterTransfer: outcome.verifiedAfterTransfer,
+        byteLength: outcome.byteLength,
+        cursor: outcome.cursor,
       },
     };
-  }
-
-  return {
-    code: EXIT_CODES.ok,
-    message: "backup produced, transferred and verified",
-    data: {
-      backupId: outcome.backupId,
-      byteLength: outcome.byteLength,
-      cursor: outcome.cursor,
-    },
-  };
+  });
 }
 
 /**
@@ -141,11 +161,9 @@ export async function verifyBackupCommand(
     };
   }
 
-  const size = await deps.service.storedSize(target.remoteName);
-  // Size first, because it is cheap and a truncated object is the common
-  // failure. A digest over gigabytes to discover the object is half there is
-  // work that answers a question the length already answered.
-  const passed = size !== null && size === target.byteLength;
+  const stored = await deps.service.inspectStored(target.remoteName);
+  const passed =
+    stored !== null && stored.byteLength === target.byteLength && stored.digest === target.digest;
 
   await recordVerification(deps.db, {
     id: randomUUID() as Uuid,
@@ -156,9 +174,9 @@ export async function verifyBackupCommand(
       ? {}
       : {
           detail:
-            size === null
+            stored === null
               ? "the destination no longer holds this backup"
-              : "the stored object is not the size it was sent as",
+              : "the stored object does not match the size and digest it was sent as",
         }),
   });
 
@@ -199,9 +217,13 @@ export async function pruneBackupsCommand(deps: BackupCommandDeps): Promise<Comm
   const removed: string[] = [];
   for (const id of deletable) {
     const backup = all.find((candidate) => candidate.id === id);
-    if (backup?.remoteName != null) {
+    if (backup === undefined) {
+      continue;
+    }
+    if (backup.remoteName != null) {
       await deps.destination.delete(backup.remoteName);
     }
+    await deleteBackup(deps.db, backup.id);
     removed.push(id);
   }
 

@@ -240,7 +240,10 @@ describe("structured container logging", () => {
 
   it("uses standard streams rather than mounting an application log file", () => {
     const apiVolumes = base.services?.["api"]?.volumes ?? [];
-    expect(apiVolumes).toEqual(["file-store:/var/lib/myownnotion/blobs"]);
+    expect(apiVolumes).toEqual([
+      "file-store:/var/lib/myownnotion/blobs",
+      "backup-store:/var/lib/myownnotion/backups",
+    ]);
     expect(apiVolumes.join(" ")).not.toMatch(/log/i);
     expect(base.services?.["api"]?.environment).not.toHaveProperty("LOG_FILE");
     expect(base.services?.["api"]?.environment).not.toHaveProperty("MYOWNNOTION_LOG_FILE");

@@ -359,6 +359,6 @@ test.describe("shortcuts to what matters", () => {
     // FR-012 lists settings among the places the sidebar must reach; landing
     // somewhere that is not the settings screen would satisfy the letter of it
     // and none of the point.
-    await expect(page.getByTestId("toggle-security-settings")).toHaveText(/back to workspace/i);
+    await expect(page.getByTestId("back-to-workspace")).toHaveText(/back to workspace/i);
   });
 });

@@ -12,7 +12,10 @@
  * then means nothing.
  */
 
+import { createHash } from "node:crypto";
+import { BACKUP_FORMAT, BACKUP_FORMAT_VERSION, type BackupManifest } from "@myownnotion/domain";
 import { describe, expect, it, vi } from "vitest";
+import { encodeBackupArchive } from "../src/backup/archive-format.ts";
 import {
   applyArchive,
   PREFLIGHT_ORDER,
@@ -20,7 +23,7 @@ import {
   preflight,
 } from "../src/backup/restore-service.ts";
 
-const DIGEST = `sha256:${"c".repeat(64)}`;
+const DIGEST = `sha256:${createHash("sha256").update("abc").digest("hex")}`;
 
 /**
  * A well-formed archive, with the manifest merged rather than replaced.
@@ -30,29 +33,31 @@ const DIGEST = `sha256:${"c".repeat(64)}`;
  * other one — and three tests then asserted against an archive that was broken
  * for a reason they were not testing.
  */
-function archive(manifestOverrides: Record<string, unknown> = {}): Buffer {
-  const manifest = {
-    format: "myownnotion.backup",
-    formatVersion: 1,
+function archive(manifestOverrides: Record<string, unknown> = {}, includeFile = true): Buffer {
+  const canonicalExport = JSON.stringify({
+    items: [{ id: "one" }],
+    relationships: [],
+    revisions: [],
+  });
+  const manifest: BackupManifest = {
+    format: BACKUP_FORMAT,
+    formatVersion: BACKUP_FORMAT_VERSION,
     createdAt: "2026-08-18T04:00:00.000Z",
     cursor: "42",
     applicationVersion: "0.1.0",
     schemaVersion: 1,
     recordFormatVersion: 1,
-    canonicalExportDigest: `sha256:${"a".repeat(64)}`,
+    canonicalExportDigest: `sha256:${createHash("sha256").update(canonicalExport).digest("hex")}`,
     files: [{ digest: DIGEST, byteLength: 3 }],
     itemCount: 1,
     fileCount: 1,
     ...manifestOverrides,
   };
-  return Buffer.from(
-    JSON.stringify({
-      manifest,
-      canonicalExport: JSON.stringify({ items: [{ id: "one" }], relationships: [], revisions: [] }),
-      files: { [DIGEST]: Buffer.from("abc").toString("base64") },
-    }),
-    "utf8",
-  );
+  return encodeBackupArchive({
+    manifest,
+    canonicalExport,
+    files: includeFile ? new Map([[DIGEST, Buffer.from("abc")]]) : new Map(),
+  });
 }
 
 function input(overrides: Partial<PreflightInput> = {}): PreflightInput {
@@ -131,14 +136,7 @@ describe("each check refuses with what is missing", () => {
   it("stops at integrity when a file the manifest lists is absent", async () => {
     const outcome = await preflight(
       input({
-        openArchive: async () =>
-          Buffer.from(
-            JSON.stringify({
-              ...JSON.parse(archive().toString("utf8")),
-              files: {},
-            }),
-            "utf8",
-          ),
+        openArchive: async () => archive({}, false),
       }),
     );
     expect(outcome.ok).toBe(false);

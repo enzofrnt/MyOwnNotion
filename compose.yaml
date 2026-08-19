@@ -52,6 +52,17 @@ services:
       NODE_ENV: production
       TZ: UTC
       DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:-myownnotion-dev}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
+      MYOWNNOTION_DEPLOYMENT_KEY_FILE: /run/secrets/deployment-key
+      MYOWNNOTION_BLOB_ROOT: /var/lib/myownnotion/blobs
+      MYOWNNOTION_BACKUP_DESTINATION: ${MYOWNNOTION_BACKUP_DESTINATION:-filesystem}
+      MYOWNNOTION_BACKUP_ROOT: /var/lib/myownnotion/backups
+      MYOWNNOTION_BACKUP_HOUR: ${MYOWNNOTION_BACKUP_HOUR:-4}
+      MYOWNNOTION_BACKUP_RETENTION_DAYS: ${MYOWNNOTION_BACKUP_RETENTION_DAYS:-90}
+    secrets:
+      - deployment-key
+    volumes:
+      - file-store:/var/lib/myownnotion/blobs
+      - backup-store:/var/lib/myownnotion/backups
     read_only: true
     tmpfs:
       - /tmp
@@ -92,6 +103,10 @@ services:
       # Path only. The value lives in the mounted secret below.
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: /run/secrets/deployment-key
       MYOWNNOTION_BLOB_ROOT: /var/lib/myownnotion/blobs
+      MYOWNNOTION_BACKUP_DESTINATION: ${MYOWNNOTION_BACKUP_DESTINATION:-filesystem}
+      MYOWNNOTION_BACKUP_ROOT: /var/lib/myownnotion/backups
+      MYOWNNOTION_BACKUP_HOUR: ${MYOWNNOTION_BACKUP_HOUR:-4}
+      MYOWNNOTION_BACKUP_RETENTION_DAYS: ${MYOWNNOTION_BACKUP_RETENTION_DAYS:-90}
       MYOWNNOTION_MAX_REQUEST_BYTES: ${MYOWNNOTION_MAX_REQUEST_BYTES:-1048576}
       MYOWNNOTION_MAX_BODY_BYTES: ${MYOWNNOTION_MAX_BODY_BYTES:-1048576}
       MYOWNNOTION_MAX_FILE_BYTES: ${MYOWNNOTION_MAX_FILE_BYTES:-104857600}
@@ -99,6 +114,7 @@ services:
       - deployment-key
     volumes:
       - file-store:/var/lib/myownnotion/blobs
+      - backup-store:/var/lib/myownnotion/backups
     ports:
       - "127.0.0.1:${MYOWNNOTION_API_PORT:-3001}:3001"
     healthcheck:
@@ -177,3 +193,4 @@ secrets:
 volumes:
   postgres-data:
   file-store:
+  backup-store:

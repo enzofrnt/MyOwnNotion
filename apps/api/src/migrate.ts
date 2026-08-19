@@ -14,8 +14,11 @@
  */
 import path from "node:path";
 import process from "node:process";
-import { migrate } from "@myownnotion/database";
+import { APPLICATION_VERSION } from "./application-version.ts";
+import { createBackupDestination, loadBackupConfig } from "./backup/backup-config.ts";
+import { runGuardedMigrations } from "./backup/guarded-migration.ts";
 import { createApplicationLogger } from "./plugins/logging.ts";
+import { loadDeploymentKey } from "./security/deployment-key.ts";
 
 const logger = createApplicationLogger();
 
@@ -37,15 +40,17 @@ if (!connectionString) {
 }
 
 try {
-  const applied = await migrate(connectionString, { migrationsDir });
-  if (applied.length === 0) {
-    logger.info({ migrationCount: 0 }, "database is already up to date");
-  } else {
-    logger.info(
-      { migrationCount: applied.length, migrations: applied },
-      "database migrations applied",
-    );
-  }
+  const backupConfig = loadBackupConfig();
+  await runGuardedMigrations({
+    connectionString,
+    migrationsDir,
+    runningVersion: APPLICATION_VERSION,
+    installationId: "018f2b7c-0000-7000-8000-000000000001",
+    blobRoot: process.env["MYOWNNOTION_BLOB_ROOT"]?.trim() || "./.dev-blobs",
+    destination: createBackupDestination(backupConfig),
+    deploymentKey: () => loadDeploymentKey(process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"]).bytes,
+    logger,
+  });
 } catch (error) {
   logger.fatal(
     {

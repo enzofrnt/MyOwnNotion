@@ -30,6 +30,7 @@
     "test:e2e:gate": "MYOWNNOTION_E2E_JOBS=1 bash scripts/test-e2e-local.sh",
     "test:e2e:firefox-container": "bash scripts/test-e2e-firefox-container.sh",
     "test:performance": "vitest run --project performance",
+    "test:reference-backups": "vitest run --project database-integration packages/database/tests/reference-backups.integration.spec.ts",
     "test:security": "vitest run --project domain --project contracts --project database-integration --project api-contract --project workspace-contract security",
     "security:audit": "pnpm audit --audit-level=high --prod",
     "security:secrets": "tsx scripts/ci/scan-secrets.ts",
@@ -41,6 +42,7 @@
     "checks:local": "pnpm toolchain:check && pnpm shell:check && pnpm format:check && pnpm lint:ci && pnpm typecheck && pnpm test:coverage && pnpm test:integration && pnpm db:test-migrations && pnpm test:contract && pnpm test:e2e:gate && pnpm build && pnpm images:build && pnpm security:audit && pnpm security:secrets && pnpm security:static && pnpm security:licenses && pnpm compose:check",
     "build": "pnpm -r run build",
     "dev": "pnpm -r --parallel run dev",
+    "admin": "pnpm --filter @myownnotion/api admin",
     "db:migrate": "tsx scripts/db/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "db:test-migrations": "vitest run --project database-integration packages/database/tests/migrations.integration.spec.ts"

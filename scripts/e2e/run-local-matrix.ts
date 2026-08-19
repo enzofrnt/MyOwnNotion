@@ -89,6 +89,7 @@ interface Stack {
   readonly apiPort?: number;
   readonly webPort?: number;
   readonly blobRoot?: string;
+  readonly backupRoot?: string;
   readonly deploymentKeyFile?: string;
   readonly inContainer: boolean;
 }
@@ -131,6 +132,7 @@ function planStacks(): Stack[] {
       apiPort: API_PORT_BASE + index,
       webPort: WEB_PORT_BASE + index,
       blobRoot: path.join(repoRoot, ".dev-blobs-e2e", `${project.name}-${suffix}`),
+      backupRoot: path.join(repoRoot, ".dev-backups-e2e", `${project.name}-${suffix}`),
       deploymentKeyFile: path.join(repoRoot, "secrets", `deployment-key.e2e-${project.name}`),
       inContainer: false,
     };
@@ -226,6 +228,11 @@ function run(
 async function migrate(stack: Stack): Promise<void> {
   const { code, output } = await run("pnpm", ["exec", "tsx", "scripts/db/migrate.ts"], {
     DATABASE_URL: stack.databaseUrl,
+    ...(stack.blobRoot === undefined ? {} : { MYOWNNOTION_BLOB_ROOT: stack.blobRoot }),
+    ...(stack.backupRoot === undefined ? {} : { MYOWNNOTION_BACKUP_ROOT: stack.backupRoot }),
+    ...(stack.deploymentKeyFile === undefined
+      ? {}
+      : { MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile }),
   });
   if (code !== 0) {
     throw new Error(`migrating ${stack.databaseName} failed:\n${output}`);
@@ -235,6 +242,9 @@ async function migrate(stack: Stack): Promise<void> {
 function prepareStack(stack: Stack): void {
   if (stack.blobRoot !== undefined) {
     mkdirSync(stack.blobRoot, { recursive: true });
+  }
+  if (stack.backupRoot !== undefined) {
+    mkdirSync(stack.backupRoot, { recursive: true });
   }
   if (stack.deploymentKeyFile !== undefined) {
     mkdirSync(path.dirname(stack.deploymentKeyFile), { recursive: true, mode: 0o700 });
@@ -249,6 +259,9 @@ function prepareStack(stack: Stack): void {
 function cleanUpStack(stack: Stack): void {
   if (stack.blobRoot !== undefined) {
     rmSync(stack.blobRoot, { recursive: true, force: true });
+  }
+  if (stack.backupRoot !== undefined) {
+    rmSync(stack.backupRoot, { recursive: true, force: true });
   }
   if (stack.deploymentKeyFile !== undefined) {
     rmSync(stack.deploymentKeyFile, { force: true });
@@ -295,6 +308,7 @@ async function runStack(
       MYOWNNOTION_API_PORT: String(stack.apiPort),
       MYOWNNOTION_WEB_PORT: String(stack.webPort),
       MYOWNNOTION_BLOB_ROOT: stack.blobRoot as string,
+      MYOWNNOTION_BACKUP_ROOT: stack.backupRoot as string,
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile as string,
       // Playwright writes its report into one directory; five runs writing into
       // the same one would overwrite each other's failure artefacts, which are

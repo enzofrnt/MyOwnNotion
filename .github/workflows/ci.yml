@@ -211,6 +211,23 @@ jobs:
       - if: needs.impact.outputs.integration_mode != 'none'
         run: pnpm ci:test:affected --plan test-impact.json --group integration
 
+  reference-backups:
+    name: Restore every supported reference backup
+    runs-on: ubuntu-latest
+    needs: install
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # This is intentionally not impact-filtered. A committed reference
+      # archive is compatibility evidence for every candidate, including one
+      # whose apparent source impact does not reach the restore code.
+      - run: pnpm test:reference-backups
+
   contract:
     name: API & workspace contract tests
     runs-on: ubuntu-latest
@@ -367,7 +384,9 @@ jobs:
           push: false
           provenance: true
           sbom: true
-          build-args: NODE_BASE=${{ steps.bases.outputs.node }}
+          build-args: |
+            NODE_BASE=${{ steps.bases.outputs.node }}
+            APPLICATION_VERSION=sha-${{ github.sha }}
           cache-from: type=gha,scope=api-${{ needs.impact.outputs.cache_scope }}
           cache-to: type=gha,mode=max,scope=api-${{ needs.impact.outputs.cache_scope }},ignore-error=true
       - name: Build web for every pinned platform
@@ -555,6 +574,7 @@ jobs:
           load: true
           build-args: |
             NODE_BASE=${{ steps.bases.outputs.node }}
+            APPLICATION_VERSION=sha-${{ github.sha }}
           tags: myownnotion-api:scan
           cache-from: type=gha,scope=api-${{ needs.impact.outputs.cache_scope }}
           cache-to: type=gha,mode=max,scope=api-${{ needs.impact.outputs.cache_scope }},ignore-error=true
@@ -660,6 +680,7 @@ jobs:
       - typecheck
       - unit
       - integration
+      - reference-backups
       - contract
       - e2e
       - build
@@ -740,7 +761,9 @@ jobs:
           push: true
           provenance: true
           sbom: true
-          build-args: NODE_BASE=${{ steps.publish-meta.outputs.node }}
+          build-args: |
+            NODE_BASE=${{ steps.publish-meta.outputs.node }}
+            APPLICATION_VERSION=sha-${{ github.sha }}
           tags: ${{ steps.publish-meta.outputs.registry }}-api:sha-${{ github.sha }}
           labels: |
             org.opencontainers.image.source=${{ steps.publish-meta.outputs.source_url }}

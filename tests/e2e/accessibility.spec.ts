@@ -61,15 +61,13 @@ test.describe("accessibility (all viewports/browsers)", () => {
 
     // Select with keyboard and navigate.
     //
-    // The focus is asserted before the key is pressed, and that is not
-    // ceremony: the row was created a moment ago, so a render can still land
-    // between `focus()` and `press()` and replace the element — after which the
-    // key goes to the body and the selection never happens. This failed
-    // intermittently on webkit-mobile and on Firefox for exactly that reason.
+    // Send the key through the row locator. The row was created a moment ago,
+    // so a projection refresh can still replace its DOM node. A separate
+    // `focus()` followed by `page.keyboard.press()` leaves a gap where that
+    // replacement sends focus back to the document; the locator-targeted press
+    // resolves the current row and performs the keyboard action as one step.
     const row = page.getByTestId(`tree-item-${name}`);
-    await row.focus();
-    await expect(row).toBeFocused();
-    await page.keyboard.press("Enter");
+    await row.press("Enter");
     await expect(row).toHaveAttribute("aria-selected", "true");
   });
 
@@ -161,6 +159,23 @@ test.describe("automated accessibility audit", () => {
 
     await page.getByTestId(`convert-${name}`).click();
     await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
+
+    const found = await violations(page);
+    expect(
+      found.map(
+        (violation: { id: string; help: string; impact?: string | null | undefined }) =>
+          `${violation.id}: ${violation.help}`,
+      ),
+    ).toEqual([]);
+  });
+
+  test("the backup status and restoration invitation have no critical or serious violations", async ({
+    page,
+  }) => {
+    await openWorkspace(page);
+    await page.getByTestId("open-backups").click();
+    await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("restore-rehearsal")).toBeVisible();
 
     const found = await violations(page);
     expect(

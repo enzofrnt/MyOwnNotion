@@ -82,13 +82,17 @@ export function exitCodeFor(error: unknown): ExitCode {
   if (error instanceof Error) {
     switch (error.name) {
       case "KeyUnavailableError":
+      case "DeploymentKeyUnavailableError":
         return EXIT_CODES.keyUnavailable;
       case "SecurityRepositoryError":
         return EXIT_CODES.integrityFailure;
       case "RotationRepositoryError":
         return EXIT_CODES.conflict;
       case "CommandUsageError":
+      case "BackupConfigError":
         return EXIT_CODES.usage;
+      case "DestinationUnavailableError":
+        return EXIT_CODES.integrityFailure;
       default:
         return EXIT_CODES.unexpected;
     }

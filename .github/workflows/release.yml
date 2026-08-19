@@ -119,7 +119,9 @@ jobs:
           push: true
           provenance: true
           sbom: true
-          build-args: NODE_BASE=${{ steps.release-meta.outputs.node }}
+          build-args: |
+            NODE_BASE=${{ steps.release-meta.outputs.node }}
+            APPLICATION_VERSION=sha-${{ github.sha }}
           tags: |
             ${{ steps.release-meta.outputs.registry }}-api:${{ steps.release-meta.outputs.version }}
             ${{ steps.release-meta.outputs.registry }}-api:sha-${{ github.sha }}

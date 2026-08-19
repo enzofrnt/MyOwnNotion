@@ -119,7 +119,7 @@ reverse:
 
 1. the archive is the canonical export plus files, not a new format;
 2. consistency comes from the change cursor, not from a snapshot mechanism;
-3. the destination boundary is three methods, chosen so a filesystem
+3. the destination boundary is four small operations, chosen so a filesystem
    implementation is not a lie;
 4. a test restoration writes to a real disposable database, because a rehearsal
    that does not write proves nothing about writing;

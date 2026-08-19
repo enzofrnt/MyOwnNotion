@@ -1,18 +1,18 @@
 /**
  * Where a backup goes (T008, FR-009).
  *
- * Three methods, and the number is the decision. The boundary exists so a second
+ * Four operations, and the small surface is the decision. The boundary exists so a second
  * destination can be added later, and a boundary is only worth having if the
  * *simplest* implementation is honest — here, a directory on disk.
  *
- * Three methods are what a filesystem can do without pretending: no folder
+ * These operations are what a filesystem can do without pretending: no folder
  * identifiers, no resumable-upload tokens, no revision history, no quota
  * queries. Anything richer would be one vendor's interface wearing a generic
  * name, and the local implementation — the one every test uses — would become a
  * stub that passes tests the real one would fail. That is worse than having no
  * boundary at all, because it would look like coverage.
  *
- * `read` exists for one reason: verification after transfer has to re-read what
+ * `read` is the fourth operation for one reason: verification after transfer has to re-read what
  * arrived. Re-hashing the local file would prove the local file is fine — which
  * the after-creation check already established — and would report a corrupted
  * upload as a success.

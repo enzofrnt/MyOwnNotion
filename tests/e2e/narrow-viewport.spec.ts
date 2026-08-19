@@ -224,6 +224,19 @@ test.describe("the file surfaces at 320 pixels", () => {
   });
 });
 
+test.describe("backup and recovery at 320 pixels", () => {
+  test("the status, warning and restoration action stay inside the viewport", async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await openWorkspace(page);
+    await page.getByTestId("open-backups").click();
+    await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("restore-rehearsal")).toBeVisible();
+    await expect(page.getByTestId("run-rehearsal")).toBeVisible();
+
+    await expectNoHorizontalOverflow(page);
+  });
+});
+
 /**
  * The connection state and the resolution screen at 320 pixels (T042, feature 006).
  *

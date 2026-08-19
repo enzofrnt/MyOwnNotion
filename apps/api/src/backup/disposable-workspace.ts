@@ -20,12 +20,17 @@
  */
 
 import { randomBytes } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { createDatabase, type DatabaseHandle, migrate } from "@myownnotion/database";
 import pg from "pg";
 
 export interface DisposableWorkspace {
   readonly handle: DatabaseHandle;
   readonly databaseName: string;
+  /** A blob root that is just as disposable as the database. */
+  readonly blobRoot: string;
   /** Closes the connection and drops the database. Safe to call twice. */
   release(): Promise<void>;
 }
@@ -42,6 +47,7 @@ export async function createDisposableWorkspace(
   liveConnectionString: string,
 ): Promise<DisposableWorkspace> {
   const databaseName = `mon_rehearsal_${randomBytes(8).toString("hex")}`;
+  const blobRoot = await mkdtemp(path.join(os.tmpdir(), "mon-rehearsal-blobs-"));
 
   const admin = new pg.Client({ connectionString: liveConnectionString });
   await admin.connect();
@@ -67,6 +73,7 @@ export async function createDisposableWorkspace(
     // start, and leaving it behind would accumulate one per attempt on a server
     // an owner is not watching.
     await dropDatabase(liveConnectionString, databaseName);
+    await rm(blobRoot, { recursive: true, force: true });
     throw error;
   }
 
@@ -74,6 +81,7 @@ export async function createDisposableWorkspace(
   return {
     handle,
     databaseName,
+    blobRoot,
     release: async () => {
       if (released) {
         return;
@@ -81,6 +89,7 @@ export async function createDisposableWorkspace(
       released = true;
       await handle.close();
       await dropDatabase(liveConnectionString, databaseName);
+      await rm(blobRoot, { recursive: true, force: true });
     },
   };
 }

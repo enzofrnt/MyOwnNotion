@@ -18,12 +18,10 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { mkdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import {
   BACKUP_FORMAT,
   BACKUP_FORMAT_VERSION,
@@ -33,6 +31,7 @@ import {
 } from "@myownnotion/domain";
 import type { AppContext } from "../context.ts";
 import { buildManifest } from "../routes/export.ts";
+import { writeBackupArchiveFile } from "./archive-format.ts";
 import type { BackupDestination } from "./destinations/destination.ts";
 
 /** The record format the sealed content inside an archive is written with. */
@@ -60,6 +59,8 @@ export interface BackupOutcome {
   /** Why it was produced; a pre-update backup is what an update looks for. */
   readonly reason: BackupReason;
   readonly verifiedAfterCreation: boolean;
+  /** True once `put` completed, independently of destination read-back. */
+  readonly transferred: boolean;
   readonly verifiedAfterTransfer: boolean;
   /** Safe reason for whichever verification failed, if one did. */
   readonly detail?: string;
@@ -69,9 +70,8 @@ export interface BackupServiceOptions {
   readonly context: AppContext;
   readonly destination: BackupDestination;
   readonly applicationVersion: string;
-  /** Seals the archive before it leaves the machine. */
-  readonly seal: (plaintext: Buffer) => Promise<Buffer>;
-  readonly open: (ciphertext: Buffer) => Promise<Buffer>;
+  /** Streams a staged plaintext archive into its sealed path. */
+  readonly seal: (plaintextPath: string, sealedPath: string) => Promise<void>;
   readonly now?: () => Date;
 }
 
@@ -87,7 +87,7 @@ function digestOf(bytes: Buffer): string {
  * content in the one field the provider can definitely read.
  */
 function archiveName(createdAt: Date, backupId: string): string {
-  return `myownnotion-backup-${createdAt.toISOString().replace(/[:.]/g, "-")}-${backupId.slice(0, 8)}.bin`;
+  return `myownnotion-backup-${createdAt.toISOString().replace(/[:.]/g, "-")}-${backupId.slice(0, 8)}.tar`;
 }
 
 export class BackupService {
@@ -120,27 +120,20 @@ export class BackupService {
     // File bytes come from the content store, addressed by digest — the same
     // addressing the store already uses, so a file cannot be silently
     // substituted and two pages embedding one image cost one copy.
-    const files: BackupFileEntry[] = [];
-    const payloads = new Map<string, Buffer>();
+    const filesByDigest = new Map<string, BackupFileEntry>();
     for (const item of exported.items) {
       const file = item.file;
       if (file === null || file === undefined) {
         continue;
       }
       const digest = `sha256:${file.sha256}`;
-      if (payloads.has(digest)) {
-        continue;
+      const existing = filesByDigest.get(digest);
+      if (existing !== undefined && existing.byteLength !== file.byteLength) {
+        throw new Error(`content ${digest} is listed with two different lengths`);
       }
-      const bytes = await this.options.context.contentStore.read(file.sha256);
-      if (bytes === null) {
-        // A file the export names and the store does not hold. Refused rather
-        // than skipped: an archive that quietly omits a file restores a
-        // workspace with a hole in it, and nothing would say so.
-        throw new Error(`content ${digest} is named by the export and absent from the store`);
-      }
-      payloads.set(digest, Buffer.from(bytes));
-      files.push({ digest, byteLength: bytes.byteLength });
+      filesByDigest.set(digest, { digest, byteLength: file.byteLength });
     }
+    const files = [...filesByDigest.values()];
 
     const manifest: BackupManifest = {
       format: BACKUP_FORMAT,
@@ -156,34 +149,46 @@ export class BackupService {
       fileCount: files.length,
     };
 
-    // One JSON envelope rather than a tar: the archive is sealed as a whole, so
-    // its internal framing is never seen by a destination and a format nothing
-    // streams through does not need to be a tape archive. What matters is that a
-    // reader can open it with a JSON parser and a base64 decoder, which the
-    // contract documents.
-    const plaintext = Buffer.from(
-      JSON.stringify({
-        manifest,
-        canonicalExport: canonical,
-        files: Object.fromEntries(
-          [...payloads].map(([digest, bytes]) => [digest, bytes.toString("base64")]),
-        ),
-      }),
-      "utf8",
-    );
-
-    const sealed = await this.options.seal(plaintext);
     const staging = path.join(os.tmpdir(), "myownnotion-backup");
     await mkdir(staging, { recursive: true });
-    const stagedPath = path.join(staging, `${backupId}.bin`);
-    await pipeline(Readable.from(sealed), createWriteStream(stagedPath));
+    const plaintextPath = path.join(staging, `${backupId}.tar`);
+    const stagedPath = path.join(staging, `${backupId}.sealed`);
+    try {
+      await writeBackupArchiveFile({
+        path: plaintextPath,
+        manifest,
+        canonicalExport: canonical,
+        readFile: async (digest) =>
+          await this.options.context.contentStore.read(digest.slice("sha256:".length)),
+      });
+      await this.options.seal(plaintextPath, stagedPath);
+      const stored = await stat(stagedPath);
+      const digest = await this.#digestFile(stagedPath);
+      return {
+        stagedPath,
+        manifest,
+        digest,
+        byteLength: stored.size,
+      };
+    } catch (error) {
+      // `run` cannot enter its `finally` until this method returns. Clean both
+      // stages here so a full disk never leaves a partial artefact that looks
+      // like an operator-created backup.
+      await Promise.all([rm(plaintextPath, { force: true }), rm(stagedPath, { force: true })]);
+      throw error;
+    } finally {
+      // Plaintext exists only while it is being sealed and never reaches a
+      // destination. The sealed stage remains for independent read-back.
+      await rm(plaintextPath, { force: true });
+    }
+  }
 
-    return {
-      stagedPath,
-      manifest,
-      digest: digestOf(sealed),
-      byteLength: sealed.byteLength,
-    };
+  async #digestFile(stagedPath: string): Promise<string> {
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(stagedPath)) {
+      hash.update(chunk as Buffer);
+    }
+    return `sha256:${hash.digest("hex")}`;
   }
 
   /**
@@ -194,11 +199,7 @@ export class BackupService {
    * still in memory would pass for a write that never reached the disk.
    */
   async #verifyLocal(stagedPath: string, expectedDigest: string): Promise<boolean> {
-    const hash = createHash("sha256");
-    for await (const chunk of createReadStream(stagedPath)) {
-      hash.update(chunk as Buffer);
-    }
-    return `sha256:${hash.digest("hex")}` === expectedDigest;
+    return (await this.#digestFile(stagedPath)) === expectedDigest;
   }
 
   /**
@@ -241,17 +242,62 @@ export class BackupService {
           recordFormatVersion: built.manifest.recordFormatVersion,
           reason,
           verifiedAfterCreation: false,
+          transferred: false,
           verifiedAfterTransfer: false,
           detail: "the archive on disk does not match the digest it was written with",
         };
       }
 
-      await this.options.destination.put(
-        name,
-        createReadStream(built.stagedPath),
-        built.byteLength,
-      );
-      const verifiedAfterTransfer = await this.#verifyRemote(name, built.digest);
+      try {
+        await this.options.destination.put(
+          name,
+          createReadStream(built.stagedPath),
+          built.byteLength,
+        );
+      } catch {
+        // The archive is still a produced, locally verified backup. Returning
+        // that fact lets the command persist both verification rows and makes
+        // a destination outage observable instead of rolling the run back.
+        return {
+          backupId,
+          name,
+          byteLength: built.byteLength,
+          digest: built.digest,
+          cursor: built.manifest.cursor,
+          applicationVersion: built.manifest.applicationVersion,
+          schemaVersion: built.manifest.schemaVersion,
+          recordFormatVersion: built.manifest.recordFormatVersion,
+          reason,
+          verifiedAfterCreation: true,
+          transferred: false,
+          verifiedAfterTransfer: false,
+          detail: "the destination could not store the locally verified backup",
+        };
+      }
+
+      let verifiedAfterTransfer: boolean;
+      try {
+        verifiedAfterTransfer = await this.#verifyRemote(name, built.digest);
+      } catch {
+        // `put` completed, so retain the destination identity even when its
+        // read-back becomes unavailable. That lets an operator re-check or
+        // prune the object later instead of leaving an orphan behind.
+        return {
+          backupId,
+          name,
+          byteLength: built.byteLength,
+          digest: built.digest,
+          cursor: built.manifest.cursor,
+          applicationVersion: built.manifest.applicationVersion,
+          schemaVersion: built.manifest.schemaVersion,
+          recordFormatVersion: built.manifest.recordFormatVersion,
+          reason,
+          verifiedAfterCreation: true,
+          transferred: true,
+          verifiedAfterTransfer: false,
+          detail: "the transferred backup could not be read back from the destination",
+        };
+      }
 
       return {
         backupId,
@@ -264,6 +310,7 @@ export class BackupService {
         recordFormatVersion: built.manifest.recordFormatVersion,
         reason,
         verifiedAfterCreation: true,
+        transferred: true,
         verifiedAfterTransfer,
         ...(verifiedAfterTransfer
           ? {}
@@ -277,16 +324,30 @@ export class BackupService {
     }
   }
 
-  /** For the retention pass and the administrative commands. */
-  async storedSize(name: string): Promise<number | null> {
+  /**
+   * Reads the stored object once and reports both integrity facts.
+   *
+   * Size alone only catches truncation. A same-length bit flip is just as
+   * unrestorable, so the administrative verification command must compare the
+   * digest it originally recorded as well.
+   */
+  async inspectStored(
+    name: string,
+  ): Promise<{ readonly byteLength: number; readonly digest: string } | null> {
     const stream = await this.options.destination.read(name);
     if (stream === null) {
       return null;
     }
+    const hash = createHash("sha256");
     let total = 0;
     for await (const chunk of stream) {
-      total += (chunk as Buffer).byteLength;
+      const bytes = Buffer.from(chunk as Uint8Array);
+      total += bytes.byteLength;
+      hash.update(bytes);
     }
-    return total;
+    return {
+      byteLength: total,
+      digest: `sha256:${hash.digest("hex")}`,
+    };
   }
 }

@@ -96,6 +96,7 @@ export interface BackupWithVerification {
   readonly destination: string | null;
   readonly remoteName: string | null;
   readonly reason: string;
+  readonly supersededByVersion: string | null;
   /** True only when an `after-transfer` verification passed. */
   readonly verifiedAtDestination: boolean;
 }
@@ -125,21 +126,29 @@ export async function backupsWithVerification(
       destination: backups.destination,
       remoteName: backups.remoteName,
       reason: backups.reason,
-      verifiedAtDestination: sql<boolean>`EXISTS (
-        SELECT 1 FROM ${backupVerifications} v
-        WHERE v.backup_id = ${backups.id}
-          AND v.stage = 'after-transfer'
-          AND v.outcome = 'passed'
-      )`,
+      supersededByVersion: backups.supersededByVersion,
     })
     .from(backups)
     .where(eq(backups.workspaceId, workspaceId))
     .orderBy(desc(backups.createdAt));
 
+  const passed = await executor
+    .select({ backupId: backupVerifications.backupId })
+    .from(backupVerifications)
+    .innerJoin(backups, eq(backups.id, backupVerifications.backupId))
+    .where(
+      and(
+        eq(backups.workspaceId, workspaceId),
+        eq(backupVerifications.stage, "after-transfer"),
+        eq(backupVerifications.outcome, "passed"),
+      ),
+    );
+  const verifiedIds = new Set(passed.map((row) => row.backupId));
+
   return rows.map((row) => ({
     ...row,
     id: row.id as Uuid,
-    verifiedAtDestination: row.verifiedAtDestination === true,
+    verifiedAtDestination: verifiedIds.has(row.id),
   }));
 }
 
@@ -154,8 +163,16 @@ export async function lastVerifiedAtDestination(
   executor: Executor,
   workspaceId: Uuid,
 ): Promise<Date | null> {
+  return (await lastVerifiedBackupAtDestination(executor, workspaceId))?.checkedAt ?? null;
+}
+
+/** The backup behind the staleness timestamp, so the interface can name it safely. */
+export async function lastVerifiedBackupAtDestination(
+  executor: Executor,
+  workspaceId: Uuid,
+): Promise<{ backupId: Uuid; checkedAt: Date } | null> {
   const rows = await executor
-    .select({ checkedAt: backupVerifications.checkedAt })
+    .select({ backupId: backups.id, checkedAt: backupVerifications.checkedAt })
     .from(backupVerifications)
     .innerJoin(backups, eq(backups.id, backupVerifications.backupId))
     .where(
@@ -167,7 +184,56 @@ export async function lastVerifiedAtDestination(
     )
     .orderBy(desc(backupVerifications.checkedAt))
     .limit(1);
-  return rows[0]?.checkedAt ?? null;
+  const row = rows[0];
+  return row === undefined ? null : { backupId: row.backupId as Uuid, checkedAt: row.checkedAt };
+}
+
+export interface LatestBackupVerificationStatus {
+  readonly backupId: Uuid;
+  readonly createdAt: Date;
+  readonly afterCreation: "passed" | "failed" | null;
+  readonly afterTransfer: "passed" | "failed" | null;
+}
+
+/**
+ * The newest produced backup and the latest result recorded for each stage.
+ *
+ * This is intentionally separate from `lastVerifiedBackupAtDestination`: the
+ * latter answers when protection last succeeded, while this answers whether a
+ * newer attempt failed. Reporting only the successful timestamp would hide a
+ * destination outage until the 26-hour stale threshold elapsed.
+ */
+export async function latestBackupVerificationStatus(
+  executor: Executor,
+  workspaceId: Uuid,
+): Promise<LatestBackupVerificationStatus | null> {
+  const latestRows = await executor
+    .select({ backupId: backups.id, createdAt: backups.createdAt })
+    .from(backups)
+    .where(eq(backups.workspaceId, workspaceId))
+    .orderBy(desc(backups.createdAt))
+    .limit(1);
+  const latest = latestRows[0];
+  if (latest === undefined) {
+    return null;
+  }
+
+  const checks = await executor
+    .select({ stage: backupVerifications.stage, outcome: backupVerifications.outcome })
+    .from(backupVerifications)
+    .where(eq(backupVerifications.backupId, latest.backupId))
+    .orderBy(desc(backupVerifications.checkedAt));
+  const outcomeFor = (stage: "after-creation" | "after-transfer") => {
+    const outcome = checks.find((check) => check.stage === stage)?.outcome;
+    return outcome === "passed" || outcome === "failed" ? outcome : null;
+  };
+
+  return {
+    backupId: latest.backupId as Uuid,
+    createdAt: latest.createdAt,
+    afterCreation: outcomeFor("after-creation"),
+    afterTransfer: outcomeFor("after-transfer"),
+  };
 }
 
 export async function deleteBackup(executor: Executor, backupId: Uuid): Promise<void> {
@@ -252,6 +318,7 @@ export async function unfinishedRestoration(
 /** The last rehearsal, for "when did you last test this" (FR-019, FR-020). */
 export async function lastTestRestoration(
   executor: Executor,
+  workspaceId: Uuid,
 ): Promise<{ startedAt: Date; outcome: string | null; restoredItemCount: number | null } | null> {
   const rows = await executor
     .select({
@@ -260,7 +327,8 @@ export async function lastTestRestoration(
       restoredItemCount: restorationAttempts.restoredItemCount,
     })
     .from(restorationAttempts)
-    .where(eq(restorationAttempts.kind, "test"))
+    .innerJoin(backups, eq(backups.id, restorationAttempts.backupId))
+    .where(and(eq(restorationAttempts.kind, "test"), eq(backups.workspaceId, workspaceId)))
     .orderBy(desc(restorationAttempts.startedAt))
     .limit(1);
   return rows[0] ?? null;

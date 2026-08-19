@@ -18,11 +18,16 @@ import {
 } from "@myownnotion/database";
 import { sessionPolicy } from "@myownnotion/domain";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
+import { restoreTestCommand } from "./admin/commands/restore-test.ts";
+import { openBackupArchive } from "./backup/archive-crypto.ts";
+import { createBackupDestination, loadBackupConfig } from "./backup/backup-config.ts";
+import { BACKUP_RECORD_FORMAT_VERSION } from "./backup/backup-service.ts";
 import type { AppContext } from "./context.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
 import { registerProtocolAnnouncement } from "./plugins/protocol.ts";
 import { registerAuthenticationRoutes } from "./routes/authentication.ts";
+import { registerBackupRoutes } from "./routes/backups.ts";
 import { registerBootstrapRoutes } from "./routes/bootstrap.ts";
 import { registerChangeStreamRoutes } from "./routes/change-stream.ts";
 import { registerChangeRoutes } from "./routes/changes.ts";
@@ -51,6 +56,7 @@ import { DeviceService } from "./security/device-service.ts";
 import { KeyHierarchy } from "./security/key-hierarchy.ts";
 import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
 import { ProtectedContent } from "./security/protected-content.ts";
+import { INSTALLATION_ID } from "./security/protected-content-runtime.ts";
 import { ProtectedRecordService } from "./security/protected-record-service.ts";
 import { RecoveryKitService } from "./security/recovery-kit-service.ts";
 import {
@@ -107,8 +113,6 @@ export interface BuiltApp {
  * The installation identity is fixed per deployment. It is a constant rather
  * than a generated value so a restart cannot mint a second installation.
  */
-const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
-
 /**
  * Loads the security configuration, or refuses to start.
  *
@@ -371,6 +375,36 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       policy,
       now,
       challenges: new Map<string, WebAuthnChallenge>(),
+    });
+
+    registerBackupRoutes(app, {
+      db: database.db,
+      workspaceId: workspace.id,
+      now,
+      require: requireOwner,
+      runRehearsal: async () => {
+        const destination = createBackupDestination(loadBackupConfig());
+        return await restoreTestCommand(
+          {
+            db: database.db,
+            workspaceId: workspace.id,
+            destination,
+            open: async (ciphertext) => {
+              const key = deploymentKey();
+              if (key === null) {
+                throw new Error("the mounted deployment key is unavailable");
+              }
+              return openBackupArchive(key, ciphertext);
+            },
+            installation: {
+              schemaVersion: workspace.schemaVersion,
+              recordFormatVersion: BACKUP_RECORD_FORMAT_VERSION,
+            },
+            databaseUrl: options.databaseUrl,
+          },
+          { latest: true },
+        );
+      },
     });
 
     // The device inventory shares the authentication gate rather than building

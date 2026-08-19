@@ -94,6 +94,8 @@ myownnotion version inspect [--json]
 
 Reports the running application version, the recorded installation version, the
 schema version, whether a migration is pending, and whether a verified backup
-exists for the version being left. Exit 0 always: this command answers a
-question, and an operator asking "where am I" should not have to interpret an
-exit code to find out.
+exists for the version being left. When an update has occurred, it also reports
+the exact immutable previous image tag, the matching backup id, and that
+backup's schema and encrypted-record format versions. Exit 0 always: this
+command answers a question, and an operator asking "where am I" should not have
+to interpret an exit code to find out.

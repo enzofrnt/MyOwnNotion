@@ -49,6 +49,8 @@ function item(overrides: Partial<ExportedItem> = {}): ExportedItem {
     trashedAt: null,
     purgeAfter: null,
     currentRevisionId: generateUuidV7(),
+    favourite: false,
+    offlineIntent: false,
     pageDocument: null,
     file: null,
     placements: [placement(id, null)],
