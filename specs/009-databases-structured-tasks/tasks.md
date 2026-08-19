@@ -25,9 +25,9 @@ indépendamment vérifiable.
 **Purpose**: Installer les briques retenues et ouvrir les frontières de module
 sans modifier encore le comportement.
 
-- [ ] T001 Ajouter `@tanstack/react-table@9.1.2` et `@tanstack/react-virtual@3.14.10` à apps/web/package.json, `decimal.js-light@2.5.1` à packages/domain/package.json avec pnpm 10.33.3, puis mettre à jour pnpm-lock.yaml
-- [ ] T002 [P] Créer packages/domain/src/databases/index.ts, packages/client-core/src/databases/index.ts et leurs exports depuis packages/domain/src/index.ts et packages/client-core/src/index.ts
-- [ ] T003 [P] Ajouter les groupes databases aux propriétaires unit, integration, contract, E2E, security et performance dans ci/test-impact.json
+- [X] T001 Ajouter `@tanstack/react-table@9.1.2` et `@tanstack/react-virtual@3.14.10` à apps/web/package.json, `decimal.js-light@2.5.1` à packages/domain/package.json avec pnpm 10.33.3, puis mettre à jour pnpm-lock.yaml
+- [X] T002 [P] Créer packages/domain/src/databases/index.ts, packages/client-core/src/databases/index.ts et leurs exports depuis packages/domain/src/index.ts et packages/client-core/src/index.ts
+- [X] T003 [P] Enregistrer le contrat 009 et rattacher les nouveaux préfixes databases aux parcours E2E transversaux existants dans ci/test-impact.json ; les tests dédiés et performance seront ajoutés à leur création puis vérifiés par T108
 
 ---
 

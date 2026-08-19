@@ -112,6 +112,15 @@
     },
     {
       "paths": {
+        "exact": ["specs/009-databases-structured-tasks/contracts/database-api.openapi.yaml"],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/openapi.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
         "exact": ["specs/002-owner-security-foundation/contracts/admin-cli.md"],
         "prefixes": [],
         "suffixes": []
@@ -193,7 +202,11 @@
       "test": "tests/e2e/accessibility.spec.ts",
       "owners": {
         "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
-        "prefixes": ["apps/web/src/components/", "apps/web/src/features/search/"],
+        "prefixes": [
+          "apps/web/src/components/",
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/search/"
+        ],
         "suffixes": []
       }
     },
@@ -228,7 +241,11 @@
       "test": "tests/e2e/block-editor.spec.ts",
       "owners": {
         "exact": ["apps/api/src/routes/page-documents.ts"],
-        "prefixes": ["apps/web/src/features/editor/", "packages/domain/src/document/"],
+        "prefixes": [
+          "apps/web/src/features/databases/entry-panel",
+          "apps/web/src/features/editor/",
+          "packages/domain/src/document/"
+        ],
         "suffixes": []
       }
     },
@@ -374,8 +391,11 @@
       "owners": {
         "exact": ["apps/web/src/service-worker.ts"],
         "prefixes": [
+          "apps/web/src/features/databases/",
+          "apps/web/src/services/databases",
           "apps/web/src/services/local-",
           "apps/web/src/services/storage-",
+          "packages/client-core/src/databases/",
           "packages/client-core/src/local-store/"
         ],
         "suffixes": []
@@ -386,8 +406,10 @@
       "owners": {
         "exact": ["apps/api/src/routes/changes.ts", "apps/api/src/routes/snapshots.ts"],
         "prefixes": [
+          "packages/client-core/src/databases/",
           "packages/client-core/src/reconciliation/",
-          "packages/client-core/src/outbox/"
+          "packages/client-core/src/outbox/",
+          "packages/domain/src/databases/merge"
         ],
         "suffixes": []
       }
@@ -409,6 +431,8 @@
         "exact": ["apps/api/src/routes/relationships.ts"],
         "prefixes": [
           "packages/domain/src/content/relationships",
+          "packages/domain/src/databases/",
+          "packages/database/src/repositories/database-",
           "packages/database/src/repositories/relationship-"
         ],
         "suffixes": []
@@ -435,7 +459,12 @@
           "apps/api/src/sync/change-notifier.ts",
           "packages/database/src/repositories/change-repository.ts"
         ],
-        "prefixes": ["apps/web/src/features/sync/", "packages/client-core/src/reconciliation/"],
+        "prefixes": [
+          "apps/web/src/features/sync/",
+          "packages/client-core/src/databases/",
+          "packages/client-core/src/reconciliation/",
+          "packages/domain/src/databases/"
+        ],
         "suffixes": []
       }
     },
@@ -444,7 +473,9 @@
       "owners": {
         "exact": ["apps/web/src/features/save-state/conflict-notice.tsx"],
         "prefixes": [
+          "apps/web/src/features/databases/database-conflict-",
           "apps/web/src/features/sync/",
+          "packages/domain/src/databases/merge",
           "packages/domain/src/sync/",
           "packages/client-core/src/reconciliation/"
         ],
@@ -487,8 +518,12 @@
         ],
         "prefixes": [
           "apps/api/src/search/",
+          "apps/web/src/features/databases/",
           "apps/web/src/features/search/",
+          "packages/client-core/src/databases/",
           "packages/client-core/src/search/",
+          "packages/database/src/repositories/database-",
+          "packages/domain/src/databases/",
           "packages/domain/src/search/"
         ],
         "suffixes": []
