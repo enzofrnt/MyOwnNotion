@@ -4,6 +4,7 @@ import {
   listSearchSources,
   readSearchSources,
   schema,
+  submitMutation,
 } from "@myownnotion/database";
 import { generateUuidV7, initialKeys, type Uuid } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
@@ -232,5 +233,131 @@ describe("search source repository", () => {
       { itemId: ids.child, storedName: "Page recherchable" },
     ]);
     expect(paths.get(ids.child)?.some(({ itemId }) => itemId === ids.root)).toBe(false);
+  });
+
+  it("tracks rename, move, conversion, trash, restore and a purged tombstone", async () => {
+    const firstParentId = generateUuidV7();
+    const secondParentId = generateUuidV7();
+    const pageId = generateUuidV7();
+    const firstPlacementId = generateUuidV7();
+    const secondPlacementId = generateUuidV7();
+    const pagePlacementId = generateUuidV7();
+    const keys = initialKeys(3);
+    const mutate = async (command: Parameters<typeof submitMutation>[1]["command"]) => {
+      const outcome = await submitMutation(context.handle.db, {
+        workspaceId: context.workspaceId,
+        mutationId: generateUuidV7(),
+        commandType: command.type,
+        command,
+      });
+      expect(outcome.result.status).toBe("accepted");
+      return outcome;
+    };
+
+    await mutate({
+      type: "item.create",
+      id: firstParentId,
+      kind: "folder",
+      name: "Premier parent",
+      placement: {
+        id: firstPlacementId,
+        kind: "hierarchy",
+        parentItemId: null,
+        positionKey: keys[0] as string,
+      },
+    });
+    await mutate({
+      type: "item.create",
+      id: secondParentId,
+      kind: "folder",
+      name: "Second parent",
+      placement: {
+        id: secondPlacementId,
+        kind: "hierarchy",
+        parentItemId: null,
+        positionKey: keys[1] as string,
+      },
+    });
+    await mutate({
+      type: "item.create",
+      id: pageId,
+      kind: "page",
+      name: "Ancien titre",
+      placement: {
+        id: pagePlacementId,
+        kind: "hierarchy",
+        parentItemId: firstParentId,
+        positionKey: keys[2] as string,
+      },
+      pageDocument: {
+        format: "myownnotion.document+json",
+        formatVersion: 2,
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: generateUuidV7(),
+              content: [{ text: "Corps à retirer lors de la conversion" }],
+            },
+          ],
+        },
+      },
+    });
+
+    await mutate({ type: "item.rename", itemId: pageId, name: "Titre courant" });
+    expect(
+      (await readSearchSources(context.handle.db, context.workspaceId, [pageId]))[0],
+    ).toMatchObject({ itemId: pageId, storedName: "Titre courant", kind: "page" });
+
+    await mutate({
+      type: "placement.move",
+      placementId: pagePlacementId,
+      parentItemId: secondParentId,
+      positionKey: keys[0] as string,
+    });
+    expect(await hydrateSearchPaths(context.handle.db, [pageId])).toEqual(
+      new Map([
+        [
+          pageId,
+          [
+            { itemId: secondParentId, storedName: "Second parent" },
+            { itemId: pageId, storedName: "Titre courant" },
+          ],
+        ],
+      ]),
+    );
+
+    await mutate({
+      type: "item.convert",
+      itemId: pageId,
+      targetKind: "folder",
+      confirmedDestruction: true,
+    });
+    expect(
+      (await readSearchSources(context.handle.db, context.workspaceId, [pageId]))[0],
+    ).toMatchObject({ itemId: pageId, kind: "folder", pageDocument: null });
+
+    await mutate({ type: "item.trash", itemId: pageId });
+    expect(await readSearchSources(context.handle.db, context.workspaceId, [pageId])).toEqual([]);
+
+    await mutate({ type: "item.restore", itemId: pageId });
+    expect(
+      (await readSearchSources(context.handle.db, context.workspaceId, [pageId]))[0],
+    ).toMatchObject({ itemId: pageId, kind: "folder", storedName: "Titre courant" });
+
+    // Feature 001 deliberately leaves execution of the retention policy to a
+    // later owner-aware worker. Search still has to honour the resulting
+    // canonical tombstone, whichever policy produced it.
+    await context.handle.db
+      .update(schema.items)
+      .set({ lifecycle: "purged", trashedAt: null, purgeAfter: null })
+      .where(eq(schema.items.id, pageId));
+    expect(await readSearchSources(context.handle.db, context.workspaceId, [pageId])).toEqual([]);
+    expect(
+      await context.handle.db
+        .select({ id: schema.revisions.id })
+        .from(schema.revisions)
+        .where(eq(schema.revisions.itemId, pageId)),
+    ).not.toHaveLength(0);
   });
 });

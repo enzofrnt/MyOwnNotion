@@ -15,6 +15,10 @@ Les décisions transversales validées seront consignées ici sous forme de docu
   synchronisation transporte une position et non un contenu, pourquoi la
   détection de conflit n'a pas été reconstruite, et les deux cas que la fusion
   refuse de trancher.
+- [`backup.md`](backup.md) : archive canonique scellée, répétition de
+  restauration et garde de mise à jour.
+- [`search.md`](search.md) : index transitoires, générations atomiques,
+  reconstruction, diagnostics, confidentialité et volume de référence.
 
 ## Frontières envisagées
 

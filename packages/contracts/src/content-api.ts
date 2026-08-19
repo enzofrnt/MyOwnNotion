@@ -463,10 +463,31 @@ export const CanonicalSnapshotSchema = Type.Object({
 });
 export type CanonicalSnapshotDto = Static<typeof CanonicalSnapshotSchema>;
 
-export const HealthResponseSchema = Type.Object({
-  status: Type.Literal("ready"),
-  schemaVersion: Type.Integer({ minimum: 1 }),
-});
+export const SearchHealthSchema = Type.Object(
+  {
+    state: Type.Union([
+      Type.Literal("cold"),
+      Type.Literal("building"),
+      Type.Literal("ready"),
+      Type.Literal("degraded"),
+    ]),
+    generation: Type.Union([Type.Integer({ minimum: 1 }), Type.Null()]),
+    indexedCount: Type.Integer({ minimum: 0 }),
+    expectedCount: Type.Integer({ minimum: 0 }),
+    failureCode: Type.Union([Type.String({ maxLength: 128 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+export const HealthResponseSchema = Type.Object(
+  {
+    status: Type.Literal("ready"),
+    schemaVersion: Type.Integer({ minimum: 1 }),
+    /** Safe operational state only; never titles, snippets, queries or keys. */
+    search: Type.Optional(SearchHealthSchema),
+  },
+  { additionalProperties: false },
+);
 
 export const ExportStatusSchema = Type.Object({
   exportId: UuidSchema,

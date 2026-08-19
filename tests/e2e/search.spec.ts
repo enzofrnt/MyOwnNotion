@@ -10,6 +10,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createChildItem,
   createRootItem,
+  openSecondDevice,
   openWorkspace,
   saveDocument,
   selectItem,
@@ -44,9 +45,11 @@ test.describe("workspace search (US1)", () => {
     const bodyPage = uniqueName("Notes");
     const fileName = `${uniqueName("manuel")}.txt`;
     const bodyPhrase = `reprise atomique ${rankPhrase}`;
+    const symbolPage = `Décisions 🧠 ${token}`;
 
     await createRootItem(page, "page", titlePage);
     await createRootItem(page, "page", bodyPage);
+    await createRootItem(page, "page", symbolPage);
     await waitForSynchronized(page);
 
     await selectItem(page, bodyPage);
@@ -78,6 +81,10 @@ test.describe("workspace search (US1)", () => {
     await expect(bodyResult).toContainText(bodyPhrase);
     await dialog.getByRole("button", { name: "Close search" }).click();
 
+    dialog = await searchFor(page, "🧠");
+    await expect(dialog.getByRole("listitem").filter({ hasText: symbolPage })).toHaveCount(1);
+    await dialog.getByRole("button", { name: "Close search" }).click();
+
     dialog = await searchFor(page, fileName);
     const fileResult = dialog.getByRole("listitem").filter({ hasText: fileName });
     await expect(fileResult).toBeVisible();
@@ -94,6 +101,28 @@ test.describe("workspace search (US1)", () => {
     dialog = await searchFor(page, missing);
     await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
     await expect(dialog.getByLabel("Query")).toHaveValue(missing);
+  });
+
+  test("accepts 512 Unicode characters and explicitly refuses the 513th", async ({ page }) => {
+    await openWorkspace(page);
+    let dialog = await openSearch(page);
+    const query = dialog.getByLabel("Query");
+    const uniquePrefix = uniqueName("unicode-boundary");
+    const accepted = `${uniquePrefix}${"🧠".repeat(512 - Array.from(uniquePrefix).length)}`;
+    await query.fill(accepted);
+    await expect(query).toHaveValue(accepted);
+    await dialog.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Close search" }).click();
+    dialog = await openSearch(page);
+    const rejected = `${accepted}🧠`;
+    await dialog.getByLabel("Query").fill(rejected);
+    await dialog.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toHaveText(
+      "Search queries are limited to 512 Unicode characters.",
+    );
+    await expect(dialog.getByLabel("Query")).toHaveValue(rejected);
   });
 });
 
@@ -218,5 +247,142 @@ test.describe("workspace search refinement (US3)", () => {
       { query, limit: 20 },
       { query, limit: 20, cursor: "opaque-next-page" },
     ]);
+  });
+});
+
+test.describe("workspace search freshness (US4)", () => {
+  test("propagates an accepted identity into search on another connected device", async ({
+    page,
+    browser,
+    baseURL,
+  }, testInfo) => {
+    const second = await openSecondDevice(browser, baseURL);
+    try {
+      await Promise.all([openWorkspace(page), openWorkspace(second.page)]);
+      const name = uniqueName("second-device-search");
+      const startedAt = performance.now();
+
+      await createRootItem(page, "page", name);
+      await waitForSynchronized(page);
+      await expect(second.page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
+
+      const dialog = await searchFor(second.page, name);
+      const result = dialog.getByRole("listitem").filter({ hasText: name });
+      await expect(result).toHaveCount(1);
+      const resultButton = result.getByRole("button");
+      await expect(resultButton).toHaveAttribute(
+        "id",
+        /^search-result-[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+      );
+      const propagationMilliseconds = performance.now() - startedAt;
+      await testInfo.attach("second-device-search-propagation.json", {
+        body: Buffer.from(JSON.stringify({ propagationMilliseconds })),
+        contentType: "application/json",
+      });
+
+      await resultButton.click();
+      await expect(second.page.getByTestId(`tree-item-${name}`)).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    } finally {
+      await second.context.close();
+    }
+  });
+
+  test("replaces stale title, path and body data across lifecycle changes", async ({ page }) => {
+    await openWorkspace(page);
+    const token = uniqueName("freshness");
+    const destination = `Destination ${token}`;
+    const oldName = `Old title ${token}`;
+    const currentName = `Current title ${token}`;
+    const bodyPhrase = `Body that conversion removes ${token}`;
+    await createRootItem(page, "folder", destination);
+    await createRootItem(page, "page", oldName);
+    await waitForSynchronized(page);
+
+    await selectItem(page, oldName);
+    await typeIntoEditor(page, bodyPhrase);
+    await saveDocument(page);
+    await waitForSynchronized(page);
+
+    let dialog = await searchFor(page, bodyPhrase);
+    await expect(dialog.getByRole("listitem").filter({ hasText: oldName })).toBeVisible();
+    await dialog.getByRole("button", { name: "Close search" }).click();
+
+    page.once("dialog", async (prompt) => await prompt.accept(currentName));
+    await page.getByRole("button", { name: `Rename ${oldName}` }).click();
+    await waitForSynchronized(page);
+
+    dialog = await searchFor(page, oldName);
+    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
+    await dialog.getByRole("button", { name: "Close search" }).click();
+    dialog = await searchFor(page, currentName);
+    await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toHaveCount(1);
+    await dialog.getByRole("button", { name: "Close search" }).click();
+
+    await selectItem(page, currentName);
+    await page.getByRole("button", { name: `Move selected item into ${destination}` }).click();
+    await waitForSynchronized(page);
+    dialog = await searchFor(page, currentName);
+    await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toContainText(
+      destination,
+    );
+    await dialog.getByRole("button", { name: "Close search" }).click();
+
+    await page.getByRole("button", { name: `Expand ${destination}` }).click();
+    await page.getByTestId(`convert-${currentName}`).click();
+    await expect(page.getByTestId("convert-confirmation")).toBeVisible();
+    await page.getByTestId("confirm-convert").click();
+    await waitForSynchronized(page);
+
+    dialog = await searchFor(page, bodyPhrase);
+    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
+    await dialog.getByRole("button", { name: "Close search" }).click();
+    dialog = await searchFor(page, currentName);
+    await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toContainText(
+      "folder",
+    );
+    await dialog.getByRole("button", { name: "Close search" }).click();
+
+    await page.getByRole("button", { name: `Trash ${currentName}` }).click();
+    await waitForSynchronized(page);
+    dialog = await searchFor(page, currentName);
+    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
+    await dialog.getByRole("button", { name: "Close search" }).click();
+
+    await page.getByRole("button", { name: `Restore ${currentName}` }).click();
+    await waitForSynchronized(page);
+    dialog = await searchFor(page, currentName);
+    await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toHaveCount(1);
+  });
+
+  test("keeps reliable local results visible while the complete index rebuilds", async ({
+    page,
+  }) => {
+    await openWorkspace(page);
+    const token = uniqueName("rebuilding");
+    await createRootItem(page, "page", token);
+    await waitForSynchronized(page);
+    await page.route("**/v1/search", async (route) => {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/problem+json",
+        headers: { "retry-after": "1" },
+        body: JSON.stringify({
+          type: "about:blank",
+          title: "Complete search is temporarily unavailable",
+          status: 503,
+          code: "search.building",
+          searchState: "building",
+          indexedCount: 2,
+          expectedCount: 3,
+        }),
+      });
+    });
+
+    const dialog = await searchFor(page, token);
+    await expect(dialog.getByRole("listitem").filter({ hasText: token })).toBeVisible();
+    await expect(dialog.getByText(/complete index is rebuilding/i)).toBeVisible();
   });
 });

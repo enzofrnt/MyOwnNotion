@@ -10,6 +10,7 @@ import { inspectBackupArchive } from "../../../apps/api/src/backup/archive-forma
 import { createDatabaseRestoreTarget } from "../../../apps/api/src/backup/database-restore-target.ts";
 import { createDisposableWorkspace } from "../../../apps/api/src/backup/disposable-workspace.ts";
 import { applyArchive, preflight } from "../../../apps/api/src/backup/restore-service.ts";
+import { createDatabaseSearchService } from "../../../apps/api/src/search/search-service.ts";
 import { createProtectedContentRuntime } from "../../../apps/api/src/security/protected-content-runtime.ts";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
@@ -19,6 +20,59 @@ const REFERENCE_BACKUPS = [
     schemaVersion: 1,
     recordFormatVersion: 1,
     itemNames: ["Reference folder", "Reference page", "reference.txt"],
+    searchableItems: [
+      {
+        itemId: "018f2b7c-1000-7000-8000-000000000002",
+        revisionId: "018f2b7c-1000-7000-8000-000000000011",
+        kind: "folder",
+        title: "Reference folder",
+        matchedField: "title",
+        path: [
+          {
+            itemId: "018f2b7c-1000-7000-8000-000000000002",
+            title: "Reference folder",
+          },
+        ],
+      },
+      {
+        itemId: "018f2b7c-1000-7000-8000-000000000003",
+        revisionId: "018f2b7c-1000-7000-8000-000000000012",
+        kind: "page",
+        title: "Reference page",
+        matchedField: "title",
+        path: [
+          {
+            itemId: "018f2b7c-1000-7000-8000-000000000002",
+            title: "Reference folder",
+          },
+          {
+            itemId: "018f2b7c-1000-7000-8000-000000000003",
+            title: "Reference page",
+          },
+        ],
+      },
+      {
+        itemId: "018f2b7c-1000-7000-8000-000000000004",
+        revisionId: "018f2b7c-1000-7000-8000-000000000013",
+        kind: "file",
+        title: "reference.txt",
+        matchedField: "fileName",
+        path: [
+          {
+            itemId: "018f2b7c-1000-7000-8000-000000000002",
+            title: "Reference folder",
+          },
+          {
+            itemId: "018f2b7c-1000-7000-8000-000000000003",
+            title: "Reference page",
+          },
+          {
+            itemId: "018f2b7c-1000-7000-8000-000000000004",
+            title: "reference.txt",
+          },
+        ],
+      },
+    ],
   },
 ] as const;
 
@@ -107,6 +161,32 @@ describe.each(REFERENCE_BACKUPS)("reference backup $file", (reference) => {
       // restore must not bring readable content back without recreating the
       // protected copies that the secured read path prefers.
       expect(await restored.handle.db.select().from(schema.protectedEnvelopes)).toHaveLength(5);
+
+      const search = createDatabaseSearchService({
+        db: restored.handle.db,
+        workspaceId: workspace.id,
+        protectedContent,
+      });
+      const rebuilding = search.rebuild();
+      expect(search.status()).toMatchObject({ state: "building", generation: null });
+      await expect(search.search({ query: "Reference" })).rejects.toMatchObject({
+        code: "search.building",
+      });
+      await rebuilding;
+      expect(search.status()).toMatchObject({
+        state: "ready",
+        generation: 1,
+        indexedCount: reference.itemNames.length,
+      });
+      for (const expected of reference.searchableItems) {
+        const rebuilt = await search.search({ query: expected.title });
+        const restoredResult = rebuilt.results.find(({ itemId }) => itemId === expected.itemId);
+        expect(restoredResult).toEqual({
+          ...expected,
+          snippet: null,
+          conflict: false,
+        });
+      }
     } finally {
       await restored.release();
     }

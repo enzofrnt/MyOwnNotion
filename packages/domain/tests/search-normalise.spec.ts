@@ -30,6 +30,17 @@ describe("workspace search normalisation", () => {
     expect(prepareSearchQuery(" \n\t ")).toEqual({ ok: false, code: "empty-query" });
   });
 
+  it("retains visible symbols when a query has no word-like term", () => {
+    expect(prepareSearchQuery("🧠")).toMatchObject({
+      ok: true,
+      value: { normalised: "🧠", terms: ["🧠"] },
+    });
+    expect(prepareSearchQuery("/")).toMatchObject({
+      ok: true,
+      value: { normalised: "/", terms: ["/"] },
+    });
+  });
+
   it("counts Unicode code points and enforces the 512-character boundary", () => {
     const accepted = "🧠".repeat(MAX_SEARCH_QUERY_LENGTH);
     expect(countUnicodeCharacters(accepted)).toBe(MAX_SEARCH_QUERY_LENGTH);

@@ -11,6 +11,7 @@ import {
   CreateItemSchema,
   CreatePlacementSchema,
   CreateRelationshipSchema,
+  HealthResponseSchema,
   ItemSchema,
   MutationResultSchema,
   PageDocumentSchema,
@@ -19,6 +20,7 @@ import {
   QueuedMutationResultSchema,
   QueuedMutationSchema,
   RevisionSchema,
+  SearchHealthSchema,
   SearchRequestSchema,
   SearchResponseSchema,
   SearchResultSchema,
@@ -119,6 +121,30 @@ describe("OpenAPI ↔ runtime schema alignment", () => {
     );
   });
 
+  it("documents the optional redacted search health state exposed at runtime", () => {
+    const health = openapi.paths["/health"]?.["get"] as {
+      responses: {
+        "200": {
+          content: {
+            "application/json": {
+              schema: {
+                required?: string[];
+                properties?: Record<string, { $ref?: string }>;
+              };
+            };
+          };
+        };
+      };
+    };
+    const schema = health.responses["200"].content["application/json"].schema;
+
+    expect(schema.properties?.["search"]?.$ref).toBe("#/components/schemas/SearchHealth");
+    expect(runtimeRequired(HealthResponseSchema)).toEqual(
+      expect.arrayContaining(schema.required ?? []),
+    );
+    expect(runtimeRequired(SearchHealthSchema)).toEqual(requiredOf("SearchHealth"));
+  });
+
   it("keeps lineage classification vocabulary identical", () => {
     const compare = openapi.paths["/v1/revisions/compare"] as {
       post: {
@@ -144,7 +170,7 @@ describe("search OpenAPI contract", () => {
   it("uses an authenticated POST body and never a query-string route", () => {
     expect(searchOpenapi.openapi).toMatch(/^3\.1\./);
     expect(Object.keys(searchOpenapi.paths)).toEqual(["/v1/search"]);
-    const operation = searchOpenapi.paths["/v1/search"]?.post as {
+    const operation = searchOpenapi.paths["/v1/search"]?.["post"] as {
       security?: unknown[];
       requestBody?: { required?: boolean };
       parameters?: Array<{ in?: string }>;
@@ -155,11 +181,11 @@ describe("search OpenAPI contract", () => {
   });
 
   it("documents bounded queries, pages and every safe failure state", () => {
-    const request = searchOpenapi.components.schemas.SearchRequest as {
+    const request = searchOpenapi.components.schemas["SearchRequest"] as {
       properties?: Record<string, { minLength?: number; maxLength?: number; maximum?: number }>;
     };
-    expect(request.properties?.query).toMatchObject({ minLength: 1, maxLength: 512 });
-    expect(request.properties?.limit).toMatchObject({ maximum: 50 });
+    expect(request.properties?.["query"]).toMatchObject({ minLength: 1, maxLength: 512 });
+    expect(request.properties?.["limit"]).toMatchObject({ maximum: 50 });
 
     const searchPath = searchOpenapi.paths["/v1/search"];
     expect(searchPath).toBeDefined();

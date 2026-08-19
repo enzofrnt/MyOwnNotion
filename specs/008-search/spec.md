@@ -23,6 +23,13 @@ disponibilité locale (005), synchronisation et conflits (006), sauvegarde et
 restauration (007). La recherche est une vue dérivée et reconstruisible de ces
 données ; elle ne devient jamais une seconde source de vérité.
 
+La feature 001 reste également propriétaire de la transition canonique vers
+`purged`. La 008 observe ce tombstone et retire immédiatement sa projection,
+mais n'ajoute ni worker de rétention, ni commande, ni route, ni confirmation de
+suppression définitive. L'orchestration qui devra expliquer les références
+affectées, se synchroniser entre appareils et respecter les sauvegardes relève
+d'une feature de cycle de vie dédiée.
+
 Le périmètre V1 de cette feature couvre :
 
 - le titre des pages, dossiers et fichiers actifs ;
@@ -160,8 +167,9 @@ redémarrage ou une restauration, sans voir de contenu obsolète ou inaccessible
 **Why this priority**: Une recherche rapide mais fausse détériore la confiance
 dans les données et peut révéler du contenu qui aurait dû disparaître.
 
-**Independent Test**: Renommer, déplacer, modifier, mettre à la corbeille,
-restaurer et supprimer définitivement des items sur plusieurs appareils,
+**Independent Test**: Renommer, déplacer, modifier, mettre à la corbeille et
+restaurer des items sur plusieurs appareils ; injecter à la frontière
+d'intégration un tombstone canonique `purged` déjà produit par le cycle de vie ;
 redémarrer les services et restaurer une sauvegarde de référence, puis comparer
 les résultats avec l'état canonique attendu.
 
@@ -173,9 +181,10 @@ les résultats avec l'état canonique attendu.
 2. **Given** un item placé dans la corbeille, **When** une recherche ordinaire
    est lancée, **Then** cet item n'apparaît plus parmi les contenus actifs ;
    après restauration, il redevient trouvable.
-3. **Given** un item supprimé définitivement, **When** l'opération est acceptée,
-   **Then** aucun titre, extrait ou résultat actif ne reste accessible par la
-   recherche.
+3. **Given** que le cycle de vie a accepté et appliqué la suppression définitive
+   d'un item dans l'état canonique, **When** la recherche reçoit ce tombstone
+   `purged`, **Then** aucun titre, extrait ou résultat actif ne reste accessible
+   par la recherche.
 4. **Given** une mutation reçue ou rejouée plusieurs fois, **When** l'index est
    mis à jour, **Then** elle produit le même résultat final et aucune entrée en
    double.
@@ -271,9 +280,10 @@ les résultats avec l'état canonique attendu.
 
 - **FR-019**: Une recherche ordinaire MUST exclure les items placés dans la
   corbeille et MUST les réintégrer après restauration.
-- **FR-020**: Une suppression définitive MUST retirer tout résultat, extrait et
-  donnée dérivée active correspondante sans supprimer les références
-  diagnostiques que les features de cycle de vie doivent conserver.
+- **FR-020**: Dès que l'état canonique d'un item devient `purged`, la recherche
+  MUST retirer tout résultat, extrait et donnée dérivée active correspondante
+  sans supprimer les références diagnostiques que les features de cycle de vie
+  doivent conserver.
 - **FR-021**: Renommer, déplacer ou convertir un item MUST conserver son
   identité de recherche et remplacer ses anciennes valeurs dérivées sans entrée
   fantôme.
@@ -370,6 +380,9 @@ les résultats avec l'état canonique attendu.
   sans redéfinir l'identité d'un résultat.
 - Les items de la corbeille restent accessibles par leur parcours de corbeille,
   mais sont exclus de la recherche ordinaire jusqu'à leur restauration.
+- La preuve de suppression définitive de cette feature commence à l'état
+  canonique `purged` produit par la fondation de cycle de vie ; elle ne suppose
+  pas qu'un déclencheur utilisateur de purge existe déjà dans l'application.
 - Une requête vide ne lance pas de recherche et conserve les parcours de
   récents et favoris déjà fournis par la navigation.
 - Les correspondances exactes ou de préfixe dans le titre sont considérées plus
@@ -388,5 +401,8 @@ les résultats avec l'état canonique attendu.
 - Recherche dans les tableaux blancs — feature 011.
 - Recherche publique — feature 012.
 - Recherche et permissions MCP — feature 013.
+- Orchestration de la suppression définitive : éligibilité, confirmation,
+  présentation des références affectées, worker de rétention, synchronisation
+  entre appareils et politique de sauvegarde — future feature de cycle de vie.
 - Recherche sémantique, embeddings, recommandations et génération par IA.
 - Opérateurs avancés, langage de requête, recherches enregistrées et alertes.

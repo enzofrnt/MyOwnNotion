@@ -1,5 +1,10 @@
 import type { MergedSearchPage, SearchClientResult } from "@myownnotion/client-core";
-import type { ItemKind, Uuid } from "@myownnotion/domain";
+import {
+  countUnicodeCharacters,
+  type ItemKind,
+  MAX_SEARCH_QUERY_LENGTH,
+  type Uuid,
+} from "@myownnotion/domain";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { WorkspaceSearchService } from "../../services/search.ts";
 import { ALL_SEARCH_KINDS, type SearchBranchOption, SearchFilters } from "./search-filters.tsx";
@@ -7,6 +12,13 @@ import { SearchResults } from "./search-results.tsx";
 
 type SearchPhase = "idle" | "loading" | "settled" | "error";
 export type SearchViewState = "empty-query" | "loading" | "results" | "no-results" | "error";
+type SearchProblem = "query-too-long" | "unavailable" | null;
+
+const QUERY_TOO_LONG_MESSAGE = "Search queries are limited to 512 Unicode characters.";
+
+export function searchQueryProblem(query: string): string | null {
+  return countUnicodeCharacters(query) > MAX_SEARCH_QUERY_LENGTH ? QUERY_TOO_LONG_MESSAGE : null;
+}
 
 export function deriveSearchViewState(
   query: string,
@@ -96,6 +108,7 @@ export function SearchDialog({
   const [phase, setPhase] = useState<SearchPhase>("idle");
   const [page, setPage] = useState<MergedSearchPage | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<Uuid | null>(null);
+  const [problem, setProblem] = useState<SearchProblem>(null);
   const input = useRef<HTMLInputElement | null>(null);
   const dialog = useRef<HTMLElement | null>(null);
   const requestSerial = useRef(0);
@@ -124,11 +137,20 @@ export function SearchDialog({
     if (!/\S/u.test(nextQuery)) {
       setPhase("idle");
       setPage(null);
+      setProblem(null);
       return;
     }
     const serial = requestSerial.current + 1;
     requestSerial.current = serial;
+    if (searchQueryProblem(nextQuery) !== null) {
+      setPhase("error");
+      setPage(null);
+      setSelectedItemId(null);
+      setProblem("query-too-long");
+      return;
+    }
     setPhase("loading");
+    setProblem(null);
     try {
       const response = await search.search(
         {
@@ -158,9 +180,11 @@ export function SearchDialog({
           : null,
       );
       setPhase("settled");
+      setProblem(null);
     } catch {
       if (requestSerial.current === serial) {
         setPhase("error");
+        setProblem("unavailable");
       }
     }
   };
@@ -203,7 +227,8 @@ export function SearchDialog({
             id="workspace-search-query"
             type="text"
             value={query}
-            maxLength={512}
+            aria-describedby={problem === "query-too-long" ? "workspace-search-problem" : undefined}
+            aria-invalid={problem === "query-too-long"}
             autoComplete="off"
             onChange={(event) => {
               setQuery(event.target.value);
@@ -212,6 +237,7 @@ export function SearchDialog({
                 setPhase("idle");
                 setPage(null);
                 setSelectedItemId(null);
+                setProblem(null);
               }
             }}
             onKeyDown={(event) => {
@@ -298,8 +324,15 @@ export function SearchDialog({
             </p>
           ) : null}
           {view === "error" ? (
-            <p className="status-banner" data-state="error" role="alert">
-              Complete search is temporarily unavailable. Your query is still editable.
+            <p
+              id={problem === "query-too-long" ? "workspace-search-problem" : undefined}
+              className="status-banner"
+              data-state="error"
+              role="alert"
+            >
+              {problem === "query-too-long"
+                ? QUERY_TOO_LONG_MESSAGE
+                : "Complete search is temporarily unavailable. Your query is still editable."}
             </p>
           ) : null}
           {view === "results" ? (

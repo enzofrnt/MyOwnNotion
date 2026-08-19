@@ -166,22 +166,22 @@ comparer exactement recherche et état canonique.
 
 ### Tests for User Story 4
 
-- [ ] T052 [P] [US4] Écrire les propriétés d'idempotence, révision ancienne, ordre stable et absence de doublon dans packages/domain/tests/search.property.spec.ts (FR-017, FR-021, SC-005)
-- [ ] T053 [P] [US4] Écrire les tests de fault injection build interrompu, enveloppe illisible, upsert échoué et échange atomique dans apps/api/tests/search-rebuild.spec.ts (FR-025, FR-027, FR-028)
-- [ ] T054 [P] [US4] Étendre l'intégration database pour rename/move/convert/trash/restore/purge et chemins hydratés dans packages/database/tests/search-source.integration.spec.ts (FR-019 à FR-021)
-- [ ] T055 [P] [US4] Écrire les tests de sécurité prouvant zéro requête/extrait dans URL, logs, diagnostics, PostgreSQL et IndexedDB dans apps/api/tests/search-security.spec.ts et apps/web/tests/search-worker.spec.ts (FR-022 à FR-024)
-- [ ] T056 [US4] Étendre Playwright avec renommage, déplacement, conversion, corbeille, restauration, purge et état rebuilding dans tests/e2e/search.spec.ts (acceptance US4)
-- [ ] T057 [P] [US4] Écrire le benchmark p50/p95 des 20 premiers résultats sur 100 000 pages/1 000 000 blocs, de la recherche et de l'upsert sur 10 000 items locaux, de la propagation serveur vers un second appareil et de 10 000 replays dans tests/performance/search.perf.spec.ts (SC-001 à SC-005)
+- [X] T052 [P] [US4] Écrire les propriétés d'idempotence, révision ancienne, ordre stable et absence de doublon dans packages/domain/tests/search.property.spec.ts (FR-017, FR-021, SC-005)
+- [X] T053 [P] [US4] Écrire les tests de fault injection build interrompu, enveloppe illisible, upsert échoué et échange atomique dans apps/api/tests/search-rebuild.spec.ts (FR-025, FR-027, FR-028)
+- [X] T054 [P] [US4] Étendre l'intégration database pour rename/move/convert/trash/restore/purge et chemins hydratés dans packages/database/tests/search-source.integration.spec.ts (FR-019 à FR-021)
+- [X] T055 [P] [US4] Écrire les tests de sécurité prouvant zéro requête/extrait dans URL, logs, diagnostics, PostgreSQL et IndexedDB dans apps/api/tests/search-security.spec.ts et apps/web/tests/search-worker.spec.ts (FR-022 à FR-024)
+- [X] T056 [US4] Étendre Playwright avec renommage, déplacement, conversion, corbeille, restauration et état rebuilding dans tests/e2e/search.spec.ts ; conserver la preuve d'un tombstone canonique purged dans T054, l'orchestration de purge restant hors 008 (acceptance US4)
+- [X] T057 [P] [US4] Écrire le benchmark p50/p95 des 20 premiers résultats sur 100 000 pages/1 000 000 blocs, de la recherche et de l'upsert sur 10 000 items locaux, de la propagation serveur vers un second appareil et de 10 000 replays dans tests/performance/search.perf.spec.ts (SC-001 à SC-005)
 
 ### Implementation for User Story 4
 
-- [ ] T058 [US4] Déclencher upsert/remove serveur uniquement après commit et invalider sur échec dans apps/api/src/plugins/mutations.ts et apps/api/src/search/search-service.ts pour satisfaire T052 et T053
-- [ ] T059 [US4] Gérer conversion, trash, restore, purge et conflit sans entrée fantôme dans packages/domain/src/search/search-index.ts et apps/api/src/search/search-service.ts pour satisfaire T054
-- [ ] T060 [US4] Exposer un état search redacted dans apps/api/src/routes/health.ts et refuser les pages serveur pendant building/degraded dans apps/api/src/routes/search.ts
-- [ ] T061 [US4] Ajouter la reconstruction après restauration de référence dans packages/database/tests/reference-backups.integration.spec.ts une fois la feature 007 fusionnée (FR-026, SC-006)
-- [ ] T062 [US4] Documenter exploitation, reconstruction, mémoire, diagnostics et confidentialité dans docs/architecture/search.md
-- [ ] T063 [US4] Optimiser extraction, lots, worker et limites jusqu'à réussite du benchmark T057 sans persister l'index dans packages/domain/src/search/search-index.ts, apps/api/src/search/search-service.ts et apps/web/src/features/search/search.worker.ts
-- [ ] T064 [US4] Exécuter les tests T052 à T057 et compléter les preuves cycle de vie, sécurité, reprise et performance dans specs/008-search/validation.md
+- [X] T058 [US4] Déclencher upsert/remove serveur uniquement après commit et invalider sur échec dans apps/api/src/plugins/mutations.ts et apps/api/src/search/search-service.ts pour satisfaire T052 et T053
+- [X] T059 [US4] Gérer conversion, trash, restore, purge et conflit sans entrée fantôme dans packages/domain/src/search/search-index.ts et apps/api/src/search/search-service.ts pour satisfaire T054
+- [X] T060 [US4] Exposer un état search redacted dans apps/api/src/routes/health.ts et refuser les pages serveur pendant building/degraded dans apps/api/src/routes/search.ts
+- [X] T061 [US4] Ajouter la reconstruction après restauration de référence dans packages/database/tests/reference-backups.integration.spec.ts une fois la feature 007 fusionnée (FR-026, SC-006)
+- [X] T062 [US4] Documenter exploitation, reconstruction, mémoire, diagnostics et confidentialité dans docs/architecture/search.md
+- [X] T063 [US4] Optimiser extraction, lots, worker et limites jusqu'à réussite du benchmark T057 sans persister l'index dans packages/domain/src/search/search-index.ts, apps/api/src/search/search-service.ts et apps/web/src/features/search/search.worker.ts
+- [X] T064 [US4] Exécuter les tests T052 à T057 et compléter les preuves cycle de vie, sécurité, reprise et performance dans specs/008-search/validation.md
 
 **Checkpoint**: Toutes les stories et tous les scénarios critiques sont
 fonctionnels, sûrs et mesurés.
@@ -193,12 +193,12 @@ fonctionnels, sûrs et mesurés.
 **Purpose**: Converger les artefacts, la documentation, les navigateurs et les
 gates avant publication.
 
-- [ ] T065 [P] Vérifier que chaque nouveau test et consommateur possède un propriétaire minimal dans ci/test-impact.json et tests/contract/test-impact.spec.ts
-- [ ] T066 [P] Mettre à jour docs/development.md avec les commandes ciblées et le jeu de performance de recherche sans dupliquer quickstart.md
-- [ ] T067 Exécuter tous les scénarios de specs/008-search/quickstart.md et consigner leurs sorties utiles dans specs/008-search/validation.md
-- [ ] T068 Exécuter format, lint, typecheck, unit, integration, contract, performance et la matrice Playwright ciblée, corriger chaque échec et consigner le résultat dans specs/008-search/validation.md
+- [X] T065 [P] Vérifier que chaque nouveau test et consommateur possède un propriétaire minimal dans ci/test-impact.json et tests/contract/test-impact.spec.ts
+- [X] T066 [P] Mettre à jour docs/development.md avec les commandes ciblées et le jeu de performance de recherche sans dupliquer quickstart.md
+- [X] T067 Exécuter tous les scénarios de specs/008-search/quickstart.md et consigner leurs sorties utiles dans specs/008-search/validation.md
+- [X] T068 Exécuter format, lint, typecheck, unit, integration, contract, performance et la matrice Playwright ciblée, corriger chaque échec et consigner le résultat dans specs/008-search/validation.md
 - [ ] T069 Exécuter pnpm checks:local sur le commit final exact conformément à docs/development.md et enregistrer le résultat dans specs/008-search/validation.md
-- [ ] T070 Lancer speckit-converge, ajouter toute tâche manquante à specs/008-search/tasks.md, l'implémenter et ne laisser aucune case ouverte avant le push
+- [X] T070 Lancer speckit-converge, ajouter toute tâche manquante à specs/008-search/tasks.md, l'implémenter et ne laisser aucune case ouverte avant le push
 
 ---
 
@@ -300,3 +300,16 @@ T057 performance de référence
   extraits.
 - Les cases ne sont cochées qu'après réussite des critères et tests concernés.
 - Les commits restent petits et groupés par checkpoint logique.
+
+## Phase 8: Convergence
+
+- [X] T071 Faire indexer et rechercher une requête composée uniquement de symboles visibles, avec tests domaine et navigateur, per FR-002 et US1/AC4 (partial)
+- [X] T072 Remplacer la limite HTML fondée sur les unités UTF-16 par un comptage de 512 caractères Unicode et un refus explicite au-delà, avec tests interface et contrat, per FR-034 (contradicts)
+- [X] T073 Conserver le marqueur de conflit lorsqu'une correspondance existe seulement dans la version serveur concurrente et couvrir les termes propres aux deux versions per FR-018 et l'edge case conflit (partial)
+- [X] T074 Unifier le filtre de branche local avec les descendants hiérarchiques serveur, y compris les fichiers à placements multiples et l'exclusion des simples attachments, per FR-010 et T046 (contradicts)
+- [X] T075 Découper la reconstruction serveur en lots qui rendent la main à l'event loop et prouver qu'une route sans rapport reste réactive pendant un gros build per plan: non-blocking rebuild et T023 (contradicts)
+- [X] T076 Documenter l'état search optionnel de `/health` dans le contrat OpenAPI canonique et tester sa parité avec le schéma runtime per T060 et FR-023 (missing)
+- [X] T077 Renforcer la restauration de référence pour comparer identité, révision, type, chemin et champ recherché avec l'état canonique attendu per SC-006 et T061 (partial)
+- [X] T078 Ajouter un parcours sur deux appareils prouvant qu'une mutation acceptée devient recherchable sur le second avec identité unique et mesure de propagation per SC-004 (partial)
+- [X] T079 Déclarer le benchmark search comme consommateur explicite des sources de recherche dans la sélection CI et verrouiller cette relation par contrat per T003 et T065 (partial)
+- [X] T080 Aligner les artefacts 008 sur la frontière de cycle de vie approuvée : recherche d'un tombstone purgé prouvée ici, orchestration de purge avec confirmation, références, synchronisation et sauvegardes réservée à une feature dédiée, per US4/AC3, FR-020 et product canvas §33 (contradicts)

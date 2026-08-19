@@ -54,8 +54,10 @@ la version locale en attente n'est pas remplacée par une ancienne réponse.
 
 ## 3. Cycle de vie
 
-Pour un même item, exécuter renommage, déplacement, conversion, corbeille,
-restauration et suppression définitive.
+Pour un même item, exécuter dans l'interface renommage, déplacement, conversion,
+corbeille et restauration. À la frontière d'intégration, appliquer ensuite un
+tombstone canonique `purged`, comme celui qu'une future feature de cycle de vie
+produira après ses propres confirmations et contrôles.
 
 Après chaque étape :
 
@@ -65,6 +67,10 @@ Après chaque étape :
 - aucun résultat actif dans la corbeille ;
 - résultat de nouveau présent après restauration ;
 - aucun titre ou extrait après purge.
+
+La 008 ne crée volontairement aucun bouton, route ou worker de purge : ce guide
+valide la réaction de la recherche à l'état canonique, pas l'orchestration de la
+suppression définitive.
 
 ## 4. Reconstruction et intégrité
 

@@ -39,7 +39,7 @@ function withLocalAvailability(
     ...(local?.localAvailability === undefined
       ? {}
       : { localAvailability: local.localAvailability }),
-    localState: local?.localState ?? "synchronized",
+    localState: local?.localState ?? server.localState,
   };
 }
 

@@ -8,6 +8,7 @@ import {
   mergeProgressiveSearchPage,
   moveSearchSelection,
   searchAnnouncement,
+  searchQueryProblem,
 } from "../src/features/search/search-dialog.tsx";
 import { SearchFilters } from "../src/features/search/search-filters.tsx";
 import { SearchResults } from "../src/features/search/search-results.tsx";
@@ -60,6 +61,13 @@ describe("search dialog states", () => {
     expect(deriveSearchViewState("architecture", "settled", 1)).toBe("results");
     expect(deriveSearchViewState("architecture", "settled", 0)).toBe("no-results");
     expect(deriveSearchViewState("architecture", "error", 0)).toBe("error");
+  });
+
+  it("counts the 512-character query limit as Unicode code points", () => {
+    expect(searchQueryProblem("🧠".repeat(512))).toBeNull();
+    expect(searchQueryProblem("🧠".repeat(513))).toBe(
+      "Search queries are limited to 512 Unicode characters.",
+    );
   });
 
   it("recognises the documented cross-platform keyboard shortcut", () => {

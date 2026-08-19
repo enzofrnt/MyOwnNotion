@@ -72,6 +72,16 @@ describe("WorkspaceSearchIndex", () => {
     expect(index.search(query("REPRISE resil"))[0]?.itemId).toBe(itemIds.exact);
   });
 
+  it("finds visible symbols in titles and bodies", () => {
+    const index = new WorkspaceSearchIndex([
+      document(itemIds.exact, "Décisions 🧠", "", 1),
+      document(itemIds.body, "Notes", "Chemin / de référence", 1),
+    ]);
+
+    expect(index.search(query("🧠")).map(({ itemId }) => itemId)).toEqual([itemIds.exact]);
+    expect(index.search(query("/")).map(({ itemId }) => itemId)).toEqual([itemIds.body]);
+  });
+
   it("uses the body as the primary match when a title contains only one query term", () => {
     const index = new WorkspaceSearchIndex([
       document(itemIds.exact, "Priorité search token", "", 1),

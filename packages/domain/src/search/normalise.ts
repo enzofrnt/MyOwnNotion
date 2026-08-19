@@ -40,6 +40,30 @@ export function segmentSearchTerms(value: string): string[] {
   return terms;
 }
 
+/**
+ * Tokenises indexed text without dropping standalone visible symbols.
+ *
+ * Word-like terms keep the locale-aware segmentation used for ordinary text.
+ * Non-word segments are split into Unicode code points so a document containing
+ * an emoji or punctuation character remains discoverable by that symbol alone.
+ */
+export function tokenizeSearchText(value: string): string[] {
+  const normalised = normaliseSearchText(value);
+  const terms: string[] = [];
+  for (const segment of wordSegmenter.segment(normalised)) {
+    if (segment.isWordLike && segment.segment.length > 0) {
+      terms.push(segment.segment);
+      continue;
+    }
+    for (const character of Array.from(segment.segment)) {
+      if (VISIBLE_CHARACTER.test(character)) {
+        terms.push(character);
+      }
+    }
+  }
+  return terms;
+}
+
 export function prepareSearchQuery(query: string): SearchQueryValidationResult {
   if (countUnicodeCharacters(query) > MAX_SEARCH_QUERY_LENGTH) {
     return { ok: false, code: "query-too-long" };
@@ -49,9 +73,12 @@ export function prepareSearchQuery(query: string): SearchQueryValidationResult {
   }
 
   const normalised = normaliseSearchText(query);
+  const wordTerms = segmentSearchTerms(normalised);
   const value: PreparedSearchQuery = {
     normalised,
-    terms: segmentSearchTerms(normalised),
+    // Punctuation around ordinary words remains syntactic noise, while a query
+    // made only of visible symbols searches those symbols explicitly.
+    terms: wordTerms.length > 0 ? wordTerms : [...new Set(tokenizeSearchText(normalised))],
   };
   return { ok: true, value };
 }

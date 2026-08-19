@@ -1,4 +1,5 @@
-import { asUuid, type Uuid } from "@myownnotion/domain";
+import { openLocalDatabase } from "@myownnotion/client-core";
+import { asUuid, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import { createSearchWorkerRuntime } from "../src/features/search/search.worker.ts";
 
@@ -92,5 +93,26 @@ describe("local search worker protocol", () => {
       ok: true,
       candidates: [{ itemId: id, kind: "page" }],
     });
+  });
+
+  it("never creates an IndexedDB search or query-history store", async () => {
+    const secret = "sentinel-private-local-query-8801";
+    const database = openLocalDatabase(`search-worker-${generateUuidV7()}`);
+    try {
+      await database.open();
+      const runtime = createSearchWorkerRuntime();
+      runtime.handle({ type: "build", documents: [document(secret, 0)] });
+      expect(runtime.handle({ type: "query", query: secret, limit: 20 })).toMatchObject({
+        ok: true,
+        candidates: [{ title: secret }],
+      });
+
+      expect(database.tables.map(({ name }) => name)).not.toContain("search");
+      expect(database.tables.map(({ name }) => name)).not.toContain("queries");
+      const stored = await Promise.all(database.tables.map(async (table) => await table.toArray()));
+      expect(JSON.stringify(stored)).not.toContain(secret);
+    } finally {
+      await database.delete();
+    }
   });
 });

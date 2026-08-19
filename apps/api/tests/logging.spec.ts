@@ -5,6 +5,7 @@
 import { Writable } from "node:stream";
 import Fastify from "fastify";
 import { describe, expect, it } from "vitest";
+import { registerErrorHandling } from "../src/plugins/errors.ts";
 import { createApplicationLogger, REDACT_PATHS, registerLogging } from "../src/plugins/logging.ts";
 
 function captureDestination(): { destination: Writable; read: () => string } {
@@ -107,6 +108,9 @@ describe("logging configuration (T091)", () => {
       "document",
       "name",
       "snapshot",
+      "query",
+      "title",
+      "snippet",
     ]) {
       expect(REDACT_PATHS).toContain(required);
     }
@@ -168,5 +172,22 @@ describe("logging configuration (T091)", () => {
     await app.close();
     expect(response.statusCode).toBe(500);
     expect(captured.join("\n")).not.toContain(secret);
+  });
+
+  it("removes query strings even when a caller tries a private GET search", async () => {
+    const captured: string[] = [];
+    const app = Fastify({
+      logger: {
+        ...registerLogging(),
+        stream: { write: (line: string) => captured.push(line) },
+      },
+    });
+    const secret = "sentinel-private-search-in-url";
+    registerErrorHandling(app);
+    await app.inject({ method: "GET", url: `/v1/search?query=${secret}` });
+    await app.close();
+
+    expect(captured.join("\n")).not.toContain(secret);
+    expect(captured.join("\n")).toContain("/v1/search");
   });
 });

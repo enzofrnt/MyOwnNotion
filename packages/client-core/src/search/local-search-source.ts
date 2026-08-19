@@ -129,9 +129,25 @@ export class LocalSearchSource {
     if (!active.has(rootItemId)) {
       return [];
     }
-    return items
-      .filter((item) => currentPath(item, active).some(({ itemId }) => itemId === rootItemId))
-      .map(({ id }) => id)
-      .sort(compareText);
+    const descendants = new Set<Uuid>([rootItemId]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const item of items) {
+        if (
+          !descendants.has(item.id) &&
+          item.placements.some(
+            (placement) =>
+              placement.kind === "hierarchy" &&
+              placement.parentItemId !== null &&
+              descendants.has(placement.parentItemId),
+          )
+        ) {
+          descendants.add(item.id);
+          added = true;
+        }
+      }
+    }
+    return [...descendants].sort(compareText);
   }
 }

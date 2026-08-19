@@ -86,15 +86,24 @@ export function createSearchWorkerRuntime(): SearchWorkerRuntime {
 type WorkerRequest = { readonly requestId: number; readonly command: SearchWorkerCommand };
 type WorkerResponse = { readonly requestId: number; readonly result: SearchWorkerResult };
 
-declare const self: DedicatedWorkerGlobalScope;
+interface SearchWorkerHost {
+  readonly document?: unknown;
+  addEventListener(type: "message", listener: (event: MessageEvent<WorkerRequest>) => void): void;
+  postMessage(message: WorkerResponse): void;
+}
 
-if (typeof WorkerGlobalScope !== "undefined" && globalThis instanceof WorkerGlobalScope) {
+const workerHost = globalThis as unknown as SearchWorkerHost;
+if (
+  workerHost.document === undefined &&
+  typeof workerHost.addEventListener === "function" &&
+  typeof workerHost.postMessage === "function"
+) {
   const runtime = createSearchWorkerRuntime();
-  self.addEventListener("message", (event: MessageEvent<WorkerRequest>) => {
+  workerHost.addEventListener("message", (event) => {
     const response: WorkerResponse = {
       requestId: event.data.requestId,
       result: runtime.handle(event.data.command),
     };
-    self.postMessage(response);
+    workerHost.postMessage(response);
   });
 }

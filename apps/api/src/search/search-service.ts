@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import type { SearchRequestDto, SearchResponseDto } from "@myownnotion/contracts";
 import type { Database } from "@myownnotion/database";
 import {
@@ -22,6 +23,7 @@ import type { ProtectedContent } from "../security/protected-content.ts";
 import { SearchState, type SearchStateName, type SearchStateView } from "./search-state.ts";
 
 const SNIPPET_LIMIT = 320;
+const REBUILD_YIELD_INTERVAL = 256;
 
 export interface ResolvedSearchSource extends SearchSourceRecord {
   readonly title: string;
@@ -172,6 +174,9 @@ export class SearchService {
         next.upsert(this.#searchDocument(source, 0));
         indexed += 1;
         this.#state.recordIndexed(indexed);
+        if (indexed < sources.length && indexed % REBUILD_YIELD_INTERVAL === 0) {
+          await yieldToEventLoop();
+        }
       }
 
       const pending = this.#pendingDuringBuild;

@@ -298,6 +298,7 @@ disposable installation, mounted deployment-key fixtures, feature-001 identity
 snapshots, the software WebAuthn authenticator, and fault injection.
 `packages/database/tests/helpers/security-db.ts` adds the database-backed
 variants (committed `ownerCount`/`workspaceCount`, serializable concurrency).
+
 Playwright journeys use `attachVirtualAuthenticator` in `tests/e2e/helpers.ts`,
 which is Chromium-only and returns `supported: false` elsewhere so a journey
 skips rather than fails.
@@ -305,6 +306,40 @@ skips rather than fails.
 Security suites never sleep for a timeout: advance the controlled clock
 instead, so the 15-minute bootstrap window and the session bounds are asserted
 at exact instants.
+
+### Search checks
+
+Search spans the shared domain engine, canonical source reads, the API, the
+local worker and browser journeys. These commands give focused feedback while
+working on that feature; they do not replace `pnpm checks:local` before a push.
+
+```bash
+pnpm exec vitest run --project domain \
+  tests/search-normalise.spec.ts tests/search-document-text.spec.ts \
+  tests/search-index.spec.ts tests/search.property.spec.ts
+pnpm exec vitest run --project database-integration \
+  tests/search-source.integration.spec.ts tests/reference-backups.integration.spec.ts
+pnpm exec vitest run --project api-contract \
+  tests/search-service.spec.ts tests/search.contract.spec.ts \
+  tests/search-rebuild.spec.ts tests/search-security.spec.ts
+pnpm exec vitest run --project client-core \
+  tests/local-search-source.spec.ts tests/search-merge.spec.ts
+pnpm exec vitest run --project web \
+  tests/search-dialog.spec.ts tests/search-worker.spec.ts
+pnpm test:e2e:local -- --grep "workspace search|search dialog"
+```
+
+The dedicated benchmark is:
+
+```bash
+pnpm exec vitest run --project performance tests/performance/search.perf.spec.ts
+```
+
+It models 100,000 pages, one million flattened visible blocks and 50,000 file
+names on the server, plus a 10,000-item local index. It records server and local
+p50/p95, build time and heap, local upserts, second-device propagation and
+10,000 idempotent replays. The operational interpretation and the latest
+reference figures live in `docs/architecture/search.md`.
 
 ### Working without Docker
 

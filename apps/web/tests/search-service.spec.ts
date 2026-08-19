@@ -182,6 +182,25 @@ describe("WorkspaceSearchService", () => {
     });
   });
 
+  it("keeps a remote-only conflict match visible and marks its unresolved local state", async () => {
+    const setup = harness({
+      entries: [entry("Local competing draft", { syncState: "conflict" })],
+      search: async () => completeServerResult("Remote competing revision"),
+    });
+
+    await expect(setup.service.search({ query: "remote match" })).resolves.toMatchObject({
+      coverage: "complete",
+      results: [
+        {
+          itemId,
+          title: "Remote competing revision",
+          conflict: true,
+          localState: "conflict",
+        },
+      ],
+    });
+  });
+
   it("passes type and current-branch filters to the transient local index", async () => {
     const setup = harness({
       entries: [entry("Filtered locally")],

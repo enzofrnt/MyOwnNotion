@@ -17,9 +17,14 @@ let repository: LocalRepository;
 function item(input: {
   id: Uuid;
   name: string;
-  kind?: "page" | "folder";
+  kind?: "page" | "folder" | "file";
   parentItemId?: Uuid | null;
   body?: Record<string, unknown>;
+  placements?: readonly {
+    kind: "hierarchy" | "attachment";
+    parentItemId: Uuid | null;
+    positionKey?: string;
+  }[];
 }): ItemDto {
   const kind = input.kind ?? "page";
   return {
@@ -28,15 +33,15 @@ function item(input: {
     name: input.name,
     lifecycle: "active",
     currentRevisionId: generateUuidV7(),
-    placements: [
-      {
-        id: generateUuidV7(),
-        itemId: input.id,
-        kind: "hierarchy",
-        parentItemId: input.parentItemId ?? null,
-        positionKey: "V",
-      },
-    ],
+    placements: (
+      input.placements ?? [{ kind: "hierarchy" as const, parentItemId: input.parentItemId ?? null }]
+    ).map((placement) => ({
+      id: generateUuidV7(),
+      itemId: input.id,
+      kind: placement.kind,
+      parentItemId: placement.parentItemId,
+      positionKey: placement.positionKey ?? "V",
+    })),
     ...(kind === "page"
       ? {
           pageDocument: {
@@ -45,7 +50,16 @@ function item(input: {
             body: input.body ?? { blocks: [] },
           },
         }
-      : { pageDocument: null }),
+      : kind === "file"
+        ? {
+            pageDocument: null,
+            file: {
+              mediaType: "application/octet-stream",
+              originalName: input.name,
+              byteLength: 1,
+            },
+          }
+        : { pageDocument: null }),
   } as ItemDto;
 }
 
@@ -152,6 +166,42 @@ describe("LocalSearchSource", () => {
       rootId,
       childId,
       grandchildId,
+    ]);
+  });
+
+  it("uses every hierarchy placement but never attachment references for branch filtering", async () => {
+    const firstRootId = generateUuidV7();
+    const secondRootId = generateUuidV7();
+    const multiplyPlacedFileId = generateUuidV7();
+    const attachedOnlyFileId = generateUuidV7();
+    await repository.applyServerItems([
+      item({ id: firstRootId, name: "Première branche", kind: "folder" }),
+      item({ id: secondRootId, name: "Seconde branche", kind: "folder" }),
+      item({
+        id: multiplyPlacedFileId,
+        name: "partagé.pdf",
+        kind: "file",
+        placements: [
+          { kind: "hierarchy", parentItemId: firstRootId, positionKey: "V" },
+          { kind: "hierarchy", parentItemId: secondRootId, positionKey: "a" },
+        ],
+      }),
+      item({
+        id: attachedOnlyFileId,
+        name: "pièce-jointe.pdf",
+        kind: "file",
+        placements: [{ kind: "attachment", parentItemId: firstRootId }],
+      }),
+    ]);
+
+    const source = new LocalSearchSource(repository);
+    await expect(source.activeDescendantIds(firstRootId)).resolves.toEqual([
+      firstRootId,
+      multiplyPlacedFileId,
+    ]);
+    await expect(source.activeDescendantIds(secondRootId)).resolves.toEqual([
+      secondRootId,
+      multiplyPlacedFileId,
     ]);
   });
 });

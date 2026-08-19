@@ -273,8 +273,7 @@ export class WorkspaceSearchService {
     const shadowedItemIds = new Set(
       allEntries
         .filter(
-          ({ document, syncState }) =>
-            syncState !== "synchronized" && !matchedIds.has(document.itemId),
+          ({ document, syncState }) => syncState === "pending" && !matchedIds.has(document.itemId),
         )
         .map(({ document }) => document.itemId),
     );
@@ -344,15 +343,22 @@ export class WorkspaceSearchService {
       serverResults.map(({ itemId }) => itemId),
       this.#sourceVersion,
     );
-    const availabilityById = new Map(
-      localEntries.map(({ document, localAvailability }) => [document.itemId, localAvailability]),
-    );
+    const localEntryById = new Map(localEntries.map((entry) => [entry.document.itemId, entry]));
     return mergeSearchResults({
       localResults: local.results,
       serverState: completeState,
       serverResults: serverResults.map((result) => {
-        const localAvailability = availabilityById.get(result.itemId);
-        return localAvailability === undefined ? result : { ...result, localAvailability };
+        const localEntry = localEntryById.get(result.itemId);
+        if (localEntry === undefined) {
+          return result;
+        }
+        return {
+          ...result,
+          localAvailability: localEntry.localAvailability,
+          ...(localEntry.syncState === "conflict"
+            ? { conflict: true, localState: "conflict" as const }
+            : {}),
+        };
       }),
       serverGeneration: server.value.generation,
       nextCursor: server.value.nextCursor,

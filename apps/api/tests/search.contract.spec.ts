@@ -196,6 +196,30 @@ describe("POST /v1/search", () => {
     expect(search).not.toHaveBeenCalled();
   });
 
+  it("counts the query boundary in Unicode characters rather than UTF-16 units", async () => {
+    const search = vi.fn<SearchService["search"]>().mockResolvedValue({
+      coverage: "complete",
+      generation: 1,
+      results: [],
+      nextCursor: null,
+    });
+    const app = createApp({ owner: true, search });
+    const accepted = await app.inject({
+      method: "POST",
+      url: "/v1/search",
+      payload: { query: "🧠".repeat(512) },
+    });
+    const rejected = await app.inject({
+      method: "POST",
+      url: "/v1/search",
+      payload: { query: "🧠".repeat(513) },
+    });
+
+    expect(accepted.statusCode).toBe(200);
+    expect(rejected.statusCode).toBe(400);
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
   it("registers the executable request, response and problem schemas", () => {
     expect(SearchRequestSchema.required).toContain("query");
     expect(SearchResponseSchema.required).toEqual([

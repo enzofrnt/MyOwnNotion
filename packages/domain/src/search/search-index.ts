@@ -1,7 +1,7 @@
 import MiniSearch, { type SearchResult as MiniSearchResult } from "minisearch";
 import type { ItemKind } from "../content/types.ts";
 import type { Uuid } from "../ids/uuid.ts";
-import { normaliseSearchText, segmentSearchTerms } from "./normalise.ts";
+import { normaliseSearchText, tokenizeSearchText } from "./normalise.ts";
 import {
   DEFAULT_SEARCH_LIMIT,
   MAX_SEARCH_LIMIT,
@@ -26,7 +26,7 @@ function compareText(left: string, right: string): number {
 }
 
 function containsEverySearchTerm(value: string, terms: readonly string[]): boolean {
-  const indexedTerms = segmentSearchTerms(value);
+  const indexedTerms = tokenizeSearchText(value);
   return terms.every((term) => indexedTerms.some((indexedTerm) => indexedTerm.startsWith(term)));
 }
 
@@ -76,7 +76,7 @@ export class WorkspaceSearchIndex {
       fields: ["title", "bodyText"],
       idField: "itemId",
       storeFields: ["revisionId", "sourceVersion", "kind", "title", "bodyText", "conflict"],
-      tokenize: segmentSearchTerms,
+      tokenize: tokenizeSearchText,
       processTerm: (term) => term,
       logger: () => undefined,
       searchOptions: {
@@ -149,7 +149,7 @@ export class WorkspaceSearchIndex {
       MAX_SEARCH_LIMIT + 1,
     );
     const offset = Math.max(options.offset ?? 0, 0);
-    const matches = this.#index.search(query.normalised, {
+    const matches = this.#index.search(query.terms.join(" "), {
       filter: (result) => {
         const kind = result["kind"] as ItemKind;
         return (
@@ -187,10 +187,11 @@ export class WorkspaceSearchIndex {
         if (byRank !== 0) {
           return byRank;
         }
-        const byScore = right.score - left.score;
-        if (byScore !== 0) {
-          return byScore;
-        }
+        // MiniSearch may vacuum discarded documents lazily during a search,
+        // which changes corpus-derived scores without any canonical content
+        // changing. Scores therefore explain the broad match, but never order
+        // equivalent results: the documented title/identity key stays stable
+        // across reads and replays.
         const byTitle = compareText(left.orderKey[1], right.orderKey[1]);
         return byTitle !== 0 ? byTitle : compareText(left.itemId, right.itemId);
       })
