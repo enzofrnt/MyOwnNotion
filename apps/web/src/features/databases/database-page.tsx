@@ -200,7 +200,12 @@ export function DatabasePage({
         `[data-entry-trigger="${returnFocusEntryId}"]`,
       );
       if (trigger !== null) {
-        trigger.focus();
+        const activeElement = document.activeElement;
+        const userMovedFocus =
+          activeElement instanceof HTMLElement &&
+          activeElement !== document.body &&
+          activeElement.isConnected;
+        if (!userMovedFocus) trigger.focus();
         completion = window.setTimeout(() => {
           viewContext.finishEntryReturn();
           onReturnFocusRestored?.();
