@@ -16,16 +16,26 @@
 
 import type { Uuid } from "../ids/uuid.ts";
 import {
+  BLOCK_FIELD_ORDER_V3,
   type Block,
+  type CanonicalBlockV3,
   childrenOf,
+  childrenOfV3,
   hasInlineContent,
+  hasInlineContentV3,
   type Inline,
+  type InlineV3,
   isUnknownBlock,
+  isUnknownBlockV3,
   type JsonObject,
   type JsonValue,
+  type KnownMarkTypeV3,
   MARK_ORDER,
+  MARK_ORDER_V3,
   type Mark,
   type MarkType,
+  type MarkV3,
+  type TableCellV3,
 } from "./block.ts";
 
 export const DOCUMENT_FORMAT = "myownnotion.document+json";
@@ -33,9 +43,23 @@ export const DOCUMENT_FORMAT = "myownnotion.document+json";
 /** The version this client writes. Version 1 bodies are read, never written. */
 export const DOCUMENT_FORMAT_VERSION = 2;
 
+/** The convergent editor's canonical projection version. */
+export const DOCUMENT_FORMAT_VERSION_V3 = 3;
+
 /** The body of a `formatVersion: 2` page document. */
 export interface BlockDocument {
   readonly blocks: readonly Block[];
+}
+
+/** Editor-independent projection of the convergent page state. */
+export interface BlockDocumentV3 {
+  readonly blocks: readonly CanonicalBlockV3[];
+}
+
+export interface PageDocumentEnvelopeV3 {
+  readonly format: typeof DOCUMENT_FORMAT;
+  readonly formatVersion: typeof DOCUMENT_FORMAT_VERSION_V3;
+  readonly body: BlockDocumentV3;
 }
 
 export function emptyDocument(): BlockDocument {
@@ -264,4 +288,424 @@ function serialiseBlock(block: Block): JsonValue {
     serialised["children"] = children.map(serialiseBlock);
   }
   return serialised;
+}
+
+// ---------------------------------------------------------------------------
+// Version 3 normalisation and serialisation
+// ---------------------------------------------------------------------------
+
+const MARK_RANK_V3: ReadonlyMap<KnownMarkTypeV3, number> = new Map(
+  MARK_ORDER_V3.map((type, index) => [type, index]),
+);
+
+function opaqueJsonKey(value: JsonValue): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(opaqueJsonKey).join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => {
+        const child = value[key];
+        if (child === undefined) throw new TypeError(`opaque JSON key ${key} is undefined`);
+        return `${JSON.stringify(key)}:${opaqueJsonKey(child)}`;
+      })
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function canonicalOpaqueValue(value: JsonValue): JsonValue {
+  if (Array.isArray(value)) {
+    return value.map(canonicalOpaqueValue);
+  }
+  if (value !== null && typeof value === "object") {
+    const sorted: JsonObject = {};
+    for (const key of Object.keys(value).sort()) {
+      const child = value[key];
+      if (child === undefined) throw new TypeError(`opaque JSON key ${key} is undefined`);
+      sorted[key] = canonicalOpaqueValue(child);
+    }
+    return sorted;
+  }
+  return value;
+}
+
+function isUnknownMarkV3(mark: MarkV3): mark is Extract<MarkV3, { type: "unknown" }> {
+  return mark.type === "unknown";
+}
+
+function markKeyV3(mark: MarkV3): string {
+  switch (mark.type) {
+    case "link":
+      return `link:${mark.href}`;
+    case "pageLink":
+      return `pageLink:${mark.targetItemId}`;
+    case "textColor":
+    case "backgroundColor":
+      return `${mark.type}:${mark.color}`;
+    case "unknown":
+      return `unknown:${opaqueJsonKey(mark.raw)}`;
+    default:
+      return mark.type;
+  }
+}
+
+/** Canonical mark ordering for editor commands and operational projections. */
+export function normaliseMarksV3(
+  marks: readonly MarkV3[] | undefined,
+): readonly MarkV3[] | undefined {
+  if (marks === undefined || marks.length === 0) {
+    return undefined;
+  }
+
+  const knownByType = new Map<KnownMarkTypeV3, MarkV3>();
+  const unknown: MarkV3[] = [];
+  for (const mark of marks) {
+    if (isUnknownMarkV3(mark)) {
+      unknown.push(mark);
+    } else if (!knownByType.has(mark.type)) {
+      knownByType.set(mark.type, mark);
+    }
+  }
+
+  // Operational commands may transiently produce an incompatible set. The
+  // persisted parser refuses it; command normalisation keeps code exclusive.
+  if (knownByType.has("code")) {
+    for (const type of [...knownByType.keys()]) {
+      if (type !== "code") knownByType.delete(type);
+    }
+  }
+
+  const known = [...knownByType.values()].sort((left, right) => {
+    if (isUnknownMarkV3(left) || isUnknownMarkV3(right)) return 0;
+    return (
+      (MARK_RANK_V3.get(left.type) ?? MARK_ORDER_V3.length) -
+      (MARK_RANK_V3.get(right.type) ?? MARK_ORDER_V3.length)
+    );
+  });
+  unknown.sort((left, right) => {
+    const leftKey = markKeyV3(left);
+    const rightKey = markKeyV3(right);
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  });
+  return [...known, ...unknown];
+}
+
+function marksKeyV3(marks: readonly MarkV3[] | undefined): string {
+  return JSON.stringify(marks?.map(markKeyV3) ?? []);
+}
+
+export function normaliseInlineV3(content: readonly InlineV3[]): readonly InlineV3[] {
+  const result: InlineV3[] = [];
+  for (const node of content) {
+    if (node.text.length === 0) continue;
+    const marks = normaliseMarksV3(node.marks);
+    const previous = result.at(-1);
+    if (previous !== undefined && marksKeyV3(previous.marks) === marksKeyV3(marks)) {
+      result[result.length - 1] =
+        previous.marks === undefined
+          ? { text: previous.text + node.text }
+          : { text: previous.text + node.text, marks: previous.marks };
+      continue;
+    }
+    result.push(marks === undefined ? { text: node.text } : { text: node.text, marks });
+  }
+  return result;
+}
+
+function normaliseChildrenV3(
+  children: readonly CanonicalBlockV3[] | undefined,
+): readonly CanonicalBlockV3[] | undefined {
+  if (children === undefined || children.length === 0) return undefined;
+  return children.map(normaliseBlockV3);
+}
+
+function normaliseCellV3(cell: TableCellV3): TableCellV3 {
+  const children = normaliseChildrenV3(cell.children);
+  return children === undefined
+    ? { id: cell.id, content: normaliseInlineV3(cell.content) }
+    : { id: cell.id, content: normaliseInlineV3(cell.content), children };
+}
+
+export function normaliseBlockV3(block: CanonicalBlockV3): CanonicalBlockV3 {
+  if (isUnknownBlockV3(block)) return block;
+
+  switch (block.type) {
+    case "paragraph":
+    case "heading":
+      return { ...block, content: normaliseInlineV3(block.content) };
+    case "bulletedListItem":
+    case "numberedListItem":
+    case "checkbox":
+    case "quote":
+    case "toggle":
+    case "callout": {
+      const children = normaliseChildrenV3(block.children);
+      const normalised = { ...block, content: normaliseInlineV3(block.content) };
+      if (children === undefined) {
+        const { children: _children, ...withoutChildren } = normalised;
+        return withoutChildren as CanonicalBlockV3;
+      }
+      return { ...normalised, children } as CanonicalBlockV3;
+    }
+    case "table":
+      return {
+        ...block,
+        rows: block.rows.map((row) => ({
+          id: row.id,
+          cells: row.cells.map(normaliseCellV3),
+        })),
+      };
+    case "code":
+    case "divider":
+    case "image":
+    case "fileEmbed":
+    case "embed":
+      return block;
+  }
+}
+
+export function normaliseDocumentV3(document: BlockDocumentV3): BlockDocumentV3 {
+  return { blocks: document.blocks.map(normaliseBlockV3) };
+}
+
+function serialiseMarkV3(mark: MarkV3, canonicalOpaque: boolean): JsonObject {
+  if (mark.type === "unknown") {
+    return canonicalOpaque ? (canonicalOpaqueValue(mark.raw) as JsonObject) : mark.raw;
+  }
+  switch (mark.type) {
+    case "link":
+      return { type: mark.type, href: mark.href };
+    case "pageLink":
+      return { type: mark.type, targetItemId: mark.targetItemId };
+    case "textColor":
+    case "backgroundColor":
+      return { type: mark.type, color: mark.color };
+    default:
+      return { type: mark.type };
+  }
+}
+
+function serialiseInlineV3(node: InlineV3, canonicalOpaque: boolean): JsonObject {
+  const result: JsonObject = { text: node.text };
+  if (node.marks !== undefined && node.marks.length > 0) {
+    result["marks"] = node.marks.map((mark) => serialiseMarkV3(mark, canonicalOpaque));
+  }
+  return result;
+}
+
+function appendExtraPropertiesV3(
+  known: JsonObject,
+  extra: JsonObject | undefined,
+  canonicalOpaque: boolean,
+  reservedKeys: readonly string[],
+): JsonObject {
+  if (extra === undefined) return known;
+  const reserved = new Set(reservedKeys);
+  for (const key of Object.keys(extra).sort()) {
+    if (reserved.has(key)) {
+      throw new Error(`v3 opaque property collides with known field: ${key}`);
+    }
+    const value = extra[key];
+    if (value === undefined) throw new TypeError(`opaque JSON key ${key} is undefined`);
+    known[key] = canonicalOpaque ? canonicalOpaqueValue(value) : value;
+  }
+  return known;
+}
+
+function serialiseChildrenV3(
+  into: JsonObject,
+  children: readonly CanonicalBlockV3[] | undefined,
+  canonicalOpaque: boolean,
+): JsonObject {
+  if (children !== undefined && children.length > 0) {
+    into["children"] = children.map((child) => serialiseBlockV3(child, canonicalOpaque));
+  }
+  return into;
+}
+
+function serialiseCellV3(cell: TableCellV3, canonicalOpaque: boolean): JsonObject {
+  return serialiseChildrenV3(
+    {
+      id: cell.id,
+      content: cell.content.map((node) => serialiseInlineV3(node, canonicalOpaque)),
+    },
+    cell.children,
+    canonicalOpaque,
+  );
+}
+
+function serialiseBlockV3(block: CanonicalBlockV3, canonicalOpaque: boolean): JsonValue {
+  if (isUnknownBlockV3(block)) {
+    return canonicalOpaque ? canonicalOpaqueValue(block.raw) : block.raw;
+  }
+
+  let known: JsonObject;
+  switch (block.type) {
+    case "paragraph":
+      known = {
+        type: block.type,
+        id: block.id,
+        content: block.content.map((node) => serialiseInlineV3(node, canonicalOpaque)),
+      };
+      break;
+    case "heading":
+      known = {
+        type: block.type,
+        id: block.id,
+        level: block.level,
+        content: block.content.map((node) => serialiseInlineV3(node, canonicalOpaque)),
+      };
+      break;
+    case "bulletedListItem":
+    case "numberedListItem":
+    case "quote":
+    case "toggle":
+      known = serialiseChildrenV3(
+        {
+          type: block.type,
+          id: block.id,
+          content: block.content.map((node) => serialiseInlineV3(node, canonicalOpaque)),
+        },
+        block.children,
+        canonicalOpaque,
+      );
+      break;
+    case "checkbox":
+      known = serialiseChildrenV3(
+        {
+          type: block.type,
+          id: block.id,
+          checked: block.checked,
+          content: block.content.map((node) => serialiseInlineV3(node, canonicalOpaque)),
+        },
+        block.children,
+        canonicalOpaque,
+      );
+      break;
+    case "code":
+      known = { type: block.type, id: block.id, text: block.text, language: block.language };
+      break;
+    case "divider":
+      known = { type: block.type, id: block.id };
+      break;
+    case "callout":
+      known = serialiseChildrenV3(
+        {
+          type: block.type,
+          id: block.id,
+          content: block.content.map((node) => serialiseInlineV3(node, canonicalOpaque)),
+          icon: block.icon,
+          tone: block.tone,
+        },
+        block.children,
+        canonicalOpaque,
+      );
+      break;
+    case "table":
+      known = {
+        type: block.type,
+        id: block.id,
+        columns: block.columns.map((column) => ({ id: column.id, width: column.width })),
+        rows: block.rows.map((row) => ({
+          id: row.id,
+          cells: row.cells.map((cell) => serialiseCellV3(cell, canonicalOpaque)),
+        })),
+      };
+      break;
+    case "image":
+      known = {
+        type: block.type,
+        id: block.id,
+        fileItemId: block.fileItemId,
+        caption: block.caption,
+        altText: block.altText,
+        displayWidth: block.displayWidth,
+      };
+      break;
+    case "fileEmbed":
+      known = {
+        type: block.type,
+        id: block.id,
+        fileItemId: block.fileItemId,
+        caption: block.caption,
+      };
+      break;
+    case "embed":
+      known = {
+        type: block.type,
+        id: block.id,
+        provider: block.provider,
+        sourceUrl: block.sourceUrl,
+        caption: block.caption,
+      };
+      break;
+  }
+  return appendExtraPropertiesV3(
+    known,
+    block.rawExtraProperties,
+    canonicalOpaque,
+    BLOCK_FIELD_ORDER_V3[block.type],
+  );
+}
+
+/** Wire representation; unknown blocks and marks retain their original objects. */
+export function serialiseDocumentV3(document: BlockDocumentV3): JsonObject {
+  return { blocks: document.blocks.map((block) => serialiseBlockV3(block, false)) };
+}
+
+/** Digest representation; opaque JSON keys are recursively sorted. */
+export function serialiseCanonicalDocumentV3(document: BlockDocumentV3): JsonObject {
+  return { blocks: document.blocks.map((block) => serialiseBlockV3(block, true)) };
+}
+
+export function pageLinkTargetsV3(document: BlockDocumentV3): Uuid[] {
+  const targets = new Set<Uuid>();
+  const collectInline = (content: readonly InlineV3[]): void => {
+    for (const inline of content) {
+      for (const mark of inline.marks ?? []) {
+        if (mark.type === "pageLink") targets.add(mark.targetItemId);
+      }
+    }
+  };
+  const visit = (blocks: readonly CanonicalBlockV3[]): void => {
+    for (const block of blocks) {
+      if (hasInlineContentV3(block)) collectInline(block.content);
+      if (!isUnknownBlockV3(block) && block.type === "table") {
+        for (const row of block.rows) {
+          for (const cell of row.cells) {
+            collectInline(cell.content);
+            visit(cell.children ?? []);
+          }
+        }
+      }
+      visit(childrenOfV3(block));
+    }
+  };
+  visit(document.blocks);
+  return [...targets];
+}
+
+/** All structural identities, including table columns, rows and cells. */
+export function collectDocumentIdsV3(document: BlockDocumentV3): string[] {
+  const ids: string[] = [];
+  const visit = (blocks: readonly CanonicalBlockV3[]): void => {
+    for (const block of blocks) {
+      ids.push(block.id);
+      if (!isUnknownBlockV3(block) && block.type === "table") {
+        for (const column of block.columns) ids.push(column.id);
+        for (const row of block.rows) {
+          ids.push(row.id);
+          for (const cell of row.cells) {
+            ids.push(cell.id);
+            visit(cell.children ?? []);
+          }
+        }
+      }
+      visit(childrenOfV3(block));
+    }
+  };
+  visit(document.blocks);
+  return ids;
 }

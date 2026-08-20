@@ -53,14 +53,14 @@ commencer avant que projection, chiffrement local et migration soient prouvés.
 
 ### Format canonique v3
 
-- [ ] T009 [P] Écrire les tests du parser, de la normalisation et du digest v3 dans `packages/domain/tests/document-v3.spec.ts` et `packages/domain/tests/document-v3-normalise.property.spec.ts`
-- [ ] T010 [P] Écrire les tests de conservation des blocs, marques et propriétés inconnus dans `packages/domain/tests/document-v3-forward-compatibility.property.spec.ts`
-- [ ] T011 [P] Écrire les tests de migration v2→v3, dont `fileEmbed`, dans `packages/domain/tests/document-v3-migration.spec.ts`
-- [ ] T012 Étendre marques, couleurs et blocs canoniques v3 dans `packages/domain/src/document/block.ts` et les exports de `packages/domain/src/index.ts`
-- [ ] T013 Implémenter enveloppe, sérialisation canonique et digest v3 dans `packages/domain/src/document/document.ts` et `packages/domain/src/document/canonical-json.ts`
-- [ ] T014 Implémenter validation stricte et préservation opaque v3 dans `packages/domain/src/document/validate.ts`
-- [ ] T015 Implémenter la migration pure v2→v3 et la lecture versionnée dans `packages/domain/src/document/legacy.ts` et `packages/domain/src/document/migrate-v3.ts`
-- [ ] T016 Mettre à niveau extraction de texte, liens, usages de fichiers et export durable v3 dans `packages/domain/src/search/document-text.ts`, `packages/domain/src/document/export-markdown.ts` et `packages/domain/src/document/document.ts`
+- [X] T009 [P] Écrire les tests du parser, de la normalisation et du digest v3 dans `packages/domain/tests/document-v3.spec.ts` et `packages/domain/tests/document-v3-normalise.property.spec.ts`
+- [X] T010 [P] Écrire les tests de conservation des blocs, marques et propriétés inconnus dans `packages/domain/tests/document-v3-forward-compatibility.property.spec.ts`
+- [X] T011 [P] Écrire les tests de migration v2→v3, dont `fileEmbed`, dans `packages/domain/tests/document-v3-migration.spec.ts`
+- [X] T012 Étendre marques, couleurs et blocs canoniques v3 dans `packages/domain/src/document/block.ts` et les exports de `packages/domain/src/index.ts`
+- [X] T013 Implémenter enveloppe, sérialisation canonique et digest v3 dans `packages/domain/src/document/document.ts` et `packages/domain/src/document/canonical-json.ts`
+- [X] T014 Implémenter validation stricte et préservation opaque v3 dans `packages/domain/src/document/validate.ts`
+- [X] T015 Implémenter la migration pure v2→v3 et la lecture versionnée dans `packages/domain/src/document/legacy.ts` et `packages/domain/src/document/migrate-v3.ts`
+- [X] T016 Mettre à niveau extraction de texte, liens, usages de fichiers et export durable v3 dans `packages/domain/src/search/document-text.ts`, `packages/domain/src/document/export-markdown.ts` et `packages/domain/src/document/document.ts`
 
 ### Modèle opérationnel partagé
 

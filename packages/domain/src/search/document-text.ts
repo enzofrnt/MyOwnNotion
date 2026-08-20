@@ -5,8 +5,18 @@ import type {
   NonRelationPropertyValue,
   TaskRole,
 } from "../databases/types.ts";
-import { type Block, childrenOf, hasInlineContent, isUnknownBlock } from "../document/block.ts";
-import type { BlockDocument } from "../document/document.ts";
+import {
+  type Block,
+  type CanonicalBlockV3,
+  childrenOf,
+  childrenOfV3,
+  hasInlineContent,
+  hasInlineContentV3,
+  type InlineV3,
+  isUnknownBlock,
+  isUnknownBlockV3,
+} from "../document/block.ts";
+import type { BlockDocument, BlockDocumentV3 } from "../document/document.ts";
 import type { Uuid } from "../ids/uuid.ts";
 import type { SearchPropertyText } from "./types.ts";
 
@@ -43,6 +53,53 @@ export function extractSearchableDocumentText(document: BlockDocument): string {
         parts.push(text);
       }
       visit(childrenOf(block));
+    }
+  };
+  visit(document.blocks);
+  return parts.join("\n");
+}
+
+function visibleInlineTextV3(content: readonly InlineV3[]): string {
+  return cleanVisibleText(content.map(({ text }) => text).join(""));
+}
+
+function visibleBlockTextV3(block: CanonicalBlockV3): string[] {
+  if (isUnknownBlockV3(block)) return [];
+  if (hasInlineContentV3(block)) return [visibleInlineTextV3(block.content)];
+  switch (block.type) {
+    case "code":
+      return [cleanVisibleText(block.text)];
+    case "image":
+      return [block.caption, block.altText]
+        .filter((value): value is string => value !== null)
+        .map(cleanVisibleText);
+    case "fileEmbed":
+      return block.caption === null ? [] : [cleanVisibleText(block.caption)];
+    case "embed":
+      return [block.caption, block.sourceUrl]
+        .filter((value): value is string => value !== null)
+        .map(cleanVisibleText);
+    case "table":
+      return block.rows.flatMap((row) =>
+        row.cells.map((cell) => visibleInlineTextV3(cell.content)),
+      );
+    case "divider":
+      return [];
+  }
+}
+
+/** Extracts every visibly rendered v3 text field, including table cells. */
+export function extractSearchableDocumentTextV3(document: BlockDocumentV3): string {
+  const parts: string[] = [];
+  const visit = (blocks: readonly CanonicalBlockV3[]): void => {
+    for (const block of blocks) {
+      parts.push(...visibleBlockTextV3(block).filter((text) => text.length > 0));
+      if (!isUnknownBlockV3(block) && block.type === "table") {
+        for (const row of block.rows) {
+          for (const cell of row.cells) visit(cell.children ?? []);
+        }
+      }
+      visit(childrenOfV3(block));
     }
   };
   visit(document.blocks);
