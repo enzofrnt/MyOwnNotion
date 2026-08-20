@@ -258,11 +258,6 @@ jobs:
     name: Playwright journeys (${{ matrix.project }})
     runs-on: ubuntu-latest
     needs: impact
-    env:
-      MYOWNNOTION_E2E_ROOT: ${{ runner.temp }}/myownnotion-e2e
-      MYOWNNOTION_BLOB_ROOT: ${{ runner.temp }}/myownnotion-e2e/blobs
-      MYOWNNOTION_BACKUP_ROOT: ${{ runner.temp }}/myownnotion-e2e/backups
-      MYOWNNOTION_DEPLOYMENT_KEY_FILE: ${{ runner.temp }}/myownnotion-e2e/deployment-key
     strategy:
       fail-fast: false
       matrix:
@@ -284,9 +279,19 @@ jobs:
         if: matrix.project != 'none'
         run: |
           umask 077
-          mkdir -p "$MYOWNNOTION_E2E_ROOT" "$MYOWNNOTION_BLOB_ROOT" "$MYOWNNOTION_BACKUP_ROOT"
-          openssl rand -base64 32 > "$MYOWNNOTION_DEPLOYMENT_KEY_FILE"
-          chmod 600 "$MYOWNNOTION_DEPLOYMENT_KEY_FILE"
+          myownnotion_e2e_root="$RUNNER_TEMP/myownnotion-e2e"
+          myownnotion_blob_root="$myownnotion_e2e_root/blobs"
+          myownnotion_backup_root="$myownnotion_e2e_root/backups"
+          myownnotion_deployment_key_file="$myownnotion_e2e_root/deployment-key"
+          {
+            printf 'MYOWNNOTION_E2E_ROOT=%s\n' "$myownnotion_e2e_root"
+            printf 'MYOWNNOTION_BLOB_ROOT=%s\n' "$myownnotion_blob_root"
+            printf 'MYOWNNOTION_BACKUP_ROOT=%s\n' "$myownnotion_backup_root"
+            printf 'MYOWNNOTION_DEPLOYMENT_KEY_FILE=%s\n' "$myownnotion_deployment_key_file"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$myownnotion_e2e_root" "$myownnotion_blob_root" "$myownnotion_backup_root"
+          openssl rand -base64 32 > "$myownnotion_deployment_key_file"
+          chmod 600 "$myownnotion_deployment_key_file"
       - if: matrix.project != 'none'
         run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
