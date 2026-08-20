@@ -104,10 +104,14 @@ test.describe("catching up after an absence (US2)", () => {
     try {
       await openWorkspace(away.page);
 
-      // The device goes away: its API is unreachable, so it hears nothing and can
-      // fetch nothing.
-      await away.page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-      await away.page.route("**/health", (route) => route.abort("connectionrefused"));
+      // The device really goes away. Request interception only rejects future
+      // fetches: it leaves an EventSource that is already open connected and
+      // does not emit the browser's offline/online lifecycle. That made this
+      // journey race route removal against a retrying fetch instead of testing
+      // reconnection. Browser-context offline mode closes the stream and emits
+      // the same lifecycle a device experiences when its network disappears.
+      await away.context.setOffline(true);
+      await expect.poll(() => away.page.evaluate(() => navigator.onLine)).toBe(false);
 
       // The changes are made through the API rather than through a second
       // browser, and that is a deliberate narrowing. This journey is about what
@@ -134,8 +138,8 @@ test.describe("catching up after an absence (US2)", () => {
 
       // It comes back, without being reloaded. The stream reconnects by itself
       // and the catch-up follows from that, which is the property under test.
-      await away.page.unroute("**/v1/**");
-      await away.page.unroute("**/health");
+      await away.context.setOffline(false);
+      await expect.poll(() => away.page.evaluate(() => navigator.onLine)).toBe(true);
 
       for (const name of names) {
         await expect(away.page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 30_000 });

@@ -136,11 +136,11 @@ describe("pull-request selection", () => {
 
     expect(plan.vitest.mode).toBe("mixed");
     expect(plan.vitest.testFiles).toContain("tests/performance/search.perf.spec.ts");
-    expect(plan.vitest.groups).toContain("unit");
+    expect(plan.vitest.groups).toContain("performance");
     expect(plan.e2e.testFiles).toEqual(
       expect.arrayContaining(["tests/e2e/search.spec.ts", "tests/e2e/search-offline.spec.ts"]),
     );
-    expect(commandsForVitestGroup(plan, "unit")).toContainEqual([
+    expect(commandsForVitestGroup(plan, "performance")).toContainEqual([
       "pnpm",
       ["exec", "vitest", "run", "--passWithNoTests", "tests/performance/search.perf.spec.ts"],
     ]);
@@ -151,6 +151,19 @@ describe("pull-request selection", () => {
     expect(plan.vitest.mode).toBe("direct");
     expect(plan.vitest.testFiles).toEqual(["apps/web/tests/sidebar.spec.ts"]);
     expect(plan.vitest.groups).toEqual(["unit"]);
+  });
+
+  it("keeps a changed performance benchmark in the dedicated group", () => {
+    const plan = pullRequestPlan(["tests/performance/databases.perf.spec.ts"]);
+    expect(plan.vitest.mode).toBe("direct");
+    expect(plan.vitest.groups).toEqual(["performance"]);
+    expect(commandsForVitestGroup(plan, "performance")).toEqual([
+      [
+        "pnpm",
+        ["exec", "vitest", "run", "--passWithNoTests", "tests/performance/databases.perf.spec.ts"],
+      ],
+    ]);
+    expect(commandsForVitestGroup(plan, "unit")).toEqual([]);
   });
 
   it("maps test-consumed documents to their direct contract tests", () => {
@@ -229,11 +242,13 @@ describe("trusted and diagnostic execution", () => {
 describe("plan consumers", () => {
   it("produces no command for an empty group", () => {
     expect(commandsForVitestGroup(pullRequestPlan(["README.md"]), "unit")).toEqual([]);
+    expect(commandsForVitestGroup(pullRequestPlan(["README.md"]), "performance")).toEqual([]);
   });
 
   it("preserves the existing complete commands for a full plan", () => {
     const plan = pullRequestPlan(["pnpm-lock.yaml"]);
     expect(commandsForVitestGroup(plan, "unit")).toEqual([["pnpm", ["test:coverage"]]]);
+    expect(commandsForVitestGroup(plan, "performance")).toEqual([["pnpm", ["test:performance"]]]);
     expect(commandsForVitestGroup(plan, "integration")).toEqual([
       ["pnpm", ["test:integration"]],
       ["pnpm", ["db:test-migrations"]],
@@ -242,10 +257,8 @@ describe("plan consumers", () => {
   });
 
   it("turns an affected source into a project-scoped Vitest related command", () => {
-    const commands = commandsForVitestGroup(
-      pullRequestPlan(["packages/domain/src/document/block.ts"]),
-      "unit",
-    );
+    const plan = pullRequestPlan(["packages/domain/src/document/block.ts"]);
+    const commands = commandsForVitestGroup(plan, "unit");
     expect(commands).toHaveLength(1);
     expect(commands[0]?.[0]).toBe("pnpm");
     expect(commands[0]?.[1]).toEqual(
@@ -257,6 +270,21 @@ describe("plan consumers", () => {
         "packages/domain/src/document/block.ts",
       ]),
     );
+    expect(commandsForVitestGroup(plan, "performance")).toEqual([
+      [
+        "pnpm",
+        [
+          "exec",
+          "vitest",
+          "related",
+          "--run",
+          "--passWithNoTests",
+          "--project",
+          "performance",
+          "packages/domain/src/document/block.ts",
+        ],
+      ],
+    ]);
   });
 
   it("runs a changed Vitest file directly", () => {

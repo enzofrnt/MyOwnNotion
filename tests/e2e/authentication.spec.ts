@@ -218,10 +218,19 @@ test.describe("signing in", () => {
     await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
       timeout: 30_000,
     });
+    // The heading is the authentication gate, not the end of workspace boot.
+    // Reloading while WebKit is still resolving the worker/module graph cancels
+    // those requests and can make the replacement document fail its own module
+    // loads with an internal browser error. Wait for the local projection to
+    // render: that is the first state in which the signed-in workspace is
+    // actually ready for an owner to use or reload.
+    const workspaceSurface = page.locator('[role="tree"], [data-testid="empty-state"]').first();
+    await expect(workspaceSurface).toBeVisible({ timeout: 30_000 });
     await page.reload();
     await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
       timeout: 30_000,
     });
+    await expect(workspaceSurface).toBeVisible({ timeout: 30_000 });
   });
 
   test("the session cookie is not readable from JavaScript", async ({ page }) => {

@@ -206,6 +206,45 @@ describe("DatabaseQueryService", () => {
     expect(service.status().generation).toBe(2);
   });
 
+  it("replays committed changes that arrive during the first projection build", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const obsoleteDatabaseId = asUuid("018f2000-0000-7000-8000-000000000013");
+    const before = source([entry(ids.entryA, "Avant", ids.todo)]);
+    const after = source([entry(ids.entryB, "Après", ids.todo)], ids.nextRevision);
+    const obsolete: StructuredProjectionSource = {
+      ...source([entry(ids.entryC, "Obsolète", ids.todo)]),
+      databaseId: obsoleteDatabaseId,
+      definition: { ...definition(), databaseId: obsoleteDatabaseId },
+    };
+    const service = new DatabaseQueryService(
+      {
+        loadAll: async () => {
+          await gate;
+          return [before, obsolete];
+        },
+        loadAffected: async () => ({
+          sources: [after],
+          removedDatabaseIds: [obsoleteDatabaseId],
+        }),
+      },
+      Buffer.alloc(32, 11),
+    );
+
+    const rebuilding = service.rebuild();
+    await service.applyCommittedChanges([ids.entryA], 12);
+    release?.();
+    await rebuilding;
+
+    expect(query(service).rows.map(({ entryId }) => entryId)).toEqual([ids.entryB]);
+    expect(() => service.query(obsoleteDatabaseId, { viewId: ids.view })).toThrowError(
+      DatabaseQueryRequestError,
+    );
+    expect(service.status()).toMatchObject({ state: "ready", generation: 1, indexedCount: 1 });
+  });
+
   it("applies committed upserts/removals and invalidates old cursors without duplicates", async () => {
     const firstSource = source([
       entry(ids.entryA, "Alpha", ids.todo),

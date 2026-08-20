@@ -210,7 +210,7 @@ substitutes for the behavioral layers.
 | `pnpm test:migration` | Empty-database and forward-fixture migrations | **yes** |
 | `pnpm test:security` | Owner security foundation suites across every project | **yes** |
 | `pnpm test:e2e` | Playwright journeys, 5 browser/viewport projects | **yes** |
-| `pnpm test:coverage` | All of the above plus coverage thresholds | **yes** |
+| `pnpm test:coverage` | Maintained unit/integration/contract code under coverage thresholds | **yes** |
 | `pnpm test:performance` | 10,000-item / 1,000-operation suites | **yes** |
 | `pnpm db:test-migrations` | Alias of `test:migration`, kept for existing scripts | **yes** |
 
@@ -252,6 +252,12 @@ behaviour. Others simply miss their budget while three engines compete.
 
 CI is unaffected: it gives each project its own runner, so nothing there competes
 for anything.
+
+Performance budgets run in their own Vitest project and their own CI job. They
+must never run under V8 coverage instrumentation: instrumentation changes the
+timings being measured, so a red budget would describe the profiler rather than
+the application. `test:coverage` and `test:performance` are both mandatory in
+the complete local gate; CI starts their jobs concurrently.
 
 **Every browser project runs at once, each on its own stack.** The matrix used
 to run one project after another, and the reason was not the browsers: every
@@ -455,8 +461,8 @@ pnpm checks:local
 This is the hard pre-push gate for executable or potentially executable
 changes, not a suggested smoke test. It runs the local equivalents of every
 repository-controlled PR job: toolchain policy, shell, format/lint, strict
-types, aggregate coverage, the separately observable database/migration and
-contract suites, the complete browser/viewport matrix, production and
+types, aggregate coverage, uninstrumented performance budgets, the separately
+observable database/migration and contract suites, the complete browser/viewport matrix, production and
 multi-architecture image builds, dependency/secret/static/license security
 checks, and Compose boundaries. Every command must finish successfully against
 the exact commit that will be pushed. If classification is uncertain, fail
@@ -594,7 +600,7 @@ fails when any complete or selective entry point is missing from
 | --- | --- | --- | --- |
 | `toolchain:check` | local, PR, main | Unpinned toolchain, foreign lockfile, or a missing gate script blocks | — |
 | `shell:check` `format:check` `lint:ci` `typecheck` | local, PR, main | Any finding blocks | — |
-| `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:security` | full locally/main; affected subset or explicit no-op on PR | Any selected failure blocks; unknown impact selects the full suites | — |
+| `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:performance` `test:security` | full locally/main; affected subset or explicit no-op on PR | Any selected failure blocks; unknown impact selects the full suites; performance budgets run without coverage instrumentation | — |
 | `test:e2e` (`test:e2e:local` on macOS) | full locally/main; owned journeys or explicit no-op on PR | Any selected journey blocks; unknown impact selects every journey | Playwright report per browser/viewport |
 | `security:audit` | local, PR, main | Any high/critical vulnerability or an unavailable audit blocks | `dependency-audit.json` |
 | `security:secrets` | local, PR, main | Any detected secret or a scanner failure blocks | `secret-scan.sarif` |

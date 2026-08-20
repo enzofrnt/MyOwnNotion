@@ -99,6 +99,7 @@ describe("the aggregate", () => {
       "lint",
       "typecheck",
       "unit",
+      "performance",
       "integration",
       "reference-backups",
       "contract",
@@ -193,9 +194,12 @@ describe("affected test topology", () => {
 
   it("keeps required Vitest jobs present for empty selections", () => {
     expect(ci).toContain("No impacted unit tests");
+    expect(ci).toContain("No impacted performance tests");
+    expect(ci).toContain(`performance_mode: ${gha("steps.plan.outputs.performance_mode")}`);
     expect(ci).toContain("No impacted integration tests");
     expect(ci).toContain("No impacted contract tests");
     expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group unit");
+    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group performance");
     expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group integration");
     expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group contract");
   });

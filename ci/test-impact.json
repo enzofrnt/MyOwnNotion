@@ -194,7 +194,7 @@
         "suffixes": []
       },
       "tests": ["tests/performance/search.perf.spec.ts"],
-      "groups": ["unit"]
+      "groups": ["performance"]
     }
   ],
   "e2eJourneys": [

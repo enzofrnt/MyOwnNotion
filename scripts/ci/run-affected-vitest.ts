@@ -11,9 +11,13 @@ const PROJECTS: Record<VitestGroup, string[]> = {
   unit: ["domain", "contracts", "blob-store", "client-core", "web"],
   integration: ["database-integration"],
   contract: ["api-contract", "workspace-contract"],
+  performance: ["performance"],
 };
 
 function groupForTest(file: string): VitestGroup {
+  if (file.startsWith("tests/performance/")) {
+    return "performance";
+  }
   if (file.startsWith("tests/contract/") || file.startsWith("apps/api/")) {
     return "contract";
   }
@@ -35,6 +39,7 @@ export function commandsForVitestGroup(plan: ImpactPlan, group: VitestGroup): Co
         ["pnpm", ["db:test-migrations"]],
       ];
     }
+    if (group === "performance") return [["pnpm", ["test:performance"]]];
     return [["pnpm", ["test:contract"]]];
   }
 
@@ -72,11 +77,16 @@ function parseCli(argv: string[]): { planPath: string; group: VitestGroup } {
     const value = argv[index + 1];
     if (value === undefined) throw new Error(`Missing value for ${String(flag)}`);
     if (flag === "--plan") planPath = value;
-    else if (flag === "--group" && ["unit", "integration", "contract"].includes(value)) {
+    else if (
+      flag === "--group" &&
+      ["unit", "integration", "contract", "performance"].includes(value)
+    ) {
       group = value as VitestGroup;
     } else throw new Error(`Unexpected argument: ${String(flag)} ${value}`);
   }
-  if (group === null) throw new Error("--group must be unit, integration, or contract");
+  if (group === null) {
+    throw new Error("--group must be unit, integration, contract, or performance");
+  }
   return { planPath, group };
 }
 

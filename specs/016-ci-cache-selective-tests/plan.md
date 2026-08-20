@@ -21,7 +21,7 @@ YAML 2.8, Docker Buildx, official GitHub cache-enabled actions
 **Storage**: Committed JSON impact policy; per-run JSON impact plan; GitHub
 Actions caches for package downloads, browsers, and BuildKit layers
 **Testing**: Vitest contract tests for the planner and workflow invariants;
-existing unit, integration, contract, Playwright, image, and release gates
+existing unit, integration, contract, uninstrumented performance, Playwright, image, and release gates
 **Target Platform**: GitHub-hosted Ubuntu runners and the documented local
 container gate
 **Project Type**: pnpm monorepo with web, API, shared packages, and container
@@ -122,9 +122,11 @@ logic in YAML.
 1. An `impact` job checks out full history, computes the exact merge-base/head
    change set, validates the policy, writes `test-impact.json`, uploads it, and
    exposes compact outputs for downstream matrix construction.
-2. Unit, integration, and contract jobs remain required. Each downloads the
+2. Unit, integration, contract, and performance jobs remain required. Each downloads the
    plan and runs either a full group, the direct/related affected subset, or an
-   explicit successful no-op.
+   explicit successful no-op. Performance is isolated from coverage so timing
+   budgets measure the application rather than V8 instrumentation, and its job
+   starts alongside the other test groups.
 3. The E2E job uses a dynamic matrix containing the selected browser/viewport
    variants. An empty plan produces one `{ "project": "none" }` entry so the
    required job remains present.
