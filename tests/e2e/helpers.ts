@@ -97,6 +97,21 @@ export async function selectItem(page: Page, name: string): Promise<void> {
   });
 }
 
+/** Saves structured values only after the local mutation is observably accepted. */
+export async function saveEntryProperties(page: Page): Promise<void> {
+  const panel = page.locator(".entry-panel");
+  await panel.getByRole("button", { name: "Save properties" }).click();
+  // Waiting for an empty queue immediately after the click can return before
+  // the async handler has enqueued anything. This acknowledgement proves the
+  // local write happened, so the synchronization wait below cannot race ahead
+  // of the action it is meant to observe.
+  await expect(panel.getByTestId("entry-properties-saved")).toHaveText(
+    "Properties saved locally.",
+    { timeout: 15_000 },
+  );
+  await waitForSynchronized(page);
+}
+
 export async function waitForSynchronized(page: Page): Promise<void> {
   // The queue must drain (no pending/conflict rows) and the state settle.
   await expect(page.getByTestId("mutation-status-empty")).toBeVisible({ timeout: 20_000 });

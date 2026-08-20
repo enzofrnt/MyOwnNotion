@@ -9,6 +9,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openWorkspace,
+  saveEntryProperties,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -67,6 +68,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
     .locator(".database-table")
     .getByRole("button", { name: entryName, exact: true });
   await expect(entryButton).toBeVisible({ timeout: 15_000 });
+  await waitForSynchronized(page);
   await entryButton.click();
 
   await expect(page.getByText("Database entry · page")).toBeVisible();
@@ -78,8 +80,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await page.getByLabel("Tags").selectOption(["Backend", "Migration"]);
   await page.getByLabel("Done").check();
   await page.getByLabel("Related").selectOption({ label: targetName });
-  await page.getByRole("button", { name: "Save properties" }).click();
-  await waitForSynchronized(page);
+  await saveEntryProperties(page);
 
   await page.getByRole("button", { name: "Close entry" }).click();
   await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();

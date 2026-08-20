@@ -2,6 +2,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   openSecondDevice,
   openWorkspace,
+  saveEntryProperties,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -40,18 +41,17 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     await form.getByRole("button", { name: "New entry" }).click();
     const trigger = page.locator(`[data-entry-trigger]`).filter({ hasText: title }).first();
     await expect(trigger).toBeVisible({ timeout: 15_000 });
+    await waitForSynchronized(page);
     await trigger.click();
     const panel = page.locator(".entry-panel");
     await expect(panel).toBeVisible();
     await panel.getByLabel("Status", { exact: true }).selectOption({ label: status });
-    await panel.getByRole("button", { name: "Save properties" }).click();
-    await waitForSynchronized(page);
+    await saveEntryProperties(page);
     await page.getByRole("button", { name: "Close entry" }).click();
     await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
-    await page.waitForTimeout(400);
     await expect(
       page.locator(`[data-entry-trigger]`).filter({ hasText: title }).first(),
-    ).toBeFocused();
+    ).toBeFocused({ timeout: 15_000 });
   };
 
   await createEntry(entries.alpha, "To do");

@@ -4,6 +4,7 @@ import {
   createRootItem,
   openWorkspace,
   saveDocument,
+  saveEntryProperties,
   typeIntoEditor,
   uniqueName,
   waitForSynchronized,
@@ -70,6 +71,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await createEntry.getByRole("button", { name: "New entry" }).click();
   const taskTrigger = page.locator("[data-entry-trigger]").filter({ hasText: taskName }).first();
   await expect(taskTrigger).toBeVisible({ timeout: 15_000 });
+  await waitForSynchronized(page);
   await taskTrigger.click();
 
   const entryPanel = page.locator(".entry-panel");
@@ -79,8 +81,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await entryPanel.getByLabel("Importance", { exact: true }).selectOption({ label: "High" });
   await entryPanel.getByLabel("Notes", { exact: true }).fill(propertyNote);
   await entryPanel.getByLabel("Project", { exact: true }).selectOption({ label: projectName });
-  await entryPanel.getByRole("button", { name: "Save properties" }).click();
-  await waitForSynchronized(page);
+  await saveEntryProperties(page);
 
   const legacyConversion = page.getByTestId("convert-legacy-document");
   if (await legacyConversion.isVisible()) await legacyConversion.click();
@@ -108,8 +109,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await expect(entryPanel).toBeVisible();
 
   await entryPanel.getByLabel("Workflow", { exact: true }).selectOption({ label: "Done" });
-  await entryPanel.getByRole("button", { name: "Save properties" }).click();
-  await waitForSynchronized(page);
+  await saveEntryProperties(page);
   search = await openSearch(page, "Done");
   await expect(search.getByRole("listitem").filter({ hasText: taskName })).toHaveCount(1);
   await search.getByRole("button", { name: "Close search" }).click();
