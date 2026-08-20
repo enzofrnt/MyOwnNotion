@@ -24,6 +24,7 @@ import {
 } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
+import { DatabaseViewService } from "../../services/databases.ts";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { WorkspaceSearchService } from "../../services/search.ts";
@@ -31,6 +32,7 @@ import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
 import { EntryPanel } from "../databases/entry-panel.tsx";
+import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { StoragePanel } from "../files/storage-panel.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
@@ -145,6 +147,7 @@ export function HierarchyExplorer({
   readonly onOpenSettings: () => void;
 }) {
   const service = useMemo(() => localContent(), []);
+  const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
@@ -157,6 +160,16 @@ export function HierarchyExplorer({
   const [entryDefinition, setEntryDefinition] = useState<DatabaseDefinition | null>(null);
   const [structuredSelectionLoading, setStructuredSelectionLoading] = useState(false);
   const structuredSelectionItemId = useRef<Uuid | null>(null);
+  const definitionMutationQueue = useRef<Promise<void>>(Promise.resolve());
+  const optimisticDatabaseDefinition = useRef<{
+    readonly databaseId: Uuid;
+    readonly definition: DatabaseDefinition;
+  } | null>(null);
+  const [entryReturnFocusId, setEntryReturnFocusId] = useState<Uuid | null>(null);
+  const remotelyOpenedEntry = useRef<{
+    readonly entry: DatabaseEntryDto;
+    readonly definition: DatabaseDefinition;
+  } | null>(null);
   const [databaseFormParent, setDatabaseFormParent] = useState<Uuid | null | undefined>(undefined);
   // Which branches are open. Everything was permanently expanded before US3,
   // which is workable at ten items and unusable at a hundred.
@@ -211,6 +224,8 @@ export function HierarchyExplorer({
       void nextSearch.dispose();
     };
   }, [service]);
+
+  useEffect(() => () => databaseViews.dispose(), [databaseViews]);
 
   const refresh = useCallback(async () => {
     const [activeItems, trash] = await Promise.all([
@@ -325,12 +340,16 @@ export function HierarchyExplorer({
           }),
         );
         if (cancelled) return;
+        const optimistic =
+          optimisticDatabaseDefinition.current?.databaseId === selectedItem.id
+            ? optimisticDatabaseDefinition.current.definition
+            : null;
         setSelectedDatabase({
           databaseId: selectedItem.id,
           definitionRevisionId: selectedItem.currentRevisionId,
           lifecycle: selectedItem.lifecycle,
           name: selectedItem.name,
-          definition: databaseRow.definition,
+          definition: optimistic ?? databaseRow.definition,
         } as unknown as DatabaseDto);
         setDatabaseEntries(entries.filter((entry): entry is DatabaseEntryDto => entry !== null));
         setSelectedEntry(null);
@@ -342,6 +361,27 @@ export function HierarchyExplorer({
 
       const entryRow = await service.getDatabaseEntry(selectedItem.id);
       if (entryRow === null) {
+        const remoteDatabase = await service.api.getDatabase(selectedItem.id);
+        if (cancelled) return;
+        if (remoteDatabase.ok) {
+          setSelectedDatabase(remoteDatabase.value);
+          setDatabaseEntries([]);
+          setSelectedEntry(null);
+          setEntryDefinition(null);
+          structuredSelectionItemId.current = selectedItem.id;
+          setStructuredSelectionLoading(false);
+          return;
+        }
+        const remoteEntry = remotelyOpenedEntry.current;
+        if (remoteEntry?.entry.entryId === selectedItem.id) {
+          setSelectedDatabase(null);
+          setDatabaseEntries([]);
+          setSelectedEntry(remoteEntry.entry);
+          setEntryDefinition(remoteEntry.definition);
+          structuredSelectionItemId.current = selectedItem.id;
+          setStructuredSelectionLoading(false);
+          return;
+        }
         clearStructuredSelection();
         structuredSelectionItemId.current = selectedItem.id;
         setStructuredSelectionLoading(false);
@@ -406,6 +446,110 @@ export function HierarchyExplorer({
     },
     [items, trashedItems],
   );
+
+  const selectedDatabaseId = selectedDatabase?.databaseId as Uuid | undefined;
+  const querySelectedDatabaseView = useCallback(
+    async (viewId: Uuid) => {
+      if (selectedDatabaseId === undefined) {
+        return {
+          ok: false as const,
+          problem: {
+            type: "https://myownnotion.dev/problems/database.not-found",
+            title: "Database is not available",
+            status: 404,
+            code: "database.not-found",
+          },
+        };
+      }
+      return await databaseViews.query(selectedDatabaseId, {
+        viewId,
+        limit: 100,
+      });
+    },
+    [databaseViews, selectedDatabaseId],
+  );
+
+  const updateSelectedDatabaseEntry = useCallback(
+    async (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> => {
+      const databaseId = selectedDatabaseId;
+      if (databaseId === undefined) throw new Error("Database is not available");
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const currentItem = await service.getItem(entryId);
+        if (currentItem === null) throw new Error("Database entry is not available locally");
+        if (update.kind === "title") {
+          const result = await service.mutate(
+            "item.rename",
+            { itemId: entryId, name: update.title },
+            [currentItem.currentRevisionId],
+          );
+          if (result.ok) {
+            await refresh();
+            return;
+          }
+          if (result.error.code === "revision.stale-base") continue;
+          setProblem(result.error);
+          throw new Error(result.error.title);
+        }
+
+        const currentEntry = await service.getDatabaseEntry(entryId);
+        const currentRelations = await service.getDatabaseEntryRelationTargets(databaseId, entryId);
+        if (currentEntry === null || currentEntry.databaseId !== databaseId) {
+          throw new Error("Database entry values are not available locally");
+        }
+        const values = { ...currentEntry.values.values };
+        const relationTargets = { ...currentRelations };
+        if (update.relationTargets !== undefined) {
+          relationTargets[update.propertyId] = update.relationTargets;
+          delete values[update.propertyId];
+        } else {
+          delete relationTargets[update.propertyId];
+          if (update.value === undefined) delete values[update.propertyId];
+          else values[update.propertyId] = update.value;
+        }
+        const result = await service.replaceDatabaseEntryValues(databaseId, entryId, {
+          baseRevisionId: currentItem.currentRevisionId,
+          values,
+          relationTargets,
+        } as unknown as ReplaceEntryValuesRequestDto);
+        if (result.ok) {
+          await refresh();
+          return;
+        }
+        if (result.error.code === "revision.stale-base") continue;
+        setProblem(result.error);
+        throw new Error(result.error.title);
+      }
+      const error: SafeError = {
+        code: "revision.stale-base",
+        title: "This entry kept changing while its cell was being saved",
+      };
+      setProblem(error);
+      throw new Error(error.title);
+    },
+    [refresh, selectedDatabaseId, service],
+  );
+
+  const openSelectedDatabaseEntry = useCallback(
+    (entryId: Uuid, _trigger?: HTMLElement | null) => {
+      const database = selectedDatabase;
+      if (database === null) return;
+      setEntryReturnFocusId(entryId);
+      void (async () => {
+        if ((await service.getDatabaseEntry(entryId)) === null) {
+          const remote = await service.api.getDatabaseEntry(database.databaseId as Uuid, entryId);
+          if (remote.ok) {
+            remotelyOpenedEntry.current = {
+              entry: remote.value,
+              definition: database.definition as unknown as DatabaseDefinition,
+            };
+          }
+        }
+        setSelectedId(entryId);
+      })();
+    },
+    [selectedDatabase, service],
+  );
+  const clearEntryReturnFocus = useCallback(() => setEntryReturnFocusId(null), []);
 
   const runCommand = useCallback(
     async (commandType: string, payload: Record<string, unknown>, baseRevisionIds: Uuid[] = []) => {
@@ -1027,46 +1171,126 @@ export function HierarchyExplorer({
                   definition,
                 );
           }}
-          onReplaceDefinition={async (
+          onReplaceDefinition={(
             definition: DatabaseDefinition,
             confirmation?: DefinitionConfirmation,
           ) => {
-            for (let attempt = 0; attempt < 3; attempt += 1) {
-              const [currentItem, currentDatabase] = await Promise.all([
-                service.getItem(selectedItem.id),
-                service.getDatabase(selectedItem.id),
-              ]);
-              if (
-                currentItem === null ||
-                currentDatabase === null ||
-                JSON.stringify(currentDatabase.definition) !==
-                  JSON.stringify(selectedDatabase.definition)
-              ) {
-                const error: SafeError = {
-                  code: "database.definition-conflict",
-                  title: "The database schema changed while this property was being edited",
-                };
-                setProblem(error);
-                throw new Error(error.title);
-              }
-              const body = {
-                baseRevisionId: currentItem.currentRevisionId,
-                definition,
-                ...(confirmation === undefined ? {} : { impactConfirmation: confirmation }),
-              } as unknown as ReplaceDefinitionRequestDto;
-              const result = await service.replaceDatabaseDefinition(selectedItem.id, body);
-              if (result.ok) return;
-              if (result.error.code !== "revision.stale-base") {
-                setProblem(result.error);
-                throw new Error(result.error.title);
-              }
-            }
-            const error: SafeError = {
-              code: "revision.stale-base",
-              title: "The database kept changing while this property was being saved",
+            const previousDatabase = selectedDatabase;
+            optimisticDatabaseDefinition.current = {
+              databaseId: selectedItem.id,
+              definition,
             };
-            setProblem(error);
-            throw new Error(error.title);
+            setSelectedDatabase({
+              ...previousDatabase,
+              definition,
+            } as unknown as DatabaseDto);
+            const rollbackOptimisticDefinition = (): void => {
+              if (
+                optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
+                JSON.stringify(optimisticDatabaseDefinition.current.definition) ===
+                  JSON.stringify(definition)
+              ) {
+                optimisticDatabaseDefinition.current = null;
+              }
+              setSelectedDatabase((current) =>
+                current !== null &&
+                JSON.stringify(current.definition) === JSON.stringify(definition)
+                  ? previousDatabase
+                  : current,
+              );
+            };
+            const operation = async (): Promise<void> => {
+              for (let attempt = 0; attempt < 3; attempt += 1) {
+                const [currentItem, currentDatabase] = await Promise.all([
+                  service.getItem(selectedItem.id),
+                  service.getDatabase(selectedItem.id),
+                ]);
+                if (
+                  currentItem === null ||
+                  currentDatabase === null ||
+                  JSON.stringify(currentDatabase.definition) !==
+                    JSON.stringify(previousDatabase.definition)
+                ) {
+                  const error: SafeError = {
+                    code: "database.definition-conflict",
+                    title: "The database schema changed while this property was being edited",
+                  };
+                  rollbackOptimisticDefinition();
+                  setProblem(error);
+                  throw new Error(error.title);
+                }
+                const body = {
+                  baseRevisionId: currentItem.currentRevisionId,
+                  definition,
+                  ...(confirmation === undefined ? {} : { impactConfirmation: confirmation }),
+                } as unknown as ReplaceDefinitionRequestDto;
+                const result = await service.replaceDatabaseDefinition(selectedItem.id, body);
+                if (result.ok) {
+                  let syncState = await service.synchronize();
+                  for (let pass = 0; pass < 3; pass += 1) {
+                    if (
+                      syncState === "conflict" ||
+                      syncState === "offline" ||
+                      (await service.outbox.pending()).length === 0
+                    ) {
+                      break;
+                    }
+                    syncState = await service.synchronize();
+                  }
+                  if (syncState === "conflict") {
+                    const error: SafeError = {
+                      code: "database.definition-conflict",
+                      title: "The database view changed concurrently and needs resolution",
+                    };
+                    rollbackOptimisticDefinition();
+                    setProblem(error);
+                    throw new Error(error.title);
+                  }
+                  const [updatedItem, updatedDatabase] = await Promise.all([
+                    service.getItem(selectedItem.id),
+                    service.getDatabase(selectedItem.id),
+                  ]);
+                  if (updatedItem !== null && updatedDatabase !== null) {
+                    const refreshed = {
+                      databaseId: selectedItem.id,
+                      definitionRevisionId: updatedItem.currentRevisionId,
+                      lifecycle: updatedItem.lifecycle,
+                      name: updatedItem.name,
+                      definition: updatedDatabase.definition,
+                    } as unknown as DatabaseDto;
+                    setSelectedDatabase((current) =>
+                      current !== null &&
+                      JSON.stringify(current.definition) === JSON.stringify(definition)
+                        ? refreshed
+                        : current,
+                    );
+                  }
+                  if (
+                    optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
+                    JSON.stringify(optimisticDatabaseDefinition.current.definition) ===
+                      JSON.stringify(definition)
+                  ) {
+                    optimisticDatabaseDefinition.current = null;
+                  }
+                  return;
+                }
+                if (result.error.code !== "revision.stale-base") {
+                  rollbackOptimisticDefinition();
+                  setProblem(result.error);
+                  throw new Error(result.error.title);
+                }
+              }
+              const error: SafeError = {
+                code: "revision.stale-base",
+                title: "The database kept changing while this property was being saved",
+              };
+              rollbackOptimisticDefinition();
+              setProblem(error);
+              throw new Error(error.title);
+            };
+            const queued = definitionMutationQueue.current.then(operation, operation);
+            definitionMutationQueue.current = queued.catch(() => undefined);
+            return queued;
           }}
           onCreateEntry={async (title) => {
             const keys = siblingKeys(selectedItem.id);
@@ -1092,7 +1316,14 @@ export function HierarchyExplorer({
             }
             setExpanded((current) => new Set(current).add(selectedItem.id));
           }}
-          onOpenEntry={setSelectedId}
+          onQueryView={querySelectedDatabaseView}
+          onUpdateEntry={updateSelectedDatabaseEntry}
+          relationOptions={items
+            .filter((item) => item.kind === "page" && item.lifecycle === "active")
+            .map((item) => ({ id: item.id, label: item.name }))}
+          returnFocusEntryId={entryReturnFocusId}
+          onReturnFocusRestored={clearEntryReturnFocus}
+          onOpenEntry={openSelectedDatabaseEntry}
         />
       ) : selectedItem !== null &&
         selectedEntry !== null &&
@@ -1150,7 +1381,14 @@ export function HierarchyExplorer({
             setProblem(error);
             throw new Error(error.title);
           }}
-          onClose={() => setSelectedId(selectedEntry.databaseId as Uuid)}
+          onClose={() => {
+            const databaseId = selectedEntry.databaseId as Uuid;
+            const url = new URL(window.location.href);
+            url.searchParams.delete("entry");
+            window.history.replaceState(window.history.state, "", url);
+            setSelectedId(databaseId);
+            remotelyOpenedEntry.current = null;
+          }}
           pageContent={
             <>
               <EditorView

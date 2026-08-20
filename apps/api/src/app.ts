@@ -23,6 +23,10 @@ import { openBackupArchive } from "./backup/archive-crypto.ts";
 import { createBackupDestination, loadBackupConfig } from "./backup/backup-config.ts";
 import { BACKUP_RECORD_FORMAT_VERSION } from "./backup/backup-service.ts";
 import type { AppContext } from "./context.ts";
+import {
+  createDatabaseQueryService,
+  type DatabaseQueryService,
+} from "./databases/database-query-service.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
 import { registerProtocolAnnouncement } from "./plugins/protocol.ts";
@@ -201,6 +205,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
    */
   let devices: DeviceService | undefined;
   let search: SearchService | undefined;
+  let structuredQueries: DatabaseQueryService | undefined;
 
   const context: AppContext = {
     db: database.db,
@@ -221,6 +226,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     },
     get search() {
       return search;
+    },
+    get structuredQueries() {
+      return structuredQueries;
     },
   };
 
@@ -577,6 +585,18 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       },
     });
   }
+  structuredQueries = createDatabaseQueryService({
+    db: database.db,
+    workspaceId: workspace.id,
+    protectedContent,
+  });
+  void structuredQueries.rebuild().catch((error: unknown) => {
+    app.log.error(
+      { errorName: error instanceof Error ? error.name : "unknown" },
+      "structured database projection rebuild failed",
+    );
+  });
+
   registerItemRoutes(app, context);
   registerDatabaseRoutes(app, context);
   registerPlacementRoutes(app, context);

@@ -24,6 +24,12 @@ export async function resetCanonicalContent(): Promise<void> {
     await client.query(`DELETE FROM restoration_attempts`);
     await client.query(`DELETE FROM backup_verifications`);
     await client.query(`DELETE FROM backups`);
+    // Protected payloads deliberately have no foreign key to canonical rows:
+    // they must survive a production migration scrub. In an isolated E2E
+    // installation that also means they must be cleared explicitly, otherwise
+    // a later run can read an old envelope for a reused canonical identity.
+    await client.query(`DELETE FROM protected_blob_chunks`);
+    await client.query(`DELETE FROM protected_envelopes`);
     await client.query(
       `TRUNCATE items, placements, page_documents, logical_files, file_contents,
         relationships, revisions, revision_parents, mutations, changes,

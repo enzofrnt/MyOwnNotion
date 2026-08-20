@@ -1,58 +1,23 @@
 import type { DatabaseDto, DatabaseEntryDto } from "@myownnotion/contracts";
-import type {
-  DatabaseDefinition,
-  DatabaseProperty,
-  DefinitionImpact,
-  Uuid,
-} from "@myownnotion/domain";
-import { type FormEvent, useState } from "react";
+import type { DatabaseDefinition, DefinitionImpact, Uuid } from "@myownnotion/domain";
+import { evaluateDatabaseView } from "@myownnotion/domain";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
+import { DatabaseToolbar, replaceSavedView } from "./database-toolbar.tsx";
+import { FilterEditor } from "./filter-editor.tsx";
+import { ListView } from "./list-view.tsx";
 import {
   type DatabasePropertyDraft,
   PropertyEditor,
   propertyFromDraft,
   validatePropertyDraft,
 } from "./property-editor.tsx";
+import { SortGroupEditor } from "./sort-group-editor.tsx";
+import { type DatabaseCellUpdate, TableView } from "./table-view.tsx";
+import { useDatabaseView } from "./use-database-view.ts";
+import type { RelationOption } from "./value-editor.tsx";
 
 const EMPTY_PROPERTY_DRAFT: DatabasePropertyDraft = { name: "", type: "text" };
-
-function displayValue(entry: DatabaseEntryDto, property: DatabaseProperty): string {
-  if (property.type === "title") return entry.title;
-  if (property.type === "relation") {
-    const targets = entry.relationTargets[property.id] ?? [];
-    return targets.length === 0
-      ? "—"
-      : `${targets.length} linked page${targets.length === 1 ? "" : "s"}`;
-  }
-  const value = entry.values[property.id];
-  if (value === undefined) return "—";
-  switch (value.kind) {
-    case "text":
-      return value.value || "—";
-    case "number":
-      return value.decimal;
-    case "date":
-      return value.date;
-    case "instant":
-      return value.instant;
-    case "checkbox":
-      return value.checked ? "Yes" : "No";
-    case "status":
-    case "select":
-      return property.type === "status" || property.type === "select"
-        ? (property.config.options.find((option) => option.id === value.optionId)?.label ??
-            "Unknown option")
-        : "Unknown option";
-    case "multi-select":
-      return property.type === "multi-select"
-        ? value.optionIds
-            .map(
-              (optionId) => property.config.options.find((option) => option.id === optionId)?.label,
-            )
-            .filter(Boolean)
-            .join(", ") || "—"
-        : "—";
-  }
-}
 
 export interface DefinitionConfirmation {
   readonly digest: string;
@@ -66,6 +31,13 @@ export function DatabasePage({
   onPreviewDefinitionImpact,
   onCreateEntry,
   onOpenEntry,
+  onUpdateEntry,
+  relationOptions = [],
+  queryPage,
+  queryState,
+  onQueryView,
+  returnFocusEntryId,
+  onReturnFocusRestored,
 }: {
   readonly database: DatabaseDto;
   readonly entries: readonly DatabaseEntryDto[];
@@ -77,7 +49,14 @@ export function DatabasePage({
     definition: DatabaseDefinition,
   ) => DefinitionImpact | null | Promise<DefinitionImpact | null>;
   readonly onCreateEntry: (title: string) => void | Promise<void>;
-  readonly onOpenEntry: (entryId: Uuid) => void;
+  readonly onOpenEntry: (entryId: Uuid, trigger?: HTMLElement | null) => void;
+  readonly onUpdateEntry?: (entryId: Uuid, update: DatabaseCellUpdate) => void | Promise<void>;
+  readonly relationOptions?: readonly RelationOption[];
+  readonly queryPage?: DatabaseViewPage | null;
+  readonly queryState?: "loading" | "ready" | "invalid" | "degraded";
+  readonly onQueryView?: (viewId: Uuid) => Promise<DatabaseViewResult>;
+  readonly returnFocusEntryId?: Uuid | null;
+  readonly onReturnFocusRestored?: () => void;
 }) {
   const [editingProperty, setEditingProperty] = useState(false);
   const [propertyDraft, setPropertyDraft] = useState<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
@@ -87,6 +66,10 @@ export function DatabasePage({
   const [entryError, setEntryError] = useState<string | null>(null);
   const [pendingDefinition, setPendingDefinition] = useState<DatabaseDefinition | null>(null);
   const [impact, setImpact] = useState<DefinitionImpact | null>(null);
+  const [loadedPage, setLoadedPage] = useState<DatabaseViewPage | null>(null);
+  const [loadedState, setLoadedState] = useState<"loading" | "ready" | "invalid" | "degraded">(
+    onQueryView === undefined ? "ready" : "loading",
+  );
 
   // Contract schemas intentionally expose JSON strings, while the domain
   // brands UUIDs once validation has crossed the boundary. DatabaseDto has
@@ -94,6 +77,124 @@ export function DatabasePage({
   // shape from here onward.
   const definition = database.definition as unknown as DatabaseDefinition;
   const activeProperties = definition.properties.filter((property) => property.state === "active");
+  const viewContext = useDatabaseView(definition);
+  const activeView =
+    definition.views.find(
+      ({ id, state }) => id === viewContext.context.activeViewId && state === "active",
+    ) ?? definition.views.find(({ state }) => state === "active");
+  const activeViewId = activeView?.id;
+  const entryRevisionKey = entries
+    .map(({ entryId, revisionId }) => `${entryId}:${revisionId}`)
+    .join("|");
+  const fallbackPage = useMemo<DatabaseViewPage | null>(() => {
+    if (activeView === undefined) return null;
+    const evaluated = evaluateDatabaseView(
+      definition,
+      activeView.id,
+      entries.map((entry) => ({
+        entryId: entry.entryId as Uuid,
+        title: entry.title,
+        values: entry.values as never,
+        relationTargets: entry.relationTargets as never,
+      })),
+    );
+    if (!evaluated.ok) return null;
+    const byId = new Map(entries.map((entry) => [entry.entryId, entry]));
+    return {
+      databaseId: database.databaseId,
+      viewId: activeView.id,
+      definitionRevisionId: database.definitionRevisionId,
+      generation: 1,
+      coverage: "complete",
+      availableCount: entries.length,
+      expectedCount: entries.length,
+      rows: evaluated.value.rows.flatMap((row) => {
+        const entry = byId.get(row.entryId);
+        return entry === undefined
+          ? []
+          : [
+              {
+                entryId: entry.entryId,
+                revisionId: entry.revisionId,
+                title: entry.title,
+                values: entry.values,
+                relationTargets: entry.relationTargets,
+                groupId:
+                  evaluated.value.groups.find((group) => group.entryIds.includes(row.entryId))
+                    ?.id ?? null,
+                syncState: "synced" as const,
+              },
+            ];
+      }),
+      groups: [],
+      nextCursor: null,
+      source: "local",
+      staleCursorRecovered: false,
+    } as DatabaseViewPage;
+  }, [activeView, database.databaseId, database.definitionRevisionId, definition, entries]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: definition and entry revisions invalidate a same-ID saved view's server result
+  useEffect(() => {
+    if (activeViewId === undefined || onQueryView === undefined) return;
+    let cancelled = false;
+    setLoadedState("loading");
+    void onQueryView(activeViewId).then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setLoadedPage(result.value);
+        setLoadedState("ready");
+        return;
+      }
+      setLoadedState(
+        result.problem.code === "database.invalid-view"
+          ? "invalid"
+          : result.problem.code.includes("projection")
+            ? "degraded"
+            : "ready",
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeViewId, database.definitionRevisionId, entryRevisionKey, onQueryView]);
+  const effectiveQueryState = queryState ?? loadedState;
+  const page =
+    queryPage !== undefined && queryPage !== null && queryPage.viewId === activeView?.id
+      ? queryPage
+      : effectiveQueryState === "ready" && loadedPage?.viewId === activeView?.id
+        ? loadedPage
+        : fallbackPage;
+  useEffect(() => {
+    if (returnFocusEntryId === undefined || returnFocusEntryId === null || page === null) {
+      return;
+    }
+    let completion: number | undefined;
+    let frame: number | undefined;
+    let attempts = 0;
+    const restore = (): void => {
+      const trigger = document.querySelector<HTMLElement>(
+        `[data-entry-trigger="${returnFocusEntryId}"]`,
+      );
+      if (trigger !== null) {
+        trigger.focus();
+        completion = window.setTimeout(() => {
+          viewContext.finishEntryReturn();
+          onReturnFocusRestored?.();
+        }, 300);
+        return;
+      }
+      attempts += 1;
+      if (attempts < 12) frame = requestAnimationFrame(restore);
+    };
+    frame = requestAnimationFrame(restore);
+    return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      if (completion !== undefined) window.clearTimeout(completion);
+    };
+  }, [onReturnFocusRestored, page, returnFocusEntryId, viewContext.finishEntryReturn]);
+
+  const saveView = async (view: NonNullable<typeof activeView>): Promise<void> => {
+    await onReplaceDefinition(replaceSavedView(definition, view));
+  };
 
   const addProperty = (): void => {
     const result = validatePropertyDraft(propertyDraft);
@@ -196,6 +297,31 @@ export function DatabasePage({
         />
       ) : null}
 
+      {activeView === undefined ? (
+        <p role="alert">This database has no usable saved view.</p>
+      ) : (
+        <>
+          <DatabaseToolbar
+            definition={definition}
+            activeViewId={activeView.id}
+            onSelectView={viewContext.selectView}
+            onChange={(next) => onReplaceDefinition(next)}
+          />
+          <div className="database-view-config">
+            <FilterEditor
+              properties={definition.properties}
+              view={activeView}
+              onChange={saveView}
+            />
+            <SortGroupEditor
+              properties={definition.properties}
+              view={activeView}
+              onChange={saveView}
+            />
+          </div>
+        </>
+      )}
+
       <section className="database-schema" aria-labelledby="database-schema-heading">
         <h3 id="database-schema-heading">Properties</h3>
         <ul>
@@ -280,46 +406,65 @@ export function DatabasePage({
         {entryError !== null ? <p role="alert">{entryError}</p> : null}
       </form>
 
-      <div className="database-table-scroll">
-        <table className="database-table" aria-label="Database entries">
-          <thead>
-            <tr>
-              {activeProperties.map((property) => (
-                <th key={property.id} scope="col">
-                  {property.name}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {entries.length === 0 ? (
-              <tr>
-                <td colSpan={activeProperties.length || 1}>No entries yet.</td>
-              </tr>
-            ) : (
-              entries.map((entry) => (
-                <tr key={entry.entryId}>
-                  {activeProperties.map((property) => (
-                    <td key={property.id}>
-                      {property.type === "title" ? (
-                        <button
-                          type="button"
-                          className="link"
-                          onClick={() => onOpenEntry(entry.entryId as Uuid)}
-                        >
-                          {entry.title}
-                        </button>
-                      ) : (
-                        displayValue(entry, property)
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="database-view-status" aria-live="polite">
+        {effectiveQueryState === "loading" ? <p>Loading the saved view…</p> : null}
+        {effectiveQueryState === "invalid" ? (
+          <p role="alert">This view is invalid. Repair the highlighted rule.</p>
+        ) : null}
+        {effectiveQueryState === "degraded" ? (
+          <p role="alert">The complete view is rebuilding. Safe local data remains visible.</p>
+        ) : null}
+        {page?.staleCursorRecovered ? <p>The view changed; the first page was reloaded.</p> : null}
+        {page === null ? null : page.coverage === "complete" ? (
+          <p>Complete result · {page.expectedCount} entries</p>
+        ) : (
+          <p>
+            Local data partial: {page.availableCount} of {page.expectedCount}
+          </p>
+        )}
       </div>
+
+      {activeView !== undefined && page !== null ? (
+        activeView.type === "list" ? (
+          <ListView
+            properties={definition.properties}
+            view={activeView}
+            page={page}
+            scrollTop={viewContext.context.scrollTop}
+            onScroll={viewContext.rememberScroll}
+            onOpenEntry={(entryId, trigger) => {
+              viewContext.rememberTrigger(entryId, trigger);
+              viewContext.openEntry(entryId);
+              onOpenEntry(entryId, trigger);
+            }}
+          />
+        ) : (
+          <TableView
+            properties={definition.properties}
+            view={activeView}
+            page={page}
+            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry })}
+            relationOptions={relationOptions}
+            scrollTop={viewContext.context.scrollTop}
+            onScroll={viewContext.rememberScroll}
+            onOpenEntry={(entryId, trigger) => {
+              viewContext.rememberTrigger(entryId, trigger);
+              viewContext.openEntry(entryId);
+              onOpenEntry(entryId, trigger);
+            }}
+            onResize={(propertyId, width) =>
+              saveView({
+                ...activeView,
+                properties: activeView.properties.map((presentation) =>
+                  presentation.propertyId === propertyId
+                    ? { ...presentation, width }
+                    : presentation,
+                ),
+              })
+            }
+          />
+        )
+      ) : null}
     </section>
   );
 }

@@ -115,29 +115,29 @@ propriétés masquées sur deux clients.
 
 ### Tests for User Story 2
 
-- [ ] T038 [P] [US2] Écrire les tests de génération atomique, index de présence/égalité, upsert et invalidation dans apps/api/tests/database-query-service.spec.ts (FR-019 à FR-022, SC-002)
-- [ ] T039 [P] [US2] Étendre les contrats API avec query, curseur lié, cursor-stale, pagination sans doublon et projection degraded dans apps/api/tests/database.contract.spec.ts
-- [ ] T040 [P] [US2] Écrire les tests de requête locale complète et partielle, parité serveur et recalcul après commit dans packages/client-core/tests/database-query.spec.ts (FR-022, FR-034, FR-035)
-- [ ] T041 [P] [US2] Écrire les tests React de barre de vues, filtre ALL/ANY, tri, groupe, colonnes visibles/redimensionnées et liste dans apps/web/tests/database-views.spec.tsx (FR-016 à FR-024)
-- [ ] T042 [P] [US2] Écrire les tests de grid clavier, mode navigation/édition, focus virtualisé et annonces dans apps/web/tests/database-table-accessibility.spec.tsx (FR-023, FR-047 à FR-049)
-- [ ] T043 [US2] Écrire le parcours Playwright table/liste, persistance, filtres, tris, groupes, retour de focus et deuxième navigateur dans tests/e2e/databases-views.spec.ts (acceptance US2)
+- [X] T038 [P] [US2] Écrire les tests de génération atomique, index de présence/égalité, upsert et invalidation dans apps/api/tests/database-query-service.spec.ts (FR-019 à FR-022, SC-002)
+- [X] T039 [P] [US2] Étendre les contrats API avec query, curseur lié, cursor-stale, pagination sans doublon et projection degraded dans apps/api/tests/database.contract.spec.ts
+- [X] T040 [P] [US2] Écrire les tests de requête locale complète et partielle, parité serveur et recalcul après commit dans packages/client-core/tests/database-query.spec.ts (FR-022, FR-034, FR-035)
+- [X] T041 [P] [US2] Écrire les tests React de barre de vues, filtre ALL/ANY, tri, groupe, colonnes visibles/redimensionnées et liste dans apps/web/tests/database-views.spec.tsx (FR-016 à FR-024)
+- [X] T042 [P] [US2] Écrire les tests de grid clavier, mode navigation/édition, focus virtualisé et annonces dans apps/web/tests/database-table-accessibility.spec.tsx (FR-023, FR-047 à FR-049)
+- [X] T043 [US2] Écrire le parcours Playwright table/liste, persistance, filtres, tris, groupes, retour de focus et deuxième navigateur dans tests/e2e/databases-views.spec.ts (acceptance US2)
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Implémenter StructuredProjectionGeneration, reconstruction isolée et index incrémentaux dans apps/api/src/databases/database-query-service.ts pour satisfaire T038
-- [ ] T045 [US2] Construire et injecter la projection structurée dans apps/api/src/context.ts et apps/api/src/app.ts sans bloquer les autres routes pendant building
-- [ ] T046 [US2] Appliquer les mutations à la projection uniquement après commit, invalider sur échec et reconstruire après démarrage/restauration dans apps/api/src/plugins/mutations.ts et apps/api/src/databases/database-query-service.ts
-- [ ] T047 [US2] Implémenter POST /v1/databases/:databaseId/query, curseur opaque authentifié et états building/degraded dans apps/api/src/routes/databases.ts pour satisfaire T039
-- [ ] T048 [US2] Implémenter le moteur local commun et la couverture dans packages/client-core/src/databases/local-database-query.ts pour satisfaire T040
-- [ ] T049 [US2] Ajouter query server/local, fusion par entryId, reprise cursor-stale et conservation pending/conflict dans apps/web/src/services/databases.ts
-- [ ] T050 [US2] Implémenter création, duplication, réordonnancement, retrait et sélection de vues via DatabaseDefinition dans apps/web/src/features/databases/database-toolbar.tsx
-- [ ] T051 [US2] Implémenter l'éditeur lisible de filtres, tris et groupes dans apps/web/src/features/databases/filter-editor.tsx et apps/web/src/features/databases/sort-group-editor.tsx
-- [ ] T052 [US2] Implémenter la table contrôlée en modes manuels avec TanStack Table/Virtual, colonnes, cellules typées et redimensionnement dans apps/web/src/features/databases/table-view.tsx pour satisfaire T041 et T042
-- [ ] T053 [US2] Implémenter la liste compacte sémantique dans apps/web/src/features/databases/list-view.tsx
-- [ ] T054 [US2] Restaurer contexte de vue, sélection et position après ouverture d'une entrée dans apps/web/src/features/databases/use-database-view.ts et apps/web/src/features/databases/entry-panel.tsx
-- [ ] T055 [US2] Afficher complete/partial, X/Y, invalid-view, loading et stale-cursor dans apps/web/src/features/databases/database-page.tsx sans annoncer de total partiel comme exhaustif
-- [ ] T056 [US2] Finaliser les styles table/list, conteneur de scroll interne, focus et commandes fixes dans apps/web/src/styles.css
-- [ ] T057 [US2] Exécuter T038 à T043 et consigner parité, pagination, accessibilité et persistance dans specs/009-databases-structured-tasks/validation.md
+- [X] T044 [US2] Implémenter StructuredProjectionGeneration, reconstruction isolée et index incrémentaux dans apps/api/src/databases/database-query-service.ts pour satisfaire T038
+- [X] T045 [US2] Construire et injecter la projection structurée dans apps/api/src/context.ts et apps/api/src/app.ts sans bloquer les autres routes pendant building
+- [X] T046 [US2] Appliquer les mutations à la projection uniquement après commit, invalider sur échec et reconstruire après démarrage/restauration dans apps/api/src/plugins/mutations.ts et apps/api/src/databases/database-query-service.ts
+- [X] T047 [US2] Implémenter POST /v1/databases/:databaseId/query, curseur opaque authentifié et états building/degraded dans apps/api/src/routes/databases.ts pour satisfaire T039
+- [X] T048 [US2] Implémenter le moteur local commun et la couverture dans packages/client-core/src/databases/local-database-query.ts pour satisfaire T040
+- [X] T049 [US2] Ajouter query server/local, fusion par entryId, reprise cursor-stale et conservation pending/conflict dans apps/web/src/services/databases.ts
+- [X] T050 [US2] Implémenter création, duplication, réordonnancement, retrait et sélection de vues via DatabaseDefinition dans apps/web/src/features/databases/database-toolbar.tsx
+- [X] T051 [US2] Implémenter l'éditeur lisible de filtres, tris et groupes dans apps/web/src/features/databases/filter-editor.tsx et apps/web/src/features/databases/sort-group-editor.tsx
+- [X] T052 [US2] Implémenter la table contrôlée en modes manuels avec TanStack Table/Virtual, colonnes, cellules typées et redimensionnement dans apps/web/src/features/databases/table-view.tsx pour satisfaire T041 et T042
+- [X] T053 [US2] Implémenter la liste compacte sémantique dans apps/web/src/features/databases/list-view.tsx
+- [X] T054 [US2] Restaurer contexte de vue, sélection et position après ouverture d'une entrée dans apps/web/src/features/databases/use-database-view.ts et apps/web/src/features/databases/entry-panel.tsx
+- [X] T055 [US2] Afficher complete/partial, X/Y, invalid-view, loading et stale-cursor dans apps/web/src/features/databases/database-page.tsx sans annoncer de total partiel comme exhaustif
+- [X] T056 [US2] Finaliser les styles table/list, conteneur de scroll interne, focus et commandes fixes dans apps/web/src/styles.css
+- [X] T057 [US2] Exécuter T038 à T043 et consigner parité, pagination, accessibilité et persistance dans specs/009-databases-structured-tasks/validation.md
 
 **Checkpoint**: Table et liste enregistrées produisent le même résultat
 déterministe côté serveur et local, y compris après rechargement.

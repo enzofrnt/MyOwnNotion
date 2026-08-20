@@ -119,6 +119,7 @@ export function registerRevisionRoutes(app: FastifyInstance, context: AppContext
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
         search: context.search,
+        structuredQueries: context.structuredQueries,
         request,
         reply,
         command: {

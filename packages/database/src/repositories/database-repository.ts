@@ -58,6 +58,17 @@ export async function readDatabaseRecord(
   return row === undefined ? null : databaseModel(row);
 }
 
+export async function listDatabaseRecords(
+  executor: Executor,
+  workspaceId: Uuid,
+): Promise<DatabaseRecord[]> {
+  const rows = await executor
+    .select()
+    .from(databases)
+    .where(eq(databases.workspaceId, workspaceId));
+  return rows.map(databaseModel);
+}
+
 export async function readDatabaseEntryRecord(
   executor: Executor,
   entryId: Uuid,

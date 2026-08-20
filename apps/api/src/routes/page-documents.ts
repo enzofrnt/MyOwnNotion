@@ -33,6 +33,7 @@ export function registerPageDocumentRoutes(app: FastifyInstance, context: AppCon
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
         search: context.search,
+        structuredQueries: context.structuredQueries,
         request,
         reply,
         command: {

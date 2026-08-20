@@ -1,5 +1,6 @@
 import { type DatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { DatabaseProjectionUnavailableError } from "../src/databases/database-query-service.ts";
 import {
   type ApiHarness,
   createApiHarness,
@@ -242,5 +243,115 @@ describe("owner database contract (T020)", () => {
     expect(response.headers["content-type"]).toContain("application/problem+json");
     expect(response.body).not.toContain(secret);
     expect(response.json()).toMatchObject({ code: "validation.invalid-payload" });
+  });
+
+  it("queries stable pages without duplicates and rejects a cursor after a commit", async () => {
+    const created = await createDatabase();
+    const entryIds = [generateUuidV7(), generateUuidV7(), generateUuidV7()];
+    for (const [index, entryId] of entryIds.entries()) {
+      const response = await harness.built.app.inject({
+        method: "POST",
+        url: `/v1/databases/${created.databaseId}/entries`,
+        headers: idempotencyHeaders(),
+        payload: {
+          id: entryId,
+          title: ["Alpha", "Beta", "Gamma"][index],
+          placement: {
+            id: generateUuidV7(),
+            parentItemId: created.databaseId,
+            positionKey: String.fromCharCode(97 + index),
+          },
+          values: {},
+          relationTargets: {},
+        },
+      });
+      expect(response.statusCode, response.body).toBe(201);
+    }
+
+    const first = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/databases/${created.databaseId}/query`,
+      payload: { viewId: created.viewId, limit: 1 },
+    });
+    expect(first.statusCode, first.body).toBe(200);
+    const firstPage = first.json() as {
+      generation: number;
+      rows: Array<{ entryId: Uuid }>;
+      nextCursor: string | null;
+    };
+    expect(firstPage.rows).toHaveLength(1);
+    expect(firstPage.nextCursor).not.toBeNull();
+    const cursor = firstPage.nextCursor;
+    if (cursor === null) throw new Error("expected a second page");
+    expect(cursor).not.toContain(firstPage.rows[0]?.entryId ?? "missing");
+
+    const second = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/databases/${created.databaseId}/query`,
+      payload: { viewId: created.viewId, limit: 1, cursor },
+    });
+    expect(second.statusCode, second.body).toBe(200);
+    const secondPage = second.json() as { rows: Array<{ entryId: Uuid }> };
+    expect(secondPage.rows).toHaveLength(1);
+    expect(secondPage.rows[0]?.entryId).not.toBe(firstPage.rows[0]?.entryId);
+
+    const added = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/databases/${created.databaseId}/entries`,
+      headers: idempotencyHeaders(),
+      payload: {
+        id: generateUuidV7(),
+        title: "Delta",
+        placement: {
+          id: generateUuidV7(),
+          parentItemId: created.databaseId,
+          positionKey: "d",
+        },
+        values: {},
+        relationTargets: {},
+      },
+    });
+    expect(added.statusCode, added.body).toBe(201);
+    const stale = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/databases/${created.databaseId}/query`,
+      payload: { viewId: created.viewId, limit: 1, cursor },
+    });
+    expect(stale.statusCode, stale.body).toBe(409);
+    expect(stale.json()).toMatchObject({ code: "database.cursor-stale" });
+    expect(stale.body).not.toContain(cursor);
+  });
+
+  it("reports a redacted degraded projection without claiming partial completeness", async () => {
+    const created = await createDatabase();
+    const descriptor = Object.getOwnPropertyDescriptor(harness.built.context, "structuredQueries");
+    Object.defineProperty(harness.built.context, "structuredQueries", {
+      configurable: true,
+      value: {
+        query() {
+          throw new DatabaseProjectionUnavailableError("degraded", 2, 7);
+        },
+      },
+    });
+    try {
+      const response = await harness.built.app.inject({
+        method: "POST",
+        url: `/v1/databases/${created.databaseId}/query`,
+        payload: { viewId: created.viewId },
+      });
+      expect(response.statusCode, response.body).toBe(503);
+      expect(response.headers["retry-after"]).toBe("1");
+      expect(response.json()).toMatchObject({
+        code: "database.projection-degraded",
+        projectionState: "degraded",
+        indexedCount: 2,
+        expectedCount: 7,
+      });
+      expect(response.body).not.toContain("rows");
+    } finally {
+      if (descriptor !== undefined) {
+        Object.defineProperty(harness.built.context, "structuredQueries", descriptor);
+      }
+    }
   });
 });

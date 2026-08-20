@@ -315,8 +315,10 @@ select {
 }
 
 .database-table-scroll {
+  max-height: 32rem;
   max-width: 100%;
   overflow: auto;
+  overscroll-behavior: contain;
   margin-top: 1rem;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -342,6 +344,271 @@ select {
 .database-table th:last-child,
 .database-table td:last-child {
   border-right: 0;
+}
+
+.database-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.database-view-tabs,
+.database-view-actions,
+.database-view-config {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.database-view-tabs {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  padding-bottom: 0.2rem;
+}
+
+.database-view-tabs [role="tab"] {
+  flex: 0 0 auto;
+  border-color: transparent;
+  background: transparent;
+}
+
+.database-view-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.database-columns[open],
+.database-rule-editor[open] {
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.database-columns summary,
+.database-rule-editor summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.database-columns label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.6rem 0.8rem 0 0;
+}
+
+.database-view-config {
+  margin-top: 0.75rem;
+  align-items: start;
+}
+
+.database-view-config > details {
+  flex: 1 1 18rem;
+}
+
+.database-rules {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1.5rem;
+}
+
+.database-rule {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.database-rule label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 9rem;
+}
+
+.database-rule--invalid {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.database-view-status {
+  min-height: 2rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+}
+
+.database-view-status p {
+  margin: 0.25rem 0;
+}
+
+.database-grid {
+  table-layout: fixed;
+}
+
+.database-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.database-grid [role="gridcell"]:focus {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.database-grid [data-grid-mode="editing"] {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.database-column-size {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin-left: 0.5rem;
+  padding: 0;
+  border: 0;
+}
+
+.database-column-size button {
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0.2rem;
+}
+
+.database-rule-controls {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.database-filter-period {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  gap: 0.5rem;
+  border: 0;
+  flex-wrap: wrap;
+}
+
+.database-filter-period legend {
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.database-view-rename,
+.database-column-control {
+  display: flex;
+  align-items: end;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.database-view-rename {
+  margin-top: 0.6rem;
+}
+
+.database-column-control + .database-column-control {
+  margin-top: 0.35rem;
+}
+
+.database-cell-title {
+  font-weight: 600;
+}
+
+.database-cell-editor {
+  display: grid;
+  min-width: min(22rem, 70vw);
+  gap: 0.45rem;
+}
+
+.database-cell-editor .database-field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.database-cell-editor__actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.database-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.database-list-scroll {
+  max-height: 32rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.database-list__entry {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.database-list--compact .database-list__entry {
+  padding: 0.5rem 0.65rem;
+}
+
+.database-list__title {
+  justify-self: start;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.database-list dl {
+  display: flex;
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.database-list dl div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.database-list dt {
+  color: var(--muted);
+}
+
+.database-list dd {
+  margin: 0;
+}
+
+.database-sync {
+  justify-self: start;
+  font-size: 0.8rem;
+}
+
+.database-sync--pending {
+  color: var(--warn);
+}
+
+.database-sync--conflict {
+  color: var(--danger);
 }
 
 .entry-document {
@@ -1040,6 +1307,36 @@ code,
 
   .database-field__error {
     grid-column: 1;
+  }
+
+  .database-page {
+    padding: 0.65rem;
+  }
+
+  .database-toolbar {
+    position: static;
+  }
+
+  .database-view-actions > button,
+  .database-view-config > details,
+  .database-entry-create .field-row > * {
+    width: 100%;
+  }
+
+  .database-rule {
+    align-items: stretch;
+  }
+
+  .database-rule > label,
+  .database-rule > input,
+  .database-rule > select,
+  .database-rule > button {
+    width: 100%;
+  }
+
+  .database-table-scroll {
+    max-height: 70vh;
+    overscroll-behavior: contain;
   }
 }
 

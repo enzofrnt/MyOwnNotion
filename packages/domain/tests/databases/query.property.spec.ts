@@ -125,6 +125,12 @@ describe("saved database query evaluation", () => {
               to: { kind: "date", date: "2026-08-31" },
             },
           },
+          {
+            id: IDS.entryC,
+            propertyId: IDS.title,
+            operator: "contains",
+            operand: { kind: "text", value: "alpha" },
+          },
         ],
       },
     });

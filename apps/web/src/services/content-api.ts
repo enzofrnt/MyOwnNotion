@@ -14,6 +14,8 @@ import type {
   DatabaseDto,
   DatabaseEntryDto,
   DatabaseMutationResultDto,
+  DatabaseQueryDto,
+  DatabaseQueryPageDto,
   DefinitionImpactDto,
   EntryMutationResultDto,
   FileUsageDto,
@@ -155,6 +157,16 @@ export class ContentApi {
 
   async getDatabase(databaseId: Uuid): Promise<ApiResult<DatabaseDto>> {
     return this.#request(`/v1/databases/${databaseId}`);
+  }
+
+  async queryDatabase(
+    databaseId: Uuid,
+    request: DatabaseQueryDto,
+  ): Promise<ApiResult<DatabaseQueryPageDto>> {
+    return this.#request(`/v1/databases/${databaseId}/query`, {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
   }
 
   async previewDatabaseDefinitionImpact(

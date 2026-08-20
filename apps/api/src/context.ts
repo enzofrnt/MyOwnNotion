@@ -5,6 +5,7 @@
 import type { ContentStore, PartialUploadStore } from "@myownnotion/blob-store";
 import type { Database } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
+import type { DatabaseQueryService } from "./databases/database-query-service.ts";
 import type { SearchService } from "./search/search-service.ts";
 import type { DeviceService } from "./security/device-service.ts";
 import type { ProtectedContent } from "./security/protected-content.ts";
@@ -43,4 +44,6 @@ export interface AppContext {
   readonly devices?: DeviceService | undefined;
   /** Transient private workspace index, present once the search feature is wired. */
   readonly search?: SearchService | undefined;
+  /** Reconstructible private projection used by every saved database view. */
+  readonly structuredQueries?: DatabaseQueryService | undefined;
 }

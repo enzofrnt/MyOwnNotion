@@ -125,6 +125,19 @@ function operandFor(
 ): DomainResult<PreparedOperand | undefined> {
   if (criterion.operator === "is-empty" || criterion.operator === "is-not-empty")
     return ok(undefined);
+  if (property.type === "title") {
+    const operand = criterion.operand;
+    if (
+      typeof operand === "object" &&
+      operand !== null &&
+      operand.kind === "text" &&
+      typeof operand.value === "string" &&
+      Object.keys(operand).every((key) => key === "kind" || key === "value")
+    ) {
+      return ok({ kind: "text", value: operand.value });
+    }
+    return queryError(`filter.${criterion.id}`, "invalid-operand");
+  }
   if (criterion.operator === "between") {
     if (
       property.type !== "date" ||
@@ -170,7 +183,10 @@ function validOperator(property: DatabaseProperty, operator: FilterCriterion["op
   if (["equals", "not-equals", "is-empty", "is-not-empty"].includes(operator)) return true;
   if (operator === "contains" || operator === "not-contains") {
     return (
-      property.type === "text" || property.type === "multi-select" || property.type === "relation"
+      property.type === "title" ||
+      property.type === "text" ||
+      property.type === "multi-select" ||
+      property.type === "relation"
     );
   }
   if (operator === "before" || operator === "after" || operator === "between")

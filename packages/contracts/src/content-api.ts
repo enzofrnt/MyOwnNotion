@@ -856,6 +856,22 @@ export const DatabaseQueryPageSchema = Type.Object(
 );
 export type DatabaseQueryPageDto = Static<typeof DatabaseQueryPageSchema>;
 
+export const DatabaseProjectionUnavailableProblemSchema = Type.Intersect([
+  ProblemSchema,
+  Type.Object({
+    code: Type.Union([
+      Type.Literal("database.projection-building"),
+      Type.Literal("database.projection-degraded"),
+    ]),
+    projectionState: Type.Union([Type.Literal("building"), Type.Literal("degraded")]),
+    indexedCount: Type.Integer({ minimum: 0 }),
+    expectedCount: Type.Integer({ minimum: 0 }),
+  }),
+]);
+export type DatabaseProjectionUnavailableProblemDto = Static<
+  typeof DatabaseProjectionUnavailableProblemSchema
+>;
+
 export const CanonicalSnapshotSchema = Type.Object({
   workspaceId: UuidSchema,
   schemaVersion: Type.Integer({ minimum: 1 }),

@@ -104,16 +104,19 @@ export function ValueEditor({
   input,
   error,
   relationOptions = [],
+  idSuffix,
   onChange,
 }: {
   readonly property: DatabaseProperty;
   readonly input: ValueDraft;
   readonly error: string | null;
   readonly relationOptions?: readonly RelationOption[];
+  readonly idSuffix?: string;
   readonly onChange: (input: ValueDraft) => void;
 }) {
-  const errorId = `database-value-error-${property.id}`;
-  const controlId = `database-value-${property.id}`;
+  const suffix = idSuffix === undefined ? "" : `-${idSuffix}`;
+  const errorId = `database-value-error-${property.id}${suffix}`;
+  const controlId = `database-value-${property.id}${suffix}`;
   const describedBy = error === null ? undefined : errorId;
   let control: React.ReactNode;
 

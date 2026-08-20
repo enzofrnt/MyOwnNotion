@@ -25,6 +25,7 @@ import {
 } from "@myownnotion/database";
 import { isUuid, type MutationCommand, type Uuid } from "@myownnotion/domain";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { DatabaseQueryService } from "../databases/database-query-service.ts";
 import type { SearchService } from "../search/search-service.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { requestContext } from "../security/request-context.ts";
@@ -257,6 +258,8 @@ export async function handleMutation(input: {
   readonly rotationPolicies?: RotationPolicyService | undefined;
   /** Refreshes the transient index after, and only after, a canonical commit. */
   readonly search?: SearchService | undefined;
+  /** Refreshes the saved-view projection after, and only after, a canonical commit. */
+  readonly structuredQueries?: DatabaseQueryService | undefined;
   /** Allows feature routes to return their aggregate read model after commit. */
   readonly successBody?:
     | ((accepted: {
@@ -314,6 +317,21 @@ export async function handleMutation(input: {
     } catch {
       // The canonical write already committed. Search invalidates itself and
       // rebuilds; the owner still receives the successful mutation result.
+    }
+  }
+  if (
+    outcome.committedSequence !== undefined &&
+    outcome.changedItemIds !== undefined &&
+    input.structuredQueries !== undefined
+  ) {
+    try {
+      await input.structuredQueries.applyCommittedChanges(
+        outcome.changedItemIds,
+        outcome.committedSequence,
+      );
+    } catch {
+      // The canonical write already committed. The projection refuses stale
+      // completeness and starts a rebuild; the write response remains valid.
     }
   }
 

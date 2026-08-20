@@ -18,6 +18,50 @@ afterAll(async () => {
 });
 
 describe("mutation batch (idempotent submission)", () => {
+  it("advances the structured projection after accepted offline writes", async () => {
+    const itemId = generateUuidV7();
+    const calls: Array<{ itemIds: readonly string[]; sourceVersion: number }> = [];
+    const descriptor = Object.getOwnPropertyDescriptor(harness.built.context, "structuredQueries");
+    Object.defineProperty(harness.built.context, "structuredQueries", {
+      configurable: true,
+      value: {
+        async applyCommittedChanges(itemIds: readonly string[], sourceVersion: number) {
+          calls.push({ itemIds, sourceVersion });
+        },
+      },
+    });
+    try {
+      const response = await harness.built.app.inject({
+        method: "POST",
+        url: "/v1/mutations/batch",
+        payload: {
+          mutations: [
+            {
+              mutationId: generateUuidV7(),
+              commandType: "item.create",
+              baseRevisionIds: [],
+              payload: {
+                id: itemId,
+                kind: "folder",
+                name: "Projected queued folder",
+                placement: { kind: "hierarchy", parentItemId: null, positionKey: "U" },
+              },
+            },
+          ],
+        },
+      });
+
+      expect(response.statusCode, response.body).toBe(200);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.itemIds).toContain(itemId);
+      expect(calls[0]?.sourceVersion).toBeGreaterThan(0);
+    } finally {
+      if (descriptor !== undefined) {
+        Object.defineProperty(harness.built.context, "structuredQueries", descriptor);
+      }
+    }
+  });
+
   it("accepts queued mutations and returns per-mutation results", async () => {
     const mutationId = generateUuidV7();
     const response = await harness.built.app.inject({

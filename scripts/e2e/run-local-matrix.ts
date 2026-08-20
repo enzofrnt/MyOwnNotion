@@ -24,7 +24,7 @@
  * patched Firefox hangs before opening a page on the macOS development runtime.
  * That stack talks to the same PostgreSQL through `host.docker.internal` and
  * starts its own servers inside the container, so it needs a database of its own
- * and nothing else.
+ * plus host-side migration fixtures before the container starts.
  */
 
 import { spawn } from "node:child_process";
@@ -85,7 +85,7 @@ interface Stack {
   readonly project: string;
   readonly databaseName: string;
   readonly databaseUrl: string;
-  /** Absent for the container stack, which listens inside the container. */
+  /** Ports are absent for the container stack, which listens inside the container. */
   readonly apiPort?: number;
   readonly webPort?: number;
   readonly blobRoot?: string;
@@ -117,11 +117,20 @@ function planStacks(): Stack[] {
   return BROWSER_PROJECTS.map((project, index) => {
     const databaseName = `mon_e2e_${project.name.replaceAll("-", "_")}_${suffix}`;
     const inContainer = onMac && project.containerOnMac === true;
+    const blobRoot = path.join(repoRoot, ".dev-blobs-e2e", `${project.name}-${suffix}`);
+    const backupRoot = path.join(repoRoot, ".dev-backups-e2e", `${project.name}-${suffix}`);
+    const deploymentKeyFile = path.join(repoRoot, "secrets", `deployment-key.e2e-${project.name}`);
     if (inContainer) {
       return {
         project: project.name,
         databaseName,
         databaseUrl: databaseUrlFor(databaseName),
+        // Migrations run on the host for every isolated database, including
+        // Firefox's. The update guard needs the same disposable backup/key
+        // fixtures as host browser stacks before the container is launched.
+        blobRoot,
+        backupRoot,
+        deploymentKeyFile,
         inContainer: true,
       };
     }
@@ -131,9 +140,9 @@ function planStacks(): Stack[] {
       databaseUrl: databaseUrlFor(databaseName),
       apiPort: API_PORT_BASE + index,
       webPort: WEB_PORT_BASE + index,
-      blobRoot: path.join(repoRoot, ".dev-blobs-e2e", `${project.name}-${suffix}`),
-      backupRoot: path.join(repoRoot, ".dev-backups-e2e", `${project.name}-${suffix}`),
-      deploymentKeyFile: path.join(repoRoot, "secrets", `deployment-key.e2e-${project.name}`),
+      blobRoot,
+      backupRoot,
+      deploymentKeyFile,
       inContainer: false,
     };
   });

@@ -5,9 +5,14 @@ import {
   CreateEntryRequestSchema,
   DatabaseEntrySchema,
   DatabaseMutationResultSchema,
+  DatabaseProjectionUnavailableProblemSchema,
+  type DatabaseQueryDto,
+  DatabaseQueryPageSchema,
+  DatabaseQuerySchema,
   DatabaseSchema,
   DefinitionImpactSchema,
   EntryMutationResultSchema,
+  ProblemSchema,
   ReplaceDefinitionCandidateSchema,
   type ReplaceDefinitionRequestDto,
   ReplaceDefinitionRequestSchema,
@@ -28,6 +33,10 @@ import {
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
+import {
+  DatabaseProjectionUnavailableError,
+  DatabaseQueryRequestError,
+} from "../databases/database-query-service.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import { handleMutation } from "../plugins/mutations.ts";
 import {
@@ -112,6 +121,7 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
         search: context.search,
+        structuredQueries: context.structuredQueries,
         request,
         reply,
         successStatus: 201,
@@ -216,6 +226,7 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
         search: context.search,
+        structuredQueries: context.structuredQueries,
         request,
         reply,
         command: {
@@ -255,6 +266,7 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
         search: context.search,
+        structuredQueries: context.structuredQueries,
         request,
         reply,
         successStatus: 201,
@@ -315,6 +327,7 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
         protectedContent: context.protectedContent,
         rotationPolicies: context.rotationPolicies,
         search: context.search,
+        structuredQueries: context.structuredQueries,
         request,
         reply,
         command: {
@@ -331,6 +344,61 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
           entry: await readEntryDto(context, databaseId, entryId),
         }),
       });
+    },
+  );
+
+  app.post(
+    "/v1/databases/:databaseId/query",
+    {
+      schema: {
+        params: DatabaseParamsSchema,
+        body: DatabaseQuerySchema,
+        response: {
+          200: DatabaseQueryPageSchema,
+          400: ProblemSchema,
+          404: ProblemSchema,
+          409: ProblemSchema,
+          503: DatabaseProjectionUnavailableProblemSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { databaseId } = request.params as { databaseId: Uuid };
+      try {
+        const service = context.structuredQueries;
+        if (service === undefined) {
+          throw new DatabaseProjectionUnavailableError("building", 0, 0);
+        }
+        return reply.status(200).send(service.query(databaseId, request.body as DatabaseQueryDto));
+      } catch (error) {
+        if (error instanceof DatabaseProjectionUnavailableError) {
+          reply.header("retry-after", "1");
+          return reply
+            .status(503)
+            .header("content-type", "application/problem+json")
+            .send({
+              type: `https://myownnotion.dev/problems/${error.code}`,
+              title: "Complete database view is temporarily unavailable",
+              status: 503,
+              code: error.code,
+              projectionState: error.state,
+              indexedCount: error.indexedCount,
+              expectedCount: error.expectedCount,
+            });
+        }
+        if (error instanceof DatabaseQueryRequestError) {
+          return reply
+            .status(error.status)
+            .header("content-type", "application/problem+json")
+            .send({
+              type: `https://myownnotion.dev/problems/${error.code}`,
+              title: "Database query cannot be executed",
+              status: error.status,
+              code: error.code,
+            });
+        }
+        throw error;
+      }
     },
   );
 }
