@@ -18,6 +18,7 @@
   --ui-text-lg: 1.0625rem;
   --ui-text-xl: 1.25rem;
   --ui-text-2xl: clamp(1.75rem, 4vw, 2.5rem);
+  --ui-text-3xl: clamp(2.125rem, 5vw, 3rem);
   --ui-leading-tight: 1.2;
   --ui-leading-normal: 1.5;
   --ui-leading-relaxed: 1.65;
@@ -31,8 +32,11 @@
   --ui-space-4: 1rem;
   --ui-space-5: 1.25rem;
   --ui-space-6: 1.5rem;
+  --ui-space-7: 1.75rem;
   --ui-space-8: 2rem;
+  --ui-space-9: 2.25rem;
   --ui-space-10: 2.5rem;
+  --ui-space-11: 2.75rem;
   --ui-space-12: 3rem;
   --ui-target-compact: 2rem;
   --ui-target: 2.75rem;
@@ -49,6 +53,7 @@
   --ui-layer-content: 0;
   --ui-layer-sticky: 20;
   --ui-layer-menu: 40;
+  --ui-layer-overlay: 60;
   --ui-layer-drawer: 60;
   --ui-layer-dialog: 80;
   --ui-layer-toast: 100;
@@ -74,6 +79,7 @@
   --ui-color-text: #272521;
   --ui-color-text-muted: #66625b;
   --ui-color-text-subtle: #77726a;
+  --ui-color-text-disabled: #8c877e;
   --ui-color-text-inverse: #ffffff;
   --ui-color-accent: #2864dc;
   --ui-color-accent-hover: #1f55bf;
@@ -90,6 +96,7 @@
   --ui-color-info-soft: #e7f0fb;
   --ui-shadow-menu: 0 12px 34px rgb(30 28 24 / 16%), 0 2px 8px rgb(30 28 24 / 8%);
   --ui-shadow-dialog: 0 24px 70px rgb(30 28 24 / 24%), 0 4px 14px rgb(30 28 24 / 12%);
+  --ui-shadow-drag: 0 18px 46px rgb(30 28 24 / 22%), 0 3px 10px rgb(30 28 24 / 10%);
   --ui-focus-ring: 0 0 0 3px rgb(7 95 209 / 28%);
 
   /* Content colors belong to user content, not application status. */
@@ -111,6 +118,71 @@
   --ui-content-pink-soft: #f8e3ef;
   --ui-content-red: #ad3029;
   --ui-content-red-soft: #fae5e3;
+
+  /*
+   * Stable public API documented in contracts/ui-system.md. Internal `--ui-*`
+   * names let the implementation evolve without making feature styles depend
+   * on raw values; these aliases are the contract consumed by product surfaces.
+   */
+  --color-canvas: var(--ui-color-canvas);
+  --color-surface: var(--ui-color-surface);
+  --color-surface-raised: var(--ui-color-surface-raised);
+  --color-surface-subtle: var(--ui-color-surface-hover);
+  --color-text: var(--ui-color-text);
+  --color-text-muted: var(--ui-color-text-muted);
+  --color-text-disabled: var(--ui-color-text-disabled);
+  --color-border: var(--ui-color-border);
+  --color-border-strong: var(--ui-color-border-strong);
+  --color-accent: var(--ui-color-accent);
+  --color-accent-contrast: var(--ui-color-text-inverse);
+  --color-danger: var(--ui-color-danger);
+  --color-warning: var(--ui-color-warning);
+  --color-success: var(--ui-color-success);
+  --color-info: var(--ui-color-info);
+  --focus-ring: var(--ui-focus-ring);
+
+  --font-sans: var(--ui-font-sans);
+  --font-mono: var(--ui-font-mono);
+  --text-xs: var(--ui-text-xs);
+  --text-sm: var(--ui-text-sm);
+  --text-base: var(--ui-text-md);
+  --text-lg: var(--ui-text-lg);
+  --text-xl: var(--ui-text-xl);
+  --text-2xl: var(--ui-text-2xl);
+  --text-3xl: var(--ui-text-3xl);
+  --leading-tight: var(--ui-leading-tight);
+  --leading-normal: var(--ui-leading-normal);
+  --leading-relaxed: var(--ui-leading-relaxed);
+
+  --space-1: var(--ui-space-1);
+  --space-2: var(--ui-space-2);
+  --space-3: var(--ui-space-3);
+  --space-4: var(--ui-space-4);
+  --space-5: var(--ui-space-5);
+  --space-6: var(--ui-space-6);
+  --space-7: var(--ui-space-7);
+  --space-8: var(--ui-space-8);
+  --space-9: var(--ui-space-9);
+  --space-10: var(--ui-space-10);
+  --space-11: var(--ui-space-11);
+  --space-12: var(--ui-space-12);
+  --radius-sm: var(--ui-radius-sm);
+  --radius-md: var(--ui-radius-md);
+  --radius-lg: var(--ui-radius-lg);
+  --radius-pill: var(--ui-radius-round);
+  --shadow-popover: var(--ui-shadow-menu);
+  --shadow-dialog: var(--ui-shadow-dialog);
+  --shadow-drag: var(--ui-shadow-drag);
+  --layer-base: var(--ui-layer-content);
+  --layer-sticky: var(--ui-layer-sticky);
+  --layer-menu: var(--ui-layer-menu);
+  --layer-overlay: var(--ui-layer-overlay);
+  --layer-toast: var(--ui-layer-toast);
+  --motion-fast: var(--ui-duration-fast);
+  --motion-normal: var(--ui-duration-normal);
+  --motion-slow: var(--ui-duration-slow);
+  --ease-standard: var(--ui-ease-standard);
+  --ease-emphasized: var(--ui-ease-emphasized);
 
   /* Compatibility aliases for surfaces migrated after the shared system. */
   --bg: var(--ui-color-canvas);
@@ -143,6 +215,7 @@
   --ui-color-text: #f2f0eb;
   --ui-color-text-muted: #b9b5ad;
   --ui-color-text-subtle: #aaa69e;
+  --ui-color-text-disabled: #7e7a73;
   --ui-color-text-inverse: #191918;
   --ui-color-accent: #8eb2ff;
   --ui-color-accent-hover: #a9c5ff;
@@ -159,6 +232,7 @@
   --ui-color-info-soft: #253950;
   --ui-shadow-menu: 0 14px 38px rgb(0 0 0 / 42%), 0 2px 8px rgb(0 0 0 / 30%);
   --ui-shadow-dialog: 0 26px 76px rgb(0 0 0 / 58%), 0 4px 16px rgb(0 0 0 / 34%);
+  --ui-shadow-drag: 0 20px 52px rgb(0 0 0 / 54%), 0 3px 12px rgb(0 0 0 / 34%);
   --ui-focus-ring: 0 0 0 3px rgb(156 188 255 / 32%);
   --ui-content-gray: #c0bcb4;
   --ui-content-gray-soft: #3a3935;
@@ -197,6 +271,7 @@
     --ui-color-text: #f2f0eb;
     --ui-color-text-muted: #b9b5ad;
     --ui-color-text-subtle: #aaa69e;
+    --ui-color-text-disabled: #7e7a73;
     --ui-color-text-inverse: #191918;
     --ui-color-accent: #8eb2ff;
     --ui-color-accent-hover: #a9c5ff;
@@ -213,6 +288,7 @@
     --ui-color-info-soft: #253950;
     --ui-shadow-menu: 0 14px 38px rgb(0 0 0 / 42%), 0 2px 8px rgb(0 0 0 / 30%);
     --ui-shadow-dialog: 0 26px 76px rgb(0 0 0 / 58%), 0 4px 16px rgb(0 0 0 / 34%);
+    --ui-shadow-drag: 0 20px 52px rgb(0 0 0 / 54%), 0 3px 12px rgb(0 0 0 / 34%);
     --ui-focus-ring: 0 0 0 3px rgb(156 188 255 / 32%);
     --ui-content-gray: #c0bcb4;
     --ui-content-gray-soft: #3a3935;

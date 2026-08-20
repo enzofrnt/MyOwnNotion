@@ -40,6 +40,62 @@ function ThemeProbe() {
 }
 
 describe("theme provider", () => {
+  it("exposes every stable token from the public UI contract", () => {
+    const tokens = readFileSync(new URL("../src/ui/tokens.css", import.meta.url), "utf8");
+    const publicTokens = [
+      "color-canvas",
+      "color-surface",
+      "color-surface-raised",
+      "color-surface-subtle",
+      "color-text",
+      "color-text-muted",
+      "color-text-disabled",
+      "color-border",
+      "color-border-strong",
+      "color-accent",
+      "color-accent-contrast",
+      "color-danger",
+      "color-warning",
+      "color-success",
+      "color-info",
+      "focus-ring",
+      "font-sans",
+      "font-mono",
+      "text-xs",
+      "text-sm",
+      "text-base",
+      "text-lg",
+      "text-xl",
+      "text-2xl",
+      "text-3xl",
+      "leading-tight",
+      "leading-normal",
+      "leading-relaxed",
+      ...Array.from({ length: 12 }, (_, index) => `space-${index + 1}`),
+      "radius-sm",
+      "radius-md",
+      "radius-lg",
+      "radius-pill",
+      "shadow-popover",
+      "shadow-dialog",
+      "shadow-drag",
+      "layer-base",
+      "layer-sticky",
+      "layer-menu",
+      "layer-overlay",
+      "layer-toast",
+      "motion-fast",
+      "motion-normal",
+      "motion-slow",
+      "ease-standard",
+      "ease-emphasized",
+    ];
+
+    for (const token of publicTokens) {
+      expect(tokens, `missing --${token}`).toMatch(new RegExp(`--${token}\\s*:`));
+    }
+  });
+
   it("resolves explicit and system themes without overriding the explicit choice", () => {
     expect(resolveTheme("system", true)).toBe("dark");
     expect(resolveTheme("system", false)).toBe("light");
