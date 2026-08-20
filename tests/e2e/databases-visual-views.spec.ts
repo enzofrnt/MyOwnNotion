@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
-import { openWorkspace, uniqueName, waitForSynchronized } from "./helpers.ts";
+import { openWorkspace, saveEntryProperties, uniqueName, waitForSynchronized } from "./helpers.ts";
 
 async function addProperty(
   page: Page,
@@ -33,6 +33,7 @@ async function createEntry(
   await form.getByRole("button", { name: "New entry" }).click();
   const trigger = page.locator("[data-entry-trigger]").filter({ hasText: title }).first();
   await expect(trigger).toBeVisible({ timeout: 15_000 });
+  await waitForSynchronized(page);
   await trigger.click();
   const panel = page.locator(".entry-panel");
   await expect(panel).toBeVisible();
@@ -47,12 +48,7 @@ async function createEntry(
     await due.fill(values.due);
     await expect(due).toHaveValue(values.due);
   }
-  const save = panel.getByRole("button", { name: "Save properties" });
-  await save.click();
-  await expect(page.getByTestId("entry-properties-saved")).toHaveText("Properties saved locally.", {
-    timeout: 15_000,
-  });
-  await waitForSynchronized(page);
+  await saveEntryProperties(page);
   await page.getByRole("button", { name: "Close entry" }).click();
   await expect(trigger).toBeFocused({ timeout: 15_000 });
 }
@@ -62,6 +58,7 @@ async function createView(page: Page, buttonName: string, tabName: RegExp): Prom
   const tab = page.getByRole("tab", { name: tabName });
   await expect(tab).toBeVisible({ timeout: 15_000 });
   await expect(tab).toHaveAttribute("aria-selected", "true");
+  await waitForSynchronized(page);
 }
 
 test("uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts", async ({

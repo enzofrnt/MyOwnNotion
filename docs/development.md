@@ -221,15 +221,27 @@ without it.
 ### The browser matrix locally
 
 ```bash
-pnpm test:e2e:local          # fast feedback: projects in parallel
-pnpm test:e2e:gate           # the pre-push answer: one project at a time
-pnpm test:e2e:local -- --grep "live sync"   # arguments pass through
+pnpm test:e2e:local                          # fast feedback: two projects at a time
+pnpm test:e2e:gate                           # pre-push: one project at a time by default
+MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:gate    # full-width run on a capable machine
+pnpm test:e2e:local -- --grep "live sync"    # arguments pass through
 ```
 
 **Two commands, because they answer different questions.** `test:e2e:local` runs
 projects side by side and is what to use while working. `test:e2e:gate` is the
-same runner with one project at a time, and it is what `checks:local` runs before
-a push.
+same complete runner with one project at a time by default, and it is what
+`checks:local` runs before a push. It preserves an explicit
+`MYOWNNOTION_E2E_JOBS` value, so a machine already proven capable of full-width
+execution can run every isolated browser profile concurrently with:
+
+```bash
+MYOWNNOTION_E2E_JOBS=5 pnpm checks:local
+```
+
+Vitest already schedules its test files in parallel within each test layer.
+The command above therefore applies the remaining useful test parallelism to
+the five Playwright stacks; the non-test build, image, security and Compose
+gates retain their dependency order.
 
 The split is not caution, it is a measured limit: a handful of journeys cannot
 share a machine with another browser. The clearest is the keyboard-navigation
@@ -472,7 +484,7 @@ modes, before the first page is created. The symptom is a Firefox process at
 100% CPU with a `RenderCompositorSWGL failed mapping default framebuffer` log.
 This is a browser/runtime issue, not an application-test failure.
 
-`pnpm checks:local` invokes `pnpm test:e2e:local`. On macOS that wrapper runs
+`pnpm checks:local` invokes `pnpm test:e2e:gate`. On macOS that wrapper runs
 Chromium and WebKit directly, then runs Firefox in the official Playwright
 Linux container. The
 container uses the same Playwright version as the repository and reaches the
