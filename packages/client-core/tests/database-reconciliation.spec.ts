@@ -194,6 +194,7 @@ describe("structured reconciliation (T072)", () => {
     expect(transport.submissions).toHaveLength(2);
     const mergedSubmission = transport.submissions[1]?.[0];
     if (mergedSubmission === undefined) throw new Error("merged submission missing");
+    expect(mergedSubmission.mutationId).not.toBe(transport.submissions[0]?.[0]?.mutationId);
     const merged = (mergedSubmission.payload as Record<string, unknown>)[
       "definition"
     ] as DatabaseDefinition;
@@ -292,6 +293,7 @@ describe("structured reconciliation (T072)", () => {
     expect(mergedOutcome.conflicts).toBe(0);
     const mergedSubmission = transport.submissions[1]?.[0];
     if (mergedSubmission === undefined) throw new Error("merged submission missing");
+    expect(mergedSubmission.mutationId).not.toBe(transport.submissions[0]?.[0]?.mutationId);
     expect((mergedSubmission.payload as Record<string, unknown>)["values"]).toEqual({
       [seeded.textPropertyId]: { kind: "text", value: "local" },
       [seeded.numberPropertyId]: { kind: "number", decimal: "2" },

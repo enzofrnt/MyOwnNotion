@@ -162,8 +162,8 @@ de spécificité CSS déjà suivis sans erreur bloquante.
 ## Preuves US5 — stockage local structuré
 
 **Date**: 2026-08-20
-**État**: stockage, synchronisation, conflits et restauration validés ; parcours
-E2E multi-appareils à suivre
+**État**: stockage, synchronisation, conflits, restauration et parcours
+multi-appareils validés
 
 - La migration Dexie v5 vers v6 conserve le curseur existant et ajoute les
   stores protégés ainsi que l'index composé `databaseId/availability`.
@@ -295,3 +295,39 @@ Les 49 tests ciblés domaine/API, les 264 tests de sécurité, l'analyse statiqu
 réussissent. Les suites complètes repassent également avec 1 263 tests unitaires
 et 1 034 tests de contrat ; le lint ne conserve que les trois avertissements CSS
 préexistants.
+
+### Parcours complet hors ligne et deux appareils
+
+- Un premier appareil modifie hors ligne la définition, la présentation d'une
+  vue et une valeur, redémarre avec le réseau toujours coupé et retrouve ses
+  changements dans la projection locale protégée.
+- Un second appareil modifie un champ distinct. La reconnexion fusionne les deux
+  intentions sans intervention ; le rebase crée une nouvelle identité de
+  mutation afin que l'idempotence serveur ne rejoue pas le refus terminal de la
+  commande d'origine.
+- Deux changements incompatibles du même champ produisent un conflit durable.
+  L'écran de résolution présente ancêtre, local et distant, puis la résolution
+  choisie devient une révision à exactement deux parents.
+- Une valeur structurée déchargée conserve l'identité et l'appartenance de la
+  page, mais la vue hors ligne annonce explicitement `Local data partial: 0 of
+  1` et n'affiche pas une absence comme un résultat complet.
+- Chaque profil joint la mesure brute de propagation distante au rapport
+  Playwright. Cette mesure de parcours n'est pas utilisée seule comme preuve du
+  p95 de SC-004, qui appartient au benchmark de performance dédié.
+- Les diagnostics d'échec du parcours ne collectent que types de commande,
+  codes, identités de révision, chemins et raisons sûres ; aucune définition ni
+  valeur privée n'est attachée.
+
+| Couche | Preuve rejouée | Résultat |
+| --- | --- | --- |
+| Client local | Stockage, crash atomique, fusion, rebase, outbox et résolution | 42 tests réussis |
+| API | Flux ordonné, snapshot vérifié et export structuré | 12 tests réussis |
+| PostgreSQL | Change feed, sauvegarde de référence et garde de migration | 3 tests réussis |
+| Navigateur | Redémarrage offline, fusion, conflit, résolution, propagation et couverture partielle | 10 tests réussis sur 5 profils |
+
+La matrice navigateur a réussi sur Chromium desktop/mobile, WebKit
+desktop/mobile et Firefox desktop en 41 secondes. Le parcours a aussi révélé et
+verrouillé deux cas de compatibilité : une fusion rebasée ne réutilise plus
+l'identité d'une mutation déjà refusée, et la sauvegarde préalable à la
+migration 009 traite une installation antérieure aux tables structurées comme
+un export vide au lieu d'interroger des tables encore absentes.

@@ -82,6 +82,7 @@ class FakeTransport implements ReconcileTransport {
   submissions: QueuedMutationDto[][] = [];
   acceptedIds = new Set<string>();
   conflictIds = new Map<string, Uuid[]>();
+  terminalConflictIds = new Set<string>();
   changePages: ChangesResponseDto[] = [];
   snapshot: CanonicalSnapshotDto | null = null;
   compactedCursors = new Set<string>();
@@ -125,7 +126,11 @@ class FakeTransport implements ReconcileTransport {
         conflict !== undefined &&
         conflict.length > 0 &&
         conflict.every((revisionId) => mutation.baseRevisionIds.includes(revisionId));
-      if (conflict !== undefined && !rebasedOntoHead) {
+      if (
+        conflict !== undefined &&
+        (this.terminalConflictIds.has(mutation.mutationId) || !rebasedOntoHead)
+      ) {
+        this.terminalConflictIds.add(mutation.mutationId);
         return {
           mutationId: mutation.mutationId,
           status: "conflict" as const,
@@ -556,10 +561,13 @@ describe("the automatic merge (feature 006)", () => {
     // And what reached the server carried both sides. Asserting the outcome
     // alone would pass for a merge that quietly dropped one of them, which is
     // the failure worth catching.
-    const resubmitted = transport.submissions
+    const submitted = transport.submissions
       .flat()
-      .filter((submitted) => submitted.mutationId === mutationId);
-    const last = resubmitted[resubmitted.length - 1];
+      .filter(({ commandType }) => commandType === "page.document.replace");
+    expect(submitted).toHaveLength(2);
+    expect(submitted[0]?.mutationId).toBe(mutationId);
+    const last = submitted[1];
+    expect(last?.mutationId).not.toBe(mutationId);
     expect(last?.baseRevisionIds).toEqual([remoteId]);
     expect(JSON.stringify(last?.payload)).toContain("edited remotely");
     expect(JSON.stringify(last?.payload)).toContain("added locally");

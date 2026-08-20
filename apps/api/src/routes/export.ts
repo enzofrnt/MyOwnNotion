@@ -26,7 +26,7 @@ import {
   validateCanonicalExport,
 } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
@@ -47,6 +47,25 @@ import {
 export async function buildManifest(context: AppContext) {
   return context.db.transaction(
     async (tx) => {
+      // A pre-update backup is deliberately produced before pending migrations
+      // run. Feature 009's first such backup therefore sees the feature-007
+      // schema, where neither structured table exists yet. Treat that complete
+      // absence as an empty structured projection; a half-created pair remains
+      // an integrity failure because omitting it could hide canonical data.
+      const structuredSchema = await tx.execute<{
+        databases_exists: boolean;
+        entries_exists: boolean;
+      }>(sql`
+        SELECT
+          to_regclass('public.databases') IS NOT NULL AS databases_exists,
+          to_regclass('public.database_entries') IS NOT NULL AS entries_exists
+      `);
+      const availability = structuredSchema.rows[0];
+      if (availability?.databases_exists !== availability?.entries_exists) {
+        throw new Error("the structured database schema is only partially installed");
+      }
+      const structuredTablesAvailable = availability?.databases_exists === true;
+
       const sequence = await currentSequence(tx, context.workspaceId);
       const active = await listItems(tx, context.workspaceId, { lifecycle: "active" });
       const trashed = await listItems(tx, context.workspaceId, { lifecycle: "trashed" });
@@ -161,7 +180,9 @@ export async function buildManifest(context: AppContext) {
         })),
       );
 
-      const databaseRecords = await listDatabaseRecords(tx, context.workspaceId);
+      const databaseRecords = structuredTablesAvailable
+        ? await listDatabaseRecords(tx, context.workspaceId)
+        : [];
       const databases = [];
       const databaseEntries = [];
       for (const record of databaseRecords) {

@@ -128,6 +128,32 @@ describe("retry lifecycle", () => {
     expect(pending[0]?.status).toBe("pending");
   });
 
+  it("atomically replaces a terminally refused command with a fresh rebased identity", async () => {
+    const refusedMutationId = await enqueue("Needs a merge");
+    const replacementMutationId = generateUuidV7();
+    const newBaseRevisionId = generateUuidV7();
+    const refused = await outbox.get(refusedMutationId);
+    const localRevisionId = refused?.localRevisionIds[0] as Uuid;
+    await outbox.markSending([refusedMutationId]);
+
+    await outbox.requeueMerged(
+      refusedMutationId,
+      replacementMutationId,
+      { ...refused?.payload, name: "Merged" },
+      [newBaseRevisionId],
+    );
+
+    expect(await outbox.get(refusedMutationId)).toBeNull();
+    expect(await outbox.get(replacementMutationId)).toMatchObject({
+      mutationId: replacementMutationId,
+      status: "pending",
+      lastAttemptAt: null,
+      baseRevisionIds: [newBaseRevisionId],
+      localRevisionIds: refused?.localRevisionIds,
+    });
+    expect((await db.revisionHeaders.get(localRevisionId))?.mutationId).toBe(replacementMutationId);
+  });
+
   it("drops the optimistic local revision headers on acknowledgement", async () => {
     const mutationId = await enqueue("Accepted");
     const row = await outbox.get(mutationId);

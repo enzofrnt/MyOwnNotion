@@ -192,9 +192,9 @@ sauvegarde en retrouvant exactement l'état observable.
 - [x] T070 [P] [US5] Écrire les tests de migration Dexie v6, scellement, épinglage, déchargement et couverture après redémarrage dans packages/client-core/tests/database-local-store.spec.ts (FR-034 à FR-036)
 - [x] T071 [P] [US5] Écrire les tests de crash entre préparation/transaction, rejeu idempotent et absence d'état partiel dans packages/client-core/tests/database-local-mutation.spec.ts (FR-036, SC-005)
 - [x] T072 [P] [US5] Écrire les tests de fusion/rebase automatique et capture durable de conflit structuré dans packages/client-core/tests/database-reconciliation.spec.ts (FR-037 à FR-040)
-- [x] T073 [P] [US5] Écrire les tests contrat/intégration du change feed et snapshot avec digest couvrant définitions, entrées, valeurs et relations dans apps/api/tests/sync.contract.spec.ts et packages/database/tests/change-feed.integration.spec.ts (FR-039)
+- [x] T073 [P] [US5] Écrire les tests contrat/intégration du change feed et snapshot avec digest couvrant définitions, entrées, valeurs et relations dans apps/api/tests/reconciliation.contract.spec.ts et packages/database/tests/change-feed.integration.spec.ts (FR-039)
 - [x] T074 [P] [US5] Étendre les tests export, sauvegarde, validation et restauration de référence avec le modèle 009 dans apps/api/tests/export.contract.spec.ts et packages/database/tests/reference-backups.integration.spec.ts (FR-044, SC-008)
-- [ ] T075 [US5] Écrire le parcours Playwright deux appareils/offline/redémarrage/fusion/conflit/résolution/couverture partielle et collecter le délai de propagation distante dans tests/e2e/databases-offline-sync.spec.ts (acceptance US5, SC-004)
+- [x] T075 [US5] Écrire le parcours Playwright deux appareils/offline/redémarrage/fusion/conflit/résolution/couverture partielle et collecter le délai de propagation distante dans tests/e2e/databases-offline-sync.spec.ts (acceptance US5, SC-004)
 
 ### Implementation for User Story 5
 
@@ -209,7 +209,7 @@ sauvegarde en retrouvant exactement l'état observable.
 - [x] T084 [US5] Ajouter les nouvelles tables à la vidange/restauration transactionnelle, aux comptes et aux digests dans apps/api/src/backup/database-restore-target.ts et apps/api/src/backup/backup-service.ts pour satisfaire T074
 - [x] T085 [US5] Étendre la version de protocole et le mode lecture seule pour clients incompatibles dans packages/domain/src/sync/protocol-version.ts et apps/api/src/plugins/protocol.ts (FR-040)
 - [x] T086 [US5] Auditer/redacter valeurs, filtres, libellés et erreurs structurées dans apps/api/src/plugins/logging.ts, apps/api/src/routes/databases.ts et packages/domain/src/content/types.ts (FR-043, SC-009)
-- [ ] T087 [US5] Exécuter T070 à T075 et consigner reprise, convergence, conflits, sauvegarde et confidentialité dans specs/009-databases-structured-tasks/validation.md
+- [x] T087 [US5] Exécuter T070 à T075 et consigner reprise, convergence, conflits, sauvegarde et confidentialité dans specs/009-databases-structured-tasks/validation.md
 
 **Checkpoint**: Les bases restent utilisables localement, survivent au crash,
 rattrapent un autre appareil et restaurent toutes leurs identités sans perte.

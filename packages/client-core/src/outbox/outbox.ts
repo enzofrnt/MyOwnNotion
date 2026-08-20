@@ -1,10 +1,12 @@
 /**
  * Durable outbox with retry states (T041, US6, FR-039/FR-040).
  *
- * Rows keep their stable mutation ID through every retry — IDs are never
- * regenerated. `sending` marks an in-flight attempt and always recovers to
- * `pending` after an interrupted attempt (process restart or network loss),
- * so no mutation is lost or duplicated logically.
+ * Rows keep their stable mutation ID through every transport retry. A
+ * three-way merge is different: it creates a new command based on a newer
+ * revision, so it receives a new ID while replacing the refused row atomically.
+ * `sending` marks an in-flight attempt and always recovers to `pending` after
+ * an interrupted attempt (process restart or network loss), so no mutation is
+ * lost or duplicated logically.
  */
 import type { Uuid } from "@myownnotion/domain";
 import type {
@@ -88,24 +90,35 @@ export class Outbox {
    * The refused edit, merged with the head that beat it, queued again
    * (feature 006, FR-013).
    *
-   * Keeps the same mutation identity on purpose. The identity is what makes a
-   * resubmission idempotent, and a fresh one would let the original arrive later
-   * — from a retry the client already gave up on — and overwrite the merge with
-   * the version that lost.
-   *
-   * The row is rewritten rather than added beside the old one for the same
-   * reason: two rows for one intention are two writes, and the second would
-   * refuse for exactly the reason the first did.
+   * A rebase is a new command, not a transport retry. The server has already
+   * recorded the old ID's terminal conflict for idempotent replay, so reusing
+   * that ID would replay the refusal even though the payload now names the
+   * current head. Replacing the row atomically means only the new command can
+   * be submitted; a late delivery of the old ID can only replay its rejection.
    */
   async requeueMerged(
     mutationId: Uuid,
+    replacementMutationId: Uuid,
     payload: Record<string, unknown>,
     baseRevisionIds: Uuid[],
   ): Promise<void> {
-    await this.#db.outbox.update(mutationId, {
-      status: "pending" as OutboxStatus,
-      payload,
-      baseRevisionIds,
+    await this.#db.transaction("rw", [this.#db.outbox, this.#db.revisionHeaders], async () => {
+      const row = await this.#db.outbox.get(mutationId);
+      if (row === undefined) return;
+      await this.#db.outbox.delete(mutationId);
+      await this.#db.outbox.put({
+        ...row,
+        mutationId: replacementMutationId,
+        status: "pending" as OutboxStatus,
+        payload,
+        baseRevisionIds,
+        lastAttemptAt: null,
+      });
+      for (const localRevisionId of row.localRevisionIds) {
+        await this.#db.revisionHeaders.update(localRevisionId, {
+          mutationId: replacementMutationId,
+        });
+      }
     });
   }
 

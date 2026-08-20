@@ -22,12 +22,13 @@ import {
   type BlockDocument,
   type DatabaseDefinition,
   type EntryValues,
+  generateUuidV7,
   mergeDatabaseDefinitions,
   mergeDocuments,
   mergeEntryValues,
   mergeRelationTargets,
-  readDocumentBody,
   type RelationTargets,
+  readDocumentBody,
   type Uuid,
 } from "@myownnotion/domain";
 import { LocalRepository } from "../local-store/local-repository.ts";
@@ -359,11 +360,17 @@ export async function reconcile(
                 (result.competingRevisionIds ?? []) as Uuid[],
               );
         if (merged?.kind === "merged") {
-          alreadyMerged.add(mutationId);
+          const replacementMutationId = generateUuidV7();
+          alreadyMerged.add(replacementMutationId);
           // Requeued as an ordinary edit based on the head that beat it. Not as
           // a resolution: nothing needed deciding, so recording a two-parent
           // revision would put a conflict in the history that never happened.
-          await outbox.requeueMerged(mutationId, merged.payload, merged.baseRevisionIds);
+          await outbox.requeueMerged(
+            mutationId,
+            replacementMutationId,
+            merged.payload,
+            merged.baseRevisionIds,
+          );
           continue;
         }
         conflicts += 1;
