@@ -221,27 +221,27 @@ without it.
 ### The browser matrix locally
 
 ```bash
-pnpm test:e2e:local                          # fast feedback: two projects at a time
-pnpm test:e2e:gate                           # pre-push: one project at a time by default
-MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:gate    # full-width run on a capable machine
-pnpm test:e2e:local -- --grep "live sync"    # arguments pass through
+pnpm test:e2e:local                       # fast feedback: two projects at a time
+pnpm test:e2e:gate                        # pre-push: complete matrix, two at a time
+pnpm test:e2e:local -- --grep "live sync" # arguments pass through
+MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts
 ```
 
-**Two commands, because they answer different questions.** `test:e2e:local` runs
-projects side by side and is what to use while working. `test:e2e:gate` is the
-same complete runner with one project at a time by default, and it is what
-`checks:local` runs before a push. It preserves an explicit
-`MYOWNNOTION_E2E_JOBS` value, so a machine already proven capable of full-width
-execution can run every isolated browser profile concurrently with:
+**Two commands, because they answer different questions.** Both use isolated
+stacks and run two projects concurrently by default. `test:e2e:local` is the
+fast feedback command while working; `test:e2e:gate` runs the same complete
+matrix from `checks:local` before a push and preserves an explicit
+`MYOWNNOTION_E2E_JOBS` value.
 
-```bash
-MYOWNNOTION_E2E_JOBS=5 pnpm checks:local
-```
-
-Vitest already schedules its test files in parallel within each test layer.
-The command above therefore applies the remaining useful test parallelism to
-the five Playwright stacks; the non-test build, image, security and Compose
-gates retain their dependency order.
+Vitest already schedules its test files in parallel within each test layer. For
+a focused Playwright relaunch, setting `MYOWNNOTION_E2E_JOBS=5` runs the selected
+journey on all five isolated browser profiles at once; this is the fastest way
+to confirm a targeted correction. Do not use width five for the complete
+Playwright corpus: on the reference fourteen-core laptop, five full stacks
+exhaust the browser/dev-server budget, prevent WebKit pages from loading and
+can deadlock test cleanup. The complete pre-push gate therefore uses the
+measured repeatable width of two. The non-test build, image, security and
+Compose gates retain their dependency order.
 
 The split is not caution, it is a measured limit: a handful of journeys cannot
 share a machine with another browser. The clearest is the keyboard-navigation
