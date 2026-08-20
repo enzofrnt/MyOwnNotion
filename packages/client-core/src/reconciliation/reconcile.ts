@@ -314,6 +314,13 @@ export async function reconcile(
           schemaVersion: snapshot.value.schemaVersion,
           cursor: snapshot.value.cursor,
           items: snapshot.value.items as ItemDto[],
+          relationships: snapshot.value.relationships,
+          ...(snapshot.value.databases === undefined
+            ? {}
+            : { databases: snapshot.value.databases }),
+          ...(snapshot.value.databaseEntries === undefined
+            ? {}
+            : { databaseEntries: snapshot.value.databaseEntries }),
         });
         usedSnapshotFallback = true;
         cursor = snapshot.value.cursor;
@@ -331,12 +338,21 @@ export async function reconcile(
       };
     }
 
-    const changedItems = page.value.changes.flatMap((change) => change.changedItems ?? []);
-    if (changedItems.length > 0) {
-      await repository.applyServerItems(changedItems as ItemDto[]);
+    for (const change of page.value.changes) {
+      await repository.applyServerChange({
+        cursor: String(change.sequence),
+        items: (change.changedItems ?? []) as ItemDto[],
+        ...(change.relationships === undefined ? {} : { relationships: change.relationships }),
+        ...(change.databases === undefined ? {} : { databases: change.databases }),
+        ...(change.databaseEntries === undefined
+          ? {}
+          : { databaseEntries: change.databaseEntries }),
+      });
     }
     cursor = page.value.nextCursor;
-    await repository.setMeta(META_KEYS.lastChangeCursor, cursor);
+    if (page.value.changes.length === 0) {
+      await repository.setMeta(META_KEYS.lastChangeCursor, cursor);
+    }
     if (!page.value.hasMore) {
       break;
     }

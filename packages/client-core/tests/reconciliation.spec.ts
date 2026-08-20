@@ -7,6 +7,7 @@ import type { LocalRecordCodec } from "@myownnotion/client-core";
 import {
   applyLocalMutation,
   type LocalDatabase,
+  LocalDatabaseRepository,
   LocalRepository,
   Outbox,
   openLocalDatabase,
@@ -20,7 +21,7 @@ import type {
   QueuedMutationDto,
   QueuedMutationResultDto,
 } from "@myownnotion/contracts";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { createInitialDatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestCodec } from "./helpers/codec.ts";
 
@@ -281,6 +282,85 @@ describe("reconciliation (T044)", () => {
     expect(await repository.getLastChangeCursor()).toBe("2");
     expect((await repository.getItem(itemA.id as Uuid))?.name).toBe("From changes A");
     expect((await repository.getItem(itemB.id as Uuid))?.name).toBe("From changes B");
+  });
+
+  it("applies items, structured payloads and relationships at the same cursor", async () => {
+    const transport = new FakeTransport();
+    const databaseItem = serverItem("Structured database");
+    const entryItem = serverItem("Structured entry");
+    const targetItem = serverItem("Structured target");
+    const definition = createInitialDatabaseDefinition({
+      type: "database.create",
+      id: databaseItem.id as Uuid,
+      name: databaseItem.name,
+      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "Table",
+    });
+    const relationshipId = generateUuidV7();
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 9,
+            mutationId: generateUuidV7(),
+            revisionIds: [generateUuidV7()],
+            changedItems: [databaseItem, entryItem, targetItem],
+            relationships: [
+              {
+                id: relationshipId,
+                sourceItemId: entryItem.id,
+                targetItemId: targetItem.id,
+                relationType: "database:property",
+                metadata: { databaseId: databaseItem.id, propertyId: generateUuidV7() },
+                createdRevisionId: generateUuidV7(),
+                removedRevisionId: null,
+              },
+            ],
+            databases: [
+              {
+                itemId: databaseItem.id,
+                definitionVersion: 1,
+                definition: definition as never,
+              },
+            ],
+            databaseEntries: [
+              {
+                entryItemId: entryItem.id,
+                databaseId: databaseItem.id,
+                valueVersion: 1,
+                values: {
+                  format: "myownnotion.database-entry-values+json",
+                  formatVersion: 1,
+                  databaseId: databaseItem.id,
+                  entryId: entryItem.id,
+                  values: {},
+                  preserved: [],
+                },
+              },
+            ],
+          },
+        ],
+        nextCursor: "9",
+        hasMore: false,
+      },
+    ];
+
+    const outcome = await reconcile(db, transport, codec);
+    const structured = new LocalDatabaseRepository(db, codec);
+
+    expect(outcome.caughtUpTo).toBe("9");
+    expect((await structured.getDatabase(databaseItem.id as Uuid))?.definition).toEqual(definition);
+    expect(await structured.getEntry(entryItem.id as Uuid)).toMatchObject({
+      databaseId: databaseItem.id,
+      availability: "present",
+    });
+    expect(await db.relationships.get(relationshipId)).toMatchObject({
+      sourceItemId: entryItem.id,
+      targetItemId: targetItem.id,
+    });
+    expect(await repository.getLastChangeCursor()).toBe("9");
   });
 
   it("a compacted cursor rebuilds from the verified snapshot without touching the outbox", async () => {

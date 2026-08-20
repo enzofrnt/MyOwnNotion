@@ -719,6 +719,36 @@ components:
         changedItems:
           type: array
           items: { $ref: '#/components/schemas/Item' }
+        relationships:
+          type: array
+          items: { $ref: '#/components/schemas/Relationship' }
+        databases:
+          type: array
+          items: { $ref: '#/components/schemas/DatabaseProjection' }
+        databaseEntries:
+          type: array
+          items: { $ref: '#/components/schemas/DatabaseEntryProjection' }
+    DatabaseProjection:
+      type: object
+      required: [itemId, definitionVersion, definition]
+      properties:
+        itemId: { $ref: '#/components/schemas/Uuid' }
+        definitionVersion: { type: integer, minimum: 1 }
+        definition:
+          type: object
+          description: Opened DatabaseDefinition payload defined by feature 009.
+      additionalProperties: false
+    DatabaseEntryProjection:
+      type: object
+      required: [entryItemId, databaseId, valueVersion, values]
+      properties:
+        entryItemId: { $ref: '#/components/schemas/Uuid' }
+        databaseId: { $ref: '#/components/schemas/Uuid' }
+        valueVersion: { type: integer, minimum: 1 }
+        values:
+          type: object
+          description: Full opened EntryValues payload, including preserved values.
+      additionalProperties: false
     QueuedMutation:
       type: object
       required: [mutationId, commandType, baseRevisionIds, payload]
@@ -757,6 +787,12 @@ components:
         relationships:
           type: array
           items: { $ref: '#/components/schemas/Relationship' }
+        databases:
+          type: array
+          items: { $ref: '#/components/schemas/DatabaseProjection' }
+        databaseEntries:
+          type: array
+          items: { $ref: '#/components/schemas/DatabaseEntryProjection' }
     ExportStatus:
       type: object
       required: [exportId, status]

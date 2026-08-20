@@ -32,6 +32,7 @@ import {
   type DatabaseRecord,
   type ItemReadModel,
   listDatabasePropertyRelationships,
+  type RelationshipListing,
   readCurrentDatabaseDefinition,
   readCurrentDatabaseEntryValues,
   SCRUBBED_PLACEHOLDER,
@@ -161,4 +162,22 @@ export async function resolveDatabaseRelationTargets(
   return Object.fromEntries(
     [...targets].map(([propertyId, propertyTargets]) => [propertyId, propertyTargets.sort()]),
   ) as RelationTargets;
+}
+
+/** Opens protected relationship metadata while preserving structural fields. */
+export async function resolveProtectedRelationships(
+  executor: Database | Transaction,
+  relationships: readonly RelationshipListing[],
+  content: ProtectedContent | undefined,
+): Promise<RelationshipListing[]> {
+  if (content === undefined) return [...relationships];
+  const resolved: RelationshipListing[] = [];
+  for (const relationship of relationships) {
+    const metadata = await content.readRelationshipMetadata<Record<string, unknown>>(
+      executor,
+      relationship.id,
+    );
+    resolved.push({ ...relationship, metadata: metadata ?? relationship.metadata });
+  }
+  return resolved;
 }

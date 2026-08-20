@@ -181,3 +181,23 @@ de spécificité CSS déjà suivis sans erreur bloquante.
 
 Les 9 tests ciblés de stockage et mutation locale réussissent, ainsi que le
 typecheck complet du monorepo.
+
+### Transport et application atomique du rattrapage
+
+- Le change feed transporte avec chaque séquence les items affectés, les
+  relations actives, les définitions versionnées et les appartenances avec le
+  payload `EntryValues` complet. Les nouveaux champs restent optionnels à la
+  lecture pour accepter un serveur antérieur à 009.
+- Le snapshot émet toujours les quatre ensembles triés. Son SHA-256 utilise un
+  ordre canonique des clés, donc il est recalculable depuis la réponse JSON et
+  ne dépend pas de l'ordre interne des objets TypeScript.
+- Les métadonnées de relation, définitions et valeurs sont ouvertes par la même
+  couche protégée que les lectures unitaires avant d'entrer dans le transport.
+- Dexie prépare les enveloppes avant la transaction, remplace les ensembles
+  canoniques et le curseur ensemble, et ne touche ni à l'outbox ni aux conflits.
+  Une enveloppe de changement remplace aussi l'ensemble sortant de relations de
+  sa source, ce qui transporte une suppression sans faux état intermédiaire.
+
+Le test contrat API complet de réconciliation (11 scénarios), le test
+d'intégration PostgreSQL du change feed, les 22 tests ciblés de projection et
+réconciliation locale, ainsi que le typecheck complet réussissent.

@@ -308,21 +308,6 @@ export const MutationResultSchema = Type.Object({
 });
 export type MutationResultDto = Static<typeof MutationResultSchema>;
 
-export const ChangeEnvelopeSchema = Type.Object({
-  sequence: Type.Integer({ minimum: 1 }),
-  mutationId: UuidSchema,
-  revisionIds: Type.Array(UuidSchema),
-  changedItems: Type.Optional(Type.Array(ItemSchema)),
-});
-export type ChangeEnvelopeDto = Static<typeof ChangeEnvelopeSchema>;
-
-export const ChangesResponseSchema = Type.Object({
-  changes: Type.Array(ChangeEnvelopeSchema),
-  nextCursor: Type.String(),
-  hasMore: Type.Boolean(),
-});
-export type ChangesResponseDto = Static<typeof ChangesResponseSchema>;
-
 export const QueuedMutationSchema = Type.Object(
   {
     mutationId: UuidSchema,
@@ -795,6 +780,91 @@ export const DatabaseEntrySchema = Type.Object(
 );
 export type DatabaseEntryDto = Static<typeof DatabaseEntrySchema>;
 
+/** Full protected value payload used by snapshots and change catch-up. */
+export const DatabaseEntryValuesPayloadSchema = Type.Object(
+  {
+    format: Type.Literal("myownnotion.database-entry-values+json"),
+    formatVersion: Type.Literal(1),
+    databaseId: UuidSchema,
+    entryId: UuidSchema,
+    values: DatabaseValuesMapSchema,
+    preserved: Type.Array(
+      Type.Object(
+        {
+          propertyId: UuidSchema,
+          sourceType: Type.Union(
+            [
+              "title",
+              "text",
+              "number",
+              "date",
+              "status",
+              "select",
+              "multi-select",
+              "checkbox",
+              "relation",
+            ].map((type) => Type.Literal(type)),
+          ),
+          value: Type.Unknown(),
+          preservedAtRevisionId: UuidSchema,
+          reason: Type.Union([
+            Type.Literal("incompatible-conversion"),
+            Type.Literal("retired-property"),
+            Type.Literal("retired-option"),
+          ]),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+export type DatabaseEntryValuesPayloadDto = Static<typeof DatabaseEntryValuesPayloadSchema>;
+
+/** Exact local-projection row carried by sync, without duplicating item data. */
+export const DatabaseProjectionSchema = Type.Object(
+  {
+    itemId: UuidSchema,
+    definitionVersion: Type.Integer({ minimum: 1 }),
+    definition: DatabaseDefinitionSchema,
+  },
+  { additionalProperties: false },
+);
+export type DatabaseProjectionDto = Static<typeof DatabaseProjectionSchema>;
+
+export const DatabaseEntryProjectionSchema = Type.Object(
+  {
+    entryItemId: UuidSchema,
+    databaseId: UuidSchema,
+    valueVersion: Type.Integer({ minimum: 1 }),
+    values: DatabaseEntryValuesPayloadSchema,
+  },
+  { additionalProperties: false },
+);
+export type DatabaseEntryProjectionDto = Static<typeof DatabaseEntryProjectionSchema>;
+
+/**
+ * New projection sets are optional so a newer client can still read a feed
+ * produced before structured databases existed.
+ */
+export const ChangeEnvelopeSchema = Type.Object({
+  sequence: Type.Integer({ minimum: 1 }),
+  mutationId: UuidSchema,
+  revisionIds: Type.Array(UuidSchema),
+  changedItems: Type.Optional(Type.Array(ItemSchema)),
+  relationships: Type.Optional(Type.Array(RelationshipSchema)),
+  databases: Type.Optional(Type.Array(DatabaseProjectionSchema)),
+  databaseEntries: Type.Optional(Type.Array(DatabaseEntryProjectionSchema)),
+});
+export type ChangeEnvelopeDto = Static<typeof ChangeEnvelopeSchema>;
+
+export const ChangesResponseSchema = Type.Object({
+  changes: Type.Array(ChangeEnvelopeSchema),
+  nextCursor: Type.String(),
+  hasMore: Type.Boolean(),
+});
+export type ChangesResponseDto = Static<typeof ChangesResponseSchema>;
+
 export const DatabaseMutationResultSchema = Type.Object(
   {
     mutationId: UuidSchema,
@@ -882,6 +952,10 @@ export const CanonicalSnapshotSchema = Type.Object({
   digest: Type.String({ pattern: "^[a-f0-9]{64}$" }),
   items: Type.Array(ItemSchema),
   relationships: Type.Array(RelationshipSchema),
+  // Optional for reading snapshots emitted before feature 009. New servers
+  // always send both arrays, including when they are empty.
+  databases: Type.Optional(Type.Array(DatabaseProjectionSchema)),
+  databaseEntries: Type.Optional(Type.Array(DatabaseEntryProjectionSchema)),
 });
 export type CanonicalSnapshotDto = Static<typeof CanonicalSnapshotSchema>;
 

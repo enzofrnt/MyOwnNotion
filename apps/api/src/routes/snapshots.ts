@@ -9,13 +9,37 @@ import { createHash } from "node:crypto";
 import { CanonicalSnapshotSchema } from "@myownnotion/contracts";
 import {
   currentSequence,
+  listDatabaseEntryRecords,
+  listDatabaseRecords,
   listItems,
   listRelationships,
   sequenceToCursor,
 } from "@myownnotion/database";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
-import { resolveProtectedContent } from "../security/content-resolution.ts";
+import {
+  resolveProtectedContent,
+  resolveProtectedRelationships,
+} from "../security/content-resolution.ts";
+import {
+  resolveDatabaseEntryProjections,
+  resolveDatabaseProjections,
+} from "../sync/structured-payload.ts";
+
+/** Stable object-key order; array order is canonicalized by each projection set. */
+function canonicalSnapshotString(value: unknown): string {
+  return JSON.stringify(value, (_key, candidate: unknown) => {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) {
+      return candidate;
+    }
+    const record = candidate as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, record[key]]),
+    );
+  });
+}
 
 export function registerSnapshotRoutes(app: FastifyInstance, context: AppContext): void {
   app.get(
@@ -41,16 +65,39 @@ export function registerSnapshotRoutes(app: FastifyInstance, context: AppContext
           [...active, ...trashed].sort((a, b) => (a.id < b.id ? -1 : 1)),
           context.protectedContent,
         );
-        const relationships = await listRelationships(tx, context.workspaceId);
+        const databaseRecords = await listDatabaseRecords(tx, context.workspaceId);
+        const entryRecords = (
+          await Promise.all(
+            databaseRecords.map((record) => listDatabaseEntryRecords(tx, record.databaseId)),
+          )
+        ).flat();
+        const [relationships, databases, databaseEntries] = await Promise.all([
+          resolveProtectedRelationships(
+            tx,
+            await listRelationships(tx, context.workspaceId),
+            context.protectedContent,
+          ).then((rows) => rows.sort((left, right) => left.id.localeCompare(right.id))),
+          resolveDatabaseProjections(tx, databaseRecords, context.protectedContent),
+          resolveDatabaseEntryProjections(tx, entryRecords, context.protectedContent),
+        ]);
         const payload = {
           workspaceId: context.workspaceId,
           schemaVersion: context.schemaVersion,
           cursor: sequenceToCursor(sequence),
           items,
           relationships,
+          databases,
+          databaseEntries,
         };
         const digest = createHash("sha256")
-          .update(JSON.stringify({ items: payload.items, relationships: payload.relationships }))
+          .update(
+            canonicalSnapshotString({
+              items: payload.items,
+              relationships: payload.relationships,
+              databases: payload.databases,
+              databaseEntries: payload.databaseEntries,
+            }),
+          )
           .digest("hex");
         return { ...payload, digest };
       });

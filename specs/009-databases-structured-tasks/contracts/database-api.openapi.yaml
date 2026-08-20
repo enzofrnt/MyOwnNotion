@@ -806,6 +806,68 @@ components:
         relationTargets:
           $ref: "#/components/schemas/RelationTargetsMap"
 
+    DatabaseProjection:
+      type: object
+      additionalProperties: false
+      required: [itemId, definitionVersion, definition]
+      description: Complete opened database row transported by change feed and snapshots.
+      properties:
+        itemId:
+          $ref: "#/components/schemas/Uuid"
+        definitionVersion:
+          type: integer
+          minimum: 1
+        definition:
+          $ref: "#/components/schemas/DatabaseDefinition"
+
+    EntryValuesPayload:
+      type: object
+      additionalProperties: false
+      required: [format, formatVersion, databaseId, entryId, values, preserved]
+      properties:
+        format:
+          const: myownnotion.database-entry-values+json
+        formatVersion:
+          const: 1
+        databaseId:
+          $ref: "#/components/schemas/Uuid"
+        entryId:
+          $ref: "#/components/schemas/Uuid"
+        values:
+          $ref: "#/components/schemas/ValuesMap"
+        preserved:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [propertyId, sourceType, value, preservedAtRevisionId, reason]
+            properties:
+              propertyId:
+                $ref: "#/components/schemas/Uuid"
+              sourceType:
+                enum: [title, text, number, date, status, select, multi-select, checkbox, relation]
+              value: {}
+              preservedAtRevisionId:
+                $ref: "#/components/schemas/Uuid"
+              reason:
+                enum: [incompatible-conversion, retired-property, retired-option]
+
+    DatabaseEntryProjection:
+      type: object
+      additionalProperties: false
+      required: [entryItemId, databaseId, valueVersion, values]
+      description: Complete opened entry membership transported by change feed and snapshots.
+      properties:
+        entryItemId:
+          $ref: "#/components/schemas/Uuid"
+        databaseId:
+          $ref: "#/components/schemas/Uuid"
+        valueVersion:
+          type: integer
+          minimum: 1
+        values:
+          $ref: "#/components/schemas/EntryValuesPayload"
+
     DatabaseQuery:
       type: object
       additionalProperties: false
