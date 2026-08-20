@@ -255,17 +255,17 @@ sans geste de pointeur obligatoire ni perte de contexte.
 **Purpose**: Fermer cycle de vie, sécurité, documentation, navigateurs et gates
 avant publication.
 
-- [ ] T102 [P] Écrire les tests de mise à la corbeille/restauration atomique d'une base et de ses entrées, rollback et réaction au tombstone purged dans packages/database/tests/database-lifecycle.integration.spec.ts et packages/client-core/tests/database-query.spec.ts (FR-045, FR-046)
-- [ ] T103 Implémenter aperçu, révisions multiples et transaction de corbeille/restauration de base dans packages/database/src/mutations/database-commands.ts, apps/api/src/routes/items.ts et packages/client-core/src/outbox/apply-to-projection.ts pour satisfaire T102
-- [ ] T104 [P] Étendre les tests sécurité avec sentinelles PostgreSQL, IndexedDB, URL, logs, erreurs, export et sauvegarde dans apps/api/tests/database-security.spec.ts et tests/e2e/databases-security.spec.ts (FR-043, SC-009)
-- [ ] T105 [P] Mettre à jour docs/architecture/databases.md avec modèle page-capacité, chiffrement, projection, conflits, exploitation, limites et reconstruction
-- [ ] T106 [P] Mettre à jour docs/development.md avec commandes ciblées, migration 0007 et benchmark 009 sans dupliquer quickstart.md
-- [ ] T107 [P] Mettre à jour docs/product/roadmap.md pour relier 009 à ses artefacts et refléter son état de livraison sans modifier les frontières 010 à 015
-- [ ] T108 Vérifier que chaque nouveau test/consommateur possède un propriétaire minimal dans ci/test-impact.json et tests/contract/test-impact.spec.ts
-- [ ] T109 Exécuter tous les scénarios de specs/009-databases-structured-tasks/quickstart.md et consigner les résultats utiles dans specs/009-databases-structured-tasks/validation.md
-- [ ] T110 Exécuter format, lint, typecheck, unit, property, integration, migration, contract, security, performance et la matrice Playwright ciblée, corriger chaque échec et consigner le résultat dans specs/009-databases-structured-tasks/validation.md
+- [X] T102 [P] Écrire les tests de mise à la corbeille/restauration atomique d'une base et de ses entrées, rollback et réaction au tombstone purged dans packages/database/tests/database-lifecycle.integration.spec.ts et packages/client-core/tests/database-query.spec.ts (FR-045, FR-046)
+- [X] T103 Implémenter aperçu, révisions multiples et transaction de corbeille/restauration de base dans packages/database/src/mutations/database-commands.ts, apps/api/src/routes/items.ts et packages/client-core/src/outbox/apply-to-projection.ts pour satisfaire T102
+- [X] T104 [P] Étendre les tests sécurité avec sentinelles PostgreSQL, IndexedDB, URL, logs, erreurs, export et sauvegarde dans apps/api/tests/database-security.spec.ts et tests/e2e/databases-security.spec.ts (FR-043, SC-009)
+- [X] T105 [P] Mettre à jour docs/architecture/databases.md avec modèle page-capacité, chiffrement, projection, conflits, exploitation, limites et reconstruction
+- [X] T106 [P] Mettre à jour docs/development.md avec commandes ciblées, migration 0007 et benchmark 009 sans dupliquer quickstart.md
+- [X] T107 [P] Mettre à jour docs/product/roadmap.md pour relier 009 à ses artefacts et refléter son état de livraison sans modifier les frontières 010 à 015
+- [X] T108 Vérifier que chaque nouveau test/consommateur possède un propriétaire minimal dans ci/test-impact.json et tests/contract/test-impact.spec.ts
+- [X] T109 Exécuter tous les scénarios de specs/009-databases-structured-tasks/quickstart.md et consigner les résultats utiles dans specs/009-databases-structured-tasks/validation.md
+- [X] T110 Exécuter format, lint, typecheck, unit, property, integration, migration, contract, security, performance et la matrice Playwright ciblée, corriger chaque échec et consigner le résultat dans specs/009-databases-structured-tasks/validation.md
 - [ ] T111 Exécuter pnpm checks:local sur le commit final exact conformément à docs/development.md et enregistrer le résultat dans specs/009-databases-structured-tasks/validation.md
-- [ ] T112 Lancer speckit-converge, ajouter toute tâche manquante à specs/009-databases-structured-tasks/tasks.md, l'implémenter et ne laisser aucune case ouverte avant le push
+- [X] T112 Lancer speckit-converge, ajouter toute tâche manquante à specs/009-databases-structured-tasks/tasks.md, l'implémenter et ne laisser aucune case ouverte avant le push
 
 ---
 
@@ -395,6 +395,11 @@ T093 performance
 
 ## Task Format Validation
 
-Les 112 tâches suivent le format checklist obligatoire : case, identifiant
+Les 114 tâches suivent le format checklist obligatoire : case, identifiant
 séquentiel, marqueur `[P]` uniquement si parallélisable, label `[USn]` dans
 les phases de story et chemin de fichier explicite.
+
+## Phase 9: Convergence
+
+- [X] T113 Centraliser les libellés, erreurs et annonces des surfaces 009 derrière un catalogue suivant la langue anglaise active, utiliser les formats de la locale active, y raccorder les appels 009 depuis apps/web/src/features/hierarchy/hierarchy-explorer.tsx et prouver que les identités/valeurs canoniques ne dépendent pas des copies dans apps/web/src/features/databases/ et tests/e2e/, conformément à FR-050 et au passage français transversal porté par la release (partial)
+- [X] T114 Étendre tests/performance/databases.perf.spec.ts à la fixture de référence de 40 propriétés, 20 vues et 100 000 relations, puis consigner la preuve dans specs/009-databases-structured-tasks/validation.md conformément à T109 et quickstart.md §11 (partial)

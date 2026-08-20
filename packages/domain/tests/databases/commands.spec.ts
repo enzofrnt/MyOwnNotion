@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { asUuid, COMMAND_TYPES, parseMutationCommand, type Uuid } from "../../src/index.ts";
+import {
+  asUuid,
+  COMMAND_TYPES,
+  createInitialDatabaseDefinition,
+  parseMutationCommand,
+  type Uuid,
+} from "../../src/index.ts";
 import { definition, IDS } from "./fixtures.ts";
 
 const PLACEMENT_ID = asUuid("018f0000-0000-7000-8000-000000000022");
@@ -45,6 +51,7 @@ describe("structured database commands (T018)", () => {
       name: " Projets ",
       placement,
       titlePropertyId: IDS.title,
+      titlePropertyName: " Titre ",
       initialViewId: IDS.view,
       initialViewName: " Table principale ",
     });
@@ -55,10 +62,12 @@ describe("structured database commands (T018)", () => {
       id: IDS.database,
       name: "Projets",
       titlePropertyId: IDS.title,
+      titlePropertyName: "Titre",
       initialViewId: IDS.view,
       initialViewName: "Table principale",
       placement,
     });
+    expect(createInitialDatabaseDefinition(result.value).properties[0]?.name).toBe("Titre");
   });
 
   it("parses a definition replacement tied to a base revision and confirmed impact", () => {

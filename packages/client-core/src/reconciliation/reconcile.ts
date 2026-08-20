@@ -39,6 +39,7 @@ import {
   type StructuredConflictContext,
 } from "../local-store/schema.ts";
 import { Outbox } from "../outbox/outbox.ts";
+import { withProjectionWrite } from "../outbox/projection-write-coordinator.ts";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 
 export interface ReconcileTransport {
@@ -294,7 +295,7 @@ export async function reconcile(
   transport: ReconcileTransport,
   codec: LocalRecordCodec,
 ): Promise<ReconcileOutcome> {
-  const outbox = new Outbox(db);
+  const outbox = new Outbox(db, codec);
   const repository = new LocalRepository(db, codec);
 
   await outbox.recoverInterrupted();
@@ -440,19 +441,42 @@ export async function reconcile(
             offline: true,
           };
         }
-        await repository.replaceFromSnapshot({
-          workspaceId: snapshot.value.workspaceId as Uuid,
-          schemaVersion: snapshot.value.schemaVersion,
-          cursor: snapshot.value.cursor,
-          items: snapshot.value.items as ItemDto[],
-          relationships: snapshot.value.relationships,
-          ...(snapshot.value.databases === undefined
-            ? {}
-            : { databases: snapshot.value.databases }),
-          ...(snapshot.value.databaseEntries === undefined
-            ? {}
-            : { databaseEntries: snapshot.value.databaseEntries }),
+        let yieldedToLocalMutation = false;
+        await withProjectionWrite(db, async () => {
+          // A mutation may have arrived while the snapshot request was in
+          // flight. Replacing its optimistic projection would keep the outbox
+          // but erase the local state it promises to represent. Let the next
+          // pass submit it first instead.
+          if ((await outbox.pending()).length > 0) {
+            yieldedToLocalMutation = true;
+            return;
+          }
+          await repository.replaceFromSnapshot({
+            workspaceId: snapshot.value.workspaceId as Uuid,
+            schemaVersion: snapshot.value.schemaVersion,
+            cursor: snapshot.value.cursor,
+            items: snapshot.value.items as ItemDto[],
+            relationships: snapshot.value.relationships,
+            ...(snapshot.value.databases === undefined
+              ? {}
+              : { databases: snapshot.value.databases }),
+            ...(snapshot.value.databaseEntries === undefined
+              ? {}
+              : { databaseEntries: snapshot.value.databaseEntries }),
+          });
         });
+        if (yieldedToLocalMutation) {
+          return {
+            submitted,
+            accepted,
+            conflicts,
+            blocked,
+            retained: (await outbox.pending()).length,
+            caughtUpTo: await repository.getLastChangeCursor(),
+            usedSnapshotFallback,
+            offline: false,
+          };
+        }
         usedSnapshotFallback = true;
         cursor = snapshot.value.cursor;
         continue;
@@ -469,16 +493,39 @@ export async function reconcile(
       };
     }
 
-    for (const change of page.value.changes) {
-      await repository.applyServerChange({
-        cursor: String(change.sequence),
-        items: (change.changedItems ?? []) as ItemDto[],
-        ...(change.relationships === undefined ? {} : { relationships: change.relationships }),
-        ...(change.databases === undefined ? {} : { databases: change.databases }),
-        ...(change.databaseEntries === undefined
-          ? {}
-          : { databaseEntries: change.databaseEntries }),
-      });
+    let yieldedToLocalMutation = false;
+    await withProjectionWrite(db, async () => {
+      // Network I/O happens outside this short lock. If local work landed while
+      // the page was loading, do not overwrite its projection with a response
+      // that necessarily predates it; the coalesced follow-up pass submits the
+      // local work and then catches up safely.
+      if ((await outbox.pending()).length > 0) {
+        yieldedToLocalMutation = true;
+        return;
+      }
+      for (const change of page.value.changes) {
+        await repository.applyServerChange({
+          cursor: String(change.sequence),
+          items: (change.changedItems ?? []) as ItemDto[],
+          ...(change.relationships === undefined ? {} : { relationships: change.relationships }),
+          ...(change.databases === undefined ? {} : { databases: change.databases }),
+          ...(change.databaseEntries === undefined
+            ? {}
+            : { databaseEntries: change.databaseEntries }),
+        });
+      }
+    });
+    if (yieldedToLocalMutation) {
+      return {
+        submitted,
+        accepted,
+        conflicts,
+        blocked,
+        retained: (await outbox.pending()).length,
+        caughtUpTo: await repository.getLastChangeCursor(),
+        usedSnapshotFallback,
+        offline: false,
+      };
     }
     cursor = page.value.nextCursor;
     if (page.value.changes.length === 0) {

@@ -12,6 +12,8 @@
  */
 
 import { type EvictionCandidate, planEviction } from "@myownnotion/domain";
+import { Outbox } from "../outbox/outbox.ts";
+import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 import type { LocalDatabase } from "./schema.ts";
 
 /** 5 GB, per FR-014, and adjustable on this device. */
@@ -134,8 +136,9 @@ async function breakdownOf(db: LocalDatabase): Promise<Array<{ label: string; by
 export async function runEviction(
   db: LocalDatabase,
   measurement: StorageMeasurement,
+  codec?: LocalRecordCodec,
 ): Promise<{ readonly released: readonly string[]; readonly stillOverLimit: boolean }> {
-  const candidates = await candidatesFrom(db);
+  const candidates = await candidatesFrom(db, codec);
   const plan = planEviction({
     candidates,
     usedBytes: measurement.usedBytes,
@@ -171,15 +174,19 @@ export async function runEviction(
  * irreplaceable — being wrong in that direction costs disk space, and being
  * wrong the other way costs the owner their work.
  */
-async function candidatesFrom(db: LocalDatabase): Promise<EvictionCandidate[]> {
+async function candidatesFrom(
+  db: LocalDatabase,
+  codec?: LocalRecordCodec,
+): Promise<EvictionCandidate[]> {
   const queued = new Set<string>();
-  for (const row of await db.outbox.toArray()) {
+  const outbox = new Outbox(db, codec);
+  for (const row of await outbox.all()) {
     const payload = row.payload as { itemId?: unknown };
     if (typeof payload.itemId === "string") {
       queued.add(payload.itemId);
     }
   }
-  for (const row of await db.conflicts.toArray()) {
+  for (const row of await outbox.conflicts()) {
     const payload = row.payload as { itemId?: unknown };
     if (typeof payload.itemId === "string") {
       queued.add(payload.itemId);

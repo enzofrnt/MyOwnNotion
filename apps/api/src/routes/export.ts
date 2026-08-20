@@ -243,16 +243,23 @@ async function processExport(context: AppContext, exportId: Uuid): Promise<void>
     }
     const canonical = canonicalExportString(manifest);
     const digest = createHash("sha256").update(canonical).digest("hex");
-    await context.db
-      .update(schema.exports)
-      .set({
-        status: "ready",
-        ready: true,
-        digest,
-        manifest,
-        completedAt: new Date(),
-      })
-      .where(eq(schema.exports.id, exportId));
+    await context.db.transaction(async (tx) => {
+      if (context.protectedContent !== undefined) {
+        await context.protectedContent.writeExportManifest(tx, { exportId, manifest });
+      }
+      await tx
+        .update(schema.exports)
+        .set({
+          status: "ready",
+          ready: true,
+          digest,
+          // Test/development harnesses without security retain the legacy
+          // shape. A configured installation stores only the protected record.
+          manifest: context.protectedContent === undefined ? manifest : null,
+          completedAt: new Date(),
+        })
+        .where(eq(schema.exports.id, exportId));
+    });
   } catch (error) {
     await context.db
       .update(schema.exports)
@@ -331,13 +338,20 @@ export function registerExportRoutes(app: FastifyInstance, context: AppContext):
         .where(eq(schema.exports.id, exportId))
         .limit(1);
       const row = rows[0];
-      if (row === undefined || row.status !== "ready" || row.manifest === null) {
+      if (row === undefined || row.status !== "ready") {
+        return sendProblem(reply, { code: "item.not-found", title: "Export artifact not ready" });
+      }
+      const manifest =
+        row.manifest ??
+        (await context.protectedContent?.readExportManifest(context.db, row.id)) ??
+        null;
+      if (manifest === null) {
         return sendProblem(reply, { code: "item.not-found", title: "Export artifact not ready" });
       }
       return reply
         .header("content-type", "application/json")
         .header("x-export-digest", row.digest ?? "")
-        .send(row.manifest);
+        .send(manifest);
     },
   );
 }

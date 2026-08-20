@@ -1,7 +1,14 @@
 import type { DatabaseProperty, DatabaseView, PropertyOption, Uuid } from "@myownnotion/domain";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
-import { type MutableRefObject, useLayoutEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type MutableRefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { DATABASE_COPY } from "./database-copy.ts";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
 
 type BoardViewDefinition = Extract<DatabaseView, { type: "board" }>;
@@ -53,12 +60,12 @@ export function boardColumns(
   return [
     ...orderedIds.map((id) => ({
       id,
-      label: byId.get(id)?.label ?? "Unavailable option",
+      label: byId.get(id)?.label ?? DATABASE_COPY.common.unavailableOption,
       rows: rows.filter((row) => boardAxisValue(row, property) === id),
     })),
     {
       id: "missing" as const,
-      label: `No ${property.name.toLocaleLowerCase()}`,
+      label: DATABASE_COPY.board.noPropertyValue(property.name),
       rows: rows.filter((row) => boardAxisValue(row, property) === "missing"),
     },
   ];
@@ -124,6 +131,23 @@ function BoardCards({
         start: item.start,
       }))
     : column.rows.map((row, index) => ({ row, index, start: null }));
+  const moveAdjacent = (row: DatabaseViewRow, direction: -1 | 1): void => {
+    const index = columns.findIndex(({ id }) => id === column.id);
+    const target = columns[index + direction];
+    if (target !== undefined) void onMove(row.entryId as Uuid, target.id);
+  };
+  const suppressNativeButtonActivation = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    if (event.key === "Enter" || event.key === " ") event.preventDefault();
+  };
+  const moveAdjacentFromKeyboard = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    row: DatabaseViewRow,
+    direction: -1 | 1,
+  ): void => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    moveAdjacent(row, direction);
+  };
 
   return (
     <div
@@ -133,7 +157,7 @@ function BoardCards({
     >
       <ul
         className="database-card-list"
-        aria-label={`${column.label} cards`}
+        aria-label={DATABASE_COPY.board.cardsFor(column.label)}
         style={
           virtualized ? { height: virtualizer.getTotalSize(), position: "relative" } : undefined
         }
@@ -181,9 +205,11 @@ function BoardCards({
                 {row.title}
               </button>
               <label>
-                <span className="visually-hidden">Move {row.title} to another column</span>
+                <span className="visually-hidden">
+                  {DATABASE_COPY.board.moveToAnother(row.title)}
+                </span>
                 <select
-                  aria-label={`Move ${row.title} to another column`}
+                  aria-label={DATABASE_COPY.board.moveToAnother(row.title)}
                   value={column.id}
                   disabled={onUpdateEntry === undefined}
                   onChange={(event) =>
@@ -200,32 +226,30 @@ function BoardCards({
               <div className="database-card__move-actions">
                 <button
                   type="button"
-                  aria-label={`Move ${row.title} to previous column`}
+                  aria-label={DATABASE_COPY.board.movePrevious(row.title)}
                   disabled={columns[0]?.id === column.id || onUpdateEntry === undefined}
-                  onClick={() => {
-                    const index = columns.findIndex(({ id }) => id === column.id);
-                    const target = columns[index - 1];
-                    if (target !== undefined) void onMove(row.entryId as Uuid, target.id);
-                  }}
+                  onClick={() => moveAdjacent(row, -1)}
+                  onKeyDown={suppressNativeButtonActivation}
+                  onKeyUp={(event) => moveAdjacentFromKeyboard(event, row, -1)}
                 >
-                  Previous column
+                  {DATABASE_COPY.board.previous}
                 </button>
                 <button
                   type="button"
-                  aria-label={`Move ${row.title} to next column`}
+                  aria-label={DATABASE_COPY.board.moveNext(row.title)}
                   disabled={columns.at(-1)?.id === column.id || onUpdateEntry === undefined}
-                  onClick={() => {
-                    const index = columns.findIndex(({ id }) => id === column.id);
-                    const target = columns[index + 1];
-                    if (target !== undefined) void onMove(row.entryId as Uuid, target.id);
-                  }}
+                  onClick={() => moveAdjacent(row, 1)}
+                  onKeyDown={suppressNativeButtonActivation}
+                  onKeyUp={(event) => moveAdjacentFromKeyboard(event, row, 1)}
                 >
-                  Next column
+                  {DATABASE_COPY.board.next}
                 </button>
               </div>
               {row.syncState === "synced" ? null : (
                 <span className={`database-sync database-sync--${row.syncState}`}>
-                  {row.syncState === "pending" ? "Saved locally" : "Conflict"}
+                  {row.syncState === "pending"
+                    ? DATABASE_COPY.common.savedLocally
+                    : DATABASE_COPY.common.conflict}
                 </span>
               )}
             </li>
@@ -273,8 +297,8 @@ export function BoardView({
 
   if (axis === undefined) {
     return (
-      <section className="database-view" aria-label={`${view.name} board view`}>
-        <p role="alert">Add an active status or select property to use this board.</p>
+      <section className="database-view" aria-label={DATABASE_COPY.board.viewLabel(view.name)}>
+        <p role="alert">{DATABASE_COPY.board.needsProperty}</p>
       </section>
     );
   }
@@ -293,9 +317,9 @@ export function BoardView({
     }
     try {
       await onUpdateEntry(entryId, update);
-      setAnnouncement(`${row.title} moved to ${target.label}`);
+      setAnnouncement(DATABASE_COPY.board.moved(row.title, target.label));
     } catch {
-      setAnnouncement(`${row.title} could not be moved`);
+      setAnnouncement(DATABASE_COPY.board.moveFailed(row.title));
     }
   };
 
@@ -303,11 +327,11 @@ export function BoardView({
     <section
       ref={scrollRef}
       className="database-view database-board-scroll"
-      aria-label={`${view.name} board view`}
+      aria-label={DATABASE_COPY.board.viewLabel(view.name)}
       onScroll={(event) => onScroll?.(event.currentTarget.scrollTop)}
     >
       <label className="database-view-setting">
-        Board grouping property
+        {DATABASE_COPY.board.groupingProperty}
         <select
           value={axis.id}
           onChange={(event) => {
@@ -332,7 +356,7 @@ export function BoardView({
           ))}
         </select>
       </label>
-      <ol className="database-board" aria-label={`Columns grouped by ${axis.name}`}>
+      <ol className="database-board" aria-label={DATABASE_COPY.board.columnsGroupedBy(axis.name)}>
         {columns.map((column) => {
           const collapsed =
             column.id !== "missing" && view.options.collapsedColumnIds.includes(column.id);
@@ -360,7 +384,9 @@ export function BoardView({
                     <button
                       type="button"
                       aria-expanded={!collapsed}
-                      aria-label={`${collapsed ? "Expand" : "Collapse"} ${column.label}`}
+                      aria-label={`${
+                        collapsed ? DATABASE_COPY.board.expand : DATABASE_COPY.board.collapse
+                      } ${column.label}`}
                       onClick={() => {
                         const collapsedColumnIds = collapsed
                           ? view.options.collapsedColumnIds.filter((id) => id !== column.id)
@@ -371,12 +397,12 @@ export function BoardView({
                         });
                       }}
                     >
-                      {collapsed ? "Expand" : "Collapse"}
+                      {collapsed ? DATABASE_COPY.board.expand : DATABASE_COPY.board.collapse}
                     </button>
                   )}
                 </header>
                 {collapsed ? null : column.rows.length === 0 ? (
-                  <p className="muted">No cards</p>
+                  <p className="muted">{DATABASE_COPY.board.noCards}</p>
                 ) : (
                   <BoardCards
                     column={column}

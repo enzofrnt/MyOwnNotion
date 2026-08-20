@@ -4,8 +4,14 @@
  * The security section at the bottom adds the virtual-authenticator, mounted
  * secret, and readiness helpers the feature-002 journeys need (T003).
  */
+import { PROTOCOL_VERSION } from "@myownnotion/domain";
 import { type Browser, type BrowserContext, expect, type Page } from "@playwright/test";
 import { seedSessionOnNewDevice } from "./reset-installation.ts";
+
+/** Headers for direct API setup calls made by the current E2E client. */
+export const CURRENT_PROTOCOL_HEADERS = {
+  "x-myownnotion-client-protocol": String(PROTOCOL_VERSION),
+} as const;
 
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;

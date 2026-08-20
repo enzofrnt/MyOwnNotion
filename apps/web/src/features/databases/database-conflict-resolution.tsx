@@ -8,14 +8,16 @@ import type {
   RelationTargets,
   Uuid,
 } from "@myownnotion/domain";
+import { jsonValuesEqual } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import type { ConflictSide } from "../sync/conflict-resolution.tsx";
+import { DATABASE_COPY } from "./database-copy.ts";
 
 type Choice = ConflictSide;
 
 function same(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return jsonValuesEqual(left, right);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -105,7 +107,9 @@ function valueAt(root: unknown, path: string): unknown {
 }
 
 function display(value: unknown): string {
-  return value === undefined ? "(removed)" : (JSON.stringify(value, null, 2) ?? String(value));
+  return value === undefined
+    ? DATABASE_COPY.conflict.removed
+    : (JSON.stringify(value, null, 2) ?? String(value));
 }
 
 function versionValue(
@@ -200,7 +204,7 @@ export function StructuredConflictCard({
         localRevisionId === undefined ||
         remoteRevisionId === undefined
       ) {
-        setFailure("This conflict does not identify both versions. Nothing has been discarded.");
+        setFailure(DATABASE_COPY.conflict.missingVersions);
         return;
       }
       setSaving(true);
@@ -236,7 +240,7 @@ export function StructuredConflictCard({
                 ok: false as const,
                 error: {
                   code: "validation.invalid-payload",
-                  title: "This conflict does not identify its database entry",
+                  title: DATABASE_COPY.conflict.missingEntry,
                 },
               }
             : await service.resolveDatabaseEntryConflict({
@@ -262,23 +266,20 @@ export function StructuredConflictCard({
   return (
     <section
       className="panel"
-      aria-label="Resolve structured database conflict"
+      aria-label={DATABASE_COPY.conflict.region}
       data-testid={`database-conflict-${row.mutationId}`}
     >
-      <h2>Resolve database conflict</h2>
-      <p className="muted">
-        These fields changed on two devices. Compare what both devices started from, then choose
-        each conflicting field. Compatible changes from both devices are already kept.
-      </p>
+      <h2>{DATABASE_COPY.conflict.heading}</h2>
+      <p className="muted">{DATABASE_COPY.conflict.explanation}</p>
       <table className="conflict-columns">
-        <caption className="muted">Schema, view, or property values requiring your choice.</caption>
+        <caption className="muted">{DATABASE_COPY.conflict.caption}</caption>
         <thead>
           <tr>
-            <th scope="col">Field</th>
-            <th scope="col">This device</th>
-            <th scope="col">Common ancestor</th>
-            <th scope="col">Other device</th>
-            <th scope="col">Keep</th>
+            <th scope="col">{DATABASE_COPY.conflict.field}</th>
+            <th scope="col">{DATABASE_COPY.conflict.thisDevice}</th>
+            <th scope="col">{DATABASE_COPY.conflict.ancestor}</th>
+            <th scope="col">{DATABASE_COPY.conflict.otherDevice}</th>
+            <th scope="col">{DATABASE_COPY.conflict.keep}</th>
           </tr>
         </thead>
         <tbody>
@@ -296,7 +297,9 @@ export function StructuredConflictCard({
                 ))}
                 <td data-column="Keep">
                   <fieldset>
-                    <legend className="muted">Keep for {conflict.path}</legend>
+                    <legend className="muted">
+                      {DATABASE_COPY.conflict.keepFor(conflict.path)}
+                    </legend>
                     {(["local", "remote"] as const).map((option) => (
                       <label key={option}>
                         <input
@@ -307,7 +310,9 @@ export function StructuredConflictCard({
                             setChoices((current) => new Map(current).set(conflict.path, option))
                           }
                         />
-                        {option === "local" ? "This device" : "Other device"}
+                        {option === "local"
+                          ? DATABASE_COPY.conflict.thisDevice
+                          : DATABASE_COPY.conflict.otherDevice}
                       </label>
                     ))}
                   </fieldset>
@@ -318,23 +323,23 @@ export function StructuredConflictCard({
         </tbody>
       </table>
 
-      <h3>Review before saving</h3>
+      <h3>{DATABASE_COPY.conflict.review}</h3>
       <pre data-testid="database-conflict-review">{display(result)}</pre>
 
       {confirmation !== null ? (
         <section
           className="database-impact"
           role="alertdialog"
-          aria-label="Confirm resolved schema"
+          aria-label={DATABASE_COPY.conflict.confirmSchema}
         >
-          <p>This resolution changes how saved values fit the schema.</p>
+          <p>{DATABASE_COPY.conflict.schemaImpact}</p>
           <button
             type="button"
             onClick={() =>
               void finish({ digest: confirmation.digest, decision: "preserve-incompatible" })
             }
           >
-            Preserve incompatible values
+            {DATABASE_COPY.common.preserveIncompatible}
           </button>
           <button
             type="button"
@@ -343,7 +348,7 @@ export function StructuredConflictCard({
               void finish({ digest: confirmation.digest, decision: "discard-confirmed" })
             }
           >
-            Discard affected values
+            {DATABASE_COPY.common.discardAffected}
           </button>
         </section>
       ) : null}
@@ -353,7 +358,7 @@ export function StructuredConflictCard({
         </p>
       )}
       <button type="button" disabled={saving} onClick={() => void finish()}>
-        {saving ? "Saving…" : "Save this resolution"}
+        {saving ? DATABASE_COPY.common.saving : DATABASE_COPY.conflict.save}
       </button>
     </section>
   );

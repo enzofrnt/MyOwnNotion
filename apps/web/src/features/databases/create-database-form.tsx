@@ -1,6 +1,7 @@
 import type { CreateDatabaseRequestDto } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { type FormEvent, useState } from "react";
+import { DATABASE_COPY } from "./database-copy.ts";
 
 export function CreateDatabaseForm({
   parentItemId,
@@ -19,7 +20,7 @@ export function CreateDatabaseForm({
     event.preventDefault();
     const normalizedName = name.trim();
     if (normalizedName.length === 0) {
-      setError("Give the database a name.");
+      setError(DATABASE_COPY.create.nameRequired);
       return;
     }
     setError(null);
@@ -30,33 +31,34 @@ export function CreateDatabaseForm({
         name: normalizedName,
         placement: { id: generateUuidV7(), parentItemId, positionKey },
         titlePropertyId: generateUuidV7(),
+        titlePropertyName: DATABASE_COPY.create.initialTitlePropertyName,
         initialViewId: generateUuidV7(),
-        initialViewName: "Table",
+        initialViewName: DATABASE_COPY.create.initialViewName,
       });
       setName("");
     } catch {
       // Keep the owner's draft in place. The caller can safely retry the form;
       // a fresh mutation identity is generated only when it is submitted.
-      setError("The database could not be created. Your name is still here.");
+      setError(DATABASE_COPY.create.failed);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <form className="database-create" aria-label="Create a database" onSubmit={submit}>
-      <label htmlFor="database-name">Create a database</label>
+    <form className="database-create" aria-label={DATABASE_COPY.create.label} onSubmit={submit}>
+      <label htmlFor="database-name">{DATABASE_COPY.create.label}</label>
       <div className="field-row">
         <input
           id="database-name"
           name="database-name"
           value={name}
-          placeholder="Projects, tasks, reading…"
+          placeholder={DATABASE_COPY.create.placeholder}
           autoComplete="off"
           onChange={(event) => setName(event.target.value)}
         />
         <button type="submit" disabled={submitting}>
-          {submitting ? "Creating…" : "Create database"}
+          {submitting ? DATABASE_COPY.create.creating : DATABASE_COPY.create.submit}
         </button>
       </div>
       {error !== null ? <p role="alert">{error}</p> : null}

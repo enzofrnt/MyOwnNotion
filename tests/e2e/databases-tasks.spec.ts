@@ -34,10 +34,12 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
   await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await waitForSynchronized(page);
 
   const addProperty = async (name: string, type: string, options?: string): Promise<void> => {
     await page.getByRole("button", { name: "Add property" }).click();
     const editor = page.getByRole("form", { name: "Property editor" });
+    await expect(editor).toBeVisible();
     await editor.getByLabel("Name").fill(name);
     await editor.getByLabel("Type").selectOption(type);
     if (options !== undefined) {
@@ -45,6 +47,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
     }
     await editor.getByRole("button", { name: "Save property" }).click();
     await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
+    await waitForSynchronized(page);
   };
 
   await addProperty("Notes", "text");

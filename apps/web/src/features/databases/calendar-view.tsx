@@ -6,6 +6,7 @@ import type {
 } from "@myownnotion/domain";
 import { useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { DATABASE_COPY, DATABASE_LOCALE } from "./database-copy.ts";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
 
 type CalendarViewDefinition = Extract<DatabaseView, { type: "calendar" }>;
@@ -174,9 +175,11 @@ function daysForMonth(month: string): readonly string[] {
 
 function monthLabel(month: string, timeZone: string): string {
   const [year, monthNumber] = month.split("-").map(Number);
-  return new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone }).format(
-    new Date(Date.UTC(year ?? 0, (monthNumber ?? 1) - 1, 15, 12)),
-  );
+  return new Intl.DateTimeFormat(DATABASE_LOCALE, {
+    month: "long",
+    year: "numeric",
+    timeZone,
+  }).format(new Date(Date.UTC(year ?? 0, (monthNumber ?? 1) - 1, 15, 12)));
 }
 
 export function CalendarView({
@@ -210,8 +213,8 @@ export function CalendarView({
 
   if (property === undefined) {
     return (
-      <section className="database-view" aria-label={`${view.name} calendar view`}>
-        <p role="alert">Add an active date property to use this calendar.</p>
+      <section className="database-view" aria-label={DATABASE_COPY.calendar.viewLabel(view.name)}>
+        <p role="alert">{DATABASE_COPY.calendar.needsProperty}</p>
       </section>
     );
   }
@@ -225,9 +228,9 @@ export function CalendarView({
     if (update === null || onUpdateEntry === undefined) return;
     try {
       await onUpdateEntry(row.entryId as Uuid, update);
-      setAnnouncement(`${row.title} scheduled for ${targetDate}`);
+      setAnnouncement(DATABASE_COPY.calendar.scheduled(row.title, targetDate));
     } catch {
-      setAnnouncement(`${row.title} could not be scheduled`);
+      setAnnouncement(DATABASE_COPY.calendar.scheduleFailed(row.title));
     }
   };
 
@@ -255,7 +258,7 @@ export function CalendarView({
       </button>
       <input
         type="date"
-        aria-label={`Schedule ${row.title}`}
+        aria-label={DATABASE_COPY.calendar.schedule(row.title)}
         value={scheduledDate ?? ""}
         disabled={onUpdateEntry === undefined}
         onChange={(event) => void move(row, event.target.value)}
@@ -264,19 +267,19 @@ export function CalendarView({
         <div className="database-calendar__move-actions">
           <button
             type="button"
-            aria-label={`Move ${row.title} to previous day`}
+            aria-label={DATABASE_COPY.calendar.movePrevious(row.title)}
             disabled={onUpdateEntry === undefined}
             onClick={() => void move(row, shiftDate(scheduledDate, -1))}
           >
-            Previous day
+            {DATABASE_COPY.calendar.previousDay}
           </button>
           <button
             type="button"
-            aria-label={`Move ${row.title} to next day`}
+            aria-label={DATABASE_COPY.calendar.moveNext(row.title)}
             disabled={onUpdateEntry === undefined}
             onClick={() => void move(row, shiftDate(scheduledDate, 1))}
           >
-            Next day
+            {DATABASE_COPY.calendar.nextDay}
           </button>
         </div>
       )}
@@ -284,10 +287,13 @@ export function CalendarView({
   );
 
   return (
-    <section className="database-view database-calendar" aria-label={`${view.name} calendar view`}>
+    <section
+      className="database-view database-calendar"
+      aria-label={DATABASE_COPY.calendar.viewLabel(view.name)}
+    >
       <div className="database-calendar__toolbar">
         <label className="database-view-setting">
-          Calendar date property
+          {DATABASE_COPY.calendar.dateProperty}
           <select
             value={property.id}
             onChange={(event) => {
@@ -309,17 +315,17 @@ export function CalendarView({
         </label>
         <div className="database-calendar__navigation">
           <button type="button" onClick={() => setVisibleMonth(shiftMonth(visibleMonth, -1))}>
-            Previous month
+            {DATABASE_COPY.calendar.previousMonth}
           </button>
           <h3 aria-live="polite">{monthLabel(visibleMonth, timeZone)}</h3>
           <button type="button" onClick={() => setVisibleMonth(shiftMonth(visibleMonth, 1))}>
-            Next month
+            {DATABASE_COPY.calendar.nextMonth}
           </button>
         </div>
       </div>
       <div className="database-calendar__month-scroll">
         <ol className="database-calendar__weekdays" aria-hidden="true">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+          {DATABASE_COPY.calendar.weekdays.map((day) => (
             <li key={day}>{day}</li>
           ))}
         </ol>
@@ -354,9 +360,11 @@ export function CalendarView({
         className="database-calendar__unscheduled"
         aria-labelledby={`unscheduled-${view.id}`}
       >
-        <h3 id={`unscheduled-${view.id}`}>Unscheduled · {grouped.unscheduled.length}</h3>
+        <h3 id={`unscheduled-${view.id}`}>
+          {DATABASE_COPY.calendar.unscheduled} · {grouped.unscheduled.length}
+        </h3>
         {grouped.unscheduled.length === 0 ? (
-          <p className="muted">Every visible entry is scheduled.</p>
+          <p className="muted">{DATABASE_COPY.calendar.allScheduled}</p>
         ) : (
           <ul>{grouped.unscheduled.map((row) => card(row, null))}</ul>
         )}

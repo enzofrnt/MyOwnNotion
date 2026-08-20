@@ -65,12 +65,17 @@ export function registerSnapshotRoutes(app: FastifyInstance, context: AppContext
           [...active, ...trashed].sort((a, b) => (a.id < b.id ? -1 : 1)),
           context.protectedContent,
         );
-        const databaseRecords = await listDatabaseRecords(tx, context.workspaceId);
+        const retainedItemIds = new Set(items.map(({ id }) => id));
+        const databaseRecords = (await listDatabaseRecords(tx, context.workspaceId)).filter(
+          ({ databaseId }) => retainedItemIds.has(databaseId),
+        );
         const entryRecords = (
           await Promise.all(
             databaseRecords.map((record) => listDatabaseEntryRecords(tx, record.databaseId)),
           )
-        ).flat();
+        )
+          .flat()
+          .filter(({ entryId }) => retainedItemIds.has(entryId));
         const [relationships, databases, databaseEntries] = await Promise.all([
           resolveProtectedRelationships(
             tx,

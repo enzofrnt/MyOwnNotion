@@ -24,7 +24,7 @@ let outbox: Outbox;
 beforeEach(async () => {
   ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
-  outbox = new Outbox(db);
+  outbox = new Outbox(db, codec);
 });
 
 afterEach(async () => {
@@ -203,6 +203,46 @@ describe("retry lifecycle", () => {
         ? undefined
         : (await db.revisionHeaders.get(localEditRevisionId))?.parentRevisionIds,
     ).toEqual([serverRevisionId]);
+    expect(await db.revisionHeaders.get(localCreateRevisionId)).toMatchObject({
+      local: 0,
+      canonicalRevisionId: serverRevisionId,
+    });
+    expect((await db.items.get(itemId))?.currentRevisionId).toBe(localEditRevisionId);
+  });
+
+  it("rebases a stale in-memory caller that starts just after acknowledgement", async () => {
+    const createMutationId = await enqueue("Created before acknowledgement");
+    const create = await outbox.get(createMutationId);
+    const localCreateRevisionId = create?.localRevisionIds[0] as Uuid;
+    const itemId = create?.payload["id"] as Uuid;
+    const serverRevisionId = generateUuidV7();
+
+    await outbox.acknowledge(createMutationId, [serverRevisionId]);
+
+    const editMutationId = generateUuidV7();
+    const edit = await applyLocalMutation(
+      db,
+      {
+        mutationId: editMutationId,
+        commandType: "item.rename",
+        // A mounted editor can still hold the optimistic revision for one
+        // render after the acknowledgement advances the projection.
+        payload: {
+          itemId,
+          name: "Edited from the stale render",
+          baseRevisionId: localCreateRevisionId,
+        },
+        baseRevisionIds: [localCreateRevisionId],
+      },
+      () => new Date(),
+      codec,
+    );
+
+    expect(edit.ok).toBe(true);
+    expect(await outbox.get(editMutationId)).toMatchObject({
+      baseRevisionIds: [serverRevisionId],
+      payload: { baseRevisionId: serverRevisionId },
+    });
   });
 
   it("acknowledging an unknown mutation is a no-op", async () => {

@@ -9,6 +9,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
 import { BoardView } from "./board-view.tsx";
 import { CalendarView } from "./calendar-view.tsx";
+import { DATABASE_COPY } from "./database-copy.ts";
 import { DatabaseToolbar, replaceSavedView } from "./database-toolbar.tsx";
 import { FilterEditor } from "./filter-editor.tsx";
 import { type GalleryPreview, GalleryView } from "./gallery-view.tsx";
@@ -256,7 +257,7 @@ export function DatabasePage({
         setSavingProperty(false);
       })
       .catch(() => {
-        setPropertyError("The property could not be saved. Your draft is still here.");
+        setPropertyError(DATABASE_COPY.page.propertySaveFailed);
         setSavingProperty(false);
       });
   };
@@ -304,7 +305,7 @@ export function DatabasePage({
     event.preventDefault();
     const title = entryTitle.trim();
     if (title.length === 0) {
-      setEntryError("Give the page a title.");
+      setEntryError(DATABASE_COPY.page.titleRequired);
       return;
     }
     setEntryError(null);
@@ -312,7 +313,7 @@ export function DatabasePage({
       await onCreateEntry(title);
       setEntryTitle("");
     } catch {
-      setEntryError("The entry could not be created. Your title is still here.");
+      setEntryError(DATABASE_COPY.page.entryCreateFailed);
     }
   };
 
@@ -320,11 +321,11 @@ export function DatabasePage({
     <section className="database-page" aria-labelledby={`database-heading-${database.databaseId}`}>
       <header className="database-page__header">
         <div>
-          <p className="muted">Database · page</p>
+          <p className="muted">{DATABASE_COPY.page.eyebrow}</p>
           <h2 id={`database-heading-${database.databaseId}`}>{database.name}</h2>
         </div>
         <button type="button" disabled={savingProperty} onClick={() => setEditingProperty(true)}>
-          Add property
+          {DATABASE_COPY.page.addProperty}
         </button>
       </header>
 
@@ -343,7 +344,7 @@ export function DatabasePage({
       ) : null}
 
       {activeView === undefined ? (
-        <p role="alert">This database has no usable saved view.</p>
+        <p role="alert">{DATABASE_COPY.common.noUsableView}</p>
       ) : (
         <>
           <DatabaseToolbar
@@ -368,19 +369,19 @@ export function DatabasePage({
       )}
 
       <section className="database-schema" aria-labelledby="database-schema-heading">
-        <h3 id="database-schema-heading">Properties</h3>
+        <h3 id="database-schema-heading">{DATABASE_COPY.page.properties}</h3>
         <ul>
           {activeProperties.map((property) => (
             <li key={property.id}>
               <span>{property.name}</span>
-              <span className="muted">{property.type}</span>
+              <span className="muted">{DATABASE_COPY.property.typeLabels[property.type]}</span>
               {property.type !== "title" ? (
                 <button
                   type="button"
                   className="link"
                   onClick={() => void retireProperty(property.id)}
                 >
-                  Remove
+                  {DATABASE_COPY.common.remove}
                 </button>
               ) : null}
             </li>
@@ -391,12 +392,13 @@ export function DatabasePage({
       <TaskConfiguration definition={definition} onChange={onReplaceDefinition} />
 
       {impact !== null && pendingDefinition !== null ? (
-        <section className="database-impact" role="alertdialog" aria-label="Confirm schema change">
-          <h3>This schema change affects saved values</h3>
-          <p>
-            {impact.affectedValueCount} value{impact.affectedValueCount === 1 ? "" : "s"} across{" "}
-            {impact.affectedEntryCount} entr{impact.affectedEntryCount === 1 ? "y" : "ies"}.
-          </p>
+        <section
+          className="database-impact"
+          role="alertdialog"
+          aria-label={DATABASE_COPY.page.confirmSchemaChange}
+        >
+          <h3>{DATABASE_COPY.page.schemaImpactHeading}</h3>
+          <p>{DATABASE_COPY.page.impact(impact.affectedValueCount, impact.affectedEntryCount)}</p>
           <div className="field-row">
             <button
               type="button"
@@ -409,7 +411,7 @@ export function DatabasePage({
                 setPendingDefinition(null);
               }}
             >
-              Preserve incompatible values
+              {DATABASE_COPY.common.preserveIncompatible}
             </button>
             <button
               type="button"
@@ -423,7 +425,7 @@ export function DatabasePage({
                 setPendingDefinition(null);
               }}
             >
-              Discard affected values
+              {DATABASE_COPY.common.discardAffected}
             </button>
             <button
               type="button"
@@ -433,41 +435,39 @@ export function DatabasePage({
                 setPendingDefinition(null);
               }}
             >
-              Cancel
+              {DATABASE_COPY.common.cancel}
             </button>
           </div>
         </section>
       ) : null}
 
       <form className="database-entry-create" onSubmit={createEntry}>
-        <label htmlFor={`new-entry-${database.databaseId}`}>New entry</label>
+        <label htmlFor={`new-entry-${database.databaseId}`}>{DATABASE_COPY.page.newEntry}</label>
         <div className="field-row">
           <input
             id={`new-entry-${database.databaseId}`}
             value={entryTitle}
-            placeholder="Untitled page"
+            placeholder={DATABASE_COPY.page.untitledPage}
             onChange={(event) => setEntryTitle(event.target.value)}
           />
-          <button type="submit">New entry</button>
+          <button type="submit">{DATABASE_COPY.page.newEntry}</button>
         </div>
         {entryError !== null ? <p role="alert">{entryError}</p> : null}
       </form>
 
       <div className="database-view-status" aria-live="polite">
-        {effectiveQueryState === "loading" ? <p>Loading the saved view…</p> : null}
+        {effectiveQueryState === "loading" ? <p>{DATABASE_COPY.page.loadingView}</p> : null}
         {effectiveQueryState === "invalid" ? (
-          <p role="alert">This view is invalid. Repair the highlighted rule.</p>
+          <p role="alert">{DATABASE_COPY.page.invalidView}</p>
         ) : null}
         {effectiveQueryState === "degraded" ? (
-          <p role="alert">The complete view is rebuilding. Safe local data remains visible.</p>
+          <p role="alert">{DATABASE_COPY.page.rebuildingView}</p>
         ) : null}
-        {page?.staleCursorRecovered ? <p>The view changed; the first page was reloaded.</p> : null}
+        {page?.staleCursorRecovered ? <p>{DATABASE_COPY.page.staleView}</p> : null}
         {page === null ? null : page.coverage === "complete" ? (
-          <p>Complete result · {page.expectedCount} entries</p>
+          <p>{DATABASE_COPY.page.completeResult(page.expectedCount)}</p>
         ) : (
-          <p>
-            Local data partial: {page.availableCount} of {page.expectedCount}
-          </p>
+          <p>{DATABASE_COPY.page.partialResult(page.availableCount, page.expectedCount)}</p>
         )}
       </div>
 

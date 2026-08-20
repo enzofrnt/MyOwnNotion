@@ -5,6 +5,7 @@ import {
   generateUuidV7,
 } from "@myownnotion/domain";
 import type { FormEvent } from "react";
+import { DATABASE_COPY } from "./database-copy.ts";
 
 export type EditablePropertyType = Exclude<DatabasePropertyType, "title">;
 
@@ -27,10 +28,10 @@ export type PropertyDraftValidation =
 export function validatePropertyDraft(draft: DatabasePropertyDraft): PropertyDraftValidation {
   const normalizedName = draft.name.trim();
   if (normalizedName.length === 0) {
-    return { ok: false, draft, error: "Give the property a name." };
+    return { ok: false, draft, error: DATABASE_COPY.property.nameRequired };
   }
   if (normalizedName.length > 512) {
-    return { ok: false, draft, error: "Property names must be 512 characters or fewer." };
+    return { ok: false, draft, error: DATABASE_COPY.property.nameTooLong };
   }
   if (draft.type === "status" || draft.type === "select" || draft.type === "multi-select") {
     const labels = (draft.optionsText ?? "")
@@ -38,7 +39,7 @@ export function validatePropertyDraft(draft: DatabasePropertyDraft): PropertyDra
       .map((label) => label.trim())
       .filter(Boolean);
     if (new Set(labels.map((label) => label.toLocaleLowerCase())).size !== labels.length) {
-      return { ok: false, draft, error: "Each option needs a distinct label." };
+      return { ok: false, draft, error: DATABASE_COPY.property.distinctOptions };
     }
   }
   return { ok: true, draft, normalizedName };
@@ -119,16 +120,16 @@ export function PropertyEditor({
     draft.type === "status" || draft.type === "select" || draft.type === "multi-select";
 
   return (
-    <form className="property-editor" aria-label="Property editor" onSubmit={submit}>
+    <form className="property-editor" aria-label={DATABASE_COPY.property.editor} onSubmit={submit}>
       <div className="field-row">
-        <label htmlFor="property-name">Name</label>
+        <label htmlFor="property-name">{DATABASE_COPY.property.name}</label>
         <input
           id="property-name"
           value={draft.name}
           autoComplete="off"
           onChange={(event) => onChange({ ...draft, name: event.target.value })}
         />
-        <label htmlFor="property-type">Type</label>
+        <label htmlFor="property-type">{DATABASE_COPY.property.type}</label>
         <select
           id="property-type"
           value={draft.type}
@@ -138,7 +139,7 @@ export function PropertyEditor({
         >
           {EDITABLE_PROPERTY_TYPES.map((type) => (
             <option key={type} value={type}>
-              {type}
+              {DATABASE_COPY.property.typeLabels[type]}
             </option>
           ))}
         </select>
@@ -146,10 +147,10 @@ export function PropertyEditor({
 
       {usesOptions ? (
         <label className="database-field">
-          Options, separated by commas
+          {DATABASE_COPY.property.optionsSeparated}
           <input
             value={draft.optionsText ?? ""}
-            placeholder="Planned, In progress, Done"
+            placeholder={DATABASE_COPY.property.optionPlaceholder}
             onChange={(event) => onChange({ ...draft, optionsText: event.target.value })}
           />
         </label>
@@ -157,22 +158,22 @@ export function PropertyEditor({
 
       {draft.type === "date" ? (
         <label className="database-field">
-          Date precision
+          {DATABASE_COPY.property.dateMode}
           <select
             value={draft.dateMode ?? "date"}
             onChange={(event) =>
               onChange({ ...draft, dateMode: event.target.value as "date" | "instant" })
             }
           >
-            <option value="date">Calendar date</option>
-            <option value="instant">Date and time</option>
+            <option value="date">{DATABASE_COPY.property.calendarDate}</option>
+            <option value="instant">{DATABASE_COPY.property.dateAndTime}</option>
           </select>
         </label>
       ) : null}
 
       {draft.type === "relation" ? (
         <label className="database-field">
-          Allowed targets
+          {DATABASE_COPY.property.relationCardinality}
           <select
             value={draft.relationCardinality ?? "many"}
             onChange={(event) =>
@@ -182,8 +183,8 @@ export function PropertyEditor({
               })
             }
           >
-            <option value="one">One page</option>
-            <option value="many">Many pages</option>
+            <option value="one">{DATABASE_COPY.property.onePage}</option>
+            <option value="many">{DATABASE_COPY.property.manyPages}</option>
           </select>
         </label>
       ) : null}
@@ -191,10 +192,10 @@ export function PropertyEditor({
       {error !== null ? <p role="alert">{error}</p> : null}
       <div className="field-row">
         <button type="submit" disabled={submitting}>
-          {submitting ? "Saving locally…" : "Save property"}
+          {submitting ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.property.save}
         </button>
         <button type="button" className="link" onClick={onCancel} disabled={submitting}>
-          Cancel
+          {DATABASE_COPY.common.cancel}
         </button>
       </div>
     </form>

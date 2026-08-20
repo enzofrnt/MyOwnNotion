@@ -37,6 +37,7 @@ export const PROTECTED_ENTITY_TYPES = {
   relationshipMetadata: "relationship.metadata",
   databaseDefinition: "database.definition",
   databaseEntryValues: "database.entry-values",
+  exportManifest: "export.manifest",
 } as const;
 
 export interface ProtectedContentDeps {
@@ -248,6 +249,33 @@ export class ProtectedContent {
       entryId,
       valueVersion,
     );
+  }
+
+  /**
+   * Seals the owner-authorized export while it waits to be downloaded.
+   *
+   * The artifact is intentionally plaintext at the authenticated response
+   * boundary, but leaving that same manifest in the exports table would make
+   * every title, property, view and value readable in a PostgreSQL dump.
+   */
+  async writeExportManifest(
+    executor: Database | Transaction,
+    input: { exportId: string; manifest: unknown },
+  ): Promise<void> {
+    await this.#write(
+      executor,
+      PROTECTED_ENTITY_TYPES.exportManifest,
+      input.exportId,
+      1,
+      input.manifest,
+    );
+  }
+
+  async readExportManifest<T>(
+    executor: Database | Transaction,
+    exportId: string,
+  ): Promise<T | null> {
+    return await this.#read<T>(executor, PROTECTED_ENTITY_TYPES.exportManifest, exportId, 1);
   }
 
   /**

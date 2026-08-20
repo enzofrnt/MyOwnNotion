@@ -213,6 +213,15 @@ export const RestoreItemSchema = Type.Object(
 );
 export type RestoreItemDto = Static<typeof RestoreItemSchema>;
 
+export const TrashImpactSchema = Type.Object(
+  {
+    isDatabase: Type.Boolean(),
+    activeEntryCount: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type TrashImpactDto = Static<typeof TrashImpactSchema>;
+
 export const MovePlacementSchema = Type.Object(
   {
     parentItemId: NullableUuid,
@@ -679,6 +688,7 @@ export const CreateDatabaseRequestSchema = Type.Object(
     name: DisplayNameSchema,
     placement: DatabasePlacementInputSchema,
     titlePropertyId: UuidSchema,
+    titlePropertyName: Type.Optional(DisplayNameSchema),
     initialViewId: UuidSchema,
     initialViewName: DisplayNameSchema,
   },

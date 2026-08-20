@@ -226,6 +226,7 @@ describe("the queued work and the conflicts", () => {
   });
 
   it("seals a conflict payload", async () => {
+    const structuredSentinel = "Confidential structured conflict version";
     const conflict: ConflictRecordRow = {
       mutationId: generateUuidV7(),
       commandType: "page.update",
@@ -235,12 +236,20 @@ describe("the queued work and the conflicts", () => {
       competingRevisionIds: [generateUuidV7()],
       capturedAt: new Date().toISOString(),
       errorCode: "revision.conflict",
+      structured: {
+        kind: "database-definition",
+        conflicts: [],
+        ancestor: { label: structuredSentinel },
+        local: { label: `${structuredSentinel} local` },
+        remote: { label: `${structuredSentinel} remote` },
+      } as never,
     };
 
     const sealed = await codec.sealConflict(conflict);
     await db.conflicts.put(sealed as unknown as ConflictRecordRow);
 
     expect(JSON.stringify(await db.conflicts.toArray())).not.toContain("severance");
+    expect(JSON.stringify(await db.conflicts.toArray())).not.toContain(structuredSentinel);
     expect(await codec.openConflict(sealed)).toEqual(conflict);
   });
 

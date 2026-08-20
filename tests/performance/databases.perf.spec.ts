@@ -1,6 +1,7 @@
 import {
   asUuid,
   type DatabaseDefinition,
+  type DatabaseProperty,
   type DatabaseView,
   generateUuidV7,
   type Uuid,
@@ -50,7 +51,29 @@ const ids = {
   board: fixtureId(11, "9100"),
   gallery: fixtureId(12, "9100"),
   calendar: fixtureId(13, "9100"),
+  relation: fixtureId(14, "9100"),
 };
+
+const extraProperties: readonly DatabaseProperty[] = Array.from({ length: 35 }, (_, index) => {
+  const common = {
+    id: fixtureId(index + 100, "9100"),
+    name: `Reference property ${index + 1}`,
+    positionKey: String(index + 5).padStart(2, "0"),
+    state: "active" as const,
+  };
+  switch (index % 5) {
+    case 0:
+      return { ...common, type: "text" as const, config: {} };
+    case 1:
+      return { ...common, type: "number" as const, config: {} };
+    case 2:
+      return { ...common, type: "checkbox" as const, config: {} };
+    case 3:
+      return { ...common, type: "date" as const, config: { mode: "date" as const } };
+    default:
+      return { ...common, type: "date" as const, config: { mode: "instant" as const } };
+  }
+});
 
 const presentations = [ids.title, ids.text, ids.status, ids.due].map((propertyId, index) => ({
   propertyId,
@@ -110,6 +133,17 @@ const views: readonly DatabaseView[] = [
     options: { datePropertyId: ids.due, initialMode: "month" },
   },
 ];
+const extraViews: readonly DatabaseView[] = Array.from({ length: 15 }, (_, index) => ({
+  ...viewBase,
+  id: fixtureId(index + 200, "9100"),
+  name: `Reference table ${index + 6}`,
+  type: "table" as const,
+  positionKey: String(index + 6).padStart(2, "0"),
+  options: {
+    density: index % 2 === 0 ? ("comfortable" as const) : ("compact" as const),
+    freezeTitle: index % 3 === 0,
+  },
+}));
 const definition: DatabaseDefinition = {
   format: "myownnotion.database-definition+json",
   formatVersion: 1,
@@ -138,22 +172,34 @@ const definition: DatabaseDefinition = {
       state: "active",
       config: { mode: "date" },
     },
+    {
+      id: ids.relation,
+      name: "Related entry",
+      type: "relation",
+      positionKey: "05",
+      state: "active",
+      config: { cardinality: "many" },
+    },
+    ...extraProperties,
   ],
-  views,
+  views: [...views, ...extraViews],
   taskRoles: null,
 };
 
 let canonical: StructuredProjectionSource;
 let firstDevice: DatabaseQueryService;
 let secondDevice: DatabaseQueryService;
+let rebuildDurationMs = 0;
+let rebuildPeakHeapUsedBytes = 0;
 
 beforeAll(async () => {
+  const entryIds = Array.from({ length: ENTRY_COUNT }, (_, index) => fixtureId(index, "9200"));
   canonical = {
     databaseId: ids.database,
     definitionRevisionId: ids.definitionRevision,
     definition,
-    entries: Array.from({ length: ENTRY_COUNT }, (_, index) => ({
-      entryId: fixtureId(index, "9200"),
+    entries: entryIds.map((entryId, index) => ({
+      entryId,
       revisionId: fixtureId(index, "9201"),
       title: `Entry ${String(index % 1_000).padStart(4, "0")}`,
       values: {
@@ -164,7 +210,9 @@ beforeAll(async () => {
           date: `2026-08-${String((index % 28) + 1).padStart(2, "0")}`,
         },
       },
-      relationTargets: {},
+      relationTargets: {
+        [ids.relation]: [entryIds[(index + 1) % ENTRY_COUNT] as Uuid],
+      },
     })),
   };
   const dependencies = {
@@ -173,10 +221,36 @@ beforeAll(async () => {
   };
   firstDevice = new DatabaseQueryService(dependencies, new Uint8Array(32).fill(1));
   secondDevice = new DatabaseQueryService(dependencies, new Uint8Array(32).fill(2));
-  await Promise.all([firstDevice.rebuild(), secondDevice.rebuild()]);
+  const rebuildStarted = performance.now();
+  rebuildPeakHeapUsedBytes = process.memoryUsage().heapUsed;
+  const memorySampler = setInterval(() => {
+    rebuildPeakHeapUsedBytes = Math.max(rebuildPeakHeapUsedBytes, process.memoryUsage().heapUsed);
+  }, 10);
+  try {
+    await Promise.all([firstDevice.rebuild(), secondDevice.rebuild()]);
+  } finally {
+    clearInterval(memorySampler);
+    rebuildPeakHeapUsedBytes = Math.max(rebuildPeakHeapUsedBytes, process.memoryUsage().heapUsed);
+  }
+  rebuildDurationMs = performance.now() - rebuildStarted;
 }, 600_000);
 
 describe("structured database reference performance (T093)", () => {
+  it("rebuilds the 40-property, 20-view, 100,000-relation reference fixture", () => {
+    expect(definition.properties).toHaveLength(40);
+    expect(definition.views).toHaveLength(20);
+    expect(
+      canonical.entries.reduce(
+        (count, entry) => count + Object.values(entry.relationTargets).flat().length,
+        0,
+      ),
+    ).toBe(100_000);
+    expect(secondDevice.query(ids.database, { viewId: ids.table, limit: 1 }).rows).toHaveLength(1);
+    console.info(
+      `[perf] database reference rebuild 40 properties/20 views/100k relations: ${rebuildDurationMs.toFixed(1)}ms peakHeapUsed=${(rebuildPeakHeapUsedBytes / 1024 / 1024).toFixed(1)}MiB`,
+    );
+  });
+
   it("returns the first 100 rows of all five views below one second p95", () => {
     const samples = new Map<DatabaseView["type"], number[]>();
     for (let round = 0; round < 5; round += 1) {

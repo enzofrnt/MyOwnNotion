@@ -402,3 +402,120 @@ globale `prefers-reduced-motion` reste appliquée aux nouvelles vues.
 - Le rejeu d'une édition locale déjà appliquée retrouve l'outbox avant de
   revalider sa base devenue obsolète, et restitue les mêmes révisions sans
   réécriture.
+
+## Checkpoint transversal — cycle de vie et confidentialité
+
+**Date**: 2026-08-20
+**Résultat**: réussi sur les preuves ciblées ; matrice complète à rejouer au gate
+
+### Cycle de vie
+
+- L'aperçu de mise à la corbeille compte les appartenances actives, y compris
+  une entrée déplacée hors de la branche hiérarchique de sa base.
+- La confirmation révise et met à la corbeille l'hôte, sa branche et toutes ses
+  entrées actives dans une transaction. Une faute injectée ne laisse aucun état
+  partiel.
+- Toutes les révisions portent la même identité de mutation, utilisée comme
+  groupe de restauration ; hôte, entrées déplacées, définition, valeurs et
+  relations retrouvent leurs identités d'origine.
+- Un tombstone `purged` conserve l'identité de convergence mais retire les
+  définitions, appartenances, valeurs et projections structurées orphelines du
+  snapshot et du flux local.
+
+Les 2 tests d'intégration PostgreSQL du cycle de vie, les 8 tests contrat API
+de base et les 11 tests locaux de requête/mutation réussissent.
+
+### Confidentialité
+
+- Les définitions, valeurs, relations et révisions structurées sont écrites
+  dans leurs enveloppes applicatives ; les tables structurelles 009 ne portent
+  que des identités et versions.
+- La définition, les valeurs, les payloads d'outbox et les trois versions d'un
+  conflit sont scellés dans IndexedDB. La passe de mise à niveau reseale aussi
+  les anciennes files et conflits en clair, de manière idempotente.
+- L'éviction ouvre les files protégées avant de décider : une page avec travail
+  pending ou conflict reste irrécupérable et ne peut pas être déchargée.
+- Un export prêt n'est plus conservé comme manifeste JSON en clair dans la
+  table `exports`; il attend son téléchargement autorisé sous l'entité protégée
+  `export.manifest`. La sauvegarde reste chiffrée avant le transfert.
+- Les sentinelles structurées restent absentes des nouvelles surfaces
+  PostgreSQL, d'IndexedDB, des URLs, journaux, diagnostics, erreurs et octets de
+  sauvegarde externes, tout en étant présentes dans l'export propriétaire.
+
+Les 3 tests API de sentinelles, les 25 tests locaux chiffrement/reseal/budget,
+les 17 tests existants de contenu protégé et le parcours Chromium de sécurité
+réussissent. Le typecheck complet réussit. Le test d'impact déclare les trois
+nouveaux parcours 009 et ses 31 assertions réussissent.
+
+## Checkpoint de convergence — quickstart, langue et fixture de référence
+
+**Date**: 2026-08-20
+**Résultat**: réussi avant le gate exact du commit final
+
+Les sections 1 à 12 et 14 du quickstart ont été rejouées. La section 13 reste
+le gate exact `checks:local`, suivi séparément par T111 afin qu'aucune
+modification documentaire postérieure ne puisse invalider sa preuve.
+
+### Langue active sans donnée dépendante des copies
+
+- Les libellés, erreurs, annonces, noms de contrôles et noms par défaut de la
+  009 sont centralisés dans le catalogue anglais de la feature. Les appels
+  propres aux bases depuis la hiérarchie utilisent la même frontière.
+- Les dates affichées suivent la locale active. Les calculs de dates civiles et
+  d'instants gardent leur représentation canonique indépendante du texte.
+- La création peut transmettre le nom localisé de la propriété titre. Son UUID
+  et son type canonique `title` restent inchangés ; un client antérieur qui
+  omet ce champ conserve le défaut compatible `Title`.
+- Le test domaine prouve qu'une copie « Titre » produit toujours la même
+  propriété typée et identifiée. Les 8 tests du contrat API prouvent le passage
+  du nom sans l'utiliser pour l'identité ou la requête.
+- La matrice structurée complète conserve exactement les textes anglais actifs
+  et réussit sur Chromium desktop/mobile, WebKit desktop/mobile et Firefox
+  desktop : 5 projets, 8 parcours par projet, soit 40 exécutions en 97 s.
+
+### Fixture et budgets de référence
+
+La fixture contient effectivement 40 propriétés, 20 vues et 100 000 relations,
+une par entrée. La suite de performance complète compte 5 fichiers et 14 tests
+réussis. Mesures de cette exécution :
+
+- reconstruction simultanée de deux projections : 381,4 ms, avec un pic de
+  heap échantillonné à 194,0 Mio ;
+- p95 première page 100/100 000 : table 166,5 ms, liste 162,8 ms, Kanban
+  161,8 ms, galerie 162,5 ms et calendrier 162,2 ms ;
+- p95 de propagation vers une seconde projection : 526,5 ms ;
+- p95 de commit local pendant 10 100 opérations mixtes : 17,7 ms, sans perte
+  ni duplication.
+
+Tous les budgets restent sous leurs seuils de 1 000 ms, 2 000 ms et 300 ms.
+
+### Inventaire complet avant gate exact
+
+| Contrôle | Résultat |
+| --- | --- |
+| Format | 616 fichiers, aucune différence |
+| Lint | 617 fichiers, zéro erreur ; 3 avertissements CSS connus |
+| TypeScript | 8 projets et configuration racine réussis |
+| Unitaires | 102 fichiers, 1 284 tests réussis après ajout de la preuve de locale |
+| Propriétés | 25 fichiers, 324 tests réussis |
+| Intégration PostgreSQL | 31 fichiers, 311 tests réussis |
+| Migrations | 1 fichier, 8 tests réussis |
+| Contrats | 76 fichiers, 1 038 tests réussis |
+| Sécurité | 14 fichiers, 267 tests réussis |
+| Performance | 5 fichiers, 14 tests réussis |
+| Playwright 009 | 5 profils, 40 exécutions de parcours réussies |
+
+Les parcours réels ont aussi verrouillé quatre courses observables : un accusé
+serveur ne remplace plus une saisie locale plus récente ; une réponse de requête
+périmée ne réinitialise plus une vue nouvellement créée ; un refresh de
+hiérarchie ancien ne démonte plus l'entrée sélectionnée ; et les objets JSONB
+dont PostgreSQL réordonne les clés sont comparés canoniquement plutôt que pris
+pour de faux conflits.
+
+### Convergence Spec Kit
+
+La passe finale a contrôlé 50 exigences fonctionnelles, 30 scénarios
+d'acceptation, 11 critères mesurables, 12 cas limites, 7 décisions structurantes
+du plan et les 8 principes de la constitution. Elle ne trouve aucun élément
+`missing`, `partial`, `contradicts` ou `unrequested` et n'ajoute donc aucune
+tâche de convergence supplémentaire.

@@ -81,7 +81,7 @@ export async function resolveConflictLocally(
 
   // Only now. See the module comment: this order is what makes a crash
   // mid-resolution recoverable rather than destructive.
-  await new Outbox(db).resolveConflict(input.conflictMutationId);
+  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
   return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
 }
 
@@ -126,7 +126,7 @@ export async function resolveDatabaseDefinitionConflictLocally(
   if (!applied.ok) {
     return { ok: false, code: applied.error.code, title: applied.error.title };
   }
-  await new Outbox(db).resolveConflict(input.conflictMutationId);
+  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
   return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
 }
 
@@ -171,6 +171,6 @@ export async function resolveDatabaseEntryConflictLocally(
   if (!applied.ok) {
     return { ok: false, code: applied.error.code, title: applied.error.title };
   }
-  await new Outbox(db).resolveConflict(input.conflictMutationId);
+  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
   return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
 }

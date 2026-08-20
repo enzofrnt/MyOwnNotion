@@ -41,6 +41,7 @@ export type DatabaseMutationCommand =
       readonly name: string;
       readonly placement: DatabasePlacementInput;
       readonly titlePropertyId: Uuid;
+      readonly titlePropertyName?: string;
       readonly initialViewId: Uuid;
       readonly initialViewName: string;
     }
@@ -96,7 +97,7 @@ export function createInitialDatabaseDefinition(
     properties: [
       {
         id: command.titlePropertyId,
-        name: "Title",
+        name: command.titlePropertyName ?? "Title",
         type: "title",
         positionKey: "a",
         state: "active",
@@ -304,32 +305,35 @@ export function parseDatabaseMutationCommand(
   switch (commandType) {
     case "database.create": {
       if (
-        !hasExactKeys(payload, [
-          "id",
-          "name",
-          "placement",
-          "titlePropertyId",
-          "initialViewId",
-          "initialViewName",
-        ]) ||
+        !hasExactKeys(
+          payload,
+          ["id", "name", "placement", "titlePropertyId", "initialViewId", "initialViewName"],
+          ["titlePropertyName"],
+        ) ||
         !isUuid(payload["id"]) ||
         !isUuid(payload["titlePropertyId"]) ||
         !isUuid(payload["initialViewId"]) ||
         typeof payload["name"] !== "string" ||
-        typeof payload["initialViewName"] !== "string"
+        typeof payload["initialViewName"] !== "string" ||
+        (payload["titlePropertyName"] !== undefined &&
+          typeof payload["titlePropertyName"] !== "string")
       ) {
         return invalid();
       }
       const name = normalizeDisplayName(payload["name"]);
+      const titlePropertyName = normalizeDisplayName(payload["titlePropertyName"] ?? "Title");
       const initialViewName = normalizeDisplayName(payload["initialViewName"]);
       const placement = parsePlacement(payload["placement"]);
-      if (!name.ok || !initialViewName.ok || placement === null) return invalid();
+      if (!name.ok || !titlePropertyName.ok || !initialViewName.ok || placement === null) {
+        return invalid();
+      }
       return ok({
         type: commandType,
         id: payload["id"],
         name: name.value,
         placement,
         titlePropertyId: payload["titlePropertyId"],
+        titlePropertyName: titlePropertyName.value,
         initialViewId: payload["initialViewId"],
         initialViewName: initialViewName.value,
       });

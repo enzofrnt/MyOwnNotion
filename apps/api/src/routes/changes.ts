@@ -69,10 +69,16 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
         const itemsById = new Map(items.map((item) => [item.id, item]));
         const databaseRecords = (
           await Promise.all(itemIds.map((itemId) => readDatabaseRecord(tx, itemId)))
-        ).filter((record) => record !== null);
+        ).filter(
+          (record): record is NonNullable<typeof record> =>
+            record !== null && itemsById.get(record.databaseId)?.lifecycle !== "purged",
+        );
         const entryRecords = (
           await Promise.all(itemIds.map((itemId) => readDatabaseEntryRecord(tx, itemId)))
-        ).filter((record) => record !== null);
+        ).filter(
+          (record): record is NonNullable<typeof record> =>
+            record !== null && itemsById.get(record.entryId)?.lifecycle !== "purged",
+        );
         const relationshipRows = (
           await Promise.all(
             itemIds.map((itemId) => listRelationships(tx, context.workspaceId, itemId)),

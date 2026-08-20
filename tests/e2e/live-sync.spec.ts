@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
+  CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   openSecondDevice,
   openWorkspace,
@@ -120,7 +121,7 @@ test.describe("catching up after an absence (US2)", () => {
         const name = uniqueName(`WhileAway${index}`);
         names.push(name);
         const created = await request.post(`${apiOrigin()}/v1/items`, {
-          headers: { "idempotency-key": randomUUID() },
+          headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
           data: {
             id: randomUUID(),
             kind: "folder",

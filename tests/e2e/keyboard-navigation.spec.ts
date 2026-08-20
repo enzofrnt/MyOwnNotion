@@ -54,7 +54,7 @@ async function focusTree(page: import("@playwright/test").Page, name: string): P
   // unselected child collapsed the branch it was in and took its own focus
   // with it. The click selects; the explicit focus covers Safari, which does
   // not focus a non-form element on tap.
-  await row(page, name).click();
+  await row(page, name).locator(".tree-name").click();
   await expect(row(page, name)).toHaveAttribute("aria-selected", "true");
   await row(page, name).focus();
   await expect(row(page, name)).toBeFocused();

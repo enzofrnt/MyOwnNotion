@@ -2,6 +2,7 @@ import type { DatabaseProperty, DatabaseView, Uuid } from "@myownnotion/domain";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
 
 type GalleryViewDefinition = Extract<DatabaseView, { type: "gallery" }>;
@@ -82,13 +83,13 @@ function GalleryCard({
     >
       <div className="database-gallery__preview">
         {previewMode === "none" ? (
-          <span>Preview disabled</span>
+          <span>{DATABASE_COPY.gallery.previewDisabled}</span>
         ) : preview?.kind === "page" ? (
           <p>{preview.text}</p>
         ) : preview?.kind === "file" ? (
           <img src={preview.src} alt={preview.alt} />
         ) : (
-          <span>No safe preview available</span>
+          <span>{DATABASE_COPY.gallery.noSafePreview}</span>
         )}
       </div>
       <button
@@ -111,7 +112,9 @@ function GalleryCard({
       )}
       {row.syncState === "synced" ? null : (
         <span className={`database-sync database-sync--${row.syncState}`}>
-          {row.syncState === "pending" ? "Saved locally" : "Conflict"}
+          {row.syncState === "pending"
+            ? DATABASE_COPY.common.savedLocally
+            : DATABASE_COPY.common.conflict}
         </span>
       )}
     </li>
@@ -258,12 +261,12 @@ export function GalleryView({
   return (
     <section
       className="database-view database-gallery-scroll"
-      aria-label={`${view.name} gallery view`}
+      aria-label={DATABASE_COPY.gallery.viewLabel(view.name)}
     >
       <details className="database-gallery-settings">
-        <summary>Gallery card settings</summary>
+        <summary>{DATABASE_COPY.gallery.settings}</summary>
         <label className="database-view-setting">
-          Card preview
+          {DATABASE_COPY.gallery.preview}
           <select
             value={view.options.preview}
             onChange={(event) =>
@@ -276,13 +279,13 @@ export function GalleryView({
               })
             }
           >
-            <option value="none">No preview</option>
-            <option value="page">Page content</option>
-            <option value="first-safe-file">First available safe file</option>
+            <option value="none">{DATABASE_COPY.gallery.none}</option>
+            <option value="page">{DATABASE_COPY.gallery.page}</option>
+            <option value="first-safe-file">{DATABASE_COPY.gallery.file}</option>
           </select>
         </label>
         <fieldset>
-          <legend>Properties shown on cards</legend>
+          <legend>{DATABASE_COPY.gallery.properties}</legend>
           {configurableProperties.map((property) => (
             <label key={property.id}>
               <input
@@ -303,8 +306,8 @@ export function GalleryView({
       {page.rows.length === 0 ? (
         <p className="empty-state">
           {page.coverage === "partial"
-            ? "No cards in the data available on this device."
-            : "No cards in this view."}
+            ? DATABASE_COPY.common.noCardsAvailable
+            : DATABASE_COPY.common.noCards}
         </p>
       ) : (
         <GalleryCards

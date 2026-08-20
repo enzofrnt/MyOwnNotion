@@ -10,6 +10,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
+  CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -89,7 +90,7 @@ test.describe("offline continuity (US6)", () => {
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const currentBody = (await current.json()) as { currentRevisionId: string };
     const competing = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { "idempotency-key": crypto.randomUUID() },
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": crypto.randomUUID() },
       data: {
         baseRevisionId: currentBody.currentRevisionId,
         document: {

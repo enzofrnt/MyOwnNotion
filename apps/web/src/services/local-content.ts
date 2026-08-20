@@ -107,7 +107,7 @@ export class LocalContentService {
     });
     this.repository = new LocalRepository(this.db, this.#codec);
     this.databases = new LocalDatabaseRepository(this.db, this.#codec);
-    this.outbox = new Outbox(this.db);
+    this.outbox = new Outbox(this.db, this.#codec);
     this.#snapshot = {
       syncState: "pending",
       pendingCount: 0,
@@ -284,8 +284,12 @@ export class LocalContentService {
   }
 
   async #runSynchronize(): Promise<SyncState> {
-    await this.#notify("syncing");
+    // The outbox is sealed too. Restore the persisted device key before the
+    // first notification reads queue counts; doing this in the opposite order
+    // worked only while outbox payloads were plaintext and left every reload
+    // stuck on the loading screen once they became protected.
     await this.#unlock();
+    await this.#notify("syncing");
     const outcome = await reconcile(this.db, this.#transport(), this.#codec);
     await this.#emitProjection({ kind: "rebuild" });
     const state: SyncState = outcome.offline
@@ -324,6 +328,20 @@ export class LocalContentService {
   async getDatabaseEntry(entryId: Uuid): Promise<LocalDatabaseEntryRow | null> {
     await this.#unlock();
     return this.databases.getEntry(entryId);
+  }
+
+  async previewTrashImpact(
+    itemId: Uuid,
+  ): Promise<{ readonly isDatabase: boolean; readonly activeEntryCount: number }> {
+    await this.#unlock();
+    const database = await this.db.databases.get(itemId);
+    if (database === undefined) return { isDatabase: false, activeEntryCount: 0 };
+    const memberships = await this.db.databaseEntries.where("databaseId").equals(itemId).toArray();
+    const members = await this.db.items.bulkGet(memberships.map(({ entryItemId }) => entryItemId));
+    return {
+      isDatabase: true,
+      activeEntryCount: members.filter((item) => item?.lifecycle === "active").length,
+    };
   }
 
   async getDatabaseEntryRelationTargets(databaseId: Uuid, entryId: Uuid) {

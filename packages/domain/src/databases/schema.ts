@@ -262,6 +262,15 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/**
+ * Compares JSON-shaped domain values without treating object key order as
+ * content. PostgreSQL JSONB and HTTP serialization may reorder keys during a
+ * round trip, while arrays remain deliberately order-sensitive.
+ */
+export function jsonValuesEqual(left: unknown, right: unknown): boolean {
+  return canonicalJson(left) === canonicalJson(right);
+}
+
 async function sha256Hex(value: string): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");

@@ -6,6 +6,7 @@ import type {
   Uuid,
 } from "@myownnotion/domain";
 import { useEffect, useRef, useState } from "react";
+import { DATABASE_COPY } from "./database-copy.ts";
 
 function draftSignature(sorts: readonly SortCriterion[], group: GroupCriterion | null): string {
   return JSON.stringify({ sorts, group });
@@ -82,10 +83,7 @@ export function SortGroupEditor({
 
   return (
     <details className="database-rule-editor">
-      <summary>
-        Sort & group · {sorts.length} sort{sorts.length === 1 ? "" : "s"}
-        {group === null ? "" : " · grouped"}
-      </summary>
+      <summary>{DATABASE_COPY.sort.summary(sorts.length, group !== null)}</summary>
       <fieldset className="database-rule-controls" disabled={saving} aria-busy={saving}>
         <ol className="database-rules">
           {sorts.map((sort, index) => {
@@ -93,10 +91,10 @@ export function SortGroupEditor({
             return (
               <li key={sort.propertyId} className="database-rule">
                 {property === undefined || property.state !== "active" ? (
-                  <span role="alert">Unavailable property</span>
+                  <span role="alert">{DATABASE_COPY.common.unavailableProperty}</span>
                 ) : null}
                 <label>
-                  Sort property
+                  {DATABASE_COPY.sort.property}
                   <select
                     value={sort.propertyId}
                     onChange={(event) =>
@@ -120,7 +118,7 @@ export function SortGroupEditor({
                   </select>
                 </label>
                 <label>
-                  Direction
+                  {DATABASE_COPY.sort.direction}
                   <select
                     value={sort.direction}
                     onChange={(event) =>
@@ -129,12 +127,12 @@ export function SortGroupEditor({
                       })
                     }
                   >
-                    <option value="ascending">Ascending</option>
-                    <option value="descending">Descending</option>
+                    <option value="ascending">{DATABASE_COPY.sort.ascending}</option>
+                    <option value="descending">{DATABASE_COPY.sort.descending}</option>
                   </select>
                 </label>
                 <label>
-                  Empty values
+                  {DATABASE_COPY.sort.emptyValues}
                   <select
                     value={sort.missing}
                     onChange={(event) =>
@@ -143,8 +141,8 @@ export function SortGroupEditor({
                       })
                     }
                   >
-                    <option value="last">Last</option>
-                    <option value="first">First</option>
+                    <option value="last">{DATABASE_COPY.sort.last}</option>
+                    <option value="first">{DATABASE_COPY.sort.first}</option>
                   </select>
                 </label>
                 <button
@@ -153,17 +151,17 @@ export function SortGroupEditor({
                     updateSorts((current) => current.filter((_, position) => position !== index))
                   }
                 >
-                  Remove sort
+                  {DATABASE_COPY.sort.remove}
                 </button>
                 <button type="button" disabled={index === 0} onClick={() => moveSort(index, -1)}>
-                  Move sort earlier
+                  {DATABASE_COPY.sort.moveEarlier}
                 </button>
                 <button
                   type="button"
                   disabled={index === sorts.length - 1}
                   onClick={() => moveSort(index, 1)}
                 >
-                  Move sort later
+                  {DATABASE_COPY.sort.moveLater}
                 </button>
               </li>
             );
@@ -181,10 +179,10 @@ export function SortGroupEditor({
             ]);
           }}
         >
-          Add sort
+          {DATABASE_COPY.sort.add}
         </button>
         <label>
-          Group by
+          {DATABASE_COPY.sort.groupBy}
           <select
             value={group?.propertyId ?? ""}
             onChange={(event) =>
@@ -193,7 +191,7 @@ export function SortGroupEditor({
               )
             }
           >
-            <option value="">No grouping</option>
+            <option value="">{DATABASE_COPY.sort.noGrouping}</option>
             {groupable.map((property) => (
               <option key={property.id} value={property.id}>
                 {property.name}
@@ -213,7 +211,7 @@ export function SortGroupEditor({
               .finally(() => setSaving(false));
           }}
         >
-          {saving ? "Saving sort and group…" : "Save sort and group"}
+          {saving ? DATABASE_COPY.sort.saving : DATABASE_COPY.sort.save}
         </button>
       </fieldset>
     </details>

@@ -1,6 +1,7 @@
 import type { DatabaseProperty, DatabaseView, Uuid } from "@myownnotion/domain";
 import { useLayoutEffect, useRef } from "react";
 import type { DatabaseViewPage } from "../../services/databases.ts";
+import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
 
 export function ListView({
@@ -39,14 +40,14 @@ export function ListView({
     <section
       ref={scrollRef}
       className="database-view database-list-scroll"
-      aria-label={`${view.name} list view`}
+      aria-label={DATABASE_COPY.list.viewLabel(view.name)}
       onScroll={(event) => onScroll?.(event.currentTarget.scrollTop)}
     >
       {page.rows.length === 0 ? (
         <p className="empty-state">
           {page.coverage === "partial"
-            ? "No entries in the data available on this device."
-            : "No entries in this view."}
+            ? DATABASE_COPY.common.noEntriesAvailable
+            : DATABASE_COPY.common.noEntries}
         </p>
       ) : (
         <ul
@@ -74,7 +75,9 @@ export function ListView({
               )}
               {row.syncState === "synced" ? null : (
                 <span className={`database-sync database-sync--${row.syncState}`}>
-                  {row.syncState === "pending" ? "Saved locally" : "Conflict"}
+                  {row.syncState === "pending"
+                    ? DATABASE_COPY.common.savedLocally
+                    : DATABASE_COPY.common.conflict}
                 </span>
               )}
             </li>

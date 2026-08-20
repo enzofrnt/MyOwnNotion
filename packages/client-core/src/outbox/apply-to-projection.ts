@@ -123,12 +123,13 @@ async function writeLocalRevision(
   // Supplied when the sealed row already carries it. Generating a second one
   // here would leave the row pointing at a revision that does not exist.
   revisionId?: Uuid,
+  mutationId?: Uuid,
 ): Promise<Uuid> {
   const id = revisionId ?? generateUuidV7();
   await db.revisionHeaders.put({
     id,
     itemId,
-    mutationId: id,
+    mutationId: mutationId ?? id,
     parentRevisionIds,
     acceptedAt: now().toISOString(),
     local: 1,
@@ -649,6 +650,7 @@ export async function applyCommandToProjection(
   command: MutationCommand,
   now: () => Date,
   prepared: PreparedProjectionWrite = {},
+  mutationId?: Uuid,
 ): Promise<Uuid[]> {
   switch (command.type) {
     case "database.create": {
@@ -671,7 +673,14 @@ export async function applyCommandToProjection(
       ) {
         throw new LocalValidationError("database.not-found", "The database write was not prepared");
       }
-      const revisionId = await writeLocalRevision(db, command.id, [], now, prepared.revisionId);
+      const revisionId = await writeLocalRevision(
+        db,
+        command.id,
+        [],
+        now,
+        prepared.revisionId,
+        mutationId,
+      );
       await db.items.add(prepared.item);
       await db.placements.add({
         id: command.placement.id,
@@ -706,6 +715,7 @@ export async function applyCommandToProjection(
           : [item.currentRevisionId],
         now,
         prepared.revisionId,
+        mutationId,
       );
       await db.items.put(prepared.item);
       await db.databases.put(prepared.database);
@@ -742,7 +752,14 @@ export async function applyCommandToProjection(
           "The entry write was not prepared",
         );
       }
-      const revisionId = await writeLocalRevision(db, command.id, [], now, prepared.revisionId);
+      const revisionId = await writeLocalRevision(
+        db,
+        command.id,
+        [],
+        now,
+        prepared.revisionId,
+        mutationId,
+      );
       await db.items.add(prepared.item);
       await db.placements.add({
         id: command.placement.id,
@@ -789,6 +806,7 @@ export async function applyCommandToProjection(
           : [item.currentRevisionId],
         now,
         prepared.revisionId,
+        mutationId,
       );
       await db.items.put(prepared.item);
       await db.databaseEntries.put(prepared.databaseEntry);
@@ -811,7 +829,14 @@ export async function applyCommandToProjection(
       if (prepared.item === undefined || prepared.revisionId === undefined) {
         throw new LocalValidationError("item.not-found", "The write was not prepared");
       }
-      const revisionId = await writeLocalRevision(db, command.id, [], now, prepared.revisionId);
+      const revisionId = await writeLocalRevision(
+        db,
+        command.id,
+        [],
+        now,
+        prepared.revisionId,
+        mutationId,
+      );
       await db.items.add(prepared.item);
       await db.placements.add({
         // Shared client-generated identity: the server persists the same
@@ -843,6 +868,7 @@ export async function applyCommandToProjection(
         [item.currentRevisionId],
         now,
         prepared.revisionId,
+        mutationId,
       );
       await db.items.put(prepared.item);
       if (
@@ -877,6 +903,7 @@ export async function applyCommandToProjection(
         [item.currentRevisionId],
         now,
         prepared.revisionId,
+        mutationId,
       );
       await db.items.put(prepared.item);
       await reconcileLocalPageLinks(db, command.itemId, command.pageLinkTargetIds ?? []);
@@ -901,6 +928,7 @@ export async function applyCommandToProjection(
         [...command.resolvedRevisionIds],
         now,
         prepared.revisionId,
+        mutationId,
       );
       await db.items.put(prepared.item);
       await reconcileLocalPageLinks(db, command.itemId, command.pageLinkTargetIds ?? []);
@@ -931,6 +959,8 @@ export async function applyCommandToProjection(
         placement.itemId,
         [item.currentRevisionId],
         now,
+        undefined,
+        mutationId,
       );
       await db.placements.update(command.placementId, {
         parentItemId: command.parentItemId,
@@ -947,7 +977,20 @@ export async function applyCommandToProjection(
       if (root === null || root.lifecycle !== "active") {
         throw new LocalValidationError("item.not-found", "Item is not available locally");
       }
-      const queue: Uuid[] = [command.itemId];
+      const databaseEntries = await db.databaseEntries
+        .where("databaseId")
+        .equals(command.itemId)
+        .toArray();
+      const activeMemberIds: Uuid[] = [];
+      for (const membership of databaseEntries) {
+        const member = await db.items.get(membership.entryItemId);
+        if (member?.lifecycle === "active") activeMemberIds.push(membership.entryItemId);
+      }
+      // Membership is independent from hierarchy. Seeding the traversal with
+      // active members keeps a moved entry in the same atomic lifecycle group
+      // as its database host, while the traversal still preserves normal
+      // branch-trash semantics for children below either page.
+      const queue: Uuid[] = [command.itemId, ...activeMemberIds];
       const branch: Uuid[] = [];
       const seen = new Set<string>();
       while (queue.length > 0) {
@@ -969,7 +1012,14 @@ export async function applyCommandToProjection(
         if (item === undefined) {
           continue;
         }
-        const revisionId = await writeLocalRevision(db, itemId, [item.currentRevisionId], now);
+        const revisionId = await writeLocalRevision(
+          db,
+          itemId,
+          [item.currentRevisionId],
+          now,
+          undefined,
+          mutationId,
+        );
         await db.items.update(itemId, {
           lifecycle: "trashed",
           trashedAt,
@@ -986,16 +1036,31 @@ export async function applyCommandToProjection(
       if (item === undefined || item.lifecycle !== "trashed") {
         throw new LocalValidationError("item.not-found", "Item is not recoverable locally");
       }
-      // Restore the branch trashed at the same instant (same local action).
-      const branch = await db.items
-        .filter(
-          (candidate) =>
-            candidate.lifecycle === "trashed" && candidate.trashedAt === item.trashedAt,
-        )
-        .toArray();
+      // The current trash revision carries the durable mutation identity, so
+      // the restore group cannot collide with a separate action in the same
+      // millisecond. Timestamp fallback keeps older local projections
+      // recoverable after this invariant is introduced.
+      const rootHeader = await db.revisionHeaders.get(item.currentRevisionId);
+      const candidates = await db.items.where("lifecycle").equals("trashed").toArray();
+      const candidateHeaders = await db.revisionHeaders.bulkGet(
+        candidates.map(({ currentRevisionId }) => currentRevisionId),
+      );
+      const branch = candidates.filter((candidate, index) => {
+        const header = candidateHeaders[index];
+        return rootHeader === undefined
+          ? candidate.trashedAt === item.trashedAt
+          : header?.mutationId === rootHeader.mutationId;
+      });
       const revisionIds: Uuid[] = [];
       for (const member of branch) {
-        const revisionId = await writeLocalRevision(db, member.id, [member.currentRevisionId], now);
+        const revisionId = await writeLocalRevision(
+          db,
+          member.id,
+          [member.currentRevisionId],
+          now,
+          undefined,
+          mutationId,
+        );
         await db.items.update(member.id, {
           lifecycle: "active",
           trashedAt: null,
@@ -1014,7 +1079,14 @@ export async function applyCommandToProjection(
           "Internal page links must be managed through the page document",
         );
       }
-      const revisionId = await writeLocalRevision(db, command.sourceItemId, [], now);
+      const revisionId = await writeLocalRevision(
+        db,
+        command.sourceItemId,
+        [],
+        now,
+        undefined,
+        mutationId,
+      );
       await db.relationships.add({
         id: command.id,
         sourceItemId: command.sourceItemId,
@@ -1036,7 +1108,14 @@ export async function applyCommandToProjection(
           "Internal page links must be removed by editing the page document",
         );
       }
-      const revisionId = await writeLocalRevision(db, relationship.sourceItemId, [], now);
+      const revisionId = await writeLocalRevision(
+        db,
+        relationship.sourceItemId,
+        [],
+        now,
+        undefined,
+        mutationId,
+      );
       await db.relationships.delete(command.relationshipId);
       return [revisionId];
     }

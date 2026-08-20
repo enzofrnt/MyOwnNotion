@@ -26,6 +26,7 @@ import {
   useState,
 } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
 import {
   type RelationOption,
@@ -260,7 +261,7 @@ export function TableView({
 
   const cancelEdit = (position: GridCellPosition): void => {
     setEditingCell(null);
-    setAnnouncement("Edit cancelled");
+    setAnnouncement(DATABASE_COPY.table.editCancelled);
     focusCell(refs, position);
   };
 
@@ -277,7 +278,7 @@ export function TableView({
         ? typedCharacter
         : initial;
     setEditingCell({ key: refKey(position), draft, error: null, saving: false });
-    setAnnouncement(`Editing ${property.name} for ${row.title}`);
+    setAnnouncement(DATABASE_COPY.table.editing(property.name, row.title));
     queueMicrotask(() => {
       refs.current.get(refKey(position))?.querySelector<HTMLElement>("input, select")?.focus();
     });
@@ -294,7 +295,7 @@ export function TableView({
     if (property.type === "title") {
       const title = typeof editing.draft === "string" ? editing.draft.trim() : "";
       if (title === "") {
-        setEditingCell({ ...editing, error: "Give the page a title." });
+        setEditingCell({ ...editing, error: DATABASE_COPY.table.titleRequired });
         return;
       }
       update = { kind: "title", title };
@@ -321,10 +322,10 @@ export function TableView({
     try {
       await onUpdateEntry(row.entryId as Uuid, update);
       setEditingCell(null);
-      setAnnouncement(`${property.name} saved for ${row.title}`);
+      setAnnouncement(DATABASE_COPY.table.saved(property.name, row.title));
       focusCell(refs, position);
     } catch {
-      setEditingCell({ ...editing, saving: false, error: "The value could not be saved." });
+      setEditingCell({ ...editing, saving: false, error: DATABASE_COPY.table.saveFailed });
     }
   };
 
@@ -373,11 +374,11 @@ export function TableView({
     : rows.map((row, index) => ({ row, index, item: null }));
 
   return (
-    <section className="database-view" aria-label={`${view.name} table view`}>
+    <section className="database-view" aria-label={DATABASE_COPY.table.viewLabel(view.name)}>
       <section
         ref={scrollRef}
         className="database-table-scroll"
-        aria-label={`${view.name} scrollable table`}
+        aria-label={DATABASE_COPY.table.scrollLabel(view.name)}
         onScroll={(event) => onScroll?.(event.currentTarget.scrollTop)}
       >
         <table
@@ -410,18 +411,18 @@ export function TableView({
                       {property === undefined ? null : (
                         <fieldset className="database-column-size">
                           <legend className="sr-only">
-                            {property.name} width {width} pixels
+                            {DATABASE_COPY.table.width(property.name, width)}
                           </legend>
                           <button
                             type="button"
-                            aria-label={`Narrow ${property.name}`}
+                            aria-label={DATABASE_COPY.table.narrow(property.name)}
                             onClick={() => onResize(property.id, Math.max(80, width - 20))}
                           >
                             −
                           </button>
                           <button
                             type="button"
-                            aria-label={`Widen ${property.name}`}
+                            aria-label={DATABASE_COPY.table.widen(property.name)}
                             onClick={() => onResize(property.id, Math.min(800, width + 20))}
                           >
                             +
@@ -443,8 +444,8 @@ export function TableView({
               <tr>
                 <td colSpan={Math.max(1, visible.length)}>
                   {page.coverage === "partial"
-                    ? "No entries in the data available on this device."
-                    : "No entries in this view."}
+                    ? DATABASE_COPY.common.noEntriesAvailable
+                    : DATABASE_COPY.common.noEntries}
                 </td>
               </tr>
             ) : (
@@ -496,7 +497,9 @@ export function TableView({
                             <div className="database-cell-editor">
                               {property.type === "title" ? (
                                 <label>
-                                  <span className="sr-only">Title for {row.original.title}</span>
+                                  <span className="sr-only">
+                                    {DATABASE_COPY.table.titleFor(row.original.title)}
+                                  </span>
                                   <input
                                     value={
                                       typeof editingCell.draft === "string" ? editingCell.draft : ""
@@ -544,15 +547,18 @@ export function TableView({
                                   onClick={() => void saveEdit(position, property, row.original)}
                                 >
                                   {editingCell.saving
-                                    ? `Saving ${property.name}…`
-                                    : `Save ${property.name} for ${row.original.title}`}
+                                    ? DATABASE_COPY.table.saving(property.name)
+                                    : DATABASE_COPY.table.saveFor(
+                                        property.name,
+                                        row.original.title,
+                                      )}
                                 </button>
                                 <button
                                   type="button"
                                   disabled={editingCell.saving}
                                   onClick={() => cancelEdit(position)}
                                 >
-                                  Cancel edit
+                                  {DATABASE_COPY.table.cancelEdit}
                                 </button>
                                 <button
                                   type="button"
@@ -562,7 +568,7 @@ export function TableView({
                                     onOpenEntry(row.original.entryId as Uuid, event.currentTarget)
                                   }
                                 >
-                                  Open full entry
+                                  {DATABASE_COPY.table.openEntry}
                                 </button>
                               </div>
                             </div>

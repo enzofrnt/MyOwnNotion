@@ -34,6 +34,7 @@ async function createDatabase() {
       name: "Projets",
       placement: { id: ids.placementId, parentItemId: null, positionKey: "V" },
       titlePropertyId: ids.titlePropertyId,
+      titlePropertyName: "Titre",
       initialViewId: ids.viewId,
       initialViewName: "Table principale",
     },
@@ -96,6 +97,7 @@ describe("owner database contract (T020)", () => {
     expect(created.body.database.definition.properties).toHaveLength(1);
     expect(created.body.database.definition.properties[0]).toMatchObject({
       id: created.titlePropertyId,
+      name: "Titre",
       type: "title",
       state: "active",
     });
@@ -222,6 +224,36 @@ describe("owner database contract (T020)", () => {
       title: "Alpha",
       values: { [textPropertyId]: { kind: "text", value: "Second value" } },
     });
+  });
+
+  it("announces the active database entry count before trash confirmation", async () => {
+    const created = await createDatabase();
+    for (let index = 0; index < 2; index += 1) {
+      const response = await harness.built.app.inject({
+        method: "POST",
+        url: `/v1/databases/${created.databaseId}/entries`,
+        headers: idempotencyHeaders(),
+        payload: {
+          id: generateUuidV7(),
+          title: `Entry ${index + 1}`,
+          placement: {
+            id: generateUuidV7(),
+            parentItemId: null,
+            positionKey: `m${index}`,
+          },
+          values: {},
+          relationTargets: {},
+        },
+      });
+      expect(response.statusCode, response.body).toBe(201);
+    }
+
+    const impact = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${created.databaseId}/trash-impact`,
+    });
+    expect(impact.statusCode, impact.body).toBe(200);
+    expect(impact.json()).toEqual({ isDatabase: true, activeEntryCount: 2 });
   });
 
   it("returns safe problems without reflecting private values", async () => {

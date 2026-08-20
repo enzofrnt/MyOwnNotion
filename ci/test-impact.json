@@ -362,6 +362,43 @@
       }
     },
     {
+      "test": "tests/e2e/databases-offline-sync.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/mutation-batch.ts",
+          "apps/web/src/services/content-api.ts",
+          "apps/web/src/services/local-content.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/client-core/src/outbox/",
+          "packages/client-core/src/reconciliation/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/databases-security.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/export.ts",
+          "apps/api/src/security/protected-content.ts",
+          "apps/web/src/services/local-content.ts",
+          "packages/client-core/src/security/local-record-codec.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/databases/",
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/local-store/",
+          "packages/client-core/src/outbox/",
+          "packages/client-core/src/security/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/databases-views.spec.ts",
       "owners": {
         "exact": [
@@ -369,6 +406,18 @@
           "apps/api/src/routes/databases.ts",
           "apps/web/src/services/databases.ts"
         ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/databases-visual-views.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/databases/database-query-service.ts", "apps/web/src/styles.css"],
         "prefixes": [
           "apps/web/src/features/databases/",
           "packages/client-core/src/databases/",

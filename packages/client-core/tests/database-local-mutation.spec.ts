@@ -104,6 +104,13 @@ describe("atomic structured local mutation (T021)", () => {
     expect(stored).toHaveProperty("sealedDefinition");
     expect(stored).not.toHaveProperty("definition");
     expect(JSON.stringify(stored)).not.toContain("Offline table");
+    const storedOutbox = await db.outbox.get(
+      result.ok ? result.value.mutationId : generateUuidV7(),
+    );
+    expect(storedOutbox).toHaveProperty("sealedPayload");
+    expect(storedOutbox).not.toHaveProperty("payload");
+    expect(JSON.stringify(storedOutbox)).not.toContain("Offline projects");
+    expect(JSON.stringify(storedOutbox)).not.toContain("Offline table");
   });
 
   it("seals crypto preparation before opening the Dexie write transaction", async () => {
@@ -241,6 +248,43 @@ describe("atomic structured local mutation (T021)", () => {
       relationType: "database:property",
       metadata: { databaseId: create.id, propertyId: relationPropertyId },
     });
+  });
+
+  it("trashes moved active members atomically and restores only that mutation group", async () => {
+    const create = createPayload();
+    expect((await apply("database.create", create)).ok).toBe(true);
+    const entryIds = [generateUuidV7(), generateUuidV7()];
+    for (const [index, entryId] of entryIds.entries()) {
+      expect(
+        (
+          await apply("database.entry.create", {
+            databaseId: create.id,
+            id: entryId,
+            title: `Moved entry ${index + 1}`,
+            placement: { id: generateUuidV7(), parentItemId: null, positionKey: `m${index}` },
+            values: {},
+            relationTargets: {},
+          })
+        ).ok,
+      ).toBe(true);
+    }
+    const independentlyTrashed = entryIds[1] as Uuid;
+    expect((await apply("item.trash", { itemId: independentlyTrashed })).ok).toBe(true);
+
+    const trashed = await apply("item.trash", { itemId: create.id });
+    expect(trashed.ok && trashed.value.localRevisionIds).toHaveLength(2);
+    expect((await items.getItem(create.id))?.lifecycle).toBe("trashed");
+    expect((await items.getItem(entryIds[0] as Uuid))?.lifecycle).toBe("trashed");
+
+    const restored = await apply("item.restore", { itemId: create.id });
+    expect(restored.ok && restored.value.localRevisionIds).toHaveLength(2);
+    expect((await items.getItem(create.id))?.lifecycle).toBe("active");
+    expect((await items.getItem(entryIds[0] as Uuid))?.lifecycle).toBe("active");
+    // The test clock returns the exact same instant for every action. Mutation
+    // identity, not timestamp coincidence, keeps this separately trashed page
+    // out of the database host's restore group.
+    expect((await items.getItem(independentlyTrashed))?.lifecycle).toBe("trashed");
+    expect(await databases.getEntry(independentlyTrashed)).not.toBeNull();
   });
 
   it("rolls every projection store back when outbox persistence fails", async () => {

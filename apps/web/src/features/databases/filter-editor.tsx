@@ -9,6 +9,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { useEffect, useRef, useState } from "react";
+import { DATABASE_COPY } from "./database-copy.ts";
 
 function operators(property: DatabaseProperty): readonly FilterOperator[] {
   const common: FilterOperator[] = ["equals", "not-equals", "is-empty", "is-not-empty"];
@@ -142,11 +143,12 @@ function OperandEditor({
     const timezone = property.config.mode === "instant" ? " (UTC)" : "";
     return (
       <fieldset className="database-filter-period">
-        <legend>Period for {property.name}</legend>
+        <legend>{DATABASE_COPY.filter.periodFor(property.name)}</legend>
         <label>
-          From{timezone}
+          {DATABASE_COPY.filter.from}
+          {timezone}
           <input
-            aria-label={`From for ${property.name}${timezone}`}
+            aria-label={DATABASE_COPY.filter.fromFor(property.name, timezone)}
             type={inputType}
             value={from}
             max={to || undefined}
@@ -154,9 +156,10 @@ function OperandEditor({
           />
         </label>
         <label>
-          To{timezone}
+          {DATABASE_COPY.filter.to}
+          {timezone}
           <input
-            aria-label={`To for ${property.name}${timezone}`}
+            aria-label={DATABASE_COPY.filter.toFor(property.name, timezone)}
             type={inputType}
             value={to}
             min={from || undefined}
@@ -176,13 +179,13 @@ function OperandEditor({
   ) {
     return (
       <select
-        aria-label={`Value for ${property.name}`}
+        aria-label={DATABASE_COPY.filter.valueFor(property.name)}
         value={value}
         onChange={(event) =>
           onChange(operandFromInput(property, criterion.operator, event.target.value))
         }
       >
-        <option value="">Choose an option</option>
+        <option value="">{DATABASE_COPY.filter.chooseOption}</option>
         {property.config.options
           .filter(({ state }) => state === "active")
           .map((option) => (
@@ -196,20 +199,20 @@ function OperandEditor({
   if (property.type === "checkbox") {
     return (
       <select
-        aria-label={`Value for ${property.name}`}
+        aria-label={DATABASE_COPY.filter.valueFor(property.name)}
         value={value || "false"}
         onChange={(event) =>
           onChange(operandFromInput(property, criterion.operator, event.target.value))
         }
       >
-        <option value="false">Not checked</option>
-        <option value="true">Checked</option>
+        <option value="false">{DATABASE_COPY.filter.notChecked}</option>
+        <option value="true">{DATABASE_COPY.filter.checked}</option>
       </select>
     );
   }
   return (
     <input
-      aria-label={`Value for ${property.name}`}
+      aria-label={DATABASE_COPY.filter.valueFor(property.name)}
       type={
         property.type === "number"
           ? "text"
@@ -220,7 +223,11 @@ function OperandEditor({
               : "text"
       }
       value={value}
-      placeholder={property.type === "relation" ? "Page identity" : "Value"}
+      placeholder={
+        property.type === "relation"
+          ? DATABASE_COPY.filter.pageIdentity
+          : DATABASE_COPY.filter.value
+      }
       onChange={(event) =>
         onChange(operandFromInput(property, criterion.operator, event.target.value))
       }
@@ -287,13 +294,16 @@ export function FilterEditor({
   return (
     <details className="database-rule-editor">
       <summary>
-        Filters · {draft.criteria.length} · {draft.mode === "all" ? "all rules" : "any rule"}
+        {DATABASE_COPY.filter.filters} · {draft.criteria.length} ·{" "}
+        {draft.mode === "all"
+          ? DATABASE_COPY.filter.allRulesShort
+          : DATABASE_COPY.filter.anyRuleShort}
       </summary>
       <fieldset className="database-rule-controls" disabled={saving} aria-busy={saving}>
         <label>
-          Match
+          {DATABASE_COPY.filter.match}
           <select
-            aria-label="Filter combination"
+            aria-label={DATABASE_COPY.filter.combination}
             value={draft.mode}
             onChange={(event) =>
               updateDraft((current) => ({
@@ -302,8 +312,8 @@ export function FilterEditor({
               }))
             }
           >
-            <option value="all">All rules</option>
-            <option value="any">At least one rule</option>
+            <option value="all">{DATABASE_COPY.filter.allRules}</option>
+            <option value="any">{DATABASE_COPY.filter.anyRules}</option>
           </select>
         </label>
         <ol className="database-rules">
@@ -316,7 +326,7 @@ export function FilterEditor({
                   className="database-rule database-rule--invalid"
                   role="alert"
                 >
-                  Unavailable property · repair or remove this filter
+                  {DATABASE_COPY.filter.unavailable}
                   <button
                     type="button"
                     onClick={() =>
@@ -326,7 +336,7 @@ export function FilterEditor({
                       }))
                     }
                   >
-                    Remove rule
+                    {DATABASE_COPY.filter.removeRule}
                   </button>
                 </li>
               );
@@ -334,7 +344,7 @@ export function FilterEditor({
             return (
               <li key={criterion.id} className="database-rule">
                 <label>
-                  Property
+                  {DATABASE_COPY.filter.property}
                   <select
                     value={property.id}
                     onChange={(event) => {
@@ -356,7 +366,7 @@ export function FilterEditor({
                   </select>
                 </label>
                 <label>
-                  Operator
+                  {DATABASE_COPY.filter.operator}
                   <select
                     value={criterion.operator}
                     onChange={(event) =>
@@ -368,7 +378,7 @@ export function FilterEditor({
                   >
                     {operators(property).map((operator) => (
                       <option key={operator} value={operator}>
-                        {operator.replaceAll("-", " ")}
+                        {DATABASE_COPY.filter.operatorLabels[operator]}
                       </option>
                     ))}
                   </select>
@@ -387,7 +397,7 @@ export function FilterEditor({
                     }))
                   }
                 >
-                  Remove rule
+                  {DATABASE_COPY.filter.removeRule}
                 </button>
               </li>
             );
@@ -412,14 +422,14 @@ export function FilterEditor({
             }));
           }}
         >
-          Add filter
+          {DATABASE_COPY.filter.add}
         </button>
         {draft.criteria.length > 0 ? (
           <button
             type="button"
             onClick={() => updateDraft((current) => ({ ...current, criteria: [] }))}
           >
-            Clear filters
+            {DATABASE_COPY.filter.clear}
           </button>
         ) : null}
         <button
@@ -434,7 +444,7 @@ export function FilterEditor({
               .finally(() => setSaving(false));
           }}
         >
-          {saving ? "Saving filters…" : "Save filters"}
+          {saving ? DATABASE_COPY.filter.saving : DATABASE_COPY.filter.save}
         </button>
       </fieldset>
     </details>

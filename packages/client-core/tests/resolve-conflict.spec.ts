@@ -30,7 +30,7 @@ beforeEach(async () => {
   ({ codec } = await createTestCodec());
   db = openLocalDatabase(`resolve-${generateUuidV7()}`);
   await db.open();
-  outbox = new Outbox(db);
+  outbox = new Outbox(db, codec);
 });
 
 afterEach(async () => {

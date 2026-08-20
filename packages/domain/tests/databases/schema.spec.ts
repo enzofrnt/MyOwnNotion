@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type DomainResult,
+  jsonValuesEqual,
   previewDefinitionImpact,
   projectTaskSemantics,
   validateDatabaseDefinition,
@@ -18,6 +19,16 @@ function required<T>(value: T | undefined): T {
 }
 
 describe("database definitions", () => {
+  it("compares JSON content independently of object key serialization order", () => {
+    expect(
+      jsonValuesEqual(
+        { formatVersion: 1, options: { density: "comfortable", frozen: true } },
+        { options: { frozen: true, density: "comfortable" }, formatVersion: 1 },
+      ),
+    ).toBe(true);
+    expect(jsonValuesEqual({ order: ["a", "b"] }, { order: ["b", "a"] })).toBe(false);
+  });
+
   it("requires exactly one active, immutable title property", () => {
     const valid = definition();
     expect(validateDatabaseDefinition(valid).ok).toBe(true);

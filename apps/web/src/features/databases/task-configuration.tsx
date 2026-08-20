@@ -5,6 +5,7 @@ import type {
   Uuid,
 } from "@myownnotion/domain";
 import { useState } from "react";
+import { DATABASE_COPY } from "./database-copy.ts";
 
 function activeProperties(
   definition: DatabaseDefinition,
@@ -50,8 +51,10 @@ function RoleSelect({
           onChange(event.target.value === "" ? null : (event.target.value as Uuid))
         }
       >
-        {required ? null : <option value="">Not configured</option>}
-        {invalid ? <option value={value ?? ""}>Unavailable property</option> : null}
+        {required ? null : <option value="">{DATABASE_COPY.task.notConfigured}</option>}
+        {invalid ? (
+          <option value={value ?? ""}>{DATABASE_COPY.common.unavailableProperty}</option>
+        ) : null}
         {properties.map((property) => (
           <option key={property.id} value={property.id}>
             {property.name}
@@ -89,7 +92,7 @@ export function TaskConfiguration({
     try {
       await onChange({ ...definition, taskRoles });
     } catch {
-      setSaveError("Task roles could not be saved. The previous configuration was restored.");
+      setSaveError(DATABASE_COPY.task.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -99,10 +102,8 @@ export function TaskConfiguration({
     <section className="task-configuration" aria-labelledby="task-configuration-heading">
       <div className="task-configuration__heading">
         <div>
-          <h3 id="task-configuration-heading">Task tracking</h3>
-          <p className="muted">
-            Task roles reference existing properties. Entries remain ordinary editable pages.
-          </p>
+          <h3 id="task-configuration-heading">{DATABASE_COPY.task.tracking}</h3>
+          <p className="muted">{DATABASE_COPY.task.explanation}</p>
         </div>
         {roles === null ? (
           <button
@@ -119,7 +120,7 @@ export function TaskConfiguration({
               }
             }}
           >
-            Enable task tracking
+            {DATABASE_COPY.task.enable}
           </button>
         ) : (
           <button
@@ -128,25 +129,23 @@ export function TaskConfiguration({
             disabled={saving}
             onClick={() => void replaceRoles(null)}
           >
-            Disable task tracking
+            {DATABASE_COPY.task.disable}
           </button>
         )}
       </div>
 
       {roles === null && statusProperties.length === 0 ? (
-        <p role="status">Add an active status or select property before enabling task tracking.</p>
+        <p role="status">{DATABASE_COPY.task.needsProperty}</p>
       ) : null}
-      {invalid ? (
-        <p role="alert">Task role configuration is invalid. Choose active compatible properties.</p>
-      ) : null}
+      {invalid ? <p role="alert">{DATABASE_COPY.task.invalid}</p> : null}
       {saveError === null ? null : <p role="alert">{saveError}</p>}
-      {saving ? <p role="status">Saving task roles locally…</p> : null}
+      {saving ? <p role="status">{DATABASE_COPY.task.saving}</p> : null}
 
       {roles === null ? null : (
         <div className="task-configuration__roles">
           <RoleSelect
             id={`task-status-${definition.databaseId}`}
-            label="Task status property"
+            label={DATABASE_COPY.task.status}
             value={roles.statusPropertyId}
             properties={statusProperties}
             required
@@ -157,7 +156,7 @@ export function TaskConfiguration({
           />
           <RoleSelect
             id={`task-due-${definition.databaseId}`}
-            label="Task due date property"
+            label={DATABASE_COPY.task.dueDate}
             value={roles.dueDatePropertyId}
             properties={dateProperties}
             required={false}
@@ -166,7 +165,7 @@ export function TaskConfiguration({
           />
           <RoleSelect
             id={`task-priority-${definition.databaseId}`}
-            label="Task priority property"
+            label={DATABASE_COPY.task.priority}
             value={roles.priorityPropertyId}
             properties={statusProperties}
             required={false}

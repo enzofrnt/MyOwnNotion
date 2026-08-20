@@ -119,6 +119,13 @@ validation de tous les critères de sortie V1. La fondation Compose/env, reverse
 proxy externe, CI, GHCR et releases immuables requise par FR-030 à FR-035 est
 portée par la feature 002 et n’est pas dupliquée ici.
 
+Cette readiness porte aussi le passage de langue global : la cohérence
+française exigée par le canevas est validée sur l'application entière dans une
+même livraison. Les features développées avant ce passage suivent la langue
+active existante, externalisent leurs copies et gardent leurs valeurs
+canoniques indépendantes des traductions ; aucune ne livre seule un fragment
+d'interface dans une autre langue.
+
 ### 016 — CI cache and selective tests
 
 **État** : implémentée et validée localement ; prête pour la pull request
@@ -138,8 +145,19 @@ devenues obsolètes. Elle ne réduit ni le contrôle local complet, ni les gates
 
 ### 009 — Databases and structured tasks
 
-Propriétés, relations, filtres, tris, vues table, Kanban, galerie, liste et
-calendrier. Canevas : section 14.
+**État** : implémentée et convergée ; gate exact du commit final en cours
+**Dépendance** : 001 à 008
+**Dossier** : [`specs/009-databases-structured-tasks`](../../specs/009-databases-structured-tasks/)
+**Canevas** : section 14
+
+Capacité base attachée aux pages canoniques, huit types de propriété, relations,
+filtres, tris, regroupements, tâches structurées et vues table, liste, Kanban,
+galerie et calendrier. La livraison inclut aussi l'offline, la synchronisation,
+les conflits, la recherche, l'export, la sauvegarde, la restauration, le cycle
+de vie et les budgets d'accessibilité/performance requis par cette feature.
+Ses copies suivent la langue active via une frontière propre à la feature ; la
+traduction française est activée avec le passage transversal de release plutôt
+que comme une interface 009 partiellement traduite.
 
 ### 010 — Knowledge graph
 

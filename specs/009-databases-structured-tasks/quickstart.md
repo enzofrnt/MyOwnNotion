@@ -51,7 +51,7 @@ Pour chaque type :
 
 Résultat attendu :
 
-- décimaux identiques entre interface française, stockage et filtre ;
+- décimaux identiques entre la locale active, le stockage et le filtre ;
 - date civile inchangée après changement de fuseau ;
 - instant affiché selon le fuseau mais comparé en UTC ;
 - options référencées par UUID ;
@@ -254,3 +254,13 @@ pnpm checks:local
 ~~~
 
 Un échec, une interruption ou un contrôle requis indisponible bloque le push.
+
+## 14. Frontière de langue
+
+Vérifier que les libellés, erreurs et annonces propres aux bases utilisent le
+catalogue de la feature, y compris depuis la hiérarchie, et que nombres, dates
+et heures utilisent la locale active. Changer les copies du catalogue dans un
+test ne doit modifier ni identités, ni options, ni filtres, ni tris, ni valeurs
+persistées. La traduction française complète est validée avec toutes les autres
+surfaces lors du passage transversal de release, jamais comme une langue
+partielle limitée à la 009.

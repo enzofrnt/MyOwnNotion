@@ -135,6 +135,9 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
             positionKey: body.placement.positionKey,
           },
           titlePropertyId: body.titlePropertyId as Uuid,
+          ...(body.titlePropertyName === undefined
+            ? {}
+            : { titlePropertyName: body.titlePropertyName }),
           initialViewId: body.initialViewId as Uuid,
           initialViewName: body.initialViewName,
         },

@@ -154,6 +154,19 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MutationResult' }
         '409': { $ref: '#/components/responses/Problem' }
+  /v1/items/{itemId}/trash-impact:
+    get:
+      tags: [Items]
+      operationId: previewTrashImpact
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Database membership impact announced before confirmation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrashImpact' }
+        '404': { $ref: '#/components/responses/Problem' }
   /v1/items/{itemId}/restore:
     post:
       tags: [Items]
@@ -707,6 +720,13 @@ components:
           minItems: 1
           items: { $ref: '#/components/schemas/Uuid' }
         item: { $ref: '#/components/schemas/Item' }
+    TrashImpact:
+      type: object
+      required: [isDatabase, activeEntryCount]
+      properties:
+        isDatabase: { type: boolean }
+        activeEntryCount: { type: integer, minimum: 0 }
+      additionalProperties: false
     ChangeEnvelope:
       type: object
       required: [sequence, mutationId, revisionIds]

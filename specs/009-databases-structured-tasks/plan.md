@@ -57,7 +57,8 @@ de 300 ms au p95 ; changement distant visible en moins de 2 secondes au p95
 **Constraints**: mono-utilisateur ; contenu structuré chiffré au repos ; aucun
 libellé ou valeur dans les URLs et journaux ; résultat local à couverture
 explicite ; ordre identique entre clients ; clavier, lecteur d'écran, 320 px et
-zoom 200 %
+zoom 200 % ; aucune traduction partielle propre à 009, copies centralisées et
+formats sensibles à la locale prêts à suivre la langue globale
 
 **Scale/Scope**: 100 000 pages d'entrée, plusieurs centaines de propriétés et
 vues par base, 100 000 relations, 10 appareils ; huit types de propriété et
@@ -257,6 +258,14 @@ mutation locale et demande un nouvel aperçu au lieu d'appliquer une confirmatio
 devenue obsolète.
 
 ### Interface et accessibilité
+
+La 009 ajoute une frontière de copie unique pour ses libellés, erreurs et
+annonces, utilisée aussi par ses points d'entrée dans la hiérarchie. Elle livre
+le catalogue anglais correspondant à la langue actuelle de l'application et
+ne persiste jamais une identité métier depuis un libellé. Le basculement vers
+le français est volontairement transversal : le catalogue 009 changera avec
+les autres surfaces pendant le gate de release porté par la 008, sans migration
+des définitions, options, filtres, tris ou valeurs canoniques.
 
 La table applique le modèle ARIA `grid` uniquement parce que ses cellules sont
 éditables : un seul point d'entrée Tab, flèches entre cellules, Entrée/F2 pour

@@ -5,6 +5,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { type FormEvent, type KeyboardEvent, useEffect, useState } from "react";
+import { DATABASE_COPY } from "./database-copy.ts";
 
 function activeViews(definition: DatabaseDefinition): DatabaseView[] {
   return definition.views
@@ -149,7 +150,7 @@ function RenameViewControl({
   return (
     <form className="database-view-rename" onSubmit={submit}>
       <label>
-        View name
+        {DATABASE_COPY.toolbar.viewName}
         <input
           value={name}
           disabled={disabled || saving}
@@ -160,7 +161,7 @@ function RenameViewControl({
         type="submit"
         disabled={disabled || saving || name.trim() === "" || name.trim() === view.name}
       >
-        {saving ? "Renaming…" : "Rename view"}
+        {saving ? DATABASE_COPY.toolbar.renaming : DATABASE_COPY.toolbar.rename}
       </button>
     </form>
   );
@@ -181,7 +182,7 @@ export function DatabaseToolbar({
   const [savingView, setSavingView] = useState(false);
   const views = activeViews(definition);
   const active = views.find(({ id }) => id === activeViewId) ?? views[0];
-  if (active === undefined) return <p role="alert">This database has no usable view.</p>;
+  if (active === undefined) return <p role="alert">{DATABASE_COPY.common.noUsableView}</p>;
   const hasBoardAxis = definition.properties.some(
     ({ state, type }) => state === "active" && (type === "status" || type === "select"),
   );
@@ -260,8 +261,8 @@ export function DatabaseToolbar({
   };
 
   return (
-    <section className="database-toolbar" aria-label="Saved database views">
-      <div className="database-view-tabs" role="tablist" aria-label="Views">
+    <section className="database-toolbar" aria-label={DATABASE_COPY.toolbar.savedViews}>
+      <div className="database-view-tabs" role="tablist" aria-label={DATABASE_COPY.toolbar.views}>
         {views.map((view, index) => (
           <button
             key={view.id}
@@ -273,82 +274,96 @@ export function DatabaseToolbar({
             onClick={() => onSelectView(view.id)}
             onKeyDown={(event) => selectAdjacent(event, index)}
           >
-            {view.name} <span className="muted">{view.type}</span>
+            {view.name} <span className="muted">{DATABASE_COPY.toolbar.viewTypes[view.type]}</span>
           </button>
         ))}
       </div>
       <div
         className="database-view-actions"
         role="toolbar"
-        aria-label={`Actions for ${active.name}`}
+        aria-label={DATABASE_COPY.toolbar.actionsFor(active.name)}
       >
         <button
           type="button"
           disabled={savingView}
-          onClick={() => create("table", `Table ${views.length + 1}`)}
+          onClick={() =>
+            create("table", DATABASE_COPY.toolbar.defaultViewName("Table", views.length + 1))
+          }
         >
-          New table view
+          {DATABASE_COPY.toolbar.newTable}
         </button>
         <button
           type="button"
           disabled={savingView}
-          onClick={() => create("list", `List ${views.length + 1}`)}
+          onClick={() =>
+            create("list", DATABASE_COPY.toolbar.defaultViewName("List", views.length + 1))
+          }
         >
-          New list view
+          {DATABASE_COPY.toolbar.newList}
         </button>
         <button
           type="button"
           disabled={savingView || !hasBoardAxis}
-          title={hasBoardAxis ? undefined : "Add a status or select property first"}
-          onClick={() => create("board", `Board ${views.length + 1}`)}
+          title={hasBoardAxis ? undefined : DATABASE_COPY.toolbar.boardNeedsProperty}
+          onClick={() =>
+            create("board", DATABASE_COPY.toolbar.defaultViewName("Board", views.length + 1))
+          }
         >
-          New board view
+          {DATABASE_COPY.toolbar.newBoard}
         </button>
         <button
           type="button"
           disabled={savingView}
-          onClick={() => create("gallery", `Gallery ${views.length + 1}`)}
+          onClick={() =>
+            create("gallery", DATABASE_COPY.toolbar.defaultViewName("Gallery", views.length + 1))
+          }
         >
-          New gallery view
+          {DATABASE_COPY.toolbar.newGallery}
         </button>
         <button
           type="button"
           disabled={savingView || !hasCalendarDate}
-          title={hasCalendarDate ? undefined : "Add a date property first"}
-          onClick={() => create("calendar", `Calendar ${views.length + 1}`)}
+          title={hasCalendarDate ? undefined : DATABASE_COPY.toolbar.calendarNeedsProperty}
+          onClick={() =>
+            create("calendar", DATABASE_COPY.toolbar.defaultViewName("Calendar", views.length + 1))
+          }
         >
-          New calendar view
+          {DATABASE_COPY.toolbar.newCalendar}
         </button>
         <button
           type="button"
           disabled={savingView}
           onClick={() => {
-            const next = duplicateSavedView(definition, active, `${active.name} copy`);
+            const next = duplicateSavedView(
+              definition,
+              active,
+              DATABASE_COPY.toolbar.copyName(active.name),
+            );
             const created = activeViews(next).at(-1);
             void persist(next);
             if (created !== undefined) onSelectView(created.id);
           }}
         >
-          Duplicate view
+          {DATABASE_COPY.toolbar.duplicate}
         </button>
         <button
           type="button"
           disabled={savingView || views[0]?.id === active.id}
           onClick={() => move(-1)}
         >
-          Move view earlier
+          {DATABASE_COPY.toolbar.moveEarlier}
         </button>
         <button
           type="button"
           disabled={savingView || views.at(-1)?.id === active.id}
           onClick={() => move(1)}
         >
-          Move view later
+          {DATABASE_COPY.toolbar.moveLater}
         </button>
         <button
           type="button"
           disabled={savingView || views.length === 1}
-          title={views.length === 1 ? "A database must keep one active view" : undefined}
+          title={views.length === 1 ? DATABASE_COPY.toolbar.needsOneView : undefined}
           onClick={() => {
             const next = replaceSavedView(definition, { ...active, state: "retired" });
             const fallback = activeViews(next)[0];
@@ -356,7 +371,7 @@ export function DatabaseToolbar({
             if (fallback !== undefined) onSelectView(fallback.id);
           }}
         >
-          Remove view
+          {DATABASE_COPY.toolbar.remove}
         </button>
       </div>
       <RenameViewControl
@@ -365,7 +380,7 @@ export function DatabaseToolbar({
         onRename={(name) => persist(replaceSavedView(definition, { ...active, name }))}
       />
       <details className="database-columns">
-        <summary>Visible properties</summary>
+        <summary>{DATABASE_COPY.toolbar.visibleProperties}</summary>
         {presentations.map((presentation, index) => {
           const property = definition.properties.find(({ id }) => id === presentation.propertyId);
           return property === undefined ? null : (
@@ -404,7 +419,7 @@ export function DatabaseToolbar({
               </label>
               <button
                 type="button"
-                aria-label={`Move ${property.name} column earlier`}
+                aria-label={DATABASE_COPY.toolbar.moveColumnEarlier(property.name)}
                 disabled={savingView || index === 0}
                 onClick={() => moveProperty(property.id, -1)}
               >
@@ -412,7 +427,7 @@ export function DatabaseToolbar({
               </button>
               <button
                 type="button"
-                aria-label={`Move ${property.name} column later`}
+                aria-label={DATABASE_COPY.toolbar.moveColumnLater(property.name)}
                 disabled={savingView || index === presentations.length - 1}
                 onClick={() => moveProperty(property.id, 1)}
               >

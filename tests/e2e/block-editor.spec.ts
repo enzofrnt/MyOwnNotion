@@ -24,6 +24,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
+  CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -182,7 +183,7 @@ test.describe("a block this client does not recognise", () => {
       nested: { deep: [1, 2, 3] },
     };
     const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { "idempotency-key": randomUUID() },
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
         document: {
@@ -241,7 +242,7 @@ test.describe("a page written before the block editor existed", () => {
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
     const legacyBody = { text: "written by an older client", count: 3 };
     const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { "idempotency-key": randomUUID() },
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
         document: { format: "myownnotion.document+json", formatVersion: 1, body: legacyBody },

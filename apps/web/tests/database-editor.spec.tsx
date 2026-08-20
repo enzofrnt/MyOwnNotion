@@ -8,6 +8,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { CreateDatabaseForm } from "../src/features/databases/create-database-form.tsx";
+import { DATABASE_COPY, formatDatabaseDecimal } from "../src/features/databases/database-copy.ts";
 import { DatabasePage } from "../src/features/databases/database-page.tsx";
 import { EntryPanel } from "../src/features/databases/entry-panel.tsx";
 import {
@@ -71,6 +72,11 @@ const database: DatabaseDto = {
 };
 
 describe("database editor surfaces (T022)", () => {
+  it("keeps localized copy and arbitrary-size decimal formatting outside canonical values", () => {
+    expect(DATABASE_COPY.create.initialTitlePropertyName).toBe("Title");
+    expect(formatDatabaseDecimal("12345678901234567890.50")).toBe("12,345,678,901,234,567,890.50");
+  });
+
   it("renders an explicit page-backed database creation form", () => {
     const markup = renderToStaticMarkup(
       createElement(CreateDatabaseForm, {

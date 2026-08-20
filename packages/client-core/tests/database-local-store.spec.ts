@@ -142,6 +142,9 @@ describe("structured local durability and coverage (T070)", () => {
       availability: "offloaded",
       values: { databaseId, entryId, values: {}, preserved: [] },
     });
+    expect(await repository.listEntries(databaseId)).toEqual([
+      expect.objectContaining({ entryItemId: entryId, databaseId }),
+    ]);
     db.close();
   });
 
@@ -182,6 +185,112 @@ describe("structured local durability and coverage (T070)", () => {
       })) as never,
     );
 
+    expect(await repository.offloadEntryValues(entryId)).toBe(false);
+    expect((await db.databaseEntries.get(entryId))?.sealedValues).not.toBeNull();
+    db.close();
+  });
+
+  it("keeps related targets scoped, deduplicated, and deterministically ordered", async () => {
+    const name = `database-relations-${generateUuidV7()}`;
+    databasesToDelete.add(name);
+    const { codec } = await createTestCodec();
+    const db = openLocalDatabase(name);
+    const repository = new LocalDatabaseRepository(db, codec);
+    const databaseId = generateUuidV7();
+    const otherDatabaseId = generateUuidV7();
+    const entryId = generateUuidV7();
+    const propertyId = generateUuidV7();
+    const targetA = generateUuidV7();
+    const targetB = generateUuidV7();
+
+    await db.relationships.bulkPut([
+      {
+        id: generateUuidV7(),
+        sourceItemId: entryId,
+        targetItemId: targetB,
+        relationType: "database:property",
+        metadata: { databaseId, propertyId },
+      },
+      {
+        id: generateUuidV7(),
+        sourceItemId: entryId,
+        targetItemId: targetA,
+        relationType: "database:property",
+        metadata: { databaseId, propertyId },
+      },
+      {
+        id: generateUuidV7(),
+        sourceItemId: entryId,
+        targetItemId: targetA,
+        relationType: "database:property",
+        metadata: { databaseId, propertyId },
+      },
+      {
+        id: generateUuidV7(),
+        sourceItemId: entryId,
+        targetItemId: generateUuidV7(),
+        relationType: "database:property",
+        metadata: { databaseId: otherDatabaseId, propertyId },
+      },
+      {
+        id: generateUuidV7(),
+        sourceItemId: entryId,
+        targetItemId: generateUuidV7(),
+        relationType: "attachment",
+        metadata: { databaseId, propertyId },
+      },
+      {
+        id: generateUuidV7(),
+        sourceItemId: entryId,
+        targetItemId: generateUuidV7(),
+        relationType: "database:property",
+        metadata: { databaseId, propertyId: 42 },
+      },
+    ]);
+
+    expect(await repository.getRelationTargets(databaseId, entryId)).toEqual({
+      [propertyId]: [targetA, targetB].sort(),
+    });
+    db.close();
+  });
+
+  it("protects values referenced by a sealed conflict and rejects absent entries", async () => {
+    const name = `database-conflict-${generateUuidV7()}`;
+    databasesToDelete.add(name);
+    const { codec } = await createTestCodec();
+    const db = openLocalDatabase(name);
+    const repository = new LocalDatabaseRepository(db, codec);
+    const databaseId = generateUuidV7();
+    const entryId = generateUuidV7();
+    await seedHost(db, databaseId);
+    await repository.putEntry({
+      entryItemId: entryId,
+      databaseId,
+      valueVersion: 1,
+      availability: "present",
+      values: {
+        format: "myownnotion.database-entry-values+json",
+        formatVersion: 1,
+        databaseId,
+        entryId,
+        values: {},
+        preserved: [],
+      },
+    });
+    await db.conflicts.put(
+      (await codec.sealConflict({
+        mutationId: generateUuidV7(),
+        commandType: "database.entry.values.replace",
+        payload: { itemId: entryId },
+        baseRevisionIds: [],
+        localRevisionIds: [],
+        competingRevisionIds: [generateUuidV7()],
+        capturedAt: new Date().toISOString(),
+        errorCode: "revision.stale-base",
+      })) as never,
+    );
+
+    expect(await repository.offloadEntryValues(generateUuidV7())).toBe(false);
     expect(await repository.offloadEntryValues(entryId)).toBe(false);
     expect((await db.databaseEntries.get(entryId))?.sealedValues).not.toBeNull();
     db.close();

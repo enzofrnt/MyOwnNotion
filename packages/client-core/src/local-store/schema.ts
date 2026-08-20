@@ -88,6 +88,14 @@ export interface LocalRevisionHeaderRow {
   readonly acceptedAt: string;
   /** True for optimistic local revisions not yet acknowledged by the server. */
   readonly local: 0 | 1;
+  /**
+   * Canonical identity returned for this optimistic revision.
+   *
+   * Kept for the lifetime of the page so an edit prepared by a render that
+   * still names the local revision can be rebased instead of becoming a false
+   * conflict. It is routing metadata, not owner-authored content.
+   */
+  readonly canonicalRevisionId?: Uuid;
 }
 
 /**

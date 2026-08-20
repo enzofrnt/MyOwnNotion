@@ -7,6 +7,7 @@ import type {
   Uuid,
 } from "@myownnotion/domain";
 import { type ReactNode, useMemo, useState } from "react";
+import { DATABASE_COPY } from "./database-copy.ts";
 import {
   type RelationOption,
   type ValueDraft,
@@ -125,9 +126,9 @@ export function EntryPanel({
         nextValues as Readonly<Record<Uuid, NonRelationPropertyValue>>,
         nextRelations as RelationTargets,
       );
-      setSaveConfirmation("Properties saved locally.");
+      setSaveConfirmation(DATABASE_COPY.entry.saved);
     } catch {
-      setSaveError("The properties could not be saved. Your values are still here.");
+      setSaveError(DATABASE_COPY.entry.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -137,30 +138,33 @@ export function EntryPanel({
     <section className="entry-panel" aria-labelledby={`entry-heading-${entry.entryId}`}>
       <header className="database-panel__header">
         <div>
-          <p className="muted">Database entry · page</p>
+          <p className="muted">{DATABASE_COPY.entry.eyebrow}</p>
           <h2 id={`entry-heading-${entry.entryId}`}>{entry.title}</h2>
         </div>
         <button type="button" className="link" onClick={onClose}>
-          Close entry
+          {DATABASE_COPY.entry.close}
         </button>
       </header>
 
       <div className="entry-properties">
         {editableProperties.length === 0 ? (
-          <p className="empty-state">This database has no additional properties yet.</p>
+          <p className="empty-state">{DATABASE_COPY.entry.noProperties}</p>
         ) : (
           <>
             {taskProperties.length === 0 ? null : (
-              <section className="entry-task-properties" aria-label="Task tracking">
-                <h3>Task tracking</h3>
+              <section
+                className="entry-task-properties"
+                aria-label={DATABASE_COPY.entry.taskTracking}
+              >
+                <h3>{DATABASE_COPY.entry.taskTracking}</h3>
                 {taskProperties.map(({ role, property }) => (
                   <div key={role} data-task-role={role} className="entry-task-property">
                     <p className="muted">
                       {role === "status"
-                        ? "Task status"
+                        ? DATABASE_COPY.entry.taskStatus
                         : role === "dueDate"
-                          ? "Task due date"
-                          : "Task priority"}
+                          ? DATABASE_COPY.entry.taskDueDate
+                          : DATABASE_COPY.entry.taskPriority}
                     </p>
                     <ValueEditor
                       property={property}
@@ -190,7 +194,10 @@ export function EntryPanel({
               </section>
             )}
             {ordinaryProperties.length === 0 ? null : (
-              <section className="entry-ordinary-properties" aria-label="Other properties">
+              <section
+                className="entry-ordinary-properties"
+                aria-label={DATABASE_COPY.entry.otherProperties}
+              >
                 {ordinaryProperties.map((property) => (
                   <ValueEditor
                     key={property.id}
@@ -222,7 +229,7 @@ export function EntryPanel({
           </>
         )}
         <button type="button" onClick={() => void save()} disabled={saving}>
-          {saving ? "Saving locally…" : "Save properties"}
+          {saving ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.entry.save}
         </button>
         {saveConfirmation === null ? null : (
           <p role="status" data-testid="entry-properties-saved">
@@ -232,9 +239,9 @@ export function EntryPanel({
         {saveError !== null ? <p role="alert">{saveError}</p> : null}
       </div>
 
-      <section className="entry-document" aria-label="Page content">
-        <h3>Page content</h3>
-        {pageContent ?? <p className="muted">The editorial document belongs to this same page.</p>}
+      <section className="entry-document" aria-label={DATABASE_COPY.entry.pageContent}>
+        <h3>{DATABASE_COPY.entry.pageContent}</h3>
+        {pageContent ?? <p className="muted">{DATABASE_COPY.entry.samePageDocument}</p>}
       </section>
     </section>
   );

@@ -45,6 +45,17 @@ vues et tâches de cette feature sont privées et accessibles au propriétaire
 authentifié. Les futures surfaces publiques et MCP devront appliquer leurs
 propres projections autorisées.
 
+## Clarifications
+
+### Session 2026-08-20
+
+- Q: La feature 009 doit-elle traduire seule ses nouvelles surfaces en français
+  alors que la langue active de l'application est encore l'anglais ? → R: Non.
+  Une langue partielle rendrait l'expérience incohérente. La 009 prépare toutes
+  ses copies et tous ses formats pour suivre la langue active de l'application ;
+  le passage au français reste un changement transversal de release couvrant
+  l'ensemble du produit en une seule expérience cohérente.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Structurer une collection de pages (Priority: P1)
@@ -420,9 +431,13 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
 - **FR-049**: Les parcours essentiels MUST rester utilisables à 320 pixels et à
   200 % de zoom ; tout défilement bidimensionnel nécessaire MUST rester contenu
   dans la vue et ne pas masquer les actions principales.
-- **FR-050**: Les libellés, nombres, dates, heures et tris MUST suivre des règles
-  locales explicites, avec une interface française cohérente et des valeurs
-  canoniques indépendantes de la langue d'affichage.
+- **FR-050**: Les libellés, erreurs, annonces, nombres, dates, heures et tris
+  MUST suivre la langue active et des règles locales explicites. Toutes les
+  copies de cette feature MUST pouvoir changer avec la langue globale sans
+  migration des données. Une traduction isolée de la 009 est interdite : la
+  première interface française complète reste un passage transversal de
+  release, et les valeurs canoniques MUST rester indépendantes de la langue
+  d'affichage.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -509,8 +524,10 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
   nouvelle.
 - Les totaux simples d'entrées par groupe peuvent être affichés. Les formules,
   agrégations avancées et rollups ne sont pas nécessaires à cette feature.
-- L'interface française est la référence initiale, mais les valeurs persistées
-  ne dépendent pas des libellés traduits.
+- Jusqu'au passage transversal en français, cette feature suit la langue active
+  de l'application afin de ne pas créer une interface bilingue. Ses copies sont
+  regroupées derrière une frontière de langue et les valeurs persistées ne
+  dépendent jamais des libellés affichés.
 
 ## Out of Scope
 

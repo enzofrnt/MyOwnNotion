@@ -33,6 +33,11 @@ import {
 } from "../repositories/database-repository.ts";
 import { getItem } from "../repositories/hierarchy-repository.ts";
 import {
+  executeRestore,
+  executeTrash,
+  type LifecycleExecution,
+} from "../repositories/lifecycle-repository.ts";
+import {
   buildItemSnapshot,
   insertRevision,
   supersedeRevision,
@@ -49,6 +54,83 @@ export interface DatabaseCommandExecution {
   readonly revisionIds: Uuid[];
   readonly changedItemIds: Uuid[];
   readonly primaryItemId: Uuid;
+}
+
+export interface DatabaseTrashImpact {
+  readonly isDatabase: boolean;
+  readonly activeEntryCount: number;
+}
+
+/**
+ * Reports database membership separately from hierarchy descendants.
+ *
+ * An entry may be moved anywhere without changing its database membership, so
+ * counting only children below the host would understate the destructive
+ * action and, worse, make the preview disagree with the commit.
+ */
+export async function previewDatabaseTrashImpact(
+  tx: Transaction,
+  itemId: Uuid,
+): Promise<DatabaseTrashImpact> {
+  const database = await readDatabaseRecord(tx, itemId);
+  if (database === null) return { isDatabase: false, activeEntryCount: 0 };
+  const entries = await listDatabaseEntryRecords(tx, itemId);
+  let activeEntryCount = 0;
+  for (const entry of entries) {
+    const item = await getItem(tx, entry.entryId);
+    if (item?.lifecycle === "active") activeEntryCount += 1;
+  }
+  return { isDatabase: true, activeEntryCount };
+}
+
+/**
+ * Trashes a database's hierarchy branch and every active member page in the
+ * caller's transaction. Every nested lifecycle execution uses the same
+ * mutation identity, which is also the durable restore-group identity.
+ */
+export async function executeDatabaseTrash(
+  tx: Transaction,
+  input: {
+    readonly mutationId: Uuid;
+    readonly itemId: Uuid;
+    readonly acceptedAt: Date;
+  },
+): Promise<DomainResult<LifecycleExecution>> {
+  const membership = await listDatabaseEntryRecords(tx, input.itemId);
+  const root = await executeTrash(tx, input);
+  if (!root.ok) return root;
+
+  const revisionIds = [...root.value.revisionIds];
+  const changedItemIds = [...root.value.changedItemIds];
+  const changed = new Set(changedItemIds);
+  for (const entry of membership) {
+    if (changed.has(entry.entryId)) continue;
+    const item = await getItem(tx, entry.entryId);
+    if (item?.lifecycle !== "active") continue;
+    const nested = await executeTrash(tx, { ...input, itemId: entry.entryId });
+    if (!nested.ok) return nested;
+    for (const revisionId of nested.value.revisionIds) revisionIds.push(revisionId);
+    for (const itemId of nested.value.changedItemIds) {
+      if (!changed.has(itemId)) {
+        changed.add(itemId);
+        changedItemIds.push(itemId);
+      }
+    }
+  }
+  return ok({ revisionIds, changedItemIds, rootItemId: input.itemId });
+}
+
+/** Restores the complete lifecycle group recorded by executeDatabaseTrash. */
+export async function executeDatabaseRestore(
+  tx: Transaction,
+  input: {
+    readonly mutationId: Uuid;
+    readonly itemId: Uuid;
+    readonly fallbackParentItemId?: Uuid | null;
+    readonly acceptedAt: Date;
+  },
+): Promise<DomainResult<LifecycleExecution>> {
+  return executeRestore(tx, input);
 }
 
 async function validateStructuredValues(

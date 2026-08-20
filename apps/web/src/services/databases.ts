@@ -29,6 +29,22 @@ function entryIdFromPayload(payload: Readonly<Record<string, unknown>>): Uuid | 
   return typeof value === "string" ? (value as Uuid) : null;
 }
 
+function databaseIdFromDefinitionMutation(
+  commandType: string,
+  payload: Readonly<Record<string, unknown>>,
+): Uuid | null {
+  if (commandType === "database.create") {
+    return typeof payload["id"] === "string" ? (payload["id"] as Uuid) : null;
+  }
+  if (
+    commandType === "database.definition.replace" ||
+    commandType === "database.definition.resolve-conflict"
+  ) {
+    return typeof payload["databaseId"] === "string" ? (payload["databaseId"] as Uuid) : null;
+  }
+  return null;
+}
+
 export class DatabaseViewService {
   readonly #local: LocalContentService;
   #localGeneration = 1;
@@ -95,21 +111,31 @@ export class DatabaseViewService {
     }
   }
 
-  async #syncStates(): Promise<ReadonlyMap<Uuid, DatabaseRowSyncState>> {
-    const [pending, conflicts] = await Promise.all([
-      this.#local.outbox.pending(),
+  async #syncStates(databaseId: Uuid): Promise<{
+    readonly rows: ReadonlyMap<Uuid, DatabaseRowSyncState>;
+    readonly definitionIsLocal: boolean;
+  }> {
+    const [queued, conflicts] = await Promise.all([
+      this.#local.outbox.all(),
       this.#local.outbox.conflicts(),
     ]);
     const states = new Map<Uuid, DatabaseRowSyncState>();
-    for (const mutation of pending) {
+    let definitionIsLocal = false;
+    for (const mutation of queued) {
       const entryId = entryIdFromPayload(mutation.payload);
       if (entryId !== null) states.set(entryId, "pending");
+      if (databaseIdFromDefinitionMutation(mutation.commandType, mutation.payload) === databaseId) {
+        definitionIsLocal = true;
+      }
     }
     for (const conflict of conflicts) {
       const entryId = entryIdFromPayload(conflict.payload);
       if (entryId !== null) states.set(entryId, "conflict");
+      if (databaseIdFromDefinitionMutation(conflict.commandType, conflict.payload) === databaseId) {
+        definitionIsLocal = true;
+      }
     }
-    return states;
+    return { rows: states, definitionIsLocal };
   }
 
   async query(databaseId: Uuid, request: DatabaseQueryDto): Promise<DatabaseViewResult> {
@@ -120,10 +146,30 @@ export class DatabaseViewService {
             viewId: request.viewId,
             ...(request.limit === undefined ? {} : { limit: request.limit }),
           };
-    const [localPage, states] = await Promise.all([
+    const [localPage, sync] = await Promise.all([
       this.#localQuery(databaseId, localRequest),
-      this.#syncStates(),
+      this.#syncStates(databaseId),
     ]);
+    const states = sync.rows;
+    const withState = (rows: readonly DatabaseQueryPageDto["rows"][number][]): DatabaseViewRow[] =>
+      rows.map((row) => ({ ...row, syncState: states.get(row.entryId as Uuid) ?? "synced" }));
+
+    // A newly created or edited saved view is not queryable on the server yet.
+    // Asking anyway produces an expected invalid-view response and, worse,
+    // rerenders the active surface during the pointer/keyboard gesture that
+    // followed the save. The complete local projection is authoritative for
+    // this pending interval and already carries honest row sync states.
+    if (sync.definitionIsLocal && localPage !== null) {
+      return {
+        ok: true,
+        value: {
+          ...localPage,
+          rows: withState(localPage.rows),
+          source: "local",
+          staleCursorRecovered: false,
+        },
+      };
+    }
     let staleCursorRecovered = false;
     let server = await this.#local.api.queryDatabase(databaseId, request);
     if (
@@ -137,9 +183,6 @@ export class DatabaseViewService {
         ...(request.limit === undefined ? {} : { limit: request.limit }),
       });
     }
-
-    const withState = (rows: readonly DatabaseQueryPageDto["rows"][number][]): DatabaseViewRow[] =>
-      rows.map((row) => ({ ...row, syncState: states.get(row.entryId as Uuid) ?? "synced" }));
 
     if (!server.ok) {
       if (localPage === null) return { ok: false, problem: server.problem };

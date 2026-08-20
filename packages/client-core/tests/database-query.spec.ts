@@ -1,15 +1,22 @@
+import type { ItemDto } from "@myownnotion/contracts";
 import {
   asUuid,
   type DatabaseDefinition,
   evaluateDatabaseView,
+  generateUuidV7,
   type Uuid,
 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import {
+  type LocalDatabase,
   LocalDatabaseQueryError,
   type LocalDatabaseQuerySource,
+  LocalDatabaseRepository,
+  LocalRepository,
+  openLocalDatabase,
   queryLocalDatabase,
 } from "../src/index.ts";
+import { createTestCodec } from "./helpers/codec.ts";
 
 const ids = {
   database: asUuid("018f3000-0000-7000-8000-000000000001"),
@@ -174,5 +181,84 @@ describe("local saved database queries", () => {
     expect(() => queryLocalDatabase(after, { viewId: ids.view, cursor })).toThrowError(
       LocalDatabaseQueryError,
     );
+  });
+});
+
+function projectedItem(
+  id: Uuid,
+  name: string,
+  lifecycle: ItemDto["lifecycle"] = "active",
+): ItemDto {
+  return {
+    id,
+    kind: "page",
+    name,
+    lifecycle,
+    currentRevisionId: generateUuidV7(),
+    pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+    placements: [],
+  };
+}
+
+describe("purged structured projections (T102, FR-046)", () => {
+  it("keeps the tombstone identity but removes database definitions and member values", async () => {
+    const { codec } = await createTestCodec();
+    const db: LocalDatabase = openLocalDatabase(`database-purge-${generateUuidV7()}`);
+    const repository = new LocalRepository(db, codec);
+    const databases = new LocalDatabaseRepository(db, codec);
+    const values = {
+      format: "myownnotion.database-entry-values+json" as const,
+      formatVersion: 1 as const,
+      databaseId: ids.database,
+      entryId: ids.entryA,
+      values: { [ids.status]: { kind: "status" as const, optionId: ids.todo } },
+      preserved: [],
+    };
+    try {
+      await repository.replaceFromSnapshot({
+        workspaceId: generateUuidV7(),
+        schemaVersion: 7,
+        cursor: "before-purge",
+        items: [projectedItem(ids.database, "Database"), projectedItem(ids.entryA, "Entry")],
+        databases: [
+          { itemId: ids.database, definitionVersion: 1, definition: definition() as never },
+        ],
+        databaseEntries: [
+          {
+            entryItemId: ids.entryA,
+            databaseId: ids.database,
+            valueVersion: 1,
+            values,
+          },
+        ],
+      });
+      expect(await databases.getDatabase(ids.database)).not.toBeNull();
+      expect(await databases.getEntry(ids.entryA)).not.toBeNull();
+
+      await repository.applyServerChange({
+        cursor: "after-purge",
+        items: [projectedItem(ids.database, "Unavailable database", "purged")],
+        // A stale or older server may still attach these projections. The
+        // canonical tombstone must win and prevent either payload returning.
+        databases: [
+          { itemId: ids.database, definitionVersion: 1, definition: definition() as never },
+        ],
+        databaseEntries: [
+          {
+            entryItemId: ids.entryA,
+            databaseId: ids.database,
+            valueVersion: 1,
+            values,
+          },
+        ],
+      });
+
+      expect((await repository.getItem(ids.database))?.lifecycle).toBe("purged");
+      expect(await databases.getDatabase(ids.database)).toBeNull();
+      expect(await databases.getEntry(ids.entryA)).toBeNull();
+      expect(await repository.getLastChangeCursor()).toBe("after-purge");
+    } finally {
+      await db.delete();
+    }
   });
 });

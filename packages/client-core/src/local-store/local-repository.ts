@@ -167,13 +167,21 @@ export class LocalRepository {
   }): Promise<void> {
     const sealed = await this.#sealAll(input.items);
     const relationshipRows = (input.relationships ?? []).map(relationshipRowFrom);
+    const retainedItemIds = new Set(
+      input.items.filter(({ lifecycle }) => lifecycle !== "purged").map(({ id }) => id),
+    );
     const databaseRows = await Promise.all(
-      (input.databases ?? []).map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+      (input.databases ?? [])
+        .filter(({ itemId }) => retainedItemIds.has(itemId))
+        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
     );
     const databaseEntryRows = await Promise.all(
-      (input.databaseEntries ?? []).map((dto) =>
-        this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto)),
-      ),
+      (input.databaseEntries ?? [])
+        .filter(
+          ({ entryItemId, databaseId }) =>
+            retainedItemIds.has(entryItemId) && retainedItemIds.has(databaseId),
+        )
+        .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
     );
     await this.db.transaction(
       "rw",
@@ -227,13 +235,21 @@ export class LocalRepository {
   }): Promise<void> {
     const sealedItems = await this.#sealAll(input.items);
     const relationshipRows = (input.relationships ?? []).map(relationshipRowFrom);
+    const purgedItemIds = new Set(
+      input.items.filter(({ lifecycle }) => lifecycle === "purged").map(({ id }) => id),
+    );
     const databaseRows = await Promise.all(
-      (input.databases ?? []).map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+      (input.databases ?? [])
+        .filter(({ itemId }) => !purgedItemIds.has(itemId))
+        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
     );
     const databaseEntryRows = await Promise.all(
-      (input.databaseEntries ?? []).map((dto) =>
-        this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto)),
-      ),
+      (input.databaseEntries ?? [])
+        .filter(
+          ({ entryItemId, databaseId }) =>
+            !purgedItemIds.has(entryItemId) && !purgedItemIds.has(databaseId),
+        )
+        .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
     );
     const changedItemIds = new Set(input.items.map(({ id }) => id));
     await this.db.transaction(
@@ -256,6 +272,16 @@ export class LocalRepository {
           // A source revision owns its complete active outgoing relationship
           // set. Clearing before putting the envelope also transports removals.
           await this.db.relationships.where("sourceItemId").equals(dto.id).delete();
+          if (dto.lifecycle === "purged") {
+            const itemId = dto.id as Uuid;
+            // The tombstone is canonical; structured rows are only derived
+            // projections. Keep the item identity unavailable, but remove its
+            // definition/membership/value material immediately. A purged host
+            // also invalidates every retained membership keyed to that base.
+            await this.db.databases.delete(itemId);
+            await this.db.databaseEntries.delete(itemId);
+            await this.db.databaseEntries.where("databaseId").equals(itemId).delete();
+          }
         }
         const relevantRelationships = relationshipRows.filter(({ sourceItemId }) =>
           changedItemIds.has(sourceItemId),

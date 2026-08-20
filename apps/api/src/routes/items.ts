@@ -15,10 +15,11 @@ import {
   type OfflineIntentDto,
   OfflineIntentSchema,
   type RestoreItemDto,
+  TrashImpactSchema,
   type UpdateItemDto,
   UpdateItemSchema,
 } from "@myownnotion/contracts";
-import { listItems, readItem } from "@myownnotion/database";
+import { listItems, previewDatabaseTrashImpact, readItem } from "@myownnotion/database";
 import { isUuid, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
@@ -271,6 +272,27 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
         reply,
         command: { type: "item.trash", itemId: itemId as Uuid },
       });
+    },
+  );
+
+  app.get(
+    "/v1/items/:itemId/trash-impact",
+    {
+      schema: {
+        params: ItemParamsSchema,
+        response: { 200: TrashImpactSchema },
+      },
+    },
+    async (request, reply) => {
+      const { itemId } = request.params as { itemId: string };
+      const impact = await context.db.transaction(async (tx) => {
+        const item = await readItem(tx, itemId as Uuid);
+        return item === null ? null : await previewDatabaseTrashImpact(tx, itemId as Uuid);
+      });
+      if (impact === null) {
+        return sendProblem(reply, { code: "item.not-found", title: "Item does not exist" });
+      }
+      return impact;
     },
   );
 

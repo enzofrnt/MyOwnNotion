@@ -346,6 +346,45 @@ p50/p95, build time and heap, local upserts, second-device propagation and
 10,000 idempotent replays. The operational interpretation and the latest
 reference figures live in `docs/architecture/search.md`.
 
+### Structured database checks
+
+Feature 009 spans the domain evaluator, PostgreSQL mutation path, protected API,
+local projection and five browser views. Use these focused commands while
+editing; they do not replace the full pre-push gate:
+
+```bash
+pnpm exec vitest run --project domain packages/domain/tests/databases
+pnpm exec vitest run --project client-core packages/client-core/tests/database-query.spec.ts \
+  packages/client-core/tests/database-local-mutation.spec.ts \
+  packages/client-core/tests/database-reconciliation.spec.ts
+pnpm exec vitest run --project database-integration packages/database/tests/database.integration.spec.ts \
+  packages/database/tests/database-lifecycle.integration.spec.ts
+pnpm exec vitest run --project api-contract apps/api/tests/database.contract.spec.ts \
+  apps/api/tests/database-security.spec.ts
+pnpm test:e2e:local -- --grep "database|structured"
+```
+
+Migration `0007_databases.sql` creates only the structural database and
+membership tables, their integrity triggers and indexes. Apply it through
+`pnpm db:migrate`; do not create definitions or values directly in those
+tables. Test both an empty database and the forward fixture with:
+
+```bash
+pnpm db:test-migrations
+```
+
+The dedicated benchmark is:
+
+```bash
+pnpm exec vitest run --project performance tests/performance/databases.perf.spec.ts
+```
+
+It measures the first 100 results from 100,000 entries in all five views,
+structured local commits, second-projection propagation and 10,100 mixed
+create/edit/replay/trash/restore operations. Reference figures and the
+operational model live in `docs/architecture/databases.md`; the manual product
+scenarios remain in the feature quickstart rather than being duplicated here.
+
 ### Working without Docker
 
 Suites that need PostgreSQL prefer, in order:

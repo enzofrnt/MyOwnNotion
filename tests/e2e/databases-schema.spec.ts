@@ -35,10 +35,12 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await createDatabase.getByRole("button", { name: "Create database" }).click();
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await waitForSynchronized(page);
 
   const addProperty = async (name: string, type: string, options?: string): Promise<void> => {
     await page.getByRole("button", { name: "Add property" }).click();
     const editor = page.getByRole("form", { name: "Property editor" });
+    await expect(editor).toBeVisible();
     await editor.getByLabel("Name").fill(name);
     await editor.getByLabel("Type").selectOption(type);
     if (options !== undefined) {
@@ -46,6 +48,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
     }
     await editor.getByRole("button", { name: "Save property" }).click();
     await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
+    await waitForSynchronized(page);
   };
 
   await addProperty("Notes", "text");
@@ -98,4 +101,37 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await expect(page.getByLabel("Notes")).toHaveValue("Move the customer data without downtime");
 
   expect(Date.now() - startedAt).toBeLessThan(300_000);
+});
+
+test("announces the active entry count before trashing a database", async ({ page }) => {
+  await openWorkspace(page);
+
+  const databaseName = uniqueName("Trash preview");
+  const entryNames = [uniqueName("First entry"), uniqueName("Second entry")];
+
+  await page.getByRole("button", { name: "New root database" }).click();
+  const createDatabase = page.getByRole("form", { name: "Create a database" });
+  await createDatabase.getByLabel("Create a database").fill(databaseName);
+  await createDatabase.getByRole("button", { name: "Create database" }).click();
+  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+
+  const createEntry = page.locator(".database-entry-create");
+  for (const entryName of entryNames) {
+    await createEntry.getByLabel("New entry").fill(entryName);
+    await createEntry.getByRole("button", { name: "New entry" }).click();
+    await expect(
+      page.locator(".database-table").getByRole("button", { name: entryName, exact: true }),
+    ).toBeVisible();
+  }
+
+  const confirmation = page.waitForEvent("dialog");
+  await page.getByRole("button", { name: `Trash ${databaseName}` }).click();
+
+  const dialog = await confirmation;
+  expect(dialog.message()).toBe(
+    `Move “${databaseName}” and 2 active database entries to the trash?`,
+  );
+  await dialog.dismiss();
+  await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible();
+  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
 });

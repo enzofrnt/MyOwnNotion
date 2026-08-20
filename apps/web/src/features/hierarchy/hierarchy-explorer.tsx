@@ -19,6 +19,7 @@ import {
   type DatabaseDefinition,
   generateUuidV7,
   isUuid,
+  jsonValuesEqual,
   type SafeError,
   type Uuid,
 } from "@myownnotion/domain";
@@ -31,6 +32,7 @@ import { WorkspaceSearchService } from "../../services/search.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
 import { DatabaseConflictResolution } from "../databases/database-conflict-resolution.tsx";
+import { DATABASE_COPY } from "../databases/database-copy.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
 import { EntryPanel } from "../databases/entry-panel.tsx";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
@@ -155,6 +157,7 @@ export function HierarchyExplorer({
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  const refreshGeneration = useRef(0);
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
   const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<DatabaseEntryDto | null>(null);
@@ -229,10 +232,16 @@ export function HierarchyExplorer({
   useEffect(() => () => databaseViews.dispose(), [databaseViews]);
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current;
     const [activeItems, trash] = await Promise.all([
       service.listActiveItems(),
       service.listTrashedItems(),
     ]);
+    // Local writes and synchronization can notify almost simultaneously. An
+    // older IndexedDB read must never replace the projection produced by a
+    // newer refresh: doing so can briefly remove the selected entry and
+    // remount its form, discarding an unsaved property draft.
+    if (generation !== refreshGeneration.current) return;
     setItems(activeItems);
     setTrashedItems(trash);
   }, [service]);
@@ -456,7 +465,7 @@ export function HierarchyExplorer({
           ok: false as const,
           problem: {
             type: "https://myownnotion.dev/problems/database.not-found",
-            title: "Database is not available",
+            title: DATABASE_COPY.hierarchy.notAvailable,
             status: 404,
             code: "database.not-found",
           },
@@ -473,10 +482,10 @@ export function HierarchyExplorer({
   const updateSelectedDatabaseEntry = useCallback(
     async (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> => {
       const databaseId = selectedDatabaseId;
-      if (databaseId === undefined) throw new Error("Database is not available");
+      if (databaseId === undefined) throw new Error(DATABASE_COPY.hierarchy.notAvailable);
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const currentItem = await service.getItem(entryId);
-        if (currentItem === null) throw new Error("Database entry is not available locally");
+        if (currentItem === null) throw new Error(DATABASE_COPY.hierarchy.entryNotAvailable);
         if (update.kind === "title") {
           const result = await service.mutate(
             "item.rename",
@@ -495,7 +504,7 @@ export function HierarchyExplorer({
         const currentEntry = await service.getDatabaseEntry(entryId);
         const currentRelations = await service.getDatabaseEntryRelationTargets(databaseId, entryId);
         if (currentEntry === null || currentEntry.databaseId !== databaseId) {
-          throw new Error("Database entry values are not available locally");
+          throw new Error(DATABASE_COPY.hierarchy.valuesNotAvailable);
         }
         const values = { ...currentEntry.values.values };
         const relationTargets = { ...currentRelations };
@@ -522,7 +531,7 @@ export function HierarchyExplorer({
       }
       const error: SafeError = {
         code: "revision.stale-base",
-        title: "This entry kept changing while its cell was being saved",
+        title: DATABASE_COPY.hierarchy.entryCellChanged,
       };
       setProblem(error);
       throw new Error(error.title);
@@ -574,6 +583,23 @@ export function HierarchyExplorer({
         .map((node) => node.positionKey)
         .sort(),
     [visibleNodes],
+  );
+
+  const trashItem = useCallback(
+    async (node: TreeNode, confirmOrdinaryItem = false) => {
+      const impact = await service.previewTrashImpact(node.item.id);
+      if (impact.isDatabase) {
+        const message = DATABASE_COPY.hierarchy.trashImpact(
+          node.item.name,
+          impact.activeEntryCount,
+        );
+        if (!window.confirm(message)) return;
+      } else if (confirmOrdinaryItem && !window.confirm(`Move “${node.item.name}” to the trash?`)) {
+        return;
+      }
+      await runCommand("item.trash", { itemId: node.item.id }, [node.item.currentRevisionId]);
+    },
+    [runCommand, service],
   );
 
   const createItem = useCallback(
@@ -782,9 +808,7 @@ export function HierarchyExplorer({
     },
     remove: (id: string) => {
       const node = visibleNodes.find((entry) => entry.item.id === id);
-      if (node !== undefined && window.confirm(`Move “${node.item.name}” to the trash?`)) {
-        void runCommand("item.trash", { itemId: node.item.id });
-      }
+      if (node !== undefined) void trashItem(node, true);
     },
   });
 
@@ -910,10 +934,10 @@ export function HierarchyExplorer({
                 </button>
                 <button
                   type="button"
-                  aria-label={`New database inside ${node.item.name}`}
+                  aria-label={DATABASE_COPY.hierarchy.newInside(node.item.name)}
                   onClick={() => setDatabaseFormParent(node.item.id)}
                 >
-                  +database
+                  {DATABASE_COPY.hierarchy.addInside}
                 </button>
               </>
             ) : null}
@@ -1022,11 +1046,7 @@ export function HierarchyExplorer({
             <button
               type="button"
               aria-label={`Trash ${node.item.name}`}
-              onClick={() =>
-                void runCommand("item.trash", { itemId: node.item.id }, [
-                  node.item.currentRevisionId,
-                ])
-              }
+              onClick={() => void trashItem(node)}
             >
               trash
             </button>
@@ -1105,7 +1125,7 @@ export function HierarchyExplorer({
             New root page
           </button>
           <button type="button" onClick={() => setDatabaseFormParent(null)}>
-            New root database
+            {DATABASE_COPY.hierarchy.newRoot}
           </button>
         </div>
 
@@ -1195,14 +1215,12 @@ export function HierarchyExplorer({
             const rollbackOptimisticDefinition = (): void => {
               if (
                 optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
-                JSON.stringify(optimisticDatabaseDefinition.current.definition) ===
-                  JSON.stringify(definition)
+                jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
               ) {
                 optimisticDatabaseDefinition.current = null;
               }
               setSelectedDatabase((current) =>
-                current !== null &&
-                JSON.stringify(current.definition) === JSON.stringify(definition)
+                current !== null && jsonValuesEqual(current.definition, definition)
                   ? previousDatabase
                   : current,
               );
@@ -1216,12 +1234,11 @@ export function HierarchyExplorer({
                 if (
                   currentItem === null ||
                   currentDatabase === null ||
-                  JSON.stringify(currentDatabase.definition) !==
-                    JSON.stringify(previousDatabase.definition)
+                  !jsonValuesEqual(currentDatabase.definition, previousDatabase.definition)
                 ) {
                   const error: SafeError = {
                     code: "database.definition-conflict",
-                    title: "The database schema changed while this property was being edited",
+                    title: DATABASE_COPY.hierarchy.schemaChanged,
                   };
                   rollbackOptimisticDefinition();
                   setProblem(error);
@@ -1248,7 +1265,7 @@ export function HierarchyExplorer({
                   if (syncState === "conflict") {
                     const error: SafeError = {
                       code: "database.definition-conflict",
-                      title: "The database view changed concurrently and needs resolution",
+                      title: DATABASE_COPY.hierarchy.viewChanged,
                     };
                     rollbackOptimisticDefinition();
                     setProblem(error);
@@ -1267,16 +1284,14 @@ export function HierarchyExplorer({
                       definition: updatedDatabase.definition,
                     } as unknown as DatabaseDto;
                     setSelectedDatabase((current) =>
-                      current !== null &&
-                      JSON.stringify(current.definition) === JSON.stringify(definition)
+                      current !== null && jsonValuesEqual(current.definition, definition)
                         ? refreshed
                         : current,
                     );
                   }
                   if (
                     optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
-                    JSON.stringify(optimisticDatabaseDefinition.current.definition) ===
-                      JSON.stringify(definition)
+                    jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
                   ) {
                     optimisticDatabaseDefinition.current = null;
                   }
@@ -1290,7 +1305,7 @@ export function HierarchyExplorer({
               }
               const error: SafeError = {
                 code: "revision.stale-base",
-                title: "The database kept changing while this property was being saved",
+                title: DATABASE_COPY.hierarchy.propertySaveChanged,
               };
               rollbackOptimisticDefinition();
               setProblem(error);
@@ -1356,13 +1371,12 @@ export function HierarchyExplorer({
               if (
                 currentItem === null ||
                 currentEntry === null ||
-                JSON.stringify(currentEntry.values.values) !==
-                  JSON.stringify(selectedEntry.values) ||
-                JSON.stringify(currentRelations) !== JSON.stringify(selectedEntry.relationTargets)
+                !jsonValuesEqual(currentEntry.values.values, selectedEntry.values) ||
+                !jsonValuesEqual(currentRelations, selectedEntry.relationTargets)
               ) {
                 const error: SafeError = {
                   code: "database.definition-conflict",
-                  title: "This entry changed while its properties were being edited",
+                  title: DATABASE_COPY.hierarchy.entryChanged,
                 };
                 setProblem(error);
                 throw new Error(error.title);
@@ -1384,7 +1398,7 @@ export function HierarchyExplorer({
             }
             const error: SafeError = {
               code: "revision.stale-base",
-              title: "This entry kept changing while its properties were being saved",
+              title: DATABASE_COPY.hierarchy.entrySaveChanged,
             };
             setProblem(error);
             throw new Error(error.title);

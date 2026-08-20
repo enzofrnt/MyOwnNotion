@@ -29,6 +29,7 @@ import type {
   ReplaceEntryValuesRequestDto,
   SearchRequestDto,
   SearchResponseDto,
+  TrashImpactDto,
 } from "@myownnotion/contracts";
 import { PROTOCOL_VERSION, type Uuid } from "@myownnotion/domain";
 
@@ -239,6 +240,10 @@ export class ContentApi {
 
   async trashItem(mutationId: Uuid, itemId: Uuid): Promise<ApiResult<MutationResultDto>> {
     return this.#request(`/v1/items/${itemId}/trash`, { method: "POST", mutationId });
+  }
+
+  async getTrashImpact(itemId: Uuid): Promise<ApiResult<TrashImpactDto>> {
+    return this.#request(`/v1/items/${itemId}/trash-impact`);
   }
 
   async restoreItem(

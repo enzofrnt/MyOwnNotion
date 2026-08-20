@@ -44,8 +44,9 @@ export interface SealedOutboxMutationRow extends Omit<OutboxMutationRow, "payloa
   readonly sealedPayload: LocalEnvelope;
 }
 
-export interface SealedConflictRecordRow extends Omit<ConflictRecordRow, "payload"> {
+export interface SealedConflictRecordRow extends Omit<ConflictRecordRow, "payload" | "structured"> {
   readonly sealedPayload: LocalEnvelope;
+  readonly sealedStructured?: LocalEnvelope;
 }
 
 /**
@@ -235,24 +236,40 @@ export class LocalRecordCodec {
   }
 
   async sealConflict(row: ConflictRecordRow): Promise<SealedConflictRecordRow> {
-    const { payload, ...rest } = row;
+    const { payload, structured, ...rest } = row;
     return {
       ...rest,
       sealedPayload: await this.#cipher.seal(
         this.#binding(LOCAL_ENTITY_TYPES.conflictPayload, row.mutationId, 1),
         payload,
       ),
+      ...(structured === undefined
+        ? {}
+        : {
+            sealedStructured: await this.#cipher.seal(
+              this.#binding(LOCAL_ENTITY_TYPES.conflictStructured, row.mutationId, 1),
+              structured,
+            ),
+          }),
     };
   }
 
   async openConflict(row: SealedConflictRecordRow): Promise<ConflictRecordRow> {
-    const { sealedPayload, ...rest } = row;
+    const { sealedPayload, sealedStructured, ...rest } = row;
     return {
       ...rest,
       payload: (await this.#cipher.open(
         this.#binding(LOCAL_ENTITY_TYPES.conflictPayload, row.mutationId, 1),
         sealedPayload,
       )) as Record<string, unknown>,
+      ...(sealedStructured === undefined
+        ? {}
+        : {
+            structured: (await this.#cipher.open(
+              this.#binding(LOCAL_ENTITY_TYPES.conflictStructured, row.mutationId, 1),
+              sealedStructured,
+            )) as NonNullable<ConflictRecordRow["structured"]>,
+          }),
     };
   }
 }

@@ -33,7 +33,7 @@ let repository: LocalRepository;
 beforeEach(async () => {
   ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
-  outbox = new Outbox(db);
+  outbox = new Outbox(db, codec);
   repository = new LocalRepository(db, codec);
 });
 
@@ -93,6 +93,8 @@ class FakeTransport implements ReconcileTransport {
   omitProblemDetail = false;
   /** Makes ordered catch-up fail as a plain transport loss. */
   failChanges = false;
+  /** Local work injected while the change-feed request is in flight. */
+  beforeNextChangePage: (() => Promise<void>) | null = null;
   acceptedRevisions = new Map<string, Uuid>();
 
   async submitMutationBatch(mutations: QueuedMutationDto[]) {
@@ -165,6 +167,9 @@ class FakeTransport implements ReconcileTransport {
     if (this.compactedCursors.has(after)) {
       return { ok: false as const, offline: false, compacted: true };
     }
+    const beforeNextChangePage = this.beforeNextChangePage;
+    this.beforeNextChangePage = null;
+    await beforeNextChangePage?.();
     const page = this.changePages.shift();
     if (page === undefined) {
       return {
@@ -466,6 +471,51 @@ describe("reconciliation (T044)", () => {
     // The durable cursor is preserved so the next attempt resumes in place.
     expect(outcome.caughtUpTo).toBe("42");
     expect(await repository.getLastChangeCursor()).toBe("42");
+  });
+
+  it("never lets an in-flight change page overwrite a newly durable local mutation", async () => {
+    const canonical = serverItem("Before local edit");
+    await repository.applyServerItems([canonical]);
+    await repository.setMeta("lastChangeCursor", "10");
+    const transport = new FakeTransport();
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 11,
+            mutationId: generateUuidV7(),
+            revisionIds: [canonical.currentRevisionId],
+            changedItems: [{ ...canonical, name: "Stale response" }],
+          },
+        ],
+        nextCursor: "11",
+        hasMore: false,
+      },
+    ];
+    transport.beforeNextChangePage = async () => {
+      const result = await applyLocalMutation(
+        db,
+        {
+          mutationId: generateUuidV7(),
+          commandType: "item.rename",
+          payload: {
+            itemId: canonical.id,
+            name: "Durable local edit",
+            baseRevisionId: canonical.currentRevisionId,
+          },
+          baseRevisionIds: [canonical.currentRevisionId as Uuid],
+        },
+        () => new Date(),
+        codec,
+      );
+      expect(result.ok).toBe(true);
+    };
+
+    const outcome = await reconcile(db, transport, codec);
+
+    expect(outcome).toMatchObject({ retained: 1, caughtUpTo: "10", offline: false });
+    expect((await repository.getItem(canonical.id as Uuid))?.name).toBe("Durable local edit");
+    expect(await repository.getLastChangeCursor()).toBe("10");
   });
 
   it("reports offline when the compacted-cursor snapshot is also unreachable", async () => {

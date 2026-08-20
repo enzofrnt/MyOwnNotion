@@ -10,13 +10,20 @@
  */
 import type { Uuid } from "@myownnotion/domain";
 import type {
+  ConflictRecordRow,
   LocalDatabase,
   OutboxMutationRow,
   OutboxStatus,
   StructuredConflictContext,
 } from "../local-store/schema.ts";
+import type {
+  LocalRecordCodec,
+  SealedConflictRecordRow,
+  SealedOutboxMutationRow,
+} from "../security/local-record-codec.ts";
+import { withProjectionWrite } from "./projection-write-coordinator.ts";
 
-function remapPayloadRevisionReferences(
+export function remapPayloadRevisionReferences(
   payload: Record<string, unknown>,
   revisions: ReadonlyMap<Uuid, Uuid>,
 ): Record<string, unknown> {
@@ -42,24 +49,60 @@ function remapPayloadRevisionReferences(
 
 export class Outbox {
   readonly #db: LocalDatabase;
+  readonly #codec: LocalRecordCodec | undefined;
 
-  constructor(db: LocalDatabase) {
+  constructor(db: LocalDatabase, codec?: LocalRecordCodec) {
     this.#db = db;
+    this.#codec = codec;
+  }
+
+  async #openOutbox(stored: unknown): Promise<OutboxMutationRow> {
+    if (typeof stored === "object" && stored !== null && "payload" in stored) {
+      return stored as OutboxMutationRow;
+    }
+    if (this.#codec === undefined) {
+      throw new Error("A local record codec is required to open the sealed outbox");
+    }
+    return await this.#codec.openOutbox(stored as SealedOutboxMutationRow);
+  }
+
+  async #storeOutbox(row: OutboxMutationRow): Promise<OutboxMutationRow | SealedOutboxMutationRow> {
+    return this.#codec === undefined ? row : await this.#codec.sealOutbox(row);
+  }
+
+  async #openConflict(stored: unknown): Promise<ConflictRecordRow> {
+    if (typeof stored === "object" && stored !== null && "payload" in stored) {
+      return stored as ConflictRecordRow;
+    }
+    if (this.#codec === undefined) {
+      throw new Error("A local record codec is required to open sealed conflicts");
+    }
+    return await this.#codec.openConflict(stored as SealedConflictRecordRow);
+  }
+
+  async #storeConflict(
+    row: ConflictRecordRow,
+  ): Promise<ConflictRecordRow | SealedConflictRecordRow> {
+    return this.#codec === undefined ? row : await this.#codec.sealConflict(row);
   }
 
   /** Pending mutations in stable submission order. */
   async pending(): Promise<OutboxMutationRow[]> {
-    const rows = await this.#db.outbox.where("status").equals("pending").toArray();
+    const stored = await this.#db.outbox.where("status").equals("pending").toArray();
+    const rows = await Promise.all(stored.map((row) => this.#openOutbox(row)));
     return rows.sort((a, b) => a.enqueueOrder - b.enqueueOrder);
   }
 
   async all(): Promise<OutboxMutationRow[]> {
-    const rows = await this.#db.outbox.toArray();
+    const rows = await Promise.all(
+      (await this.#db.outbox.toArray()).map((row) => this.#openOutbox(row)),
+    );
     return rows.sort((a, b) => a.enqueueOrder - b.enqueueOrder);
   }
 
   async get(mutationId: Uuid): Promise<OutboxMutationRow | null> {
-    return (await this.#db.outbox.get(mutationId)) ?? null;
+    const stored = await this.#db.outbox.get(mutationId);
+    return stored === undefined ? null : await this.#openOutbox(stored);
   }
 
   /**
@@ -101,45 +144,99 @@ export class Outbox {
    * know and becomes a false conflict.
    */
   async acknowledge(mutationId: Uuid, acceptedRevisionIds: readonly Uuid[] = []): Promise<void> {
-    await this.#db.transaction("rw", [this.#db.outbox, this.#db.revisionHeaders], async () => {
-      const row = await this.#db.outbox.get(mutationId);
-      if (row !== undefined) {
+    await withProjectionWrite(this.#db, async () => {
+      for (;;) {
+        // Crypto must finish before the write transaction opens. Snapshotting and
+        // verifying the queue closes the race with a local edit arriving while
+        // dependent payloads are being resealed.
+        const storedRows = await this.#db.outbox.toArray();
+        const fingerprint = JSON.stringify(
+          [...storedRows].sort((left, right) => left.mutationId.localeCompare(right.mutationId)),
+        );
+        const storedTarget = storedRows.find((candidate) => candidate.mutationId === mutationId);
+        if (storedTarget === undefined) {
+          await this.#db.outbox.delete(mutationId);
+          return;
+        }
+        const row = await this.#openOutbox(storedTarget);
         const revisions = new Map<Uuid, Uuid>();
         if (acceptedRevisionIds.length === row.localRevisionIds.length) {
           row.localRevisionIds.forEach((localRevisionId, index) => {
             const acceptedRevisionId = acceptedRevisionIds[index];
-            if (acceptedRevisionId !== undefined) {
+            if (acceptedRevisionId !== undefined)
               revisions.set(localRevisionId, acceptedRevisionId);
-            }
           });
         }
+        const replacements: Array<OutboxMutationRow | SealedOutboxMutationRow> = [];
         if (revisions.size > 0) {
-          const queued = await this.#db.outbox.toArray();
-          for (const candidate of queued) {
-            if (candidate.mutationId === mutationId) continue;
-            await this.#db.outbox.update(candidate.mutationId, {
-              baseRevisionIds: candidate.baseRevisionIds.map(
-                (revisionId) => revisions.get(revisionId) ?? revisionId,
-              ),
-              payload: remapPayloadRevisionReferences(candidate.payload, revisions),
-            });
-          }
-          const headers = await this.#db.revisionHeaders.toArray();
-          for (const header of headers) {
-            if (row.localRevisionIds.includes(header.id)) continue;
-            await this.#db.revisionHeaders.update(header.id, {
-              parentRevisionIds: header.parentRevisionIds.map(
-                (revisionId) => revisions.get(revisionId) ?? revisionId,
-              ),
-            });
+          for (const storedCandidate of storedRows) {
+            if (storedCandidate.mutationId === mutationId) continue;
+            const candidate = await this.#openOutbox(storedCandidate);
+            replacements.push(
+              await this.#storeOutbox({
+                ...candidate,
+                baseRevisionIds: candidate.baseRevisionIds.map(
+                  (revisionId) => revisions.get(revisionId) ?? revisionId,
+                ),
+                payload: remapPayloadRevisionReferences(candidate.payload, revisions),
+              }),
+            );
           }
         }
-        // Optimistic local revision headers are superseded by server state.
-        for (const localRevisionId of row.localRevisionIds) {
-          await this.#db.revisionHeaders.delete(localRevisionId);
-        }
+
+        let retry = false;
+        await this.#db.transaction(
+          "rw",
+          [this.#db.items, this.#db.outbox, this.#db.revisionHeaders],
+          async () => {
+            const current = await this.#db.outbox.toArray();
+            const currentFingerprint = JSON.stringify(
+              [...current].sort((left, right) => left.mutationId.localeCompare(right.mutationId)),
+            );
+            if (currentFingerprint !== fingerprint) {
+              retry = true;
+              return;
+            }
+            for (const replacement of replacements) {
+              await this.#db.outbox.put(replacement as OutboxMutationRow);
+            }
+            if (revisions.size > 0) {
+              const headers = await this.#db.revisionHeaders.toArray();
+              for (const header of headers) {
+                const canonicalRevisionId = revisions.get(header.id);
+                if (canonicalRevisionId !== undefined) {
+                  // Retain the alias for stale in-memory callers. On the next
+                  // boot every caller is rebuilt from canonical projection state.
+                  await this.#db.revisionHeaders.update(header.id, {
+                    local: 0,
+                    canonicalRevisionId,
+                  });
+                  continue;
+                }
+                await this.#db.revisionHeaders.update(header.id, {
+                  parentRevisionIds: header.parentRevisionIds.map(
+                    (revisionId) => revisions.get(revisionId) ?? revisionId,
+                  ),
+                });
+              }
+              // The current revision is routing metadata on the sealed item, so
+              // it can be advanced without decrypting or resealing its content.
+              for (const item of await this.#db.items.toArray()) {
+                const canonicalRevisionId = revisions.get(item.currentRevisionId);
+                if (canonicalRevisionId !== undefined) {
+                  await this.#db.items.update(item.id, { currentRevisionId: canonicalRevisionId });
+                }
+              }
+            } else {
+              for (const localRevisionId of row.localRevisionIds) {
+                await this.#db.revisionHeaders.delete(localRevisionId);
+              }
+            }
+            await this.#db.outbox.delete(mutationId);
+          },
+        );
+        if (!retry) return;
       }
-      await this.#db.outbox.delete(mutationId);
     });
   }
 
@@ -164,18 +261,21 @@ export class Outbox {
     payload: Record<string, unknown>,
     baseRevisionIds: Uuid[],
   ): Promise<void> {
+    const stored = await this.#db.outbox.get(mutationId);
+    if (stored === undefined) return;
+    const row = await this.#openOutbox(stored);
+    const replacement = await this.#storeOutbox({
+      ...row,
+      mutationId: replacementMutationId,
+      status: "pending" as OutboxStatus,
+      payload,
+      baseRevisionIds,
+      lastAttemptAt: null,
+    });
     await this.#db.transaction("rw", [this.#db.outbox, this.#db.revisionHeaders], async () => {
-      const row = await this.#db.outbox.get(mutationId);
-      if (row === undefined) return;
+      if ((await this.#db.outbox.get(mutationId)) === undefined) return;
       await this.#db.outbox.delete(mutationId);
-      await this.#db.outbox.put({
-        ...row,
-        mutationId: replacementMutationId,
-        status: "pending" as OutboxStatus,
-        payload,
-        baseRevisionIds,
-        lastAttemptAt: null,
-      });
+      await this.#db.outbox.put(replacement as OutboxMutationRow);
       for (const localRevisionId of row.localRevisionIds) {
         await this.#db.revisionHeaders.update(localRevisionId, {
           mutationId: replacementMutationId,
@@ -212,28 +312,31 @@ export class Outbox {
     now: () => Date = () => new Date(),
     structured?: StructuredConflictContext,
   ): Promise<void> {
+    const stored = await this.#db.outbox.get(mutationId);
+    if (stored === undefined) return;
+    const row = await this.#openOutbox(stored);
+    const conflict = await this.#storeConflict({
+      mutationId: row.mutationId,
+      commandType: row.commandType,
+      payload: row.payload,
+      baseRevisionIds: row.baseRevisionIds,
+      localRevisionIds: row.localRevisionIds,
+      competingRevisionIds: [...competingRevisionIds],
+      capturedAt: now().toISOString(),
+      errorCode,
+      ...(structured === undefined ? {} : { structured }),
+    });
     await this.#db.transaction("rw", [this.#db.outbox, this.#db.conflicts], async () => {
-      const row = await this.#db.outbox.get(mutationId);
-      if (row === undefined) {
-        return;
-      }
-      await this.#db.conflicts.put({
-        mutationId: row.mutationId,
-        commandType: row.commandType,
-        payload: row.payload,
-        baseRevisionIds: row.baseRevisionIds,
-        localRevisionIds: row.localRevisionIds,
-        competingRevisionIds: [...competingRevisionIds],
-        capturedAt: now().toISOString(),
-        errorCode,
-        ...(structured === undefined ? {} : { structured }),
-      });
+      if ((await this.#db.outbox.get(mutationId)) === undefined) return;
+      await this.#db.conflicts.put(conflict as ConflictRecordRow);
       await this.#db.outbox.delete(mutationId);
     });
   }
 
-  async conflicts() {
-    return this.#db.conflicts.toArray();
+  async conflicts(): Promise<ConflictRecordRow[]> {
+    return await Promise.all(
+      (await this.#db.conflicts.toArray()).map((row) => this.#openConflict(row)),
+    );
   }
 
   /**

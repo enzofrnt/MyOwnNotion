@@ -3,6 +3,7 @@ import {
   type LocalDatabase,
   LocalDatabaseRepository,
   type LocalRecordCodec,
+  Outbox,
   openLocalDatabase,
   type ReconcileTransport,
   reconcile,
@@ -228,7 +229,7 @@ describe("structured reconciliation (T072)", () => {
     transport.revisions.set(remoteRevisionId, { databaseDefinition: remote });
 
     const outcome = await reconcile(db, transport, codec);
-    const [conflict] = await db.conflicts.toArray();
+    const [conflict] = await new Outbox(db, codec).conflicts();
 
     expect(outcome.conflicts).toBe(1);
     expect(transport.submissions).toHaveLength(1);
@@ -334,7 +335,7 @@ describe("structured reconciliation (T072)", () => {
     });
 
     const conflictOutcome = await reconcile(db, secondTransport, codec);
-    const structuredConflict = (await db.conflicts.toArray()).find(
+    const structuredConflict = (await new Outbox(db, codec).conflicts()).find(
       ({ structured }) => structured?.kind === "database-entry-values",
     );
     expect(conflictOutcome.conflicts).toBe(1);

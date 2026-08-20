@@ -127,6 +127,11 @@ export function useDatabaseView(definition: DatabaseDefinition) {
   });
   const contextRef = useRef(context);
   const databaseId = useRef(definition.databaseId);
+  // Creating a view selects its ID in the same event that publishes the new
+  // definition. An effect from the previous render can still run in between
+  // those two renders and cannot see that ID yet. Remember the explicit user
+  // choice so that stale effect cannot reset it to the first view.
+  const requestedViewId = useRef<Uuid | null>(null);
   const triggers = useRef(new Map<Uuid, HTMLElement>());
   const activeViewIds = useMemo(
     () => definition.views.filter(({ state }) => state === "active").map(({ id }) => id),
@@ -136,11 +141,19 @@ export function useDatabaseView(definition: DatabaseDefinition) {
   useEffect(() => {
     const databaseChanged = databaseId.current !== definition.databaseId;
     databaseId.current = definition.databaseId;
+    if (databaseChanged) requestedViewId.current = null;
     const urlView = viewFromUrl(definition);
     setContext((current) => {
       const currentIsActive = activeViewIds.includes(current.activeViewId);
+      const requested = requestedViewId.current;
+      if (!databaseChanged && requested === current.activeViewId && !currentIsActive) {
+        return current;
+      }
+      if (requested !== null && activeViewIds.includes(requested)) {
+        requestedViewId.current = null;
+      }
       const activeViewId =
-        urlView ?? (!databaseChanged && currentIsActive ? current.activeViewId : firstActive.id);
+        !databaseChanged && currentIsActive ? current.activeViewId : (urlView ?? firstActive.id);
       if (activeViewId === current.activeViewId && !databaseChanged) return current;
       const next =
         storedContext(definition.databaseId, activeViewId) ??
@@ -164,6 +177,7 @@ export function useDatabaseView(definition: DatabaseDefinition) {
 
   const selectView = useCallback(
     (activeViewId: Uuid): void => {
+      requestedViewId.current = activeViewId;
       writeViewToUrl(activeViewId);
       updateContext(
         () =>
