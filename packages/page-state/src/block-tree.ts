@@ -9,6 +9,7 @@ import {
   isUnknownBlockV3,
   type JsonObject,
   type JsonValue,
+  type KnownBlockTypeV3,
   mayHaveChildrenV3,
   normaliseDocumentV3,
   serialiseDocumentV3,
@@ -27,6 +28,23 @@ const NODE_SCHEMA_VERSION = 1;
 
 type InternalNodeType = "tableRow" | "tableCell";
 export type OperationalNodeType = CanonicalBlockV3["type"] | InternalNodeType;
+export type TransformableBlockType = Extract<
+  KnownBlockTypeV3,
+  | "paragraph"
+  | "heading"
+  | "bulletedListItem"
+  | "numberedListItem"
+  | "checkbox"
+  | "quote"
+  | "code"
+  | "toggle"
+  | "callout"
+>;
+
+export interface OperationalBlockPlacement {
+  readonly parentBlockId: Uuid | null;
+  readonly beforeBlockId: Uuid | null;
+}
 
 export class BlockTreeOperationError extends Error {
   constructor(message: string) {
@@ -615,7 +633,58 @@ export function deleteOperationalBlock(doc: LoroDoc, blockId: Uuid): void {
   tree.delete(node.id);
 }
 
+export function operationalBlockSnapshot(doc: LoroDoc, blockId: Uuid): CanonicalBlockV3 {
+  let node = findOperationalNode(getOperationalBlockTree(doc), blockId);
+  while (nodeType(node) === "tableRow" || nodeType(node) === "tableCell") {
+    const parent = node.parent();
+    if (parent === undefined) {
+      throw new BlockTreeOperationError(`internal identity ${blockId} has no canonical ancestor`);
+    }
+    node = parent;
+  }
+  return materialiseCanonicalNode(node);
+}
+
+export function operationalBlockPlacement(doc: LoroDoc, blockId: Uuid): OperationalBlockPlacement {
+  const tree = getOperationalBlockTree(doc);
+  const node = findOperationalNode(tree, blockId);
+  assertCanonicalNode(node, "placement");
+  const parent = node.parent();
+  const siblings = parent?.children() ?? tree.roots();
+  const index = siblings.findIndex((sibling) => sibling.id === node.id);
+  if (index < 0) {
+    throw new BlockTreeOperationError(`block ${blockId} has no visible placement`);
+  }
+  const before = siblings[index + 1];
+  if (before !== undefined) assertCanonicalNode(before, "placement");
+  return {
+    parentBlockId: parent === undefined ? null : nodeIdentity(parent),
+    beforeBlockId: before === undefined ? null : nodeIdentity(before),
+  };
+}
+
 const IMMUTABLE_PROPERTY_KEYS = new Set(["type", "id", "content", "children", "text", "rows"]);
+
+export function operationalBlockProperty(
+  doc: LoroDoc,
+  blockId: Uuid,
+  key: string,
+): JsonValue | undefined {
+  const node = findOperationalNode(getOperationalBlockTree(doc), blockId);
+  const type = nodeType(node);
+  if (type === "unknown" || type === "tableRow" || type === "tableCell") {
+    throw new BlockTreeOperationError(`properties cannot be read on ${type} ${blockId}`);
+  }
+  if (IMMUTABLE_PROPERTY_KEYS.has(key)) {
+    throw new BlockTreeOperationError(`${key} is structural and is not a block property`);
+  }
+  const props = node.data.ensureMergeableMap(PROPS_KEY);
+  const storedKey = BLOCK_FIELD_ORDER_V3[type].includes(key)
+    ? key
+    : `${EXTRA_PROPERTY_PREFIX}${key}`;
+  const value = props.get(storedKey);
+  return value === undefined ? undefined : jsonFromValue(value, `block ${blockId}.${key}`);
+}
 
 export function setOperationalBlockProperty(
   doc: LoroDoc,
@@ -641,6 +710,60 @@ export function setOperationalBlockProperty(
   );
   if ((type === "image" || type === "fileEmbed") && key === "fileItemId") {
     node.data.set("fileRefs", [value]);
+  }
+}
+
+const TRANSFORMABLE_BLOCK_TYPES: ReadonlySet<KnownBlockTypeV3> = new Set([
+  "paragraph",
+  "heading",
+  "bulletedListItem",
+  "numberedListItem",
+  "checkbox",
+  "quote",
+  "code",
+  "toggle",
+  "callout",
+]);
+
+export function isTransformableBlockType(value: unknown): value is TransformableBlockType {
+  return typeof value === "string" && TRANSFORMABLE_BLOCK_TYPES.has(value as KnownBlockTypeV3);
+}
+
+function defaultPropertiesForType(type: TransformableBlockType): JsonObject {
+  switch (type) {
+    case "heading":
+      return { level: 1 };
+    case "checkbox":
+      return { checked: false };
+    case "code":
+      return { language: null };
+    case "callout":
+      return { icon: null, tone: "default" };
+    default:
+      return {};
+  }
+}
+
+export function transformOperationalBlockType(
+  doc: LoroDoc,
+  blockId: Uuid,
+  blockType: TransformableBlockType,
+  properties: JsonObject | undefined,
+): void {
+  const tree = getOperationalBlockTree(doc);
+  const node = findOperationalNode(tree, blockId);
+  const currentType = nodeType(node);
+  if (!isKnownBlockTypeV3(currentType) || !TRANSFORMABLE_BLOCK_TYPES.has(currentType)) {
+    throw new BlockTreeOperationError(`${currentType} ${blockId} cannot be transformed in place`);
+  }
+  if ((node.children()?.length ?? 0) > 0 && !mayHaveChildrenV3(blockType)) {
+    throw new BlockTreeOperationError(`${blockType} cannot retain the children of ${blockId}`);
+  }
+  node.data.ensureMergeableText(CONTENT_KEY);
+  node.data.set("type", blockType);
+  const targetProperties = { ...defaultPropertiesForType(blockType), ...properties };
+  for (const [key, value] of Object.entries(targetProperties)) {
+    setOperationalBlockProperty(doc, blockId, key, value);
   }
 }
 

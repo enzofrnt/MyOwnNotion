@@ -1,10 +1,12 @@
 import type {
   BlockDocumentV3,
   CanonicalBlockV3,
+  JsonObject,
   JsonValue,
   MarkV3,
   Uuid,
 } from "@myownnotion/domain";
+import { collectDocumentIdsV3 } from "@myownnotion/domain";
 import { LoroDoc, type Side } from "loro-crdt";
 import {
   assertOperationalBlockTree,
@@ -13,8 +15,13 @@ import {
   initialiseOperationalBlockTree,
   insertOperationalBlock,
   moveOperationalBlock,
+  operationalBlockPlacement,
+  operationalBlockProperty,
+  operationalBlockSnapshot,
   operationalTextForBlock,
   setOperationalBlockProperty,
+  type TransformableBlockType,
+  transformOperationalBlockType,
 } from "./block-tree.ts";
 import { type CanonicalProjectionResult, projectCanonicalPage } from "./canonical-projection.ts";
 import {
@@ -69,28 +76,56 @@ export type PageCommand =
       readonly blockId: Uuid;
       readonly key: string;
       readonly value: JsonValue;
+    }
+  | {
+      readonly type: "set-block-type";
+      readonly blockId: Uuid;
+      readonly blockType: TransformableBlockType;
+      readonly properties?: JsonObject;
     };
 
 export type PageSemanticChange =
   | {
       readonly type: "block-inserted";
       readonly blockId: Uuid;
-      readonly parentBlockId: Uuid | null;
-      readonly beforeBlockId: Uuid | null;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly blockAfter: CanonicalBlockV3;
+      readonly placementAfter: {
+        readonly parentBlockId: Uuid | null;
+        readonly beforeBlockId: Uuid | null;
+      };
     }
   | {
       readonly type: "block-moved";
       readonly blockId: Uuid;
-      readonly parentBlockId: Uuid | null;
-      readonly beforeBlockId: Uuid | null;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly blockAfter: CanonicalBlockV3;
+      readonly placementBefore: {
+        readonly parentBlockId: Uuid | null;
+        readonly beforeBlockId: Uuid | null;
+      };
+      readonly placementAfter: {
+        readonly parentBlockId: Uuid | null;
+        readonly beforeBlockId: Uuid | null;
+      };
     }
-  | { readonly type: "block-deleted"; readonly blockId: Uuid }
+  | {
+      readonly type: "block-deleted";
+      readonly blockId: Uuid;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly blockBefore: CanonicalBlockV3;
+      readonly placementBefore: {
+        readonly parentBlockId: Uuid | null;
+        readonly beforeBlockId: Uuid | null;
+      };
+    }
   | {
       readonly type: "text-replaced";
       readonly blockId: Uuid;
       readonly from: number;
       readonly to: number;
       readonly insertedLength: number;
+      readonly blockAfter: CanonicalBlockV3;
     }
   | {
       readonly type: "mark-set";
@@ -99,8 +134,32 @@ export type PageSemanticChange =
       readonly to: number;
       readonly markType: MarkV3["type"];
       readonly enabled: boolean;
+      readonly blockAfter: CanonicalBlockV3;
     }
-  | { readonly type: "block-property-set"; readonly blockId: Uuid; readonly key: string };
+  | {
+      readonly type: "block-property-set";
+      readonly blockId: Uuid;
+      readonly key: string;
+      readonly before: JsonValue | undefined;
+      readonly after: JsonValue;
+      readonly blockAfter: CanonicalBlockV3;
+    }
+  | {
+      readonly type: "block-type-set";
+      readonly blockId: Uuid;
+      readonly beforeType: CanonicalBlockV3["type"];
+      readonly afterType: TransformableBlockType;
+      readonly blockBefore: CanonicalBlockV3;
+      readonly blockAfter: CanonicalBlockV3;
+    }
+  | {
+      /** Emitted by a schema migrator, never by an ordinary editor command. */
+      readonly type: "schema-changed";
+      readonly blockId: Uuid;
+      readonly beforeSchemaVersion: number;
+      readonly afterSchemaVersion: number;
+      readonly blockAfter: CanonicalBlockV3;
+    };
 
 export interface PageTransactionResult {
   readonly changed: boolean;
@@ -163,25 +222,42 @@ function assertMetadata(doc: LoroDoc, pageId: Uuid): void {
 
 function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
   switch (command.type) {
-    case "insert-block":
+    case "insert-block": {
       insertOperationalBlock(doc, command.block, command.parentBlockId, command.beforeBlockId);
+      const blockAfter = operationalBlockSnapshot(doc, command.block.id);
       return {
         type: "block-inserted",
         blockId: command.block.id,
-        parentBlockId: command.parentBlockId,
-        beforeBlockId: command.beforeBlockId,
+        affectedBlockIds: collectDocumentIdsV3({ blocks: [blockAfter] }) as Uuid[],
+        blockAfter,
+        placementAfter: operationalBlockPlacement(doc, command.block.id),
       };
-    case "move-block":
+    }
+    case "move-block": {
+      const placementBefore = operationalBlockPlacement(doc, command.blockId);
       moveOperationalBlock(doc, command.blockId, command.parentBlockId, command.beforeBlockId);
+      const blockAfter = operationalBlockSnapshot(doc, command.blockId);
       return {
         type: "block-moved",
         blockId: command.blockId,
-        parentBlockId: command.parentBlockId,
-        beforeBlockId: command.beforeBlockId,
+        affectedBlockIds: collectDocumentIdsV3({ blocks: [blockAfter] }) as Uuid[],
+        blockAfter,
+        placementBefore,
+        placementAfter: operationalBlockPlacement(doc, command.blockId),
       };
-    case "delete-block":
+    }
+    case "delete-block": {
+      const blockBefore = operationalBlockSnapshot(doc, command.blockId);
+      const placementBefore = operationalBlockPlacement(doc, command.blockId);
       deleteOperationalBlock(doc, command.blockId);
-      return { type: "block-deleted", blockId: command.blockId };
+      return {
+        type: "block-deleted",
+        blockId: command.blockId,
+        affectedBlockIds: collectDocumentIdsV3({ blocks: [blockBefore] }) as Uuid[],
+        blockBefore,
+        placementBefore,
+      };
+    }
     case "replace-text": {
       const target = operationalTextForBlock(doc, command.blockId);
       replaceRichText(
@@ -197,6 +273,7 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
         from: command.from,
         to: command.to,
         insertedLength: command.text.length,
+        blockAfter: operationalBlockSnapshot(doc, command.blockId),
       };
     }
     case "set-mark": {
@@ -212,11 +289,33 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
         to: command.to,
         markType: command.mark.type,
         enabled: command.enabled,
+        blockAfter: operationalBlockSnapshot(doc, command.blockId),
       };
     }
-    case "set-block-property":
+    case "set-block-property": {
+      const before = operationalBlockProperty(doc, command.blockId, command.key);
       setOperationalBlockProperty(doc, command.blockId, command.key, command.value);
-      return { type: "block-property-set", blockId: command.blockId, key: command.key };
+      return {
+        type: "block-property-set",
+        blockId: command.blockId,
+        key: command.key,
+        before,
+        after: command.value,
+        blockAfter: operationalBlockSnapshot(doc, command.blockId),
+      };
+    }
+    case "set-block-type": {
+      const blockBefore = operationalBlockSnapshot(doc, command.blockId);
+      transformOperationalBlockType(doc, command.blockId, command.blockType, command.properties);
+      return {
+        type: "block-type-set",
+        blockId: command.blockId,
+        beforeType: blockBefore.type,
+        afterType: command.blockType,
+        blockBefore,
+        blockAfter: operationalBlockSnapshot(doc, command.blockId),
+      };
+    }
   }
 }
 

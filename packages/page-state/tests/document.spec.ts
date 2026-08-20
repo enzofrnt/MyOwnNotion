@@ -131,4 +131,41 @@ describe("operational page transactions", () => {
       blocks: [paragraph(neighbourId, "Voisin")],
     });
   });
+
+  it("edits table cells by their stable identity without replacing the table", async () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: [{ id: generateUuidV7(), width: null }],
+            rows: [
+              {
+                id: generateUuidV7(),
+                cells: [{ id: cellId, content: [{ text: "Cellule" }] }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const result = page.transact([
+      { type: "replace-text", blockId: cellId, from: 7, to: 7, text: " modifiée" },
+    ]);
+    expect(result.semanticChanges[0]).toMatchObject({
+      type: "text-replaced",
+      blockId: cellId,
+      blockAfter: { type: "table", id: tableId },
+    });
+    const table = (await page.project()).document.blocks[0];
+    expect(table?.type === "table" ? table.rows[0]?.cells[0]?.content : []).toEqual([
+      { text: "Cellule modifiée" },
+    ]);
+  });
 });

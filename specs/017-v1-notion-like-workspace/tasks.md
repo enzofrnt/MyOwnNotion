@@ -75,10 +75,10 @@ commencer avant que projection, chiffrement local et migration soient prouvés.
 - [X] T025 Implémenter les transactions de page et l'émission de changements sémantiques dans `packages/page-state/src/document.ts`
 - [X] T026 Implémenter la projection v3, les liens/usages et les vérifications de digest dans `packages/page-state/src/canonical-projection.ts`
 - [X] T027 Implémenter enveloppes, export/import incrémental, version vectors et checkpoints dans `packages/page-state/src/update-envelope.ts` et `packages/page-state/src/checkpoints.ts`
-- [ ] T028 [P] Écrire les tests des ambiguïtés delete/edit, delete/move, type, propriété et schéma dans `packages/page-state/tests/semantic-conflicts.property.spec.ts`
-- [ ] T029 Implémenter la détection et la résolution par nouvelles opérations dans `packages/page-state/src/semantic-conflicts.ts`
-- [ ] T030 [P] Écrire les tests de deux branches legacy hors ligne et de replay sémantique dans `packages/page-state/tests/legacy-offline-branch.property.spec.ts`
-- [ ] T031 Implémenter journal sémantique legacy, replay vérifié et diff `base/local/head` dans `packages/page-state/src/legacy-offline-branch.ts`
+- [X] T028 [P] Écrire les tests des ambiguïtés delete/edit, delete/move, type, propriété et schéma dans `packages/page-state/tests/semantic-conflicts.property.spec.ts`
+- [X] T029 Implémenter la détection et la résolution par nouvelles opérations dans `packages/page-state/src/semantic-conflicts.ts`
+- [X] T030 [P] Écrire les tests de deux branches legacy hors ligne et de replay sémantique dans `packages/page-state/tests/legacy-offline-branch.property.spec.ts`
+- [X] T031 Implémenter journal sémantique legacy, replay vérifié et diff `base/local/head` dans `packages/page-state/src/legacy-offline-branch.ts`
 
 ### Durabilité locale et protocoles partagés
 
