@@ -16,6 +16,30 @@ import type {
   StructuredConflictContext,
 } from "../local-store/schema.ts";
 
+function remapPayloadRevisionReferences(
+  payload: Record<string, unknown>,
+  revisions: ReadonlyMap<Uuid, Uuid>,
+): Record<string, unknown> {
+  const next = { ...payload };
+  for (const key of ["baseRevisionId", "currentRevisionId"] as const) {
+    const value = next[key];
+    if (typeof value === "string") {
+      next[key] = revisions.get(value as Uuid) ?? value;
+    }
+  }
+  for (const key of ["resolvedRevisionIds", "parentRevisionIds"] as const) {
+    const value = next[key];
+    if (Array.isArray(value)) {
+      next[key] = value.map((revisionId) =>
+        typeof revisionId === "string"
+          ? (revisions.get(revisionId as Uuid) ?? revisionId)
+          : revisionId,
+      );
+    }
+  }
+  return next;
+}
+
 export class Outbox {
   readonly #db: LocalDatabase;
 
@@ -67,11 +91,49 @@ export class Outbox {
     return stuck.length;
   }
 
-  /** Acknowledged by the server: the durable row has served its purpose. */
-  async acknowledge(mutationId: Uuid): Promise<void> {
+  /**
+   * Acknowledged by the server: the durable row has served its purpose.
+   *
+   * A later local command may already depend on this command's optimistic
+   * revision. Replace that causal reference with the canonical server revision
+   * in the same transaction that removes the acknowledged row; otherwise a
+   * quick create-then-edit is submitted from a revision the server can never
+   * know and becomes a false conflict.
+   */
+  async acknowledge(mutationId: Uuid, acceptedRevisionIds: readonly Uuid[] = []): Promise<void> {
     await this.#db.transaction("rw", [this.#db.outbox, this.#db.revisionHeaders], async () => {
       const row = await this.#db.outbox.get(mutationId);
       if (row !== undefined) {
+        const revisions = new Map<Uuid, Uuid>();
+        if (acceptedRevisionIds.length === row.localRevisionIds.length) {
+          row.localRevisionIds.forEach((localRevisionId, index) => {
+            const acceptedRevisionId = acceptedRevisionIds[index];
+            if (acceptedRevisionId !== undefined) {
+              revisions.set(localRevisionId, acceptedRevisionId);
+            }
+          });
+        }
+        if (revisions.size > 0) {
+          const queued = await this.#db.outbox.toArray();
+          for (const candidate of queued) {
+            if (candidate.mutationId === mutationId) continue;
+            await this.#db.outbox.update(candidate.mutationId, {
+              baseRevisionIds: candidate.baseRevisionIds.map(
+                (revisionId) => revisions.get(revisionId) ?? revisionId,
+              ),
+              payload: remapPayloadRevisionReferences(candidate.payload, revisions),
+            });
+          }
+          const headers = await this.#db.revisionHeaders.toArray();
+          for (const header of headers) {
+            if (row.localRevisionIds.includes(header.id)) continue;
+            await this.#db.revisionHeaders.update(header.id, {
+              parentRevisionIds: header.parentRevisionIds.map(
+                (revisionId) => revisions.get(revisionId) ?? revisionId,
+              ),
+            });
+          }
+        }
         // Optimistic local revision headers are superseded by server state.
         for (const localRevisionId of row.localRevisionIds) {
           await this.#db.revisionHeaders.delete(localRevisionId);

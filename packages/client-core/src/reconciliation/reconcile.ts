@@ -35,6 +35,7 @@ import { LocalRepository } from "../local-store/local-repository.ts";
 import {
   type LocalDatabase,
   META_KEYS,
+  type OutboxMutationRow,
   type StructuredConflictContext,
 } from "../local-store/schema.ts";
 import { Outbox } from "../outbox/outbox.ts";
@@ -81,6 +82,18 @@ export interface ReconcileOutcome {
 }
 
 const BATCH_LIMIT = 100;
+
+function nextCausalBatch(rows: readonly OutboxMutationRow[]): OutboxMutationRow[] {
+  const batch: OutboxMutationRow[] = [];
+  const producedInBatch = new Set<Uuid>();
+  for (const row of rows) {
+    if (row.baseRevisionIds.some((revisionId) => producedInBatch.has(revisionId))) break;
+    batch.push(row);
+    for (const revisionId of row.localRevisionIds) producedInBatch.add(revisionId);
+    if (batch.length === BATCH_LIMIT) break;
+  }
+  return batch;
+}
 
 /**
  * Whether a refusal is a condition on the server rather than a competing change.
@@ -304,7 +317,7 @@ export async function reconcile(
 
   // Submit the durable queue in stable order.
   for (;;) {
-    const pending = (await outbox.pending()).slice(0, BATCH_LIMIT);
+    const pending = nextCausalBatch(await outbox.pending());
     if (pending.length === 0) {
       break;
     }
@@ -340,7 +353,7 @@ export async function reconcile(
       const mutationId = result.mutationId as Uuid;
       if (result.status === "accepted" || result.status === "already-accepted") {
         accepted += 1;
-        await outbox.acknowledge(mutationId);
+        await outbox.acknowledge(mutationId, (result.revisionIds ?? []) as Uuid[]);
       } else if (result.status === "conflict") {
         // Before asking the owner anything: most "conflicts" are two devices
         // touching different paragraphs of the same page, and asking about those

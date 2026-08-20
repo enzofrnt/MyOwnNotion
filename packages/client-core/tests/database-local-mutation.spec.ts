@@ -207,14 +207,28 @@ describe("atomic structured local mutation (T021)", () => {
     });
     const entryItem = await items.getItem(entryId);
     if (entryItem === null) throw new Error("entry item missing");
-    const replaced = await apply("database.entry.values.replace", {
+    const replaceMutationId = generateUuidV7();
+    const replacePayload = {
       databaseId: create.id,
       entryId,
       baseRevisionId: entryItem.currentRevisionId,
       values: { [textPropertyId]: { kind: "text", value: "Draft two" } },
       relationTargets: { [relationPropertyId]: [targetId] },
-    });
-    expect(replaced.ok).toBe(true);
+    };
+    const replaced = await apply(
+      "database.entry.values.replace",
+      replacePayload,
+      replaceMutationId,
+    );
+    const replacedReplay = await apply(
+      "database.entry.values.replace",
+      replacePayload,
+      replaceMutationId,
+    );
+    expect(replaced.ok && replacedReplay.ok).toBe(true);
+    if (replaced.ok && replacedReplay.ok) {
+      expect(replacedReplay.value.localRevisionIds).toEqual(replaced.value.localRevisionIds);
+    }
     expect(await databases.getEntry(entryId)).toMatchObject({ valueVersion: 2 });
     expect((await databases.getEntry(entryId))?.values.values[textPropertyId]).toEqual({
       kind: "text",

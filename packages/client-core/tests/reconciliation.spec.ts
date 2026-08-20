@@ -93,6 +93,7 @@ class FakeTransport implements ReconcileTransport {
   omitProblemDetail = false;
   /** Makes ordered catch-up fail as a plain transport loss. */
   failChanges = false;
+  acceptedRevisions = new Map<string, Uuid>();
 
   async submitMutationBatch(mutations: QueuedMutationDto[]) {
     if (this.failNextBatch) {
@@ -146,10 +147,12 @@ class FakeTransport implements ReconcileTransport {
       // Idempotent server: a re-delivered id replays already-accepted.
       const already = this.acceptedIds.has(mutation.mutationId);
       this.acceptedIds.add(mutation.mutationId);
+      const revisionId = this.acceptedRevisions.get(mutation.mutationId) ?? generateUuidV7();
+      this.acceptedRevisions.set(mutation.mutationId, revisionId);
       return {
         mutationId: mutation.mutationId,
         status: already ? ("already-accepted" as const) : ("accepted" as const),
-        revisionIds: [generateUuidV7()],
+        revisionIds: [revisionId],
       };
     });
     return { ok: true as const, value: { results } };
@@ -209,6 +212,39 @@ describe("reconciliation (T044)", () => {
     expect(outcome.accepted).toBe(2);
     expect(outcome.retained).toBe(0);
     expect(await db.outbox.count()).toBe(0);
+  });
+
+  it("accepts a create before submitting an immediate dependent edit", async () => {
+    const createMutationId = await enqueueCreate("Draft");
+    const create = await outbox.get(createMutationId);
+    const localCreateRevisionId = create?.localRevisionIds[0] as Uuid;
+    const itemId = create?.payload["id"] as Uuid;
+    const editMutationId = generateUuidV7();
+    const edit = await applyLocalMutation(
+      db,
+      {
+        mutationId: editMutationId,
+        commandType: "item.rename",
+        payload: { itemId, name: "Edited before reconnect" },
+        baseRevisionIds: [localCreateRevisionId],
+      },
+      () => new Date(),
+      codec,
+    );
+    expect(edit.ok).toBe(true);
+    const transport = new FakeTransport();
+
+    const outcome = await reconcile(db, transport, codec);
+
+    expect(outcome).toMatchObject({ accepted: 2, conflicts: 0, retained: 0 });
+    expect(transport.submissions).toHaveLength(2);
+    expect(transport.submissions[0]?.map(({ mutationId }) => mutationId)).toEqual([
+      createMutationId,
+    ]);
+    expect(transport.submissions[1]?.[0]).toMatchObject({
+      mutationId: editMutationId,
+      baseRevisionIds: [transport.acceptedRevisions.get(createMutationId)],
+    });
   });
 
   it("duplicate transport delivery is absorbed idempotently (SC-014)", async () => {

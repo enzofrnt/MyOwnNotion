@@ -73,6 +73,20 @@ describe("saved database query evaluation", () => {
     ]);
   });
 
+  it("selects the same first page with top-K while retaining the complete count", () => {
+    const definitionWithView = definition({ views: [tableView()] });
+    const view = definitionWithView.views[0];
+    if (view === undefined) throw new Error("view fixture missing");
+    const full = unwrap(evaluateDatabaseView(definitionWithView, view.id, entries));
+    const limited = unwrap(
+      evaluateDatabaseView(definitionWithView, view.id, [...entries].reverse(), { maxRows: 2 }),
+    );
+    expect(limited.rows.map(({ entryId }) => entryId)).toEqual(
+      full.rows.slice(0, 2).map(({ entryId }) => entryId),
+    );
+    expect(limited.totalCount).toBe(entries.length);
+  });
+
   it("puts every entry in exactly one stable group, including missing", () => {
     const view = tableView({ group: { propertyId: IDS.status } });
     const result = unwrap(evaluateDatabaseView(definition({ views: [view] }), view.id, entries));

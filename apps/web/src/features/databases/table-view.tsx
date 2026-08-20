@@ -16,7 +16,7 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import {
   type KeyboardEvent,
   type MutableRefObject,
@@ -234,6 +234,10 @@ export function TableView({
   });
   const rows = table.getRowModel().rows;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeCell, setActiveCell] = useState<GridCellPosition>({ row: 0, column: 0 });
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const refs = useRef(new Map<string, HTMLTableCellElement>());
   useLayoutEffect(() => {
     const element = scrollRef.current;
     if (element !== null && Math.abs(element.scrollTop - scrollTop) >= 1) {
@@ -246,12 +250,13 @@ export function TableView({
     estimateSize: () => 44,
     getItemKey: (index) => rows[index]?.id ?? index,
     overscan: 8,
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range);
+      if (!indexes.includes(activeCell.row)) indexes.push(activeCell.row);
+      return indexes.sort((left, right) => left - right);
+    },
   });
   const virtualRows = virtualizer.getVirtualItems();
-  const [activeCell, setActiveCell] = useState<GridCellPosition>({ row: 0, column: 0 });
-  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
-  const [announcement, setAnnouncement] = useState("");
-  const refs = useRef(new Map<string, HTMLTableCellElement>());
 
   const cancelEdit = (position: GridCellPosition): void => {
     setEditingCell(null);
@@ -348,6 +353,7 @@ export function TableView({
       event.preventDefault();
       const next = nextGridCell(position, event.key, rows.length, visible.length, event.ctrlKey);
       setActiveCell(next);
+      virtualizer.scrollToIndex(next.row, { align: "auto" });
       focusCell(refs, next);
       return;
     }

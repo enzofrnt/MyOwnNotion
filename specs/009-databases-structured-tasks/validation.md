@@ -331,3 +331,74 @@ verrouillé deux cas de compatibilité : une fusion rebasée ne réutilise plus
 l'identité d'une mutation déjà refusée, et la sauvegarde préalable à la
 migration 009 traite une installation antérieure aux tables structurées comme
 un export vide au lieu d'interroger des tables encore absentes.
+
+## Checkpoint US4 — cinq vues sur une identité canonique
+
+**Date**: 2026-08-20
+**Résultat**: réussi
+
+Kanban, galerie et calendrier complètent table et liste sans créer de copie des
+pages ni de commande spécialisée. Une carte déplacée change la valeur ordinaire
+de statut/sélection ou de date ; la même identité et la même valeur deviennent
+immédiatement observables dans les cinq vues.
+
+### Preuves exécutées
+
+| Couche | Preuve | Résultat |
+| --- | --- | --- |
+| React | Colonnes vides/manquantes, déplacement typé, propriétés galerie, aperçu sûr, dates civiles/instants, fuseau et zone non planifiée | 9 tests US4 réussis |
+| Accessibilité | Audit axe critique/sérieux des cinq vues et présence des alternatives nommées au drag-and-drop | 5 profils réussis en 27 s |
+| Parcours visuel | Pointeur, clavier, identité unique, retour de focus, largeur 320 px et zoom 200 % | 5 profils réussis en 26 s |
+| Performance | Premières 100 lignes sur 100 000, propagation entre deux projections et 10 100 opérations locales mixtes | 3 benchmarks réussis |
+
+La matrice couvre Chromium desktop/mobile, WebKit desktop/mobile et Firefox
+desktop. Le responsive ne crée pas de scroll horizontal du document à 320 px
+et zoom 200 % ; chaque surface longue possède son propre scroll. La règle
+globale `prefers-reduced-motion` reste appliquée aux nouvelles vues.
+
+### Vues et interactions
+
+- Le Kanban dérive toutes les colonnes actives de la propriété statut ou
+  sélection, conserve leur ordre enregistré et ajoute la colonne sans valeur.
+  Drag-and-drop, sélecteur et boutons précédent/suivant produisent la même
+  commande de valeur et annoncent la cible atteinte.
+- La galerie n'affiche que les propriétés choisies. Un aperçu de page provient
+  uniquement du document déjà autorisé et présent ; un fichier n'est rendu que
+  depuis une URL locale `blob:` ou une image raster `data:` sûre. Tous les
+  autres cas ont un fallback explicite.
+- Le calendrier groupe les dates civiles sans conversion et les instants dans
+  le fuseau courant. Déplacer un instant conserve son heure locale ; les pages
+  sans date restent actionnables dans la zone non planifiée.
+- Les cartes longues de table, Kanban et galerie sont virtualisées avec
+  overscan. Le tableau conserve `aria-rowcount`/`aria-rowindex`; les listes
+  conservent `aria-setsize`/`aria-posinset`, l'identité stable et l'élément
+  focalisé même lorsqu'il sort de la fenêtre rendue.
+
+### Budgets mesurés et optimisations
+
+- p95 première page 100/100 000 : table 177,5 ms, liste 175,0 ms, Kanban
+  173,9 ms, galerie 173,9 ms, calendrier 172,8 ms, pour une cible inférieure à
+  1 000 ms.
+- p95 de propagation vers la seconde projection : 446,6 ms, pour une cible
+  inférieure à 2 000 ms.
+- p95 des commits locaux structurés pendant 10 100
+  créations/éditions/rejeux/corbeilles/restaurations : 2,6 ms, pour une cible
+  inférieure à 300 ms, sans identité dupliquée ni entrée perdue.
+- La première page utilise désormais une sélection top-K avec le comparateur
+  canonique au lieu de trier les 100 000 lignes complètes. Le nombre total et
+  les curseurs restent exacts ; les vues groupées conservent l'évaluation
+  exhaustive nécessaire à leurs comptes.
+
+### Corrections issues des parcours réels
+
+- Les commandes de création, duplication, ordre, suppression, renommage et
+  présentation d'une vue sont verrouillées pendant leur sauvegarde. Deux clics
+  rapides ne partent plus de la même ancienne révision de définition.
+- Une propriété date absente démarre avec une valeur vide et non un tableau ;
+  une entrée peut donc réellement rester non planifiée puis être programmée.
+- L'accusé d'une création remplace ses révisions locales dans les mutations
+  dépendantes avant leur envoi, et le lot causal s'arrête avant une dépendance
+  locale. Une édition immédiate après création ne produit plus de faux conflit.
+- Le rejeu d'une édition locale déjà appliquée retrouve l'outbox avant de
+  revalider sa base devenue obsolète, et restitue les mêmes révisions sans
+  réécriture.

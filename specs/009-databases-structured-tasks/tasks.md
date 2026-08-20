@@ -227,23 +227,23 @@ vérifier une identité/valeur unique dans toutes les vues.
 
 ### Tests for User Story 4
 
-- [ ] T088 [P] [US4] Écrire les tests React de colonnes/groupes et mouvement Kanban par propriété statut/sélection dans apps/web/tests/database-board.spec.tsx (FR-025, FR-048)
-- [ ] T089 [P] [US4] Écrire les tests React de galerie, propriétés choisies et fallback d'aperçu sûr dans apps/web/tests/database-gallery.spec.tsx (FR-026)
-- [ ] T090 [P] [US4] Écrire les tests React de calendrier date/instant, zone non planifiée et changement de fuseau dans apps/web/tests/database-calendar.spec.tsx (FR-027, FR-050)
-- [ ] T091 [P] [US4] Ajouter les audits axe des cinq vues et alternatives au drag-and-drop dans tests/e2e/accessibility.spec.ts (FR-047 à FR-049, SC-010)
-- [ ] T092 [US4] Écrire le parcours Playwright Kanban/galerie/calendrier, pointeur, clavier, identité unique, 320 px et zoom 200 % dans tests/e2e/databases-visual-views.spec.ts (acceptance US4)
-- [ ] T093 [P] [US4] Écrire dans tests/performance/databases.perf.spec.ts le benchmark p95 des cinq vues et 100 premières entrées sur 100 000 entrées sous une seconde, des commits locaux sous 300 ms, de la propagation sur deux appareils sous deux secondes, ainsi que 10 000 créations/éditions/replays/corbeilles/restaurations sans doublon ni perte (SC-002 à SC-006)
+- [X] T088 [P] [US4] Écrire les tests React de colonnes/groupes et mouvement Kanban par propriété statut/sélection dans apps/web/tests/database-board.spec.tsx (FR-025, FR-048)
+- [X] T089 [P] [US4] Écrire les tests React de galerie, propriétés choisies et fallback d'aperçu sûr dans apps/web/tests/database-gallery.spec.tsx (FR-026)
+- [X] T090 [P] [US4] Écrire les tests React de calendrier date/instant, zone non planifiée et changement de fuseau dans apps/web/tests/database-calendar.spec.tsx (FR-027, FR-050)
+- [X] T091 [P] [US4] Ajouter les audits axe des cinq vues et alternatives au drag-and-drop dans tests/e2e/accessibility.spec.ts (FR-047 à FR-049, SC-010)
+- [X] T092 [US4] Écrire le parcours Playwright Kanban/galerie/calendrier, pointeur, clavier, identité unique, 320 px et zoom 200 % dans tests/e2e/databases-visual-views.spec.ts (acceptance US4)
+- [X] T093 [P] [US4] Écrire dans tests/performance/databases.perf.spec.ts le benchmark p95 des cinq vues et 100 premières entrées sur 100 000 entrées sous une seconde, des commits locaux sous 300 ms, de la propagation sur deux appareils sous deux secondes, ainsi que 10 000 créations/éditions/replays/corbeilles/restaurations sans doublon ni perte (SC-002 à SC-006)
 
 ### Implementation for User Story 4
 
-- [ ] T094 [US4] Implémenter le Kanban, colonnes manquantes et déplacement via la même commande de valeur dans apps/web/src/features/databases/board-view.tsx pour satisfaire T088
-- [ ] T095 [US4] Implémenter la galerie et le choix d'aperçu déjà autorisé/disponible dans apps/web/src/features/databases/gallery-view.tsx pour satisfaire T089
-- [ ] T096 [US4] Implémenter calendrier date/instant, navigation et espace non planifié dans apps/web/src/features/databases/calendar-view.tsx pour satisfaire T090
-- [ ] T097 [US4] Ajouter aux cartes Kanban et calendrier les actions clavier équivalentes et annonces de cible dans apps/web/src/features/databases/board-view.tsx et apps/web/src/features/databases/calendar-view.tsx
-- [ ] T098 [US4] Virtualiser lignes/cartes longues sans perdre aria-rowcount, positions ni focus dans apps/web/src/features/databases/table-view.tsx, board-view.tsx et gallery-view.tsx
-- [ ] T099 [US4] Finaliser responsive 320 px, zoom 200 %, reduced-motion, scrolling local et panneaux plein écran des cinq vues dans apps/web/src/styles.css
-- [ ] T100 [US4] Optimiser projection, index, top-K, lots et overscan jusqu'à réussite de T093 dans packages/domain/src/databases/query.ts, apps/api/src/databases/database-query-service.ts et apps/web/src/features/databases/
-- [ ] T101 [US4] Exécuter T088 à T093 et consigner vues, accessibilité, responsive et performance dans specs/009-databases-structured-tasks/validation.md
+- [X] T094 [US4] Implémenter le Kanban, colonnes manquantes et déplacement via la même commande de valeur dans apps/web/src/features/databases/board-view.tsx pour satisfaire T088
+- [X] T095 [US4] Implémenter la galerie et le choix d'aperçu déjà autorisé/disponible dans apps/web/src/features/databases/gallery-view.tsx pour satisfaire T089
+- [X] T096 [US4] Implémenter calendrier date/instant, navigation et espace non planifié dans apps/web/src/features/databases/calendar-view.tsx pour satisfaire T090
+- [X] T097 [US4] Ajouter aux cartes Kanban et calendrier les actions clavier équivalentes et annonces de cible dans apps/web/src/features/databases/board-view.tsx et apps/web/src/features/databases/calendar-view.tsx
+- [X] T098 [US4] Virtualiser lignes/cartes longues sans perdre aria-rowcount, positions ni focus dans apps/web/src/features/databases/table-view.tsx, board-view.tsx et gallery-view.tsx
+- [X] T099 [US4] Finaliser responsive 320 px, zoom 200 %, reduced-motion, scrolling local et panneaux plein écran des cinq vues dans apps/web/src/styles.css
+- [X] T100 [US4] Optimiser projection, index, top-K, lots et overscan jusqu'à réussite de T093 dans packages/domain/src/databases/query.ts, apps/api/src/databases/database-query-service.ts et apps/web/src/features/databases/
+- [X] T101 [US4] Exécuter T088 à T093 et consigner vues, accessibilité, responsive et performance dans specs/009-databases-structured-tasks/validation.md
 
 **Checkpoint**: Les cinq vues montrent et modifient les mêmes pages canoniques,
 sans geste de pointeur obligatoire ni perte de contexte.

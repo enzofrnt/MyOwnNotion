@@ -305,10 +305,66 @@ function orderedGroups(
   return ids.map((id) => ({ id, entryIds: grouped.get(id) ?? [] }));
 }
 
+/**
+ * Returns the smallest K values without sorting the whole matching corpus.
+ *
+ * The heap root is the worst selected value. Each later value therefore costs
+ * O(log K) only when it belongs on the requested first page, while the final
+ * sort touches at most K rows. This matters for the common 100-of-100,000
+ * database view without changing the canonical comparator or cursor order.
+ */
+function sortedTopK<T>(
+  values: readonly T[],
+  maximum: number | undefined,
+  compare: (left: T, right: T) => number,
+): T[] {
+  if (maximum === undefined || maximum >= values.length) return [...values].sort(compare);
+  if (!Number.isSafeInteger(maximum) || maximum <= 0) return [];
+  const heap: T[] = [];
+  const swap = (left: number, right: number): void => {
+    const value = heap[left] as T;
+    heap[left] = heap[right] as T;
+    heap[right] = value;
+  };
+  const siftUp = (start: number): void => {
+    let index = start;
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      if (compare(heap[parent] as T, heap[index] as T) >= 0) return;
+      swap(parent, index);
+      index = parent;
+    }
+  };
+  const siftDown = (): void => {
+    let index = 0;
+    while (true) {
+      const left = index * 2 + 1;
+      const right = left + 1;
+      let worst = index;
+      if (left < heap.length && compare(heap[left] as T, heap[worst] as T) > 0) worst = left;
+      if (right < heap.length && compare(heap[right] as T, heap[worst] as T) > 0) worst = right;
+      if (worst === index) return;
+      swap(index, worst);
+      index = worst;
+    }
+  };
+  for (const value of values) {
+    if (heap.length < maximum) {
+      heap.push(value);
+      siftUp(heap.length - 1);
+    } else if (compare(value, heap[0] as T) < 0) {
+      heap[0] = value;
+      siftDown();
+    }
+  }
+  return heap.sort(compare);
+}
+
 export function evaluateDatabaseView(
   definition: DatabaseDefinition,
   viewId: Uuid,
   entries: readonly DatabaseQueryEntry[],
+  options: { readonly maxRows?: number } = {},
 ): DomainResult<EvaluatedDatabaseView> {
   const view = definition.views.find(
     (candidate) => candidate.id === viewId && candidate.state === "active",
@@ -341,24 +397,27 @@ export function evaluateDatabaseView(
     }
   }
 
-  const filtered =
+  const filtered: readonly DatabaseQueryEntry[] =
     preparedCriteria.length === 0
-      ? [...entries]
+      ? entries
       : entries.filter((entry) => {
           const outcomes = preparedCriteria.map(({ property, criterion, operand }) =>
             matchesCriterion(property, entry, criterion, operand),
           );
           return view.filter.mode === "all" ? outcomes.every(Boolean) : outcomes.some(Boolean);
         });
-  const rows = filtered.sort((left, right) => {
+  const compareRows = (left: DatabaseQueryEntry, right: DatabaseQueryEntry): number => {
     for (const criterion of view.sorts) {
       const comparison = compareByCriterion(properties, criterion, left, right);
       if (comparison !== 0) return comparison;
     }
     return compareText(left.title, right.title) || left.entryId.localeCompare(right.entryId);
-  });
+  };
+  // Group counts describe the entire filtered result, so grouped views keep
+  // the full order. Ungrouped first pages can safely retain only their top K.
+  const rows = sortedTopK(filtered, view.group === null ? options.maxRows : undefined, compareRows);
 
-  if (view.group === null) return ok({ rows, groups: [] });
+  if (view.group === null) return ok({ rows, groups: [], totalCount: filtered.length });
   const groupingProperty = properties.get(view.group.propertyId);
   if (
     groupingProperty === undefined ||
@@ -369,5 +428,5 @@ export function evaluateDatabaseView(
   ) {
     return queryError("group.propertyId", "property-unavailable");
   }
-  return ok({ rows, groups: orderedGroups(groupingProperty, rows) });
+  return ok({ rows, groups: orderedGroups(groupingProperty, rows), totalCount: filtered.length });
 }

@@ -17,7 +17,11 @@ import {
 function initialDraft(property: DatabaseProperty, entry: DatabaseEntryDto): ValueDraft {
   if (property.type === "relation") return entry.relationTargets[property.id] ?? [];
   const value = entry.values[property.id] as NonRelationPropertyValue | undefined;
-  if (value === undefined) return property.type === "checkbox" ? false : [];
+  if (value === undefined) {
+    if (property.type === "checkbox") return false;
+    if (property.type === "multi-select") return [];
+    return "";
+  }
   switch (value.kind) {
     case "text":
       return value.value;
@@ -92,13 +96,16 @@ export function EntryPanel({
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveConfirmation, setSaveConfirmation] = useState<string | null>(null);
 
   const save = async (): Promise<void> => {
     const nextValues: Record<string, NonRelationPropertyValue> = {};
     const nextRelations: Record<string, readonly Uuid[]> = {};
     const nextErrors: Record<string, string> = {};
     for (const property of editableProperties) {
-      const input = drafts[property.id] ?? (property.type === "checkbox" ? false : []);
+      const input =
+        drafts[property.id] ??
+        (property.type === "checkbox" ? false : property.type === "multi-select" ? [] : "");
       const result = validateValueDraft(property, input);
       if (!result.ok) {
         nextErrors[property.id] = result.error;
@@ -111,12 +118,14 @@ export function EntryPanel({
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
     setSaveError(null);
+    setSaveConfirmation(null);
     setSaving(true);
     try {
       await onSaveValues(
         nextValues as Readonly<Record<Uuid, NonRelationPropertyValue>>,
         nextRelations as RelationTargets,
       );
+      setSaveConfirmation("Properties saved locally.");
     } catch {
       setSaveError("The properties could not be saved. Your values are still here.");
     } finally {
@@ -155,13 +164,21 @@ export function EntryPanel({
                     </p>
                     <ValueEditor
                       property={property}
-                      input={drafts[property.id] ?? (property.type === "checkbox" ? false : [])}
+                      input={
+                        drafts[property.id] ??
+                        (property.type === "checkbox"
+                          ? false
+                          : property.type === "multi-select"
+                            ? []
+                            : "")
+                      }
                       error={errors[property.id] ?? null}
                       relationOptions={relationOptions.filter(
                         (option) => option.id !== entry.entryId,
                       )}
                       onChange={(input) => {
                         setDrafts((current) => ({ ...current, [property.id]: input }));
+                        setSaveConfirmation(null);
                         setErrors((current) => {
                           const { [property.id]: _removed, ...remaining } = current;
                           return remaining;
@@ -178,13 +195,21 @@ export function EntryPanel({
                   <ValueEditor
                     key={property.id}
                     property={property}
-                    input={drafts[property.id] ?? (property.type === "checkbox" ? false : [])}
+                    input={
+                      drafts[property.id] ??
+                      (property.type === "checkbox"
+                        ? false
+                        : property.type === "multi-select"
+                          ? []
+                          : "")
+                    }
                     error={errors[property.id] ?? null}
                     relationOptions={relationOptions.filter(
                       (option) => option.id !== entry.entryId,
                     )}
                     onChange={(input) => {
                       setDrafts((current) => ({ ...current, [property.id]: input }));
+                      setSaveConfirmation(null);
                       setErrors((current) => {
                         const { [property.id]: _removed, ...remaining } = current;
                         return remaining;
@@ -199,6 +224,11 @@ export function EntryPanel({
         <button type="button" onClick={() => void save()} disabled={saving}>
           {saving ? "Saving locally…" : "Save properties"}
         </button>
+        {saveConfirmation === null ? null : (
+          <p role="status" data-testid="entry-properties-saved">
+            {saveConfirmation}
+          </p>
+        )}
         {saveError !== null ? <p role="alert">{saveError}</p> : null}
       </div>
 

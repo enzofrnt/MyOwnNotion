@@ -4,8 +4,8 @@
  */
 import { createHash } from "node:crypto";
 import {
-  type CanonicalExportManifest,
   CANONICAL_EXPORT_VERSION,
+  type CanonicalExportManifest,
   canonicalExportString,
   generateUuidV7,
   validateCanonicalExport,

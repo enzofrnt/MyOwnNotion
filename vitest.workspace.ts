@@ -94,6 +94,7 @@ export default defineWorkspace([
       root: ".",
       environment: "node",
       include: ["tests/performance/**/*.spec.ts"],
+      setupFiles: ["packages/client-core/tests/setup/indexeddb.ts"],
       testTimeout: 600_000,
       hookTimeout: 600_000,
     },

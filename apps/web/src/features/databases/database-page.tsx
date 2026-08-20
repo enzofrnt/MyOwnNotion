@@ -1,10 +1,17 @@
 import type { DatabaseDto, DatabaseEntryDto } from "@myownnotion/contracts";
 import type { DatabaseDefinition, DefinitionImpact, Uuid } from "@myownnotion/domain";
-import { evaluateDatabaseView } from "@myownnotion/domain";
+import {
+  evaluateDatabaseView,
+  extractSearchableDocumentText,
+  readDocumentBody,
+} from "@myownnotion/domain";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
+import { BoardView } from "./board-view.tsx";
+import { CalendarView } from "./calendar-view.tsx";
 import { DatabaseToolbar, replaceSavedView } from "./database-toolbar.tsx";
 import { FilterEditor } from "./filter-editor.tsx";
+import { type GalleryPreview, GalleryView } from "./gallery-view.tsx";
 import { ListView } from "./list-view.tsx";
 import {
   type DatabasePropertyDraft,
@@ -87,6 +94,22 @@ export function DatabasePage({
   const entryRevisionKey = entries
     .map(({ entryId, revisionId }) => `${entryId}:${revisionId}`)
     .join("|");
+  const galleryPreviews = useMemo(() => {
+    const previews = new Map<Uuid, GalleryPreview>();
+    for (const entry of entries) {
+      if (entry.document === null) continue;
+      const read = readDocumentBody(entry.document.body);
+      if (read.kind !== "blocks" || !read.result.ok) continue;
+      const text = extractSearchableDocumentText(read.result.document).trim();
+      if (text !== "") {
+        previews.set(entry.entryId as Uuid, {
+          kind: "page",
+          text: text.length > 180 ? `${text.slice(0, 177)}…` : text,
+        });
+      }
+    }
+    return previews;
+  }, [entries]);
   const fallbackPage = useMemo<DatabaseViewPage | null>(() => {
     if (activeView === undefined) return null;
     const evaluated = evaluateDatabaseView(
@@ -195,6 +218,12 @@ export function DatabasePage({
 
   const saveView = async (view: NonNullable<typeof activeView>): Promise<void> => {
     await onReplaceDefinition(replaceSavedView(definition, view));
+  };
+
+  const openEntryFromView = (entryId: Uuid, trigger: HTMLElement | null): void => {
+    viewContext.rememberTrigger(entryId, trigger);
+    viewContext.openEntry(entryId);
+    onOpenEntry(entryId, trigger);
   };
 
   const addProperty = (): void => {
@@ -450,13 +479,9 @@ export function DatabasePage({
             page={page}
             scrollTop={viewContext.context.scrollTop}
             onScroll={viewContext.rememberScroll}
-            onOpenEntry={(entryId, trigger) => {
-              viewContext.rememberTrigger(entryId, trigger);
-              viewContext.openEntry(entryId);
-              onOpenEntry(entryId, trigger);
-            }}
+            onOpenEntry={openEntryFromView}
           />
-        ) : (
+        ) : activeView.type === "table" ? (
           <TableView
             properties={definition.properties}
             view={activeView}
@@ -465,11 +490,7 @@ export function DatabasePage({
             relationOptions={relationOptions}
             scrollTop={viewContext.context.scrollTop}
             onScroll={viewContext.rememberScroll}
-            onOpenEntry={(entryId, trigger) => {
-              viewContext.rememberTrigger(entryId, trigger);
-              viewContext.openEntry(entryId);
-              onOpenEntry(entryId, trigger);
-            }}
+            onOpenEntry={openEntryFromView}
             onResize={(propertyId, width) =>
               saveView({
                 ...activeView,
@@ -480,6 +501,37 @@ export function DatabasePage({
                 ),
               })
             }
+          />
+        ) : activeView.type === "board" ? (
+          <BoardView
+            properties={definition.properties}
+            view={activeView}
+            page={page}
+            onOpenEntry={openEntryFromView}
+            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry })}
+            onChangeView={saveView}
+            scrollTop={viewContext.context.scrollTop}
+            onScroll={viewContext.rememberScroll}
+          />
+        ) : activeView.type === "gallery" ? (
+          <GalleryView
+            properties={definition.properties}
+            view={activeView}
+            page={page}
+            previews={galleryPreviews}
+            onOpenEntry={openEntryFromView}
+            onChangeView={saveView}
+            scrollTop={viewContext.context.scrollTop}
+            onScroll={viewContext.rememberScroll}
+          />
+        ) : (
+          <CalendarView
+            properties={definition.properties}
+            view={activeView}
+            page={page}
+            onOpenEntry={openEntryFromView}
+            {...(onUpdateEntry === undefined ? {} : { onUpdateEntry })}
+            onChangeView={saveView}
           />
         )
       ) : null}

@@ -133,6 +133,18 @@ describe("database editor surfaces (T022)", () => {
     expect(markup).toContain("Use a dot as the decimal separator");
   });
 
+  it("accepts an intentionally missing date so calendar entries can remain unscheduled", () => {
+    const dateProperty: DatabaseProperty = {
+      id: generateUuidV7(),
+      name: "Due",
+      type: "date",
+      positionKey: "c",
+      state: "active",
+      config: { mode: "date" },
+    };
+    expect(validateValueDraft(dateProperty, "")).toEqual({ ok: true, input: "" });
+  });
+
   it("renders an entry as one page with structured values and an editorial document", () => {
     const entry: DatabaseEntryDto = {
       databaseId,

@@ -516,10 +516,12 @@ export class DatabaseQueryService {
       candidateIds === undefined
         ? source.entries
         : source.entries.filter(({ entryId }) => candidateIds.has(entryId));
-    const evaluated = evaluateDatabaseView(source.definition, request.viewId as Uuid, entries);
+    const limit = request.limit ?? 100;
+    const evaluated = evaluateDatabaseView(source.definition, request.viewId as Uuid, entries, {
+      ...(request.cursor === undefined && view.group === null ? { maxRows: limit } : {}),
+    });
     if (!evaluated.ok) throw new DatabaseQueryRequestError("database.invalid-view");
     const rows = evaluated.value.rows as readonly StructuredProjectionEntry[];
-    const limit = request.limit ?? 100;
     const offset =
       request.cursor === undefined
         ? 0
@@ -576,7 +578,7 @@ export class DatabaseQueryService {
               count: group.entryIds.length,
             })),
       nextCursor:
-        nextOffset < rows.length && last !== undefined
+        nextOffset < evaluated.value.totalCount && last !== undefined
           ? this.#encodeCursor({
               databaseId,
               viewId: request.viewId as Uuid,

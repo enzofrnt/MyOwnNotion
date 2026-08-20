@@ -167,6 +167,44 @@ describe("retry lifecycle", () => {
     expect(await db.revisionHeaders.get(localRevisionId)).toBeUndefined();
   });
 
+  it("atomically rebases queued dependants onto the acknowledged server revision", async () => {
+    const createMutationId = await enqueue("Created then edited");
+    const create = await outbox.get(createMutationId);
+    const localCreateRevisionId = create?.localRevisionIds[0] as Uuid;
+    const itemId = create?.payload["id"] as Uuid;
+    const editMutationId = generateUuidV7();
+    const edit = await applyLocalMutation(
+      db,
+      {
+        mutationId: editMutationId,
+        commandType: "item.rename",
+        payload: {
+          itemId,
+          name: "Edited immediately",
+          baseRevisionId: localCreateRevisionId,
+        },
+        baseRevisionIds: [localCreateRevisionId],
+      },
+      () => new Date(),
+      codec,
+    );
+    expect(edit.ok).toBe(true);
+    const localEditRevisionId = edit.ok ? edit.value.localRevisionIds[0] : undefined;
+    const serverRevisionId = generateUuidV7();
+
+    await outbox.acknowledge(createMutationId, [serverRevisionId]);
+
+    expect(await outbox.get(editMutationId)).toMatchObject({
+      baseRevisionIds: [serverRevisionId],
+      payload: { baseRevisionId: serverRevisionId },
+    });
+    expect(
+      localEditRevisionId === undefined
+        ? undefined
+        : (await db.revisionHeaders.get(localEditRevisionId))?.parentRevisionIds,
+    ).toEqual([serverRevisionId]);
+  });
+
   it("acknowledging an unknown mutation is a no-op", async () => {
     await outbox.acknowledge(generateUuidV7());
     expect(await outbox.all()).toEqual([]);

@@ -111,10 +111,14 @@ export function queryLocalDatabase(
   );
   if (view === undefined) throw new LocalDatabaseQueryError("database.invalid-view");
   const availableEntries = source.entries.filter(({ availability }) => availability === "present");
+  const limit = request.limit ?? 100;
   const evaluated = evaluateDatabaseView(
     source.definition,
     request.viewId as Uuid,
     availableEntries,
+    {
+      ...(request.cursor === undefined && view.group === null ? { maxRows: limit } : {}),
+    },
   );
   if (!evaluated.ok) throw new LocalDatabaseQueryError("database.invalid-view");
   const rows = evaluated.value.rows as readonly LocalDatabaseQueryEntry[];
@@ -122,7 +126,6 @@ export function queryLocalDatabase(
     request.cursor === undefined
       ? 0
       : decodeCursor(request.cursor, source, request.viewId as Uuid, rows);
-  const limit = request.limit ?? 100;
   const pageRows = rows.slice(offset, offset + limit);
   const coverage =
     availableEntries.length === source.expectedCount &&
@@ -171,7 +174,7 @@ export function queryLocalDatabase(
             count: group.entryIds.length,
           })),
     nextCursor:
-      nextOffset < rows.length && last !== undefined
+      nextOffset < evaluated.value.totalCount && last !== undefined
         ? encodeCursor({
             version: 1,
             databaseId: source.databaseId,

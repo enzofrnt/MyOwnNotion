@@ -28,10 +28,11 @@ export function replaceSavedView(
 export function createSavedView(
   definition: DatabaseDefinition,
   source: DatabaseView,
-  type: "table" | "list",
+  type: DatabaseView["type"],
   name: string,
 ): DatabaseDefinition {
   const views = activeViews(definition);
+  const activeProperties = definition.properties.filter(({ state }) => state === "active");
   const common = {
     ...source,
     id: generateUuidV7(),
@@ -40,33 +41,99 @@ export function createSavedView(
     positionKey: `view-${String(views.length + 1).padStart(6, "0")}`,
     state: "active" as const,
   };
-  const created: DatabaseView =
-    type === "table"
-      ? { ...common, type, options: { density: "comfortable", freezeTitle: true } }
-      : {
-          ...common,
-          type,
-          options: {
-            density: "comfortable",
-            secondaryPropertyIds: source.properties
-              .filter(({ visible }) => visible)
-              .map(({ propertyId }) => propertyId)
-              .filter((propertyId) =>
-                definition.properties.some(
-                  (property) => property.id === propertyId && property.type !== "title",
-                ),
-              )
-              .slice(0, 3),
-          },
-        };
+  let created: DatabaseView;
+  if (type === "table") {
+    created = { ...common, type, options: { density: "comfortable", freezeTitle: true } };
+  } else if (type === "list") {
+    created = {
+      ...common,
+      type,
+      options: {
+        density: "comfortable",
+        secondaryPropertyIds: source.properties
+          .filter(({ visible }) => visible)
+          .map(({ propertyId }) => propertyId)
+          .filter((propertyId) =>
+            activeProperties.some(
+              (property) => property.id === propertyId && property.type !== "title",
+            ),
+          )
+          .slice(0, 3),
+      },
+    };
+  } else if (type === "board") {
+    const axis = activeProperties.find(
+      (property) => property.type === "status" || property.type === "select",
+    );
+    if (axis === undefined || (axis.type !== "status" && axis.type !== "select")) return definition;
+    created = {
+      ...common,
+      type,
+      group: null,
+      options: {
+        axisPropertyId: axis.id,
+        columnOrder: axis.config.options.map(({ id }) => id),
+        collapsedColumnIds: [],
+      },
+    };
+  } else if (type === "gallery") {
+    created = {
+      ...common,
+      type,
+      options: {
+        cardPropertyIds: source.properties
+          .filter(({ visible }) => visible)
+          .map(({ propertyId }) => propertyId)
+          .filter((propertyId) =>
+            activeProperties.some(
+              (property) => property.id === propertyId && property.type !== "title",
+            ),
+          )
+          .slice(0, 4),
+        preview: "page",
+      },
+    };
+  } else {
+    const dateProperty = activeProperties.find((property) => property.type === "date");
+    if (dateProperty === undefined) return definition;
+    created = {
+      ...common,
+      type,
+      group: null,
+      options: { datePropertyId: dateProperty.id, initialMode: "month" },
+    };
+  }
   return { ...definition, views: [...definition.views, created] };
+}
+
+export function duplicateSavedView(
+  definition: DatabaseDefinition,
+  source: DatabaseView,
+  name: string,
+): DatabaseDefinition {
+  const views = activeViews(definition);
+  return {
+    ...definition,
+    views: [
+      ...definition.views,
+      {
+        ...source,
+        id: generateUuidV7(),
+        name,
+        positionKey: `view-${String(views.length + 1).padStart(6, "0")}`,
+        state: "active",
+      },
+    ],
+  };
 }
 
 function RenameViewControl({
   view,
+  disabled,
   onRename,
 }: {
   readonly view: DatabaseView;
+  readonly disabled?: boolean;
   readonly onRename: (name: string) => void | Promise<void>;
 }) {
   const [name, setName] = useState(view.name);
@@ -83,9 +150,16 @@ function RenameViewControl({
     <form className="database-view-rename" onSubmit={submit}>
       <label>
         View name
-        <input value={name} onChange={(event) => setName(event.target.value)} />
+        <input
+          value={name}
+          disabled={disabled || saving}
+          onChange={(event) => setName(event.target.value)}
+        />
       </label>
-      <button type="submit" disabled={saving || name.trim() === "" || name.trim() === view.name}>
+      <button
+        type="submit"
+        disabled={disabled || saving || name.trim() === "" || name.trim() === view.name}
+      >
         {saving ? "Renaming…" : "Rename view"}
       </button>
     </form>
@@ -104,9 +178,29 @@ export function DatabaseToolbar({
   readonly onChange: (definition: DatabaseDefinition) => void | Promise<void>;
 }) {
   const [savingVisibility, setSavingVisibility] = useState<ReadonlySet<Uuid>>(new Set());
+  const [savingView, setSavingView] = useState(false);
   const views = activeViews(definition);
   const active = views.find(({ id }) => id === activeViewId) ?? views[0];
   if (active === undefined) return <p role="alert">This database has no usable view.</p>;
+  const hasBoardAxis = definition.properties.some(
+    ({ state, type }) => state === "active" && (type === "status" || type === "select"),
+  );
+  const hasCalendarDate = definition.properties.some(
+    ({ state, type }) => state === "active" && type === "date",
+  );
+
+  const persist = (next: DatabaseDefinition): Promise<void> => {
+    setSavingView(true);
+    return Promise.resolve(onChange(next)).finally(() => setSavingView(false));
+  };
+
+  const create = (type: DatabaseView["type"], name: string): void => {
+    const next = createSavedView(definition, active, type, name);
+    const created = activeViews(next).at(-1);
+    if (created?.id === active.id) return;
+    void persist(next);
+    if (created !== undefined) onSelectView(created.id);
+  };
 
   const selectAdjacent = (event: KeyboardEvent<HTMLButtonElement>, index: number): void => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -132,7 +226,7 @@ export function DatabaseToolbar({
     const positions = new Map(
       reordered.map((view, position) => [view.id, `view-${String(position + 1).padStart(6, "0")}`]),
     );
-    void onChange({
+    void persist({
       ...definition,
       views: definition.views.map((view) => ({
         ...view,
@@ -151,7 +245,7 @@ export function DatabaseToolbar({
     const currentPresentation = presentations[index];
     const targetPresentation = presentations[target];
     if (currentPresentation === undefined || targetPresentation === undefined) return;
-    void onChange(
+    void persist(
       replaceSavedView(definition, {
         ...active,
         properties: active.properties.map((presentation) =>
@@ -190,56 +284,75 @@ export function DatabaseToolbar({
       >
         <button
           type="button"
-          onClick={() => {
-            const next = createSavedView(definition, active, "table", `Table ${views.length + 1}`);
-            const created = activeViews(next).at(-1);
-            void onChange(next);
-            if (created !== undefined) onSelectView(created.id);
-          }}
+          disabled={savingView}
+          onClick={() => create("table", `Table ${views.length + 1}`)}
         >
           New table view
         </button>
         <button
           type="button"
-          onClick={() => {
-            const next = createSavedView(definition, active, "list", `List ${views.length + 1}`);
-            const created = activeViews(next).at(-1);
-            void onChange(next);
-            if (created !== undefined) onSelectView(created.id);
-          }}
+          disabled={savingView}
+          onClick={() => create("list", `List ${views.length + 1}`)}
         >
           New list view
         </button>
         <button
           type="button"
+          disabled={savingView || !hasBoardAxis}
+          title={hasBoardAxis ? undefined : "Add a status or select property first"}
+          onClick={() => create("board", `Board ${views.length + 1}`)}
+        >
+          New board view
+        </button>
+        <button
+          type="button"
+          disabled={savingView}
+          onClick={() => create("gallery", `Gallery ${views.length + 1}`)}
+        >
+          New gallery view
+        </button>
+        <button
+          type="button"
+          disabled={savingView || !hasCalendarDate}
+          title={hasCalendarDate ? undefined : "Add a date property first"}
+          onClick={() => create("calendar", `Calendar ${views.length + 1}`)}
+        >
+          New calendar view
+        </button>
+        <button
+          type="button"
+          disabled={savingView}
           onClick={() => {
-            const next = createSavedView(
-              definition,
-              active,
-              active.type === "list" ? "list" : "table",
-              `${active.name} copy`,
-            );
+            const next = duplicateSavedView(definition, active, `${active.name} copy`);
             const created = activeViews(next).at(-1);
-            void onChange(next);
+            void persist(next);
             if (created !== undefined) onSelectView(created.id);
           }}
         >
           Duplicate view
         </button>
-        <button type="button" disabled={views[0]?.id === active.id} onClick={() => move(-1)}>
+        <button
+          type="button"
+          disabled={savingView || views[0]?.id === active.id}
+          onClick={() => move(-1)}
+        >
           Move view earlier
         </button>
-        <button type="button" disabled={views.at(-1)?.id === active.id} onClick={() => move(1)}>
+        <button
+          type="button"
+          disabled={savingView || views.at(-1)?.id === active.id}
+          onClick={() => move(1)}
+        >
           Move view later
         </button>
         <button
           type="button"
-          disabled={views.length === 1}
+          disabled={savingView || views.length === 1}
           title={views.length === 1 ? "A database must keep one active view" : undefined}
           onClick={() => {
             const next = replaceSavedView(definition, { ...active, state: "retired" });
             const fallback = activeViews(next)[0];
-            void onChange(next);
+            void persist(next);
             if (fallback !== undefined) onSelectView(fallback.id);
           }}
         >
@@ -248,7 +361,8 @@ export function DatabaseToolbar({
       </div>
       <RenameViewControl
         view={active}
-        onRename={(name) => onChange(replaceSavedView(definition, { ...active, name }))}
+        disabled={savingView}
+        onRename={(name) => persist(replaceSavedView(definition, { ...active, name }))}
       />
       <details className="database-columns">
         <summary>Visible properties</summary>
@@ -260,12 +374,14 @@ export function DatabaseToolbar({
                 <input
                   type="checkbox"
                   checked={presentation.visible}
-                  disabled={property.type === "title" || savingVisibility.has(property.id)}
+                  disabled={
+                    savingView || property.type === "title" || savingVisibility.has(property.id)
+                  }
                   onChange={(event) => {
                     const checked = event.target.checked;
                     setSavingVisibility((current) => new Set(current).add(property.id));
                     void Promise.resolve(
-                      onChange(
+                      persist(
                         replaceSavedView(definition, {
                           ...active,
                           properties: active.properties.map((candidate) =>
@@ -289,7 +405,7 @@ export function DatabaseToolbar({
               <button
                 type="button"
                 aria-label={`Move ${property.name} column earlier`}
-                disabled={index === 0}
+                disabled={savingView || index === 0}
                 onClick={() => moveProperty(property.id, -1)}
               >
                 ←
@@ -297,7 +413,7 @@ export function DatabaseToolbar({
               <button
                 type="button"
                 aria-label={`Move ${property.name} column later`}
-                disabled={index === presentations.length - 1}
+                disabled={savingView || index === presentations.length - 1}
                 onClick={() => moveProperty(property.id, 1)}
               >
                 →

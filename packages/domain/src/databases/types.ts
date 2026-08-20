@@ -266,6 +266,8 @@ export interface EvaluatedDatabaseGroup {
 export interface EvaluatedDatabaseView {
   readonly rows: readonly DatabaseQueryEntry[];
   readonly groups: readonly EvaluatedDatabaseGroup[];
+  /** Matching rows before an optional first-page top-K limit is applied. */
+  readonly totalCount: number;
 }
 
 export type DatabaseMergeConflictReason =

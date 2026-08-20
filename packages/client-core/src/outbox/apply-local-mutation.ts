@@ -49,6 +49,15 @@ export async function applyLocalMutation(
   const command: MutationCommand = parsed.value;
 
   try {
+    // A replay must not re-run preparation against projection state that the
+    // first application has already advanced. In particular, an edit's base
+    // revision is intentionally stale after its successful first write. The
+    // transaction repeats this check to keep concurrent callers atomic.
+    const replay = await db.outbox.get(input.mutationId);
+    if (replay !== undefined) {
+      return ok({ mutationId: input.mutationId, localRevisionIds: replay.localRevisionIds });
+    }
+
     // Sealed before the transaction opens, never inside it. Dexie commits a
     // transaction as soon as control returns to the event loop for a non-Dexie
     // promise, and the crypto is one — so sealing inside would end the

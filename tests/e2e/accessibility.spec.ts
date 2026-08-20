@@ -301,3 +301,104 @@ test.describe("synchronization accessibility (feature 006)", () => {
     expect(await seriousViolations(page)).toEqual([]);
   });
 });
+
+test.describe("structured database view accessibility (feature 009)", () => {
+  async function seriousViolations(page: import("@playwright/test").Page) {
+    const results = await new AxeBuilder({ page })
+      .include(".database-page")
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    return results.violations
+      .filter(
+        (violation: { impact?: string | null | undefined }) =>
+          violation.impact === "critical" || violation.impact === "serious",
+      )
+      .map((violation: { id: string; help: string }) => `${violation.id}: ${violation.help}`);
+  }
+
+  test("all five views pass axe and visual movement has a named keyboard equivalent", async ({
+    page,
+  }) => {
+    await openWorkspace(page);
+    const databaseName = uniqueName("Accessible planning");
+    const entryName = uniqueName("Keyboard card");
+    await page.getByRole("button", { name: "New root database" }).click();
+    const createDatabase = page.getByRole("form", { name: "Create a database" });
+    await createDatabase.getByLabel("Create a database").fill(databaseName);
+    const createDatabaseButton = createDatabase.getByRole("button", { name: "Create database" });
+    await createDatabaseButton.click();
+    await expect(createDatabase).toBeHidden({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+    await waitForSynchronized(page);
+
+    const addProperty = async (name: string, type: "status" | "date"): Promise<void> => {
+      await page.getByRole("button", { name: "Add property" }).click();
+      const editor = page.getByRole("form", { name: "Property editor" });
+      await editor.getByLabel("Name").fill(name);
+      await editor.getByLabel("Type").selectOption(type);
+      if (type === "status") {
+        const options = editor.getByLabel("Options, separated by commas");
+        await options.fill("To do, Done");
+        await expect(options).toHaveValue("To do, Done");
+      }
+      await editor.getByRole("button", { name: "Save property" }).click();
+      await expect(editor).toBeHidden({ timeout: 15_000 });
+      await waitForSynchronized(page);
+    };
+    await addProperty("Status", "status");
+    await addProperty("Due", "date");
+
+    const entryForm = page.locator(".database-entry-create");
+    await entryForm.getByLabel("New entry").fill(entryName);
+    await entryForm.getByRole("button", { name: "New entry" }).click();
+    const entryTrigger = page
+      .locator("[data-entry-trigger]")
+      .filter({ hasText: entryName })
+      .first();
+    await expect(entryTrigger).toBeVisible({ timeout: 15_000 });
+    await entryTrigger.click();
+    const panel = page.locator(".entry-panel");
+    const status = panel.getByLabel("Status", { exact: true });
+    await status.selectOption({ label: "To do" });
+    await expect(status.locator("option:checked")).toHaveText("To do");
+    const due = panel.getByLabel("Due", { exact: true });
+    await due.fill("2026-08-20");
+    await expect(due).toHaveValue("2026-08-20");
+    const saveProperties = panel.getByRole("button", { name: "Save properties" });
+    await saveProperties.click();
+    await expect(page.getByTestId("entry-properties-saved")).toHaveText(
+      "Properties saved locally.",
+      { timeout: 15_000 },
+    );
+    await waitForSynchronized(page);
+    await page.getByRole("button", { name: "Close entry" }).click();
+
+    const createView = async (buttonName: string, tabName: RegExp): Promise<void> => {
+      await page.getByRole("button", { name: buttonName }).click();
+      const tab = page.getByRole("tab", { name: tabName });
+      await expect(tab).toBeVisible({ timeout: 15_000 });
+      await expect(tab).toHaveAttribute("aria-selected", "true");
+    };
+    await createView("New list view", /List 2/);
+    await createView("New board view", /Board 3/);
+    await createView("New gallery view", /Gallery 4/);
+    await createView("New calendar view", /Calendar 5/);
+
+    for (const viewName of [/Table/, /List 2/, /Board 3/, /Gallery 4/, /Calendar 5/]) {
+      const tab = page.getByRole("tab", { name: viewName });
+      await expect(tab).toBeVisible({ timeout: 15_000 });
+      await tab.click();
+      await expect(tab).toHaveAttribute("aria-selected", "true");
+      expect(await seriousViolations(page)).toEqual([]);
+    }
+
+    await page.getByRole("tab", { name: /Board 3/ }).click();
+    await expect(page.getByLabel(`Move ${entryName} to another column`)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `Move ${entryName} to next column` }),
+    ).toBeVisible();
+    await page.getByRole("tab", { name: /Calendar 5/ }).click();
+    await expect(page.getByLabel(`Schedule ${entryName}`)).toBeVisible();
+    await expect(page.getByRole("button", { name: `Move ${entryName} to next day` })).toBeVisible();
+  });
+});
