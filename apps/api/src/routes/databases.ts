@@ -387,15 +387,10 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
             });
         }
         if (error instanceof DatabaseQueryRequestError) {
-          return reply
-            .status(error.status)
-            .header("content-type", "application/problem+json")
-            .send({
-              type: `https://myownnotion.dev/problems/${error.code}`,
-              title: "Database query cannot be executed",
-              status: error.status,
-              code: error.code,
-            });
+          return sendProblem(reply, {
+            code: error.code,
+            title: "Database query cannot be executed",
+          });
         }
         throw error;
       }

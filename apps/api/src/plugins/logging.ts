@@ -9,7 +9,8 @@
  */
 import process from "node:process";
 import type { Writable } from "node:stream";
-import pino, { type Logger } from "pino";
+import { redact as redactPrivateContent } from "@myownnotion/domain";
+import pino, { type Logger, type LoggerOptions } from "pino";
 import pinoPretty from "pino-pretty";
 
 export const LOG_COLOR_MODES = ["auto", "always", "never"] as const;
@@ -33,6 +34,10 @@ export interface SafeLoggerOptions {
     req(request: { method: string; url: string; id?: unknown }): Record<string, unknown>;
     res(reply: { statusCode: number }): Record<string, unknown>;
   };
+  formatters: {
+    log(object: Record<string, unknown>): Record<string, unknown>;
+  };
+  hooks: NonNullable<LoggerOptions["hooks"]>;
   stream?: Writable;
 }
 
@@ -50,6 +55,25 @@ export const REDACT_PATHS = [
   "snippet",
   "results[*].title",
   "results[*].snippet",
+  "definition",
+  "values",
+  "relationTargets",
+  "properties",
+  "options",
+  "views",
+  "taskRoles",
+  "filter",
+  "filters",
+  "sort",
+  "sorts",
+  "group",
+  "groups",
+  "label",
+  "labels",
+  "metadata",
+  "err.message",
+  "err.stack",
+  "err.cause",
   "err.config",
 ];
 
@@ -103,6 +127,56 @@ export function registerLogging(options: RegisterLoggingOptions = {}): SafeLogge
       },
       res(reply: { statusCode: number }) {
         return { statusCode: reply.statusCode };
+      },
+    },
+    formatters: {
+      log(object: Record<string, unknown>) {
+        // Pino's path redaction protects known top-level shapes. This recursive
+        // pass covers application-owned objects and arrays at any depth,
+        // including Error instances whose message or stack may contain a value
+        // that triggered a failed structured projection.
+        const { req, res, ...applicationFields } = object;
+        return {
+          ...(redactPrivateContent(applicationFields) as Record<string, unknown>),
+          // These are intentionally left to the strict serializers above. A
+          // raw Fastify request/reply is a large cyclic graph; traversing it is
+          // both wasteful and less safe than emitting the three allowlisted
+          // request fields and the response status alone.
+          ...(req === undefined ? {} : { req }),
+          ...(res === undefined ? {} : { res }),
+        };
+      },
+    },
+    hooks: {
+      logMethod(args, method) {
+        if (args[0] instanceof Error) {
+          // `logger.error(error)` otherwise promotes Error.message to `msg`,
+          // outside the structured `err.*` redaction paths. Replace that
+          // implicit message with a fixed diagnostic while preserving only the
+          // redacted error shape.
+          method.apply(this, [
+            { err: redactPrivateContent(args[0]) },
+            "application error",
+          ] as Parameters<typeof method>);
+          return;
+        }
+        if (typeof args[0] === "object" && args[0] !== null && Object.hasOwn(args[0], "err")) {
+          const loggedError = (args[0] as { err?: unknown }).err;
+          const errorMessage =
+            loggedError instanceof Error
+              ? loggedError.message
+              : typeof loggedError === "object" &&
+                  loggedError !== null &&
+                  typeof (loggedError as { message?: unknown }).message === "string"
+                ? (loggedError as { message: string }).message
+                : null;
+          if (errorMessage !== null && args[1] === errorMessage) {
+            const [fields, _unsafeImplicitMessage, ...rest] = args;
+            method.apply(this, [fields, "application error", ...rest] as Parameters<typeof method>);
+            return;
+          }
+        }
+        method.apply(this, args);
       },
     },
   };

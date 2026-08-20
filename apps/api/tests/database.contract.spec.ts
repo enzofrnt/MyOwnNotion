@@ -354,4 +354,21 @@ describe("owner database contract (T020)", () => {
       }
     }
   });
+
+  it("does not echo a private malformed cursor from a structured query", async () => {
+    const created = await createDatabase();
+    const privateCursor = "PrivateFilterSentinel-90210";
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/databases/${created.databaseId}/query`,
+      payload: { viewId: created.viewId, cursor: privateCursor },
+    });
+
+    expect(response.statusCode, response.body).toBe(400);
+    expect(response.json()).toMatchObject({
+      code: "database.invalid-cursor",
+      title: "Database query cannot be executed",
+    });
+    expect(response.body).not.toContain(privateCursor);
+  });
 });

@@ -268,3 +268,30 @@ ne signale que les trois avertissements CSS préexistants.
 
 Les 10 tests ciblés de protocole, les 1 032 tests de contrat API et workspace,
 les 1 262 tests unitaires, le typecheck complet et le format réussissent.
+
+### Confidentialité des surfaces serveur
+
+- Le sérialiseur de requête retire toujours la chaîne de requête et n'autorise
+  que méthode, chemin sans paramètres et identité de corrélation. Les requêtes
+  structurées privées restent dans un corps POST authentifié.
+- La redaction récursive couvre désormais définitions, propriétés, options,
+  vues, rôles de tâche, libellés, valeurs, relations, filtres, tris, groupes et
+  métadonnées, y compris lorsqu'ils sont imbriqués dans un objet applicatif.
+- Les erreurs conservent leur type mais perdent message, pile et cause. Le cas
+  `logger.error(error)`, où Pino aurait promu le message privé en message de
+  journal, reçoit un libellé fixe ; les messages statiques explicites restent
+  disponibles pour le diagnostic.
+- Les codes d'erreur et de dégradation de projection structurée appartiennent
+  au vocabulaire sûr du domaine. La route de requête les convertit par le même
+  chemin de problème allowlisté que les autres erreurs, sans refléter curseur,
+  filtre, libellé ou valeur.
+- Des sentinelles placées dans une définition, un libellé d'option, une valeur,
+  un filtre, une relation et un message d'erreur sont absentes des journaux et
+  réponses ; les UUID, compteurs et codes nécessaires au diagnostic restent
+  présents.
+
+Les 49 tests ciblés domaine/API, les 264 tests de sécurité, l'analyse statique de
+571 fichiers, le scan de secrets de 799 fichiers et le typecheck complet
+réussissent. Les suites complètes repassent également avec 1 263 tests unitaires
+et 1 034 tests de contrat ; le lint ne conserve que les trois avertissements CSS
+préexistants.

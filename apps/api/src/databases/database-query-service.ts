@@ -18,6 +18,7 @@ import {
   evaluateDatabaseView,
   type FilterCriterion,
   type NonRelationPropertyValue,
+  type SafeErrorCode,
   type Uuid,
 } from "@myownnotion/domain";
 import {
@@ -60,7 +61,7 @@ export interface DatabaseQueryServiceStatus {
   readonly expectedCount: number;
   readonly presenceIndexCount: number;
   readonly equalityIndexCount: number;
-  readonly failureCode: string | null;
+  readonly failureCode: SafeErrorCode | null;
 }
 
 interface PropertyIndexes {
@@ -88,7 +89,10 @@ interface CursorPayload {
 }
 
 export class DatabaseProjectionUnavailableError extends Error {
-  readonly code: "database.projection-building" | "database.projection-degraded";
+  readonly code: Extract<
+    SafeErrorCode,
+    "database.projection-building" | "database.projection-degraded"
+  >;
 
   constructor(
     readonly state: "building" | "degraded",
@@ -104,12 +108,13 @@ export class DatabaseProjectionUnavailableError extends Error {
 
 export class DatabaseQueryRequestError extends Error {
   constructor(
-    readonly code:
+    readonly code: Extract<
+      SafeErrorCode,
       | "database.not-found"
       | "database.invalid-view"
       | "database.invalid-cursor"
-      | "database.cursor-stale",
-    readonly status: 400 | 404 | 409,
+      | "database.cursor-stale"
+    >,
   ) {
     super("Database query cannot be executed");
     this.name = "DatabaseQueryRequestError";
@@ -271,7 +276,7 @@ export class DatabaseQueryService {
   readonly #cursorSecret: Uint8Array;
   #active: StructuredProjectionGeneration | null = null;
   #state: ProjectionState = "cold";
-  #failureCode: string | null = null;
+  #failureCode: SafeErrorCode | null = null;
   #expectedCount = 0;
   #indexedDuringBuild = 0;
   #build: Promise<void> | null = null;
@@ -480,12 +485,12 @@ export class DatabaseQueryService {
         unsigned.generation !== binding.generation ||
         rows[unsigned.offset - 1]?.entryId !== unsigned.afterEntryId
       ) {
-        throw new DatabaseQueryRequestError("database.cursor-stale", 409);
+        throw new DatabaseQueryRequestError("database.cursor-stale");
       }
       return unsigned.offset;
     } catch (error) {
       if (error instanceof DatabaseQueryRequestError) throw error;
-      throw new DatabaseQueryRequestError("database.invalid-cursor", 400);
+      throw new DatabaseQueryRequestError("database.invalid-cursor");
     }
   }
 
@@ -499,11 +504,11 @@ export class DatabaseQueryService {
       );
     }
     const source = active.sources.get(databaseId);
-    if (source === undefined) throw new DatabaseQueryRequestError("database.not-found", 404);
+    if (source === undefined) throw new DatabaseQueryRequestError("database.not-found");
     const view = source.definition.views.find(
       (candidate) => candidate.id === request.viewId && candidate.state === "active",
     );
-    if (view === undefined) throw new DatabaseQueryRequestError("database.invalid-view", 400);
+    if (view === undefined) throw new DatabaseQueryRequestError("database.invalid-view");
 
     const indexes = active.indexes.get(databaseId) ?? { presence: new Map(), equality: new Map() };
     const candidateIds = indexedCandidates(view, indexes, source.entries);
@@ -512,7 +517,7 @@ export class DatabaseQueryService {
         ? source.entries
         : source.entries.filter(({ entryId }) => candidateIds.has(entryId));
     const evaluated = evaluateDatabaseView(source.definition, request.viewId as Uuid, entries);
-    if (!evaluated.ok) throw new DatabaseQueryRequestError("database.invalid-view", 400);
+    if (!evaluated.ok) throw new DatabaseQueryRequestError("database.invalid-view");
     const rows = evaluated.value.rows as readonly StructuredProjectionEntry[];
     const limit = request.limit ?? 100;
     const offset =
