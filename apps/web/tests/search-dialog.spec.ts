@@ -187,5 +187,6 @@ describe("search dialog states", () => {
     expect(url).not.toContain("sentinel");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ query: "sentinel private", limit: 20 });
+    expect(new Headers(init.headers).get("x-myownnotion-client-protocol")).toBe("2");
   });
 });

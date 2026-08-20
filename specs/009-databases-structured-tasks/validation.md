@@ -249,3 +249,22 @@ Les 32 tests domaine ciblés d'export et de manifeste, les 40 tests contrat API
 d'export/archive/restauration et les 6 tests d'intégration PostgreSQL de
 restauration réussissent. Le typecheck complet et le lint réussissent ; le lint
 ne signale que les trois avertissements CSS préexistants.
+
+### Compatibilité du protocole 2
+
+- Le serveur et le client web courant annoncent le protocole 2 sur leurs
+  requêtes. Un client sans en-tête est interprété comme le client historique de
+  protocole 1 plutôt que comme un client courant implicite.
+- Le protocole 1 reste autorisé en lecture mais reçoit une réponse 426 avant
+  toute écriture, avec la version 2 requise et une explication indiquant que le
+  contenu n'est pas perdu.
+- Un test de contrat tente une création de base depuis un client 1, vérifie le
+  refus, puis confirme que la lecture reste disponible et qu'aucune base n'a été
+  créée. Le parcours E2E de compatibilité exerce la même fenêtre depuis le
+  navigateur.
+- Le harnais API annonce le protocole courant par défaut ; le test de la barrière
+  est le seul à contrôler manuellement l'en-tête, notamment pour prouver le cas
+  du client historique silencieux.
+
+Les 10 tests ciblés de protocole, les 1 032 tests de contrat API et workspace,
+les 1 262 tests unitaires, le typecheck complet et le format réussissent.

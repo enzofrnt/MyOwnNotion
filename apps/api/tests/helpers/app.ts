@@ -6,7 +6,7 @@ import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { generateUuidV7, PROTOCOL_VERSION, type Uuid } from "@myownnotion/domain";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
 import { type BuildAppOptions, type BuiltApp, buildApp } from "../../src/app.ts";
 
@@ -32,6 +32,11 @@ export interface ApiHarnessOptions {
    * without this the only way to see why one happened is to edit this helper.
    */
   readonly logger?: boolean;
+  /**
+   * Protocol announced by this simulated API client. Use `manual` only in the
+   * protocol-gate suite, where each request intentionally controls the header.
+   */
+  readonly clientProtocol?: number | "manual";
 }
 
 export async function createApiHarness(options: ApiHarnessOptions = {}): Promise<ApiHarness> {
@@ -44,6 +49,12 @@ export async function createApiHarness(options: ApiHarnessOptions = {}): Promise
     ...(options.security === undefined ? {} : { security: options.security }),
     ...(options.now === undefined ? {} : { now: options.now }),
   });
+  if (options.clientProtocol !== "manual") {
+    const clientProtocol = String(options.clientProtocol ?? PROTOCOL_VERSION);
+    built.app.addHook("onRequest", async (request) => {
+      request.headers["x-myownnotion-client-protocol"] ??= clientProtocol;
+    });
+  }
   return {
     built,
     postgres,
@@ -57,7 +68,15 @@ export async function createApiHarness(options: ApiHarnessOptions = {}): Promise
 }
 
 export function idempotencyHeaders(mutationId: Uuid = generateUuidV7()): Record<string, string> {
-  return { "idempotency-key": mutationId };
+  return {
+    "idempotency-key": mutationId,
+    ...currentProtocolHeaders(),
+  };
+}
+
+/** Headers sent by a current API client when a test does not need idempotency. */
+export function currentProtocolHeaders(): Record<string, string> {
+  return { "x-myownnotion-client-protocol": String(PROTOCOL_VERSION) };
 }
 
 export interface CreatedItem {

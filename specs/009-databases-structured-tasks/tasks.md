@@ -207,7 +207,7 @@ sauvegarde en retrouvant exactement l'état observable.
 - [x] T082 [US5] Implémenter la comparaison et résolution UI ancêtre/local/distant pour schéma, vue et valeur dans apps/web/src/features/sync/conflict-resolution.tsx et apps/web/src/features/databases/database-conflict-resolution.tsx
 - [x] T083 [US5] Ajouter tables, enveloppes, relations et révisions 009 à l'export versionné dans apps/api/src/routes/export.ts et apps/api/src/backup/restore-service.ts
 - [x] T084 [US5] Ajouter les nouvelles tables à la vidange/restauration transactionnelle, aux comptes et aux digests dans apps/api/src/backup/database-restore-target.ts et apps/api/src/backup/backup-service.ts pour satisfaire T074
-- [ ] T085 [US5] Étendre la version de protocole et le mode lecture seule pour clients incompatibles dans packages/domain/src/sync/protocol-version.ts et apps/api/src/plugins/protocol.ts (FR-040)
+- [x] T085 [US5] Étendre la version de protocole et le mode lecture seule pour clients incompatibles dans packages/domain/src/sync/protocol-version.ts et apps/api/src/plugins/protocol.ts (FR-040)
 - [ ] T086 [US5] Auditer/redacter valeurs, filtres, libellés et erreurs structurées dans apps/api/src/plugins/logging.ts, apps/api/src/routes/databases.ts et packages/domain/src/content/types.ts (FR-043, SC-009)
 - [ ] T087 [US5] Exécuter T070 à T075 et consigner reprise, convergence, conflits, sauvegarde et confidentialité dans specs/009-databases-structured-tasks/validation.md
 

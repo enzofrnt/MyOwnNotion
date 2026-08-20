@@ -30,7 +30,7 @@ import type {
   SearchRequestDto,
   SearchResponseDto,
 } from "@myownnotion/contracts";
-import type { Uuid } from "@myownnotion/domain";
+import { PROTOCOL_VERSION, type Uuid } from "@myownnotion/domain";
 
 export type ApiResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -69,6 +69,10 @@ export class ContentApi {
     init: RequestInit & { mutationId?: Uuid } = {},
   ): Promise<ApiResult<T>> {
     const headers = new Headers(init.headers);
+    // Required since protocol 2: a silent client is protocol 1 and therefore
+    // read-only. Announce every request so writes cannot be mistaken for legacy
+    // traffic after a server upgrade.
+    headers.set("x-myownnotion-client-protocol", String(PROTOCOL_VERSION));
     if (init.body !== undefined && !(init.body instanceof FormData)) {
       headers.set("content-type", "application/json");
     }

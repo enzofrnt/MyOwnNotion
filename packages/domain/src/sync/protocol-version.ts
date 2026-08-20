@@ -13,18 +13,20 @@
  * the write minimum, a client may look at its notes and not write to them.
  */
 
-/** The protocol this server speaks. */
-export const PROTOCOL_VERSION = 1;
+/** The protocol this server speaks. Feature 009 introduces structured state. */
+export const PROTOCOL_VERSION = 2;
+
+/** The effective version of clients released before protocol announcements. */
+export const LEGACY_PROTOCOL_VERSION = 1;
 
 /**
  * The oldest client whose writes are still safe.
  *
- * The product canvas sets the window at two stable versions: the matching client
- * and the one immediately before it. At version 1 there is no previous stable
- * version, so the two coincide — and they are separate constants so that
- * widening the window later is an edit rather than a redesign.
+ * Version 1 cannot safely write the structured state introduced by feature 009.
+ * It remains inside the two-stable-version window for reads, but becomes
+ * read-only instead of risking a write that omits data it cannot represent.
  */
-export const MINIMUM_WRITE_VERSION = 1;
+export const MINIMUM_WRITE_VERSION = 2;
 
 /**
  * The oldest client whose reads are still safe.
@@ -57,32 +59,30 @@ export const CURRENT_PROTOCOL_WINDOW: ProtocolWindow = {
 /**
  * What a client announcing `clientVersion` is allowed to do.
  *
- * A missing or unparseable version is treated as **full** access rather than
- * refused, and that is a considered choice: every client before this feature
- * announces nothing, and refusing them would break working installations at
- * upgrade time. The version becomes mandatory when the first incompatible change
- * ships, which is the moment it starts carrying information.
+ * A missing or unparseable version is the legacy protocol, not the current one.
+ * Feature 006 initially admitted silent clients because no incompatible change
+ * existed yet. Structured state is the first such change: treating silence as
+ * current now would let the oldest clients bypass the write gate entirely.
  */
 export function protocolAccessFor(
   clientVersion: number | null,
   /**
    * The window to judge against; the current build's by default.
    *
-   * A parameter rather than a hard reference to the constants, because at
-   * version 1 the refusal branches are unreachable — the minimums and the
-   * current version coincide, so no client can be too old yet. Without a way to
-   * state a different window, the refusal path would ship untested and would
-   * first be exercised on the day it starts refusing real owners' devices.
+   * A parameter rather than a hard reference to the constants so future
+   * compatibility windows remain exhaustively testable without changing global
+   * state.
    */
   window: ProtocolWindow = CURRENT_PROTOCOL_WINDOW,
 ): ProtocolAccess {
-  if (clientVersion === null || !Number.isFinite(clientVersion)) {
+  const effectiveVersion =
+    clientVersion === null || !Number.isFinite(clientVersion)
+      ? LEGACY_PROTOCOL_VERSION
+      : clientVersion;
+  if (effectiveVersion >= window.minimumWrite) {
     return { kind: "full" };
   }
-  if (clientVersion >= window.minimumWrite) {
-    return { kind: "full" };
-  }
-  if (clientVersion >= window.minimumRead) {
+  if (effectiveVersion >= window.minimumRead) {
     return { kind: "read-only", requiredVersion: window.minimumWrite };
   }
   return { kind: "refused", requiredVersion: window.minimumRead };

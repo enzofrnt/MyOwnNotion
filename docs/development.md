@@ -15,7 +15,7 @@ commands you run locally, and what blocks a merge.
 | Shell | ShellCheck + shfmt, pinned versions | `scripts/ci/check-shell.ts`, `.github/workflows/ci.yml` |
 | Tests | Vitest + fast-check + Playwright | `vitest.config.ts`, `vitest.workspace.ts`, `playwright.config.ts` |
 | Database | PostgreSQL 18 | `compose.yaml` |
-| Sync protocol | version 1 | `packages/domain/src/sync/protocol-version.ts` |
+| Sync protocol | version 2 | `packages/domain/src/sync/protocol-version.ts` |
 
 ### The sync protocol version is part of the toolchain
 
@@ -42,6 +42,11 @@ takes that away. Prefer read-only over refused whenever a read is safe.
 `MINIMUM_READ_VERSION` must never exceed `MINIMUM_WRITE_VERSION`; inverted, the
 read-only state would be unreachable and the pair would express nothing a single
 number could not. A unit test holds that invariant.
+
+Feature 009 is the first incompatible write change: protocol 2 adds structured
+database state that protocol 1 cannot represent. Protocol 1, including a client
+that sends no version header, therefore remains readable but is read-only;
+protocol 2 is required for writes.
 
 ### pnpm is the only Node.js package manager
 

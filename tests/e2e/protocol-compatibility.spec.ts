@@ -21,20 +21,38 @@ test.describe("an out-of-date client (FR-018 to FR-020)", () => {
       const response = await fetch("/v1/items");
       return response.headers.get("x-myownnotion-protocol");
     });
-    expect(announced).toBe("1");
+    expect(announced).toBe("2");
 
-    // A client claiming a version below the window. The response, not the
-    // browser's behaviour, is what FR-018 constrains — so it is read directly.
+    // A protocol-1 client can still read but cannot create content whose
+    // structured state it does not understand.
     const refusal = await page.evaluate(async () => {
-      const response = await fetch("/v1/changes", {
+      const response = await fetch("/v1/items", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": crypto.randomUUID(),
+          "x-myownnotion-client-protocol": "1",
+        },
+        body: JSON.stringify({
+          id: crypto.randomUUID(),
+          kind: "folder",
+          name: "Must not be written",
+          placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        }),
+      });
+      const body = (await response.json()) as { title?: string };
+      return { status: response.status, title: body.title };
+    });
+    expect(refusal.status).toBe(426);
+    expect(refusal.title).toMatch(/can read.*version 2/is);
+
+    const readable = await page.evaluate(async () => {
+      const response = await fetch("/v1/items", {
         headers: { "x-myownnotion-client-protocol": "1" },
       });
-      return { status: response.status };
+      return response.status;
     });
-    // At protocol version 1 the window admits version 1, so this must *not* be
-    // refused. Asserting the success is what keeps the gate from being widened by
-    // accident: a change that started refusing current clients would fail here.
-    expect(refusal.status).toBe(200);
+    expect(readable).toBe(200);
 
     // And the workspace is usable, which is the observable half of FR-020.
     await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
