@@ -587,3 +587,49 @@ Le gate `pnpm checks:local` a ensuite réussi sans interruption :
 Les mesures de performance de cette exécution restent dans les budgets :
 première page au p95 entre 217,1 et 241,1 ms selon la vue, propagation distante
 au p95 à 1 041,4 ms et commits locaux au p95 à 24,3 ms sur 10 100 opérations.
+
+## Stabilisation finale des formulaires structurés et du gate parallèle
+
+**Date**: 2026-08-20
+
+**Commit exécutable validé**: `d11f0457f5b83116078a6e6d488f5d81d0efa84c`
+
+Deux échecs WebKit du corpus complet révélaient le même défaut observable :
+une réinitialisation asynchrone d'un formulaire pouvait arriver après le début
+de la saisie suivante. La création d'entrée vide désormais son champ et
+verrouille ses contrôles avant l'écriture, restaure le titre si l'écriture
+échoue, puis ne rend le formulaire qu'une fois le traitement terminé. Le
+contrôle de renommage synchronise aussi un nom de vue externe avant que le
+navigateur puisse accepter la saisie. Le helper Playwright partagé attend à la
+fois l'entrée exacte et le déverrouillage du formulaire.
+
+Le parcours de vues a réussi trois fois de suite sur chacun des cinq profils,
+soit 15 exécutions parallèles réussies en 48 s avec
+`MYOWNNOTION_E2E_JOBS=5`. Les 13 tests Web ciblés, le typecheck et Biome ont
+également réussi avant le gate complet.
+
+La commande exacte `pnpm checks:local` a ensuite réussi sans interruption,
+exclusion ajoutée ni relance d'un contrôle échoué :
+
+| Contrôle du gate | Résultat exact |
+| --- | --- |
+| Outils, shell, format, lint et types | réussis ; zéro erreur bloquante, 3 avertissements CSS connus |
+| Couverture agrégée | 205 fichiers et 2 437 tests réussis ; lignes 90,03 %, branches 85,83 %, fonctions 91,38 % |
+| Intégration PostgreSQL | 31 fichiers et 311 tests réussis |
+| Migrations | 8 tests réussis |
+| Contrats API et workspace | 76 fichiers et 1 039 tests réussis |
+| Matrice Playwright | 5/5 profils réussis en 651 s ; 1 033 parcours réussis et 32 exclusions prévues |
+| Build de production | API, client Web, PWA et service worker réussis |
+| Images | API et Web construites avec SBOM pour `linux/amd64` et `linux/arm64` |
+| Sécurité et licences | aucune vulnérabilité haute/critique, 1 modérée non bloquante ; 814 fichiers sans secret, 585 sources sans finding statique, 305 licences sans violation |
+| Compose | contrat services, ports loopback, secrets et images épinglées réussi |
+
+Les mesures 009 restent dans tous leurs budgets : première page de 100 entrées
+au p95 entre 223,8 et 303,2 ms selon la vue, propagation vers la seconde
+projection à 978,6 ms et commits locaux au p95 à 25,3 ms pendant 10 100
+opérations mixtes sans perte.
+
+La méthode de relance est maintenant pérenne dans `docs/development.md` : les
+relances ciblées utilisent les cinq profils en parallèle, tandis que le corpus
+complet conserve la largeur fiable de deux sur la machine de référence. Les
+suites Vitest continuent de paralléliser leurs fichiers indépendamment.

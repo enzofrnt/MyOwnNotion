@@ -395,7 +395,7 @@ T093 performance
 
 ## Task Format Validation
 
-Les 117 tâches suivent le format checklist obligatoire : case, identifiant
+Les 119 tâches suivent le format checklist obligatoire : case, identifiant
 séquentiel, marqueur `[P]` uniquement si parallélisable, label `[USn]` dans
 les phases de story et chemin de fichier explicite.
 
@@ -410,3 +410,4 @@ les phases de story et chemin de fichier explicite.
 - [X] T116 [P] Remplacer dans README.md le résumé d'avancement par un tableau séparant explicitement le réalisé du reste à faire pour chaque grande étape 001 à 015
 - [X] T117 Attendre les accusés locaux de création, d'enregistrement et de configuration de vue avant les attentes de synchronisation dans les parcours structurés, préserver tout nouveau focus utilisateur après le retour depuis une entrée, puis prouver l'absence de flakiness sur les cinq profils Playwright dans apps/web/src/features/databases/database-page.tsx, tests/e2e/helpers.ts et tests/e2e/databases-{schema,views,tasks,visual-views}.spec.ts
 - [X] T118 Permettre au gate Playwright local de respecter un parallélisme borné explicitement configurable, puis documenter dans package.json et docs/development.md la largeur complète fiable de deux et les relances ciblées à cinq profils
+- [X] T119 Verrouiller les formulaires structurés pendant leur écriture, vider le titre d'entrée avant l'attente asynchrone avec restauration sur erreur, synchroniser le nom de vue avant la saisie utilisateur et centraliser l'accusé de création dans apps/web/src/features/databases/database-{page,toolbar}.tsx, tests/e2e/helpers.ts et tests/e2e/databases-{schema,views}.spec.ts
