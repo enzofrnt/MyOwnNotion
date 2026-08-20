@@ -39,11 +39,14 @@ browser/viewport projects, and two production images
 
 | Principle | Gate | Status |
 |-----------|------|--------|
-| I. Privacy and Security by Design | Untrusted PR caches are isolated from trusted main/release scopes; policy fails closed. | PASS |
-| II. Local-First Reliability | `pnpm checks:local` remains the complete pre-push gate and is never reduced by selection. | PASS |
-| III. Explicit Data and State Semantics | The change set, impact rules, selected tests, reasons, and cache scopes are explicit artifacts. | PASS |
-| IV. Specification-Driven Delivery | Feature 016 contains spec, plan, tasks, contracts, and validation evidence. | PASS |
-| V. Testable Quality | Selection logic has contract tests; full trusted gates detect mapping drift. | PASS |
+| I. User Ownership and Local Resilience | CI selection changes no product data or offline behavior; the complete local gate remains available. | PASS |
+| II. One Spec, Any Agent | Feature 016 is the canonical directory and identifies the governing product-canvas sections. | PASS |
+| III. Incremental, Verifiable Delivery | Selection logic has contract tests; conservative fallbacks and full trusted/local gates detect mapping drift. | PASS |
+| IV. Privacy and Security by Default | Untrusted PR caches are isolated from trusted main/release scopes, contain no secrets, and fail closed. | PASS |
+| V. Simple, Modular Architecture | One declarative policy and two existing CI scripts provide selection without another service or runtime dependency. | PASS |
+| VI. Accessible and Predictable Experience | Required jobs never disappear, summaries explain every selection, and performance budgets remain measurable without instrumentation. | PASS |
+| VII. Reproducible Toolchains and Enforced Quality | Pinned pnpm tooling and all required quality, image, security, and publication gates remain blocking. | PASS |
+| VIII. Canonical Product Direction | The plan is traceable to product-canvas sections 38–42 and changes no release boundary. | PASS |
 
 No constitutional exception is required.
 

@@ -189,8 +189,8 @@ obsolete PR run continues consuming runners.
 
 ## Post-validation CI regression maintenance
 
-- [x] T029 Separate the `performance` Vitest group from coverage in `package.json`, `scripts/ci/run-affected-vitest.ts`, and `scripts/ci/test-impact.ts` while retaining it in the complete local gate.
-- [x] T030 Add an independently required parallel performance job and impact output in `.github/workflows/ci.yml`.
-- [x] T031 Extend the impact-plan schema and workflow/selection contract tests for performance full, affected, direct, and no-op behavior.
-- [x] T032 Stabilize the WebKit session-reload and offline catch-up journeys from retained traces without increasing timeouts or accepting flaky retries.
-- [ ] T033 Run targeted contract, performance, WebKit, and Chromium-mobile regressions, then the exact complete pre-push gate and append the evidence to `validation.md`.
+- [x] T030 Separate the `performance` Vitest group from coverage in `package.json`, `scripts/ci/run-affected-vitest.ts`, and `scripts/ci/test-impact.ts` while retaining it in the complete local gate.
+- [x] T031 Add an independently required parallel performance job and impact output in `.github/workflows/ci.yml`.
+- [x] T032 Extend the impact-plan schema and workflow/selection contract tests for performance full, affected, direct, and no-op behavior.
+- [x] T033 Stabilize the WebKit session-reload and offline catch-up journeys from retained traces without increasing timeouts or accepting flaky retries.
+- [x] T034 Run targeted contract, performance, WebKit, and Chromium-mobile regressions, then the exact complete pre-push gate and append the evidence to `validation.md`.
