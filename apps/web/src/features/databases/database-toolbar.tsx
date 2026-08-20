@@ -4,7 +4,7 @@ import {
   generateUuidV7,
   type Uuid,
 } from "@myownnotion/domain";
-import { type FormEvent, type KeyboardEvent, useEffect, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useLayoutEffect, useState } from "react";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 function activeViews(definition: DatabaseDefinition): DatabaseView[] {
@@ -139,7 +139,10 @@ function RenameViewControl({
 }) {
   const [name, setName] = useState(view.name);
   const [saving, setSaving] = useState(false);
-  useEffect(() => setName(view.name), [view.name]);
+  // Synchronize an externally selected or renamed view before the browser can
+  // accept input. A passive effect can run after a fast user starts typing and
+  // replace that draft with the old view name.
+  useLayoutEffect(() => setName(view.name), [view.name]);
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const normalized = name.trim();

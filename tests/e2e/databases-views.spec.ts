@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures.ts";
 import {
+  createDatabaseEntry,
   openSecondDevice,
   openWorkspace,
   saveEntryProperties,
@@ -36,11 +37,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(page.locator(".database-schema").getByText("Status", { exact: true })).toBeVisible();
 
   const createEntry = async (title: string, status: "To do" | "Done"): Promise<void> => {
-    const form = page.locator(".database-entry-create");
-    await form.getByLabel("New entry").fill(title);
-    await form.getByRole("button", { name: "New entry" }).click();
-    const trigger = page.locator(`[data-entry-trigger]`).filter({ hasText: title }).first();
-    await expect(trigger).toBeVisible({ timeout: 15_000 });
+    const trigger = await createDatabaseEntry(page, title);
     await waitForSynchronized(page);
     await trigger.click();
     const panel = page.locator(".entry-panel");
@@ -164,7 +161,9 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await listTab.click();
   await expect(page.locator(".database-list")).toBeVisible();
   await expect(page.locator(".database-list__entry")).toHaveCount(3);
-  await page.getByLabel("View name").fill("Planning");
+  const viewName = page.getByLabel("View name");
+  await viewName.fill("Planning");
+  await expect(viewName).toHaveValue("Planning");
   await page.getByRole("button", { name: "Rename view" }).click();
   await expect(page.getByRole("tab", { name: /Planning/ })).toBeVisible();
   await waitForSynchronized(page);

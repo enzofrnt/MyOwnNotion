@@ -5,7 +5,13 @@
  * secret, and readiness helpers the feature-002 journeys need (T003).
  */
 import { PROTOCOL_VERSION } from "@myownnotion/domain";
-import { type Browser, type BrowserContext, expect, type Page } from "@playwright/test";
+import {
+  type Browser,
+  type BrowserContext,
+  expect,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { seedSessionOnNewDevice } from "./reset-installation.ts";
 
 /** Headers for direct API setup calls made by the current E2E client. */
@@ -95,6 +101,25 @@ export async function selectItem(page: Page, name: string): Promise<void> {
   await expect(page.getByTestId(`tree-item-${name}`)).toHaveAttribute("aria-selected", "true", {
     timeout: 15_000,
   });
+}
+
+/** Creates one database entry and waits for the form handler to finish. */
+export async function createDatabaseEntry(page: Page, title: string): Promise<Locator> {
+  const form = page.locator(".database-entry-create");
+  const input = form.getByLabel("New entry");
+  const submit = form.getByRole("button", { name: "New entry" });
+  await expect(input).toBeEnabled({ timeout: 15_000 });
+  await input.fill(title);
+  await expect(input).toHaveValue(title);
+  await submit.click();
+
+  // The exact row is the local mutation acknowledgement. Waiting for the
+  // form to unlock as well proves that the async handler from this creation
+  // can no longer clear or disable the next user's input.
+  const trigger = page.locator("[data-entry-trigger]").filter({ hasText: title }).first();
+  await expect(trigger).toBeVisible({ timeout: 15_000 });
+  await expect(input).toBeEnabled({ timeout: 15_000 });
+  return trigger;
 }
 
 /** Saves structured values only after the local mutation is observably accepted. */

@@ -73,6 +73,7 @@ export function DatabasePage({
   const [savingProperty, setSavingProperty] = useState(false);
   const [entryTitle, setEntryTitle] = useState("");
   const [entryError, setEntryError] = useState<string | null>(null);
+  const [savingEntry, setSavingEntry] = useState(false);
   const [pendingDefinition, setPendingDefinition] = useState<DatabaseDefinition | null>(null);
   const [impact, setImpact] = useState<DefinitionImpact | null>(null);
   const [loadedPage, setLoadedPage] = useState<DatabaseViewPage | null>(null);
@@ -314,11 +315,18 @@ export function DatabasePage({
       return;
     }
     setEntryError(null);
+    // Clear and lock the controlled field before the asynchronous write. If
+    // the clear waited until the write completed, that older render could
+    // erase the next title a user had already started typing under load.
+    setEntryTitle("");
+    setSavingEntry(true);
     try {
       await onCreateEntry(title);
-      setEntryTitle("");
     } catch {
+      setEntryTitle(title);
       setEntryError(DATABASE_COPY.page.entryCreateFailed);
+    } finally {
+      setSavingEntry(false);
     }
   };
 
@@ -453,9 +461,12 @@ export function DatabasePage({
             id={`new-entry-${database.databaseId}`}
             value={entryTitle}
             placeholder={DATABASE_COPY.page.untitledPage}
+            disabled={savingEntry}
             onChange={(event) => setEntryTitle(event.target.value)}
           />
-          <button type="submit">{DATABASE_COPY.page.newEntry}</button>
+          <button type="submit" disabled={savingEntry}>
+            {DATABASE_COPY.page.newEntry}
+          </button>
         </div>
         {entryError !== null ? <p role="alert">{entryError}</p> : null}
       </form>

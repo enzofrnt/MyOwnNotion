@@ -7,6 +7,7 @@
  */
 import { expect, test } from "./fixtures.ts";
 import {
+  createDatabaseEntry,
   createRootItem,
   openWorkspace,
   saveEntryProperties,
@@ -61,13 +62,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await addProperty("Done", "checkbox");
   await addProperty("Related", "relation");
 
-  const createEntry = page.locator(".database-entry-create");
-  await createEntry.getByLabel("New entry").fill(entryName);
-  await createEntry.getByRole("button", { name: "New entry" }).click();
-  const entryButton = page
-    .locator(".database-table")
-    .getByRole("button", { name: entryName, exact: true });
-  await expect(entryButton).toBeVisible({ timeout: 15_000 });
+  const entryButton = await createDatabaseEntry(page, entryName);
   await waitForSynchronized(page);
   await entryButton.click();
 
@@ -116,13 +111,8 @@ test("announces the active entry count before trashing a database", async ({ pag
   await createDatabase.getByRole("button", { name: "Create database" }).click();
   await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
 
-  const createEntry = page.locator(".database-entry-create");
   for (const entryName of entryNames) {
-    await createEntry.getByLabel("New entry").fill(entryName);
-    await createEntry.getByRole("button", { name: "New entry" }).click();
-    await expect(
-      page.locator(".database-table").getByRole("button", { name: entryName, exact: true }),
-    ).toBeVisible();
+    await createDatabaseEntry(page, entryName);
   }
 
   const confirmation = page.waitForEvent("dialog");
