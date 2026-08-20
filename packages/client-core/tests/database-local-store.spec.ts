@@ -1,4 +1,5 @@
 import {
+  LOCAL_SCHEMA_VERSION,
   type LocalDatabase,
   LocalDatabaseRepository,
   openLocalDatabase,
@@ -67,7 +68,7 @@ describe("structured local schema migration (T070)", () => {
     const upgraded = openLocalDatabase(name);
     await upgraded.open();
 
-    expect(upgraded.verno).toBe(6);
+    expect(upgraded.verno).toBe(LOCAL_SCHEMA_VERSION);
     expect(await upgraded.meta.get("lastChangeCursor")).toEqual({
       key: "lastChangeCursor",
       value: "before-v6",

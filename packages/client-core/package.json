@@ -14,6 +14,7 @@
   "dependencies": {
     "@myownnotion/contracts": "workspace:*",
     "@myownnotion/domain": "workspace:*",
+    "@myownnotion/page-state": "workspace:*",
     "dexie": "^4.2.1"
   },
   "devDependencies": {

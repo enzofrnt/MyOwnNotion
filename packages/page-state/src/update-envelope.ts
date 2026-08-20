@@ -43,6 +43,20 @@ export function decodeOperationalFrontiers(bytes: Uint8Array): Frontiers {
   return decodeFrontiers(bytes);
 }
 
+/** Encoded frontier order is not canonical; compare the causal IDs as a set. */
+export function operationalFrontiersEqual(left: Uint8Array, right: Uint8Array): boolean {
+  const canonical = (bytes: Uint8Array) =>
+    decodeOperationalFrontiers(bytes)
+      .map(({ peer, counter }) => `${String(peer)}:${counter}`)
+      .sort();
+  const leftIds = canonical(left);
+  const rightIds = canonical(right);
+  return (
+    leftIds.length === rightIds.length &&
+    leftIds.every((frontier, index) => frontier === rightIds[index])
+  );
+}
+
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", arrayBufferBytes(bytes));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");

@@ -82,16 +82,16 @@ commencer avant que projection, chiffrement local et migration soient prouvés.
 
 ### Durabilité locale et protocoles partagés
 
-- [ ] T032 [P] Écrire les tests de migration Dexie v6→v7 et de conservation des versions historiques dans `packages/client-core/tests/page-operation-schema.spec.ts`
-- [ ] T033 Ajouter stores et types scellés `pageOperationStates`, `pageOperationUpdates`, `pageAmbiguities` et `legacyOfflineBranches` dans `packages/client-core/src/local-store/schema.ts`
-- [ ] T034 [P] Écrire les tests d'enveloppes chiffrées et d'absence de contenu clair dans `packages/client-core/tests/page-operation-encryption.spec.ts`
-- [ ] T035 Implémenter le repository chiffré et les AAD de page dans `packages/client-core/src/page-sync/encrypted-update-log.ts` et `packages/client-core/src/local-store/local-encryption.ts`
-- [ ] T036 [P] Écrire la fault matrix avant/pendant/après commit local dans `packages/client-core/tests/page-operation-atomicity.spec.ts`
-- [ ] T037 Implémenter la transaction locale update/frontier/checkpoint/projection dans `packages/client-core/src/page-sync/local-page-state.ts`
-- [ ] T038 [P] Écrire les tests multi-onglets, Peer IDs distincts et accusés durables dans `packages/client-core/tests/page-tab-channel.spec.ts`
-- [ ] T039 Implémenter le canal inter-onglets sans écho ni faux accusé dans `packages/client-core/src/page-sync/tab-channel.ts`
-- [ ] T040 [P] Écrire les tests de validation des requêtes/réponses du protocole v3 dans `packages/contracts/tests/page-operations.spec.ts`
-- [ ] T041 Implémenter les contrats TypeScript et parseurs bornés de page operations dans `packages/contracts/src/page-operations.ts` et `packages/contracts/src/index.ts`
+- [X] T032 [P] Écrire les tests de migration Dexie v6→v7 et de conservation des versions historiques dans `packages/client-core/tests/page-operation-schema.spec.ts`
+- [X] T033 Ajouter stores et types scellés `pageOperationStates`, `pageOperationUpdates`, `pageAmbiguities` et `legacyOfflineBranches` dans `packages/client-core/src/local-store/schema.ts`
+- [X] T034 [P] Écrire les tests d'enveloppes chiffrées et d'absence de contenu clair dans `packages/client-core/tests/page-operation-encryption.spec.ts`
+- [X] T035 Implémenter le repository chiffré et les AAD de page dans `packages/client-core/src/page-sync/encrypted-update-log.ts` et `packages/client-core/src/security/local-encryption.ts`
+- [X] T036 [P] Écrire la fault matrix avant/pendant/après commit local dans `packages/client-core/tests/page-operation-atomicity.spec.ts`
+- [X] T037 Implémenter la transaction locale update/frontier/checkpoint/projection dans `packages/client-core/src/page-sync/local-page-state.ts`
+- [X] T038 [P] Écrire les tests multi-onglets, Peer IDs distincts et accusés durables dans `packages/client-core/tests/page-tab-channel.spec.ts`
+- [X] T039 Implémenter le canal inter-onglets sans écho ni faux accusé dans `packages/client-core/src/page-sync/tab-channel.ts`
+- [X] T040 [P] Écrire les tests de validation des requêtes/réponses du protocole v3 dans `packages/contracts/tests/page-operations.spec.ts`
+- [X] T041 Implémenter les contrats TypeScript et parseurs bornés de page operations dans `packages/contracts/src/page-operations.ts` et `packages/contracts/src/index.ts`
 
 ### Système UI minimal partagé
 

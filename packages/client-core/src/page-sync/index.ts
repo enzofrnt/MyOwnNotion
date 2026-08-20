@@ -1,2 +1,3 @@
-// Local page synchronization services are introduced behind this boundary.
-export {};
+export * from "./encrypted-update-log.ts";
+export * from "./local-page-state.ts";
+export * from "./tab-channel.ts";
