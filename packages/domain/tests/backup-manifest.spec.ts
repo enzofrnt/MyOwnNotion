@@ -43,6 +43,27 @@ describe("reading a manifest", () => {
     expect(read.ok).toBe(true);
   });
 
+  it("accepts structured counts and digest together while keeping pre-009 manifests readable", () => {
+    expect(readBackupManifest(manifest()).ok).toBe(true);
+    expect(
+      readBackupManifest(
+        manifest({
+          databaseCount: 2,
+          databaseEntryCount: 7,
+          structuredDataDigest: DIGEST_B,
+        }),
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("refuses a partial structured manifest", () => {
+    const read = readBackupManifest(manifest({ databaseCount: 2 }));
+    expect(read.ok).toBe(false);
+    if (!read.ok) {
+      expect(read.problems.map((problem) => problem.field)).toContain("structuredData");
+    }
+  });
+
   it("refuses one whose file count disagrees with its file list", () => {
     // Caught by arithmetic rather than by a restoration discovering a missing
     // file later, which is the difference between a refusal and a half-restore.

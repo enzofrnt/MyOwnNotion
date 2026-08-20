@@ -26,9 +26,11 @@ import {
   BACKUP_FORMAT_VERSION,
   buildCanonicalExport,
   canonicalExportString,
+  canonicalStructuredDataString,
   generateUuidV7,
   type Uuid,
 } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { encodeBackupArchive } from "../../../apps/api/src/backup/archive-format.ts";
 import {
@@ -103,6 +105,37 @@ describe("rehearsing a restoration", () => {
         },
       });
       expect(created.result.status).toBe("accepted");
+      const databaseId = generateUuidV7();
+      const databaseCreated = await submitMutation(rehearsal.handle.db, {
+        workspaceId: workspace.id,
+        mutationId: generateUuidV7(),
+        commandType: "database.create",
+        command: {
+          type: "database.create",
+          id: databaseId,
+          name: "Structured state being replaced",
+          placement: { id: generateUuidV7(), parentItemId: null, positionKey: "Vy" },
+          titlePropertyId: generateUuidV7(),
+          initialViewId: generateUuidV7(),
+          initialViewName: "Table",
+        },
+      });
+      expect(databaseCreated.result.status).toBe("accepted");
+      const databaseEntryCreated = await submitMutation(rehearsal.handle.db, {
+        workspaceId: workspace.id,
+        mutationId: generateUuidV7(),
+        commandType: "database.entry.create",
+        command: {
+          type: "database.entry.create",
+          databaseId,
+          id: generateUuidV7(),
+          title: "Structured entry being replaced",
+          placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a" },
+          values: {},
+          relationTargets: {},
+        },
+      });
+      expect(databaseEntryCreated.result.status).toBe("accepted");
       await rehearsal.handle.db.insert(schema.protectedEnvelopes).values({
         id: generateUuidV7(),
         installationId,
@@ -137,6 +170,8 @@ describe("rehearsing a restoration", () => {
       });
 
       expect(await rehearsal.handle.db.select().from(schema.items)).toEqual([]);
+      expect(await rehearsal.handle.db.select().from(schema.databases)).toEqual([]);
+      expect(await rehearsal.handle.db.select().from(schema.databaseEntries)).toEqual([]);
       expect(await rehearsal.handle.db.select().from(schema.protectedEnvelopes)).toEqual([]);
       expect(await rehearsal.handle.db.select().from(schema.uploads)).toEqual([]);
       expect(await rehearsal.handle.db.select().from(schema.exports)).toEqual([]);
@@ -153,9 +188,15 @@ describe("rehearsing a restoration", () => {
       const folderId = generateUuidV7();
       const pageId = generateUuidV7();
       const fileId = generateUuidV7();
+      const entryId = generateUuidV7();
       const folderRevisionId = generateUuidV7();
       const pageRevisionId = generateUuidV7();
       const fileRevisionId = generateUuidV7();
+      const entryRevisionId = generateUuidV7();
+      const titlePropertyId = generateUuidV7();
+      const textPropertyId = generateUuidV7();
+      const relationPropertyId = generateUuidV7();
+      const viewId = generateUuidV7();
       const acceptedAt = "2026-08-18T08:00:00.000Z";
       const fileBytes = Buffer.from("restored file bytes", "utf8");
       const fileHash = createHash("sha256").update(fileBytes).digest("hex");
@@ -223,6 +264,36 @@ describe("rehearsing a restoration", () => {
             ],
           },
           {
+            id: entryId,
+            workspaceId: sourceWorkspaceId,
+            kind: "page",
+            name: "Restored database entry",
+            lifecycle: "active",
+            trashedAt: null,
+            purgeAfter: null,
+            currentRevisionId: entryRevisionId,
+            favourite: false,
+            offlineIntent: true,
+            pageDocument: {
+              format: "myownnotion.document+json",
+              formatVersion: 1,
+              body: {},
+            },
+            file: null,
+            placements: [
+              {
+                id: generateUuidV7(),
+                workspaceId: sourceWorkspaceId,
+                itemId: entryId,
+                itemIsFile: false,
+                kind: "hierarchy",
+                parentItemId: pageId,
+                positionKey: "Vba",
+                removedAt: null,
+              },
+            ],
+          },
+          {
             id: fileId,
             workspaceId: sourceWorkspaceId,
             kind: "file",
@@ -254,6 +325,78 @@ describe("rehearsing a restoration", () => {
             ],
           },
         ],
+        databases: [
+          {
+            databaseId: pageId,
+            definitionVersion: 3,
+            definition: {
+              format: "myownnotion.database-definition+json",
+              formatVersion: 1,
+              databaseId: pageId,
+              properties: [
+                {
+                  id: titlePropertyId,
+                  name: "Title",
+                  type: "title",
+                  positionKey: "a",
+                  state: "active",
+                  config: {},
+                },
+                {
+                  id: textPropertyId,
+                  name: "Private note",
+                  type: "text",
+                  positionKey: "b",
+                  state: "active",
+                  config: {},
+                },
+                {
+                  id: relationPropertyId,
+                  name: "Related",
+                  type: "relation",
+                  positionKey: "c",
+                  state: "active",
+                  config: { cardinality: "many" },
+                },
+              ],
+              views: [
+                {
+                  id: viewId,
+                  name: "Table",
+                  type: "table",
+                  positionKey: "a",
+                  state: "active",
+                  properties: [
+                    { propertyId: titlePropertyId, visible: true, positionKey: "a" },
+                    { propertyId: textPropertyId, visible: true, positionKey: "b" },
+                    { propertyId: relationPropertyId, visible: true, positionKey: "c" },
+                  ],
+                  filter: { mode: "all", criteria: [] },
+                  sorts: [],
+                  group: null,
+                  options: { density: "comfortable", freezeTitle: true },
+                },
+              ],
+              taskRoles: null,
+            },
+          },
+        ],
+        databaseEntries: [
+          {
+            entryId,
+            databaseId: pageId,
+            valueVersion: 4,
+            addedRevisionId: entryRevisionId,
+            values: {
+              format: "myownnotion.database-entry-values+json",
+              formatVersion: 1,
+              databaseId: pageId,
+              entryId,
+              values: { [textPropertyId]: { kind: "text", value: "restored sentinel" } },
+              preserved: [],
+            },
+          },
+        ],
         relationships: [
           {
             id: generateUuidV7(),
@@ -263,6 +406,16 @@ describe("rehearsing a restoration", () => {
             relationType: "mention:reference",
             metadata: { source: "restore-test" },
             createdRevisionId: pageRevisionId,
+            removedRevisionId: null,
+          },
+          {
+            id: generateUuidV7(),
+            workspaceId: sourceWorkspaceId,
+            sourceItemId: entryId,
+            targetItemId: folderId,
+            relationType: "database:property",
+            metadata: { databaseId: pageId, propertyId: relationPropertyId },
+            createdRevisionId: entryRevisionId,
             removedRevisionId: null,
           },
         ],
@@ -277,6 +430,13 @@ describe("rehearsing a restoration", () => {
           {
             id: pageRevisionId,
             itemId: pageId,
+            mutationId: generateUuidV7(),
+            parentRevisionIds: [],
+            acceptedAt,
+          },
+          {
+            id: entryRevisionId,
+            itemId: entryId,
             mutationId: generateUuidV7(),
             parentRevisionIds: [],
             acceptedAt,
@@ -306,6 +466,11 @@ describe("rehearsing a restoration", () => {
           files: [{ digest: digest(fileBytes), byteLength: fileBytes.byteLength }],
           itemCount: canonical.items.length,
           fileCount: 1,
+          databaseCount: canonical.databases.length,
+          databaseEntryCount: canonical.databaseEntries.length,
+          structuredDataDigest: digest(
+            Buffer.from(canonicalStructuredDataString(canonical), "utf8"),
+          ),
         },
         canonicalExport: canonicalText,
         files: new Map([[digest(fileBytes), fileBytes]]),
@@ -319,7 +484,12 @@ describe("rehearsing a restoration", () => {
         ),
       );
 
-      expect(result).toEqual({ restoredItemCount: 3, restoredFileCount: 1 });
+      expect(result).toEqual({
+        restoredItemCount: 4,
+        restoredFileCount: 1,
+        restoredDatabaseCount: 1,
+        restoredDatabaseEntryCount: 1,
+      });
       expect(
         await rehearsal.handle.db
           .select({
@@ -351,9 +521,30 @@ describe("rehearsing a restoration", () => {
           },
         ]),
       );
-      expect(await rehearsal.handle.db.select().from(schema.revisions)).toHaveLength(3);
-      expect(await rehearsal.handle.db.select().from(schema.placements)).toHaveLength(3);
-      expect(await rehearsal.handle.db.select().from(schema.relationships)).toHaveLength(1);
+      expect(await rehearsal.handle.db.select().from(schema.revisions)).toHaveLength(4);
+      expect(await rehearsal.handle.db.select().from(schema.placements)).toHaveLength(4);
+      expect(await rehearsal.handle.db.select().from(schema.relationships)).toHaveLength(2);
+      expect(await rehearsal.handle.db.select().from(schema.databases)).toEqual([
+        expect.objectContaining({ itemId: pageId, definitionVersion: 3 }),
+      ]);
+      expect(await rehearsal.handle.db.select().from(schema.databaseEntries)).toEqual([
+        expect.objectContaining({
+          entryItemId: entryId,
+          databaseId: pageId,
+          valueVersion: 4,
+          addedRevisionId: entryRevisionId,
+        }),
+      ]);
+      const [entryRevision] = await rehearsal.handle.db
+        .select({ snapshot: schema.revisions.snapshot })
+        .from(schema.revisions)
+        .where(eq(schema.revisions.id, entryRevisionId));
+      expect(entryRevision?.snapshot).toMatchObject({
+        databaseEntryValues: {
+          values: { [textPropertyId]: { kind: "text", value: "restored sentinel" } },
+        },
+        databaseRelationTargets: { [relationPropertyId]: [folderId] },
+      });
       expect(await rehearsal.handle.db.select().from(schema.logicalFiles)).toHaveLength(1);
       expect(await rehearsal.handle.db.select().from(schema.fileUsages)).toEqual([
         expect.objectContaining({

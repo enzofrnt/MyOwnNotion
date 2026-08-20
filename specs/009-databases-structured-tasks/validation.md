@@ -162,7 +162,8 @@ de spécificité CSS déjà suivis sans erreur bloquante.
 ## Preuves US5 — stockage local structuré
 
 **Date**: 2026-08-20
-**État**: sous-lot stockage validé ; synchronisation et restauration à suivre
+**État**: stockage, synchronisation, conflits et restauration validés ; parcours
+E2E multi-appareils à suivre
 
 - La migration Dexie v5 vers v6 conserve le curseur existant et ajoute les
   stores protégés ainsi que l'index composé `databaseId/availability`.
@@ -225,3 +226,26 @@ Les 25 tests domaine ciblés de commandes et fusion, les 36 tests client ciblés
 de réconciliation/outbox/résolution, les 7 tests d'intégration PostgreSQL des
 bases, les 2 tests React de résolution structurée et le typecheck complet
 réussissent. Le lint ne signale que les trois avertissements CSS préexistants.
+
+### Export et sauvegarde restaurable
+
+- Le format canonique d'export passe en version 2 et transporte, dans un ordre
+  stable, les définitions de base et les appartenances avec leurs valeurs. Les
+  relations de propriété restent dans l'ensemble canonique des relations afin
+  de ne pas dupliquer leur source de vérité.
+- Les définitions et valeurs sont ouvertes par la couche de contenu protégé
+  avant export. Le digest canonique couvre donc leur contenu lisible et détecte
+  toute altération de l'archive complète.
+- Le manifeste de sauvegarde ajoute les comptes de bases et d'entrées ainsi
+  qu'un digest structuré indépendant. Leur présence groupée permet de lire les
+  anciennes archives tout en refusant un manifeste 009 partiel ou incohérent.
+- La restauration vide les tables structurées dans l'ordre des dépendances,
+  recrée leurs enveloppes protégées, leurs relations et leurs révisions, puis
+  reconstruit le snapshot courant utilisé par les mutations suivantes.
+- La sauvegarde de référence antérieure à 009 reste restaurable et produit
+  explicitement zéro base et zéro entrée structurée.
+
+Les 32 tests domaine ciblés d'export et de manifeste, les 40 tests contrat API
+d'export/archive/restauration et les 6 tests d'intégration PostgreSQL de
+restauration réussissent. Le typecheck complet et le lint réussissent ; le lint
+ne signale que les trois avertissements CSS préexistants.

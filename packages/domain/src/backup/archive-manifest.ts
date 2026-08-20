@@ -37,6 +37,10 @@ export interface BackupManifest {
   readonly files: readonly BackupFileEntry[];
   readonly itemCount: number;
   readonly fileCount: number;
+  /** Present on feature-009+ archives; absent means a pre-009 backup. */
+  readonly databaseCount?: number;
+  readonly databaseEntryCount?: number;
+  readonly structuredDataDigest?: string;
 }
 
 export interface ManifestProblem {
@@ -84,6 +88,32 @@ export function readBackupManifest(
     if (typeof candidate !== "number" || !Number.isSafeInteger(candidate) || candidate < 0) {
       problems.push({ field, message: "must be a non-negative integer" });
     }
+  }
+  const structuredFields = ["databaseCount", "databaseEntryCount", "structuredDataDigest"] as const;
+  const structuredFieldCount = structuredFields.filter(
+    (field) => value[field] !== undefined,
+  ).length;
+  if (structuredFieldCount !== 0 && structuredFieldCount !== structuredFields.length) {
+    problems.push({
+      field: "structuredData",
+      message: "counts and digest must either all be present or all be absent",
+    });
+  }
+  for (const field of ["databaseCount", "databaseEntryCount"] as const) {
+    const candidate = value[field];
+    if (
+      candidate !== undefined &&
+      (typeof candidate !== "number" || !Number.isSafeInteger(candidate) || candidate < 0)
+    ) {
+      problems.push({ field, message: "must be a non-negative integer" });
+    }
+  }
+  if (
+    value["structuredDataDigest"] !== undefined &&
+    (typeof value["structuredDataDigest"] !== "string" ||
+      !DIGEST.test(value["structuredDataDigest"]))
+  ) {
+    problems.push({ field: "structuredDataDigest", message: "must be a sha256 digest" });
   }
   if (
     typeof value["canonicalExportDigest"] !== "string" ||

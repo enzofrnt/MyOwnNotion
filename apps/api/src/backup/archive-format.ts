@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { open } from "node:fs/promises";
 import {
   type BackupManifest,
+  canonicalStructuredDataString,
   compareArchiveContents,
   readBackupManifest,
 } from "@myownnotion/domain";
@@ -312,7 +313,11 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
       reason: "The canonical export does not match the digest recorded in the manifest.",
     };
   }
-  let canonical: { readonly items?: unknown[] };
+  let canonical: {
+    readonly items?: unknown[];
+    readonly databases?: unknown[];
+    readonly databaseEntries?: unknown[];
+  };
   try {
     canonical = JSON.parse(body.canonicalExport) as { readonly items?: unknown[] };
   } catch {
@@ -323,6 +328,35 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
       ok: false,
       reason: "The canonical export does not contain the number of items its manifest records.",
     };
+  }
+  if (manifest.structuredDataDigest !== undefined) {
+    if (
+      !Array.isArray(canonical.databases) ||
+      !Array.isArray(canonical.databaseEntries) ||
+      canonical.databases.length !== manifest.databaseCount ||
+      canonical.databaseEntries.length !== manifest.databaseEntryCount
+    ) {
+      return {
+        ok: false,
+        reason:
+          "The canonical export does not contain the structured records its manifest records.",
+      };
+    }
+    const structuredDigest = sha256(
+      Buffer.from(
+        canonicalStructuredDataString({
+          databases: canonical.databases as never[],
+          databaseEntries: canonical.databaseEntries as never[],
+        }),
+        "utf8",
+      ),
+    );
+    if (structuredDigest !== manifest.structuredDataDigest) {
+      return {
+        ok: false,
+        reason: "The structured database records do not match their recorded digest.",
+      };
+    }
   }
   for (const expected of manifest.files) {
     const bytes = body.files.get(expected.digest) ?? Buffer.alloc(0);

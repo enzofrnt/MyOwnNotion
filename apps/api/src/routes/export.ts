@@ -9,6 +9,8 @@ import { createHash } from "node:crypto";
 import { CreateExportResponseSchema, ExportStatusSchema } from "@myownnotion/contracts";
 import {
   currentSequence,
+  listDatabaseEntryRecords,
+  listDatabaseRecords,
   listItems,
   listRelationships,
   schema,
@@ -28,7 +30,11 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
-import { resolveProtectedContent } from "../security/content-resolution.ts";
+import {
+  resolveDatabaseDefinition,
+  resolveDatabaseEntryValues,
+  resolveProtectedContent,
+} from "../security/content-resolution.ts";
 
 /**
  * One transactionally consistent read of the whole workspace.
@@ -155,12 +161,37 @@ export async function buildManifest(context: AppContext) {
         })),
       );
 
+      const databaseRecords = await listDatabaseRecords(tx, context.workspaceId);
+      const databases = [];
+      const databaseEntries = [];
+      for (const record of databaseRecords) {
+        const definition = await resolveDatabaseDefinition(tx, record, context.protectedContent);
+        databases.push({
+          databaseId: record.databaseId,
+          definitionVersion: record.definitionVersion,
+          definition,
+        });
+        const entries = await listDatabaseEntryRecords(tx, record.databaseId);
+        for (const entry of entries) {
+          const values = await resolveDatabaseEntryValues(tx, entry, context.protectedContent);
+          databaseEntries.push({
+            entryId: entry.entryId,
+            databaseId: entry.databaseId,
+            valueVersion: entry.valueVersion,
+            addedRevisionId: entry.addedRevisionId,
+            values,
+          });
+        }
+      }
+
       return buildCanonicalExport({
         workspaceId: context.workspaceId,
         schemaVersion: context.schemaVersion,
         exportedAt: new Date().toISOString(),
         changeCursor: sequenceToCursor(sequence),
         items,
+        databases,
+        databaseEntries,
         relationships,
         revisions,
       });
