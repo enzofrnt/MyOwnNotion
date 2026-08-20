@@ -9,13 +9,28 @@
 
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { readNavigationState, writeNavigationState } from "@myownnotion/client-core";
-import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
+import type {
+  DatabaseDto,
+  DatabaseEntryDto,
+  ReplaceDefinitionRequestDto,
+  ReplaceEntryValuesRequestDto,
+} from "@myownnotion/contracts";
+import {
+  type DatabaseDefinition,
+  generateUuidV7,
+  isUuid,
+  type SafeError,
+  type Uuid,
+} from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { WorkspaceSearchService } from "../../services/search.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
+import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
+import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
+import { EntryPanel } from "../databases/entry-panel.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { StoragePanel } from "../files/storage-panel.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
@@ -136,6 +151,13 @@ export function HierarchyExplorer({
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
+  const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
+  const [selectedEntry, setSelectedEntry] = useState<DatabaseEntryDto | null>(null);
+  const [entryDefinition, setEntryDefinition] = useState<DatabaseDefinition | null>(null);
+  const [structuredSelectionLoading, setStructuredSelectionLoading] = useState(false);
+  const structuredSelectionItemId = useRef<Uuid | null>(null);
+  const [databaseFormParent, setDatabaseFormParent] = useState<Uuid | null | undefined>(undefined);
   // Which branches are open. Everything was permanently expanded before US3,
   // which is workable at ten items and unusable at a hundred.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -259,6 +281,103 @@ export function HierarchyExplorer({
     [items, selectedId],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    const clearStructuredSelection = (): void => {
+      setSelectedDatabase(null);
+      setDatabaseEntries([]);
+      setSelectedEntry(null);
+      setEntryDefinition(null);
+    };
+    if (selectedItem === null || selectedItem.kind !== "page") {
+      clearStructuredSelection();
+      structuredSelectionItemId.current = null;
+      setStructuredSelectionLoading(false);
+      return;
+    }
+
+    if (structuredSelectionItemId.current !== selectedItem.id) {
+      setStructuredSelectionLoading(true);
+    }
+    void (async () => {
+      const databaseRow = await service.getDatabase(selectedItem.id);
+      if (cancelled) return;
+      if (databaseRow !== null) {
+        const rows = await service.listDatabaseEntries(selectedItem.id);
+        const entries = await Promise.all(
+          rows.map(async (row): Promise<DatabaseEntryDto | null> => {
+            const [item, relationTargets] = await Promise.all([
+              service.getItem(row.entryItemId),
+              service.getDatabaseEntryRelationTargets(selectedItem.id, row.entryItemId),
+            ]);
+            return item === null
+              ? null
+              : ({
+                  databaseId: selectedItem.id,
+                  entryId: row.entryItemId,
+                  revisionId: item.currentRevisionId,
+                  lifecycle: item.lifecycle,
+                  title: item.name,
+                  document: item.pageDocument,
+                  values: row.values.values,
+                  relationTargets,
+                } as unknown as DatabaseEntryDto);
+          }),
+        );
+        if (cancelled) return;
+        setSelectedDatabase({
+          databaseId: selectedItem.id,
+          definitionRevisionId: selectedItem.currentRevisionId,
+          lifecycle: selectedItem.lifecycle,
+          name: selectedItem.name,
+          definition: databaseRow.definition,
+        } as unknown as DatabaseDto);
+        setDatabaseEntries(entries.filter((entry): entry is DatabaseEntryDto => entry !== null));
+        setSelectedEntry(null);
+        setEntryDefinition(null);
+        structuredSelectionItemId.current = selectedItem.id;
+        setStructuredSelectionLoading(false);
+        return;
+      }
+
+      const entryRow = await service.getDatabaseEntry(selectedItem.id);
+      if (entryRow === null) {
+        clearStructuredSelection();
+        structuredSelectionItemId.current = selectedItem.id;
+        setStructuredSelectionLoading(false);
+        return;
+      }
+      const [ownerDatabase, relationTargets] = await Promise.all([
+        service.getDatabase(entryRow.databaseId),
+        service.getDatabaseEntryRelationTargets(entryRow.databaseId, selectedItem.id),
+      ]);
+      if (cancelled) return;
+      if (ownerDatabase === null) {
+        clearStructuredSelection();
+        setStructuredSelectionLoading(false);
+        return;
+      }
+      setSelectedDatabase(null);
+      setDatabaseEntries([]);
+      setSelectedEntry({
+        databaseId: entryRow.databaseId,
+        entryId: selectedItem.id,
+        revisionId: selectedItem.currentRevisionId,
+        lifecycle: selectedItem.lifecycle,
+        title: selectedItem.name,
+        document: selectedItem.pageDocument,
+        values: entryRow.values.values,
+        relationTargets,
+      } as unknown as DatabaseEntryDto);
+      setEntryDefinition(ownerDatabase.definition);
+      structuredSelectionItemId.current = selectedItem.id;
+      setStructuredSelectionLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [service, selectedItem]);
+
   const openPageLink = useCallback(
     (rawItemId: string) => {
       setProblem(null);
@@ -348,6 +467,24 @@ export function HierarchyExplorer({
       }
     },
     [newItemName, runCommand, siblingKeys],
+  );
+
+  const createDatabase = useCallback(
+    async (request: Parameters<typeof service.createDatabase>[0]) => {
+      setProblem(null);
+      const result = await service.createDatabase(request);
+      if (!result.ok) {
+        setProblem(result.error);
+        throw new Error(result.error.title);
+      }
+      setDatabaseFormParent(undefined);
+      setSelectedId(request.id as Uuid);
+      if (request.placement.parentItemId !== null) {
+        setExpanded((current) => new Set(current).add(request.placement.parentItemId as Uuid));
+      }
+      await refresh();
+    },
+    [service, refresh],
   );
 
   const renameItem = useCallback(
@@ -626,6 +763,13 @@ export function HierarchyExplorer({
                 >
                   +folder
                 </button>
+                <button
+                  type="button"
+                  aria-label={`New database inside ${node.item.name}`}
+                  onClick={() => setDatabaseFormParent(node.item.id)}
+                >
+                  +database
+                </button>
               </>
             ) : null}
             {node.item.kind !== "file" ? (
@@ -815,7 +959,18 @@ export function HierarchyExplorer({
           <button type="button" onClick={() => void createItem("page", null)}>
             New root page
           </button>
+          <button type="button" onClick={() => setDatabaseFormParent(null)}>
+            New root database
+          </button>
         </div>
+
+        {databaseFormParent !== undefined ? (
+          <CreateDatabaseForm
+            parentItemId={databaseFormParent}
+            positionKey={safeKeyBetween(siblingKeys(databaseFormParent).at(-1) ?? null, null)}
+            onCreate={createDatabase}
+          />
+        ) : null}
 
         {/* Inside the collapsible region: at 320 pixels the shortcuts are part
             of navigation, and leaving them on screen while the tree is put away
@@ -825,6 +980,7 @@ export function HierarchyExplorer({
           onOpen={(itemId) => setSelectedId(itemId)}
           onOpenSettings={onOpenSettings}
           onOpenSearch={openSearch}
+          onCreateDatabase={() => setDatabaseFormParent(null)}
         />
 
         {searchOpen && search !== null ? (
@@ -851,7 +1007,168 @@ export function HierarchyExplorer({
       <MutationStatus service={service} />
       <StoragePanel service={service} />
 
-      {selectedItem !== null && selectedItem.kind === "page" ? (
+      {selectedItem !== null && selectedItem.kind === "page" && structuredSelectionLoading ? (
+        <p className="loading-state" role="status">
+          Opening structured page…
+        </p>
+      ) : selectedItem !== null &&
+        selectedDatabase !== null &&
+        selectedDatabase.databaseId === selectedItem.id ? (
+        <DatabasePage
+          database={selectedDatabase}
+          entries={databaseEntries}
+          onPreviewDefinitionImpact={async (definition) => {
+            const current = await service.getItem(selectedItem.id);
+            return current === null
+              ? null
+              : await service.previewDatabaseDefinitionImpact(
+                  selectedItem.id,
+                  current.currentRevisionId,
+                  definition,
+                );
+          }}
+          onReplaceDefinition={async (
+            definition: DatabaseDefinition,
+            confirmation?: DefinitionConfirmation,
+          ) => {
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              const [currentItem, currentDatabase] = await Promise.all([
+                service.getItem(selectedItem.id),
+                service.getDatabase(selectedItem.id),
+              ]);
+              if (
+                currentItem === null ||
+                currentDatabase === null ||
+                JSON.stringify(currentDatabase.definition) !==
+                  JSON.stringify(selectedDatabase.definition)
+              ) {
+                const error: SafeError = {
+                  code: "database.definition-conflict",
+                  title: "The database schema changed while this property was being edited",
+                };
+                setProblem(error);
+                throw new Error(error.title);
+              }
+              const body = {
+                baseRevisionId: currentItem.currentRevisionId,
+                definition,
+                ...(confirmation === undefined ? {} : { impactConfirmation: confirmation }),
+              } as unknown as ReplaceDefinitionRequestDto;
+              const result = await service.replaceDatabaseDefinition(selectedItem.id, body);
+              if (result.ok) return;
+              if (result.error.code !== "revision.stale-base") {
+                setProblem(result.error);
+                throw new Error(result.error.title);
+              }
+            }
+            const error: SafeError = {
+              code: "revision.stale-base",
+              title: "The database kept changing while this property was being saved",
+            };
+            setProblem(error);
+            throw new Error(error.title);
+          }}
+          onCreateEntry={async (title) => {
+            const keys = siblingKeys(selectedItem.id);
+            const result = await service.createDatabaseEntry(selectedItem.id, {
+              id: generateUuidV7(),
+              title,
+              placement: {
+                id: generateUuidV7(),
+                parentItemId: selectedItem.id,
+                positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
+              },
+              document: {
+                format: "myownnotion.document+json",
+                formatVersion: 1,
+                body: {},
+              },
+              values: {},
+              relationTargets: {},
+            });
+            if (!result.ok) {
+              setProblem(result.error);
+              throw new Error(result.error.title);
+            }
+            setExpanded((current) => new Set(current).add(selectedItem.id));
+          }}
+          onOpenEntry={setSelectedId}
+        />
+      ) : selectedItem !== null &&
+        selectedEntry !== null &&
+        selectedEntry.entryId === selectedItem.id &&
+        entryDefinition !== null ? (
+        <EntryPanel
+          entry={selectedEntry}
+          definition={entryDefinition}
+          relationOptions={items
+            .filter((item) => item.kind === "page" && item.lifecycle === "active")
+            .map((item) => ({ id: item.id, label: item.name }))}
+          onSaveValues={async (values, relationTargets) => {
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              const [currentItem, currentEntry, currentRelations] = await Promise.all([
+                service.getItem(selectedItem.id),
+                service.getDatabaseEntry(selectedItem.id),
+                service.getDatabaseEntryRelationTargets(
+                  selectedEntry.databaseId as Uuid,
+                  selectedItem.id,
+                ),
+              ]);
+              if (
+                currentItem === null ||
+                currentEntry === null ||
+                JSON.stringify(currentEntry.values.values) !==
+                  JSON.stringify(selectedEntry.values) ||
+                JSON.stringify(currentRelations) !== JSON.stringify(selectedEntry.relationTargets)
+              ) {
+                const error: SafeError = {
+                  code: "database.definition-conflict",
+                  title: "This entry changed while its properties were being edited",
+                };
+                setProblem(error);
+                throw new Error(error.title);
+              }
+              const result = await service.replaceDatabaseEntryValues(
+                selectedEntry.databaseId as Uuid,
+                selectedItem.id,
+                {
+                  baseRevisionId: currentItem.currentRevisionId,
+                  values,
+                  relationTargets,
+                } as unknown as ReplaceEntryValuesRequestDto,
+              );
+              if (result.ok) return;
+              if (result.error.code !== "revision.stale-base") {
+                setProblem(result.error);
+                throw new Error(result.error.title);
+              }
+            }
+            const error: SafeError = {
+              code: "revision.stale-base",
+              title: "This entry kept changing while its properties were being saved",
+            };
+            setProblem(error);
+            throw new Error(error.title);
+          }}
+          onClose={() => setSelectedId(selectedEntry.databaseId as Uuid)}
+          pageContent={
+            <>
+              <EditorView
+                service={service}
+                itemId={selectedItem.id}
+                itemRevisionId={selectedItem.currentRevisionId}
+                items={items}
+                onOpenPage={openPageLink}
+              />
+              <AttachmentPanel
+                pageId={selectedItem.id}
+                onChanged={() => void refresh()}
+                onOpenUsage={(itemId) => openPageLink(itemId)}
+              />
+            </>
+          }
+        />
+      ) : selectedItem !== null && selectedItem.kind === "page" ? (
         <>
           <EditorView
             service={service}

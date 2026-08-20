@@ -173,7 +173,7 @@ export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow,
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 5;
+export const LOCAL_SCHEMA_VERSION = 6;
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -205,6 +205,8 @@ export type LocalDatabase = Dexie & {
   outbox: EntityTable<OutboxMutationRow, "mutationId">;
   conflicts: EntityTable<ConflictRecordRow, "mutationId">;
   meta: EntityTable<LocalMetaRow, "key">;
+  databases: EntityTable<SealedLocalDatabaseRow, "itemId">;
+  databaseEntries: EntityTable<SealedLocalDatabaseEntryRow, "entryItemId">;
 };
 
 export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
@@ -272,7 +274,7 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
   // actually holds (feature 005). `localAvailability` is indexed because the
   // eviction pass queries by it, and answering "what can I release" by opening
   // every row would mean unsealing the whole projection to reclaim space.
-  db.version(LOCAL_SCHEMA_VERSION)
+  db.version(5)
     .stores({
       items: "id, kind, lifecycle, localAvailability",
       placements: "id, itemId, parentKey, [parentKey+kind]",
@@ -295,6 +297,20 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
           row.localAvailability = "present";
         });
     });
+  // Version 6 adds page-backed database capabilities and entry memberships.
+  // Both private payloads are already ciphertext when they enter these stores;
+  // the indexed fields are stable identities and local availability only.
+  db.version(LOCAL_SCHEMA_VERSION).stores({
+    items: "id, kind, lifecycle, localAvailability",
+    placements: "id, itemId, parentKey, [parentKey+kind]",
+    relationships: "id, sourceItemId, targetItemId",
+    revisionHeaders: "id, itemId, local",
+    outbox: "mutationId, status, enqueueOrder",
+    conflicts: "mutationId, capturedAt",
+    meta: "key",
+    databases: "itemId",
+    databaseEntries: "entryItemId, databaseId, availability",
+  });
   return db;
 }
 

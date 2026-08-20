@@ -291,6 +291,106 @@ describe("structured database envelopes", () => {
       await protectedContent.readDatabaseEntryValues(harness.built.database.db, entryId, 4),
     ).toEqual(values);
   });
+
+  it("seals database routes, entry values and property metadata in their commit", async () => {
+    const databaseId = generateUuidV7();
+    const titlePropertyId = generateUuidV7();
+    const textPropertyId = generateUuidV7();
+    const relationPropertyId = generateUuidV7();
+    const viewId = generateUuidV7();
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/databases",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: databaseId,
+        name: "Protected projects",
+        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "V" },
+        titlePropertyId,
+        initialViewId: viewId,
+        initialViewName: "Protected table",
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const current = created.json().database as {
+      definitionRevisionId: string;
+      definition: Record<string, unknown>;
+    };
+    const definition = {
+      ...current.definition,
+      properties: [
+        ...((current.definition["properties"] as unknown[]) ?? []),
+        {
+          id: textPropertyId,
+          name: "Highly confidential property label",
+          type: "text",
+          positionKey: "b",
+          state: "active",
+          config: {},
+        },
+        {
+          id: relationPropertyId,
+          name: "Private dependency",
+          type: "relation",
+          positionKey: "c",
+          state: "active",
+          config: { cardinality: "many" },
+        },
+      ],
+      views: (current.definition["views"] as Array<Record<string, unknown>>).map((view) => ({
+        ...view,
+        properties: [
+          ...((view["properties"] as unknown[]) ?? []),
+          { propertyId: textPropertyId, visible: true, positionKey: "b" },
+          { propertyId: relationPropertyId, visible: true, positionKey: "c" },
+        ],
+      })),
+    };
+    const replaced = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/databases/${databaseId}/definition`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: { baseRevisionId: current.definitionRevisionId, definition },
+    });
+    expect(replaced.statusCode, replaced.body).toBe(200);
+
+    const target = await createPage("Protected target");
+    const entryId = generateUuidV7();
+    const privateValue = "structured-secret-sentinel-736198";
+    const entry = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/databases/${databaseId}/entries`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: entryId,
+        title: "Protected entry",
+        placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a" },
+        values: { [textPropertyId]: { kind: "text", value: privateValue } },
+        relationTargets: { [relationPropertyId]: [target] },
+      },
+    });
+    expect(entry.statusCode, entry.body).toBe(201);
+
+    const types = await envelopeTypes();
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "database.definition",
+        "database.entry-values",
+        "relationship.metadata",
+        "revision.snapshot",
+      ]),
+    );
+    const envelopes = await envelopeText();
+    expect(envelopes).not.toContain(privateValue);
+    expect(envelopes).not.toContain("Highly confidential property label");
+    const read = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/databases/${databaseId}/entries/${entryId}`,
+    });
+    expect(read.statusCode, read.body).toBe(200);
+    expect(read.json().values[textPropertyId]).toEqual({ kind: "text", value: privateValue });
+    expect(read.json().relationTargets[relationPropertyId]).toEqual([target]);
+  });
 });
 
 describe("feature 001 is unchanged", () => {

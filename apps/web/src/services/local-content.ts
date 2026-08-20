@@ -11,6 +11,9 @@ import {
   applyLocalMutation,
   LocalCipher,
   type LocalDatabase,
+  type LocalDatabaseEntryRow,
+  LocalDatabaseRepository,
+  type LocalDatabaseRow,
   LocalKeyManager,
   LocalRecordCodec,
   LocalRepository,
@@ -22,8 +25,23 @@ import {
   resealPlaintextProjection,
   resolveConflictLocally,
 } from "@myownnotion/client-core";
-import type { ItemDto, RevisionDto } from "@myownnotion/contracts";
-import { generateUuidV7, type PageDocument, type SafeError, type Uuid } from "@myownnotion/domain";
+import type {
+  CreateDatabaseRequestDto,
+  CreateEntryRequestDto,
+  ItemDto,
+  ReplaceDefinitionRequestDto,
+  ReplaceEntryValuesRequestDto,
+  RevisionDto,
+} from "@myownnotion/contracts";
+import {
+  type DatabaseDefinition,
+  type DefinitionImpact,
+  generateUuidV7,
+  type PageDocument,
+  previewDefinitionImpact,
+  type SafeError,
+  type Uuid,
+} from "@myownnotion/domain";
 import { ContentApi } from "./content-api.ts";
 import { IndexedDbKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
@@ -52,6 +70,7 @@ type ProjectionListener = (change: LocalProjectionChange) => void | Promise<void
 export class LocalContentService {
   readonly db: LocalDatabase;
   readonly repository: LocalRepository;
+  readonly databases: LocalDatabaseRepository;
   readonly outbox: Outbox;
   readonly api: ContentApi;
   #syncState: SyncState = "pending";
@@ -82,6 +101,7 @@ export class LocalContentService {
       workspaceId: databaseName,
     });
     this.repository = new LocalRepository(this.db, this.#codec);
+    this.databases = new LocalDatabaseRepository(this.db, this.#codec);
     this.outbox = new Outbox(this.db);
     this.#snapshot = {
       syncState: "pending",
@@ -284,6 +304,77 @@ export class LocalContentService {
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {
     return this.repository.getItem(itemId);
+  }
+
+  async getDatabase(databaseId: Uuid): Promise<LocalDatabaseRow | null> {
+    await this.#unlock();
+    return this.databases.getDatabase(databaseId);
+  }
+
+  async listDatabaseEntries(databaseId: Uuid): Promise<LocalDatabaseEntryRow[]> {
+    await this.#unlock();
+    return this.databases.listEntries(databaseId);
+  }
+
+  async getDatabaseEntry(entryId: Uuid): Promise<LocalDatabaseEntryRow | null> {
+    await this.#unlock();
+    return this.databases.getEntry(entryId);
+  }
+
+  async getDatabaseEntryRelationTargets(databaseId: Uuid, entryId: Uuid) {
+    await this.#unlock();
+    return this.databases.getRelationTargets(databaseId, entryId);
+  }
+
+  async previewDatabaseDefinitionImpact(
+    databaseId: Uuid,
+    baseRevisionId: Uuid,
+    candidate: DatabaseDefinition,
+  ): Promise<DefinitionImpact | null> {
+    await this.#unlock();
+    const [database, entries] = await Promise.all([
+      this.databases.getDatabase(databaseId),
+      this.databases.listEntries(databaseId),
+    ]);
+    return database === null
+      ? null
+      : await previewDefinitionImpact({
+          baseRevisionId,
+          current: database.definition,
+          candidate,
+          entries: entries.map((entry) => entry.values),
+        });
+  }
+
+  async createDatabase(body: CreateDatabaseRequestDto) {
+    return this.mutate("database.create", body as Record<string, unknown>);
+  }
+
+  async replaceDatabaseDefinition(databaseId: Uuid, body: ReplaceDefinitionRequestDto) {
+    return this.mutate(
+      "database.definition.replace",
+      { databaseId, ...body } as Record<string, unknown>,
+      [body.baseRevisionId as Uuid],
+    );
+  }
+
+  async createDatabaseEntry(databaseId: Uuid, body: CreateEntryRequestDto) {
+    return this.mutate("database.entry.create", {
+      databaseId,
+      ...body,
+    } as Record<string, unknown>);
+  }
+
+  async replaceDatabaseEntryValues(
+    databaseId: Uuid,
+    entryId: Uuid,
+    body: ReplaceEntryValuesRequestDto,
+  ) {
+    return this.mutate(
+      "database.entry.values.replace",
+      { databaseId, entryId, ...body } as Record<string, unknown>,
+      [body.baseRevisionId as Uuid],
+    );
   }
 
   /**

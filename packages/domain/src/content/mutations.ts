@@ -6,6 +6,12 @@
  * parsed into the same typed commands before validation, so the server and
  * the browser projection enforce identical rules.
  */
+
+import {
+  DATABASE_COMMAND_TYPES,
+  type DatabaseMutationCommand,
+  parseDatabaseMutationCommand,
+} from "../databases/commands.ts";
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { MutationRecord, QueuedMutationResult } from "../revisions/types.ts";
 import {
@@ -33,6 +39,7 @@ export const COMMAND_TYPES = [
   "relationship.create",
   "relationship.remove",
   "revision.restore",
+  ...DATABASE_COMMAND_TYPES,
 ] as const;
 
 export type CommandType = (typeof COMMAND_TYPES)[number];
@@ -142,7 +149,8 @@ export type MutationCommand =
       readonly type: "revision.restore";
       readonly revisionId: Uuid;
       readonly currentRevisionId: Uuid;
-    };
+    }
+  | DatabaseMutationCommand;
 
 type Payload = Readonly<Record<string, unknown>>;
 
@@ -437,6 +445,9 @@ export function parseMutationCommand(
       return ok({ type: "revision.restore", revisionId, currentRevisionId });
     }
     default:
+      if ((DATABASE_COMMAND_TYPES as readonly string[]).includes(commandType)) {
+        return parseDatabaseMutationCommand(commandType as never, payload);
+      }
       return err("validation.invalid-payload", "Unknown mutation command type");
   }
 }

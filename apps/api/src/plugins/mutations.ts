@@ -11,6 +11,11 @@
 import {
   attributeRevisionsToDevice,
   type Database,
+  listDatabasePropertyRelationships,
+  readCurrentDatabaseDefinition,
+  readCurrentDatabaseEntryValues,
+  readDatabaseEntryRecord,
+  readDatabaseRecord,
   readItem,
   readItemName,
   readRelationshipMetadata,
@@ -97,6 +102,13 @@ async function sealPayloads(
       body: command.document.body,
     });
   }
+  if (command.type === "database.entry.create" && command.document !== undefined) {
+    await protectedContent.writePageBody(tx, {
+      pageId: command.id,
+      recordVersion: 1,
+      body: command.document.body,
+    });
+  }
   // A relationship's metadata: the free-form note explaining *why* two items
   // are related, which is often more revealing than either title. The
   // endpoints and the relation type stay in the clear so the graph can be
@@ -108,6 +120,41 @@ async function sealPayloads(
         relationshipId: command.id,
         recordVersion: 1,
         metadata,
+      });
+    }
+  }
+  if (command.type === "database.create" || command.type === "database.definition.replace") {
+    const databaseId = command.type === "database.create" ? command.id : command.databaseId;
+    const record = await readDatabaseRecord(tx, databaseId);
+    const definition = await readCurrentDatabaseDefinition(tx, databaseId);
+    if (record !== null && definition !== null) {
+      await protectedContent.writeDatabaseDefinition(tx, {
+        databaseId,
+        definitionVersion: record.definitionVersion,
+        definition,
+      });
+    }
+  }
+  if (
+    command.type === "database.entry.create" ||
+    command.type === "database.entry.values.replace"
+  ) {
+    const entryId = command.type === "database.entry.create" ? command.id : command.entryId;
+    const record = await readDatabaseEntryRecord(tx, entryId);
+    const values = await readCurrentDatabaseEntryValues(tx, entryId);
+    const propertyRelationships = await listDatabasePropertyRelationships(tx, entryId);
+    if (record !== null && values !== null) {
+      await protectedContent.writeDatabaseEntryValues(tx, {
+        entryId,
+        valueVersion: record.valueVersion,
+        values,
+      });
+    }
+    for (const relationship of propertyRelationships) {
+      await protectedContent.writeRelationshipMetadata(tx, {
+        relationshipId: relationship.id,
+        recordVersion: 1,
+        metadata: relationship.metadata,
       });
     }
   }
@@ -210,6 +257,14 @@ export async function handleMutation(input: {
   readonly rotationPolicies?: RotationPolicyService | undefined;
   /** Refreshes the transient index after, and only after, a canonical commit. */
   readonly search?: SearchService | undefined;
+  /** Allows feature routes to return their aggregate read model after commit. */
+  readonly successBody?:
+    | ((accepted: {
+        readonly mutationId: Uuid;
+        readonly revisionIds: readonly Uuid[];
+        readonly primaryItemId?: Uuid;
+      }) => Promise<unknown>)
+    | undefined;
 }): Promise<FastifyReply> {
   // Before anything is read or written. A client too old to write safely is
   // refused with the version it needs (FR-018), and refusing here rather than
@@ -268,13 +323,21 @@ export async function handleMutation(input: {
     const primaryItemId = outcome.primaryItemId;
     const item = primaryItemId === undefined ? null : await readItem(input.db, primaryItemId);
 
+    const body =
+      input.successBody === undefined
+        ? {
+            mutationId: result.mutationId,
+            revisionIds,
+            ...(item !== null ? { item } : {}),
+          }
+        : await input.successBody({
+            mutationId: result.mutationId,
+            revisionIds,
+            ...(primaryItemId === undefined ? {} : { primaryItemId }),
+          });
     return input.reply
       .status(result.status === "accepted" ? (input.successStatus ?? 200) : 200)
-      .send({
-        mutationId: result.mutationId,
-        revisionIds,
-        ...(item !== null ? { item } : {}),
-      });
+      .send(body);
   }
 
   return sendProblem(

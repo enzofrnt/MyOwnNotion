@@ -9,13 +9,22 @@
  */
 import {
   type CanonicalItem,
+  createInitialDatabaseDefinition,
+  type DatabaseDefinition,
+  type DatabaseMutationCommand,
+  type EntryValues,
   generateUuidV7,
   type HierarchyView,
   INTERNAL_PAGE_LINK_RELATION_TYPE,
   type MutationCommand,
+  normalizePropertyValue,
+  normalizeRelationTargets,
   type Placement,
+  previewDefinitionImpact,
+  type RelationTargets,
   TRASH_RETENTION_MS,
   type Uuid,
+  validateDatabaseDefinition,
   validatePageLinkTargetSet,
   wouldCreateCycle,
 } from "@myownnotion/domain";
@@ -23,6 +32,8 @@ import {
   type LocalDatabase,
   type LocalItemRow,
   parentKeyOf,
+  type SealedLocalDatabaseEntryRow,
+  type SealedLocalDatabaseRow,
   type SealedLocalItemRow,
 } from "../local-store/schema.ts";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
@@ -157,6 +168,111 @@ async function reconcileLocalPageLinks(
   }
 }
 
+async function normalizeStructuredCommandValues(
+  db: LocalDatabase,
+  definition: DatabaseDefinition,
+  command: Extract<
+    DatabaseMutationCommand,
+    { type: "database.entry.create" | "database.entry.values.replace" }
+  >,
+): Promise<{ readonly values: EntryValues; readonly relationTargets: RelationTargets }> {
+  const properties = new Map(definition.properties.map((property) => [property.id, property]));
+  const values: Record<string, EntryValues["values"][Uuid]> = {};
+  for (const [propertyId, rawValue] of Object.entries(command.values)) {
+    const property = properties.get(propertyId as Uuid);
+    if (property === undefined || property.type === "title" || property.type === "relation") {
+      throw new LocalValidationError(
+        "validation.invalid-payload",
+        "Structured value property is unavailable",
+      );
+    }
+    const normalized = normalizePropertyValue(property, rawValue);
+    if (!normalized.ok || normalized.value === undefined) {
+      throw new LocalValidationError(
+        "validation.invalid-payload",
+        normalized.ok ? "Structured value is absent" : normalized.error.title,
+      );
+    }
+    values[propertyId] = normalized.value;
+  }
+  const relationTargets: Record<string, readonly Uuid[]> = {};
+  for (const [propertyId, rawTargets] of Object.entries(command.relationTargets)) {
+    const property = properties.get(propertyId as Uuid);
+    if (property === undefined || property.type !== "relation") {
+      throw new LocalValidationError(
+        "validation.invalid-payload",
+        "Relationship property is unavailable",
+      );
+    }
+    const normalized = normalizeRelationTargets(property, rawTargets);
+    if (!normalized.ok || normalized.value === undefined) {
+      throw new LocalValidationError(
+        "validation.invalid-payload",
+        normalized.ok ? "Relationship targets are absent" : normalized.error.title,
+      );
+    }
+    for (const targetId of normalized.value) {
+      const target = await db.items.get(targetId);
+      if (target === undefined || target.lifecycle === "purged") {
+        throw new LocalValidationError(
+          "relationship.endpoint-unavailable",
+          "Relationship target is unavailable locally",
+        );
+      }
+    }
+    relationTargets[propertyId] = normalized.value;
+  }
+  return {
+    values: {
+      format: "myownnotion.database-entry-values+json",
+      formatVersion: 1,
+      databaseId: command.databaseId,
+      entryId: command.type === "database.entry.create" ? command.id : command.entryId,
+      values: values as EntryValues["values"],
+      preserved: [],
+    },
+    relationTargets: relationTargets as RelationTargets,
+  };
+}
+
+async function reconcileLocalDatabaseRelationships(
+  db: LocalDatabase,
+  input: {
+    readonly databaseId: Uuid;
+    readonly entryId: Uuid;
+    readonly relationTargets: RelationTargets;
+  },
+): Promise<void> {
+  const current = await db.relationships.where("sourceItemId").equals(input.entryId).toArray();
+  const active = current.filter(
+    (relationship) =>
+      relationship.relationType === "database:property" &&
+      relationship.metadata["databaseId"] === input.databaseId,
+  );
+  const desired = new Set(
+    Object.entries(input.relationTargets).flatMap(([propertyId, targetIds]) =>
+      targetIds.map((targetId) => `${propertyId}/${targetId}`),
+    ),
+  );
+  for (const relationship of active) {
+    const key = `${String(relationship.metadata["propertyId"])}/${relationship.targetItemId}`;
+    if (!desired.delete(key)) await db.relationships.delete(relationship.id);
+  }
+  for (const key of [...desired].sort()) {
+    const separator = key.indexOf("/");
+    await db.relationships.add({
+      id: generateUuidV7(),
+      sourceItemId: input.entryId,
+      targetItemId: key.slice(separator + 1) as Uuid,
+      relationType: "database:property",
+      metadata: {
+        databaseId: input.databaseId,
+        propertyId: key.slice(0, separator),
+      },
+    });
+  }
+}
+
 /**
  * The rows a command will write, sealed, computed before any transaction opens.
  *
@@ -184,6 +300,9 @@ export interface PreparedProjectionWrite {
   readonly revisionId?: Uuid;
   /** The finished row to write, already sealed. */
   readonly item?: SealedLocalItemRow;
+  readonly database?: SealedLocalDatabaseRow;
+  readonly databaseEntry?: SealedLocalDatabaseEntryRow;
+  readonly relationTargets?: RelationTargets;
 }
 
 export async function prepareProjectionWrite(
@@ -192,6 +311,181 @@ export async function prepareProjectionWrite(
   codec: LocalRecordCodec,
 ): Promise<PreparedProjectionWrite> {
   switch (command.type) {
+    case "database.create": {
+      const revisionId = generateUuidV7();
+      const definition = createInitialDatabaseDefinition(command);
+      const validated = validateDatabaseDefinition(definition);
+      if (!validated.ok) {
+        throw new LocalValidationError("validation.invalid-payload", validated.error.title);
+      }
+      return {
+        revisionId,
+        item: await codec.sealItem({
+          id: command.id,
+          kind: "page",
+          name: command.name,
+          lifecycle: "active",
+          currentRevisionId: revisionId,
+          trashedAt: null,
+          purgeAfter: null,
+          favourite: false,
+          offlineIntent: false,
+          localAvailability: "present",
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 1,
+            body: {},
+          },
+          file: null,
+        }),
+        database: await codec.sealDatabase({
+          itemId: command.id,
+          definitionVersion: 1,
+          definition: validated.value,
+        }),
+      };
+    }
+
+    case "database.definition.replace": {
+      const [storedDatabase, storedItem] = await Promise.all([
+        db.databases.get(command.databaseId),
+        db.items.get(command.databaseId),
+      ]);
+      if (storedDatabase === undefined || storedItem === undefined) return {};
+      const [database, item] = await Promise.all([
+        codec.openDatabase(storedDatabase),
+        codec.openItem(storedItem),
+      ]);
+      if (item.currentRevisionId !== command.baseRevisionId) {
+        throw new LocalValidationError(
+          "revision.stale-base",
+          "Database changed since this definition was prepared",
+        );
+      }
+      const candidate = validateDatabaseDefinition(command.definition);
+      if (!candidate.ok || candidate.value.databaseId !== command.databaseId) {
+        throw new LocalValidationError(
+          "validation.invalid-payload",
+          "Database definition is invalid",
+        );
+      }
+      const entryRows = await db.databaseEntries
+        .where("databaseId")
+        .equals(command.databaseId)
+        .toArray();
+      const entryValues: EntryValues[] = [];
+      for (const row of entryRows) {
+        entryValues.push((await codec.openDatabaseEntry(row)).values);
+      }
+      const impact = await previewDefinitionImpact({
+        baseRevisionId: command.baseRevisionId,
+        current: database.definition,
+        candidate: candidate.value,
+        entries: entryValues,
+      });
+      if (impact.destructive && command.impactConfirmation === undefined) {
+        throw new LocalValidationError(
+          "database.impact-confirmation-required",
+          "Database change requires confirmation",
+        );
+      }
+      if (
+        impact.destructive &&
+        command.impactConfirmation !== undefined &&
+        command.impactConfirmation.digest !== impact.impactDigest
+      ) {
+        throw new LocalValidationError("database.impact-stale", "Database impact changed");
+      }
+      const revisionId = generateUuidV7();
+      return {
+        revisionId,
+        item: await codec.sealItem({ ...item, currentRevisionId: revisionId }),
+        database: await codec.sealDatabase({
+          itemId: command.databaseId,
+          definitionVersion: database.definitionVersion + 1,
+          definition: candidate.value,
+        }),
+      };
+    }
+
+    case "database.entry.create": {
+      const storedDatabase = await db.databases.get(command.databaseId);
+      if (storedDatabase === undefined) return {};
+      const database = await codec.openDatabase(storedDatabase);
+      const structured = await normalizeStructuredCommandValues(db, database.definition, command);
+      const revisionId = generateUuidV7();
+      return {
+        revisionId,
+        item: await codec.sealItem({
+          id: command.id,
+          kind: "page",
+          name: command.title,
+          lifecycle: "active",
+          currentRevisionId: revisionId,
+          trashedAt: null,
+          purgeAfter: null,
+          favourite: false,
+          offlineIntent: false,
+          localAvailability: "present",
+          pageDocument: command.document ?? {
+            format: "myownnotion.document+json",
+            formatVersion: 1,
+            body: {},
+          },
+          file: null,
+        }),
+        databaseEntry: await codec.sealDatabaseEntry({
+          entryItemId: command.id,
+          databaseId: command.databaseId,
+          valueVersion: 1,
+          availability: "present",
+          values: structured.values,
+        }),
+        relationTargets: structured.relationTargets,
+      };
+    }
+
+    case "database.entry.values.replace": {
+      const [storedDatabase, storedEntry, storedItem] = await Promise.all([
+        db.databases.get(command.databaseId),
+        db.databaseEntries.get(command.entryId),
+        db.items.get(command.entryId),
+      ]);
+      if (storedDatabase === undefined) {
+        throw new LocalValidationError("database.not-found", "Database is not available locally");
+      }
+      if (storedEntry === undefined || storedItem === undefined) return {};
+      const [database, entry, item] = await Promise.all([
+        codec.openDatabase(storedDatabase),
+        codec.openDatabaseEntry(storedEntry),
+        codec.openItem(storedItem),
+      ]);
+      if (entry.databaseId !== command.databaseId) {
+        throw new LocalValidationError(
+          "database.entry-not-found",
+          "Database entry is not available locally",
+        );
+      }
+      if (item.currentRevisionId !== command.baseRevisionId) {
+        throw new LocalValidationError(
+          "revision.stale-base",
+          "Database entry changed since values were prepared",
+        );
+      }
+      const structured = await normalizeStructuredCommandValues(db, database.definition, command);
+      const revisionId = generateUuidV7();
+      return {
+        revisionId,
+        item: await codec.sealItem({ ...item, currentRevisionId: revisionId }),
+        databaseEntry: await codec.sealDatabaseEntry({
+          ...entry,
+          valueVersion: entry.valueVersion + 1,
+          values: { ...structured.values, preserved: entry.values.preserved },
+        }),
+        relationTargets: structured.relationTargets,
+      };
+    }
+
     case "item.create": {
       const revisionId = generateUuidV7();
       return {
@@ -238,6 +532,17 @@ export async function prepareProjectionWrite(
       }
       const opened = await codec.openItem(row);
       const revisionId = generateUuidV7();
+      if (
+        command.type === "item.convert" &&
+        command.targetKind === "folder" &&
+        ((await db.databases.get(command.itemId)) !== undefined ||
+          (await db.databaseEntries.get(command.itemId)) !== undefined)
+      ) {
+        throw new LocalValidationError(
+          "database.page-required",
+          "A database host or entry must remain a page",
+        );
+      }
       // Reopened, edited, resealed. A partial update is not available: the
       // envelope binds the whole row's identity, so a new title cannot be
       // written without re-deriving the record it belongs to.
@@ -321,6 +626,149 @@ export async function applyCommandToProjection(
   prepared: PreparedProjectionWrite = {},
 ): Promise<Uuid[]> {
   switch (command.type) {
+    case "database.create": {
+      if (
+        (await db.items.get(command.id)) !== undefined ||
+        (await db.databases.get(command.id)) !== undefined
+      ) {
+        throw new LocalValidationError("database.membership-conflict", "Database already exists");
+      }
+      if (command.placement.parentItemId !== null) {
+        const parent = await db.items.get(command.placement.parentItemId);
+        if (parent === undefined || parent.lifecycle !== "active" || parent.kind === "file") {
+          throw new LocalValidationError("item.not-found", "Parent is not an active container");
+        }
+      }
+      if (
+        prepared.item === undefined ||
+        prepared.database === undefined ||
+        prepared.revisionId === undefined
+      ) {
+        throw new LocalValidationError("database.not-found", "The database write was not prepared");
+      }
+      const revisionId = await writeLocalRevision(db, command.id, [], now, prepared.revisionId);
+      await db.items.add(prepared.item);
+      await db.placements.add({
+        id: command.placement.id,
+        itemId: command.id,
+        kind: "hierarchy",
+        parentItemId: command.placement.parentItemId,
+        parentKey: parentKeyOf(command.placement.parentItemId),
+        positionKey: command.placement.positionKey,
+      });
+      await db.databases.add(prepared.database);
+      return [revisionId];
+    }
+
+    case "database.definition.replace": {
+      const item = await db.items.get(command.databaseId);
+      if (item === undefined || (await db.databases.get(command.databaseId)) === undefined) {
+        throw new LocalValidationError("database.not-found", "Database is not available locally");
+      }
+      if (
+        prepared.item === undefined ||
+        prepared.database === undefined ||
+        prepared.revisionId === undefined
+      ) {
+        throw new LocalValidationError("database.not-found", "The database write was not prepared");
+      }
+      const revisionId = await writeLocalRevision(
+        db,
+        command.databaseId,
+        [item.currentRevisionId],
+        now,
+        prepared.revisionId,
+      );
+      await db.items.put(prepared.item);
+      await db.databases.put(prepared.database);
+      return [revisionId];
+    }
+
+    case "database.entry.create": {
+      if ((await db.databases.get(command.databaseId)) === undefined) {
+        throw new LocalValidationError("database.not-found", "Database is not available locally");
+      }
+      if (
+        (await db.items.get(command.id)) !== undefined ||
+        (await db.databaseEntries.get(command.id)) !== undefined
+      ) {
+        throw new LocalValidationError(
+          "database.membership-conflict",
+          "Page already has a database membership",
+        );
+      }
+      if (command.placement.parentItemId !== null) {
+        const parent = await db.items.get(command.placement.parentItemId);
+        if (parent === undefined || parent.lifecycle !== "active" || parent.kind === "file") {
+          throw new LocalValidationError("item.not-found", "Parent is not an active container");
+        }
+      }
+      if (
+        prepared.item === undefined ||
+        prepared.databaseEntry === undefined ||
+        prepared.revisionId === undefined ||
+        prepared.relationTargets === undefined
+      ) {
+        throw new LocalValidationError(
+          "database.entry-not-found",
+          "The entry write was not prepared",
+        );
+      }
+      const revisionId = await writeLocalRevision(db, command.id, [], now, prepared.revisionId);
+      await db.items.add(prepared.item);
+      await db.placements.add({
+        id: command.placement.id,
+        itemId: command.id,
+        kind: "hierarchy",
+        parentItemId: command.placement.parentItemId,
+        parentKey: parentKeyOf(command.placement.parentItemId),
+        positionKey: command.placement.positionKey,
+      });
+      await db.databaseEntries.add(prepared.databaseEntry);
+      await reconcileLocalDatabaseRelationships(db, {
+        databaseId: command.databaseId,
+        entryId: command.id,
+        relationTargets: prepared.relationTargets,
+      });
+      return [revisionId];
+    }
+
+    case "database.entry.values.replace": {
+      const item = await db.items.get(command.entryId);
+      if (item === undefined || (await db.databaseEntries.get(command.entryId)) === undefined) {
+        throw new LocalValidationError(
+          "database.entry-not-found",
+          "Database entry is not available locally",
+        );
+      }
+      if (
+        prepared.item === undefined ||
+        prepared.databaseEntry === undefined ||
+        prepared.revisionId === undefined ||
+        prepared.relationTargets === undefined
+      ) {
+        throw new LocalValidationError(
+          "database.entry-not-found",
+          "The entry write was not prepared",
+        );
+      }
+      const revisionId = await writeLocalRevision(
+        db,
+        command.entryId,
+        [item.currentRevisionId],
+        now,
+        prepared.revisionId,
+      );
+      await db.items.put(prepared.item);
+      await db.databaseEntries.put(prepared.databaseEntry);
+      await reconcileLocalDatabaseRelationships(db, {
+        databaseId: command.databaseId,
+        entryId: command.entryId,
+        relationTargets: prepared.relationTargets,
+      });
+      return [revisionId];
+    }
+
     case "item.create": {
       const view = await loadView(db);
       if (command.placement.parentItemId !== null) {

@@ -221,6 +221,139 @@ select {
   font-size: 1rem;
 }
 
+/* Structured pages (feature 009). A database remains a page in the tree; this
+   surface adds schema and values without creating a second navigation model. */
+.database-create,
+.database-page,
+.entry-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  min-width: 0;
+}
+
+.database-create > label,
+.database-entry-create > label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.database-page__header,
+.database-panel__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.database-page__header h2,
+.database-panel__header h2 {
+  margin: 0;
+}
+
+.database-schema,
+.database-entry-create,
+.entry-properties,
+.entry-document,
+.database-impact,
+.property-editor {
+  margin-top: 1rem;
+}
+
+.database-schema ul {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+}
+
+.database-schema li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.database-schema li button {
+  margin-left: auto;
+}
+
+.database-impact {
+  padding: 0.75rem;
+  border: 2px solid var(--danger);
+  border-radius: 6px;
+}
+
+.database-field {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.35fr) minmax(10rem, 1fr);
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.database-field input:not([type="checkbox"]),
+.database-field select,
+.database-create input,
+.database-entry-create input,
+.property-editor input,
+.property-editor select {
+  min-width: 0;
+  width: 100%;
+}
+
+.database-field__error {
+  grid-column: 2;
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+.database-table-scroll {
+  max-width: 100%;
+  overflow: auto;
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.database-table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+}
+
+.database-table th,
+.database-table td {
+  min-width: 10rem;
+  max-width: 24rem;
+  padding: 0.65rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.database-table th:last-child,
+.database-table td:last-child {
+  border-right: 0;
+}
+
+.entry-document {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.database-shortcut {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
 .field-row {
   display: flex;
   gap: 0.5rem;
@@ -899,6 +1032,14 @@ code,
   .block-controls button {
     min-height: 2.75rem;
     min-width: 2.75rem;
+  }
+
+  .database-field {
+    grid-template-columns: 1fr;
+  }
+
+  .database-field__error {
+    grid-column: 1;
   }
 }
 

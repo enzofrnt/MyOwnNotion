@@ -31,6 +31,7 @@ import { registerBackupRoutes } from "./routes/backups.ts";
 import { registerBootstrapRoutes } from "./routes/bootstrap.ts";
 import { registerChangeStreamRoutes } from "./routes/change-stream.ts";
 import { registerChangeRoutes } from "./routes/changes.ts";
+import { registerDatabaseRoutes } from "./routes/databases.ts";
 import { registerDeviceRoutes } from "./routes/devices.ts";
 import { registerExportRoutes } from "./routes/export.ts";
 import { registerFileRoutes } from "./routes/files.ts";
@@ -577,6 +578,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     });
   }
   registerItemRoutes(app, context);
+  registerDatabaseRoutes(app, context);
   registerPlacementRoutes(app, context);
   registerPageDocumentRoutes(app, context);
   registerFileRoutes(app, context);

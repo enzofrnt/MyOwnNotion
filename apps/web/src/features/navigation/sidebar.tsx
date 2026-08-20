@@ -86,11 +86,13 @@ export function Sidebar({
   onOpen,
   onOpenSettings,
   onOpenSearch,
+  onCreateDatabase,
 }: {
   readonly items: readonly ProjectedItem[];
   readonly onOpen: (itemId: ProjectedItem["id"]) => void;
   readonly onOpenSettings: () => void;
   readonly onOpenSearch: () => void;
+  readonly onCreateDatabase: () => void;
 }) {
   const favourites = favouritesOf(items);
   const recents = recentsOf(items);
@@ -99,6 +101,9 @@ export function Sidebar({
     <nav className="sidebar" aria-label="Workspace shortcuts" data-testid="sidebar">
       <button type="button" className="search-trigger" onClick={onOpenSearch}>
         Search <kbd>Ctrl/⌘ K</kbd>
+      </button>
+      <button type="button" className="database-shortcut" onClick={onCreateDatabase}>
+        New database
       </button>
 
       <section aria-labelledby="sidebar-favourites-heading">

@@ -62,7 +62,16 @@ export async function applyLocalMutation(
 
     const localRevisionIds = await db.transaction(
       "rw",
-      [db.items, db.placements, db.relationships, db.revisionHeaders, db.outbox, db.meta],
+      [
+        db.items,
+        db.placements,
+        db.relationships,
+        db.revisionHeaders,
+        db.outbox,
+        db.meta,
+        db.databases,
+        db.databaseEntries,
+      ],
       async () => {
         const existing = await db.outbox.get(input.mutationId);
         if (existing !== undefined) {
@@ -112,7 +121,14 @@ export class LocalValidationError extends Error {
     // would turn the page into a folder on screen, and only then discover that
     // the server declines. The rule lives in the shared domain, so both sides
     // reach the same answer rather than approximating each other.
-    | "conversion.confirmation-required";
+    | "conversion.confirmation-required"
+    | "database.not-found"
+    | "database.entry-not-found"
+    | "database.membership-conflict"
+    | "database.page-required"
+    | "database.impact-confirmation-required"
+    | "database.impact-stale"
+    | "revision.stale-base";
   constructor(code: LocalValidationError["code"], message: string) {
     super(message);
     this.name = "LocalValidationError";

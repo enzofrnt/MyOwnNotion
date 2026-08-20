@@ -1,3 +1,3 @@
 /** Browser-local structured-database projection (feature 009). */
 
-export {};
+export * from "./local-database-repository.ts";

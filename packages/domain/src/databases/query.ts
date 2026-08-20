@@ -1,4 +1,4 @@
-import { Decimal } from "decimal.js-light";
+import DecimalRuntime, { type Decimal as DecimalValue } from "decimal.js-light";
 import { type DomainResult, err, ok } from "../content/types.ts";
 import type { Uuid } from "../ids/uuid.ts";
 import type {
@@ -13,6 +13,8 @@ import type {
   SortCriterion,
 } from "./types.ts";
 import { normalizePropertyValue } from "./values.ts";
+
+const Decimal = DecimalRuntime as unknown as typeof DecimalValue;
 
 type ComparableValue =
   | NonRelationPropertyValue
@@ -57,7 +59,7 @@ function valueFor(
 function comparableScalar(
   property: DatabaseProperty,
   value: ComparableValue,
-): string | boolean | Decimal {
+): string | boolean | DecimalValue {
   switch (value.kind) {
     case "text":
       return value.value;

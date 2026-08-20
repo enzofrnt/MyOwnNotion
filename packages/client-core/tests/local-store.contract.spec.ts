@@ -55,6 +55,8 @@ describe("versioned local schema (T020)", () => {
     const tables = db.tables.map((table) => table.name).sort();
     expect(tables).toEqual([
       "conflicts",
+      "databaseEntries",
+      "databases",
       "items",
       "meta",
       "outbox",

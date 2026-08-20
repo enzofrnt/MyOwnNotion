@@ -50,7 +50,7 @@ export default defineWorkspace([
       name: "web",
       root: "apps/web",
       environment: "node",
-      include: ["tests/**/*.spec.ts"],
+      include: ["tests/**/*.spec.{ts,tsx}"],
       setupFiles: ["tests/setup/indexeddb.ts"],
     },
   },

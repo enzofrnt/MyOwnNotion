@@ -792,6 +792,26 @@ export const DatabaseEntrySchema = Type.Object(
 );
 export type DatabaseEntryDto = Static<typeof DatabaseEntrySchema>;
 
+export const DatabaseMutationResultSchema = Type.Object(
+  {
+    mutationId: UuidSchema,
+    revisionIds: Type.Array(UuidSchema, { minItems: 1 }),
+    database: DatabaseSchema,
+  },
+  { additionalProperties: false },
+);
+export type DatabaseMutationResultDto = Static<typeof DatabaseMutationResultSchema>;
+
+export const EntryMutationResultSchema = Type.Object(
+  {
+    mutationId: UuidSchema,
+    revisionIds: Type.Array(UuidSchema, { minItems: 1 }),
+    entry: DatabaseEntrySchema,
+  },
+  { additionalProperties: false },
+);
+export type EntryMutationResultDto = Static<typeof EntryMutationResultSchema>;
+
 export const DatabaseQuerySchema = Type.Object(
   {
     viewId: UuidSchema,

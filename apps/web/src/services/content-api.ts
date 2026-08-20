@@ -8,7 +8,14 @@
 import type {
   CanonicalSnapshotDto,
   ChangesResponseDto,
+  CreateDatabaseRequestDto,
+  CreateEntryRequestDto,
   CreateItemDto,
+  DatabaseDto,
+  DatabaseEntryDto,
+  DatabaseMutationResultDto,
+  DefinitionImpactDto,
+  EntryMutationResultDto,
   FileUsageDto,
   ItemDto,
   MutationResultDto,
@@ -16,6 +23,8 @@ import type {
   QueuedMutationDto,
   QueuedMutationResultDto,
   RelationshipDto,
+  ReplaceDefinitionRequestDto,
+  ReplaceEntryValuesRequestDto,
   SearchRequestDto,
   SearchResponseDto,
 } from "@myownnotion/contracts";
@@ -131,6 +140,72 @@ export class ContentApi {
 
   async createItem(mutationId: Uuid, body: CreateItemDto): Promise<ApiResult<MutationResultDto>> {
     return this.#request("/v1/items", { method: "POST", body: JSON.stringify(body), mutationId });
+  }
+
+  async createDatabase(
+    mutationId: Uuid,
+    body: CreateDatabaseRequestDto,
+  ): Promise<ApiResult<DatabaseMutationResultDto>> {
+    return this.#request("/v1/databases", {
+      method: "POST",
+      body: JSON.stringify(body),
+      mutationId,
+    });
+  }
+
+  async getDatabase(databaseId: Uuid): Promise<ApiResult<DatabaseDto>> {
+    return this.#request(`/v1/databases/${databaseId}`);
+  }
+
+  async previewDatabaseDefinitionImpact(
+    databaseId: Uuid,
+    body: Pick<ReplaceDefinitionRequestDto, "baseRevisionId" | "definition">,
+  ): Promise<ApiResult<DefinitionImpactDto>> {
+    return this.#request(`/v1/databases/${databaseId}/definition/impact`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async replaceDatabaseDefinition(
+    mutationId: Uuid,
+    databaseId: Uuid,
+    body: ReplaceDefinitionRequestDto,
+  ): Promise<ApiResult<DatabaseMutationResultDto>> {
+    return this.#request(`/v1/databases/${databaseId}/definition`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+      mutationId,
+    });
+  }
+
+  async createDatabaseEntry(
+    mutationId: Uuid,
+    databaseId: Uuid,
+    body: CreateEntryRequestDto,
+  ): Promise<ApiResult<EntryMutationResultDto>> {
+    return this.#request(`/v1/databases/${databaseId}/entries`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      mutationId,
+    });
+  }
+
+  async getDatabaseEntry(databaseId: Uuid, entryId: Uuid): Promise<ApiResult<DatabaseEntryDto>> {
+    return this.#request(`/v1/databases/${databaseId}/entries/${entryId}`);
+  }
+
+  async replaceDatabaseEntryValues(
+    mutationId: Uuid,
+    databaseId: Uuid,
+    entryId: Uuid,
+    body: ReplaceEntryValuesRequestDto,
+  ): Promise<ApiResult<EntryMutationResultDto>> {
+    return this.#request(`/v1/databases/${databaseId}/entries/${entryId}/values`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+      mutationId,
+    });
   }
 
   async renameItem(

@@ -6,6 +6,7 @@ export * from "./repositories/backup-repository.ts";
 export * from "./repositories/change-repository.ts";
 export * from "./repositories/content/upload-repository.ts";
 export * from "./repositories/content/usage-repository.ts";
+export * from "./repositories/database-repository.ts";
 export * from "./repositories/file-repository.ts";
 export * from "./repositories/hierarchy-repository.ts";
 export * from "./repositories/item-reader.ts";

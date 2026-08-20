@@ -75,29 +75,29 @@ changer ni dupliquer leur identité.
 
 ### Tests for User Story 1
 
-- [ ] T018 [P] [US1] Écrire les tests de parsing/idempotence des commandes `database.create`, `database.definition.replace`, `database.entry.create` et `database.entry.values.replace` dans packages/domain/tests/databases/commands.spec.ts (FR-001 à FR-015)
-- [ ] T019 [P] [US1] Écrire les tests d'intégration de création, appartenance unique, valeurs protégées, relations, conversion et transaction rollback dans packages/database/tests/database.integration.spec.ts (FR-001 à FR-015)
-- [ ] T020 [P] [US1] Écrire les tests de contrat propriétaire pour créer/lire/remplacer définition et entrée, preview d'impact et erreurs sans contenu dans apps/api/tests/database.contract.spec.ts
-- [ ] T021 [P] [US1] Écrire les tests Dexie d'application optimiste atomique, préparation crypto hors transaction et rejeu de création/valeurs dans packages/client-core/tests/database-local-mutation.spec.ts (FR-003, FR-009, FR-036)
-- [ ] T022 [P] [US1] Écrire les tests React de création de base, éditeur de schéma, validation sans perte de saisie et panneau d'entrée dans apps/web/tests/database-editor.spec.tsx (FR-001, FR-007, FR-009, FR-014)
-- [ ] T023 [US1] Écrire le parcours Playwright chronométré sous cinq minutes pour création de base, huit types, entrée-page, renommage, déplacement et relation stable dans tests/e2e/databases-schema.spec.ts (acceptance US1, SC-001)
+- [X] T018 [P] [US1] Écrire les tests de parsing/idempotence des commandes `database.create`, `database.definition.replace`, `database.entry.create` et `database.entry.values.replace` dans packages/domain/tests/databases/commands.spec.ts (FR-001 à FR-015)
+- [X] T019 [P] [US1] Écrire les tests d'intégration de création, appartenance unique, valeurs protégées, relations, conversion et transaction rollback dans packages/database/tests/database.integration.spec.ts (FR-001 à FR-015)
+- [X] T020 [P] [US1] Écrire les tests de contrat propriétaire pour créer/lire/remplacer définition et entrée, preview d'impact et erreurs sans contenu dans apps/api/tests/database.contract.spec.ts
+- [X] T021 [P] [US1] Écrire les tests Dexie d'application optimiste atomique, préparation crypto hors transaction et rejeu de création/valeurs dans packages/client-core/tests/database-local-mutation.spec.ts (FR-003, FR-009, FR-036)
+- [X] T022 [P] [US1] Écrire les tests React de création de base, éditeur de schéma, validation sans perte de saisie et panneau d'entrée dans apps/web/tests/database-editor.spec.tsx (FR-001, FR-007, FR-009, FR-014)
+- [X] T023 [US1] Écrire le parcours Playwright chronométré sous cinq minutes pour création de base, huit types, entrée-page, renommage, déplacement et relation stable dans tests/e2e/databases-schema.spec.ts (acceptance US1, SC-001)
 
 ### Implementation for User Story 1
 
-- [ ] T024 [US1] Ajouter les commandes structurées, leur parseur strict, leurs payloads et nouveaux SafeErrorCode dans packages/domain/src/databases/commands.ts, packages/domain/src/content/mutations.ts et packages/domain/src/content/types.ts pour satisfaire T018
-- [ ] T025 [US1] Implémenter les lectures/écritures transactionnelles de DatabaseRecord, DatabaseEntryRecord, définition, valeurs et relations dans packages/database/src/repositories/database-repository.ts pour satisfaire T019
-- [ ] T026 [US1] Exécuter les commandes structurées avec révisions, snapshots, changement unique et idempotence ; inclure l'état structuré dans toute révision ordinaire d'une page hôte/entrée et refuser leur conversion incompatible en dossier dans packages/database/src/mutations/database-commands.ts et packages/database/src/mutations/execute-command.ts
-- [ ] T027 [US1] Sceller avant commit et ouvrir après lecture les définitions, valeurs et métadonnées de relations dans apps/api/src/security/protected-content.ts et apps/api/src/security/content-resolution.ts
-- [ ] T028 [US1] Implémenter POST/GET/PUT, aperçu d'impact et réponses typées dans apps/api/src/routes/databases.ts, puis enregistrer les routes dans apps/api/src/app.ts pour satisfaire T020
-- [ ] T029 [US1] Ajouter les méthodes base/entrée/définition/valeurs à apps/web/src/services/content-api.ts sans mettre de contenu privé dans les URLs
-- [ ] T030 [US1] Ajouter les stores Dexie version 6, migration locale et opérations ouvertes/scellées dans packages/client-core/src/local-store/schema.ts et packages/client-core/src/databases/local-database-repository.ts
-- [ ] T031 [US1] Appliquer les quatre commandes structurées dans la projection optimiste et l'outbox atomiques dans packages/client-core/src/outbox/apply-local-mutation.ts et packages/client-core/src/outbox/apply-to-projection.ts pour satisfaire T021
-- [ ] T032 [US1] Exposer les lectures et mutations structurées dans apps/web/src/services/local-content.ts avec notifications de projection après commit local
-- [ ] T033 [US1] Ajouter la création et l'ouverture de base à apps/web/src/features/navigation/sidebar.tsx et apps/web/src/features/hierarchy/hierarchy-explorer.tsx sans ajouter un nouvel ItemKind
-- [ ] T034 [US1] Implémenter le shell de base, l'éditeur de propriétés/options, l'aperçu d'impact et la conservation des saisies dans apps/web/src/features/databases/database-page.tsx et apps/web/src/features/databases/property-editor.tsx pour satisfaire T022
-- [ ] T035 [US1] Implémenter création/ouverture d'entrée, valeurs typées, relation picker et éditeur par blocs dans apps/web/src/features/databases/entry-panel.tsx et apps/web/src/features/databases/value-editor.tsx
-- [ ] T036 [US1] Ajouter styles d'états, formulaire, panneau et erreurs de base dans apps/web/src/styles.css à 320 px et zoom 200 %
-- [ ] T037 [US1] Exécuter T018 à T023 et consigner le checkpoint MVP, les identités et le stockage protégé dans specs/009-databases-structured-tasks/validation.md
+- [X] T024 [US1] Ajouter les commandes structurées, leur parseur strict, leurs payloads et nouveaux SafeErrorCode dans packages/domain/src/databases/commands.ts, packages/domain/src/content/mutations.ts et packages/domain/src/content/types.ts pour satisfaire T018
+- [X] T025 [US1] Implémenter les lectures/écritures transactionnelles de DatabaseRecord, DatabaseEntryRecord, définition, valeurs et relations dans packages/database/src/repositories/database-repository.ts pour satisfaire T019
+- [X] T026 [US1] Exécuter les commandes structurées avec révisions, snapshots, changement unique et idempotence ; inclure l'état structuré dans toute révision ordinaire d'une page hôte/entrée et refuser leur conversion incompatible en dossier dans packages/database/src/mutations/database-commands.ts et packages/database/src/mutations/execute-command.ts
+- [X] T027 [US1] Sceller avant commit et ouvrir après lecture les définitions, valeurs et métadonnées de relations dans apps/api/src/security/protected-content.ts et apps/api/src/security/content-resolution.ts
+- [X] T028 [US1] Implémenter POST/GET/PUT, aperçu d'impact et réponses typées dans apps/api/src/routes/databases.ts, puis enregistrer les routes dans apps/api/src/app.ts pour satisfaire T020
+- [X] T029 [US1] Ajouter les méthodes base/entrée/définition/valeurs à apps/web/src/services/content-api.ts sans mettre de contenu privé dans les URLs
+- [X] T030 [US1] Ajouter les stores Dexie version 6, migration locale et opérations ouvertes/scellées dans packages/client-core/src/local-store/schema.ts et packages/client-core/src/databases/local-database-repository.ts
+- [X] T031 [US1] Appliquer les quatre commandes structurées dans la projection optimiste et l'outbox atomiques dans packages/client-core/src/outbox/apply-local-mutation.ts et packages/client-core/src/outbox/apply-to-projection.ts pour satisfaire T021
+- [X] T032 [US1] Exposer les lectures et mutations structurées dans apps/web/src/services/local-content.ts avec notifications de projection après commit local
+- [X] T033 [US1] Ajouter la création et l'ouverture de base à apps/web/src/features/navigation/sidebar.tsx et apps/web/src/features/hierarchy/hierarchy-explorer.tsx sans ajouter un nouvel ItemKind
+- [X] T034 [US1] Implémenter le shell de base, l'éditeur de propriétés/options, l'aperçu d'impact et la conservation des saisies dans apps/web/src/features/databases/database-page.tsx et apps/web/src/features/databases/property-editor.tsx pour satisfaire T022
+- [X] T035 [US1] Implémenter création/ouverture d'entrée, valeurs typées, relation picker et éditeur par blocs dans apps/web/src/features/databases/entry-panel.tsx et apps/web/src/features/databases/value-editor.tsx
+- [X] T036 [US1] Ajouter styles d'états, formulaire, panneau et erreurs de base dans apps/web/src/styles.css à 320 px et zoom 200 %
+- [X] T037 [US1] Exécuter T018 à T023 et consigner le checkpoint MVP, les identités et le stockage protégé dans specs/009-databases-structured-tasks/validation.md
 
 **Checkpoint**: Une base et ses entrées-pages sont utilisables en ligne et
 hors ligne localement ; aucune vue avancée n'est nécessaire pour prouver US1.

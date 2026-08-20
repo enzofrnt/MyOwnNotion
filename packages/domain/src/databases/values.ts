@@ -1,4 +1,4 @@
-import { Decimal } from "decimal.js-light";
+import DecimalRuntime, { type Decimal as DecimalValue } from "decimal.js-light";
 import { type DomainResult, err, ok } from "../content/types.ts";
 import { isUuid, type Uuid } from "../ids/uuid.ts";
 import type { DatabaseProperty, NonRelationPropertyValue, PropertyOption } from "./types.ts";
@@ -7,6 +7,11 @@ const DECIMAL_INPUT = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
 const CIVIL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const INSTANT =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(Z|[+-]\d{2}:\d{2})$/;
+
+// decimal.js-light is CommonJS at Node runtime but declares an ESM default.
+// Node exposes the constructor under `default`; this narrow bridge keeps both
+// native ESM execution and the published TypeScript declaration honest.
+const Decimal = DecimalRuntime as unknown as typeof DecimalValue;
 
 function invalid<T>(field: string, code = "invalid"): DomainResult<T> {
   return err("validation.invalid-payload", "Structured value is invalid", {

@@ -13,15 +13,18 @@ import {
   snapshotExpiry,
   type Uuid,
 } from "@myownnotion/domain";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import {
   authorizedDevices,
+  databaseEntries,
+  databases,
   items,
   logicalFiles,
   mutations,
   pageDocuments,
   placements,
+  relationships,
   revisionParents,
   revisions,
 } from "../schema/index.ts";
@@ -312,6 +315,74 @@ export async function buildItemSnapshot(
     parentItemId: placement.parentItemId,
     positionKey: placement.positionKey,
   }));
+
+  // Structured database state is part of the page's revision, never a second
+  // lineage. Most ordinary commands have just advanced `items.currentRevisionId`
+  // before asking for the snapshot, so the previous structured payload is read
+  // from the latest revision that already exists and carried forward unchanged.
+  // Database-specific commands replace these fields with their candidate state
+  // before inserting the new revision.
+  const [databaseRow] = await tx
+    .select({ definitionVersion: databases.definitionVersion })
+    .from(databases)
+    .where(eq(databases.itemId, itemId))
+    .limit(1);
+  const [entryRow] = await tx
+    .select({
+      databaseId: databaseEntries.databaseId,
+      valueVersion: databaseEntries.valueVersion,
+    })
+    .from(databaseEntries)
+    .where(eq(databaseEntries.entryItemId, itemId))
+    .limit(1);
+  if (databaseRow !== undefined || entryRow !== undefined) {
+    const [previous] = await tx
+      .select({ snapshot: revisions.snapshot })
+      .from(revisions)
+      .where(eq(revisions.itemId, itemId))
+      .orderBy(desc(revisions.acceptedAt))
+      .limit(1);
+    const previousSnapshot = previous?.snapshot as Record<string, unknown> | undefined;
+    if (databaseRow !== undefined) {
+      snapshot["databaseDefinitionVersion"] = databaseRow.definitionVersion;
+      if (previousSnapshot?.["databaseDefinition"] !== undefined) {
+        snapshot["databaseDefinition"] = previousSnapshot["databaseDefinition"];
+      }
+    }
+    if (entryRow !== undefined) {
+      snapshot["databaseId"] = entryRow.databaseId;
+      snapshot["databaseEntryValueVersion"] = entryRow.valueVersion;
+      if (previousSnapshot?.["databaseEntryValues"] !== undefined) {
+        snapshot["databaseEntryValues"] = previousSnapshot["databaseEntryValues"];
+      }
+      const relationRows = await tx
+        .select({ targetItemId: relationships.targetItemId, metadata: relationships.metadata })
+        .from(relationships)
+        .where(
+          and(
+            eq(relationships.sourceItemId, itemId),
+            eq(relationships.relationType, "database:property"),
+            isNull(relationships.removedRevisionId),
+          ),
+        );
+      const targets = new Map<string, string[]>();
+      for (const relationship of relationRows) {
+        const metadata = relationship.metadata as Record<string, unknown>;
+        if (
+          metadata["databaseId"] !== entryRow.databaseId ||
+          typeof metadata["propertyId"] !== "string"
+        ) {
+          continue;
+        }
+        const values = targets.get(metadata["propertyId"]) ?? [];
+        values.push(relationship.targetItemId);
+        targets.set(metadata["propertyId"], values);
+      }
+      snapshot["databaseRelationTargets"] = Object.fromEntries(
+        [...targets].map(([propertyId, targetIds]) => [propertyId, targetIds.sort()]),
+      );
+    }
+  }
   return snapshot;
 }
 

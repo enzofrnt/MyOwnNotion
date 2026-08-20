@@ -345,6 +345,23 @@
       }
     },
     {
+      "test": "tests/e2e/databases-schema.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/databases.ts",
+          "apps/web/src/services/content-api.ts",
+          "apps/web/src/services/local-content.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/",
+          "packages/database/src/repositories/database-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/interrupted-mutations.spec.ts",
       "owners": {
         "exact": ["apps/api/src/routes/mutation-batch.ts"],
