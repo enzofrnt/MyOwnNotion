@@ -64,17 +64,17 @@ commencer avant que projection, chiffrement local et migration soient prouvés.
 
 ### Modèle opérationnel partagé
 
-- [ ] T017 [P] Écrire les tests de commandes atomiques et d'identité de blocs dans `packages/page-state/tests/document.spec.ts`
-- [ ] T018 [P] Écrire les propriétés de convergence du texte riche et des marques dans `packages/page-state/tests/rich-text.property.spec.ts`
-- [ ] T019 [P] Écrire les propriétés d'arbre, move concurrent, absence de cycle et identité stable dans `packages/page-state/tests/block-tree.property.spec.ts`
-- [ ] T020 [P] Écrire les tests de projection déterministe et de digest dans `packages/page-state/tests/canonical-projection.property.spec.ts`
-- [ ] T021 [P] Écrire les tests d'updates idempotentes, version vectors, checkpoints et Peer IDs de session dans `packages/page-state/tests/checkpoints.property.spec.ts`
-- [ ] T022 Définir types, commandes et résultats publics MyOwnNotion dans `packages/page-state/src/document.ts` et `packages/page-state/src/index.ts`
-- [ ] T023 Implémenter le texte Loro par bloc, marks et positions relatives dans `packages/page-state/src/rich-text.ts`
-- [ ] T024 Implémenter le `LoroTree`, les insertions, moves, suppressions et invariants UUID dans `packages/page-state/src/block-tree.ts`
-- [ ] T025 Implémenter les transactions de page et l'émission de changements sémantiques dans `packages/page-state/src/document.ts`
-- [ ] T026 Implémenter la projection v3, les liens/usages et les vérifications de digest dans `packages/page-state/src/canonical-projection.ts`
-- [ ] T027 Implémenter enveloppes, export/import incrémental, version vectors et checkpoints dans `packages/page-state/src/update-envelope.ts` et `packages/page-state/src/checkpoints.ts`
+- [X] T017 [P] Écrire les tests de commandes atomiques et d'identité de blocs dans `packages/page-state/tests/document.spec.ts`
+- [X] T018 [P] Écrire les propriétés de convergence du texte riche et des marques dans `packages/page-state/tests/rich-text.property.spec.ts`
+- [X] T019 [P] Écrire les propriétés d'arbre, move concurrent, absence de cycle et identité stable dans `packages/page-state/tests/block-tree.property.spec.ts`
+- [X] T020 [P] Écrire les tests de projection déterministe et de digest dans `packages/page-state/tests/canonical-projection.property.spec.ts`
+- [X] T021 [P] Écrire les tests d'updates idempotentes, version vectors, checkpoints et Peer IDs de session dans `packages/page-state/tests/checkpoints.property.spec.ts`
+- [X] T022 Définir types, commandes et résultats publics MyOwnNotion dans `packages/page-state/src/document.ts` et `packages/page-state/src/index.ts`
+- [X] T023 Implémenter le texte Loro par bloc, marks et positions relatives dans `packages/page-state/src/rich-text.ts`
+- [X] T024 Implémenter le `LoroTree`, les insertions, moves, suppressions et invariants UUID dans `packages/page-state/src/block-tree.ts`
+- [X] T025 Implémenter les transactions de page et l'émission de changements sémantiques dans `packages/page-state/src/document.ts`
+- [X] T026 Implémenter la projection v3, les liens/usages et les vérifications de digest dans `packages/page-state/src/canonical-projection.ts`
+- [X] T027 Implémenter enveloppes, export/import incrémental, version vectors et checkpoints dans `packages/page-state/src/update-envelope.ts` et `packages/page-state/src/checkpoints.ts`
 - [ ] T028 [P] Écrire les tests des ambiguïtés delete/edit, delete/move, type, propriété et schéma dans `packages/page-state/tests/semantic-conflicts.property.spec.ts`
 - [ ] T029 Implémenter la détection et la résolution par nouvelles opérations dans `packages/page-state/src/semantic-conflicts.ts`
 - [ ] T030 [P] Écrire les tests de deux branches legacy hors ligne et de replay sémantique dans `packages/page-state/tests/legacy-offline-branch.property.spec.ts`
