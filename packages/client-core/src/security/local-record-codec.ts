@@ -191,10 +191,24 @@ export class LocalRecordCodec {
     const { sealedValues, ...rest } = row;
     return {
       ...rest,
-      values: (await this.#cipher.open(
-        this.#binding(LOCAL_ENTITY_TYPES.databaseEntryValues, row.entryItemId, row.valueVersion),
-        sealedValues,
-      )) as LocalDatabaseEntryRow["values"],
+      values:
+        sealedValues === null
+          ? {
+              format: "myownnotion.database-entry-values+json",
+              formatVersion: 1,
+              databaseId: row.databaseId,
+              entryId: row.entryItemId,
+              values: {},
+              preserved: [],
+            }
+          : ((await this.#cipher.open(
+              this.#binding(
+                LOCAL_ENTITY_TYPES.databaseEntryValues,
+                row.entryItemId,
+                row.valueVersion,
+              ),
+              sealedValues,
+            )) as LocalDatabaseEntryRow["values"]),
     };
   }
 

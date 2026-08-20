@@ -336,7 +336,7 @@ export class LocalContentService {
       this.databases.getDatabase(databaseId),
       this.databases.listEntries(databaseId),
     ]);
-    return database === null
+    return database === null || entries.some(({ availability }) => availability !== "present")
       ? null
       : await previewDefinitionImpact({
           baseRevisionId,

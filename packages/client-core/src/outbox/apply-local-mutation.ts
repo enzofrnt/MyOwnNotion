@@ -126,6 +126,7 @@ export class LocalValidationError extends Error {
     | "database.entry-not-found"
     | "database.membership-conflict"
     | "database.page-required"
+    | "database.projection-unavailable"
     | "database.impact-confirmation-required"
     | "database.impact-stale"
     | "revision.stale-base";

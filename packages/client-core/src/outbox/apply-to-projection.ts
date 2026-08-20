@@ -375,6 +375,12 @@ export async function prepareProjectionWrite(
         .toArray();
       const entryValues: EntryValues[] = [];
       for (const row of entryRows) {
+        if (row.availability !== "present" || row.sealedValues === null) {
+          throw new LocalValidationError(
+            "database.projection-unavailable",
+            "Complete entry values are required to assess this database change",
+          );
+        }
         entryValues.push((await codec.openDatabaseEntry(row)).values);
       }
       const impact = await previewDefinitionImpact({
@@ -464,6 +470,12 @@ export async function prepareProjectionWrite(
         throw new LocalValidationError(
           "database.entry-not-found",
           "Database entry is not available locally",
+        );
+      }
+      if (storedEntry.availability !== "present" || storedEntry.sealedValues === null) {
+        throw new LocalValidationError(
+          "database.projection-unavailable",
+          "Database entry values are not available on this device",
         );
       }
       if (item.currentRevisionId !== command.baseRevisionId) {

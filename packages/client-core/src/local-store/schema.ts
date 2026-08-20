@@ -152,11 +152,15 @@ export interface LocalDatabaseEntryRow {
   readonly databaseId: Uuid;
   readonly valueVersion: number;
   readonly availability: "present" | "offloaded" | "never-fetched";
+  /**
+   * Empty when availability is not `present`; callers must inspect the
+   * availability field before treating this projection as evaluable.
+   */
   readonly values: EntryValues;
 }
 
 export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow, "values"> {
-  readonly sealedValues: LocalEnvelope;
+  readonly sealedValues: LocalEnvelope | null;
 }
 
 /**
@@ -309,7 +313,7 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
     conflicts: "mutationId, capturedAt",
     meta: "key",
     databases: "itemId",
-    databaseEntries: "entryItemId, databaseId, availability",
+    databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
   });
   return db;
 }

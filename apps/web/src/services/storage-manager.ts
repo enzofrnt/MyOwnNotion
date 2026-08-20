@@ -11,6 +11,33 @@ export interface StorageDiagnostics {
   readonly usageRatio: number | null;
 }
 
+export interface DatabaseOfflineReadiness {
+  readonly coverage: "complete" | "partial";
+  readonly availableCount: number;
+  readonly expectedCount: number;
+  readonly offlineReady: boolean;
+  readonly persisted: boolean | null;
+}
+
+/**
+ * Verifies a database pin against actual local coverage.
+ *
+ * The durable-storage request protects the whole origin; coverage still comes
+ * from the structured repository so persistence permission can never turn a
+ * partial projection into a false "ready offline" claim.
+ */
+export async function databaseOfflineReadiness(
+  repository: import("@myownnotion/client-core").LocalDatabaseRepository,
+  databaseId: import("@myownnotion/domain").Uuid,
+  expectedCount?: number,
+): Promise<DatabaseOfflineReadiness> {
+  const [persisted, coverage] = await Promise.all([
+    requestPersistentStorage(),
+    repository.coverage(databaseId, expectedCount),
+  ]);
+  return { ...coverage, persisted };
+}
+
 export async function requestPersistentStorage(): Promise<boolean | null> {
   if (typeof navigator === "undefined" || navigator.storage?.persist === undefined) {
     return null;

@@ -8,6 +8,14 @@ import type {
 } from "../local-store/schema.ts";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 
+export interface LocalDatabaseCoverage {
+  readonly coverage: "complete" | "partial";
+  readonly availableCount: number;
+  readonly expectedCount: number;
+  /** True only when the owner asked to pin this base and every value is present. */
+  readonly offlineReady: boolean;
+}
+
 /** Sealed persistence boundary for feature-009's browser projection. */
 export class LocalDatabaseRepository {
   readonly db: LocalDatabase;
@@ -55,6 +63,92 @@ export class LocalDatabaseRepository {
     const opened: LocalDatabaseEntryRow[] = [];
     for (const row of rows) opened.push(await this.#codec.openDatabaseEntry(row));
     return opened;
+  }
+
+  /**
+   * Reports verified local coverage without opening private payloads.
+   *
+   * `expectedCount` can come from a server query. When omitted, every retained
+   * membership is expected; an offloaded membership therefore remains partial
+   * across restart without storing a second private count.
+   */
+  async coverage(databaseId: Uuid, expectedCount?: number): Promise<LocalDatabaseCoverage> {
+    const [definition, host, entries] = await Promise.all([
+      this.db.databases.get(databaseId),
+      this.db.items.get(databaseId),
+      this.db.databaseEntries.where("databaseId").equals(databaseId).toArray(),
+    ]);
+    const expected = expectedCount ?? entries.length;
+    const availableCount = entries.filter(
+      ({ availability, sealedValues }) => availability === "present" && sealedValues !== null,
+    ).length;
+    const complete =
+      definition !== undefined &&
+      entries.length === expected &&
+      availableCount === expected &&
+      entries.every(
+        ({ availability, sealedValues }) => availability === "present" && sealedValues !== null,
+      );
+    return {
+      coverage: complete ? "complete" : "partial",
+      availableCount,
+      expectedCount: expected,
+      offlineReady: host?.offlineIntent === true && complete,
+    };
+  }
+
+  /** Stores the owner's pinning intent and returns whether the base is ready. */
+  async setOfflineIntent(databaseId: Uuid, offlineIntent: boolean): Promise<LocalDatabaseCoverage> {
+    await this.db.items.update(databaseId, { offlineIntent });
+    return await this.coverage(databaseId);
+  }
+
+  /**
+   * Releases recoverable values while preserving membership and visibility.
+   * Pinned bases and unsynchronized entry/database work are never released.
+   */
+  async offloadEntryValues(entryId: Uuid): Promise<boolean> {
+    const entry = await this.db.databaseEntries.get(entryId);
+    if (entry === undefined || entry.availability !== "present" || entry.sealedValues === null) {
+      return false;
+    }
+    const host = await this.db.items.get(entry.databaseId);
+    if (host?.offlineIntent === true || (await this.#hasLocalWork(entry.databaseId, entryId))) {
+      return false;
+    }
+    await this.db.databaseEntries.update(entryId, {
+      availability: "offloaded",
+      sealedValues: null,
+    });
+    return true;
+  }
+
+  async #hasLocalWork(databaseId: Uuid, entryId: Uuid): Promise<boolean> {
+    for (const stored of await this.db.outbox.toArray()) {
+      const row =
+        "payload" in stored
+          ? stored
+          : await this.#codec.openOutbox(stored as Parameters<LocalRecordCodec["openOutbox"]>[0]);
+      if (this.#payloadTouches(row.payload, databaseId, entryId)) return true;
+    }
+    for (const stored of await this.db.conflicts.toArray()) {
+      const row =
+        "payload" in stored
+          ? stored
+          : await this.#codec.openConflict(
+              stored as Parameters<LocalRecordCodec["openConflict"]>[0],
+            );
+      if (this.#payloadTouches(row.payload, databaseId, entryId)) return true;
+    }
+    return false;
+  }
+
+  #payloadTouches(payload: Record<string, unknown>, databaseId: Uuid, entryId: Uuid): boolean {
+    return (
+      payload["databaseId"] === databaseId ||
+      payload["entryId"] === entryId ||
+      payload["itemId"] === entryId
+    );
   }
 
   async getRelationTargets(databaseId: Uuid, entryId: Uuid): Promise<RelationTargets> {

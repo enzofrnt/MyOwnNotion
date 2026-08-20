@@ -158,3 +158,26 @@ de spécificité CSS déjà suivis sans erreur bloquante.
   les valeurs, d'un retrait ou changement de type réellement destructif.
 - Le parcours accepte aussi bien une entrée déjà convertie au document par
   blocs qu'une ancienne entrée nécessitant encore la conversion explicite.
+
+## Preuves US5 — stockage local structuré
+
+**Date**: 2026-08-20
+**État**: sous-lot stockage validé ; synchronisation et restauration à suivre
+
+- La migration Dexie v5 vers v6 conserve le curseur existant et ajoute les
+  stores protégés ainsi que l'index composé `databaseId/availability`.
+- Définitions et valeurs restent scellées au repos et sont relues avec la même
+  identité après fermeture/réouverture de la projection.
+- Une base n'est annoncée prête hors ligne que si sa définition et toutes ses
+  appartenances attendues possèdent des valeurs présentes. Une valeur
+  déchargée conserve son appartenance mais rend la couverture partielle.
+- L'intention hors ligne épingle les valeurs structurées. Sans épinglage, le
+  déchargement est refusé dès qu'une mutation ou un conflit local touche la
+  base ou l'entrée.
+- Un échec de préparation cryptographique ou un arrêt simulé entre préparation
+  et transaction ne laisse aucun item, placement, schéma, révision ou message
+  d'outbox partiel. Le rejeu d'une création d'entrée conserve déjà la même
+  mutation et les mêmes révisions locales.
+
+Les 9 tests ciblés de stockage et mutation locale réussissent, ainsi que le
+typecheck complet du monorepo.

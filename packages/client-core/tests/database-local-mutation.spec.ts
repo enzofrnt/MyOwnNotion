@@ -117,6 +117,39 @@ describe("atomic structured local mutation (T021)", () => {
     expect(observed).toEqual([null]);
   });
 
+  it("writes nothing when preparation fails before the transaction", async () => {
+    vi.spyOn(codec, "sealDatabase").mockRejectedValueOnce(new Error("device locked"));
+
+    const result = await apply("database.create", createPayload());
+
+    expect(result).toMatchObject({ ok: false, error: { code: "storage.unavailable" } });
+    expect(await db.items.count()).toBe(0);
+    expect(await db.databases.count()).toBe(0);
+    expect(await db.revisionHeaders.count()).toBe(0);
+    expect(await db.outbox.count()).toBe(0);
+  });
+
+  it("writes nothing when the app stops after preparation but before commit", async () => {
+    let prepared = false;
+    const originalSeal = codec.sealDatabase.bind(codec);
+    vi.spyOn(codec, "sealDatabase").mockImplementation(async (row) => {
+      const sealed = await originalSeal(row);
+      prepared = true;
+      return sealed;
+    });
+    vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("simulated stop"));
+
+    const result = await apply("database.create", createPayload());
+
+    expect(prepared).toBe(true);
+    expect(result).toMatchObject({ ok: false, error: { code: "storage.unavailable" } });
+    expect(await db.items.count()).toBe(0);
+    expect(await db.placements.count()).toBe(0);
+    expect(await db.databases.count()).toBe(0);
+    expect(await db.revisionHeaders.count()).toBe(0);
+    expect(await db.outbox.count()).toBe(0);
+  });
+
   it("replaces definition, creates an entry and replaces values with stable identities", async () => {
     const create = createPayload();
     expect((await apply("database.create", create)).ok).toBe(true);

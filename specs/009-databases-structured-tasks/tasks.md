@@ -189,8 +189,8 @@ sauvegarde en retrouvant exactement l'état observable.
 
 ### Tests for User Story 5
 
-- [ ] T070 [P] [US5] Écrire les tests de migration Dexie v6, scellement, épinglage, déchargement et couverture après redémarrage dans packages/client-core/tests/database-local-store.spec.ts (FR-034 à FR-036)
-- [ ] T071 [P] [US5] Écrire les tests de crash entre préparation/transaction, rejeu idempotent et absence d'état partiel dans packages/client-core/tests/database-local-mutation.spec.ts (FR-036, SC-005)
+- [x] T070 [P] [US5] Écrire les tests de migration Dexie v6, scellement, épinglage, déchargement et couverture après redémarrage dans packages/client-core/tests/database-local-store.spec.ts (FR-034 à FR-036)
+- [x] T071 [P] [US5] Écrire les tests de crash entre préparation/transaction, rejeu idempotent et absence d'état partiel dans packages/client-core/tests/database-local-mutation.spec.ts (FR-036, SC-005)
 - [ ] T072 [P] [US5] Écrire les tests de fusion/rebase automatique et capture durable de conflit structuré dans packages/client-core/tests/database-reconciliation.spec.ts (FR-037 à FR-040)
 - [ ] T073 [P] [US5] Écrire les tests contrat/intégration du change feed et snapshot avec digest couvrant définitions, entrées, valeurs et relations dans apps/api/tests/sync.contract.spec.ts et packages/database/tests/change-feed.integration.spec.ts (FR-039)
 - [ ] T074 [P] [US5] Étendre les tests export, sauvegarde, validation et restauration de référence avec le modèle 009 dans apps/api/tests/export.contract.spec.ts et packages/database/tests/reference-backups.integration.spec.ts (FR-044, SC-008)
@@ -201,7 +201,7 @@ sauvegarde en retrouvant exactement l'état observable.
 - [ ] T076 [US5] Étendre ItemDto, ChangeEnvelopeDto et CanonicalSnapshotDto avec définitions/entrées/relations structurées dans packages/contracts/src/content-api.ts en conservant la compatibilité de lecture
 - [ ] T077 [US5] Hydrater les payloads structurés et relations dans apps/api/src/routes/changes.ts et apps/api/src/routes/snapshots.ts, puis inclure les quatre ensembles triés dans le digest pour satisfaire T073
 - [ ] T078 [US5] Appliquer snapshot/change atomiquement dans LocalRepository, y compris relations, databases et databaseEntries, sans effacer outbox/conflicts dans packages/client-core/src/local-store/local-repository.ts et packages/client-core/src/reconciliation/reconcile.ts
-- [ ] T079 [US5] Implémenter l'épinglage de base, la disponibilité de ses valeurs et les règles de déchargement dans apps/web/src/services/storage-manager.ts et packages/client-core/src/databases/local-database-repository.ts pour satisfaire T070
+- [x] T079 [US5] Implémenter l'épinglage de base, la disponibilité de ses valeurs et les règles de déchargement dans apps/web/src/services/storage-manager.ts et packages/client-core/src/databases/local-database-repository.ts pour satisfaire T070
 - [ ] T080 [US5] Brancher la fusion à trois voies structurée, le rebase et les limites d'une fusion par pass dans packages/client-core/src/reconciliation/reconcile.ts pour satisfaire T072
 - [ ] T081 [US5] Étendre ConflictRecord, lecture de snapshots et commandes de résolution à deux parents pour définition/valeurs dans packages/client-core/src/local-store/schema.ts, packages/client-core/src/reconciliation/resolve-conflict.ts et packages/domain/src/databases/commands.ts
 - [ ] T082 [US5] Implémenter la comparaison et résolution UI ancêtre/local/distant pour schéma, vue et valeur dans apps/web/src/features/sync/conflict-resolution.tsx et apps/web/src/features/databases/database-conflict-resolution.tsx
