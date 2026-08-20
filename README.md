@@ -7,6 +7,21 @@ Projet d’application de gestion des connaissances combinant pages hiérarchiqu
 
 Le dépôt est préparé avec GitHub Spec Kit pour OpenAI Codex et Cursor. Les deux agents utilisent exactement la même constitution et les mêmes fichiers de fonctionnalité : il n’existe aucune copie de spec propre à un agent.
 
+## État du développement
+
+Mise à jour du 20 août 2026 :
+
+| Grande étape | État actuel |
+| --- | --- |
+| Fondations et V1 fonctionnelle — features 001 à 008 | Implémentées et fusionnées dans `main` : sécurité mono-utilisateur, pages et dossiers, éditeur par blocs, fichiers, offline, synchronisation, sauvegarde/restauration et recherche. La validation formelle de release conserve trois protocoles humains/opérationnels ouverts dans la feature 002. |
+| Fonctions avancées — feature 009 | Bases structurées et tâches implémentées, convergées et validées par le gate local complet ; pull request en préparation. |
+| Suite des fonctions avancées — features 010 à 013 | Graphe, tableaux blancs, partage public et MCP restent à développer dans cet ordre. |
+| Clients supplémentaires — features 014 et 015 | Le client desktop est spécifié et planifié ; l’expérience iOS reste au stade de la roadmap. |
+
+Le détail, les dépendances et les limites de chaque étape sont dans la
+[`roadmap produit`](docs/product/roadmap.md). L’avancement vérifiable d’une
+feature reste dans son fichier `tasks.md`, pas dans ce résumé.
+
 ## Prérequis
 
 - Git ;

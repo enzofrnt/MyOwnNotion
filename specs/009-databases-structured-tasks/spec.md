@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-20
 
-**Status**: Draft
+**Status**: Implémentée et validée localement ; prête pour la pull request
 
 **Input**: User description: "Poursuivre la trajectoire produit avec la feature
 009 : propriétés typées, relations, filtres, tris, vues table, Kanban, galerie,

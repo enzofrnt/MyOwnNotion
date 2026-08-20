@@ -33,7 +33,8 @@ terminées ; la convergence est donc achevée.
 
 ### 002 — Owner security foundation
 
-**État** : spécifiée et planifiée ; prête pour l’implémentation après réussite de l’analyse
+**État** : implémentation livrée ; trois protocoles de validation humaine et
+opérationnelle restent ouverts avant validation formelle de la release
 **Canevas** : sections 5, 8, 9, 28, 29, 34 et 36 à 41
 
 Authentification du propriétaire unique, passkeys, mot de passe alternatif,
@@ -44,7 +45,7 @@ GHCR et releases immuables requis par FR-030 à FR-035.
 
 ### 003 — Core workspace experience
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 001, 002
 **Canevas** : sections 7 et 11 à 13
 
@@ -64,7 +65,7 @@ calendrier appartient à 009.
 
 ### 004 — Unified items and page/folder conversion
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 001, 003
 **Canevas** : sections 11 et 12
 
@@ -81,7 +82,7 @@ place, afin qu'un même numéro ne désigne jamais deux features différentes.
 
 ### 005 — Files and local storage
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 001 à 004
 **Canevas** : sections 15 à 18
 
@@ -90,7 +91,7 @@ Draw.io, quotas locaux, disponibilité hors ligne et déchargement sûr.
 
 ### 006 — Multi-device synchronization
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 001 à 005
 **Canevas** : sections 9 et 17 à 20
 
@@ -100,7 +101,7 @@ conflits.
 
 ### 007 — Backup, recovery and updates
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 002, 005, 006
 **Canevas** : sections 27 à 34
 
@@ -109,7 +110,8 @@ export/import, migrations, mise à jour et retour arrière.
 
 ### 008 — Search and V1 release readiness
 
-**État** : prévue
+**État** : implémentée et convergée ; la validation formelle de release V1
+reste conditionnée par les trois protocoles ouverts de la feature 002
 **Dépendance** : 001 à 007
 **Canevas** : sections 6, 21 et 35 à 45
 
@@ -145,7 +147,8 @@ devenues obsolètes. Elle ne réduit ni le contrôle local complet, ni les gates
 
 ### 009 — Databases and structured tasks
 
-**État** : implémentée et convergée ; gate exact du commit final en cours
+**État** : implémentée et convergée ; gate local exact réussi, prête pour la
+pull request
 **Dépendance** : 001 à 008
 **Dossier** : [`specs/009-databases-structured-tasks`](../../specs/009-databases-structured-tasks/)
 **Canevas** : section 14

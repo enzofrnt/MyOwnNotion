@@ -406,7 +406,7 @@ globale `prefers-reduced-motion` reste appliquée aux nouvelles vues.
 ## Checkpoint transversal — cycle de vie et confidentialité
 
 **Date**: 2026-08-20
-**Résultat**: réussi sur les preuves ciblées ; matrice complète à rejouer au gate
+**Résultat**: réussi, puis confirmé par la matrice complète du gate final
 
 ### Cycle de vie
 
@@ -450,11 +450,12 @@ nouveaux parcours 009 et ses 31 assertions réussissent.
 ## Checkpoint de convergence — quickstart, langue et fixture de référence
 
 **Date**: 2026-08-20
-**Résultat**: réussi avant le gate exact du commit final
+**Résultat**: réussi, puis confirmé par le gate exact du commit final
 
-Les sections 1 à 12 et 14 du quickstart ont été rejouées. La section 13 reste
-le gate exact `checks:local`, suivi séparément par T111 afin qu'aucune
-modification documentaire postérieure ne puisse invalider sa preuve.
+Les sections 1 à 12 et 14 du quickstart ont été rejouées. La section 13 a
+ensuite été satisfaite par le gate exact `checks:local` enregistré ci-dessous.
+Les changements postérieurs sont strictement documentaires et suivent donc le
+contrôle documentaire distinct prescrit par `docs/development.md`.
 
 ### Langue active sans donnée dépendante des copies
 
@@ -519,3 +520,38 @@ d'acceptation, 11 critères mesurables, 12 cas limites, 7 décisions structurant
 du plan et les 8 principes de la constitution. Elle ne trouve aucun élément
 `missing`, `partial`, `contradicts` ou `unrequested` et n'ajoute donc aucune
 tâche de convergence supplémentaire.
+
+## Gate local final exact
+
+**Date**: 2026-08-20
+
+**Commit exécutable validé**: `0fdae3353a68a938cd1b24ba9be19077028133d9`
+
+**Commande**: `pnpm checks:local`
+
+**Résultat**: réussi sans contrôle interrompu, ignoré ou relancé pour masquer
+un échec
+
+| Contrôle du gate | Résultat exact |
+| --- | --- |
+| Outils, shell, format, lint et types | réussis ; zéro erreur bloquante, 3 avertissements CSS connus |
+| Couverture agrégée | 205 fichiers et 2 436 tests réussis ; lignes 90,03 %, branches 85,83 %, fonctions 91,38 % |
+| Intégration PostgreSQL | 31 fichiers et 311 tests réussis |
+| Migrations | 8 tests réussis |
+| Contrats API et workspace | 76 fichiers et 1 038 tests réussis |
+| Matrice Playwright | 5/5 projets réussis en 1 091 s ; 1 033 parcours réussis et 32 exclusions prévues, sans flakiness acceptée |
+| Build de production | API, client Web, PWA et service worker réussis |
+| Images | API et Web construites avec SBOM pour `linux/amd64` et `linux/arm64` |
+| Sécurité et licences | aucune vulnérabilité haute/critique, 1 modérée non bloquante ; 814 fichiers sans secret, 585 sources sans finding statique, 305 licences sans violation |
+| Compose | contrat services, ports loopback, secrets et images épinglées réussi |
+
+Mesures 009 de cette exécution exacte : reconstruction de la fixture de
+référence à 40 propriétés, 20 vues et 100 000 relations en 1 086,9 ms avec un
+pic de heap de 191,3 Mio ; première page de 100 entrées au p95 entre 209,8 et
+251,8 ms selon la vue ; propagation distante au p95 à 978,9 ms ; commits locaux
+au p95 à 25,5 ms sur 10 100 opérations mixtes, sans perte ni duplication.
+
+Ce gate valide le dernier commit contenant du code. Le commit suivant ne met à
+jour que `README.md`, la roadmap et les artefacts Markdown de cette feature ;
+conformément à `docs/development.md`, il reçoit uniquement les contrôles
+documentaires applicables et ne relance pas l'application.

@@ -264,7 +264,7 @@ avant publication.
 - [X] T108 Vérifier que chaque nouveau test/consommateur possède un propriétaire minimal dans ci/test-impact.json et tests/contract/test-impact.spec.ts
 - [X] T109 Exécuter tous les scénarios de specs/009-databases-structured-tasks/quickstart.md et consigner les résultats utiles dans specs/009-databases-structured-tasks/validation.md
 - [X] T110 Exécuter format, lint, typecheck, unit, property, integration, migration, contract, security, performance et la matrice Playwright ciblée, corriger chaque échec et consigner le résultat dans specs/009-databases-structured-tasks/validation.md
-- [ ] T111 Exécuter pnpm checks:local sur le commit final exact conformément à docs/development.md et enregistrer le résultat dans specs/009-databases-structured-tasks/validation.md
+- [X] T111 Exécuter pnpm checks:local sur le commit final exact conformément à docs/development.md et enregistrer le résultat dans specs/009-databases-structured-tasks/validation.md
 - [X] T112 Lancer speckit-converge, ajouter toute tâche manquante à specs/009-databases-structured-tasks/tasks.md, l'implémenter et ne laisser aucune case ouverte avant le push
 
 ---
