@@ -555,3 +555,35 @@ Ce gate valide le dernier commit contenant du code. Le commit suivant ne met à
 jour que `README.md`, la roadmap et les artefacts Markdown de cette feature ;
 conformément à `docs/development.md`, il reçoit uniquement les contrôles
 documentaires applicables et ne relance pas l'application.
+
+## Correction du démarrage CI sur base neuve
+
+**Date**: 2026-08-20
+
+**Commit mixte validé**: `2c4c72e2a8a8fcffdf34bc737f6c14d6dc5bd5ee`
+
+Le premier run CI de la pull request #125 (`32353709291`) arrêtait les cinq
+jobs Playwright avant l'ouverture des navigateurs. La migration `0007_databases`
+déclenchait correctement la sauvegarde de sécurité, mais le job ne fournissait
+pas la clé de déploiement nécessaire pour produire cette sauvegarde sur sa base
+PostgreSQL neuve.
+
+Le job E2E prépare désormais, dans le répertoire temporaire du runner, une clé
+de déploiement jetable ainsi que des racines blobs et sauvegardes isolées avant
+`pnpm db:migrate`. Un contrat du workflow verrouille l'ordre et la présence de
+ces fixtures. Une reproduction sur une base PostgreSQL vierge a appliqué avec
+succès les migrations `0001` à `0007` avec cette configuration.
+
+Le gate `pnpm checks:local` a ensuite réussi sans interruption :
+
+- couverture agrégée : 205 fichiers et 2 437 tests ;
+- intégration : 31 fichiers et 311 tests ;
+- migrations : 8 tests ;
+- contrats : 76 fichiers et 1 039 tests ;
+- Playwright : 5/5 profils réussis en 1 094 s ;
+- build, images API/Web avec SBOM sur `linux/amd64` et `linux/arm64`, sécurité,
+  licences et contrat Compose réussis.
+
+Les mesures de performance de cette exécution restent dans les budgets :
+première page au p95 entre 217,1 et 241,1 ms selon la vue, propagation distante
+au p95 à 1 041,4 ms et commits locaux au p95 à 24,3 ms sur 10 100 opérations.

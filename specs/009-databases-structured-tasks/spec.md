@@ -4,7 +4,8 @@
 
 **Created**: 2026-08-20
 
-**Status**: Implémentée et validée localement ; prête pour la pull request
+**Status**: Implémentée et validée localement ; pull request #125 ouverte et
+correction du démarrage CI validée
 
 **Input**: User description: "Poursuivre la trajectoire produit avec la feature
 009 : propriétés typées, relations, filtres, tris, vues table, Kanban, galerie,
