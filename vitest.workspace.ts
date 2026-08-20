@@ -22,6 +22,14 @@ export default defineWorkspace([
   },
   {
     test: {
+      name: "page-state",
+      root: "packages/page-state",
+      environment: "node",
+      include: ["tests/**/*.spec.ts"],
+    },
+  },
+  {
+    test: {
       name: "contracts",
       root: "packages/contracts",
       environment: "node",

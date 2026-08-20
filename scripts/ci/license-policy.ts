@@ -16,7 +16,13 @@ import process from "node:process";
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const artifactPath = path.join(repoRoot, "license-policy.json");
 
-/** SPDX identifiers permitted for production dependencies. */
+/**
+ * SPDX identifiers permitted for production dependencies.
+ *
+ * Feature 017 relies on MIT foundations (Loro, Tailwind, Ariakit, dnd-kit and
+ * Lucide) and MPL-2.0 BlockNote Community packages. Both grants permit the
+ * self-hosted product while preserving their respective attribution terms.
+ */
 const allowedLicenses = new Set([
   "0BSD",
   "Apache-2.0",

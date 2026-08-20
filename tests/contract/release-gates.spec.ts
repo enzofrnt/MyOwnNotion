@@ -23,6 +23,10 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const ci = readFileSync(path.join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
+const licensePolicy = readFileSync(
+  path.join(repoRoot, "scripts", "ci", "license-policy.ts"),
+  "utf8",
+);
 const gha = (expression: string): string => `\${{ ${expression} }}`;
 
 /** The five security jobs FR-035 requires to be individually observable. */
@@ -42,6 +46,13 @@ const SECURITY_ARTIFACTS = [
   "container-scan.sarif",
   "license-policy.json",
 ] as const;
+
+describe("the dependency license policy", () => {
+  it("permits the MIT and MPL-2.0 foundations selected for the V1 workspace", () => {
+    expect(licensePolicy).toMatch(/^\s+"MIT",$/m);
+    expect(licensePolicy).toMatch(/^\s+"MPL-2\.0",$/m);
+  });
+});
 
 /** The `needs:` list of the aggregate job, as written. */
 function qualityGateNeeds(): readonly string[] {

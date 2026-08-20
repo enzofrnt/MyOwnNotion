@@ -33,14 +33,14 @@ surfaces (US6, P2) termine l'expérience produit.
 **Purpose**: Préparer les packages, versions et points d'intégration sans
 activer un nouveau chemin d'écriture.
 
-- [ ] T001 Créer le package pur `@myownnotion/page-state` dans `packages/page-state/package.json`, `packages/page-state/tsconfig.json` et `packages/page-state/src/index.ts`
-- [ ] T002 Ajouter Loro, BlockNote Community Ariakit, Tailwind Vite, Ariakit, dnd-kit et Lucide à versions exactes dans `packages/page-state/package.json`, `apps/web/package.json` et `pnpm-lock.yaml`, sans package `@blocknote/xl-*`
-- [ ] T003 Ajouter le projet Vitest `page-state`, sa couverture et ses commandes aux gates dans `vitest.workspace.ts`, `package.json` et `packages/page-state/package.json`
-- [ ] T004 Configurer Tailwind CSS via Vite et l'entrée CSS commune dans `apps/web/vite.config.ts`, `apps/web/src/styles.css` et `apps/web/package.json`
-- [ ] T005 [P] Créer les points d'entrée des modules de page locale dans `packages/client-core/src/page-sync/index.ts` et `packages/client-core/src/index.ts`
-- [ ] T006 [P] Créer les points d'entrée du système UI dans `apps/web/src/ui/index.ts`, `apps/web/src/ui/primitives/index.ts` et `apps/web/src/ui/icons.tsx`
-- [ ] T007 Étendre l'allowlist et les tests de licence aux licences MIT/MPL des dépendances retenues dans `scripts/ci/license-policy.ts` et `tests/contract/release-gates.spec.ts`
-- [ ] T008 Vérifier l'installation verrouillée, l'absence de XL et le graphe de dépendances avec des assertions dans `tests/contract/toolchain-editor-dependencies.spec.ts`
+- [X] T001 Créer le package pur `@myownnotion/page-state` dans `packages/page-state/package.json`, `packages/page-state/tsconfig.json` et `packages/page-state/src/index.ts`
+- [X] T002 Ajouter Loro, BlockNote Community Ariakit, Tailwind Vite, Ariakit, dnd-kit et Lucide à versions exactes dans `packages/page-state/package.json`, `apps/web/package.json` et `pnpm-lock.yaml`, sans package `@blocknote/xl-*`
+- [X] T003 Ajouter le projet Vitest `page-state`, sa couverture et ses commandes aux gates dans `vitest.workspace.ts`, `package.json` et `packages/page-state/package.json`
+- [X] T004 Configurer Tailwind CSS via Vite et l'entrée CSS commune dans `apps/web/vite.config.ts`, `apps/web/src/styles.css` et `apps/web/package.json`
+- [X] T005 [P] Créer les points d'entrée des modules de page locale dans `packages/client-core/src/page-sync/index.ts` et `packages/client-core/src/index.ts`
+- [X] T006 [P] Créer les points d'entrée du système UI dans `apps/web/src/ui/index.ts`, `apps/web/src/ui/primitives/index.ts` et `apps/web/src/ui/icons.tsx`
+- [X] T007 Étendre l'allowlist et les tests de licence aux licences MIT/MPL des dépendances retenues dans `scripts/ci/license-policy.ts` et `tests/contract/release-gates.spec.ts`
+- [X] T008 Vérifier l'installation verrouillée, l'absence de XL et le graphe de dépendances avec des assertions dans `tests/contract/toolchain-editor-dependencies.spec.ts`
 
 ---
 
