@@ -395,7 +395,7 @@ T093 performance
 
 ## Task Format Validation
 
-Les 114 tâches suivent le format checklist obligatoire : case, identifiant
+Les 116 tâches suivent le format checklist obligatoire : case, identifiant
 séquentiel, marqueur `[P]` uniquement si parallélisable, label `[USn]` dans
 les phases de story et chemin de fichier explicite.
 
@@ -403,3 +403,8 @@ les phases de story et chemin de fichier explicite.
 
 - [X] T113 Centraliser les libellés, erreurs et annonces des surfaces 009 derrière un catalogue suivant la langue anglaise active, utiliser les formats de la locale active, y raccorder les appels 009 depuis apps/web/src/features/hierarchy/hierarchy-explorer.tsx et prouver que les identités/valeurs canoniques ne dépendent pas des copies dans apps/web/src/features/databases/ et tests/e2e/, conformément à FR-050 et au passage français transversal porté par la release (partial)
 - [X] T114 Étendre tests/performance/databases.perf.spec.ts à la fixture de référence de 40 propriétés, 20 vues et 100 000 relations, puis consigner la preuve dans specs/009-databases-structured-tasks/validation.md conformément à T109 et quickstart.md §11 (partial)
+
+## Phase 10: Publication de la pull request
+
+- [X] T115 Provisionner dans .github/workflows/ci.yml une clé de déploiement et des stockages jetables avant la migration PostgreSQL des jobs Playwright, puis verrouiller cet ordre dans tests/contract/release-gates.spec.ts
+- [X] T116 [P] Remplacer dans README.md le résumé d'avancement par un tableau séparant explicitement le réalisé du reste à faire pour chaque grande étape 001 à 015

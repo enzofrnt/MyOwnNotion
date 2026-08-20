@@ -11,12 +11,15 @@ Le dépôt est préparé avec GitHub Spec Kit pour OpenAI Codex et Cursor. Les d
 
 Mise à jour du 20 août 2026 :
 
-| Grande étape | État actuel |
-| --- | --- |
-| Fondations et V1 fonctionnelle — features 001 à 008 | Implémentées et fusionnées dans `main` : sécurité mono-utilisateur, pages et dossiers, éditeur par blocs, fichiers, offline, synchronisation, sauvegarde/restauration et recherche. La validation formelle de release conserve trois protocoles humains/opérationnels ouverts dans la feature 002. |
-| Fonctions avancées — feature 009 | Bases structurées et tâches implémentées, convergées et validées par le gate local complet ; pull request en préparation. |
-| Suite des fonctions avancées — features 010 à 013 | Graphe, tableaux blancs, partage public et MCP restent à développer dans cet ordre. |
-| Clients supplémentaires — features 014 et 015 | Le client desktop est spécifié et planifié ; l’expérience iOS reste au stade de la roadmap. |
+| Grande étape | Fait | Reste à faire (RAF) |
+| --- | --- | --- |
+| Fondations et V1 fonctionnelle — features 001 à 008 | Implémentées et fusionnées dans `main` : sécurité mono-utilisateur, pages et dossiers, éditeur par blocs, fichiers, offline, synchronisation, sauvegarde/restauration et recherche. | Exécuter les trois protocoles humains/opérationnels encore ouverts dans la feature 002 avant de déclarer la release V1 formellement validée. |
+| Bases structurées et tâches — feature 009 | Implémentation terminée, convergée et validée par le gate local complet ; [pull request #125](https://github.com/enzofrnt/MyOwnNotion/pull/125) ouverte. | Obtenir un gate CI distant vert, faire relire puis fusionner la pull request dans `main`. |
+| Graphe de connaissances — feature 010 | Direction et dépendances définies dans la roadmap. | Spécifier, planifier et implémenter la navigation par graphe après la 009. |
+| Tableaux blancs — feature 011 | Périmètre produit ordonné après le graphe. | Spécifier, planifier et implémenter les canvas sans dupliquer les données canoniques. |
+| Publication contrôlée — feature 012 | Frontière mono-utilisateur/public déjà posée par le canevas produit. | Concevoir puis livrer le partage public avec permissions et révocation explicites. |
+| Intégrations et MCP — feature 013 | Positionnée après les surfaces publiques afin de réutiliser leurs contrôles d’accès. | Spécifier puis livrer les intégrations et l’exposition MCP sécurisée. |
+| Clients supplémentaires — features 014 et 015 | Le client desktop est spécifié et planifié ; l’expérience iOS est positionnée dans la roadmap. | Implémenter le desktop après les fonctions 010 à 013, puis spécifier et développer l’expérience iOS. |
 
 Le détail, les dépendances et les limites de chaque étape sont dans la
 [`roadmap produit`](docs/product/roadmap.md). L’avancement vérifiable d’une

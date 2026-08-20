@@ -139,6 +139,19 @@ describe("safe reusable work", () => {
     expect(ci).toContain("pnpm exec playwright install --with-deps");
   });
 
+  it("provisions the protected-storage fixtures before migrating an E2E database", () => {
+    const block = /\n {2}e2e:\n([\s\S]*?)\n {2}build:\n/.exec(ci)?.[1] ?? "";
+    const disposableRoot = `${gha("runner.temp")}/myownnotion-e2e`;
+
+    expect(block).toContain(`MYOWNNOTION_E2E_ROOT: ${disposableRoot}`);
+    expect(block).toContain(`MYOWNNOTION_DEPLOYMENT_KEY_FILE: ${disposableRoot}/deployment-key`);
+    expect(block).toContain("Prepare disposable protected-storage fixtures");
+    expect(block).toContain('openssl rand -base64 32 > "$MYOWNNOTION_DEPLOYMENT_KEY_FILE"');
+    expect(block.indexOf("Prepare disposable protected-storage fixtures")).toBeLessThan(
+      block.indexOf("pnpm db:migrate"),
+    );
+  });
+
   it("uses separate maximal BuildKit scopes for API and web", () => {
     expect(ci).toContain(
       `cache-from: type=gha,scope=api-${gha("needs.impact.outputs.cache_scope")}`,
