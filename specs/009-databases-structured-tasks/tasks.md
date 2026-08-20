@@ -408,4 +408,4 @@ les phases de story et chemin de fichier explicite.
 
 - [X] T115 Provisionner dans .github/workflows/ci.yml une clé de déploiement et des stockages jetables avant la migration PostgreSQL des jobs Playwright, puis verrouiller cet ordre dans tests/contract/release-gates.spec.ts
 - [X] T116 [P] Remplacer dans README.md le résumé d'avancement par un tableau séparant explicitement le réalisé du reste à faire pour chaque grande étape 001 à 015
-- [X] T117 Attendre les accusés locaux de création et d'enregistrement avant les attentes de synchronisation dans les parcours structurés, puis prouver l'absence de flakiness sur les cinq profils Playwright dans tests/e2e/helpers.ts et tests/e2e/databases-{schema,views,tasks}.spec.ts
+- [X] T117 Attendre les accusés locaux de création, d'enregistrement et de configuration de vue avant les attentes de synchronisation dans les parcours structurés, puis prouver l'absence de flakiness sur les cinq profils Playwright dans tests/e2e/helpers.ts et tests/e2e/databases-{schema,views,tasks}.spec.ts

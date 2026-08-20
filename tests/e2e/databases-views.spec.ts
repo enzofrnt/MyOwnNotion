@@ -99,6 +99,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(page.locator(`[data-entry-trigger]`).filter({ hasText: entries.beta })).toHaveCount(
     0,
   );
+  await waitForSynchronized(page);
 
   await filterEditor.getByLabel("Filter combination").selectOption("all");
   await filterEditor.getByRole("button", { name: "Save filters" }).click();
@@ -108,10 +109,12 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(page.locator(`[data-entry-trigger]`).filter({ hasText: entries.gamma })).toHaveCount(
     0,
   );
+  await waitForSynchronized(page);
 
   await filterEditor.getByRole("button", { name: "Clear filters" }).click();
   await filterEditor.getByRole("button", { name: "Save filters" }).click();
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(3);
+  await waitForSynchronized(page);
 
   const sortEditor = page.locator(".database-rule-editor").filter({ hasText: /^Sort & group/ });
   await sortEditor.locator("summary").click();
@@ -127,6 +130,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
           .evaluateAll((nodes) => nodes.map((node) => node.textContent?.trim())),
     )
     .toEqual([entries.gamma, entries.beta, entries.alpha]);
+  await waitForSynchronized(page);
 
   const columns = page.locator(".database-columns");
   await columns.locator("summary").click();
@@ -134,10 +138,12 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(
     page.locator(".database-grid").getByRole("columnheader", { name: /Status/ }),
   ).toHaveCount(0);
+  await waitForSynchronized(page);
   await columns.getByRole("checkbox", { name: "Status" }).check();
   await expect(
     page.locator(".database-grid").getByRole("columnheader", { name: /Status/ }),
   ).toBeVisible();
+  await waitForSynchronized(page);
   await columns.getByRole("button", { name: "Move Status column earlier" }).click();
   await expect
     .poll(async () =>
@@ -146,12 +152,15 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
         .evaluateAll((headers) => headers.map((header) => header.textContent?.trim())),
     )
     .toEqual([expect.stringContaining("Status"), expect.stringContaining("Title")]);
+  await waitForSynchronized(page);
   await page.getByRole("button", { name: "Widen Title" }).click();
   await expect(page.getByRole("group", { name: "Title width 280 pixels" })).toBeVisible();
+  await waitForSynchronized(page);
 
   await page.getByRole("button", { name: "New list view" }).click();
   const listTab = page.getByRole("tab", { name: /List 2/ });
   await expect(listTab).toBeVisible({ timeout: 15_000 });
+  await waitForSynchronized(page);
   await listTab.click();
   await expect(page.locator(".database-list")).toBeVisible();
   await expect(page.locator(".database-list__entry")).toHaveCount(3);
