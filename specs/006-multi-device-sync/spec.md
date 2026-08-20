@@ -8,6 +8,15 @@
 
 **Input**: User description: "Multi-device synchronization: real-time transport, catch-up, client-server compatibility, file synchronization, device revocation, history and visual conflict resolution… Scope is product-canvas sections 9 and 17 to 20. Depends on features 001 to 005, all delivered."
 
+> **Supersession note (2026-08-20)**: This specification records the delivered
+> feature-006 baseline. Feature 017 raises the V1 requirement for page bodies
+> from block-level three-way merging to convergent operations over rich text,
+> stable blocks, and moves. Feature 006 remains authoritative for transport,
+> authorised devices, catch-up, files, visible state, protocol gating, and
+> conservative conflict retention; its assumption that every divergent edit of
+> the same block is a manual conflict no longer defines the final V1 page-editing
+> path.
+
 ## Product Direction, Dependencies, and Scope
 
 This feature realises sections 9 and 17 to 20 of

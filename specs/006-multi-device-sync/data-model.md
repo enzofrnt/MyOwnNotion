@@ -1,5 +1,10 @@
 # Data Model: Multi-Device Synchronization
 
+> **Supersession note (2026-08-20)**: The revision and conflict entities remain
+> valid, but the pure three-document merge below is only the delivered legacy
+> path. Feature 017 defines the V1 operational page state, device frontiers,
+> incremental updates, checkpoints, and canonical projection.
+
 Most of what this feature needs already exists. The additions are small on
 purpose: a second ordering authority would be the most damaging thing this
 feature could introduce, because the order an owner sees would then depend on

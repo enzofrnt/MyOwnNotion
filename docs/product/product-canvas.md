@@ -56,6 +56,8 @@ Les spécifications de fonctionnalité détaillées peuvent préciser ce documen
 8. Un kit de récupération chiffré et conservable hors ligne est obligatoire.
 9. L'application fonctionne en HTTP sur le réseau local ; un reverse proxy externe assure HTTPS et la publication sur Internet.
 10. Le dépôt ne fournit ni certificat public ni reverse proxy obligatoire dans la stack applicative officielle.
+11. La V1 comprend une interface de travail cohérente, qualitative et proche de Notion ; une juxtaposition de contrôles techniquement fonctionnels ne suffit pas à satisfaire ce périmètre.
+12. La V1 permet au même propriétaire de modifier hors ligne la même page sur plusieurs appareils puis de converger automatiquement au niveau du texte riche, des blocs stables et de leurs déplacements ; le remplacement d'un document complet n'est pas l'unité normale de synchronisation éditoriale.
 
 ---
 
@@ -116,6 +118,11 @@ L'application n'est pas destinée à devenir une plateforme SaaS, un espace de t
 
 MyOwnNotion possède exactement un utilisateur : son propriétaire. Il s'agit de l'unique utilisateur authentifié de l'application et il peut utiliser plusieurs appareils autorisés avec la même identité.
 
+Ces appareils peuvent ouvrir et modifier simultanément une même page, y
+compris après avoir été déconnectés les uns des autres. Cette concurrence entre
+copies du même propriétaire relève de la résilience multi-appareils, pas de la
+coédition entre personnes.
+
 Il n'existe pas :
 
 - de création de comptes supplémentaires ;
@@ -153,17 +160,19 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 
 - déploiement du serveur avec Compose ;
 - client Web responsive ;
+- espace de travail cohérent et qualitatif, avec une structure et un système visuel communs ;
 - authentification mono-utilisateur par passkey et mot de passe ;
 - gestion des appareils et sessions ;
 - pages, dossiers et hiérarchie ;
 - navigation latérale ;
-- éditeur par blocs ;
+- éditeur par blocs proche de Notion, avec insertion contextuelle, poignée de bloc, glisser-déposer, menus adaptés et barre de mise en forme sur la sélection ;
 - fichiers et pièces jointes ;
 - prévisualisation des formats obligatoires ;
 - recherche dans les contenus pris en charge ;
 - stockage local chiffré ;
 - fonctionnement hors ligne ;
-- synchronisation multi-appareils ;
+- synchronisation multi-appareils convergente, y compris lorsque deux appareils
+  ont modifié hors ligne le même paragraphe ou déplacé et édité le même bloc ;
 - détection et résolution sûre des conflits ;
 - sauvegarde chiffrée, vérification et restauration ;
 - export complet et documenté ;
@@ -172,7 +181,7 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - observabilité locale et diagnostics expurgés ;
 - chaîne de développement, CI, images conteneurisées et publication GitHub.
 
-La V1 n'est livrable que si chacun de ces domaines possède des scénarios d'acceptation et des tests adaptés.
+La V1 n'est livrable que si chacun de ces domaines possède des scénarios d'acceptation et des tests adaptés. La présence des fonctions sans convergence visuelle, ergonomique et accessible de leurs parcours cœur ne constitue pas une V1 complète.
 
 ### 6.2 Après la V1
 
@@ -259,7 +268,8 @@ Une page de réglages affiche les appareils connectés. Pour chaque appareil, el
 - sa dernière synchronisation ;
 - son état ;
 - sa limite de stockage local ;
-- son usage local actuel.
+- son usage local actuel ;
+- la dernière frontière de contenu éditorial confirmée par le serveur.
 
 Le propriétaire peut :
 
@@ -269,6 +279,12 @@ Le propriétaire peut :
 - révoquer son accès.
 
 Un appareil révoqué ne peut plus se connecter, renouveler sa session ni recevoir de nouvelles données sans une nouvelle autorisation. La révocation doit aussi empêcher l'utilisation future de ses clés de synchronisation.
+
+Tant qu'un appareil reste autorisé, son seul temps d'absence ne permet pas au
+serveur de supprimer l'état nécessaire à la convergence de changements qu'il
+pourrait encore posséder localement. Une révocation explicite retire cette
+garantie et autorise la compaction au-delà de sa dernière frontière connue ;
+l'interface doit expliquer cet effet avant confirmation.
 
 Les données déjà présentes sur un appareil perdu ne peuvent pas être garanties comme effacées à distance si celui-ci ne se reconnecte jamais. Cette limite doit être affichée au propriétaire.
 
@@ -302,6 +318,19 @@ Chaque objet synchronisable doit posséder :
 - une information de version ou de causalité suffisante ;
 - un état de suppression ou d'archivage lorsque pertinent ;
 - les métadonnées nécessaires à la synchronisation et à la récupération.
+
+Le modèle canonique est le contrat sémantique durable et indépendant de
+l'éditeur. Il ne fixe pas à lui seul la granularité des écritures. Pour le corps
+des pages, une représentation opérationnelle convergente porte l'identité des
+blocs, leur arbre ordonné, le texte riche, les suppressions et la causalité des
+modifications. Elle constitue l'autorité d'édition ; le document canonique
+complet est sa projection déterministe et validée pour les lectures, relations,
+recherches, exports, sauvegardes et clients compatibles.
+
+Ces deux représentations ne sont pas deux vérités éditables : une modification
+normale produit des opérations, puis le serveur matérialise la projection. Une
+différence entre l'état opérationnel et sa projection est une erreur
+d'intégrité à réparer, jamais un conflit à arbitrer par ancienneté.
 
 Déplacer ou renommer un objet ne doit pas changer son identité ni casser silencieusement ses références.
 
@@ -441,6 +470,18 @@ référence et une indication distincte pour les éléments placés sous la page
 La barre latérale doit aussi permettre de convertir une page en dossier et
 inversement (11.4).
 
+Sur écran large, la barre latérale et le contenu principal forment deux zones
+distinctes dont la largeur et la visibilité peuvent être ajustées sans réduire
+la page à une colonne de contrôles. Sur écran étroit, la navigation devient un
+panneau temporaire adapté au toucher et rend le focus à son déclencheur après
+fermeture.
+
+Les actions d'une ligne sont contextuelles : elles apparaissent lorsque la
+ligne est ciblée, survolée ou ouverte, sans imposer une rangée permanente de
+boutons. Créer, renommer, déplacer, convertir et supprimer reste néanmoins
+possible au clavier et au toucher. La largeur de la barre, son état ouvert ou
+fermé et les branches dépliées sont restaurés sur l'appareil.
+
 La navigation doit préserver le contexte lors d'un retour en arrière, prendre en charge le clavier et afficher des états explicites de chargement, de contenu vide, d'indisponibilité locale et d'erreur.
 
 ---
@@ -464,6 +505,9 @@ Les blocs comprennent au minimum :
 - citations ;
 - code ;
 - séparateurs ;
+- sections repliables ;
+- encadrés ;
+- tableaux simples ;
 - liens ;
 - images ;
 - fichiers ;
@@ -476,11 +520,23 @@ placement hiérarchique. Les références internes doivent rester intactes aprè
 un renommage, un déplacement ou une conversion de la cible ; leurs relations
 inverses peuvent ensuite alimenter les backlinks.
 
-Les blocs peuvent être sélectionnés, déplacés, transformés, dupliqués, regroupés et supprimés. Les actions d'édition courantes doivent être annulables et rétablissables.
+Les blocs peuvent être sélectionnés, déplacés, transformés, dupliqués, regroupés et supprimés. Le bloc actif expose une poignée contextuelle, les déplacements affichent leur destination et les actions associées restent disponibles au clavier. Une sélection de plusieurs blocs conserve leur ordre lorsqu'elle est déplacée ou dupliquée. Les actions d'édition courantes doivent être annulables et rétablissables.
+
+Une sélection de texte expose une barre de mise en forme contextuelle. Les
+mises en forme minimales comprennent le gras, l'italique, le souligné, le
+barré, le code en ligne, les liens, la couleur du texte et le surlignage. Le
+menu d'insertion, le menu d'un bloc et la barre de sélection doivent préserver
+le focus, fournir des libellés accessibles et posséder des alternatives qui ne
+dépendent ni du survol ni d'un clic droit.
 
 L'expérience d'écriture doit ressembler au Markdown, mais les données n'ont pas besoin d'être stockées dans des fichiers `.md`.
 
 L'éditeur doit préserver les changements locaux en cas de fermeture inattendue, signaler l'état de sauvegarde et ne jamais afficher un état « synchronisé » avant confirmation du serveur.
+
+Chaque transaction de l'éditeur doit devenir durable et chiffrée sur l'appareil
+avant l'affichage de l'état « enregistré localement ». L'envoi réseau peut être
+différé et groupé, mais aucun bouton de sauvegarde ne doit être requis et la
+fermeture de la page ne doit pas être la stratégie principale de persistance.
 
 ---
 
@@ -627,6 +683,9 @@ La stratégie de déchargement associe récence, fréquence d'utilisation, taill
 ### 17.3 Protection locale
 
 - Le contenu applicatif doit être chiffré avant son écriture dans le stockage local.
+- Les journaux d'opérations éditoriales, points de contrôle, frontières et
+  projections locales sont du contenu privé et doivent être chiffrés avant
+  toute écriture dans IndexedDB ou un stockage équivalent.
 - Les clés d'appareil doivent être protégées par les mécanismes sécurisés de la plateforme lorsqu'ils sont disponibles.
 - Les clés ne doivent pas être exportables en clair.
 - La déconnexion, la révocation ou le verrouillage doit effacer les clés en mémoire dès que possible.
@@ -646,6 +705,12 @@ Hors ligne, le propriétaire peut :
 - ajouter des tâches ;
 - ajouter des fichiers dans la limite du stockage disponible ;
 - préparer des changements à synchroniser.
+
+Le propriétaire peut effectuer ces opérations sur plusieurs appareils
+déconnectés à partir d'un état commun, y compris dans la même page et le même
+paragraphe. Chaque transaction confirmée localement doit survivre à un arrêt
+brutal. À la reconnexion, les appareils échangent des mises à jour causales
+incrémentales et ne remplacent pas le document complet de l'autre appareil.
 
 L'interface indique clairement :
 
@@ -676,8 +741,30 @@ Les fondations doivent permettre :
 - un état de synchronisation visible ;
 - l'idempotence des nouvelles tentatives ;
 - la compatibilité contrôlée entre versions de clients et de serveur.
+- la convergence du texte riche à la granularité des caractères et des marques ;
+- la conservation de l'identité d'un bloc pendant des éditions et déplacements concurrents ;
+- un ordre et une hiérarchie convergents pour les insertions, imbrications et déplacements ;
+- la synchronisation rapide entre onglets sans contourner la persistance locale chiffrée ;
+- la reprise d'un appareil autorisé après une absence sans durée applicative arbitraire ;
+- la matérialisation vérifiée du document canonique après application des opérations.
 
-Un appareil simplement en retard ne doit pas générer de faux conflit. Un conflit existe seulement lorsque le même contenu a évolué indépendamment sur plusieurs appareils depuis leur dernier état commun.
+Un appareil simplement en retard ne doit pas générer de faux conflit. Des
+changements concurrents restent compatibles lorsqu'ils peuvent tous être
+représentés : deux éditions du même paragraphe, une édition et un déplacement du
+même bloc, ou des insertions et déplacements indépendants doivent converger
+automatiquement. L'ordre d'arrivée et les doublons de transport ne doivent pas
+changer le résultat.
+
+Un conflit existe seulement lorsque les intentions ne peuvent pas être
+satisfaites ensemble, notamment suppression contre édition ou déplacement du
+même bloc, ou écriture produite par un schéma incompatible. Le contenu masqué
+par une suppression concurrente reste récupérable jusqu'à la résolution.
+
+Le serveur conserve une frontière causale par appareil autorisé. La compaction
+ne peut franchir une frontière encore nécessaire à un appareil autorisé. La
+révocation explicite d'un appareil permet de libérer cette contrainte, mais
+l'appareil révoqué doit être refusé s'il revient ensuite avec d'anciennes
+opérations.
 
 ### 19.1 États visibles
 
@@ -696,11 +783,21 @@ Le serveur doit annoncer une version de protocole. Un client incompatible doit r
 
 Par défaut, une version stable du serveur doit accepter le client stable correspondant et la version stable immédiatement précédente tant que leur protocole reste compatible. Un client plus ancien peut être placé en lecture seule si les lectures sont sûres, mais aucune écriture incompatible ne doit être acceptée.
 
+Une évolution du protocole éditorial doit décrire la migration des documents et
+des mutations locales en attente. Ouvrir un ancien document ne doit pas le
+réécrire. Sa première édition peut amorcer une représentation opérationnelle de
+façon paresseuse, atomique et reprenable. Un ancien remplacement complet déjà
+en attente doit être confirmé avant la bascule ou converti une fois depuis sa
+base causale ; il ne peut pas être ignoré ni rejoué aveuglément.
+
 ---
 
 ## 20. Historique et résolution des conflits
 
-Les changements compatibles doivent être fusionnés automatiquement.
+Les changements compatibles doivent être fusionnés automatiquement, y compris
+dans un même paragraphe et lors d'un déplacement concurrent d'un bloc édité.
+La fusion normale ne compare pas deux documents complets : elle applique un
+ensemble convergent d'opérations liées à des identités stables.
 
 Lorsqu'une fusion sûre est impossible, un écran comparatif inspiré des conflits Git permet :
 
@@ -715,7 +812,12 @@ Lorsqu'une fusion sûre est impossible, un écran comparatif inspiré des confli
 
 Aucune donnée ne doit être détruite avant la résolution. La résolution elle-même doit produire une nouvelle version sans altérer les versions sources.
 
-L'historique doit permettre d'identifier au minimum la date, l'appareil et la nature d'une modification. Il ne doit pas enregistrer de secret technique en clair.
+Une suppression concurrente conserve un état récupérable du bloc ou sous-arbre
+supprimé et de ses éditions. Résoudre peut confirmer la suppression ou recréer
+le bloc avec son identité canonique, son contenu et un placement choisi, sans
+détruire les lignées originales.
+
+L'historique doit permettre d'identifier au minimum la date, l'appareil et la nature d'une modification. Il consolide les frappes en révisions lisibles plutôt que d'afficher une révision par caractère, tout en conservant l'historique opérationnel nécessaire à la causalité, au rattrapage et à la récupération. Il ne doit pas enregistrer de secret technique en clair.
 
 ---
 
@@ -1006,6 +1108,8 @@ Une sauvegarde automatique est exécutée chaque jour à 4 h selon le fuseau hor
 Elle contient :
 
 - contenus ;
+- états opérationnels des pages, mises à jour encore nécessaires, points de
+  contrôle et frontières d'appareils ;
 - pages et dossiers ;
 - bases de données ;
 - relations ;
@@ -1030,6 +1134,11 @@ Chaque sauvegarde doit être :
 - restaurable ;
 - testable sans écraser l'installation active ;
 - observable depuis l'interface et les commandes administratives.
+
+La cohérence d'une sauvegarde de page exige que l'état opérationnel et sa
+projection canonique validée correspondent à la même frontière. Une sauvegarde
+ne peut pas compacter l'historique nécessaire au retour d'un appareil encore
+autorisé.
 
 La rétention par défaut est de trois mois et reste configurable. La suppression distante suit la politique de rétention seulement après confirmation qu'au moins une sauvegarde récente et vérifiée reste disponible.
 
@@ -1058,6 +1167,12 @@ Avant une restauration destructive, le système doit :
 6. demander une confirmation explicite.
 
 Une restauration échouée ne doit pas laisser l'installation dans un état présenté comme sain. Les étapes doivent être reprises ou annulées selon une procédure documentée.
+
+Après restauration, les opérations plus récentes conservées sur un appareil
+autorisé hors ligne doivent rejoindre le même mécanisme de convergence que des
+opérations ordinaires. Elles ne peuvent ni être effacées par le snapshot
+restauré, ni remplacer aveuglément l'état restauré. Toute ambiguïté réelle reste
+conservée et explicite.
 
 Une restauration de test automatisée ou guidée doit être réalisée régulièrement. La CI doit aussi vérifier la restauration de sauvegardes de référence compatibles avec les migrations prises en charge.
 
@@ -1093,6 +1208,13 @@ Chaque migration doit être :
 - accompagnée d'une stratégie explicite de retour arrière ou de restauration.
 
 Une mise à jour ne doit jamais être annoncée comme réussie avant le passage des contrôles de santé et d'intégrité.
+
+Une migration vers une nouvelle représentation éditoriale doit être paresseuse
+lorsque possible : lire un document ancien ne le modifie pas ; sa première
+écriture amorce atomiquement l'état opérationnel et vérifie sa projection. La
+migration doit définir le traitement des files locales en attente, des clients
+précédents, des points de contrôle, des sauvegardes et du retour arrière. Aucun
+déploiement ne doit réécrire tous les corps de page sans nécessité démontrée.
 
 ---
 
@@ -1510,6 +1632,16 @@ Les parcours utilisateur importants doivent être testés avec Playwright, notam
 Des scénarios dédiés doivent prouver :
 
 - qu'une modification hors ligne survit à un redémarrage ;
+- que deux appareils modifiant hors ligne des positions différentes du même
+  paragraphe convergent sans conflit ni perte ;
+- qu'un bloc déplacé sur un appareil et édité sur un autre conserve son
+  identité, sa nouvelle position et son édition ;
+- que des insertions et déplacements concurrents produisent la même hiérarchie
+  quel que soit l'ordre de livraison ;
+- qu'une suppression concurrente avec une édition ou un déplacement conserve
+  les deux intentions jusqu'à résolution ;
+- qu'un appareil autorisé longtemps absent peut encore rattraper et transmettre
+  ses opérations après compaction, mise à jour et redémarrage ;
 - qu'une nouvelle tentative ne duplique pas une opération ;
 - qu'un fichier déplacé conserve ses références ;
 - qu'un conflit conserve toutes les versions ;
@@ -1532,12 +1664,18 @@ Les valeurs suivantes constituent des cibles d'acceptation initiales. Toute modi
 - Une saisie ou opération locale courante ne doit pas attendre le réseau pour être confirmée localement.
 - Sur un appareil de référence, l'interface doit répondre aux interactions courantes sans blocage perceptible prolongé.
 - Pour deux appareils connectés dans des conditions réseau normales, une modification textuelle synchronisée doit apparaître sur l'autre appareil en moins de deux secondes dans au moins 95 % des cas mesurés.
+- Pour deux appareils partis hors ligne depuis le même état, recevoir ensuite le
+  même ensemble de mises à jour dans n'importe quel ordre doit produire le même
+  document canonique et la même hiérarchie.
 - Les opérations longues doivent afficher une progression et rester annulables lorsque cela est sûr.
 
 ### 43.2 Durabilité et récupération
 
 - Une donnée confirmée comme enregistrée localement doit survivre à un arrêt brutal simulé.
 - La perte du réseau ne doit pas entraîner de perte de modification locale.
+- Cent pour cent des tests suppression contre édition doivent laisser les deux
+  intentions récupérables ; cent pour cent des tests déplacement contre édition
+  compatibles doivent converger sans intervention.
 - L'objectif de point de reprise distant est au maximum de 26 heures avec la sauvegarde quotidienne, hors changements encore uniquement locaux.
 - Une restauration de référence doit être testée avant chaque version stable.
 
@@ -1569,6 +1707,14 @@ Le serveur n'impose pas de quota global applicatif par défaut. Il doit avertir 
 ### 43.5 Internationalisation
 
 La V1 doit fournir une interface française cohérente et préparer l'externalisation des textes pour d'autres langues. Les dates, heures, nombres, fuseaux horaires et tris doivent utiliser des règles explicites et testées.
+
+### 43.6 Qualité visuelle et ergonomique
+
+- Les surfaces V1 utilisent un langage commun pour la typographie, les espacements, les couleurs, les états, les menus, les boutons, les champs, les dialogues et les notifications.
+- Les actions courantes apparaissent dans leur contexte ; les informations techniques et diagnostics secondaires ne concurrencent pas le contenu principal.
+- Les parcours de référence du workspace, de l'éditeur, de la recherche, des fichiers, des bases, de la sécurité, des sauvegardes et de l'installation font l'objet d'une revue visuelle en thèmes clair et sombre.
+- À 320 pixels de large et à un zoom de 200 %, les parcours essentiels restent utilisables sans défilement horizontal de la page entière.
+- Un écran ne peut pas être considéré terminé s'il expose encore les structures internes ou les contrôles provisoires à la place d'une hiérarchie compréhensible par le propriétaire.
 
 ---
 
@@ -1673,27 +1819,29 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 
 14. persistance locale chiffrée ;
 15. fonctionnement hors ligne ;
-16. synchronisation ;
+16. synchronisation multi-appareils convergente, au niveau du texte riche et
+    des blocs stables ;
 17. historique et conflits ;
 18. sauvegarde, restauration et export ;
-19. mises à jour et retour arrière.
+19. mises à jour et retour arrière ;
+20. convergence V1 de l'espace de travail et de l'éditeur proche de Notion.
 
-L'achèvement de cette phase constitue la V1 fonctionnelle, sous réserve de satisfaire tous les critères de qualité et d'exploitation.
+L'achèvement de cette phase, y compris la convergence visuelle et interactive, constitue la V1 fonctionnelle, sous réserve de satisfaire tous les critères de qualité et d'exploitation.
 
 ### Phase 4 — Fonctions avancées
 
-20. bases de données et tâches avancées ;
-21. graphe ;
-22. tableaux blancs ;
-23. partage public et annotations ;
-24. MCP.
+21. bases de données et tâches avancées ;
+22. graphe ;
+23. tableaux blancs ;
+24. partage public et annotations ;
+25. MCP.
 
 ### Phase 5 — Clients supplémentaires
 
-25. application Electron Windows ;
-26. application Electron macOS ;
-27. adaptation iOS avancée ;
-28. éventuelle application iOS native.
+26. application Electron Windows ;
+27. application Electron macOS ;
+28. adaptation iOS avancée ;
+29. éventuelle application iOS native.
 
 Chaque étape doit rester utilisable, testable et compatible avec la trajectoire globale. Une phase peut être divisée en plusieurs spécifications de fonctionnalité, mais aucune dépendance critique ne doit rester implicite.
 
@@ -1776,3 +1924,23 @@ Ces références expliquent des contraintes de stockage des navigateurs ; elles 
 - Q : Le chiffrement applicatif au repos est-il obligatoire ? → R : Oui, sur le serveur et sur chaque appareil, avec une clé serveur externe aux données et une protection supplémentaire des volumes lorsque possible.
 - Q : Comment récupérer les clés après une perte complète ? → R : Kit de récupération chiffré, conservable hors ligne, avec rotation et révocation.
 - Q : Compose fournit-il le reverse proxy HTTPS ? → R : Non. L'application fonctionne localement en HTTP et un reverse proxy externe assure HTTPS et la publication.
+
+---
+
+## Annexe C — Clarifications validées le 20 août 2026
+
+- Q : La fondation fonctionnelle de l'éditeur et de la navigation suffit-elle à déclarer la V1 complète ? → R : Non. La V1 exige un espace de travail cohérent et qualitatif, ainsi que des interactions d'édition proches de Notion et vérifiables.
+- Q : Cette exigence impose-t-elle une copie pixel par pixel ou la parité avec toutes les fonctions de Notion ? → R : Non. Elle impose les parcours, interactions, niveaux de finition et critères d'accessibilité décrits par le canevas et les spécifications actives.
+- Q : L'éditeur essentiel peut-il dépendre d'un service propriétaire ou d'un composant que l'application n'est pas autorisée à redistribuer ? → R : Non. Le parcours d'écriture V1 doit rester auto-hébergé, utilisable hors ligne, redistribuable avec l'application et remplaçable.
+- Q : Le même propriétaire peut-il modifier hors ligne la même page, voire le
+  même paragraphe, sur deux appareils avant de les reconnecter ? → R : Oui. Les
+  opérations compatibles doivent converger automatiquement au niveau du texte
+  riche, des blocs stables et de leurs déplacements, sans remplacement complet
+  ni durée d'absence arbitraire.
+- Q : Quels conflits peuvent encore demander une décision ? → R : Seulement les
+  intentions incompatibles, notamment suppression contre édition ou
+  déplacement. Les deux intentions restent récupérables jusqu'à résolution.
+- Q : Le modèle canonique disparaît-il au profit d'un format d'éditeur ? → R :
+  Non. Il reste le contrat sémantique durable et la projection vérifiée ; une
+  représentation opérationnelle indépendante de l'éditeur porte seulement la
+  causalité et la convergence de l'édition.

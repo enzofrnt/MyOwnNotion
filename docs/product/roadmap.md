@@ -12,9 +12,11 @@ commence que lorsque ses dépendances sont terminées ou explicitement isolées.
 Chaque feature suit : spécification, clarification si nécessaire, plan, tâches,
 analyse, implémentation, convergence, contrôles locaux, puis pull request.
 
-La numérotation ci-dessous fixe l’ordre prévu. Si une urgence impose un nouvel
-élément intermédiaire, la roadmap et les dépendances concernées doivent être
-mises à jour ensemble.
+Le numéro d'une feature est son identité stable, pas sa position définitive
+dans la séquence. L'ordre des sections ci-dessous et leurs dépendances fixent
+l'ordre prévu. Une nouvelle étape intermédiaire reçoit le prochain numéro libre
+et est placée à l'endroit requis sans renommer les features déjà livrées ; la
+roadmap et les dépendances concernées sont mises à jour ensemble.
 
 ## Fondation en cours
 
@@ -51,6 +53,8 @@ GHCR et releases immuables requis par FR-030 à FR-035.
 
 Navigation responsive, barre latérale, pages et dossiers utilisables, éditeur
 par blocs, raccourcis, états de sauvegarde et accessibilité des parcours cœur.
+La convergence visuelle et les interactions avancées volontairement restées
+hors de cette fondation sont désormais prises en charge par la feature 017.
 
 **La section 14 (bases de données et vues) n'est pas dans cette feature.** Elle
 l'était jusqu'à la planification de 003, où cette entrée s'est révélée en
@@ -99,6 +103,11 @@ Transport temps réel, rattrapage, compatibilité client-serveur, synchronisatio
 des fichiers, révocation d’appareil, historique et résolution visuelle des
 conflits.
 
+La feature 017 conserve ce transport, l'autorisation des appareils et le
+rattrapage, mais remplace la granularité de synchronisation du corps des pages :
+la fusion à trois voies par blocs livrée ici devient un filet de compatibilité,
+pas le chemin éditorial V1 final.
+
 ### 007 — Backup, recovery and updates
 
 **État** : implémentée et convergée
@@ -127,6 +136,32 @@ même livraison. Les features développées avant ce passage suivent la langue
 active existante, externalisent leurs copies et gardent leurs valeurs
 canoniques indépendantes des traductions ; aucune ne livre seule un fragment
 d'interface dans une autre langue.
+
+### 017 — V1 Notion-like workspace
+
+**État** : spécification en cours
+**Dépendance** : 003 à 008 ; intégration avec les surfaces de la 009 déjà
+implémentées en avance, sans déplacer les bases avancées dans le périmètre V1
+**Dossier** : [`specs/017-v1-notion-like-workspace`](../../specs/017-v1-notion-like-workspace/)
+**Canevas** : sections 3, 6.1, 7, 11 à 21 et 43 à 47
+
+Cette feature rend la qualité de l'interface et le modèle d'interaction proche
+de Notion obligatoires pour la V1. Elle fait converger le shell, la barre
+latérale, l'éditeur par blocs et toutes les surfaces déjà livrées autour d'un
+système visuel commun. Elle fournit notamment l'insertion et les actions
+contextuelles, la poignée et le déplacement de blocs, la barre de mise en forme
+flottante, les blocs riches manquants, la restauration du scroll et la
+correction clavier WebKit encore ouvertes après la 003.
+
+Elle livre également l'autosauvegarde et la convergence multi-appareils du corps
+des pages. Deux appareils du propriétaire peuvent modifier hors ligne le même
+paragraphe, déplacer et éditer le même bloc, puis se resynchroniser sans
+remplacement du document entier. Le modèle canonique reste la projection
+durable et indépendante de l'éditeur ; le transport, les appareils, les
+fichiers et les sauvegardes existants sont étendus plutôt que reconstruits.
+
+La validation formelle de la V1 reste bloquée tant que cette convergence et les
+protocoles ouverts de la feature 002 ne sont pas terminés.
 
 ### 016 — CI cache and selective tests
 

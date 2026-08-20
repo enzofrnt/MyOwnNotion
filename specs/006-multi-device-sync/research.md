@@ -1,5 +1,11 @@
 # Research: Multi-Device Synchronization
 
+> **Supersession note (2026-08-20)**: Decisions 3 and 4 below explain the
+> intentionally limited feature-006 implementation. They are superseded for
+> page-body editing by feature 017 after product requirements expanded to two
+> offline devices editing the same paragraph and moving/editing the same block.
+> The SSE transport and protocol-gating decisions remain in force.
+
 Five decisions. The first is the one that would be expensive to reverse; the
 last is the one most likely to be got wrong quietly.
 
