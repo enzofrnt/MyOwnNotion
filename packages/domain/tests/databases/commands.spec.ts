@@ -186,4 +186,33 @@ describe("structured database commands (T018)", () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  it("keeps editorial checkboxes inside a page document command", () => {
+    const checkboxId = asUuid("018f0000-0000-7000-8000-000000000024");
+    const result = parse("page.document.replace", {
+      itemId: IDS.entryA,
+      baseRevisionId: BASE_REVISION_ID,
+      document: {
+        format: "myownnotion.document+json",
+        formatVersion: 2,
+        body: {
+          blocks: [
+            {
+              id: checkboxId,
+              type: "checkbox",
+              checked: true,
+              content: [{ text: "Editorial only" }],
+            },
+          ],
+        },
+      },
+      pageLinkTargetIds: [],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.type).toBe("page.document.replace");
+    expect(result.value).not.toHaveProperty("databaseId");
+    expect(result.value).not.toHaveProperty("values");
+  });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type DomainResult,
   previewDefinitionImpact,
+  projectTaskSemantics,
   validateDatabaseDefinition,
 } from "../../src/index.ts";
 import { definition, IDS, values } from "./fixtures.ts";
@@ -117,6 +118,62 @@ describe("database definitions", () => {
         taskRoles: { ...roles, dueDatePropertyId: IDS.number },
       }).ok,
     ).toBe(false);
+    expect(
+      validateDatabaseDefinition({
+        ...valid,
+        taskRoles: { ...roles, priorityPropertyId: IDS.multi },
+      }).ok,
+    ).toBe(false);
+    expect(validateDatabaseDefinition({ ...valid, taskRoles: null }).ok).toBe(true);
+  });
+
+  it("keeps task roles attached to stable property identities through rename", () => {
+    const valid = definition();
+    const renamed = {
+      ...valid,
+      properties: valid.properties.map((property) =>
+        property.id === IDS.status ? { ...property, name: "Progression" } : property,
+      ),
+    };
+
+    const normalized = unwrap(validateDatabaseDefinition(renamed));
+    expect(normalized.taskRoles?.statusPropertyId).toBe(IDS.status);
+    expect(normalized.properties.find(({ id }) => id === IDS.status)?.name).toBe("Progression");
+  });
+
+  it("projects task semantics from canonical values without creating a task record", () => {
+    const projected = projectTaskSemantics(
+      definition(),
+      values(IDS.entryA, {
+        [IDS.status]: { kind: "status", optionId: IDS.doing },
+        [IDS.date]: { kind: "date", date: "2026-09-15" },
+        [IDS.select]: { kind: "select", optionId: IDS.high },
+      }),
+    );
+
+    expect(projected.ok).toBe(true);
+    if (!projected.ok || projected.value === null) return;
+    expect(projected.value).toEqual({
+      entryId: IDS.entryA,
+      status: {
+        propertyId: IDS.status,
+        value: { kind: "status", optionId: IDS.doing },
+      },
+      dueDate: {
+        propertyId: IDS.date,
+        value: { kind: "date", date: "2026-09-15" },
+      },
+      priority: {
+        propertyId: IDS.select,
+        value: { kind: "select", optionId: IDS.high },
+      },
+    });
+    expect(Object.keys(projected.value).sort()).toEqual([
+      "dueDate",
+      "entryId",
+      "priority",
+      "status",
+    ]);
   });
 
   it("computes a stable, content-free impact for destructive schema changes", async () => {
@@ -174,5 +231,22 @@ describe("database definitions", () => {
       "impactDigest",
       "reasons",
     ]);
+  });
+
+  it("does not classify task-role remapping as destructive when values stay intact", async () => {
+    const current = definition();
+    const impact = await previewDefinitionImpact({
+      baseRevisionId: IDS.revision,
+      current,
+      candidate: { ...current, taskRoles: null },
+      entries: [values(IDS.entryA, { [IDS.status]: { kind: "status", optionId: IDS.todo } })],
+    });
+
+    expect(impact).toMatchObject({
+      destructive: false,
+      affectedEntryCount: 0,
+      affectedValueCount: 0,
+      reasons: ["task-role-invalidated"],
+    });
   });
 });

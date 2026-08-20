@@ -223,6 +223,8 @@ test.describe("workspace search refinement (US3)", () => {
               title: isNextPage ? "Second page" : "First page",
               path: [],
               matchedField: "title",
+              propertyId: null,
+              propertyName: null,
               snippet: null,
               conflict: false,
             },

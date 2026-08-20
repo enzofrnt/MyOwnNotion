@@ -79,7 +79,7 @@ Résultat interne du moteur avant hydratation.
 | --- | --- | --- |
 | itemId | UUID | Référence SearchDocument |
 | score | nombre | Valeur interne non contractuelle |
-| matchedFields | ensemble | title ou body |
+| matchedFields | ensemble | title, body ou propriété structurée (extension 009) |
 | matchedTerms | ensemble | Valeurs normalisées gardées en mémoire |
 | orderKey | tuple | Rang stable, titre normalisé, itemId |
 
@@ -94,7 +94,9 @@ Le score brut n'est pas exposé comme contrat produit.
 | kind | page, folder, file | Type courant |
 | title | string | Titre courant |
 | path | liste de segments | Chemin courant, chaque segment garde son identité |
-| matchedField | title, fileName, body | Raison principale du résultat |
+| matchedField | title, fileName, body, property | Raison principale du résultat |
+| propertyId | UUID ou null | Propriété structurée correspondante, extension 009 |
+| propertyName | string ou null | Nom courant de cette propriété, jamais sa valeur |
 | snippet | string ou null | Texte sûr, jamais HTML |
 | conflict | boolean | Conflit à signaler |
 | localAvailability | optionnel | present, offloaded, never-fetched |

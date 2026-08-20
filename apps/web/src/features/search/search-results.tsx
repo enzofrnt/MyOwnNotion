@@ -79,6 +79,11 @@ export function SearchResults({
               {result.snippet !== null ? (
                 <span className="search-result__snippet">{result.snippet}</span>
               ) : null}
+              {result.matchedField === "property" && result.propertyName !== null ? (
+                <span className="search-result__property">
+                  Matched property: {result.propertyName}
+                </span>
+              ) : null}
               {result.localAvailability !== undefined && result.localAvailability !== "present" ? (
                 <span className="search-result__availability">
                   {result.localAvailability === "offloaded"

@@ -14,6 +14,7 @@ import {
 } from "./property-editor.tsx";
 import { SortGroupEditor } from "./sort-group-editor.tsx";
 import { type DatabaseCellUpdate, TableView } from "./table-view.tsx";
+import { TaskConfiguration } from "./task-configuration.tsx";
 import { useDatabaseView } from "./use-database-view.ts";
 import type { RelationOption } from "./value-editor.tsx";
 
@@ -232,8 +233,23 @@ export function DatabasePage({
   };
 
   const retireProperty = async (propertyId: Uuid): Promise<void> => {
+    const taskRoles =
+      definition.taskRoles === null || definition.taskRoles.statusPropertyId === propertyId
+        ? null
+        : {
+            ...definition.taskRoles,
+            dueDatePropertyId:
+              definition.taskRoles.dueDatePropertyId === propertyId
+                ? null
+                : definition.taskRoles.dueDatePropertyId,
+            priorityPropertyId:
+              definition.taskRoles.priorityPropertyId === propertyId
+                ? null
+                : definition.taskRoles.priorityPropertyId,
+          };
     const candidate: DatabaseDefinition = {
       ...definition,
+      taskRoles,
       properties: definition.properties.map((property) =>
         property.id === propertyId ? { ...property, state: "retired" as const } : property,
       ),
@@ -342,6 +358,8 @@ export function DatabasePage({
           ))}
         </ul>
       </section>
+
+      <TaskConfiguration definition={definition} onChange={onReplaceDefinition} />
 
       {impact !== null && pendingDefinition !== null ? (
         <section className="database-impact" role="alertdialog" aria-label="Confirm schema change">

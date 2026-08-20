@@ -124,6 +124,8 @@ components:
         - title
         - path
         - matchedField
+        - propertyId
+        - propertyName
         - snippet
         - conflict
       properties:
@@ -149,6 +151,18 @@ components:
             - title
             - fileName
             - body
+            - property
+        propertyId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: "null"
+        propertyName:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 512
+            - type: "null"
         snippet:
           oneOf:
             - type: string

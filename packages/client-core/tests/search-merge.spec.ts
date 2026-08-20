@@ -26,6 +26,8 @@ function result(
     title,
     path: [{ itemId, title }],
     matchedField: "title",
+    propertyId: null,
+    propertyName: null,
     snippet: null,
     conflict: localState === "conflict",
     localAvailability: "present",

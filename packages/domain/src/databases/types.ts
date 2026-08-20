@@ -210,6 +210,24 @@ export interface TaskRoleMapping {
   readonly priorityPropertyId: Uuid | null;
 }
 
+export type TaskRole = "status" | "dueDate" | "priority";
+export type TaskStatusValue = StatusPropertyValue | SelectPropertyValue;
+export type TaskDueDateValue = CivilDatePropertyValue | InstantPropertyValue;
+
+export interface TaskSemanticField<T extends NonRelationPropertyValue> {
+  /** Stable reference to the canonical property; no task value is persisted here. */
+  readonly propertyId: Uuid;
+  readonly value: T | null;
+}
+
+/** A transient semantic projection over one ordinary database entry. */
+export interface TaskSemanticProjection {
+  readonly entryId: Uuid;
+  readonly status: TaskSemanticField<TaskStatusValue>;
+  readonly dueDate: TaskSemanticField<TaskDueDateValue> | null;
+  readonly priority: TaskSemanticField<TaskStatusValue> | null;
+}
+
 export interface DatabaseDefinition {
   readonly format: typeof DATABASE_DEFINITION_FORMAT;
   readonly formatVersion: typeof DATABASE_FORMAT_VERSION;

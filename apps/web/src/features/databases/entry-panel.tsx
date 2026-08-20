@@ -62,6 +62,28 @@ export function EntryPanel({
       ),
     [definition],
   );
+  const taskProperties = useMemo(() => {
+    const roles = definition.taskRoles;
+    if (roles === null) return [];
+    const configured = [
+      ["status", roles.statusPropertyId],
+      ["dueDate", roles.dueDatePropertyId],
+      ["priority", roles.priorityPropertyId],
+    ] as const;
+    return configured.flatMap(([role, propertyId]) => {
+      if (propertyId === null) return [];
+      const property = editableProperties.find(({ id }) => id === propertyId);
+      return property === undefined ? [] : [{ role, property }];
+    });
+  }, [definition.taskRoles, editableProperties]);
+  const taskPropertyIds = useMemo(
+    () => new Set(taskProperties.map(({ property }) => property.id)),
+    [taskProperties],
+  );
+  const ordinaryProperties = useMemo(
+    () => editableProperties.filter(({ id }) => !taskPropertyIds.has(id)),
+    [editableProperties, taskPropertyIds],
+  );
   const [drafts, setDrafts] = useState<Readonly<Record<string, ValueDraft>>>(() =>
     Object.fromEntries(
       editableProperties.map((property) => [property.id, initialDraft(property, entry)]),
@@ -118,22 +140,61 @@ export function EntryPanel({
         {editableProperties.length === 0 ? (
           <p className="empty-state">This database has no additional properties yet.</p>
         ) : (
-          editableProperties.map((property) => (
-            <ValueEditor
-              key={property.id}
-              property={property}
-              input={drafts[property.id] ?? (property.type === "checkbox" ? false : [])}
-              error={errors[property.id] ?? null}
-              relationOptions={relationOptions.filter((option) => option.id !== entry.entryId)}
-              onChange={(input) => {
-                setDrafts((current) => ({ ...current, [property.id]: input }));
-                setErrors((current) => {
-                  const { [property.id]: _removed, ...remaining } = current;
-                  return remaining;
-                });
-              }}
-            />
-          ))
+          <>
+            {taskProperties.length === 0 ? null : (
+              <section className="entry-task-properties" aria-label="Task tracking">
+                <h3>Task tracking</h3>
+                {taskProperties.map(({ role, property }) => (
+                  <div key={role} data-task-role={role} className="entry-task-property">
+                    <p className="muted">
+                      {role === "status"
+                        ? "Task status"
+                        : role === "dueDate"
+                          ? "Task due date"
+                          : "Task priority"}
+                    </p>
+                    <ValueEditor
+                      property={property}
+                      input={drafts[property.id] ?? (property.type === "checkbox" ? false : [])}
+                      error={errors[property.id] ?? null}
+                      relationOptions={relationOptions.filter(
+                        (option) => option.id !== entry.entryId,
+                      )}
+                      onChange={(input) => {
+                        setDrafts((current) => ({ ...current, [property.id]: input }));
+                        setErrors((current) => {
+                          const { [property.id]: _removed, ...remaining } = current;
+                          return remaining;
+                        });
+                      }}
+                    />
+                  </div>
+                ))}
+              </section>
+            )}
+            {ordinaryProperties.length === 0 ? null : (
+              <section className="entry-ordinary-properties" aria-label="Other properties">
+                {ordinaryProperties.map((property) => (
+                  <ValueEditor
+                    key={property.id}
+                    property={property}
+                    input={drafts[property.id] ?? (property.type === "checkbox" ? false : [])}
+                    error={errors[property.id] ?? null}
+                    relationOptions={relationOptions.filter(
+                      (option) => option.id !== entry.entryId,
+                    )}
+                    onChange={(input) => {
+                      setDrafts((current) => ({ ...current, [property.id]: input }));
+                      setErrors((current) => {
+                        const { [property.id]: _removed, ...remaining } = current;
+                        return remaining;
+                      });
+                    }}
+                  />
+                ))}
+              </section>
+            )}
+          </>
         )}
         <button type="button" onClick={() => void save()} disabled={saving}>
           {saving ? "Saving locally…" : "Save properties"}

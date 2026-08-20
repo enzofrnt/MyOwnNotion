@@ -1,12 +1,20 @@
 import type { ItemKind } from "../content/types.ts";
+import type { TaskRole } from "../databases/types.ts";
 import type { Uuid } from "../ids/uuid.ts";
 
 export const MAX_SEARCH_QUERY_LENGTH = 512;
 export const DEFAULT_SEARCH_LIMIT = 20;
 export const MAX_SEARCH_LIMIT = 50;
 
-export type SearchMatchedField = "title" | "fileName" | "body";
+export type SearchMatchedField = "title" | "fileName" | "body" | "property";
 export type LocalAvailability = "present" | "offloaded" | "never-fetched";
+
+export interface SearchPropertyText {
+  readonly propertyId: Uuid;
+  readonly propertyName: string;
+  readonly text: string;
+  readonly taskRole: TaskRole | null;
+}
 
 /** One active, transient projection entry. It is never serialized. */
 export interface SearchDocument {
@@ -17,6 +25,7 @@ export interface SearchDocument {
   readonly kind: ItemKind;
   readonly title: string;
   readonly bodyText: string;
+  readonly properties: readonly SearchPropertyText[];
   readonly conflict: boolean;
 }
 
@@ -44,6 +53,8 @@ export interface SearchCandidate {
   readonly kind: ItemKind;
   readonly title: string;
   readonly bodyText: string;
+  readonly matchedPropertyId: Uuid | null;
+  readonly matchedPropertyName: string | null;
   readonly conflict: boolean;
   readonly score: number;
   readonly matchedFields: readonly SearchMatchedField[];
@@ -63,6 +74,8 @@ export interface SearchResult {
   readonly title: string;
   readonly path: readonly SearchPathSegment[];
   readonly matchedField: SearchMatchedField;
+  readonly propertyId: Uuid | null;
+  readonly propertyName: string | null;
   readonly snippet: string | null;
   readonly conflict: boolean;
   readonly localAvailability?: LocalAvailability;

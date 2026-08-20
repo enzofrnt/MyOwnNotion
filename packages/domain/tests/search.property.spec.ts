@@ -62,6 +62,7 @@ describe("WorkspaceSearchIndex properties", () => {
                 kind: operation.itemIndex % 3 === 0 ? "folder" : "page",
                 title: `Shared token ${operation.token}`,
                 bodyText: `Body token ${operation.token}`,
+                properties: [],
                 conflict: false,
               };
               index.upsert(document);

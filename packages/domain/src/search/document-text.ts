@@ -1,5 +1,14 @@
+import type {
+  DatabaseDefinition,
+  DatabaseProperty,
+  EntryValues,
+  NonRelationPropertyValue,
+  TaskRole,
+} from "../databases/types.ts";
 import { type Block, childrenOf, hasInlineContent, isUnknownBlock } from "../document/block.ts";
 import type { BlockDocument } from "../document/document.ts";
+import type { Uuid } from "../ids/uuid.ts";
+import type { SearchPropertyText } from "./types.ts";
 
 const CONTROL_CHARACTERS = /[\p{Cc}\p{Cf}]+/gu;
 const INLINE_WHITESPACE = /\s+/gu;
@@ -38,4 +47,67 @@ export function extractSearchableDocumentText(document: BlockDocument): string {
   };
   visit(document.blocks);
   return parts.join("\n");
+}
+
+function taskRoleByProperty(definition: DatabaseDefinition): ReadonlyMap<Uuid, TaskRole> {
+  const roles = definition.taskRoles;
+  if (roles === null) return new Map();
+  const byProperty = new Map<Uuid, TaskRole>([[roles.statusPropertyId, "status"]]);
+  if (roles.dueDatePropertyId !== null) byProperty.set(roles.dueDatePropertyId, "dueDate");
+  if (roles.priorityPropertyId !== null && !byProperty.has(roles.priorityPropertyId)) {
+    byProperty.set(roles.priorityPropertyId, "priority");
+  }
+  return byProperty;
+}
+
+function optionText(
+  property: Extract<DatabaseProperty, { type: "status" | "select" | "multi-select" }>,
+  optionId: Uuid,
+): string | null {
+  const option = property.config.options.find(
+    ({ id, state }) => id === optionId && state === "active",
+  );
+  return option === undefined ? null : cleanVisibleText(option.label);
+}
+
+function searchablePropertyValue(
+  property: DatabaseProperty,
+  value: NonRelationPropertyValue | undefined,
+  taskRole: TaskRole | null,
+): string | null {
+  if (value === undefined) return null;
+  if (property.type === "text" && value.kind === "text") {
+    return cleanVisibleText(value.value);
+  }
+  if (taskRole === "dueDate" && property.type === "date") {
+    if (value.kind === "date") return value.date;
+    if (value.kind === "instant") return value.instant;
+    return null;
+  }
+  if (
+    (taskRole === "status" || taskRole === "priority") &&
+    (property.type === "status" || property.type === "select") &&
+    (value.kind === "status" || value.kind === "select")
+  ) {
+    return optionText(property, value.optionId);
+  }
+  return null;
+}
+
+/** Extracts only active text values and the configured task semantics. */
+export function extractSearchablePropertyText(
+  definition: DatabaseDefinition,
+  values: EntryValues,
+): SearchPropertyText[] {
+  if (definition.databaseId !== values.databaseId) return [];
+  const roleByProperty = taskRoleByProperty(definition);
+  return definition.properties.flatMap((property): SearchPropertyText[] => {
+    if (property.state !== "active") return [];
+    const taskRole = roleByProperty.get(property.id) ?? null;
+    if (property.type !== "text" && taskRole === null) return [];
+    const text = searchablePropertyValue(property, values.values[property.id], taskRole);
+    return text === null || text.length === 0
+      ? []
+      : [{ propertyId: property.id, propertyName: property.name, text, taskRole }];
+  });
 }

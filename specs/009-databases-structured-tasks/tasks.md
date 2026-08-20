@@ -156,21 +156,21 @@ relations et l'indépendance d'une checkbox éditoriale.
 
 ### Tests for User Story 3
 
-- [ ] T058 [P] [US3] Étendre les tests de schéma avec activation/désactivation des rôles, types incompatibles et renommage de propriété mappée dans packages/domain/tests/databases/schema.spec.ts (FR-030 à FR-033)
-- [ ] T059 [P] [US3] Écrire les tests d'indexation des textes, options de tâche, échéance, matched property et déduplication par entrée dans packages/domain/tests/search-index.spec.ts et packages/client-core/tests/local-search-source.spec.ts (FR-041, FR-042)
-- [ ] T060 [P] [US3] Écrire les tests React de configuration des rôles et panneau tâche/page dans apps/web/tests/database-tasks.spec.tsx
-- [ ] T061 [US3] Écrire le parcours Playwright tâche, notes, statut, échéance, priorité, relation, recherche et checkbox indépendante dans tests/e2e/databases-tasks.spec.ts (acceptance US3)
+- [X] T058 [P] [US3] Étendre les tests de schéma avec activation/désactivation des rôles, types incompatibles et renommage de propriété mappée dans packages/domain/tests/databases/schema.spec.ts (FR-030 à FR-033)
+- [X] T059 [P] [US3] Écrire les tests d'indexation des textes, options de tâche, échéance, matched property et déduplication par entrée dans packages/domain/tests/search-index.spec.ts et packages/client-core/tests/local-search-source.spec.ts (FR-041, FR-042)
+- [X] T060 [P] [US3] Écrire les tests React de configuration des rôles et panneau tâche/page dans apps/web/tests/database-tasks.spec.tsx
+- [X] T061 [US3] Écrire le parcours Playwright tâche, notes, statut, échéance, priorité, relation, recherche et checkbox indépendante dans tests/e2e/databases-tasks.spec.ts (acceptance US3)
 
 ### Implementation for User Story 3
 
-- [ ] T062 [US3] Implémenter les règles TaskRoleMapping et la projection sémantique sans données dupliquées dans packages/domain/src/databases/schema.ts et packages/domain/src/databases/types.ts pour satisfaire T058
-- [ ] T063 [US3] Ajouter la configuration explicite des rôles et leurs états invalides dans apps/web/src/features/databases/task-configuration.tsx et database-page.tsx
-- [ ] T064 [US3] Présenter statut, échéance, priorité, propriétés ordinaires et document dans un même parcours dans apps/web/src/features/databases/entry-panel.tsx pour satisfaire T060
-- [ ] T065 [US3] Étendre SearchDocument, extraction et résultat avec propertyId/matchedField structurés dans packages/domain/src/search/types.ts, packages/domain/src/search/document-text.ts et packages/domain/src/search/search-index.ts
-- [ ] T066 [US3] Hydrater les valeurs structurées actives dans packages/database/src/repositories/search-source-repository.ts et packages/client-core/src/search/local-search-source.ts sans index persistant
-- [ ] T067 [US3] Mettre à jour l'index serveur/local après commit de valeur/rôle et afficher la propriété correspondante dans apps/api/src/search/search-service.ts, apps/web/src/features/search/search.worker.ts et apps/web/src/features/search/search-results.tsx
-- [ ] T068 [US3] Garantir qu'aucune mutation de bloc checkbox ne crée ou ne modifie une entrée structurée dans packages/domain/tests/databases/commands.spec.ts et apps/web/src/features/editor/editor-surface.tsx
-- [ ] T069 [US3] Exécuter T058 à T061 et consigner les preuves tâche-page et recherche dans specs/009-databases-structured-tasks/validation.md
+- [X] T062 [US3] Implémenter les règles TaskRoleMapping et la projection sémantique sans données dupliquées dans packages/domain/src/databases/schema.ts et packages/domain/src/databases/types.ts pour satisfaire T058
+- [X] T063 [US3] Ajouter la configuration explicite des rôles et leurs états invalides dans apps/web/src/features/databases/task-configuration.tsx et database-page.tsx
+- [X] T064 [US3] Présenter statut, échéance, priorité, propriétés ordinaires et document dans un même parcours dans apps/web/src/features/databases/entry-panel.tsx pour satisfaire T060
+- [X] T065 [US3] Étendre SearchDocument, extraction et résultat avec propertyId/matchedField structurés dans packages/domain/src/search/types.ts, packages/domain/src/search/document-text.ts et packages/domain/src/search/search-index.ts
+- [X] T066 [US3] Hydrater les valeurs structurées actives dans packages/database/src/repositories/search-source-repository.ts et packages/client-core/src/search/local-search-source.ts sans index persistant
+- [X] T067 [US3] Mettre à jour l'index serveur/local après commit de valeur/rôle et afficher la propriété correspondante dans apps/api/src/search/search-service.ts, apps/web/src/features/search/search.worker.ts et apps/web/src/features/search/search-results.tsx
+- [X] T068 [US3] Garantir qu'aucune mutation de bloc checkbox ne crée ou ne modifie une entrée structurée dans packages/domain/tests/databases/commands.spec.ts et apps/web/src/features/editor/editor-surface.tsx
+- [X] T069 [US3] Exécuter T058 à T061 et consigner les preuves tâche-page et recherche dans specs/009-databases-structured-tasks/validation.md
 
 **Checkpoint**: Les tâches sont des pages structurées uniques, trouvables et
 modifiables, sans synchronisation implicite avec les checkboxes éditoriales.

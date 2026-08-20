@@ -1,10 +1,13 @@
 import {
   extractSearchableDocumentText,
+  extractSearchablePropertyText,
   readDocumentBody,
   type SearchDocument,
   type SearchPathSegment,
+  type SearchPropertyText,
   type Uuid,
 } from "@myownnotion/domain";
+import type { LocalDatabaseRepository } from "../databases/local-database-repository.ts";
 import type { LocalRepository, ProjectedItem } from "../local-store/local-repository.ts";
 
 export type LocalSearchSyncState = "synchronized" | "pending" | "conflict";
@@ -60,18 +63,57 @@ function bodyTextOf(item: ProjectedItem): string {
 
 export class LocalSearchSource {
   readonly #repository: LocalRepository;
+  readonly #databases: LocalDatabaseRepository | undefined;
 
-  constructor(repository: LocalRepository) {
+  constructor(repository: LocalRepository, databases?: LocalDatabaseRepository) {
     this.#repository = repository;
+    this.#databases = databases;
+  }
+
+  async #propertyText(
+    active: ReadonlyMap<Uuid, ProjectedItem>,
+  ): Promise<ReadonlyMap<Uuid, readonly SearchPropertyText[]>> {
+    if (this.#databases === undefined) return new Map();
+    const storedEntries = await this.#databases.db.databaseEntries.toArray();
+    const definitionByDatabase = new Map<
+      Uuid,
+      Awaited<ReturnType<LocalDatabaseRepository["getDatabase"]>>
+    >();
+    const properties = new Map<Uuid, readonly SearchPropertyText[]>();
+    for (const storedEntry of storedEntries) {
+      const item = active.get(storedEntry.entryItemId);
+      if (
+        item === undefined ||
+        item.localAvailability !== "present" ||
+        storedEntry.availability !== "present"
+      ) {
+        properties.set(storedEntry.entryItemId, []);
+        continue;
+      }
+      let database = definitionByDatabase.get(storedEntry.databaseId);
+      if (database === undefined) {
+        database = await this.#databases.getDatabase(storedEntry.databaseId);
+        definitionByDatabase.set(storedEntry.databaseId, database);
+      }
+      const entry = await this.#databases.getEntry(storedEntry.entryItemId);
+      properties.set(
+        storedEntry.entryItemId,
+        database === null || entry === null
+          ? []
+          : extractSearchablePropertyText(database.definition, entry.values),
+      );
+    }
+    return properties;
   }
 
   async list(sourceVersion: number): Promise<LocalSearchEntry[]> {
     const items = await this.#repository.listItems("active");
     const active = new Map(items.map((item) => [item.id, item]));
-    const [headers, outbox, conflicts] = await Promise.all([
+    const [headers, outbox, conflicts, propertyText] = await Promise.all([
       this.#repository.db.revisionHeaders.where("local").equals(1).toArray(),
       this.#repository.db.outbox.toArray(),
       this.#repository.db.conflicts.toArray(),
+      this.#propertyText(active),
     ]);
     const itemByRevision = new Map(headers.map((header) => [header.id, header.itemId]));
     const pendingItemIds = new Set(
@@ -106,6 +148,7 @@ export class LocalSearchSource {
             kind: item.kind,
             title: item.name,
             bodyText: bodyTextOf(item),
+            properties: propertyText.get(item.id) ?? [],
             conflict: syncState === "conflict",
           },
           path: currentPath(item, active),
@@ -118,6 +161,13 @@ export class LocalSearchSource {
 
   async read(itemIds: readonly Uuid[], sourceVersion: number): Promise<LocalSearchEntry[]> {
     const requested = new Set(itemIds);
+    if (this.#databases !== undefined && itemIds.length > 0) {
+      const dependentEntries = await this.#databases.db.databaseEntries
+        .where("databaseId")
+        .anyOf(itemIds)
+        .toArray();
+      for (const entry of dependentEntries) requested.add(entry.entryItemId);
+    }
     return (await this.list(sourceVersion)).filter(({ document }) =>
       requested.has(document.itemId),
     );

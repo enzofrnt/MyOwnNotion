@@ -378,6 +378,24 @@
       }
     },
     {
+      "test": "tests/e2e/databases-tasks.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/search/search-service.ts",
+          "apps/web/src/services/search.ts",
+          "packages/database/src/repositories/search-source-repository.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/search/",
+          "packages/client-core/src/search/",
+          "packages/domain/src/databases/",
+          "packages/domain/src/search/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/interrupted-mutations.spec.ts",
       "owners": {
         "exact": ["apps/api/src/routes/mutation-batch.ts"],

@@ -9,7 +9,11 @@ import type {
   EntryValues,
   NonRelationPropertyValue,
   PropertyOption,
+  TaskDueDateValue,
   TaskRoleMapping,
+  TaskSemanticField,
+  TaskSemanticProjection,
+  TaskStatusValue,
 } from "./types.ts";
 
 function invalidDefinition(fields: readonly string[]): DomainResult<DatabaseDefinition> {
@@ -172,6 +176,65 @@ export function validateDatabaseDefinition(
   });
 }
 
+function taskProjectionError(field: string): DomainResult<TaskSemanticProjection | null> {
+  return err("validation.invalid-payload", "Task semantic projection is invalid", {
+    invalidFields: [{ field, code: "invalid" }],
+  });
+}
+
+function taskStatusField(
+  propertyId: Uuid,
+  values: EntryValues,
+): TaskSemanticField<TaskStatusValue> | null {
+  const value = values.values[propertyId];
+  if (value === undefined) return { propertyId, value: null };
+  return value.kind === "status" || value.kind === "select" ? { propertyId, value } : null;
+}
+
+function taskDueDateField(
+  propertyId: Uuid,
+  values: EntryValues,
+): TaskSemanticField<TaskDueDateValue> | null {
+  const value = values.values[propertyId];
+  if (value === undefined) return { propertyId, value: null };
+  return value.kind === "date" || value.kind === "instant" ? { propertyId, value } : null;
+}
+
+/**
+ * Gives task-aware consumers stable references to canonical entry values.
+ * It creates no task entity and stores no copy of status, due date or priority.
+ */
+export function projectTaskSemantics(
+  definition: DatabaseDefinition,
+  values: EntryValues,
+): DomainResult<TaskSemanticProjection | null> {
+  const validated = validateDatabaseDefinition(definition);
+  if (!validated.ok) return taskProjectionError("definition");
+  if (
+    values.databaseId !== validated.value.databaseId ||
+    values.format !== "myownnotion.database-entry-values+json" ||
+    values.formatVersion !== 1
+  ) {
+    return taskProjectionError("values");
+  }
+  const roles = validated.value.taskRoles;
+  if (roles === null) return ok(null);
+
+  const status = taskStatusField(roles.statusPropertyId, values);
+  const dueDate =
+    roles.dueDatePropertyId === null ? null : taskDueDateField(roles.dueDatePropertyId, values);
+  const priority =
+    roles.priorityPropertyId === null ? null : taskStatusField(roles.priorityPropertyId, values);
+  if (status === null) return taskProjectionError("values.status");
+  if (roles.dueDatePropertyId !== null && dueDate === null) {
+    return taskProjectionError("values.dueDate");
+  }
+  if (roles.priorityPropertyId !== null && priority === null) {
+    return taskProjectionError("values.priority");
+  }
+  return ok({ entryId: values.entryId, status, dueDate, priority });
+}
+
 function optionIds(property: DatabaseProperty): readonly Uuid[] {
   return property.type === "status" ||
     property.type === "select" ||
@@ -241,7 +304,10 @@ export async function previewDefinitionImpact(input: {
       }
     }
   }
-  if (canonicalJson(current.value.taskRoles) !== canonicalJson(candidate.value.taskRoles)) {
+  if (
+    current.value.taskRoles !== null &&
+    canonicalJson(current.value.taskRoles) !== canonicalJson(candidate.value.taskRoles)
+  ) {
     reasons.add("task-role-invalidated");
   }
 
@@ -282,7 +348,7 @@ export async function previewDefinitionImpact(input: {
   };
 
   return {
-    destructive: reasons.size > 0,
+    destructive: destructiveProperties.size > 0 || retiredOptions.size > 0,
     affectedEntryCount: affectedEntries.size,
     affectedValueCount: affectedPairs.size,
     reasons: orderedReasons,

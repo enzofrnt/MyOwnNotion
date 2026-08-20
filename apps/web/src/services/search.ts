@@ -25,6 +25,7 @@ export interface SearchWorkerClient {
 export interface WorkspaceSearchContent {
   readonly api: Pick<ContentApi, "search">;
   readonly repository: LocalContentService["repository"];
+  readonly databases?: LocalContentService["databases"];
   subscribeProjection(
     listener: (change: LocalProjectionChange) => void | Promise<void>,
   ): () => void;
@@ -117,6 +118,8 @@ function serverResult(result: SearchResultDto): SearchClientResult {
     title: result.title,
     path: result.path.map((segment) => ({ itemId: segment.itemId as Uuid, title: segment.title })),
     matchedField: result.matchedField,
+    propertyId: result.propertyId === null ? null : (result.propertyId as Uuid),
+    propertyName: result.propertyName,
     snippet: result.snippet,
     conflict: result.conflict,
     source: "server",
@@ -145,7 +148,7 @@ export class WorkspaceSearchService {
   ) {
     this.#content = content;
     this.#api = options.api ?? content.api;
-    this.#source = options.source ?? new LocalSearchSource(content.repository);
+    this.#source = options.source ?? new LocalSearchSource(content.repository, content.databases);
     this.#worker = options.worker ?? new BrowserSearchWorkerClient();
     this.#unsubscribeProjection = content.subscribeProjection(async (change) => {
       await this.#onProjectionChange(change);
@@ -257,6 +260,8 @@ export class WorkspaceSearchService {
           title: candidate.title,
           path: entry.path,
           matchedField,
+          propertyId: matchedField === "property" ? candidate.matchedPropertyId : null,
+          propertyName: matchedField === "property" ? candidate.matchedPropertyName : null,
           snippet:
             matchedField === "body"
               ? safeSnippet(candidate.bodyText, candidate.matchedTerms)

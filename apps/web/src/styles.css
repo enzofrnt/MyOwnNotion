@@ -259,8 +259,50 @@ select {
 .entry-properties,
 .entry-document,
 .database-impact,
-.property-editor {
+.property-editor,
+.task-configuration {
   margin-top: 1rem;
+}
+
+.task-configuration,
+.entry-task-properties,
+.entry-ordinary-properties {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.task-configuration__heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.task-configuration__heading h3,
+.entry-task-properties h3 {
+  margin-top: 0;
+}
+
+.task-configuration__roles {
+  margin-top: 0.75rem;
+}
+
+.entry-task-properties,
+.entry-ordinary-properties {
+  margin-bottom: 0.75rem;
+}
+
+.entry-task-property + .entry-task-property {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.entry-task-property > .muted {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .database-schema ul {
@@ -829,7 +871,8 @@ textarea {
 
 .search-result__kind,
 .search-result__path,
-.search-result__snippet {
+.search-result__snippet,
+.search-result__property {
   color: var(--muted);
   font-size: 0.8rem;
 }

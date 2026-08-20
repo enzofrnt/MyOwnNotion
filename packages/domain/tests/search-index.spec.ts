@@ -1,10 +1,12 @@
 import {
   asUuid,
+  extractSearchablePropertyText,
   prepareSearchQuery,
   type SearchDocument,
   WorkspaceSearchIndex,
 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
+import { definition, IDS, values } from "./databases/fixtures.ts";
 
 const itemIds = {
   exact: asUuid("018f0000-0000-7000-8000-000000000011"),
@@ -19,6 +21,7 @@ function document(
   bodyText: string,
   sourceVersion: number,
   kind: SearchDocument["kind"] = "page",
+  properties: SearchDocument["properties"] = [],
 ): SearchDocument {
   return {
     itemId,
@@ -27,6 +30,7 @@ function document(
     kind,
     title,
     bodyText,
+    properties,
     conflict: false,
   };
 }
@@ -139,5 +143,53 @@ describe("WorkspaceSearchIndex", () => {
 
     expect(() => index.upsert(inconsistent)).toThrow(/source version/i);
     expect(index.search(query("first"))).toHaveLength(1);
+  });
+
+  it("indexes active text and task-role values once per entry with the matched property", () => {
+    const properties = extractSearchablePropertyText(
+      definition(),
+      values(IDS.entryA, {
+        [IDS.text]: { kind: "text", value: "Préparer la migration" },
+        [IDS.status]: { kind: "status", optionId: IDS.doing },
+        [IDS.date]: { kind: "date", date: "2026-09-15" },
+        [IDS.select]: { kind: "select", optionId: IDS.high },
+      }),
+    );
+    const index = new WorkspaceSearchIndex([
+      document(IDS.entryA, "Migration", "Notes éditoriales", 1, "page", properties),
+    ]);
+
+    expect(properties).toEqual([
+      { propertyId: IDS.text, propertyName: "Note", text: "Préparer la migration", taskRole: null },
+      {
+        propertyId: IDS.date,
+        propertyName: "Échéance",
+        text: "2026-09-15",
+        taskRole: "dueDate",
+      },
+      {
+        propertyId: IDS.status,
+        propertyName: "Statut",
+        text: "En cours",
+        taskRole: "status",
+      },
+      {
+        propertyId: IDS.select,
+        propertyName: "Priorité",
+        text: "Haute",
+        taskRole: "priority",
+      },
+    ]);
+    expect(index.search(query("preparer migration"))).toMatchObject([
+      { itemId: IDS.entryA, matchedFields: ["property"], matchedPropertyId: IDS.text },
+    ]);
+    expect(index.search(query("en cours"))).toMatchObject([
+      { itemId: IDS.entryA, matchedFields: ["property"], matchedPropertyId: IDS.status },
+    ]);
+    expect(index.search(query("2026-09-15"))).toMatchObject([
+      { itemId: IDS.entryA, matchedFields: ["property"], matchedPropertyId: IDS.date },
+    ]);
+    expect(index.search(query("haute"))).toHaveLength(1);
+    expect(index.size).toBe(1);
   });
 });

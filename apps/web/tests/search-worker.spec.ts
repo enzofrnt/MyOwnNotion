@@ -1,5 +1,11 @@
 import { openLocalDatabase } from "@myownnotion/client-core";
-import { asUuid, generateUuidV7, type Uuid } from "@myownnotion/domain";
+import {
+  asUuid,
+  generateUuidV7,
+  type SearchDocument,
+  type SearchPropertyText,
+  type Uuid,
+} from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import { createSearchWorkerRuntime } from "../src/features/search/search.worker.ts";
 
@@ -9,8 +15,12 @@ const revisionId = asUuid("018f0000-0000-7000-8000-000000000402");
 function document(
   title: string,
   sourceVersion: number,
-  options: { readonly itemId?: Uuid; readonly kind?: "page" | "folder" | "file" } = {},
-) {
+  options: {
+    readonly itemId?: Uuid;
+    readonly kind?: "page" | "folder" | "file";
+    readonly properties?: readonly SearchPropertyText[];
+  } = {},
+): SearchDocument {
   return {
     itemId: options.itemId ?? id,
     revisionId,
@@ -18,6 +28,7 @@ function document(
     kind: options.kind ?? ("page" as const),
     title,
     bodyText: "texte local",
+    properties: options.properties ?? [],
     conflict: false,
   };
 }
@@ -92,6 +103,38 @@ describe("local search worker protocol", () => {
     ).toMatchObject({
       ok: true,
       candidates: [{ itemId: id, kind: "page" }],
+    });
+  });
+
+  it("returns the stable identity of a matching structured property", () => {
+    const propertyId = asUuid("018f0000-0000-7000-8000-000000000405");
+    const runtime = createSearchWorkerRuntime();
+    runtime.handle({
+      type: "build",
+      documents: [
+        document("Structured task", 0, {
+          properties: [
+            {
+              propertyId,
+              propertyName: "Priority",
+              text: "Urgent",
+              taskRole: "priority",
+            },
+          ],
+        }),
+      ],
+    });
+
+    expect(runtime.handle({ type: "query", query: "urgent", limit: 20 })).toMatchObject({
+      ok: true,
+      candidates: [
+        {
+          itemId: id,
+          matchedPropertyId: propertyId,
+          matchedPropertyName: "Priority",
+          matchedFields: ["property"],
+        },
+      ],
     });
   });
 

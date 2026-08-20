@@ -105,3 +105,56 @@ desktop/mobile et Firefox desktop dans le conteneur Linux documenté.
 - Le runner local fournit aussi au pré-migrateur Firefox ses fixtures de clé et
   de sauvegarde jetables, exigées par le garde de migration avant le lancement
   du conteneur.
+
+## Checkpoint US3 — tâches structurées qui restent des pages
+
+**Date**: 2026-08-20
+**Résultat**: réussi
+
+Une base peut associer explicitement ses propriétés existantes aux rôles de
+statut, échéance et priorité. Ces rôles ne créent aucune donnée parallèle : une
+tâche reste l'unique page d'entrée, avec ses propriétés, ses relations et son
+document éditorial dans le même parcours. La recherche locale et serveur trouve
+les textes et libellés structurés et indique la propriété responsable du match.
+
+### Preuves exécutées
+
+| Couche | Preuve | Résultat |
+| --- | --- | --- |
+| Domaine | Rôles compatibles, projection sans duplication, recherche structurée, identité unique et checkbox sans commande de base | 31 tests réussis |
+| Projection locale | Hydratation active, contenu offloaded non révélé, réindexation après valeur/rôle et fusion locale/serveur | 10 tests réussis |
+| Projection serveur | Expansion base-vers-entrées, métadonnées de versions et lecture des enveloppes protégées | 13 tests d'intégration réussis |
+| API et contrat | Recherche par valeur, statut renommé, propriété correspondante et schéma OpenAPI | 12 tests API et 35 tests OpenAPI réussis |
+| React et worker | Configuration des rôles, panneau tâche/page, index transitoire et libellé de propriété | 24 tests ciblés réussis |
+| Navigateur | Rôles, notes, statut, échéance, priorité, relation, recherche et checkbox éditoriale | 5 profils réussis en 24 s |
+
+La matrice navigateur a réussi sur Chromium desktop/mobile, WebKit
+desktop/mobile et Firefox desktop dans le conteneur Linux documenté. Format,
+lint et typecheck sont également verts ; le lint conserve trois avertissements
+de spécificité CSS déjà suivis sans erreur bloquante.
+
+### Invariants vérifiés
+
+- `TaskRoleMapping` référence seulement les identités stables de propriétés
+  actives et compatibles ; un renommage conserve le rôle sans remappage par nom.
+- L'activation, la désactivation ou le changement d'un rôle ne supprime aucune
+  valeur et n'est donc pas classé comme changement destructif. Le retrait ou la
+  conversion d'une propriété reste soumis à l'aperçu d'impact.
+- Les valeurs d'une entrée offloaded ne sont jamais ouvertes pour enrichir la
+  recherche locale. Le serveur et le client reconstruisent leur index en
+  mémoire depuis les enveloppes autorisées, sans index privé persistant.
+- Une recherche retourne au plus un résultat par identité de page, avec
+  `matchedField=property`, `propertyId` et `propertyName` lorsque la propriété
+  structurée porte le match.
+- Une checkbox TipTap appartient uniquement au document de la page : la cocher
+  ne crée ni ne modifie une entrée ou une valeur structurée.
+
+### Corrections issues du parcours réel
+
+- Les sauvegardes successives de rôles sont sérialisées dans l'interface. Les
+  contrôles restent désactivés jusqu'à la confirmation locale, ce qui empêche
+  deux changements rapides de partir depuis la même ancienne révision.
+- Le calcul d'impact distingue désormais un remappage sémantique, qui conserve
+  les valeurs, d'un retrait ou changement de type réellement destructif.
+- Le parcours accepte aussi bien une entrée déjà convertie au document par
+  blocs qu'une ancienne entrée nécessitant encore la conversion explicite.

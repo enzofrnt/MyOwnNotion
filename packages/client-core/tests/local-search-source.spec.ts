@@ -1,18 +1,20 @@
 import {
   applyLocalMutation,
   type LocalDatabase,
+  LocalDatabaseRepository,
   LocalRepository,
   LocalSearchSource,
   openLocalDatabase,
 } from "@myownnotion/client-core";
 import type { ItemDto } from "@myownnotion/contracts";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { type DatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestCodec, type TestCodec } from "./helpers/codec.ts";
 
 let db: LocalDatabase;
 let testCodec: TestCodec;
 let repository: LocalRepository;
+let databases: LocalDatabaseRepository;
 
 function item(input: {
   id: Uuid;
@@ -67,6 +69,7 @@ beforeEach(async () => {
   testCodec = await createTestCodec();
   db = openLocalDatabase(`search-${generateUuidV7()}`);
   repository = new LocalRepository(db, testCodec.codec);
+  databases = new LocalDatabaseRepository(db, testCodec.codec);
 });
 
 afterEach(async () => {
@@ -203,5 +206,142 @@ describe("LocalSearchSource", () => {
       secondRootId,
       multiplyPlacedFileId,
     ]);
+  });
+
+  it("hydrates locally available text and task properties without duplicating an entry", async () => {
+    const databaseId = generateUuidV7();
+    const entryId = generateUuidV7();
+    const titlePropertyId = generateUuidV7();
+    const notePropertyId = generateUuidV7();
+    const statusPropertyId = generateUuidV7();
+    const duePropertyId = generateUuidV7();
+    const priorityPropertyId = generateUuidV7();
+    const todoOptionId = generateUuidV7();
+    const highOptionId = generateUuidV7();
+    const definition: DatabaseDefinition = {
+      format: "myownnotion.database-definition+json",
+      formatVersion: 1,
+      databaseId,
+      properties: [
+        {
+          id: titlePropertyId,
+          name: "Title",
+          type: "title",
+          positionKey: "a",
+          state: "active",
+          config: {},
+        },
+        {
+          id: notePropertyId,
+          name: "Note",
+          type: "text",
+          positionKey: "b",
+          state: "active",
+          config: {},
+        },
+        {
+          id: statusPropertyId,
+          name: "Status",
+          type: "status",
+          positionKey: "c",
+          state: "active",
+          config: {
+            options: [
+              {
+                id: todoOptionId,
+                label: "To do",
+                positionKey: "a",
+                tone: "neutral",
+                state: "active",
+              },
+            ],
+          },
+        },
+        {
+          id: duePropertyId,
+          name: "Due",
+          type: "date",
+          positionKey: "d",
+          state: "active",
+          config: { mode: "date" },
+        },
+        {
+          id: priorityPropertyId,
+          name: "Priority",
+          type: "select",
+          positionKey: "e",
+          state: "active",
+          config: {
+            options: [
+              {
+                id: highOptionId,
+                label: "High",
+                positionKey: "a",
+                tone: "red",
+                state: "active",
+              },
+            ],
+          },
+        },
+      ],
+      views: [
+        {
+          id: generateUuidV7(),
+          name: "Table",
+          type: "table",
+          positionKey: "a",
+          state: "active",
+          properties: [],
+          filter: { mode: "all", criteria: [] },
+          sorts: [],
+          group: null,
+          options: { density: "comfortable", freezeTitle: true },
+        },
+      ],
+      taskRoles: {
+        statusPropertyId,
+        dueDatePropertyId: duePropertyId,
+        priorityPropertyId,
+      },
+    };
+    await repository.applyServerItems([
+      item({ id: databaseId, name: "Tasks" }),
+      item({ id: entryId, name: "Ship task search" }),
+    ]);
+    await databases.putDatabase({ itemId: databaseId, definitionVersion: 1, definition });
+    await databases.putEntry({
+      entryItemId: entryId,
+      databaseId,
+      valueVersion: 1,
+      availability: "present",
+      values: {
+        format: "myownnotion.database-entry-values+json",
+        formatVersion: 1,
+        databaseId,
+        entryId,
+        values: {
+          [notePropertyId]: { kind: "text", value: "Owner-only plan" },
+          [statusPropertyId]: { kind: "status", optionId: todoOptionId },
+          [duePropertyId]: { kind: "date", date: "2026-09-15" },
+          [priorityPropertyId]: { kind: "select", optionId: highOptionId },
+        },
+        preserved: [],
+      },
+    });
+
+    const source = new LocalSearchSource(repository, databases);
+    const entries = await source.read([databaseId], 9);
+    const taskDocuments = entries.filter(({ document }) => document.itemId === entryId);
+    expect(taskDocuments).toHaveLength(1);
+    expect(taskDocuments[0]?.document.properties).toMatchObject([
+      { propertyId: notePropertyId, text: "Owner-only plan" },
+      { propertyId: statusPropertyId, text: "To do", taskRole: "status" },
+      { propertyId: duePropertyId, text: "2026-09-15", taskRole: "dueDate" },
+      { propertyId: priorityPropertyId, text: "High", taskRole: "priority" },
+    ]);
+
+    await db.databaseEntries.update(entryId, { availability: "offloaded" });
+    const offloaded = await source.read([entryId], 10);
+    expect(offloaded[0]?.document.properties).toEqual([]);
   });
 });

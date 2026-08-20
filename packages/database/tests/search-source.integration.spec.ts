@@ -6,7 +6,7 @@ import {
   schema,
   submitMutation,
 } from "@myownnotion/database";
-import { generateUuidV7, initialKeys, type Uuid } from "@myownnotion/domain";
+import { generateUuidV7, initialKeys, type MutationCommand, type Uuid } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
@@ -218,6 +218,46 @@ describe("search source repository", () => {
     ]);
 
     expect(sources.map(({ itemId }) => itemId)).toEqual([ids.child, ids.outside]);
+  });
+
+  it("expands a changed database identity to its active entry search sources", async () => {
+    const databaseId = generateUuidV7();
+    const entryId = generateUuidV7();
+    const submit = async (command: MutationCommand) =>
+      await submitMutation(context.handle.db, {
+        workspaceId: context.workspaceId,
+        mutationId: generateUuidV7(),
+        commandType: command.type,
+        command,
+      });
+    const created = await submit({
+      type: "database.create",
+      id: databaseId,
+      name: "Tasks",
+      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "x" },
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "Table",
+    });
+    expect(created.result.status).toBe("accepted");
+    const entry = await submit({
+      type: "database.entry.create",
+      databaseId,
+      id: entryId,
+      title: "Structured task",
+      placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a" },
+      values: {},
+      relationTargets: {},
+    });
+    expect(entry.result.status).toBe("accepted");
+
+    const sources = await readSearchSources(context.handle.db, context.workspaceId, [databaseId]);
+    expect(sources.map(({ itemId }) => itemId)).toEqual([databaseId, entryId]);
+    expect(sources.find(({ itemId }) => itemId === entryId)?.databaseEntry).toEqual({
+      databaseId,
+      definitionVersion: 1,
+      valueVersion: 1,
+    });
   });
 
   it("never retains an old path after a branch move", async () => {

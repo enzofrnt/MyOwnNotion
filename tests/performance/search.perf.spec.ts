@@ -52,6 +52,7 @@ function document(index: number): SearchDocument {
     kind: "page",
     title: `Reference page ${index % 100}`,
     bodyText,
+    properties: [],
     conflict: false,
   };
 }
@@ -64,6 +65,7 @@ function fileDocument(index: number): SearchDocument {
     kind: "file",
     title: `Reference attachment ${index}`,
     bodyText: "",
+    properties: [],
     conflict: false,
   };
 }

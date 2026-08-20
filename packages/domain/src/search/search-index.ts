@@ -10,6 +10,7 @@ import {
   type SearchDocument,
   type SearchIndexQueryOptions,
   type SearchMatchedField,
+  type SearchPropertyText,
 } from "./types.ts";
 
 type UpdateResult = "inserted" | "updated" | "ignored";
@@ -40,16 +41,56 @@ function fieldsOf(
   const titleField = document.kind === "file" ? "fileName" : "title";
   const titleMatchesEveryTerm = containsEverySearchTerm(document.title, query.terms);
   const bodyMatchesEveryTerm = containsEverySearchTerm(document.bodyText, query.terms);
+  const propertyMatches = document.properties.some(({ text }) =>
+    containsEverySearchTerm(text, query.terms),
+  );
   if (titleMatchesEveryTerm) {
     fields.push(titleField);
   }
-  if (bodyMatchesEveryTerm || (!titleMatchesEveryTerm && miniSearchFields.has("bodyText"))) {
+  if (
+    bodyMatchesEveryTerm ||
+    (!titleMatchesEveryTerm && !propertyMatches && miniSearchFields.has("bodyText"))
+  ) {
     fields.push("body");
   }
-  if (!titleMatchesEveryTerm && miniSearchFields.has("title")) {
+  if (propertyMatches || miniSearchFields.has("propertyText")) {
+    fields.push("property");
+  }
+  if (
+    !titleMatchesEveryTerm &&
+    !bodyMatchesEveryTerm &&
+    !propertyMatches &&
+    miniSearchFields.has("title")
+  ) {
     fields.push(titleField);
   }
   return fields;
+}
+
+function matchedProperty(
+  document: SearchDocument,
+  query: PreparedSearchQuery,
+): SearchPropertyText | null {
+  const complete = document.properties.find(({ text }) =>
+    containsEverySearchTerm(text, query.terms),
+  );
+  if (complete !== undefined) return complete;
+  return (
+    document.properties.find(({ text }) =>
+      query.terms.some((term) =>
+        tokenizeSearchText(text).some((indexedTerm) => indexedTerm.startsWith(term)),
+      ),
+    ) ?? null
+  );
+}
+
+function indexedDocument(
+  document: SearchDocument,
+): SearchDocument & { readonly propertyText: string } {
+  return {
+    ...document,
+    propertyText: document.properties.map(({ text }) => text).join("\n"),
+  };
 }
 
 function rankOf(document: SearchDocument, query: PreparedSearchQuery): number {
@@ -73,7 +114,7 @@ export class WorkspaceSearchIndex {
 
   constructor(documents: readonly SearchDocument[] = []) {
     this.#index = new MiniSearch<SearchDocument>({
-      fields: ["title", "bodyText"],
+      fields: ["title", "bodyText", "propertyText"],
       idField: "itemId",
       storeFields: ["revisionId", "sourceVersion", "kind", "title", "bodyText", "conflict"],
       tokenize: tokenizeSearchText,
@@ -83,7 +124,7 @@ export class WorkspaceSearchIndex {
         combineWith: "AND",
         prefix: true,
         fuzzy: false,
-        boost: { title: 8, bodyText: 1 },
+        boost: { title: 8, bodyText: 1, propertyText: 1 },
       },
     });
     for (const document of documents) {
@@ -113,9 +154,9 @@ export class WorkspaceSearchIndex {
 
     const previous = this.#documents.get(document.itemId);
     if (previous === undefined) {
-      this.#index.add(document);
+      this.#index.add(indexedDocument(document));
     } else {
-      this.#index.replace(document);
+      this.#index.replace(indexedDocument(document));
     }
     this.#documents.set(document.itemId, document);
     this.#versions.set(document.itemId, document.sourceVersion);
@@ -167,6 +208,9 @@ export class WorkspaceSearchIndex {
           throw new Error("Search engine returned an unknown document identity");
         }
         const matchedFields = fieldsOf(match, document, query);
+        const property = matchedFields.includes("property")
+          ? matchedProperty(document, query)
+          : null;
         const rank = rankOf(document, query);
         const normalisedTitle = normaliseSearchText(document.title);
         return {
@@ -175,6 +219,8 @@ export class WorkspaceSearchIndex {
           kind: document.kind,
           title: document.title,
           bodyText: document.bodyText,
+          matchedPropertyId: property?.propertyId ?? null,
+          matchedPropertyName: property?.propertyName ?? null,
           conflict: document.conflict,
           score: match.score,
           matchedFields,
