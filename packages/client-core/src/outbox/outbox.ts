@@ -7,7 +7,12 @@
  * so no mutation is lost or duplicated logically.
  */
 import type { Uuid } from "@myownnotion/domain";
-import type { LocalDatabase, OutboxMutationRow, OutboxStatus } from "../local-store/schema.ts";
+import type {
+  LocalDatabase,
+  OutboxMutationRow,
+  OutboxStatus,
+  StructuredConflictContext,
+} from "../local-store/schema.ts";
 
 export class Outbox {
   readonly #db: LocalDatabase;
@@ -130,6 +135,7 @@ export class Outbox {
     competingRevisionIds: ReadonlyArray<Uuid>,
     errorCode: string,
     now: () => Date = () => new Date(),
+    structured?: StructuredConflictContext,
   ): Promise<void> {
     await this.#db.transaction("rw", [this.#db.outbox, this.#db.conflicts], async () => {
       const row = await this.#db.outbox.get(mutationId);
@@ -145,6 +151,7 @@ export class Outbox {
         competingRevisionIds: [...competingRevisionIds],
         capturedAt: now().toISOString(),
         errorCode,
+        ...(structured === undefined ? {} : { structured }),
       });
       await this.#db.outbox.delete(mutationId);
     });

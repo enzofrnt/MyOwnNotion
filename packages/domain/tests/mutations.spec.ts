@@ -100,6 +100,11 @@ describe("typed mutation dispatch (T073)", () => {
         baseRevisionId: revisionId,
         definition: databaseDefinition,
       },
+      "database.definition.resolve-conflict": {
+        databaseId: itemId,
+        resolvedRevisionIds: [revisionId, generateUuidV7()],
+        definition: databaseDefinition,
+      },
       "database.entry.create": {
         databaseId: itemId,
         id: entryId,
@@ -112,6 +117,13 @@ describe("typed mutation dispatch (T073)", () => {
         databaseId: itemId,
         entryId,
         baseRevisionId: revisionId,
+        values: {},
+        relationTargets: {},
+      },
+      "database.entry.values.resolve-conflict": {
+        databaseId: itemId,
+        entryId,
+        resolvedRevisionIds: [revisionId, generateUuidV7()],
         values: {},
         relationTargets: {},
       },

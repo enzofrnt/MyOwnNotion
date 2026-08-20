@@ -30,6 +30,7 @@ import { safeKeyBetween } from "../../services/ordering.ts";
 import { WorkspaceSearchService } from "../../services/search.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
+import { DatabaseConflictResolution } from "../databases/database-conflict-resolution.tsx";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
 import { EntryPanel } from "../databases/entry-panel.tsx";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
@@ -1150,6 +1151,13 @@ export function HierarchyExplorer({
 
       <MutationStatus service={service} />
       <StoragePanel service={service} />
+      {selectedItem !== null && selectedItem.kind === "page" ? (
+        <DatabaseConflictResolution
+          service={service}
+          itemId={selectedItem.id}
+          onResolved={() => void refresh()}
+        />
+      ) : null}
 
       {selectedItem !== null && selectedItem.kind === "page" && structuredSelectionLoading ? (
         <p className="loading-state" role="status">

@@ -731,8 +731,10 @@ export async function executeCommand(
       return executeRestoreRevision(tx, context, command);
     case "database.create":
     case "database.definition.replace":
+    case "database.definition.resolve-conflict":
     case "database.entry.create":
     case "database.entry.values.replace":
+    case "database.entry.values.resolve-conflict":
       return executeDatabaseCommand(tx, context, command);
     default: {
       const exhaustive: never = command;

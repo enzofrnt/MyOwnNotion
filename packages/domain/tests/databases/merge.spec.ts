@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { mergeDatabaseDefinitions, mergeEntryValues } from "../../src/index.ts";
+import {
+  mergeDatabaseDefinitions,
+  mergeEntryValues,
+  mergeRelationTargets,
+} from "../../src/index.ts";
 import { definition, IDS, values } from "./fixtures.ts";
 
 describe("three-way database definition merge", () => {
@@ -119,5 +123,33 @@ describe("three-way entry value merge", () => {
     expect(outcome.conflicts).toContainEqual(
       expect.objectContaining({ path: `values.${IDS.number}`, reason: "type-value-incompatible" }),
     );
+  });
+});
+
+describe("three-way relation value merge", () => {
+  it("merges relation properties changed on different identities", () => {
+    const relationA = IDS.text;
+    const relationB = IDS.number;
+    const outcome = mergeRelationTargets(
+      { [relationA]: [IDS.entryA], [relationB]: [] },
+      { [relationA]: [IDS.entryB], [relationB]: [] },
+      { [relationA]: [IDS.entryA], [relationB]: [IDS.entryC] },
+    );
+    expect(outcome).toMatchObject({
+      kind: "merged",
+      value: { [relationA]: [IDS.entryB], [relationB]: [IDS.entryC] },
+    });
+  });
+
+  it("keeps both relation sets for an owner when the same property diverges", () => {
+    const outcome = mergeRelationTargets(
+      { [IDS.text]: [IDS.entryA] },
+      { [IDS.text]: [IDS.entryB] },
+      { [IDS.text]: [IDS.entryC] },
+    );
+    expect(outcome).toMatchObject({
+      kind: "needs-owner",
+      conflicts: [{ path: `relations.${IDS.text}`, reason: "divergent-edit" }],
+    });
   });
 });

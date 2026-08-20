@@ -15,8 +15,10 @@ import { normalizeCivilDate, normalizeDecimal, normalizeInstant } from "./values
 export const DATABASE_COMMAND_TYPES = [
   "database.create",
   "database.definition.replace",
+  "database.definition.resolve-conflict",
   "database.entry.create",
   "database.entry.values.replace",
+  "database.entry.values.resolve-conflict",
 ] as const;
 
 export type DatabaseCommandType = (typeof DATABASE_COMMAND_TYPES)[number];
@@ -50,6 +52,13 @@ export type DatabaseMutationCommand =
       readonly impactConfirmation?: DatabaseImpactConfirmation;
     }
   | {
+      readonly type: "database.definition.resolve-conflict";
+      readonly databaseId: Uuid;
+      readonly resolvedRevisionIds: readonly [Uuid, Uuid];
+      readonly definition: DatabaseDefinition;
+      readonly impactConfirmation?: DatabaseImpactConfirmation;
+    }
+  | {
       readonly type: "database.entry.create";
       readonly databaseId: Uuid;
       readonly id: Uuid;
@@ -64,6 +73,14 @@ export type DatabaseMutationCommand =
       readonly databaseId: Uuid;
       readonly entryId: Uuid;
       readonly baseRevisionId: Uuid;
+      readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;
+      readonly relationTargets: RelationTargets;
+    }
+  | {
+      readonly type: "database.entry.values.resolve-conflict";
+      readonly databaseId: Uuid;
+      readonly entryId: Uuid;
+      readonly resolvedRevisionIds: readonly [Uuid, Uuid];
       readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;
       readonly relationTargets: RelationTargets;
     };
@@ -266,6 +283,19 @@ function parseImpactConfirmation(value: unknown): DatabaseImpactConfirmation | n
     : null;
 }
 
+function parseResolvedRevisionIds(value: unknown): readonly [Uuid, Uuid] | null {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    !isUuid(value[0]) ||
+    !isUuid(value[1]) ||
+    value[0] === value[1]
+  ) {
+    return null;
+  }
+  return [value[0], value[1]];
+}
+
 /** Parses the feature-009 portion of the shared mutation vocabulary. */
 export function parseDatabaseMutationCommand(
   commandType: DatabaseCommandType,
@@ -337,6 +367,39 @@ export function parseDatabaseMutationCommand(
             impactConfirmation,
           });
     }
+    case "database.definition.resolve-conflict": {
+      if (
+        !hasExactKeys(
+          payload,
+          ["databaseId", "resolvedRevisionIds", "definition"],
+          ["impactConfirmation"],
+        ) ||
+        !isUuid(payload["databaseId"])
+      ) {
+        return invalid();
+      }
+      const resolvedRevisionIds = parseResolvedRevisionIds(payload["resolvedRevisionIds"]);
+      const definition = parseDefinition(payload["definition"], payload["databaseId"]);
+      if (resolvedRevisionIds === null || definition === null) return invalid();
+      if (payload["impactConfirmation"] === undefined) {
+        return ok({
+          type: commandType,
+          databaseId: payload["databaseId"],
+          resolvedRevisionIds,
+          definition,
+        });
+      }
+      const impactConfirmation = parseImpactConfirmation(payload["impactConfirmation"]);
+      return impactConfirmation === null
+        ? invalid()
+        : ok({
+            type: commandType,
+            databaseId: payload["databaseId"],
+            resolvedRevisionIds,
+            definition,
+            impactConfirmation,
+          });
+    }
     case "database.entry.create": {
       if (
         !hasExactKeys(
@@ -396,6 +459,34 @@ export function parseDatabaseMutationCommand(
             databaseId: payload["databaseId"],
             entryId: payload["entryId"],
             baseRevisionId: payload["baseRevisionId"],
+            values,
+            relationTargets,
+          });
+    }
+    case "database.entry.values.resolve-conflict": {
+      if (
+        !hasExactKeys(payload, [
+          "databaseId",
+          "entryId",
+          "resolvedRevisionIds",
+          "values",
+          "relationTargets",
+        ]) ||
+        !isUuid(payload["databaseId"]) ||
+        !isUuid(payload["entryId"])
+      ) {
+        return invalid();
+      }
+      const resolvedRevisionIds = parseResolvedRevisionIds(payload["resolvedRevisionIds"]);
+      const values = parseValues(payload["values"]);
+      const relationTargets = parseRelationTargets(payload["relationTargets"]);
+      return resolvedRevisionIds === null || values === null || relationTargets === null
+        ? invalid()
+        : ok({
+            type: commandType,
+            databaseId: payload["databaseId"],
+            entryId: payload["entryId"],
+            resolvedRevisionIds,
             values,
             relationTargets,
           });

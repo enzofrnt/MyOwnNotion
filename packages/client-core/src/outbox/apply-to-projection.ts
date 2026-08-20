@@ -173,7 +173,12 @@ async function normalizeStructuredCommandValues(
   definition: DatabaseDefinition,
   command: Extract<
     DatabaseMutationCommand,
-    { type: "database.entry.create" | "database.entry.values.replace" }
+    {
+      type:
+        | "database.entry.create"
+        | "database.entry.values.replace"
+        | "database.entry.values.resolve-conflict";
+    }
   >,
 ): Promise<{ readonly values: EntryValues; readonly relationTargets: RelationTargets }> {
   const properties = new Map(definition.properties.map((property) => [property.id, property]));
@@ -346,7 +351,8 @@ export async function prepareProjectionWrite(
       };
     }
 
-    case "database.definition.replace": {
+    case "database.definition.replace":
+    case "database.definition.resolve-conflict": {
       const [storedDatabase, storedItem] = await Promise.all([
         db.databases.get(command.databaseId),
         db.items.get(command.databaseId),
@@ -356,7 +362,10 @@ export async function prepareProjectionWrite(
         codec.openDatabase(storedDatabase),
         codec.openItem(storedItem),
       ]);
-      if (item.currentRevisionId !== command.baseRevisionId) {
+      if (
+        command.type === "database.definition.replace" &&
+        item.currentRevisionId !== command.baseRevisionId
+      ) {
         throw new LocalValidationError(
           "revision.stale-base",
           "Database changed since this definition was prepared",
@@ -384,7 +393,7 @@ export async function prepareProjectionWrite(
         entryValues.push((await codec.openDatabaseEntry(row)).values);
       }
       const impact = await previewDefinitionImpact({
-        baseRevisionId: command.baseRevisionId,
+        baseRevisionId: item.currentRevisionId,
         current: database.definition,
         candidate: candidate.value,
         entries: entryValues,
@@ -451,7 +460,8 @@ export async function prepareProjectionWrite(
       };
     }
 
-    case "database.entry.values.replace": {
+    case "database.entry.values.replace":
+    case "database.entry.values.resolve-conflict": {
       const [storedDatabase, storedEntry, storedItem] = await Promise.all([
         db.databases.get(command.databaseId),
         db.databaseEntries.get(command.entryId),
@@ -478,7 +488,10 @@ export async function prepareProjectionWrite(
           "Database entry values are not available on this device",
         );
       }
-      if (item.currentRevisionId !== command.baseRevisionId) {
+      if (
+        command.type === "database.entry.values.replace" &&
+        item.currentRevisionId !== command.baseRevisionId
+      ) {
         throw new LocalValidationError(
           "revision.stale-base",
           "Database entry changed since values were prepared",
@@ -672,7 +685,8 @@ export async function applyCommandToProjection(
       return [revisionId];
     }
 
-    case "database.definition.replace": {
+    case "database.definition.replace":
+    case "database.definition.resolve-conflict": {
       const item = await db.items.get(command.databaseId);
       if (item === undefined || (await db.databases.get(command.databaseId)) === undefined) {
         throw new LocalValidationError("database.not-found", "Database is not available locally");
@@ -687,7 +701,9 @@ export async function applyCommandToProjection(
       const revisionId = await writeLocalRevision(
         db,
         command.databaseId,
-        [item.currentRevisionId],
+        command.type === "database.definition.resolve-conflict"
+          ? [...command.resolvedRevisionIds]
+          : [item.currentRevisionId],
         now,
         prepared.revisionId,
       );
@@ -745,7 +761,8 @@ export async function applyCommandToProjection(
       return [revisionId];
     }
 
-    case "database.entry.values.replace": {
+    case "database.entry.values.replace":
+    case "database.entry.values.resolve-conflict": {
       const item = await db.items.get(command.entryId);
       if (item === undefined || (await db.databaseEntries.get(command.entryId)) === undefined) {
         throw new LocalValidationError(
@@ -767,7 +784,9 @@ export async function applyCommandToProjection(
       const revisionId = await writeLocalRevision(
         db,
         command.entryId,
-        [item.currentRevisionId],
+        command.type === "database.entry.values.resolve-conflict"
+          ? [...command.resolvedRevisionIds]
+          : [item.currentRevisionId],
         now,
         prepared.revisionId,
       );

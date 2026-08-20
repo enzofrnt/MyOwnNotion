@@ -20,12 +20,22 @@ import type {
 } from "@myownnotion/contracts";
 import {
   type BlockDocument,
+  type DatabaseDefinition,
+  type EntryValues,
+  mergeDatabaseDefinitions,
   mergeDocuments,
+  mergeEntryValues,
+  mergeRelationTargets,
   readDocumentBody,
+  type RelationTargets,
   type Uuid,
 } from "@myownnotion/domain";
 import { LocalRepository } from "../local-store/local-repository.ts";
-import { type LocalDatabase, META_KEYS } from "../local-store/schema.ts";
+import {
+  type LocalDatabase,
+  META_KEYS,
+  type StructuredConflictContext,
+} from "../local-store/schema.ts";
 import { Outbox } from "../outbox/outbox.ts";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 
@@ -107,14 +117,29 @@ function blocksOf(document: unknown): BlockDocument | null {
  * needs — and the cost of asking unnecessarily is an interruption, while the cost
  * of merging wrongly is lost work.
  */
+type AutomaticMergeAttempt =
+  | {
+      readonly kind: "merged";
+      readonly payload: Record<string, unknown>;
+      readonly baseRevisionIds: Uuid[];
+    }
+  | { readonly kind: "needs-owner"; readonly structured: StructuredConflictContext }
+  | null;
+
+function snapshotRecord(snapshot: unknown): Record<string, unknown> | null {
+  return typeof snapshot === "object" && snapshot !== null && !Array.isArray(snapshot)
+    ? (snapshot as Record<string, unknown>)
+    : null;
+}
+
 async function tryAutomaticMerge(
+  db: LocalDatabase,
+  codec: LocalRecordCodec,
   transport: ReconcileTransport,
   row: { commandType: string; payload: Record<string, unknown>; baseRevisionIds: Uuid[] },
   competingRevisionIds: readonly Uuid[],
-): Promise<{ payload: Record<string, unknown>; baseRevisionIds: Uuid[] } | null> {
-  if (row.commandType !== "page.document.replace" || transport.getRevision === undefined) {
-    return null;
-  }
+): Promise<AutomaticMergeAttempt> {
+  if (transport.getRevision === undefined) return null;
   const competing = competingRevisionIds[0];
   const ancestorId = row.baseRevisionIds[0];
   if (competing === undefined || competingRevisionIds.length !== 1 || ancestorId === undefined) {
@@ -132,8 +157,89 @@ async function tryAutomaticMerge(
     return null;
   }
 
-  const ancestorSnapshot = ancestorRead.value.snapshot as Record<string, unknown> | null;
-  const remoteSnapshot = remoteRead.value.snapshot as Record<string, unknown> | null;
+  const ancestorSnapshot = snapshotRecord(ancestorRead.value.snapshot);
+  const remoteSnapshot = snapshotRecord(remoteRead.value.snapshot);
+
+  if (row.commandType === "database.definition.replace") {
+    // A destructive confirmation digest is tied to the old base. Reusing it
+    // after a merge would turn an obsolete decision into permission.
+    if (row.payload["impactConfirmation"] !== undefined) return null;
+    const ancestor = ancestorSnapshot?.["databaseDefinition"] as DatabaseDefinition | undefined;
+    const local = row.payload["definition"] as DatabaseDefinition | undefined;
+    const remote = remoteSnapshot?.["databaseDefinition"] as DatabaseDefinition | undefined;
+    if (ancestor === undefined || local === undefined || remote === undefined) return null;
+    const outcome = mergeDatabaseDefinitions(ancestor, local, remote);
+    if (outcome.kind === "needs-owner") {
+      return {
+        kind: "needs-owner",
+        structured: {
+          kind: "database-definition",
+          conflicts: outcome.conflicts,
+          ancestor,
+          local,
+          remote,
+        },
+      };
+    }
+    return {
+      kind: "merged",
+      payload: { ...row.payload, baseRevisionId: competing, definition: outcome.value },
+      baseRevisionIds: [competing],
+    };
+  }
+
+  if (row.commandType === "database.entry.values.replace") {
+    const entryId = row.payload["entryId"];
+    if (typeof entryId !== "string") return null;
+    const stored = await db.databaseEntries.get(entryId as Uuid);
+    if (stored === undefined || stored.sealedValues === null) return null;
+    const local = (await codec.openDatabaseEntry(stored)).values;
+    const ancestor = ancestorSnapshot?.["databaseEntryValues"] as EntryValues | undefined;
+    const remote = remoteSnapshot?.["databaseEntryValues"] as EntryValues | undefined;
+    if (ancestor === undefined || remote === undefined) return null;
+    const ancestorRelationTargets =
+      (ancestorSnapshot?.["databaseRelationTargets"] as RelationTargets | undefined) ?? {};
+    const localRelationTargets =
+      (row.payload["relationTargets"] as RelationTargets | undefined) ?? {};
+    const remoteRelationTargets =
+      (remoteSnapshot?.["databaseRelationTargets"] as RelationTargets | undefined) ?? {};
+    const valueOutcome = mergeEntryValues({ ancestor, local, remote });
+    const relationOutcome = mergeRelationTargets(
+      ancestorRelationTargets,
+      localRelationTargets,
+      remoteRelationTargets,
+    );
+    if (valueOutcome.kind === "needs-owner" || relationOutcome.kind === "needs-owner") {
+      return {
+        kind: "needs-owner",
+        structured: {
+          kind: "database-entry-values",
+          conflicts: [
+            ...(valueOutcome.kind === "needs-owner" ? valueOutcome.conflicts : []),
+            ...(relationOutcome.kind === "needs-owner" ? relationOutcome.conflicts : []),
+          ],
+          ancestor,
+          local,
+          remote,
+          ancestorRelationTargets,
+          localRelationTargets,
+          remoteRelationTargets,
+        },
+      };
+    }
+    return {
+      kind: "merged",
+      payload: {
+        ...row.payload,
+        baseRevisionId: competing,
+        values: valueOutcome.value.values,
+        relationTargets: relationOutcome.value,
+      },
+      baseRevisionIds: [competing],
+    };
+  }
+
+  if (row.commandType !== "page.document.replace") return null;
   const ancestor = blocksOf(snapshotBody(ancestorSnapshot));
   const remote = blocksOf(snapshotBody(remoteSnapshot));
   const local = blocksOf((row.payload["document"] as { body?: unknown } | undefined)?.body);
@@ -147,6 +253,7 @@ async function tryAutomaticMerge(
   }
   const document = row.payload["document"] as Record<string, unknown>;
   return {
+    kind: "merged",
     payload: {
       ...row.payload,
       document: { ...document, body: outcome.document },
@@ -245,11 +352,13 @@ export async function reconcile(
           row === undefined || alreadyMerged.has(mutationId)
             ? null
             : await tryAutomaticMerge(
+                db,
+                codec,
                 transport,
                 row,
                 (result.competingRevisionIds ?? []) as Uuid[],
               );
-        if (merged !== null) {
+        if (merged?.kind === "merged") {
           alreadyMerged.add(mutationId);
           // Requeued as an ordinary edit based on the head that beat it. Not as
           // a resolution: nothing needed deciding, so recording a two-parent
@@ -262,6 +371,8 @@ export async function reconcile(
           mutationId,
           (result.competingRevisionIds ?? []) as Uuid[],
           result.problem?.code ?? "mutation.conflict",
+          undefined,
+          merged?.kind === "needs-owner" ? merged.structured : undefined,
         );
       } else if (isWriteBlock(result.problem?.code)) {
         // Refused by a condition on the server rather than by a competing

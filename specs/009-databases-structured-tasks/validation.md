@@ -201,3 +201,27 @@ typecheck complet du monorepo.
 Le test contrat API complet de réconciliation (11 scénarios), le test
 d'intégration PostgreSQL du change feed, les 22 tests ciblés de projection et
 réconciliation locale, ainsi que le typecheck complet réussissent.
+
+### Fusion et résolution structurées
+
+- Les définitions fusionnent par identités stables de propriété et de vue ; les
+  valeurs et relations fusionnent par identité de propriété. Deux champs
+  distincts sont rebasés automatiquement sur la tête distante.
+- Une divergence sur le même champ conserve durablement l'ancêtre, la version
+  locale et la version distante dans le conflit. Une mutation ne peut être
+  fusionnée automatiquement qu'une fois par passe de réconciliation.
+- La résolution compare les trois versions champ par champ pour schéma, vue,
+  valeur et relation. Les choix explicites de l'utilisateur s'appliquent aux
+  seuls champs divergents tandis que les changements compatibles des deux
+  appareils restent dans le résultat revu avant sauvegarde.
+- Les commandes de résolution de définition et de valeurs exigent exactement
+  deux révisions distinctes, deviennent la nouvelle tête et écrivent deux
+  arêtes parentes. Le conflit local n'est supprimé qu'après l'écriture durable
+  de la résolution dans l'outbox.
+- Une résolution de schéma destructive repasse par l'aperçu d'impact et exige
+  le choix explicite de préserver ou de supprimer les valeurs incompatibles.
+
+Les 25 tests domaine ciblés de commandes et fusion, les 36 tests client ciblés
+de réconciliation/outbox/résolution, les 7 tests d'intégration PostgreSQL des
+bases, les 2 tests React de résolution structurée et le typecheck complet
+réussissent. Le lint ne signale que les trois avertissements CSS préexistants.

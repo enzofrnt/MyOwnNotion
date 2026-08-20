@@ -4,6 +4,7 @@ import { definition, IDS } from "./fixtures.ts";
 
 const PLACEMENT_ID = asUuid("018f0000-0000-7000-8000-000000000022");
 const BASE_REVISION_ID = asUuid("018f0000-0000-7000-8000-000000000023");
+const REMOTE_REVISION_ID = asUuid("018f0000-0000-7000-8000-000000000025");
 
 const placement = {
   id: PLACEMENT_ID,
@@ -25,13 +26,15 @@ function parse(commandType: string, payload: Record<string, unknown>) {
 }
 
 describe("structured database commands (T018)", () => {
-  it("registers the four commands in the canonical command vocabulary", () => {
+  it("registers create, replace, and conflict-resolution commands", () => {
     expect(COMMAND_TYPES).toEqual(
       expect.arrayContaining([
         "database.create",
         "database.definition.replace",
+        "database.definition.resolve-conflict",
         "database.entry.create",
         "database.entry.values.replace",
+        "database.entry.values.resolve-conflict",
       ]),
     );
   });
@@ -112,6 +115,51 @@ describe("structured database commands (T018)", () => {
     expect(result.value.values).toEqual(values);
     expect(result.value.relationTargets).toEqual(relationTargets);
   });
+
+  it("parses definition and entry resolutions with exactly two distinct parents", () => {
+    const definitionResolution = parse("database.definition.resolve-conflict", {
+      databaseId: IDS.database,
+      resolvedRevisionIds: [BASE_REVISION_ID, REMOTE_REVISION_ID],
+      definition: definition(),
+    });
+    const entryResolution = parse("database.entry.values.resolve-conflict", {
+      databaseId: IDS.database,
+      entryId: IDS.entryA,
+      resolvedRevisionIds: [BASE_REVISION_ID, REMOTE_REVISION_ID],
+      values,
+      relationTargets,
+    });
+
+    expect(definitionResolution.ok).toBe(true);
+    expect(entryResolution.ok).toBe(true);
+  });
+
+  it.each([
+    [[]],
+    [[BASE_REVISION_ID]],
+    [[BASE_REVISION_ID, BASE_REVISION_ID]],
+    [[BASE_REVISION_ID, REMOTE_REVISION_ID, IDS.entryA]],
+  ] satisfies Array<[Uuid[]]>)(
+    "rejects invalid resolution parent sets %#",
+    (resolvedRevisionIds) => {
+      expect(
+        parse("database.definition.resolve-conflict", {
+          databaseId: IDS.database,
+          resolvedRevisionIds,
+          definition: definition(),
+        }).ok,
+      ).toBe(false);
+      expect(
+        parse("database.entry.values.resolve-conflict", {
+          databaseId: IDS.database,
+          entryId: IDS.entryA,
+          resolvedRevisionIds,
+          values,
+          relationTargets,
+        }).ok,
+      ).toBe(false);
+    },
+  );
 
   it("parses repeated payloads to the same desired command without generating identities", () => {
     const payload = {

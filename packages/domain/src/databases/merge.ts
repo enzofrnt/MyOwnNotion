@@ -9,6 +9,7 @@ import type {
   EntryValues,
   NonRelationPropertyValue,
   PreservedValue,
+  RelationTargets,
 } from "./types.ts";
 
 function same(left: unknown, right: unknown): boolean {
@@ -253,6 +254,19 @@ export function mergeEntryValues(input: MergeEntryValuesInput): DatabaseMergeOut
     conflicts,
   ) as Pick<EntryValues, "format" | "formatVersion" | "databaseId" | "entryId">;
   const value: EntryValues = { ...identity, values, preserved };
+  return conflicts.length === 0
+    ? { kind: "merged", value }
+    : { kind: "needs-owner", conflicts, ancestor, local, remote };
+}
+
+/** Three-way merge for relation properties, keyed by stable property identity. */
+export function mergeRelationTargets(
+  ancestor: RelationTargets,
+  local: RelationTargets,
+  remote: RelationTargets,
+): DatabaseMergeOutcome<RelationTargets> {
+  const conflicts: DatabaseMergeConflict[] = [];
+  const value = mergeNode(ancestor, local, remote, "relations", conflicts) as RelationTargets;
   return conflicts.length === 0
     ? { kind: "merged", value }
     : { kind: "needs-owner", conflicts, ancestor, local, remote };

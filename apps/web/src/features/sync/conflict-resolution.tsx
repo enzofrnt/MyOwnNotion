@@ -39,7 +39,9 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 
-type Choice = "local" | "remote" | "both";
+/** Shared side vocabulary for document and structured conflict resolvers. */
+export type ConflictSide = "local" | "remote";
+type Choice = ConflictSide | "both";
 
 /** What the screen needs, once the three versions have been fetched. */
 interface Prepared {

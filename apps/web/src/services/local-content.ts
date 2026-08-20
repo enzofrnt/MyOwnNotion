@@ -24,6 +24,8 @@ import {
   reconcile,
   resealPlaintextProjection,
   resolveConflictLocally,
+  resolveDatabaseDefinitionConflictLocally,
+  resolveDatabaseEntryConflictLocally,
 } from "@myownnotion/client-core";
 import type {
   CreateDatabaseRequestDto,
@@ -35,10 +37,13 @@ import type {
 } from "@myownnotion/contracts";
 import {
   type DatabaseDefinition,
+  type DatabaseImpactConfirmation,
   type DefinitionImpact,
+  type EntryValues,
   generateUuidV7,
   type PageDocument,
   previewDefinitionImpact,
+  type RelationTargets,
   type SafeError,
   type Uuid,
 } from "@myownnotion/domain";
@@ -446,6 +451,53 @@ export class LocalContentService {
       return { ok: false, error: { code: outcome.code, title: outcome.title } as SafeError };
     }
     await this.#emitProjection({ kind: "upsert", itemIds: [input.itemId] });
+    await this.#notify("pending");
+    void this.synchronize();
+    return { ok: true };
+  }
+
+  async resolveDatabaseDefinitionConflict(input: {
+    readonly conflictMutationId: Uuid;
+    readonly databaseId: Uuid;
+    readonly localRevisionId: Uuid;
+    readonly remoteRevisionId: Uuid;
+    readonly definition: DatabaseDefinition;
+    readonly impactConfirmation?: DatabaseImpactConfirmation;
+  }): Promise<{ ok: true } | { ok: false; error: SafeError }> {
+    await this.#unlock();
+    const outcome = await resolveDatabaseDefinitionConflictLocally(this.db, this.#codec, {
+      mutationId: generateUuidV7(),
+      ...input,
+    });
+    if (!outcome.ok) {
+      await this.#notify(undefined);
+      return { ok: false, error: { code: outcome.code, title: outcome.title } as SafeError };
+    }
+    await this.#emitProjection({ kind: "upsert", itemIds: [input.databaseId] });
+    await this.#notify("pending");
+    void this.synchronize();
+    return { ok: true };
+  }
+
+  async resolveDatabaseEntryConflict(input: {
+    readonly conflictMutationId: Uuid;
+    readonly databaseId: Uuid;
+    readonly entryId: Uuid;
+    readonly localRevisionId: Uuid;
+    readonly remoteRevisionId: Uuid;
+    readonly entryValues: EntryValues;
+    readonly relationTargets: RelationTargets;
+  }): Promise<{ ok: true } | { ok: false; error: SafeError }> {
+    await this.#unlock();
+    const outcome = await resolveDatabaseEntryConflictLocally(this.db, this.#codec, {
+      mutationId: generateUuidV7(),
+      ...input,
+    });
+    if (!outcome.ok) {
+      await this.#notify(undefined);
+      return { ok: false, error: { code: outcome.code, title: outcome.title } as SafeError };
+    }
+    await this.#emitProjection({ kind: "upsert", itemIds: [input.entryId] });
     await this.#notify("pending");
     void this.synchronize();
     return { ok: true };

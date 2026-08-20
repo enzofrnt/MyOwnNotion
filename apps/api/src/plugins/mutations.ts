@@ -124,7 +124,11 @@ async function sealPayloads(
       });
     }
   }
-  if (command.type === "database.create" || command.type === "database.definition.replace") {
+  if (
+    command.type === "database.create" ||
+    command.type === "database.definition.replace" ||
+    command.type === "database.definition.resolve-conflict"
+  ) {
     const databaseId = command.type === "database.create" ? command.id : command.databaseId;
     const record = await readDatabaseRecord(tx, databaseId);
     const definition = await readCurrentDatabaseDefinition(tx, databaseId);
@@ -138,7 +142,8 @@ async function sealPayloads(
   }
   if (
     command.type === "database.entry.create" ||
-    command.type === "database.entry.values.replace"
+    command.type === "database.entry.values.replace" ||
+    command.type === "database.entry.values.resolve-conflict"
   ) {
     const entryId = command.type === "database.entry.create" ? command.id : command.entryId;
     const record = await readDatabaseEntryRecord(tx, entryId);

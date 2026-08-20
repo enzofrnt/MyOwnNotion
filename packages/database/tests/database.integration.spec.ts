@@ -65,6 +65,14 @@ async function createPage(name: string): Promise<Uuid> {
   return id;
 }
 
+async function parentRevisionIds(revisionId: Uuid): Promise<Uuid[]> {
+  const rows = await context.handle.db
+    .select({ parentRevisionId: schema.revisionParents.parentRevisionId })
+    .from(schema.revisionParents)
+    .where(eq(schema.revisionParents.revisionId, revisionId));
+  return rows.map(({ parentRevisionId }) => parentRevisionId as Uuid);
+}
+
 function expandedDefinition(
   create: Extract<MutationCommand, { type: "database.create" }>,
   relationPropertyId: Uuid,
@@ -295,6 +303,79 @@ describe("database capability and entries (T019)", () => {
       databaseId: create.id,
       entryId,
       values: {},
+    });
+  });
+
+  it("records structured conflict resolutions as revisions with two parents", async () => {
+    const create = databaseCreate();
+    const created = await submit(create);
+    const createdRevisionId = created.result.revisionIds?.[0];
+    if (createdRevisionId === undefined) throw new Error("database revision missing");
+    const relationPropertyId = generateUuidV7();
+    const textPropertyId = generateUuidV7();
+    const initialDefinition = expandedDefinition(create, relationPropertyId, textPropertyId);
+    const replaced = await submit({
+      type: "database.definition.replace",
+      databaseId: create.id,
+      baseRevisionId: createdRevisionId,
+      definition: initialDefinition,
+    });
+    const replacedRevisionId = replaced.result.revisionIds?.[0];
+    if (replacedRevisionId === undefined) throw new Error("definition revision missing");
+
+    const resolvedDefinition = {
+      ...initialDefinition,
+      views: initialDefinition.views.map((view) => ({ ...view, name: "Vue résolue" })),
+    };
+    const definitionResolution = await submit({
+      type: "database.definition.resolve-conflict",
+      databaseId: create.id,
+      resolvedRevisionIds: [replacedRevisionId, createdRevisionId],
+      definition: resolvedDefinition,
+    });
+    const definitionResolutionId = definitionResolution.result.revisionIds?.[0];
+    if (definitionResolutionId === undefined) throw new Error("resolution revision missing");
+    expect(await parentRevisionIds(definitionResolutionId)).toEqual(
+      expect.arrayContaining([replacedRevisionId, createdRevisionId]),
+    );
+
+    const entryId = generateUuidV7();
+    const entryCreated = await submit({
+      type: "database.entry.create",
+      databaseId: create.id,
+      id: entryId,
+      title: "Entrée à résoudre",
+      placement: { id: generateUuidV7(), parentItemId: create.id, positionKey: "a" },
+      values: { [textPropertyId]: { kind: "text", value: "ancestor" } },
+      relationTargets: {},
+    });
+    const entryCreatedRevisionId = entryCreated.result.revisionIds?.[0];
+    if (entryCreatedRevisionId === undefined) throw new Error("entry revision missing");
+    const entryReplaced = await submit({
+      type: "database.entry.values.replace",
+      databaseId: create.id,
+      entryId,
+      baseRevisionId: entryCreatedRevisionId,
+      values: { [textPropertyId]: { kind: "text", value: "local" } },
+      relationTargets: {},
+    });
+    const entryReplacedRevisionId = entryReplaced.result.revisionIds?.[0];
+    if (entryReplacedRevisionId === undefined) throw new Error("entry edit revision missing");
+    const entryResolution = await submit({
+      type: "database.entry.values.resolve-conflict",
+      databaseId: create.id,
+      entryId,
+      resolvedRevisionIds: [entryReplacedRevisionId, entryCreatedRevisionId],
+      values: { [textPropertyId]: { kind: "text", value: "resolved" } },
+      relationTargets: {},
+    });
+    const entryResolutionId = entryResolution.result.revisionIds?.[0];
+    if (entryResolutionId === undefined) throw new Error("entry resolution revision missing");
+    expect(await parentRevisionIds(entryResolutionId)).toEqual(
+      expect.arrayContaining([entryReplacedRevisionId, entryCreatedRevisionId]),
+    );
+    expect(await readCurrentDatabaseEntryValues(context.handle.db, entryId)).toMatchObject({
+      values: { [textPropertyId]: { kind: "text", value: "resolved" } },
     });
   });
 

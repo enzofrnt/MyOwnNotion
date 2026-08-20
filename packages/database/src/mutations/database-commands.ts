@@ -57,7 +57,12 @@ async function validateStructuredValues(
     readonly definition: DatabaseDefinition;
     readonly values: Extract<
       DatabaseMutationCommand,
-      { type: "database.entry.create" | "database.entry.values.replace" }
+      {
+        type:
+          | "database.entry.create"
+          | "database.entry.values.replace"
+          | "database.entry.values.resolve-conflict";
+      }
     >["values"];
     readonly relationTargets: RelationTargets;
   },
@@ -269,6 +274,81 @@ async function executeReplaceDefinition(
   });
 }
 
+async function executeResolveDefinitionConflict(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  command: Extract<DatabaseMutationCommand, { type: "database.definition.resolve-conflict" }>,
+): Promise<DomainResult<DatabaseCommandExecution>> {
+  const record = await readDatabaseRecord(tx, command.databaseId);
+  const item = await getItem(tx, command.databaseId);
+  const currentDefinition = await readCurrentDatabaseDefinition(tx, command.databaseId);
+  if (record === null || item === null || currentDefinition === null) {
+    return err("database.not-found", "Database does not exist");
+  }
+  if (!command.resolvedRevisionIds.includes(item.currentRevisionId)) {
+    return err("revision.stale-base", "Database changed since this conflict was reviewed", {
+      competingRevisionIds: [item.currentRevisionId],
+    });
+  }
+  const candidate = validateDatabaseDefinition(command.definition);
+  if (!candidate.ok || candidate.value.databaseId !== command.databaseId) {
+    return err("validation.invalid-payload", "Database definition is invalid");
+  }
+  const entryRecords = await listDatabaseEntryRecords(tx, command.databaseId);
+  const entryValues: EntryValues[] = [];
+  for (const entry of entryRecords) {
+    const values = await readCurrentDatabaseEntryValues(tx, entry.entryId);
+    if (values !== null) entryValues.push(values);
+  }
+  const impact = await previewDefinitionImpact({
+    baseRevisionId: item.currentRevisionId,
+    current: currentDefinition,
+    candidate: candidate.value,
+    entries: entryValues,
+  });
+  if (impact.destructive && command.impactConfirmation === undefined) {
+    return err("database.impact-confirmation-required", "Database change requires confirmation");
+  }
+  if (
+    impact.destructive &&
+    command.impactConfirmation !== undefined &&
+    command.impactConfirmation.digest !== impact.impactDigest
+  ) {
+    return err("database.impact-stale", "Database impact changed before resolution");
+  }
+
+  const revisionId = generateUuidV7();
+  const advanced = await advanceDatabaseDefinitionVersion(tx, {
+    databaseId: command.databaseId,
+    expectedVersion: record.definitionVersion,
+    acceptedAt: context.acceptedAt,
+  });
+  if (!advanced) return err("mutation.conflict", "Database definition version changed");
+  await tx
+    .update(items)
+    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
+    .where(eq(items.id, command.databaseId));
+  const snapshot = await buildItemSnapshot(tx, command.databaseId);
+  snapshot["databaseDefinition"] = candidate.value;
+  snapshot["databaseDefinitionVersion"] = record.definitionVersion + 1;
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: command.databaseId,
+    mutationId: context.mutationId,
+    parentRevisionIds: [...command.resolvedRevisionIds],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  for (const parentRevisionId of command.resolvedRevisionIds) {
+    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
+  }
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [command.databaseId],
+    primaryItemId: command.databaseId,
+  });
+}
+
 async function executeCreateEntry(
   tx: Transaction,
   context: DatabaseCommandContext,
@@ -449,6 +529,74 @@ async function executeReplaceEntryValues(
   });
 }
 
+async function executeResolveEntryValuesConflict(
+  tx: Transaction,
+  context: DatabaseCommandContext,
+  command: Extract<DatabaseMutationCommand, { type: "database.entry.values.resolve-conflict" }>,
+): Promise<DomainResult<DatabaseCommandExecution>> {
+  const entry = await readDatabaseEntryRecord(tx, command.entryId);
+  const item = await getItem(tx, command.entryId);
+  const definition = await readCurrentDatabaseDefinition(tx, command.databaseId);
+  const priorValues = await readCurrentDatabaseEntryValues(tx, command.entryId);
+  if (entry === null || item === null || entry.databaseId !== command.databaseId) {
+    return err("database.entry-not-found", "Database entry does not exist");
+  }
+  if (definition === null || priorValues === null) {
+    return err("database.not-found", "Database definition is unavailable");
+  }
+  if (!command.resolvedRevisionIds.includes(item.currentRevisionId)) {
+    return err("revision.stale-base", "Database entry changed since this conflict was reviewed", {
+      competingRevisionIds: [item.currentRevisionId],
+    });
+  }
+  const structured = await validateStructuredValues(tx, {
+    definition,
+    values: command.values,
+    relationTargets: command.relationTargets,
+  });
+  if (!structured.ok) return structured as DomainResult<DatabaseCommandExecution>;
+
+  const revisionId = generateUuidV7();
+  const advanced = await advanceDatabaseEntryValueVersion(tx, {
+    entryId: command.entryId,
+    expectedVersion: entry.valueVersion,
+    acceptedAt: context.acceptedAt,
+  });
+  if (!advanced) return err("mutation.conflict", "Database entry version changed");
+  await tx
+    .update(items)
+    .set({ currentRevisionId: revisionId, updatedAt: context.acceptedAt })
+    .where(eq(items.id, command.entryId));
+  const entryValues: EntryValues = { ...priorValues, values: structured.value.values };
+  const snapshot = await buildItemSnapshot(tx, command.entryId);
+  snapshot["databaseEntryValues"] = entryValues;
+  snapshot["databaseEntryValueVersion"] = entry.valueVersion + 1;
+  snapshot["databaseRelationTargets"] = structured.value.relations;
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: command.entryId,
+    mutationId: context.mutationId,
+    parentRevisionIds: [...command.resolvedRevisionIds],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  await replaceDatabaseRelationships(tx, {
+    workspaceId: context.workspaceId,
+    databaseId: command.databaseId,
+    entryId: command.entryId,
+    revisionId,
+    relationTargets: structured.value.relations,
+  });
+  for (const parentRevisionId of command.resolvedRevisionIds) {
+    await supersedeRevision(tx, parentRevisionId, context.acceptedAt);
+  }
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [command.entryId],
+    primaryItemId: command.entryId,
+  });
+}
+
 export async function executeDatabaseCommand(
   tx: Transaction,
   context: DatabaseCommandContext,
@@ -459,10 +607,14 @@ export async function executeDatabaseCommand(
       return executeCreateDatabase(tx, context, command);
     case "database.definition.replace":
       return executeReplaceDefinition(tx, context, command);
+    case "database.definition.resolve-conflict":
+      return executeResolveDefinitionConflict(tx, context, command);
     case "database.entry.create":
       return executeCreateEntry(tx, context, command);
     case "database.entry.values.replace":
       return executeReplaceEntryValues(tx, context, command);
+    case "database.entry.values.resolve-conflict":
+      return executeResolveEntryValuesConflict(tx, context, command);
   }
 }
 

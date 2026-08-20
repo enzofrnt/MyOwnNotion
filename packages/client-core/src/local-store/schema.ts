@@ -8,7 +8,13 @@
  * a second source of truth.
  */
 
-import type { DatabaseDefinition, EntryValues, Uuid } from "@myownnotion/domain";
+import type {
+  DatabaseDefinition,
+  DatabaseMergeConflict,
+  EntryValues,
+  RelationTargets,
+  Uuid,
+} from "@myownnotion/domain";
 import { Dexie, type EntityTable } from "dexie";
 // The envelope type, not the codec: `local-encryption.ts` knows nothing about
 // the projection, so this is a leaf dependency rather than a cycle.
@@ -128,7 +134,28 @@ export interface ConflictRecordRow {
   readonly competingRevisionIds: Uuid[];
   readonly capturedAt: string;
   readonly errorCode: string;
+  /** Three complete versions retained when a structured merge needs the owner. */
+  readonly structured?: StructuredConflictContext;
 }
+
+export type StructuredConflictContext =
+  | {
+      readonly kind: "database-definition";
+      readonly conflicts: readonly DatabaseMergeConflict[];
+      readonly ancestor: DatabaseDefinition;
+      readonly local: DatabaseDefinition;
+      readonly remote: DatabaseDefinition;
+    }
+  | {
+      readonly kind: "database-entry-values";
+      readonly conflicts: readonly DatabaseMergeConflict[];
+      readonly ancestor: EntryValues;
+      readonly local: EntryValues;
+      readonly remote: EntryValues;
+      readonly ancestorRelationTargets: RelationTargets;
+      readonly localRelationTargets: RelationTargets;
+      readonly remoteRelationTargets: RelationTargets;
+    };
 
 export interface LocalMetaRow {
   readonly key: string;
