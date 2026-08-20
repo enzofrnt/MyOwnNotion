@@ -1,27 +1,41 @@
 @import "tailwindcss";
-
-:root {
-  color-scheme: dark light;
-  --bg: #101014;
-  --surface: #1a1a21;
-  --border: #2e2e3a;
-  --text: #e8e8ef;
-  --muted: #9a9aad;
-  --accent: #6c8cff;
-  --danger: #ff6c6c;
-  --ok: #58c98d;
-  --warn: #e5b567;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
+@import "./ui/tokens.css";
+@import "./ui/primitives/primitives.css";
+@import "./ui/ui-lab.css";
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  min-width: 20rem;
+  background: var(--ui-color-canvas);
+  accent-color: var(--ui-color-accent);
+}
+
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
+  min-width: 20rem;
+  min-height: 100vh;
+  background: var(--ui-color-canvas);
+  color: var(--ui-color-text);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-md);
+  line-height: var(--ui-leading-normal);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  color: var(--ui-color-text);
+  background: var(--ui-color-accent-soft);
 }
 
 .app-shell {

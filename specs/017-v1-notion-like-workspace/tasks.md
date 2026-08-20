@@ -95,14 +95,14 @@ commencer avant que projection, chiffrement local et migration soient prouvés.
 
 ### Système UI minimal partagé
 
-- [ ] T042 Définir tokens clair/sombre, couleurs de contenu, focus, espace, couches et mouvement dans `apps/web/src/ui/tokens.css` et `apps/web/src/styles.css`
-- [ ] T043 [P] Écrire les tests thème system/light/dark et persistance sans flash dans `apps/web/tests/theme-provider.spec.tsx`
-- [ ] T044 Implémenter le provider de thème et le bootstrap pré-rendu dans `apps/web/src/ui/theme-provider.tsx`, `apps/web/src/main.tsx` et `apps/web/index.html`
-- [ ] T045 [P] Écrire les contrats de rôle/focus/disabled/busy des primitives dans `apps/web/tests/ui-primitives.spec.tsx`
-- [ ] T046 Implémenter les primitives Ariakit dans `apps/web/src/ui/primitives/button.tsx`, `field.tsx`, `menu.tsx`, `popover.tsx`, `dialog.tsx`, `drawer.tsx`, `status.tsx`, `live-region.tsx` et `index.ts`
-- [ ] T047 [P] Centraliser la copie française, nombres, dates et raccourcis dans `apps/web/src/ui/copy/fr.ts` et `apps/web/src/ui/copy/index.ts`
-- [ ] T048 [P] Centraliser Lucide, tailles et noms accessibles dans `apps/web/src/ui/icons.tsx`
-- [ ] T049 Ajouter une page de test déterministe des primitives et tokens dans `apps/web/src/ui/ui-lab.tsx` et `apps/web/tests/ui-lab.spec.tsx`
+- [X] T042 Définir tokens clair/sombre, couleurs de contenu, focus, espace, couches et mouvement dans `apps/web/src/ui/tokens.css` et `apps/web/src/styles.css`
+- [X] T043 [P] Écrire les tests thème system/light/dark et persistance sans flash dans `apps/web/tests/theme-provider.spec.tsx`
+- [X] T044 Implémenter le provider de thème et le bootstrap pré-rendu dans `apps/web/src/ui/theme-provider.tsx`, `apps/web/src/main.tsx` et `apps/web/index.html`
+- [X] T045 [P] Écrire les contrats de rôle/focus/disabled/busy des primitives dans `apps/web/tests/ui-primitives.spec.tsx`
+- [X] T046 Implémenter les primitives Ariakit dans `apps/web/src/ui/primitives/button.tsx`, `field.tsx`, `menu.tsx`, `popover.tsx`, `dialog.tsx`, `drawer.tsx`, `status.tsx`, `live-region.tsx` et `index.ts`
+- [X] T047 [P] Centraliser la copie française, nombres, dates et raccourcis dans `apps/web/src/ui/copy/fr.ts` et `apps/web/src/ui/copy/index.ts`
+- [X] T048 [P] Centraliser Lucide, tailles et noms accessibles dans `apps/web/src/ui/icons.tsx`
+- [X] T049 Ajouter une page de test déterministe des primitives et tokens dans `apps/web/src/ui/ui-lab.tsx` et `apps/web/tests/ui-lab.spec.tsx`
 
 **Checkpoint**: Le modèle opérationnel converge en mémoire, sa projection v3
 est déterministe, son état se scelle atomiquement dans Dexie et le système UI

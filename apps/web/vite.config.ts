@@ -39,6 +39,17 @@ function portPolicy() {
  * comes from the Dexie projection — never from HTTP caches.
  */
 export default defineConfig({
+  resolve: {
+    alias: [
+      {
+        // Loro's development export uses native Wasm module imports, which
+        // Vite deliberately leaves to plugins. Its browser export uses the
+        // URL-based loader Vite supports natively and exposes the same API.
+        find: /^loro-crdt$/,
+        replacement: "loro-crdt/browser",
+      },
+    ],
+  },
   plugins: [
     tailwindcss(),
     react(),
