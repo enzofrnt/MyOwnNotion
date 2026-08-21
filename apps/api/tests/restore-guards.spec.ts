@@ -241,6 +241,11 @@ describe("writing a checked archive", () => {
       writeItem: async () => {},
       writeRelationship: async () => {},
     });
-    expect(result).toEqual({ restoredItemCount: 1, restoredFileCount: 1 });
+    expect(result).toEqual({
+      restoredItemCount: 1,
+      restoredFileCount: 1,
+      restoredDatabaseCount: 0,
+      restoredDatabaseEntryCount: 0,
+    });
   });
 });

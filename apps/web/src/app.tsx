@@ -167,56 +167,35 @@ export function App(props: AppProps = {}) {
     );
   }
 
+  if (view === "workspace") {
+    return (
+      <div className="app-shell app-shell--workspace">
+        <HierarchyExplorer
+          backupStale={workspaceBackupStale}
+          onOpenBackups={() => setView("backups")}
+          onOpenSettings={() => setView("security")}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
         <h1>MyOwnNotion</h1>
-        <p className="app-subtitle">Canonical content workspace</p>
-        {view === "workspace" ? (
-          <>
-            <button
-              type="button"
-              className="link"
-              onClick={() => setView("backups")}
-              data-testid="open-backups"
-            >
-              Backups
-            </button>
-            <button
-              type="button"
-              className="link"
-              onClick={() => setView("security")}
-              data-testid="toggle-security-settings"
-            >
-              Security
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className="link"
-            onClick={() => setView("workspace")}
-            data-testid="back-to-workspace"
-          >
-            Back to workspace
-          </button>
-        )}
+        <p className="app-subtitle">
+          {view === "security" ? "Réglages et sécurité" : "Sauvegardes"}
+        </p>
+        <button
+          type="button"
+          className="link"
+          onClick={() => setView("workspace")}
+          data-testid="back-to-workspace"
+        >
+          Retour à l’espace de travail
+        </button>
       </header>
       <main className="app-main">
-        {view === "workspace" && workspaceBackupStale ? (
-          <p
-            className="status-banner"
-            data-state="error"
-            role="alert"
-            data-testid="workspace-backup-stale"
-          >
-            <strong>No verified backup in more than a day.</strong> This workspace is not currently
-            protected against losing this machine.{" "}
-            <button type="button" className="link" onClick={() => setView("backups")}>
-              Review backups
-            </button>
-          </p>
-        ) : null}
         {view === "security" ? (
           <>
             {/* On the security screen rather than in the workspace chrome: an
@@ -227,10 +206,8 @@ export function App(props: AppProps = {}) {
             <ConnectionStatus api={connectionApi} />
             <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
           </>
-        ) : view === "backups" ? (
-          <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />
         ) : (
-          <HierarchyExplorer onOpenSettings={() => setView("security")} />
+          <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />
         )}
       </main>
     </div>

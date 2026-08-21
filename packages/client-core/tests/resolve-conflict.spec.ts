@@ -14,6 +14,7 @@ import {
   Outbox,
   openLocalDatabase,
   resolveConflictLocally,
+  resolveDatabaseDefinitionConflictLocally,
 } from "@myownnotion/client-core";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -29,7 +30,7 @@ beforeEach(async () => {
   ({ codec } = await createTestCodec());
   db = openLocalDatabase(`resolve-${generateUuidV7()}`);
   await db.open();
-  outbox = new Outbox(db);
+  outbox = new Outbox(db, codec);
 });
 
 afterEach(async () => {
@@ -161,5 +162,88 @@ describe("committing a resolution", () => {
 
     expect(outcome.ok).toBe(false);
     expect(await outbox.conflicts()).toHaveLength(1);
+  });
+
+  it("queues a structured resolution with both parents before clearing its conflict", async () => {
+    const databaseId = generateUuidV7();
+    const created = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "database.create",
+        payload: {
+          id: databaseId,
+          name: "Diverged database",
+          placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+          titlePropertyId: generateUuidV7(),
+          initialViewId: generateUuidV7(),
+          initialViewName: "Table",
+        },
+        baseRevisionIds: [],
+      },
+      () => new Date(),
+      codec,
+    );
+    expect(created.ok).toBe(true);
+    const storedItem = await db.items.get(databaseId);
+    const storedDatabase = await db.databases.get(databaseId);
+    if (storedItem === undefined || storedDatabase === undefined) throw new Error("seed failed");
+    const item = await codec.openItem(storedItem);
+    const database = await codec.openDatabase(storedDatabase);
+    await db.outbox.clear();
+
+    const conflictMutationId = generateUuidV7();
+    const localDefinition = {
+      ...database.definition,
+      views: database.definition.views.map((view) => ({ ...view, name: "Local table" })),
+    };
+    const edit = await applyLocalMutation(
+      db,
+      {
+        mutationId: conflictMutationId,
+        commandType: "database.definition.replace",
+        payload: {
+          databaseId,
+          baseRevisionId: item.currentRevisionId,
+          definition: localDefinition,
+        },
+        baseRevisionIds: [item.currentRevisionId],
+      },
+      () => new Date(),
+      codec,
+    );
+    if (!edit.ok || edit.value.localRevisionIds[0] === undefined) {
+      throw new Error("local edit failed");
+    }
+    const optimisticLocalRevisionId = edit.value.localRevisionIds[0];
+    const remoteRevisionId = generateUuidV7();
+    await outbox.captureConflict(conflictMutationId, [remoteRevisionId], "revision.stale-base");
+
+    const outcome = await resolveDatabaseDefinitionConflictLocally(db, codec, {
+      mutationId: generateUuidV7(),
+      conflictMutationId,
+      databaseId,
+      localRevisionId: item.currentRevisionId,
+      remoteRevisionId,
+      definition: {
+        ...localDefinition,
+        views: localDefinition.views.map((view) => ({ ...view, name: "Resolved table" })),
+      },
+    });
+
+    expect(outcome.ok).toBe(true);
+    const resolution = (await outbox.pending()).find(
+      (row) => row.commandType === "database.definition.resolve-conflict",
+    );
+    expect(resolution?.payload["resolvedRevisionIds"]).toEqual([
+      item.currentRevisionId,
+      remoteRevisionId,
+    ]);
+    expect(resolution?.payload["resolvedRevisionIds"]).not.toContain(optimisticLocalRevisionId);
+    const revisionId = resolution?.localRevisionIds[0];
+    expect(
+      revisionId === undefined ? undefined : await db.revisionHeaders.get(revisionId),
+    ).toMatchObject({ parentRevisionIds: [item.currentRevisionId, remoteRevisionId] });
+    expect(await outbox.conflicts()).toHaveLength(0);
   });
 });

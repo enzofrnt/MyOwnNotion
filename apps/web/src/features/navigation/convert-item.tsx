@@ -23,7 +23,15 @@
  */
 
 import type { Uuid } from "@myownnotion/domain";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { AppIcon } from "../../ui/icons.tsx";
+import {
+  Button,
+  DialogContent,
+  DialogDescription,
+  DialogHeading,
+  DialogRoot,
+} from "../../ui/primitives/index.ts";
 
 export type ConvertibleKind = "page" | "folder";
 
@@ -53,15 +61,11 @@ export function ConvertItemControl({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
-  const dialog = useRef<HTMLDivElement | null>(null);
 
   const target: ConvertibleKind = kind === "page" ? "folder" : "page";
 
   const close = useCallback(() => {
     setConfirming(false);
-    // Focus goes back where it came from. Leaving it on <body> after a dialog
-    // closes is the most common way a keyboard journey silently ends.
-    trigger.current?.focus();
   }, []);
 
   const run = useCallback(
@@ -87,53 +91,53 @@ export function ConvertItemControl({
     [convert, itemId, target],
   );
 
-  useEffect(() => {
-    if (!confirming) {
-      return;
-    }
-    dialog.current?.focus();
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [confirming, close]);
-
   return (
-    <>
+    <DialogRoot
+      open={confirming}
+      setOpen={(open) => {
+        if (!open) close();
+      }}
+    >
       <button
         type="button"
         ref={trigger}
+        className="ui-button navigation-item-convert"
+        data-size="square"
+        data-variant="ghost"
         disabled={pending}
         data-testid={`convert-${itemName}`}
         aria-label={
           kind === "page" ? `Turn ${itemName} into a folder` : `Turn ${itemName} into a page`
         }
-        onClick={() => void run(false)}
+        onClick={(event) => {
+          // The control lives inside a clickable tree row. Letting this click
+          // reach the row selects it and closes the mobile drawer before the
+          // asynchronous confirmation can appear, leaving the dialog mounted
+          // inside a hidden drawer.
+          event.stopPropagation();
+          void run(false);
+        }}
       >
-        {kind === "page" ? "to folder" : "to page"}
+        <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
+        <span className="ui-visually-hidden">{kind === "page" ? "to folder" : "to page"}</span>
       </button>
 
       {confirming ? (
-        <div
-          ref={dialog}
+        <DialogContent
           role="alertdialog"
-          aria-modal="true"
-          aria-labelledby={`convert-title-${itemId}`}
-          aria-describedby={`convert-body-${itemId}`}
-          tabIndex={-1}
+          finalFocus={trigger}
+          size="medium"
           className="convert-dialog"
           data-testid="convert-confirmation"
         >
-          <h2 id={`convert-title-${itemId}`}>Turn “{itemName}” into a folder?</h2>
-          <p id={`convert-body-${itemId}`}>
+          <DialogHeading id={`convert-title-${itemId}`}>
+            Turn “{itemName}” into a folder?
+          </DialogHeading>
+          <DialogDescription id={`convert-body-${itemId}`}>
             A folder has nowhere to keep text, so{" "}
             <strong>everything written on this page will be deleted</strong>, along with the files
             attached to that text.
-          </p>
+          </DialogDescription>
           <p>
             Everything filed <em>underneath</em> this page — sub-pages, sub-folders and files —
             stays exactly where it is.
@@ -142,20 +146,20 @@ export function ConvertItemControl({
             You can undo this from the page’s history, but only for as long as superseded revisions
             are kept. After that the text is gone for good.
           </p>
-          <div className="field-row">
-            <button
-              type="button"
+          <div className="convert-dialog__actions">
+            <Button
+              variant="danger"
+              busy={pending}
               data-testid="confirm-convert"
-              disabled={pending}
               onClick={() => void run(true)}
             >
               Delete the content and convert
-            </button>
-            <button type="button" data-testid="cancel-convert" onClick={close}>
+            </Button>
+            <Button data-testid="cancel-convert" onClick={close}>
               Keep this page as it is
-            </button>
+            </Button>
           </div>
-        </div>
+        </DialogContent>
       ) : null}
 
       {error !== null ? (
@@ -163,6 +167,6 @@ export function ConvertItemControl({
           {error}
         </span>
       ) : null}
-    </>
+    </DialogRoot>
   );
 }

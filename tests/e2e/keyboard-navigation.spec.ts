@@ -13,9 +13,14 @@
 
 import { expect, test } from "./fixtures.ts";
 import {
+  clickItemAction,
   createChildItem,
   createRootItem,
+  ensureNavigationVisible,
+  moveSelectedItemInto,
+  openItemActions,
   openWorkspace,
+  selectItem,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -52,9 +57,13 @@ async function focusTree(page: import("@playwright/test").Page, name: string): P
   // selection, so focusing a row without selecting it left the hook acting on
   // whatever was selected before — pressing ArrowLeft on a focused-but-
   // unselected child collapsed the branch it was in and took its own focus
-  // with it. The click selects; the explicit focus covers Safari, which does
-  // not focus a non-form element on tap.
-  await row(page, name).click();
+  // with it. The shared selection journey establishes that state; the explicit
+  // focus covers Safari, which does not focus a non-form element on tap.
+  await selectItem(page, name);
+  // Activating a row closes the modal drawer on phones. Reopen it before
+  // placing focus back in the tree; this setup mirrors a physical-keyboard
+  // owner opening navigation and then moving through it with arrows.
+  await ensureNavigationVisible(page);
   await expect(row(page, name)).toHaveAttribute("aria-selected", "true");
   await row(page, name).focus();
   await expect(row(page, name)).toBeFocused();
@@ -232,6 +241,7 @@ test.describe("what a branch says when it has nothing to show", () => {
 
   test("the workspace says it is empty before anything exists", async ({ page }) => {
     await openWorkspace(page);
+    await ensureNavigationVisible(page);
     // Either the tree has rows from a previous test in this worker, or the
     // empty statement is present — never blank space with neither.
     const hasRows = (await page.getByRole("treeitem").count()) > 0;
@@ -291,7 +301,7 @@ test.describe("what a branch says when it has nothing to show", () => {
     // the server refuses, so the explorer never learns of it.
     await page.getByTestId(`tree-item-${parent}`).click();
     await openBranch(page, parent);
-    await page.getByRole("button", { name: `Move selected item into ${child}` }).click();
+    await moveSelectedItemInto(page, child);
 
     await expect(page.getByTestId("branch-state-error")).toBeVisible();
     await expect(page.getByTestId("branch-state-error")).toHaveAttribute("role", "alert");
@@ -321,12 +331,21 @@ test.describe("shortcuts to what matters", () => {
     await waitForSynchronized(page);
 
     await expect(page.getByTestId("favourites-empty")).toBeVisible();
-    await page.getByTestId(`favourite-${name}`).click();
+    await openItemActions(page, name);
+    await expect(page.getByTestId(`favourite-action-${name}`)).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await page.getByTestId(`favourite-action-${name}`).click();
 
     await expect(page.getByTestId(`favourites-${name}`)).toBeVisible({ timeout: 30_000 });
-    // Marked, and saying so: a control whose pressed state is only a glyph
+    // Marked, and saying so: a control whose checked state is only a glyph
     // leaves a screen-reader user unable to tell whether it worked.
-    await expect(page.getByTestId(`favourite-${name}`)).toHaveAttribute("aria-pressed", "true");
+    await openItemActions(page, name);
+    await expect(page.getByTestId(`favourite-action-${name}`)).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
 
   test("unmarking removes it again", async ({ page }) => {
@@ -335,9 +354,9 @@ test.describe("shortcuts to what matters", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
 
-    await page.getByTestId(`favourite-${name}`).click();
+    await clickItemAction(page, name, `favourite-action-${name}`);
     await expect(page.getByTestId(`favourites-${name}`)).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId(`favourite-${name}`).click();
+    await clickItemAction(page, name, `favourite-action-${name}`);
     await expect(page.getByTestId(`favourites-${name}`)).toHaveCount(0, { timeout: 30_000 });
   });
 
@@ -355,10 +374,11 @@ test.describe("shortcuts to what matters", () => {
 
   test("settings are reachable from the sidebar", async ({ page }) => {
     await openWorkspace(page);
+    await ensureNavigationVisible(page);
     await page.getByTestId("open-settings").click();
     // FR-012 lists settings among the places the sidebar must reach; landing
     // somewhere that is not the settings screen would satisfy the letter of it
     // and none of the point.
-    await expect(page.getByTestId("back-to-workspace")).toHaveText(/back to workspace/i);
+    await expect(page.getByTestId("back-to-workspace")).toHaveText(/retour à l’espace de travail/i);
   });
 });

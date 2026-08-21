@@ -15,7 +15,7 @@ commands you run locally, and what blocks a merge.
 | Shell | ShellCheck + shfmt, pinned versions | `scripts/ci/check-shell.ts`, `.github/workflows/ci.yml` |
 | Tests | Vitest + fast-check + Playwright | `vitest.config.ts`, `vitest.workspace.ts`, `playwright.config.ts` |
 | Database | PostgreSQL 18 | `compose.yaml` |
-| Sync protocol | version 1 | `packages/domain/src/sync/protocol-version.ts` |
+| Sync protocol | version 2 | `packages/domain/src/sync/protocol-version.ts` |
 
 ### The sync protocol version is part of the toolchain
 
@@ -42,6 +42,11 @@ takes that away. Prefer read-only over refused whenever a read is safe.
 `MINIMUM_READ_VERSION` must never exceed `MINIMUM_WRITE_VERSION`; inverted, the
 read-only state would be unreachable and the pair would express nothing a single
 number could not. A unit test holds that invariant.
+
+Feature 009 is the first incompatible write change: protocol 2 adds structured
+database state that protocol 1 cannot represent. Protocol 1, including a client
+that sends no version header, therefore remains readable but is read-only;
+protocol 2 is required for writes.
 
 ### pnpm is the only Node.js package manager
 
@@ -205,7 +210,7 @@ substitutes for the behavioral layers.
 | `pnpm test:migration` | Empty-database and forward-fixture migrations | **yes** |
 | `pnpm test:security` | Owner security foundation suites across every project | **yes** |
 | `pnpm test:e2e` | Playwright journeys, 5 browser/viewport projects | **yes** |
-| `pnpm test:coverage` | All of the above plus coverage thresholds | **yes** |
+| `pnpm test:coverage` | Maintained unit/integration/contract code under coverage thresholds | **yes** |
 | `pnpm test:performance` | 10,000-item / 1,000-operation suites | **yes** |
 | `pnpm db:test-migrations` | Alias of `test:migration`, kept for existing scripts | **yes** |
 
@@ -216,15 +221,27 @@ without it.
 ### The browser matrix locally
 
 ```bash
-pnpm test:e2e:local          # fast feedback: projects in parallel
-pnpm test:e2e:gate           # the pre-push answer: one project at a time
-pnpm test:e2e:local -- --grep "live sync"   # arguments pass through
+pnpm test:e2e:local                       # fast feedback: two projects at a time
+pnpm test:e2e:gate                        # pre-push: complete matrix, two at a time
+pnpm test:e2e:local -- --grep "live sync" # arguments pass through
+MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts
 ```
 
-**Two commands, because they answer different questions.** `test:e2e:local` runs
-projects side by side and is what to use while working. `test:e2e:gate` is the
-same runner with one project at a time, and it is what `checks:local` runs before
-a push.
+**Two commands, because they answer different questions.** Both use isolated
+stacks and run two projects concurrently by default. `test:e2e:local` is the
+fast feedback command while working; `test:e2e:gate` runs the same complete
+matrix from `checks:local` before a push and preserves an explicit
+`MYOWNNOTION_E2E_JOBS` value.
+
+Vitest already schedules its test files in parallel within each test layer. For
+a focused Playwright relaunch, setting `MYOWNNOTION_E2E_JOBS=5` runs the selected
+journey on all five isolated browser profiles at once; this is the fastest way
+to confirm a targeted correction. Do not use width five for the complete
+Playwright corpus: on the reference fourteen-core laptop, five full stacks
+exhaust the browser/dev-server budget, prevent WebKit pages from loading and
+can deadlock test cleanup. The complete pre-push gate therefore uses the
+measured repeatable width of two. The non-test build, image, security and
+Compose gates retain their dependency order.
 
 The split is not caution, it is a measured limit: a handful of journeys cannot
 share a machine with another browser. The clearest is the keyboard-navigation
@@ -235,6 +252,12 @@ behaviour. Others simply miss their budget while three engines compete.
 
 CI is unaffected: it gives each project its own runner, so nothing there competes
 for anything.
+
+Performance budgets run in their own Vitest project and their own CI job. They
+must never run under V8 coverage instrumentation: instrumentation changes the
+timings being measured, so a red budget would describe the profiler rather than
+the application. `test:coverage` and `test:performance` are both mandatory in
+the complete local gate; CI starts their jobs concurrently.
 
 **Every browser project runs at once, each on its own stack.** The matrix used
 to run one project after another, and the reason was not the browsers: every
@@ -249,6 +272,7 @@ making them take turns —
 | its own API and web ports (from 3301 and 5473) | five dev servers have to coexist |
 | its own blob root | otherwise file journeys read each other's bytes |
 | its own deployment key | a shared file is a shared fate if a run rewrites it |
+| its own Vite dependency cache | concurrent optimizers cannot publish atomically into one cache directory |
 
 PostgreSQL itself is *not* isolated: one server, several databases. Starting
 five servers would cost more than the parallelism saves.
@@ -341,6 +365,45 @@ p50/p95, build time and heap, local upserts, second-device propagation and
 10,000 idempotent replays. The operational interpretation and the latest
 reference figures live in `docs/architecture/search.md`.
 
+### Structured database checks
+
+Feature 009 spans the domain evaluator, PostgreSQL mutation path, protected API,
+local projection and five browser views. Use these focused commands while
+editing; they do not replace the full pre-push gate:
+
+```bash
+pnpm exec vitest run --project domain packages/domain/tests/databases
+pnpm exec vitest run --project client-core packages/client-core/tests/database-query.spec.ts \
+  packages/client-core/tests/database-local-mutation.spec.ts \
+  packages/client-core/tests/database-reconciliation.spec.ts
+pnpm exec vitest run --project database-integration packages/database/tests/database.integration.spec.ts \
+  packages/database/tests/database-lifecycle.integration.spec.ts
+pnpm exec vitest run --project api-contract apps/api/tests/database.contract.spec.ts \
+  apps/api/tests/database-security.spec.ts
+pnpm test:e2e:local -- --grep "database|structured"
+```
+
+Migration `0007_databases.sql` creates only the structural database and
+membership tables, their integrity triggers and indexes. Apply it through
+`pnpm db:migrate`; do not create definitions or values directly in those
+tables. Test both an empty database and the forward fixture with:
+
+```bash
+pnpm db:test-migrations
+```
+
+The dedicated benchmark is:
+
+```bash
+pnpm exec vitest run --project performance tests/performance/databases.perf.spec.ts
+```
+
+It measures the first 100 results from 100,000 entries in all five views,
+structured local commits, second-projection propagation and 10,100 mixed
+create/edit/replay/trash/restore operations. Reference figures and the
+operational model live in `docs/architecture/databases.md`; the manual product
+scenarios remain in the feature quickstart rather than being duplicated here.
+
 ### Working without Docker
 
 Suites that need PostgreSQL prefer, in order:
@@ -399,8 +462,8 @@ pnpm checks:local
 This is the hard pre-push gate for executable or potentially executable
 changes, not a suggested smoke test. It runs the local equivalents of every
 repository-controlled PR job: toolchain policy, shell, format/lint, strict
-types, aggregate coverage, the separately observable database/migration and
-contract suites, the complete browser/viewport matrix, production and
+types, aggregate coverage, uninstrumented performance budgets, the separately
+observable database/migration and contract suites, the complete browser/viewport matrix, production and
 multi-architecture image builds, dependency/secret/static/license security
 checks, and Compose boundaries. Every command must finish successfully against
 the exact commit that will be pushed. If classification is uncertain, fail
@@ -428,7 +491,7 @@ modes, before the first page is created. The symptom is a Firefox process at
 100% CPU with a `RenderCompositorSWGL failed mapping default framebuffer` log.
 This is a browser/runtime issue, not an application-test failure.
 
-`pnpm checks:local` invokes `pnpm test:e2e:local`. On macOS that wrapper runs
+`pnpm checks:local` invokes `pnpm test:e2e:gate`. On macOS that wrapper runs
 Chromium and WebKit directly, then runs Firefox in the official Playwright
 Linux container. The
 container uses the same Playwright version as the repository and reaches the
@@ -450,12 +513,12 @@ This is the required local path for Firefox on macOS. Chromium and WebKit may
 still run directly on the host. The container is headless by default; failed
 journeys retain the usual Playwright traces and screenshots for debugging.
 
-**Run the container and the host suites one after the other, never at the same
-time.** Both reach the same PostgreSQL database, and every journey resets the
-canonical content in its `beforeEach`, so two concurrent suites delete each
-other's fixtures. The failures that follow look nothing like the cause: rows
-that never appear, and journeys that normally take a second taking twenty. Run
-Firefox first or last, but alone.
+When invoking the raw `pnpm test:e2e` and
+`pnpm test:e2e:firefox-container` commands yourself, run them one after the
+other. Those commands use the default PostgreSQL database, and concurrent
+journeys can delete each other's fixtures. `pnpm test:e2e:local` is the safe
+parallel exception: its matrix runner allocates an isolated database, ports,
+temporary directories, and Vite dependency cache to every browser project.
 
 Pushing a work branch triggers no automated gate: **the pull request is the
 first remote gate**, so the applicable local gate must pass before every push.
@@ -538,7 +601,7 @@ fails when any complete or selective entry point is missing from
 | --- | --- | --- | --- |
 | `toolchain:check` | local, PR, main | Unpinned toolchain, foreign lockfile, or a missing gate script blocks | — |
 | `shell:check` `format:check` `lint:ci` `typecheck` | local, PR, main | Any finding blocks | — |
-| `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:security` | full locally/main; affected subset or explicit no-op on PR | Any selected failure blocks; unknown impact selects the full suites | — |
+| `test:unit` `test:property` `test:integration` `test:contract` `test:migration` `test:performance` `test:security` | full locally/main; affected subset or explicit no-op on PR | Any selected failure blocks; unknown impact selects the full suites; performance budgets run without coverage instrumentation | — |
 | `test:e2e` (`test:e2e:local` on macOS) | full locally/main; owned journeys or explicit no-op on PR | Any selected journey blocks; unknown impact selects every journey | Playwright report per browser/viewport |
 | `security:audit` | local, PR, main | Any high/critical vulnerability or an unavailable audit blocks | `dependency-audit.json` |
 | `security:secrets` | local, PR, main | Any detected secret or a scanner failure blocks | `secret-scan.sarif` |

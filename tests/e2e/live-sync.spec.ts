@@ -16,9 +16,12 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
+  CURRENT_PROTOCOL_HEADERS,
   createRootItem,
+  ensureNavigationVisible,
   openSecondDevice,
   openWorkspace,
+  renameItem,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -39,6 +42,10 @@ test.describe("live synchronization (US1)", () => {
       await expect(second.page.getByTestId("live-connection-state")).toBeVisible({
         timeout: 15_000,
       });
+      // Opening the mobile drawer is part of initial setup, before the remote
+      // mutation. It remains untouched afterwards, preserving the live-update
+      // property this journey exists to prove.
+      await ensureNavigationVisible(second.page);
 
       const created = uniqueName("LiveFolder");
       const startedAt = Date.now();
@@ -69,6 +76,7 @@ test.describe("live synchronization (US1)", () => {
       await waitForSynchronized(page);
 
       await openWorkspace(second.page);
+      await ensureNavigationVisible(second.page);
       await expect(second.page.getByTestId(`tree-item-${original}`)).toBeVisible({
         timeout: 15_000,
       });
@@ -76,8 +84,7 @@ test.describe("live synchronization (US1)", () => {
       const renamed = uniqueName("AfterRename");
       // The rename control asks through `window.prompt`, so the dialog is
       // answered rather than a field filled.
-      page.once("dialog", (dialog) => void dialog.accept(renamed));
-      await page.getByRole("button", { name: `Rename ${original}` }).click();
+      await renameItem(page, original, renamed);
       await waitForSynchronized(page);
 
       await expect(second.page.getByTestId(`tree-item-${renamed}`)).toBeVisible({
@@ -102,11 +109,16 @@ test.describe("catching up after an absence (US2)", () => {
     const away = await openSecondDevice(browser, baseURL);
     try {
       await openWorkspace(away.page);
+      await ensureNavigationVisible(away.page);
 
-      // The device goes away: its API is unreachable, so it hears nothing and can
-      // fetch nothing.
-      await away.page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-      await away.page.route("**/health", (route) => route.abort("connectionrefused"));
+      // The device really goes away. Request interception only rejects future
+      // fetches: it leaves an EventSource that is already open connected and
+      // does not emit the browser's offline/online lifecycle. That made this
+      // journey race route removal against a retrying fetch instead of testing
+      // reconnection. Browser-context offline mode closes the stream and emits
+      // the same lifecycle a device experiences when its network disappears.
+      await away.context.setOffline(true);
+      await expect.poll(() => away.page.evaluate(() => navigator.onLine)).toBe(false);
 
       // The changes are made through the API rather than through a second
       // browser, and that is a deliberate narrowing. This journey is about what
@@ -120,7 +132,7 @@ test.describe("catching up after an absence (US2)", () => {
         const name = uniqueName(`WhileAway${index}`);
         names.push(name);
         const created = await request.post(`${apiOrigin()}/v1/items`, {
-          headers: { "idempotency-key": randomUUID() },
+          headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
           data: {
             id: randomUUID(),
             kind: "folder",
@@ -133,8 +145,8 @@ test.describe("catching up after an absence (US2)", () => {
 
       // It comes back, without being reloaded. The stream reconnects by itself
       // and the catch-up follows from that, which is the property under test.
-      await away.page.unroute("**/v1/**");
-      await away.page.unroute("**/health");
+      await away.context.setOffline(false);
+      await expect.poll(() => away.page.evaluate(() => navigator.onLine)).toBe(true);
 
       for (const name of names) {
         await expect(away.page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 30_000 });

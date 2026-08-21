@@ -104,6 +104,77 @@ function consistentFixture() {
   });
 }
 
+function structuredFixture() {
+  const host = item({ name: "Database host" });
+  const entry = item({ name: "Entry" });
+  const titlePropertyId = generateUuidV7();
+  const viewId = generateUuidV7();
+  return buildCanonicalExport({
+    workspaceId,
+    schemaVersion: 1,
+    exportedAt: EXPORTED_AT,
+    changeCursor: "seq:4",
+    items: [host, entry],
+    databases: [
+      {
+        databaseId: host.id,
+        definitionVersion: 2,
+        definition: {
+          format: "myownnotion.database-definition+json",
+          formatVersion: 1,
+          databaseId: host.id,
+          properties: [
+            {
+              id: titlePropertyId,
+              name: "Title",
+              type: "title",
+              positionKey: "a",
+              state: "active",
+              config: {},
+            },
+          ],
+          views: [
+            {
+              id: viewId,
+              name: "Table",
+              type: "table",
+              positionKey: "a",
+              state: "active",
+              properties: [{ propertyId: titlePropertyId, visible: true, positionKey: "a" }],
+              filter: { mode: "all", criteria: [] },
+              sorts: [],
+              group: null,
+              options: { density: "comfortable", freezeTitle: true },
+            },
+          ],
+          taskRoles: null,
+        },
+      },
+    ],
+    databaseEntries: [
+      {
+        entryId: entry.id,
+        databaseId: host.id,
+        valueVersion: 1,
+        addedRevisionId: entry.currentRevisionId,
+        values: {
+          format: "myownnotion.database-entry-values+json",
+          formatVersion: 1,
+          databaseId: host.id,
+          entryId: entry.id,
+          values: {},
+          preserved: [],
+        },
+      },
+    ],
+    relationships: [],
+    revisions: [
+      revisionFor(host.id, host.currentRevisionId),
+      revisionFor(entry.id, entry.currentRevisionId),
+    ],
+  });
+}
+
 describe("buildCanonicalExport", () => {
   it("stamps the documented format and version", () => {
     const manifest = consistentFixture();
@@ -187,6 +258,12 @@ describe("buildCanonicalExport", () => {
     });
     expect(manifest.items[0]?.trashedAt).toBe(EXPORTED_AT);
     expect(manifest.items[0]?.purgeAfter).toBe("2026-09-08T12:00:00.000Z");
+    expect(validateCanonicalExport(manifest)).toEqual([]);
+  });
+
+  it("sorts and counts structured databases and entries", () => {
+    const manifest = structuredFixture();
+    expect(manifest.counts).toMatchObject({ databases: 1, databaseEntries: 1 });
     expect(validateCanonicalExport(manifest)).toEqual([]);
   });
 });
@@ -315,6 +392,39 @@ describe("validateCanonicalExport", () => {
     });
     expect(validateCanonicalExport(manifest).map((issue) => issue.code)).toContain(
       "revision.parent-missing",
+    );
+  });
+
+  it("detects structured count and identity mismatches", () => {
+    const manifest = structuredFixture();
+    const database = manifest.databases[0];
+    const entry = manifest.databaseEntries[0];
+    if (database === undefined || entry === undefined) throw new Error("fixture missing");
+    const broken = {
+      ...manifest,
+      databases: [
+        {
+          ...database,
+          definition: { ...database.definition, databaseId: generateUuidV7() },
+        },
+      ],
+      databaseEntries: [
+        {
+          ...entry,
+          databaseId: generateUuidV7(),
+          values: { ...entry.values, entryId: generateUuidV7() },
+        },
+      ],
+      counts: { ...manifest.counts, databaseEntries: 99 },
+    };
+    const codes = validateCanonicalExport(broken).map((issue) => issue.code);
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        "counts.database-entries",
+        "database.definition-identity",
+        "database-entry.database-missing",
+        "database-entry.values-identity",
+      ]),
     );
   });
 });

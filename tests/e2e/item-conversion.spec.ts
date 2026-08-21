@@ -17,8 +17,10 @@
 
 import { expect, test } from "./fixtures.ts";
 import {
+  convertItem as activateConversion,
   createChildItem,
   createRootItem,
+  ensureNavigationRowVisible,
   expectNoHorizontalOverflow,
   openWorkspace,
   readTreeOrder,
@@ -46,7 +48,7 @@ async function convertAndSettle(
   name: string,
   becomes: "page" | "folder",
 ): Promise<void> {
-  await convertButton(page, name).click();
+  await activateConversion(page, name);
   await expect(convertButton(page, name)).toHaveText(becomes === "page" ? "to folder" : "to page", {
     timeout: 30_000,
   });
@@ -140,7 +142,7 @@ test.describe("turning a page into a folder", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
 
-    await convertButton(page, written).click();
+    await activateConversion(page, written);
 
     const dialog = page.getByTestId("convert-confirmation");
     await expect(dialog).toBeVisible({ timeout: 30_000 });
@@ -167,7 +169,7 @@ test.describe("turning a page into a folder", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
 
-    await convertButton(page, kept).click();
+    await activateConversion(page, kept);
     await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("cancel-convert").click();
     await expect(page.getByTestId("convert-confirmation")).toBeHidden();
@@ -192,14 +194,16 @@ test.describe("turning a page into a folder", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
 
-    await convertButton(page, parent).click();
-    await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
+    await activateConversion(page, parent);
+    const confirmation = page.getByTestId("convert-confirmation");
+    await expect(confirmation).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("confirm-convert").click();
+    await expect(confirmation).toBeHidden({ timeout: 30_000 });
     await waitForSynchronized(page);
 
     // The child is still in the tree: what is *under* an item is never what a
     // conversion destroys.
-    await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible({ timeout: 30_000 });
+    await ensureNavigationRowVisible(page, child);
   });
 });
 
@@ -226,7 +230,7 @@ test.describe("the confirmation as a dialog", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
 
-    await convertButton(page, name).click();
+    await activateConversion(page, name);
     await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
 
     await page.keyboard.press("Escape");
@@ -245,7 +249,7 @@ test.describe("the confirmation as a dialog", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
 
-    await convertButton(page, name).click();
+    await activateConversion(page, name);
     const dialog = page.getByTestId("convert-confirmation");
     await expect(dialog).toHaveAttribute("role", "alertdialog");
     await expect(dialog).toHaveAttribute("aria-modal", "true");
@@ -265,7 +269,7 @@ test.describe("at a narrow viewport", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
 
-    await convertButton(page, name).click();
+    await activateConversion(page, name);
     await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
 
     await expectNoHorizontalOverflow(page);
@@ -293,7 +297,7 @@ test.describe("the two relations a page has", () => {
     await selectItem(page, parent);
 
     // The hierarchy child is in the tree.
-    await expect(page.getByTestId(`tree-item-${filed}`)).toBeVisible({ timeout: 30_000 });
+    await ensureNavigationRowVisible(page, filed);
 
     // The attachments panel is a separate region and does not list it.
     const attachments = page.getByRole("region", { name: /attachments/i });
@@ -362,7 +366,7 @@ test.describe("offline", () => {
     await waitForSynchronized(page);
 
     await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-    await convertButton(page, name).click();
+    await activateConversion(page, name);
     await expect(convertButton(page, name)).toHaveText("to folder", { timeout: 30_000 });
 
     await page.unroute("**/v1/**");

@@ -20,6 +20,7 @@
  */
 
 import type { Database, Transaction } from "@myownnotion/database";
+import type { DatabaseDefinition, EntryValues } from "@myownnotion/domain";
 import type { ProtectedRecordService } from "./protected-record-service.ts";
 
 /**
@@ -34,6 +35,9 @@ export const PROTECTED_ENTITY_TYPES = {
   pageBody: "page.body",
   revisionSnapshot: "revision.snapshot",
   relationshipMetadata: "relationship.metadata",
+  databaseDefinition: "database.definition",
+  databaseEntryValues: "database.entry-values",
+  exportManifest: "export.manifest",
 } as const;
 
 export interface ProtectedContentDeps {
@@ -191,6 +195,87 @@ export class ProtectedContent {
       relationshipId,
       recordVersion,
     );
+  }
+
+  /** Seals a database schema, its views and task-role mapping. */
+  async writeDatabaseDefinition(
+    executor: Database | Transaction,
+    input: { databaseId: string; definitionVersion: number; definition: DatabaseDefinition },
+  ): Promise<void> {
+    await this.#write(
+      executor,
+      PROTECTED_ENTITY_TYPES.databaseDefinition,
+      input.databaseId,
+      input.definitionVersion,
+      input.definition,
+    );
+  }
+
+  async readDatabaseDefinition(
+    executor: Database | Transaction,
+    databaseId: string,
+    definitionVersion?: number,
+  ): Promise<DatabaseDefinition | null> {
+    return await this.#read<DatabaseDefinition>(
+      executor,
+      PROTECTED_ENTITY_TYPES.databaseDefinition,
+      databaseId,
+      definitionVersion,
+    );
+  }
+
+  /** Seals one entry's non-relational property values. */
+  async writeDatabaseEntryValues(
+    executor: Database | Transaction,
+    input: { entryId: string; valueVersion: number; values: EntryValues },
+  ): Promise<void> {
+    await this.#write(
+      executor,
+      PROTECTED_ENTITY_TYPES.databaseEntryValues,
+      input.entryId,
+      input.valueVersion,
+      input.values,
+    );
+  }
+
+  async readDatabaseEntryValues(
+    executor: Database | Transaction,
+    entryId: string,
+    valueVersion?: number,
+  ): Promise<EntryValues | null> {
+    return await this.#read<EntryValues>(
+      executor,
+      PROTECTED_ENTITY_TYPES.databaseEntryValues,
+      entryId,
+      valueVersion,
+    );
+  }
+
+  /**
+   * Seals the owner-authorized export while it waits to be downloaded.
+   *
+   * The artifact is intentionally plaintext at the authenticated response
+   * boundary, but leaving that same manifest in the exports table would make
+   * every title, property, view and value readable in a PostgreSQL dump.
+   */
+  async writeExportManifest(
+    executor: Database | Transaction,
+    input: { exportId: string; manifest: unknown },
+  ): Promise<void> {
+    await this.#write(
+      executor,
+      PROTECTED_ENTITY_TYPES.exportManifest,
+      input.exportId,
+      1,
+      input.manifest,
+    );
+  }
+
+  async readExportManifest<T>(
+    executor: Database | Transaction,
+    exportId: string,
+  ): Promise<T | null> {
+    return await this.#read<T>(executor, PROTECTED_ENTITY_TYPES.exportManifest, exportId, 1);
   }
 
   /**

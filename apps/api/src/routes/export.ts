@@ -9,6 +9,8 @@ import { createHash } from "node:crypto";
 import { CreateExportResponseSchema, ExportStatusSchema } from "@myownnotion/contracts";
 import {
   currentSequence,
+  listDatabaseEntryRecords,
+  listDatabaseRecords,
   listItems,
   listRelationships,
   schema,
@@ -24,11 +26,15 @@ import {
   validateCanonicalExport,
 } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
-import { resolveProtectedContent } from "../security/content-resolution.ts";
+import {
+  resolveDatabaseDefinition,
+  resolveDatabaseEntryValues,
+  resolveProtectedContent,
+} from "../security/content-resolution.ts";
 
 /**
  * One transactionally consistent read of the whole workspace.
@@ -41,6 +47,25 @@ import { resolveProtectedContent } from "../security/content-resolution.ts";
 export async function buildManifest(context: AppContext) {
   return context.db.transaction(
     async (tx) => {
+      // A pre-update backup is deliberately produced before pending migrations
+      // run. Feature 009's first such backup therefore sees the feature-007
+      // schema, where neither structured table exists yet. Treat that complete
+      // absence as an empty structured projection; a half-created pair remains
+      // an integrity failure because omitting it could hide canonical data.
+      const structuredSchema = await tx.execute<{
+        databases_exists: boolean;
+        entries_exists: boolean;
+      }>(sql`
+        SELECT
+          to_regclass('public.databases') IS NOT NULL AS databases_exists,
+          to_regclass('public.database_entries') IS NOT NULL AS entries_exists
+      `);
+      const availability = structuredSchema.rows[0];
+      if (availability?.databases_exists !== availability?.entries_exists) {
+        throw new Error("the structured database schema is only partially installed");
+      }
+      const structuredTablesAvailable = availability?.databases_exists === true;
+
       const sequence = await currentSequence(tx, context.workspaceId);
       const active = await listItems(tx, context.workspaceId, { lifecycle: "active" });
       const trashed = await listItems(tx, context.workspaceId, { lifecycle: "trashed" });
@@ -155,12 +180,39 @@ export async function buildManifest(context: AppContext) {
         })),
       );
 
+      const databaseRecords = structuredTablesAvailable
+        ? await listDatabaseRecords(tx, context.workspaceId)
+        : [];
+      const databases = [];
+      const databaseEntries = [];
+      for (const record of databaseRecords) {
+        const definition = await resolveDatabaseDefinition(tx, record, context.protectedContent);
+        databases.push({
+          databaseId: record.databaseId,
+          definitionVersion: record.definitionVersion,
+          definition,
+        });
+        const entries = await listDatabaseEntryRecords(tx, record.databaseId);
+        for (const entry of entries) {
+          const values = await resolveDatabaseEntryValues(tx, entry, context.protectedContent);
+          databaseEntries.push({
+            entryId: entry.entryId,
+            databaseId: entry.databaseId,
+            valueVersion: entry.valueVersion,
+            addedRevisionId: entry.addedRevisionId,
+            values,
+          });
+        }
+      }
+
       return buildCanonicalExport({
         workspaceId: context.workspaceId,
         schemaVersion: context.schemaVersion,
         exportedAt: new Date().toISOString(),
         changeCursor: sequenceToCursor(sequence),
         items,
+        databases,
+        databaseEntries,
         relationships,
         revisions,
       });
@@ -191,16 +243,23 @@ async function processExport(context: AppContext, exportId: Uuid): Promise<void>
     }
     const canonical = canonicalExportString(manifest);
     const digest = createHash("sha256").update(canonical).digest("hex");
-    await context.db
-      .update(schema.exports)
-      .set({
-        status: "ready",
-        ready: true,
-        digest,
-        manifest,
-        completedAt: new Date(),
-      })
-      .where(eq(schema.exports.id, exportId));
+    await context.db.transaction(async (tx) => {
+      if (context.protectedContent !== undefined) {
+        await context.protectedContent.writeExportManifest(tx, { exportId, manifest });
+      }
+      await tx
+        .update(schema.exports)
+        .set({
+          status: "ready",
+          ready: true,
+          digest,
+          // Test/development harnesses without security retain the legacy
+          // shape. A configured installation stores only the protected record.
+          manifest: context.protectedContent === undefined ? manifest : null,
+          completedAt: new Date(),
+        })
+        .where(eq(schema.exports.id, exportId));
+    });
   } catch (error) {
     await context.db
       .update(schema.exports)
@@ -279,13 +338,20 @@ export function registerExportRoutes(app: FastifyInstance, context: AppContext):
         .where(eq(schema.exports.id, exportId))
         .limit(1);
       const row = rows[0];
-      if (row === undefined || row.status !== "ready" || row.manifest === null) {
+      if (row === undefined || row.status !== "ready") {
+        return sendProblem(reply, { code: "item.not-found", title: "Export artifact not ready" });
+      }
+      const manifest =
+        row.manifest ??
+        (await context.protectedContent?.readExportManifest(context.db, row.id)) ??
+        null;
+      if (manifest === null) {
         return sendProblem(reply, { code: "item.not-found", title: "Export artifact not ready" });
       }
       return reply
         .header("content-type", "application/json")
         .header("x-export-digest", row.digest ?? "")
-        .send(row.manifest);
+        .send(manifest);
     },
   );
 }

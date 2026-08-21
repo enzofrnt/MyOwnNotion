@@ -36,7 +36,7 @@ A contributor updating a pull request receives a new clean CI execution that reu
 
 ### User Story 2 - Run Only Affected Tests (Priority: P1)
 
-A contributor receives unit, integration, contract, and browser-test feedback limited to tests whose declared or discoverable inputs can be affected by the pull-request change. The selection is conservative: uncertainty expands the test set rather than silently omitting evidence.
+A contributor receives unit, integration, contract, performance, and browser-test feedback limited to tests whose declared or discoverable inputs can be affected by the pull-request change. The selection is conservative: uncertainty expands the test set rather than silently omitting evidence.
 
 **Why this priority**: The complete test corpus and browser matrix dominate CI duration. Safe selection removes work that cannot provide information for the candidate.
 
@@ -51,6 +51,7 @@ A contributor receives unit, integration, contract, and browser-test feedback li
 5. **Given** a shared test fixture, global test configuration, dependency lock, migration, security boundary, or unclassified executable path changes, **When** the plan is produced, **Then** every potentially affected suite runs.
 6. **Given** a specification contract or configuration document is read by a contract test, **When** that document changes, **Then** its consumer test runs even though the input is not application source code.
 7. **Given** CI runs for `main`, a release candidate, or a manual diagnostic, **When** the impact plan is produced, **Then** the complete required test corpus runs.
+8. **Given** a performance benchmark is selected, **When** CI executes it, **Then** it runs in a dedicated parallel job without coverage instrumentation and remains a required quality-gate dependency.
 
 ---
 
@@ -107,6 +108,7 @@ A contributor can see why each suite ran or did not run, which cache scopes were
 - **FR-019**: Container build, scan, and publication paths MAY reuse compatible layers, but every scan and published image MUST still be attributable to and verified for the exact candidate commit.
 - **FR-020**: Formatting, lint, type, migration, build, Compose, security, and publication gates MUST remain required unless a future specification explicitly defines their own affected-scope policy.
 - **FR-021**: The repository MUST validate that every maintained end-to-end journey and every non-executable exception is represented by the impact policy before selection can pass.
+- **FR-022**: Performance benchmarks MUST execute outside coverage instrumentation, MUST remain part of every complete trusted and local gate, and MUST run as an independently observable required CI job that supports the same affected/full/no-op plan contract as the other Vitest groups.
 
 ### Key Entities
 
@@ -129,6 +131,7 @@ A contributor can see why each suite ran or did not run, which cache scopes were
 - **SC-008**: For a narrowly mapped browser change, no unrelated journey executes, while 100% of required browser and viewport variants execute and report independently.
 - **SC-009**: Starting a newer candidate cancels the older in-progress execution for the same pull request in the workflow contract, and never cancels executions from another trust or pull-request scope.
 - **SC-010**: The machine-readable impact plan and human-readable summary agree on changed paths, selected suites, empty selections, and fallback reasons in every policy contract scenario.
+- **SC-011**: Every full trusted plan selects the dedicated performance group, every empty selection produces its explicit no-op, and no performance budget executes under coverage instrumentation.
 
 ## Assumptions
 

@@ -7,6 +7,7 @@ import type { LocalRecordCodec } from "@myownnotion/client-core";
 import {
   applyLocalMutation,
   type LocalDatabase,
+  LocalDatabaseRepository,
   LocalRepository,
   Outbox,
   openLocalDatabase,
@@ -20,7 +21,7 @@ import type {
   QueuedMutationDto,
   QueuedMutationResultDto,
 } from "@myownnotion/contracts";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { createInitialDatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestCodec } from "./helpers/codec.ts";
 
@@ -32,7 +33,7 @@ let repository: LocalRepository;
 beforeEach(async () => {
   ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
-  outbox = new Outbox(db);
+  outbox = new Outbox(db, codec);
   repository = new LocalRepository(db, codec);
 });
 
@@ -81,6 +82,7 @@ class FakeTransport implements ReconcileTransport {
   submissions: QueuedMutationDto[][] = [];
   acceptedIds = new Set<string>();
   conflictIds = new Map<string, Uuid[]>();
+  terminalConflictIds = new Set<string>();
   changePages: ChangesResponseDto[] = [];
   snapshot: CanonicalSnapshotDto | null = null;
   compactedCursors = new Set<string>();
@@ -91,6 +93,9 @@ class FakeTransport implements ReconcileTransport {
   omitProblemDetail = false;
   /** Makes ordered catch-up fail as a plain transport loss. */
   failChanges = false;
+  /** Local work injected while the change-feed request is in flight. */
+  beforeNextChangePage: (() => Promise<void>) | null = null;
+  acceptedRevisions = new Map<string, Uuid>();
 
   async submitMutationBatch(mutations: QueuedMutationDto[]) {
     if (this.failNextBatch) {
@@ -124,7 +129,11 @@ class FakeTransport implements ReconcileTransport {
         conflict !== undefined &&
         conflict.length > 0 &&
         conflict.every((revisionId) => mutation.baseRevisionIds.includes(revisionId));
-      if (conflict !== undefined && !rebasedOntoHead) {
+      if (
+        conflict !== undefined &&
+        (this.terminalConflictIds.has(mutation.mutationId) || !rebasedOntoHead)
+      ) {
+        this.terminalConflictIds.add(mutation.mutationId);
         return {
           mutationId: mutation.mutationId,
           status: "conflict" as const,
@@ -140,10 +149,12 @@ class FakeTransport implements ReconcileTransport {
       // Idempotent server: a re-delivered id replays already-accepted.
       const already = this.acceptedIds.has(mutation.mutationId);
       this.acceptedIds.add(mutation.mutationId);
+      const revisionId = this.acceptedRevisions.get(mutation.mutationId) ?? generateUuidV7();
+      this.acceptedRevisions.set(mutation.mutationId, revisionId);
       return {
         mutationId: mutation.mutationId,
         status: already ? ("already-accepted" as const) : ("accepted" as const),
-        revisionIds: [generateUuidV7()],
+        revisionIds: [revisionId],
       };
     });
     return { ok: true as const, value: { results } };
@@ -156,6 +167,9 @@ class FakeTransport implements ReconcileTransport {
     if (this.compactedCursors.has(after)) {
       return { ok: false as const, offline: false, compacted: true };
     }
+    const beforeNextChangePage = this.beforeNextChangePage;
+    this.beforeNextChangePage = null;
+    await beforeNextChangePage?.();
     const page = this.changePages.shift();
     if (page === undefined) {
       return {
@@ -203,6 +217,39 @@ describe("reconciliation (T044)", () => {
     expect(outcome.accepted).toBe(2);
     expect(outcome.retained).toBe(0);
     expect(await db.outbox.count()).toBe(0);
+  });
+
+  it("accepts a create before submitting an immediate dependent edit", async () => {
+    const createMutationId = await enqueueCreate("Draft");
+    const create = await outbox.get(createMutationId);
+    const localCreateRevisionId = create?.localRevisionIds[0] as Uuid;
+    const itemId = create?.payload["id"] as Uuid;
+    const editMutationId = generateUuidV7();
+    const edit = await applyLocalMutation(
+      db,
+      {
+        mutationId: editMutationId,
+        commandType: "item.rename",
+        payload: { itemId, name: "Edited before reconnect" },
+        baseRevisionIds: [localCreateRevisionId],
+      },
+      () => new Date(),
+      codec,
+    );
+    expect(edit.ok).toBe(true);
+    const transport = new FakeTransport();
+
+    const outcome = await reconcile(db, transport, codec);
+
+    expect(outcome).toMatchObject({ accepted: 2, conflicts: 0, retained: 0 });
+    expect(transport.submissions).toHaveLength(2);
+    expect(transport.submissions[0]?.map(({ mutationId }) => mutationId)).toEqual([
+      createMutationId,
+    ]);
+    expect(transport.submissions[1]?.[0]).toMatchObject({
+      mutationId: editMutationId,
+      baseRevisionIds: [transport.acceptedRevisions.get(createMutationId)],
+    });
   });
 
   it("duplicate transport delivery is absorbed idempotently (SC-014)", async () => {
@@ -283,6 +330,85 @@ describe("reconciliation (T044)", () => {
     expect((await repository.getItem(itemB.id as Uuid))?.name).toBe("From changes B");
   });
 
+  it("applies items, structured payloads and relationships at the same cursor", async () => {
+    const transport = new FakeTransport();
+    const databaseItem = serverItem("Structured database");
+    const entryItem = serverItem("Structured entry");
+    const targetItem = serverItem("Structured target");
+    const definition = createInitialDatabaseDefinition({
+      type: "database.create",
+      id: databaseItem.id as Uuid,
+      name: databaseItem.name,
+      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "Table",
+    });
+    const relationshipId = generateUuidV7();
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 9,
+            mutationId: generateUuidV7(),
+            revisionIds: [generateUuidV7()],
+            changedItems: [databaseItem, entryItem, targetItem],
+            relationships: [
+              {
+                id: relationshipId,
+                sourceItemId: entryItem.id,
+                targetItemId: targetItem.id,
+                relationType: "database:property",
+                metadata: { databaseId: databaseItem.id, propertyId: generateUuidV7() },
+                createdRevisionId: generateUuidV7(),
+                removedRevisionId: null,
+              },
+            ],
+            databases: [
+              {
+                itemId: databaseItem.id,
+                definitionVersion: 1,
+                definition: definition as never,
+              },
+            ],
+            databaseEntries: [
+              {
+                entryItemId: entryItem.id,
+                databaseId: databaseItem.id,
+                valueVersion: 1,
+                values: {
+                  format: "myownnotion.database-entry-values+json",
+                  formatVersion: 1,
+                  databaseId: databaseItem.id,
+                  entryId: entryItem.id,
+                  values: {},
+                  preserved: [],
+                },
+              },
+            ],
+          },
+        ],
+        nextCursor: "9",
+        hasMore: false,
+      },
+    ];
+
+    const outcome = await reconcile(db, transport, codec);
+    const structured = new LocalDatabaseRepository(db, codec);
+
+    expect(outcome.caughtUpTo).toBe("9");
+    expect((await structured.getDatabase(databaseItem.id as Uuid))?.definition).toEqual(definition);
+    expect(await structured.getEntry(entryItem.id as Uuid)).toMatchObject({
+      databaseId: databaseItem.id,
+      availability: "present",
+    });
+    expect(await db.relationships.get(relationshipId)).toMatchObject({
+      sourceItemId: entryItem.id,
+      targetItemId: targetItem.id,
+    });
+    expect(await repository.getLastChangeCursor()).toBe("9");
+  });
+
   it("a compacted cursor rebuilds from the verified snapshot without touching the outbox", async () => {
     // A stale local item and a pending mutation that must survive.
     await repository.applyServerItems([serverItem("Stale local")]);
@@ -345,6 +471,51 @@ describe("reconciliation (T044)", () => {
     // The durable cursor is preserved so the next attempt resumes in place.
     expect(outcome.caughtUpTo).toBe("42");
     expect(await repository.getLastChangeCursor()).toBe("42");
+  });
+
+  it("never lets an in-flight change page overwrite a newly durable local mutation", async () => {
+    const canonical = serverItem("Before local edit");
+    await repository.applyServerItems([canonical]);
+    await repository.setMeta("lastChangeCursor", "10");
+    const transport = new FakeTransport();
+    transport.changePages = [
+      {
+        changes: [
+          {
+            sequence: 11,
+            mutationId: generateUuidV7(),
+            revisionIds: [canonical.currentRevisionId],
+            changedItems: [{ ...canonical, name: "Stale response" }],
+          },
+        ],
+        nextCursor: "11",
+        hasMore: false,
+      },
+    ];
+    transport.beforeNextChangePage = async () => {
+      const result = await applyLocalMutation(
+        db,
+        {
+          mutationId: generateUuidV7(),
+          commandType: "item.rename",
+          payload: {
+            itemId: canonical.id,
+            name: "Durable local edit",
+            baseRevisionId: canonical.currentRevisionId,
+          },
+          baseRevisionIds: [canonical.currentRevisionId as Uuid],
+        },
+        () => new Date(),
+        codec,
+      );
+      expect(result.ok).toBe(true);
+    };
+
+    const outcome = await reconcile(db, transport, codec);
+
+    expect(outcome).toMatchObject({ retained: 1, caughtUpTo: "10", offline: false });
+    expect((await repository.getItem(canonical.id as Uuid))?.name).toBe("Durable local edit");
+    expect(await repository.getLastChangeCursor()).toBe("10");
   });
 
   it("reports offline when the compacted-cursor snapshot is also unreachable", async () => {
@@ -476,10 +647,13 @@ describe("the automatic merge (feature 006)", () => {
     // And what reached the server carried both sides. Asserting the outcome
     // alone would pass for a merge that quietly dropped one of them, which is
     // the failure worth catching.
-    const resubmitted = transport.submissions
+    const submitted = transport.submissions
       .flat()
-      .filter((submitted) => submitted.mutationId === mutationId);
-    const last = resubmitted[resubmitted.length - 1];
+      .filter(({ commandType }) => commandType === "page.document.replace");
+    expect(submitted).toHaveLength(2);
+    expect(submitted[0]?.mutationId).toBe(mutationId);
+    const last = submitted[1];
+    expect(last?.mutationId).not.toBe(mutationId);
     expect(last?.baseRevisionIds).toEqual([remoteId]);
     expect(JSON.stringify(last?.payload)).toContain("edited remotely");
     expect(JSON.stringify(last?.payload)).toContain("added locally");

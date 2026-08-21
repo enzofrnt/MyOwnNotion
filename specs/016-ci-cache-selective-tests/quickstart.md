@@ -41,10 +41,13 @@ Both plans must be full and explain the triggering path.
 
 ```bash
 pnpm ci:test:affected --plan test-impact.json --group unit
+pnpm ci:test:affected --plan test-impact.json --group performance
 ```
 
 The runner performs a no-op, direct/related execution, or the complete existing
-group according to the plan.
+group according to the plan. Performance is a separate group so its timing
+budgets are never distorted by coverage instrumentation and CI can run it in
+parallel with coverage.
 
 ## Validate live GitHub behavior
 

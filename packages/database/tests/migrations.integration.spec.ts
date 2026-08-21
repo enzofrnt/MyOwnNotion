@@ -22,6 +22,7 @@ describe("reviewed SQL migrations", () => {
   it("applies from an empty database", async () => {
     const applied = await applyMigrations(database.connectionString);
     expect(applied).toContain("0001_initial");
+    expect(applied).toContain("0007_databases");
   });
 
   it("is idempotent: reapplying applies nothing", async () => {
@@ -51,6 +52,8 @@ describe("reviewed SQL migrations", () => {
           "revision_parents",
           "changes",
           "relationships",
+          "databases",
+          "database_entries",
           "lifecycle_events",
           "exports",
           "schema_migrations",
@@ -72,6 +75,89 @@ describe("reviewed SQL migrations", () => {
       expect(rows[0]?.condeferrable).toBe(true);
       expect(rows[0]?.condeferred).toBe(true);
     } finally {
+      await client.end();
+    }
+  });
+
+  it("records the database migration only with its complete table pair", async () => {
+    const client = new pg.Client({ connectionString: database.connectionString });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{
+        migration_recorded: boolean;
+        databases_exists: boolean;
+        entries_exists: boolean;
+      }>(
+        `SELECT
+           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0007_databases')
+             AS migration_recorded,
+           to_regclass('public.databases') IS NOT NULL AS databases_exists,
+           to_regclass('public.database_entries') IS NOT NULL AS entries_exists`,
+      );
+      expect(rows[0]).toEqual({
+        migration_recorded: true,
+        databases_exists: true,
+        entries_exists: true,
+      });
+      // Startup after an interruption resumes through the migration registry;
+      // an already committed 0007 is a no-op rather than a second schema.
+      expect(await applyMigrations(database.connectionString)).toEqual([]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it("rolls back the whole database capability transaction on an identity violation", async () => {
+    const client = new pg.Client({ connectionString: database.connectionString });
+    await client.connect();
+    const workspaceId = "00000000-0000-7000-8000-0000000e0001";
+    const itemId = "00000000-0000-7000-8000-0000000e0010";
+    const revisionId = "00000000-0000-7000-8000-0000000e0020";
+    const mutationId = "00000000-0000-7000-8000-0000000e0002";
+    try {
+      await client.query("BEGIN");
+      await client.query("SET CONSTRAINTS ALL DEFERRED");
+      await client.query(`INSERT INTO workspaces (id, schema_version) VALUES ($1, 1)`, [
+        workspaceId,
+      ]);
+      await client.query(
+        `INSERT INTO mutations (id, workspace_id, command_type, status, accepted_at, result_revision_ids)
+         VALUES ($1, $2, 'database.create', 'accepted', now(), ARRAY[$3]::uuid[])`,
+        [mutationId, workspaceId, revisionId],
+      );
+      await client.query(
+        `INSERT INTO items (id, workspace_id, kind, name, current_revision_id)
+         VALUES ($1, $2, 'page', 'Database host', $3)`,
+        [itemId, workspaceId, revisionId],
+      );
+      await client.query(
+        `INSERT INTO revisions (id, item_id, mutation_id, lineage_digest)
+         VALUES ($1, $2, $3, 'digest')`,
+        [revisionId, itemId, mutationId],
+      );
+      await client.query(
+        `INSERT INTO databases (item_id, workspace_id, definition_version)
+         VALUES ($1, $2, 1)`,
+        [itemId, workspaceId],
+      );
+
+      await expect(
+        client.query(
+          `INSERT INTO database_entries
+             (entry_item_id, database_id, workspace_id, value_version, added_revision_id)
+           VALUES ($1, $1, $2, 1, $3)`,
+          [itemId, workspaceId, revisionId],
+        ),
+      ).rejects.toThrow();
+      await client.query("ROLLBACK");
+
+      const { rows } = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM databases WHERE item_id = $1`,
+        [itemId],
+      );
+      expect(rows[0]?.count).toBe("0");
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined);
       await client.end();
     }
   });

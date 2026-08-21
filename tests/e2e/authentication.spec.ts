@@ -15,6 +15,7 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
+import { ensureNavigationVisible } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { resetSecurityInstallation, seedCommittedOwner } from "./reset-installation.ts";
 
@@ -116,7 +117,7 @@ test.describe("the sign-in gate", () => {
   test("an owner with no session sees sign-in, not the workspace", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toHaveCount(0);
+    await expect(page.getByTestId("workspace-shell")).toHaveCount(0);
   });
 
   test("offers the passkey first and the password as the alternative", async ({ page }) => {
@@ -167,7 +168,7 @@ test.describe("the sign-in gate", () => {
     await openPasswordForm(page);
     await page.getByTestId("password-input").fill(PASSWORD);
     await page.getByTestId("sign-in-password").click();
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
   });
@@ -186,7 +187,7 @@ test.describe("the sign-in gate", () => {
 test.describe("signing in", () => {
   test("a correct password opens the workspace", async ({ page }) => {
     await signIn(page);
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
   });
@@ -198,7 +199,7 @@ test.describe("signing in", () => {
     // Nothing that would tell an attacker which half of the guess was right.
     await expect(message).not.toContainText("password is");
     await expect(message).not.toContainText("no account");
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toHaveCount(0);
+    await expect(page.getByTestId("workspace-shell")).toHaveCount(0);
   });
 
   test("clears the field after a failure", async ({ page }) => {
@@ -215,20 +216,28 @@ test.describe("signing in", () => {
     // The cookie outlives the page; only the CSRF token has to be fetched
     // again, and the shell does that on load.
     await signIn(page);
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
+    // The heading is the authentication gate, not the end of workspace boot.
+    // Reloading while WebKit is still resolving the worker/module graph cancels
+    // those requests and can make the replacement document fail its own module
+    // loads with an internal browser error. Wait for the local projection to
+    // render: that is the first state in which the signed-in workspace is
+    // actually ready for an owner to use or reload.
+    await ensureNavigationVisible(page);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
+    await ensureNavigationVisible(page);
   });
 
   test("the session cookie is not readable from JavaScript", async ({ page }) => {
     // HttpOnly holds even under the loopback exception: the exception relaxes
     // transport, not script access.
     await signIn(page);
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
     const visible = await page.evaluate(() => document.cookie);

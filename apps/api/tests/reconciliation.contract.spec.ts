@@ -3,11 +3,31 @@
  * tests (T037, US6).
  */
 
+import { createHash } from "node:crypto";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type ApiHarness, createApiHarness, createItemViaApi } from "./helpers/app.ts";
+import {
+  type ApiHarness,
+  createApiHarness,
+  createItemViaApi,
+  idempotencyHeaders,
+} from "./helpers/app.ts";
 
 let harness: ApiHarness;
+
+function canonicalSnapshotString(value: unknown): string {
+  return JSON.stringify(value, (_key, candidate: unknown) => {
+    if (typeof candidate !== "object" || candidate === null || Array.isArray(candidate)) {
+      return candidate;
+    }
+    const record = candidate as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, record[key]]),
+    );
+  });
+}
 
 beforeAll(async () => {
   harness = await createApiHarness();
@@ -18,6 +38,50 @@ afterAll(async () => {
 });
 
 describe("mutation batch (idempotent submission)", () => {
+  it("advances the structured projection after accepted offline writes", async () => {
+    const itemId = generateUuidV7();
+    const calls: Array<{ itemIds: readonly string[]; sourceVersion: number }> = [];
+    const descriptor = Object.getOwnPropertyDescriptor(harness.built.context, "structuredQueries");
+    Object.defineProperty(harness.built.context, "structuredQueries", {
+      configurable: true,
+      value: {
+        async applyCommittedChanges(itemIds: readonly string[], sourceVersion: number) {
+          calls.push({ itemIds, sourceVersion });
+        },
+      },
+    });
+    try {
+      const response = await harness.built.app.inject({
+        method: "POST",
+        url: "/v1/mutations/batch",
+        payload: {
+          mutations: [
+            {
+              mutationId: generateUuidV7(),
+              commandType: "item.create",
+              baseRevisionIds: [],
+              payload: {
+                id: itemId,
+                kind: "folder",
+                name: "Projected queued folder",
+                placement: { kind: "hierarchy", parentItemId: null, positionKey: "U" },
+              },
+            },
+          ],
+        },
+      });
+
+      expect(response.statusCode, response.body).toBe(200);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.itemIds).toContain(itemId);
+      expect(calls[0]?.sourceVersion).toBeGreaterThan(0);
+    } finally {
+      if (descriptor !== undefined) {
+        Object.defineProperty(harness.built.context, "structuredQueries", descriptor);
+      }
+    }
+  });
+
   it("accepts queued mutations and returns per-mutation results", async () => {
     const mutationId = generateUuidV7();
     const response = await harness.built.app.inject({
@@ -329,5 +393,115 @@ describe("verified snapshot", () => {
     const changes = await harness.built.app.inject({ method: "GET", url: "/v1/changes?after=" });
     const changesBody = changes.json() as { nextCursor: string };
     expect(body.cursor).toBe(changesBody.nextCursor);
+  });
+
+  it("carries structured definitions, entry values and relationships in one cursor", async () => {
+    const before = await harness.built.app.inject({ method: "GET", url: "/v1/changes?after=" });
+    const after = (before.json() as { nextCursor: string }).nextCursor;
+    const databaseId = generateUuidV7();
+    const entryId = generateUuidV7();
+    const target = await createItemViaApi(harness, { kind: "page", name: "Sync target" });
+    const createdDatabase = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/databases",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: databaseId,
+        name: "Synchronized database",
+        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "xSyncA" },
+        titlePropertyId: generateUuidV7(),
+        initialViewId: generateUuidV7(),
+        initialViewName: "Synchronized table",
+      },
+    });
+    expect(createdDatabase.statusCode, createdDatabase.body).toBe(201);
+    const createdEntry = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/databases/${databaseId}/entries`,
+      headers: idempotencyHeaders(),
+      payload: {
+        id: entryId,
+        title: "Synchronized entry",
+        placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a" },
+        values: {},
+        relationTargets: {},
+      },
+    });
+    expect(createdEntry.statusCode, createdEntry.body).toBe(201);
+    const relationshipId = generateUuidV7();
+    const createdRelationship = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: relationshipId,
+        sourceItemId: entryId,
+        targetItemId: target.itemId,
+        relationType: "sync:reference",
+        metadata: { label: "private relation" },
+      },
+    });
+    expect(createdRelationship.statusCode, createdRelationship.body).toBe(201);
+
+    const changesResponse = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/changes?after=${after}`,
+    });
+    expect(changesResponse.statusCode, changesResponse.body).toBe(200);
+    const changes = (
+      changesResponse.json() as {
+        changes: Array<{
+          databases?: Array<{ itemId: string; definition: { databaseId: string } }>;
+          databaseEntries?: Array<{
+            entryItemId: string;
+            values: { entryId: string; values: Record<string, unknown> };
+          }>;
+          relationships?: Array<{ id: string; metadata?: Record<string, unknown> }>;
+        }>;
+      }
+    ).changes;
+    expect(changes.flatMap((change) => change.databases ?? [])).toContainEqual(
+      expect.objectContaining({
+        itemId: databaseId,
+        definition: expect.objectContaining({ databaseId }),
+      }),
+    );
+    expect(changes.flatMap((change) => change.databaseEntries ?? [])).toContainEqual(
+      expect.objectContaining({
+        entryItemId: entryId,
+        values: expect.objectContaining({ entryId, values: {} }),
+      }),
+    );
+    expect(changes.flatMap((change) => change.relationships ?? [])).toContainEqual(
+      expect.objectContaining({ id: relationshipId, metadata: { label: "private relation" } }),
+    );
+
+    const snapshotResponse = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/snapshots/current",
+    });
+    expect(snapshotResponse.statusCode, snapshotResponse.body).toBe(200);
+    const snapshot = snapshotResponse.json() as {
+      digest: string;
+      items: Array<{ id: string }>;
+      relationships: Array<{ id: string }>;
+      databases: Array<{ itemId: string }>;
+      databaseEntries: Array<{ entryItemId: string }>;
+    };
+    expect(snapshot.databases.some(({ itemId }) => itemId === databaseId)).toBe(true);
+    expect(snapshot.databaseEntries.some(({ entryItemId }) => entryItemId === entryId)).toBe(true);
+    expect(snapshot.relationships.some(({ id }) => id === relationshipId)).toBe(true);
+    expect(snapshot.digest).toBe(
+      createHash("sha256")
+        .update(
+          canonicalSnapshotString({
+            items: snapshot.items,
+            relationships: snapshot.relationships,
+            databases: snapshot.databases,
+            databaseEntries: snapshot.databaseEntries,
+          }),
+        )
+        .digest("hex"),
+    );
   });
 });

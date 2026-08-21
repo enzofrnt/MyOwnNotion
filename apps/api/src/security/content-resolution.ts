@@ -26,8 +26,19 @@
  * who needs to know the difference between "gone" and "unreadable right now".
  */
 
-import type { Database, ItemReadModel, Transaction } from "@myownnotion/database";
-import { SCRUBBED_PLACEHOLDER } from "@myownnotion/database";
+import {
+  type Database,
+  type DatabaseEntryRecord,
+  type DatabaseRecord,
+  type ItemReadModel,
+  listDatabasePropertyRelationships,
+  type RelationshipListing,
+  readCurrentDatabaseDefinition,
+  readCurrentDatabaseEntryValues,
+  SCRUBBED_PLACEHOLDER,
+  type Transaction,
+} from "@myownnotion/database";
+import type { DatabaseDefinition, EntryValues, RelationTargets, Uuid } from "@myownnotion/domain";
 import type { ProtectedContent } from "./protected-content.ts";
 
 export class ProtectedContentUnavailableError extends Error {
@@ -88,6 +99,85 @@ export async function resolveProtectedContent(
           ? model.pageDocument
           : { ...model.pageDocument, body: sealedBody },
     });
+  }
+  return resolved;
+}
+
+export async function resolveDatabaseDefinition(
+  executor: Database | Transaction,
+  record: DatabaseRecord,
+  content: ProtectedContent | undefined,
+): Promise<DatabaseDefinition> {
+  const sealed = await content?.readDatabaseDefinition(
+    executor,
+    record.databaseId,
+    record.definitionVersion,
+  );
+  const fallback = await readCurrentDatabaseDefinition(executor, record.databaseId);
+  const definition = sealed ?? fallback;
+  if (definition === null) throw new ProtectedContentUnavailableError(record.databaseId);
+  return definition;
+}
+
+export async function resolveDatabaseEntryValues(
+  executor: Database | Transaction,
+  record: DatabaseEntryRecord,
+  content: ProtectedContent | undefined,
+): Promise<EntryValues> {
+  const sealed = await content?.readDatabaseEntryValues(
+    executor,
+    record.entryId,
+    record.valueVersion,
+  );
+  const fallback = await readCurrentDatabaseEntryValues(executor, record.entryId);
+  const values = sealed ?? fallback;
+  if (values === null) throw new ProtectedContentUnavailableError(record.entryId);
+  return values;
+}
+
+export async function resolveDatabaseRelationTargets(
+  executor: Database | Transaction,
+  input: {
+    readonly databaseId: Uuid;
+    readonly entryId: Uuid;
+    readonly content: ProtectedContent | undefined;
+  },
+): Promise<RelationTargets> {
+  const relationships = await listDatabasePropertyRelationships(executor, input.entryId);
+  const targets = new Map<Uuid, Uuid[]>();
+  for (const relationship of relationships) {
+    const sealed = await input.content?.readRelationshipMetadata<Record<string, unknown>>(
+      executor,
+      relationship.id,
+    );
+    const metadata = sealed ?? relationship.metadata;
+    if (metadata["databaseId"] !== input.databaseId || typeof metadata["propertyId"] !== "string") {
+      continue;
+    }
+    const propertyId = metadata["propertyId"] as Uuid;
+    const propertyTargets = targets.get(propertyId) ?? [];
+    propertyTargets.push(relationship.targetItemId);
+    targets.set(propertyId, propertyTargets);
+  }
+  return Object.fromEntries(
+    [...targets].map(([propertyId, propertyTargets]) => [propertyId, propertyTargets.sort()]),
+  ) as RelationTargets;
+}
+
+/** Opens protected relationship metadata while preserving structural fields. */
+export async function resolveProtectedRelationships(
+  executor: Database | Transaction,
+  relationships: readonly RelationshipListing[],
+  content: ProtectedContent | undefined,
+): Promise<RelationshipListing[]> {
+  if (content === undefined) return [...relationships];
+  const resolved: RelationshipListing[] = [];
+  for (const relationship of relationships) {
+    const metadata = await content.readRelationshipMetadata<Record<string, unknown>>(
+      executor,
+      relationship.id,
+    );
+    resolved.push({ ...relationship, metadata: metadata ?? relationship.metadata });
   }
   return resolved;
 }

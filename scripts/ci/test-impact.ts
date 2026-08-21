@@ -4,7 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-export type VitestGroup = "unit" | "integration" | "contract";
+export type VitestGroup = "unit" | "integration" | "contract" | "performance";
 
 export interface PathRules {
   exact: string[];
@@ -63,7 +63,7 @@ export interface ImpactPlan {
   unknownPaths: string[];
 }
 
-const ALL_VITEST_GROUPS: VitestGroup[] = ["unit", "integration", "contract"];
+const ALL_VITEST_GROUPS: VitestGroup[] = ["unit", "integration", "contract", "performance"];
 const TEST_FILE_PATTERN = /(?:^|\/)tests\/.+\.(?:spec|test)\.(?:ts|tsx)$/;
 const E2E_FILE_PATTERN = /^tests\/e2e\/.+\.spec\.ts$/;
 const MAINTAINED_SOURCE_PATTERN = /^(?:apps|packages)\/[^/]+\/src\/.+\.tsx?$/;
@@ -96,22 +96,34 @@ function matchesRules(file: string, rules: PathRules): boolean {
 }
 
 function groupsForPath(file: string): VitestGroup[] {
-  if (file.startsWith("tests/contract/")) {
+  if (file.startsWith("tests/performance/")) {
+    return ["performance"];
+  }
+  if (
+    file.startsWith("tests/contract/") ||
+    (file.startsWith("apps/api/") && TEST_FILE_PATTERN.test(file))
+  ) {
     return ["contract"];
+  }
+  if (file.startsWith("packages/database/") && TEST_FILE_PATTERN.test(file)) {
+    return ["integration"];
+  }
+  if (TEST_FILE_PATTERN.test(file)) {
+    return ["unit"];
   }
   if (file.startsWith("apps/api/")) {
-    return ["contract"];
+    return ["contract", "performance"];
   }
   if (file.startsWith("packages/database/")) {
-    return ["integration", "contract"];
+    return ["integration", "contract", "performance"];
   }
   if (file.startsWith("packages/domain/") || file.startsWith("packages/test-utils/")) {
-    return ["unit", "integration", "contract"];
+    return ["unit", "integration", "contract", "performance"];
   }
   if (file.startsWith("packages/contracts/") || file.startsWith("packages/blob-store/")) {
-    return ["unit", "contract"];
+    return ["unit", "contract", "performance"];
   }
-  return ["unit"];
+  return ["unit", "performance"];
 }
 
 function cacheScopeFor(input: ImpactInput): string {
@@ -640,6 +652,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
         `unit_mode=${groupMode("unit")}`,
         `integration_mode=${groupMode("integration")}`,
         `contract_mode=${groupMode("contract")}`,
+        `performance_mode=${groupMode("performance")}`,
         `e2e_mode=${plan.e2e.mode}`,
         `e2e_matrix=${JSON.stringify(plan.e2e.matrix)}`,
         `cache_scope=${plan.cacheScope}`,

@@ -24,7 +24,12 @@
 import { generateUuidV7 } from "../ids/uuid.ts";
 import type { Block, JsonObject } from "./block.ts";
 import type { BlockDocument } from "./document.ts";
-import { type ValidationResult, validateDocument } from "./validate.ts";
+import {
+  type ValidationResult,
+  type ValidationResultV3,
+  validateDocument,
+  validateDocumentV3,
+} from "./validate.ts";
 
 /** The block type used to carry a preserved v1 body. Deliberately unknown. */
 export const LEGACY_BODY_BLOCK_TYPE = "legacyBody";
@@ -104,4 +109,27 @@ export function isUpgradedLegacyDocument(document: BlockDocument): boolean {
     only.type === "unknown" &&
     only.declaredType === LEGACY_BODY_BLOCK_TYPE
   );
+}
+
+export type VersionedDocumentEnvelopeRead =
+  | { readonly kind: "v2"; readonly result: ValidationResult }
+  | { readonly kind: "v3"; readonly result: ValidationResultV3 }
+  | { readonly kind: "unsupported"; readonly envelope: JsonObject }
+  | { readonly kind: "invalid"; readonly message: string };
+
+/** Reads an owned envelope by its declared version without shape guessing. */
+export function readVersionedDocumentEnvelope(value: unknown): VersionedDocumentEnvelopeRead {
+  if (!isJsonObject(value)) {
+    return { kind: "invalid", message: "the document envelope must be an object" };
+  }
+  if (value["format"] !== "myownnotion.document+json") {
+    return { kind: "invalid", message: "the document format is not owned by MyOwnNotion" };
+  }
+  if (value["formatVersion"] === 2) {
+    return { kind: "v2", result: validateDocument(value["body"]) };
+  }
+  if (value["formatVersion"] === 3) {
+    return { kind: "v3", result: validateDocumentV3(value["body"]) };
+  }
+  return { kind: "unsupported", envelope: value };
 }

@@ -79,6 +79,34 @@ export const FORBIDDEN_FIELD_NAMES = [
   "document",
   "snapshot",
   "ciphertext",
+  // Structured workspace content (feature 009). Stable identifiers remain
+  // readable, but every owner-authored label, value and view/query definition
+  // is private even when it appears in an application-owned diagnostic object.
+  "payload",
+  "name",
+  "title",
+  "label",
+  "labels",
+  "value",
+  "values",
+  "definition",
+  "properties",
+  "options",
+  "views",
+  "taskroles",
+  "filter",
+  "filters",
+  "sort",
+  "sorts",
+  "group",
+  "groups",
+  "query",
+  "snippet",
+  "results",
+  "relationtargets",
+  "metadata",
+  "configuration",
+  "config",
 ] as const;
 
 /**

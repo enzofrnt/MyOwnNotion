@@ -25,7 +25,7 @@ beforeEach(async () => {
   ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
   repository = new LocalRepository(db, codec);
-  outbox = new Outbox(db);
+  outbox = new Outbox(db, codec);
 });
 
 afterEach(async () => {

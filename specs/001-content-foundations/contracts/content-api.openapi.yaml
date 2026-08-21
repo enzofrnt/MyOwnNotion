@@ -154,6 +154,19 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/MutationResult' }
         '409': { $ref: '#/components/responses/Problem' }
+  /v1/items/{itemId}/trash-impact:
+    get:
+      tags: [Items]
+      operationId: previewTrashImpact
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Database membership impact announced before confirmation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrashImpact' }
+        '404': { $ref: '#/components/responses/Problem' }
   /v1/items/{itemId}/restore:
     post:
       tags: [Items]
@@ -707,6 +720,13 @@ components:
           minItems: 1
           items: { $ref: '#/components/schemas/Uuid' }
         item: { $ref: '#/components/schemas/Item' }
+    TrashImpact:
+      type: object
+      required: [isDatabase, activeEntryCount]
+      properties:
+        isDatabase: { type: boolean }
+        activeEntryCount: { type: integer, minimum: 0 }
+      additionalProperties: false
     ChangeEnvelope:
       type: object
       required: [sequence, mutationId, revisionIds]
@@ -719,6 +739,36 @@ components:
         changedItems:
           type: array
           items: { $ref: '#/components/schemas/Item' }
+        relationships:
+          type: array
+          items: { $ref: '#/components/schemas/Relationship' }
+        databases:
+          type: array
+          items: { $ref: '#/components/schemas/DatabaseProjection' }
+        databaseEntries:
+          type: array
+          items: { $ref: '#/components/schemas/DatabaseEntryProjection' }
+    DatabaseProjection:
+      type: object
+      required: [itemId, definitionVersion, definition]
+      properties:
+        itemId: { $ref: '#/components/schemas/Uuid' }
+        definitionVersion: { type: integer, minimum: 1 }
+        definition:
+          type: object
+          description: Opened DatabaseDefinition payload defined by feature 009.
+      additionalProperties: false
+    DatabaseEntryProjection:
+      type: object
+      required: [entryItemId, databaseId, valueVersion, values]
+      properties:
+        entryItemId: { $ref: '#/components/schemas/Uuid' }
+        databaseId: { $ref: '#/components/schemas/Uuid' }
+        valueVersion: { type: integer, minimum: 1 }
+        values:
+          type: object
+          description: Full opened EntryValues payload, including preserved values.
+      additionalProperties: false
     QueuedMutation:
       type: object
       required: [mutationId, commandType, baseRevisionIds, payload]
@@ -757,6 +807,12 @@ components:
         relationships:
           type: array
           items: { $ref: '#/components/schemas/Relationship' }
+        databases:
+          type: array
+          items: { $ref: '#/components/schemas/DatabaseProjection' }
+        databaseEntries:
+          type: array
+          items: { $ref: '#/components/schemas/DatabaseEntryProjection' }
     ExportStatus:
       type: object
       required: [exportId, status]

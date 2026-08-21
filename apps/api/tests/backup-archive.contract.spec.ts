@@ -12,7 +12,7 @@
  * built without them rather than merely sealed over them.
  */
 
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -23,7 +23,7 @@ import {
   recordBackup,
   recordVerification,
 } from "@myownnotion/database";
-import { generateUuidV7 } from "@myownnotion/domain";
+import { canonicalStructuredDataString, generateUuidV7 } from "@myownnotion/domain";
 import { open as openSealed } from "@myownnotion/domain/security";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -105,6 +105,58 @@ describe("producing an archive", () => {
     expect(outcome.verifiedAfterCreation).toBe(true);
     expect(outcome.verifiedAfterTransfer).toBe(true);
     expect(outcome.detail).toBeUndefined();
+  });
+
+  it("records structured database counts and an independently verifiable digest", async () => {
+    const databaseId = generateUuidV7();
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/databases",
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: databaseId,
+        name: "Backed-up database",
+        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "Vb" },
+        titlePropertyId: generateUuidV7(),
+        initialViewId: generateUuidV7(),
+        initialViewName: "Table",
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const entry = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/databases/${databaseId}/entries`,
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: generateUuidV7(),
+        title: "Backed-up entry",
+        placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a" },
+        values: {},
+        relationTargets: {},
+      },
+    });
+    expect(entry.statusCode, entry.body).toBe(201);
+
+    const { plaintext } = await producedArchive();
+    const decoded = decodeBackupArchive(plaintext);
+    const manifest = decoded.manifest as {
+      databaseCount: number;
+      databaseEntryCount: number;
+      structuredDataDigest: string;
+    };
+    const canonical = JSON.parse(decoded.canonicalExport) as {
+      databases: never[];
+      databaseEntries: never[];
+    };
+    expect(manifest.databaseCount).toBe(canonical.databases.length);
+    expect(manifest.databaseEntryCount).toBe(canonical.databaseEntries.length);
+    expect(manifest.databaseCount).toBeGreaterThan(0);
+    expect(manifest.databaseEntryCount).toBeGreaterThan(0);
+    expect(manifest.structuredDataDigest).toBe(
+      `sha256:${createHash("sha256")
+        .update(canonicalStructuredDataString(canonical))
+        .digest("hex")}`,
+    );
   });
 
   it("refuses a same-size object whose bytes changed after transfer", async () => {

@@ -28,6 +28,7 @@ import {
   type BackupFileEntry,
   type BackupManifest,
   canonicalExportString,
+  canonicalStructuredDataString,
 } from "@myownnotion/domain";
 import type { AppContext } from "../context.ts";
 import { buildManifest } from "../routes/export.ts";
@@ -147,6 +148,9 @@ export class BackupService {
       files,
       itemCount: exported.items.length,
       fileCount: files.length,
+      databaseCount: exported.databases.length,
+      databaseEntryCount: exported.databaseEntries.length,
+      structuredDataDigest: digestOf(Buffer.from(canonicalStructuredDataString(exported), "utf8")),
     };
 
     const staging = path.join(os.tmpdir(), "myownnotion-backup");

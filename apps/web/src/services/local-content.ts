@@ -11,6 +11,9 @@ import {
   applyLocalMutation,
   LocalCipher,
   type LocalDatabase,
+  type LocalDatabaseEntryRow,
+  LocalDatabaseRepository,
+  type LocalDatabaseRow,
   LocalKeyManager,
   LocalRecordCodec,
   LocalRepository,
@@ -21,9 +24,29 @@ import {
   reconcile,
   resealPlaintextProjection,
   resolveConflictLocally,
+  resolveDatabaseDefinitionConflictLocally,
+  resolveDatabaseEntryConflictLocally,
 } from "@myownnotion/client-core";
-import type { ItemDto, RevisionDto } from "@myownnotion/contracts";
-import { generateUuidV7, type PageDocument, type SafeError, type Uuid } from "@myownnotion/domain";
+import type {
+  CreateDatabaseRequestDto,
+  CreateEntryRequestDto,
+  ItemDto,
+  ReplaceDefinitionRequestDto,
+  ReplaceEntryValuesRequestDto,
+  RevisionDto,
+} from "@myownnotion/contracts";
+import {
+  type DatabaseDefinition,
+  type DatabaseImpactConfirmation,
+  type DefinitionImpact,
+  type EntryValues,
+  generateUuidV7,
+  type PageDocument,
+  previewDefinitionImpact,
+  type RelationTargets,
+  type SafeError,
+  type Uuid,
+} from "@myownnotion/domain";
 import { ContentApi } from "./content-api.ts";
 import { IndexedDbKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
@@ -52,6 +75,7 @@ type ProjectionListener = (change: LocalProjectionChange) => void | Promise<void
 export class LocalContentService {
   readonly db: LocalDatabase;
   readonly repository: LocalRepository;
+  readonly databases: LocalDatabaseRepository;
   readonly outbox: Outbox;
   readonly api: ContentApi;
   #syncState: SyncState = "pending";
@@ -82,7 +106,8 @@ export class LocalContentService {
       workspaceId: databaseName,
     });
     this.repository = new LocalRepository(this.db, this.#codec);
-    this.outbox = new Outbox(this.db);
+    this.databases = new LocalDatabaseRepository(this.db, this.#codec);
+    this.outbox = new Outbox(this.db, this.#codec);
     this.#snapshot = {
       syncState: "pending",
       pendingCount: 0,
@@ -259,8 +284,12 @@ export class LocalContentService {
   }
 
   async #runSynchronize(): Promise<SyncState> {
-    await this.#notify("syncing");
+    // The outbox is sealed too. Restore the persisted device key before the
+    // first notification reads queue counts; doing this in the opposite order
+    // worked only while outbox payloads were plaintext and left every reload
+    // stuck on the loading screen once they became protected.
     await this.#unlock();
+    await this.#notify("syncing");
     const outcome = await reconcile(this.db, this.#transport(), this.#codec);
     await this.#emitProjection({ kind: "rebuild" });
     const state: SyncState = outcome.offline
@@ -284,6 +313,91 @@ export class LocalContentService {
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {
     return this.repository.getItem(itemId);
+  }
+
+  async getDatabase(databaseId: Uuid): Promise<LocalDatabaseRow | null> {
+    await this.#unlock();
+    return this.databases.getDatabase(databaseId);
+  }
+
+  async listDatabaseEntries(databaseId: Uuid): Promise<LocalDatabaseEntryRow[]> {
+    await this.#unlock();
+    return this.databases.listEntries(databaseId);
+  }
+
+  async getDatabaseEntry(entryId: Uuid): Promise<LocalDatabaseEntryRow | null> {
+    await this.#unlock();
+    return this.databases.getEntry(entryId);
+  }
+
+  async previewTrashImpact(
+    itemId: Uuid,
+  ): Promise<{ readonly isDatabase: boolean; readonly activeEntryCount: number }> {
+    await this.#unlock();
+    const database = await this.db.databases.get(itemId);
+    if (database === undefined) return { isDatabase: false, activeEntryCount: 0 };
+    const memberships = await this.db.databaseEntries.where("databaseId").equals(itemId).toArray();
+    const members = await this.db.items.bulkGet(memberships.map(({ entryItemId }) => entryItemId));
+    return {
+      isDatabase: true,
+      activeEntryCount: members.filter((item) => item?.lifecycle === "active").length,
+    };
+  }
+
+  async getDatabaseEntryRelationTargets(databaseId: Uuid, entryId: Uuid) {
+    await this.#unlock();
+    return this.databases.getRelationTargets(databaseId, entryId);
+  }
+
+  async previewDatabaseDefinitionImpact(
+    databaseId: Uuid,
+    baseRevisionId: Uuid,
+    candidate: DatabaseDefinition,
+  ): Promise<DefinitionImpact | null> {
+    await this.#unlock();
+    const [database, entries] = await Promise.all([
+      this.databases.getDatabase(databaseId),
+      this.databases.listEntries(databaseId),
+    ]);
+    return database === null || entries.some(({ availability }) => availability !== "present")
+      ? null
+      : await previewDefinitionImpact({
+          baseRevisionId,
+          current: database.definition,
+          candidate,
+          entries: entries.map((entry) => entry.values),
+        });
+  }
+
+  async createDatabase(body: CreateDatabaseRequestDto) {
+    return this.mutate("database.create", body as Record<string, unknown>);
+  }
+
+  async replaceDatabaseDefinition(databaseId: Uuid, body: ReplaceDefinitionRequestDto) {
+    return this.mutate(
+      "database.definition.replace",
+      { databaseId, ...body } as Record<string, unknown>,
+      [body.baseRevisionId as Uuid],
+    );
+  }
+
+  async createDatabaseEntry(databaseId: Uuid, body: CreateEntryRequestDto) {
+    return this.mutate("database.entry.create", {
+      databaseId,
+      ...body,
+    } as Record<string, unknown>);
+  }
+
+  async replaceDatabaseEntryValues(
+    databaseId: Uuid,
+    entryId: Uuid,
+    body: ReplaceEntryValuesRequestDto,
+  ) {
+    return this.mutate(
+      "database.entry.values.replace",
+      { databaseId, entryId, ...body } as Record<string, unknown>,
+      [body.baseRevisionId as Uuid],
+    );
   }
 
   /**
@@ -355,6 +469,53 @@ export class LocalContentService {
       return { ok: false, error: { code: outcome.code, title: outcome.title } as SafeError };
     }
     await this.#emitProjection({ kind: "upsert", itemIds: [input.itemId] });
+    await this.#notify("pending");
+    void this.synchronize();
+    return { ok: true };
+  }
+
+  async resolveDatabaseDefinitionConflict(input: {
+    readonly conflictMutationId: Uuid;
+    readonly databaseId: Uuid;
+    readonly localRevisionId: Uuid;
+    readonly remoteRevisionId: Uuid;
+    readonly definition: DatabaseDefinition;
+    readonly impactConfirmation?: DatabaseImpactConfirmation;
+  }): Promise<{ ok: true } | { ok: false; error: SafeError }> {
+    await this.#unlock();
+    const outcome = await resolveDatabaseDefinitionConflictLocally(this.db, this.#codec, {
+      mutationId: generateUuidV7(),
+      ...input,
+    });
+    if (!outcome.ok) {
+      await this.#notify(undefined);
+      return { ok: false, error: { code: outcome.code, title: outcome.title } as SafeError };
+    }
+    await this.#emitProjection({ kind: "upsert", itemIds: [input.databaseId] });
+    await this.#notify("pending");
+    void this.synchronize();
+    return { ok: true };
+  }
+
+  async resolveDatabaseEntryConflict(input: {
+    readonly conflictMutationId: Uuid;
+    readonly databaseId: Uuid;
+    readonly entryId: Uuid;
+    readonly localRevisionId: Uuid;
+    readonly remoteRevisionId: Uuid;
+    readonly entryValues: EntryValues;
+    readonly relationTargets: RelationTargets;
+  }): Promise<{ ok: true } | { ok: false; error: SafeError }> {
+    await this.#unlock();
+    const outcome = await resolveDatabaseEntryConflictLocally(this.db, this.#codec, {
+      mutationId: generateUuidV7(),
+      ...input,
+    });
+    if (!outcome.ok) {
+      await this.#notify(undefined);
+      return { ok: false, error: { code: outcome.code, title: outcome.title } as SafeError };
+    }
+    await this.#emitProjection({ kind: "upsert", itemIds: [input.entryId] });
     await this.#notify("pending");
     void this.synchronize();
     return { ok: true };

@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
@@ -38,7 +39,28 @@ function portPolicy() {
  * comes from the Dexie projection — never from HTTP caches.
  */
 export default defineConfig({
+  ...(process.env["MYOWNNOTION_VITE_CACHE_DIR"] === undefined
+    ? {}
+    : { cacheDir: process.env["MYOWNNOTION_VITE_CACHE_DIR"] }),
+  optimizeDeps: {
+    // The browser entry resolves its Wasm payload relative to import.meta.url.
+    // Pre-bundling relocates the JS into node_modules/.vite without copying the
+    // sibling Wasm file, so the browser receives Vite's HTML fallback instead.
+    exclude: ["loro-crdt"],
+  },
+  resolve: {
+    alias: [
+      {
+        // Loro's development export uses native Wasm module imports, which
+        // Vite deliberately leaves to plugins. Its browser export uses the
+        // URL-based loader Vite supports natively and exposes the same API.
+        find: /^loro-crdt$/,
+        replacement: "loro-crdt/browser",
+      },
+    ],
+  },
   plugins: [
+    tailwindcss(),
     react(),
     VitePWA({
       strategies: "injectManifest",

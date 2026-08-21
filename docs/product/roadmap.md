@@ -12,9 +12,11 @@ commence que lorsque ses dépendances sont terminées ou explicitement isolées.
 Chaque feature suit : spécification, clarification si nécessaire, plan, tâches,
 analyse, implémentation, convergence, contrôles locaux, puis pull request.
 
-La numérotation ci-dessous fixe l’ordre prévu. Si une urgence impose un nouvel
-élément intermédiaire, la roadmap et les dépendances concernées doivent être
-mises à jour ensemble.
+Le numéro d'une feature est son identité stable, pas sa position définitive
+dans la séquence. L'ordre des sections ci-dessous et leurs dépendances fixent
+l'ordre prévu. Une nouvelle étape intermédiaire reçoit le prochain numéro libre
+et est placée à l'endroit requis sans renommer les features déjà livrées ; la
+roadmap et les dépendances concernées sont mises à jour ensemble.
 
 ## Fondation en cours
 
@@ -33,7 +35,8 @@ terminées ; la convergence est donc achevée.
 
 ### 002 — Owner security foundation
 
-**État** : spécifiée et planifiée ; prête pour l’implémentation après réussite de l’analyse
+**État** : implémentation livrée ; trois protocoles de validation humaine et
+opérationnelle restent ouverts avant validation formelle de la release
 **Canevas** : sections 5, 8, 9, 28, 29, 34 et 36 à 41
 
 Authentification du propriétaire unique, passkeys, mot de passe alternatif,
@@ -44,12 +47,14 @@ GHCR et releases immuables requis par FR-030 à FR-035.
 
 ### 003 — Core workspace experience
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 001, 002
 **Canevas** : sections 7 et 11 à 13
 
 Navigation responsive, barre latérale, pages et dossiers utilisables, éditeur
 par blocs, raccourcis, états de sauvegarde et accessibilité des parcours cœur.
+La convergence visuelle et les interactions avancées volontairement restées
+hors de cette fondation sont désormais prises en charge par la feature 017.
 
 **La section 14 (bases de données et vues) n'est pas dans cette feature.** Elle
 l'était jusqu'à la planification de 003, où cette entrée s'est révélée en
@@ -64,7 +69,7 @@ calendrier appartient à 009.
 
 ### 004 — Unified items and page/folder conversion
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 001, 003
 **Canevas** : sections 11 et 12
 
@@ -81,7 +86,7 @@ place, afin qu'un même numéro ne désigne jamais deux features différentes.
 
 ### 005 — Files and local storage
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 001 à 004
 **Canevas** : sections 15 à 18
 
@@ -90,7 +95,7 @@ Draw.io, quotas locaux, disponibilité hors ligne et déchargement sûr.
 
 ### 006 — Multi-device synchronization
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 001 à 005
 **Canevas** : sections 9 et 17 à 20
 
@@ -98,9 +103,14 @@ Transport temps réel, rattrapage, compatibilité client-serveur, synchronisatio
 des fichiers, révocation d’appareil, historique et résolution visuelle des
 conflits.
 
+La feature 017 conserve ce transport, l'autorisation des appareils et le
+rattrapage, mais remplace la granularité de synchronisation du corps des pages :
+la fusion à trois voies par blocs livrée ici devient un filet de compatibilité,
+pas le chemin éditorial V1 final.
+
 ### 007 — Backup, recovery and updates
 
-**État** : prévue
+**État** : implémentée et convergée
 **Dépendance** : 002, 005, 006
 **Canevas** : sections 27 à 34
 
@@ -109,7 +119,8 @@ export/import, migrations, mise à jour et retour arrière.
 
 ### 008 — Search and V1 release readiness
 
-**État** : prévue
+**État** : implémentée et convergée ; la validation formelle de release V1
+reste conditionnée par les trois protocoles ouverts de la feature 002
 **Dépendance** : 001 à 007
 **Canevas** : sections 6, 21 et 35 à 45
 
@@ -118,6 +129,39 @@ validation d’intégration de toutes les features, installation documentée et
 validation de tous les critères de sortie V1. La fondation Compose/env, reverse
 proxy externe, CI, GHCR et releases immuables requise par FR-030 à FR-035 est
 portée par la feature 002 et n’est pas dupliquée ici.
+
+Cette readiness porte aussi le passage de langue global : la cohérence
+française exigée par le canevas est validée sur l'application entière dans une
+même livraison. Les features développées avant ce passage suivent la langue
+active existante, externalisent leurs copies et gardent leurs valeurs
+canoniques indépendantes des traductions ; aucune ne livre seule un fragment
+d'interface dans une autre langue.
+
+### 017 — V1 Notion-like workspace
+
+**État** : spécification en cours
+**Dépendance** : 003 à 008 ; intégration avec les surfaces de la 009 déjà
+implémentées en avance, sans déplacer les bases avancées dans le périmètre V1
+**Dossier** : [`specs/017-v1-notion-like-workspace`](../../specs/017-v1-notion-like-workspace/)
+**Canevas** : sections 3, 6.1, 7, 11 à 21 et 43 à 47
+
+Cette feature rend la qualité de l'interface et le modèle d'interaction proche
+de Notion obligatoires pour la V1. Elle fait converger le shell, la barre
+latérale, l'éditeur par blocs et toutes les surfaces déjà livrées autour d'un
+système visuel commun. Elle fournit notamment l'insertion et les actions
+contextuelles, la poignée et le déplacement de blocs, la barre de mise en forme
+flottante, les blocs riches manquants, la restauration du scroll et la
+correction clavier WebKit encore ouvertes après la 003.
+
+Elle livre également l'autosauvegarde et la convergence multi-appareils du corps
+des pages. Deux appareils du propriétaire peuvent modifier hors ligne le même
+paragraphe, déplacer et éditer le même bloc, puis se resynchroniser sans
+remplacement du document entier. Le modèle canonique reste la projection
+durable et indépendante de l'éditeur ; le transport, les appareils, les
+fichiers et les sauvegardes existants sont étendus plutôt que reconstruits.
+
+La validation formelle de la V1 reste bloquée tant que cette convergence et les
+protocoles ouverts de la feature 002 ne sont pas terminés.
 
 ### 016 — CI cache and selective tests
 
@@ -138,8 +182,20 @@ devenues obsolètes. Elle ne réduit ni le contrôle local complet, ni les gates
 
 ### 009 — Databases and structured tasks
 
-Propriétés, relations, filtres, tris, vues table, Kanban, galerie, liste et
-calendrier. Canevas : section 14.
+**État** : implémentée et convergée ; gate local exact réussi, prête pour la
+pull request
+**Dépendance** : 001 à 008
+**Dossier** : [`specs/009-databases-structured-tasks`](../../specs/009-databases-structured-tasks/)
+**Canevas** : section 14
+
+Capacité base attachée aux pages canoniques, huit types de propriété, relations,
+filtres, tris, regroupements, tâches structurées et vues table, liste, Kanban,
+galerie et calendrier. La livraison inclut aussi l'offline, la synchronisation,
+les conflits, la recherche, l'export, la sauvegarde, la restauration, le cycle
+de vie et les budgets d'accessibilité/performance requis par cette feature.
+Ses copies suivent la langue active via une frontière propre à la feature ; la
+traduction française est activée avec le passage transversal de release plutôt
+que comme une interface 009 partiellement traduite.
 
 ### 010 — Knowledge graph
 

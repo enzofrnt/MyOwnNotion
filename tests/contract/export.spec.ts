@@ -4,6 +4,7 @@
  */
 import { createHash } from "node:crypto";
 import {
+  CANONICAL_EXPORT_VERSION,
   type CanonicalExportManifest,
   canonicalExportString,
   generateUuidV7,
@@ -77,7 +78,7 @@ describe("canonical export (T086/T088)", () => {
 
     const { manifest, digest } = await runExport();
     expect(manifest.format).toBe("myownnotion.export+json");
-    expect(manifest.formatVersion).toBe(1);
+    expect(manifest.formatVersion).toBe(CANONICAL_EXPORT_VERSION);
     expect(manifest.items.map((item) => item.id)).toEqual(
       expect.arrayContaining([folder.itemId, page.itemId]),
     );

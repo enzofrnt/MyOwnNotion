@@ -6,13 +6,18 @@ import {
   activeDescendantIds,
   hydrateSearchPaths,
   listSearchSources,
+  readCurrentDatabaseDefinition,
+  readCurrentDatabaseEntryValues,
   readSearchSources,
   SCRUBBED_PLACEHOLDER,
   type SearchSourceRecord,
   type StoredSearchPathSegment,
 } from "@myownnotion/database";
 import {
+  type DatabaseDefinition,
+  type EntryValues,
   extractSearchableDocumentText,
+  extractSearchablePropertyText,
   prepareSearchQuery,
   readDocumentBody,
   type SearchPathSegment,
@@ -28,6 +33,10 @@ const REBUILD_YIELD_INTERVAL = 256;
 export interface ResolvedSearchSource extends SearchSourceRecord {
   readonly title: string;
   readonly body: Readonly<Record<string, unknown>> | null;
+  readonly structuredValues?: {
+    readonly definition: DatabaseDefinition;
+    readonly values: EntryValues;
+  } | null;
 }
 
 export interface SearchServiceDeps {
@@ -215,6 +224,13 @@ export class SearchService {
       kind: source.kind,
       title: source.title,
       bodyText,
+      properties:
+        source.structuredValues === undefined || source.structuredValues === null
+          ? []
+          : extractSearchablePropertyText(
+              source.structuredValues.definition,
+              source.structuredValues.values,
+            ),
       conflict: false,
     };
   }
@@ -408,6 +424,8 @@ export class SearchService {
           title: candidate.title,
           path: [...(paths.get(candidate.itemId) ?? [])],
           matchedField,
+          propertyId: matchedField === "property" ? candidate.matchedPropertyId : null,
+          propertyName: matchedField === "property" ? candidate.matchedPropertyName : null,
           snippet:
             matchedField === "body" ? safeSnippet(candidate.bodyText, prepared.value.terms) : null,
           conflict: candidate.conflict,
@@ -478,6 +496,42 @@ export function createDatabaseSearchService(input: {
               input.db,
               pageIds,
             );
+      const databaseEntries = sources.filter(
+        (
+          source,
+        ): source is SearchSourceRecord & {
+          readonly databaseEntry: NonNullable<SearchSourceRecord["databaseEntry"]>;
+        } => source.databaseEntry !== undefined && source.databaseEntry !== null,
+      );
+      const definitionMetadata = new Map(
+        databaseEntries.map(({ databaseEntry }) => [databaseEntry.databaseId, databaseEntry]),
+      );
+      const definitions = new Map<Uuid, DatabaseDefinition>();
+      await Promise.all(
+        [...definitionMetadata].map(async ([databaseId, metadata]) => {
+          const definition =
+            (await input.protectedContent?.readDatabaseDefinition(
+              input.db,
+              databaseId,
+              metadata.definitionVersion,
+            )) ?? (await readCurrentDatabaseDefinition(input.db, databaseId));
+          if (definition === null) throw new Error("Protected database definition is unavailable");
+          definitions.set(databaseId, definition);
+        }),
+      );
+      const structuredValues = new Map<Uuid, EntryValues>();
+      await Promise.all(
+        databaseEntries.map(async ({ itemId, databaseEntry }) => {
+          const values =
+            (await input.protectedContent?.readDatabaseEntryValues(
+              input.db,
+              itemId,
+              databaseEntry.valueVersion,
+            )) ?? (await readCurrentDatabaseEntryValues(input.db, itemId));
+          if (values === null) throw new Error("Protected database values are unavailable");
+          structuredValues.set(itemId, values);
+        }),
+      );
       return sources.map((source) => {
         const title = fallbackOrProtected(names, source.itemId, source.storedName);
         if (title === SCRUBBED_PLACEHOLDER) {
@@ -490,6 +544,15 @@ export function createDatabaseSearchService(input: {
             source.pageDocument === null
               ? null
               : fallbackOrProtected(bodies, source.itemId, source.pageDocument.body),
+          structuredValues:
+            source.databaseEntry === undefined || source.databaseEntry === null
+              ? null
+              : {
+                  definition: definitions.get(
+                    source.databaseEntry.databaseId,
+                  ) as DatabaseDefinition,
+                  values: structuredValues.get(source.itemId) as EntryValues,
+                },
         };
       });
     },

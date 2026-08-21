@@ -93,6 +93,27 @@ describe("recursive redaction", () => {
     expect(redact({ blob: new Uint8Array([1, 2, 3]) })).toEqual({ blob: REDACTED });
   });
 
+  it("redacts every owner-authored field in a nested structured projection", () => {
+    const value = {
+      databaseId: "018f2000-0000-7000-8000-000000000001",
+      projection: {
+        definition: {
+          properties: [{ name: SECRET, config: { options: [{ label: SECRET }] } }],
+          views: [{ title: SECRET, filter: { operand: { value: SECRET } }, sorts: [] }],
+          taskRoles: { status: SECRET },
+        },
+        values: { property: { kind: "text", value: SECRET } },
+        relationTargets: { property: [SECRET] },
+        metadata: { note: SECRET },
+      },
+    };
+
+    const output = JSON.stringify(redact(value));
+    expect(output).not.toContain(SECRET);
+    expect(output).toContain(value.databaseId);
+    expect(containsUnredactedField(redact(value))).toBe(false);
+  });
+
   it("keeps an error's name but never its message", () => {
     const output = redact(new Error(SECRET)) as { name: string; message: string };
     expect(output.name).toBe("Error");

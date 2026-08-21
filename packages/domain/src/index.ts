@@ -15,6 +15,7 @@ export * from "./content/mutations.ts";
 export * from "./content/position-key.ts";
 export * from "./content/relationships.ts";
 export * from "./content/types.ts";
+export * from "./databases/index.ts";
 // The block content model (feature 003). Pure and library-independent by
 // construction: nothing under `document/` may import React, Tiptap, or the DOM.
 export * from "./document/index.ts";

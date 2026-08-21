@@ -9,7 +9,7 @@
  * untested and first exercise it on the day it starts refusing real devices.
  */
 
-import { generateUuidV7 } from "@myownnotion/domain";
+import { generateUuidV7, PROTOCOL_VERSION } from "@myownnotion/domain";
 import type { FastifyRequest } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -23,7 +23,7 @@ import { type ApiHarness, createApiHarness, idempotencyHeaders } from "./helpers
 let harness: ApiHarness;
 
 beforeAll(async () => {
-  harness = await createApiHarness();
+  harness = await createApiHarness({ clientProtocol: "manual" });
 }, 120_000);
 
 afterAll(async () => {
@@ -37,7 +37,7 @@ function requestAnnouncing(version: string | undefined): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 
-/** A future window, where a version-1 client is behind. */
+/** A future window used to exercise refusal below the read minimum. */
 const FUTURE = { minimumRead: 3, minimumWrite: 4 };
 
 describe("what the server announces", () => {
@@ -47,7 +47,7 @@ describe("what the server announces", () => {
     // On every response rather than on a handshake: this server can be upgraded
     // under a client holding a stream open, and a handshake is a statement about
     // a moment that has passed.
-    expect(response.headers["x-myownnotion-protocol"]).toBe("1");
+    expect(response.headers["x-myownnotion-protocol"]).toBe(String(PROTOCOL_VERSION));
   });
 
   it("states it on a failure too", async () => {
@@ -58,14 +58,17 @@ describe("what the server announces", () => {
     expect(response.statusCode).toBeGreaterThanOrEqual(400);
     // A client that only ever sees errors still needs to learn that it is the
     // one out of date.
-    expect(response.headers["x-myownnotion-protocol"]).toBe("1");
+    expect(response.headers["x-myownnotion-protocol"]).toBe(String(PROTOCOL_VERSION));
   });
 
   it("accepts a write from a client at the current version", async () => {
     const response = await harness.built.app.inject({
       method: "POST",
       url: "/v1/items",
-      headers: { ...idempotencyHeaders(), [CLIENT_PROTOCOL_HEADER]: "1" },
+      headers: {
+        ...idempotencyHeaders(),
+        [CLIENT_PROTOCOL_HEADER]: String(PROTOCOL_VERSION),
+      },
       payload: {
         id: generateUuidV7(),
         kind: "folder",
@@ -76,11 +79,11 @@ describe("what the server announces", () => {
     expect(response.statusCode).toBe(201);
   });
 
-  it("accepts a write from a client that announces nothing", async () => {
+  it("keeps a silent legacy client read-only", async () => {
     const response = await harness.built.app.inject({
       method: "POST",
       url: "/v1/items",
-      headers: idempotencyHeaders(),
+      headers: { "idempotency-key": generateUuidV7() },
       payload: {
         id: generateUuidV7(),
         kind: "folder",
@@ -88,13 +91,54 @@ describe("what the server announces", () => {
         placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
       },
     });
-    // Every client built before this feature announces nothing. Refusing them
-    // would break working installations at the moment of upgrade.
-    expect(response.statusCode).toBe(201);
+    expect(response.statusCode).toBe(426);
+    expect(response.headers["x-myownnotion-required-protocol"]).toBe(String(PROTOCOL_VERSION));
   });
 });
 
 describe("a client below the write minimum", () => {
+  it("refuses a structured write before creating any database and keeps reads", async () => {
+    const databaseId = generateUuidV7();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/databases",
+      headers: { ...idempotencyHeaders(), [CLIENT_PROTOCOL_HEADER]: "1" },
+      payload: {
+        id: databaseId,
+        name: "Legacy database",
+        placement: {
+          id: generateUuidV7(),
+          parentItemId: null,
+          positionKey: "V",
+        },
+        titlePropertyId: generateUuidV7(),
+        initialViewId: generateUuidV7(),
+        initialViewName: "Table",
+      },
+    });
+
+    expect(response.statusCode).toBe(426);
+    expect(response.headers["x-myownnotion-required-protocol"]).toBe("2");
+    expect(response.json()).toMatchObject({
+      code: "protocol.too_old",
+      title: expect.stringMatching(/can read.*version 2/is),
+    });
+
+    const read = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/items",
+      headers: { [CLIENT_PROTOCOL_HEADER]: "1" },
+    });
+    expect(read.statusCode).toBe(200);
+
+    const absent = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/databases/${databaseId}`,
+      headers: { [CLIENT_PROTOCOL_HEADER]: "1" },
+    });
+    expect(absent.statusCode).toBe(404);
+  });
+
   it("is refused the write, and told the version to update to", () => {
     let thrown: unknown;
     try {

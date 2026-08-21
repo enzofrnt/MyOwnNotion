@@ -15,7 +15,14 @@
  * the same thing, which reconciles to the same state.
  */
 
-import type { PageDocument, Uuid } from "@myownnotion/domain";
+import type {
+  DatabaseDefinition,
+  DatabaseImpactConfirmation,
+  EntryValues,
+  PageDocument,
+  RelationTargets,
+  Uuid,
+} from "@myownnotion/domain";
 import type { LocalDatabase } from "../local-store/schema.ts";
 import { applyLocalMutation } from "../outbox/apply-local-mutation.ts";
 import { Outbox } from "../outbox/outbox.ts";
@@ -74,6 +81,96 @@ export async function resolveConflictLocally(
 
   // Only now. See the module comment: this order is what makes a crash
   // mid-resolution recoverable rather than destructive.
-  await new Outbox(db).resolveConflict(input.conflictMutationId);
+  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
+  return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
+}
+
+export interface ResolveDatabaseDefinitionConflictInput {
+  readonly mutationId: Uuid;
+  readonly conflictMutationId: Uuid;
+  readonly databaseId: Uuid;
+  readonly localRevisionId: Uuid;
+  readonly remoteRevisionId: Uuid;
+  readonly definition: DatabaseDefinition;
+  readonly impactConfirmation?: DatabaseImpactConfirmation;
+}
+
+export async function resolveDatabaseDefinitionConflictLocally(
+  db: LocalDatabase,
+  codec: LocalRecordCodec,
+  input: ResolveDatabaseDefinitionConflictInput,
+  now: () => Date = () => new Date(),
+): Promise<ResolveConflictOutcome> {
+  const resolvedRevisionIds: readonly [Uuid, Uuid] = [
+    input.localRevisionId,
+    input.remoteRevisionId,
+  ];
+  const applied = await applyLocalMutation(
+    db,
+    {
+      mutationId: input.mutationId,
+      commandType: "database.definition.resolve-conflict",
+      payload: {
+        databaseId: input.databaseId,
+        resolvedRevisionIds,
+        definition: input.definition,
+        ...(input.impactConfirmation === undefined
+          ? {}
+          : { impactConfirmation: input.impactConfirmation }),
+      },
+      baseRevisionIds: [...resolvedRevisionIds],
+    },
+    now,
+    codec,
+  );
+  if (!applied.ok) {
+    return { ok: false, code: applied.error.code, title: applied.error.title };
+  }
+  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
+  return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
+}
+
+export interface ResolveDatabaseEntryConflictInput {
+  readonly mutationId: Uuid;
+  readonly conflictMutationId: Uuid;
+  readonly databaseId: Uuid;
+  readonly entryId: Uuid;
+  readonly localRevisionId: Uuid;
+  readonly remoteRevisionId: Uuid;
+  readonly entryValues: EntryValues;
+  readonly relationTargets: RelationTargets;
+}
+
+export async function resolveDatabaseEntryConflictLocally(
+  db: LocalDatabase,
+  codec: LocalRecordCodec,
+  input: ResolveDatabaseEntryConflictInput,
+  now: () => Date = () => new Date(),
+): Promise<ResolveConflictOutcome> {
+  const resolvedRevisionIds: readonly [Uuid, Uuid] = [
+    input.localRevisionId,
+    input.remoteRevisionId,
+  ];
+  const applied = await applyLocalMutation(
+    db,
+    {
+      mutationId: input.mutationId,
+      commandType: "database.entry.values.resolve-conflict",
+      payload: {
+        databaseId: input.databaseId,
+        entryId: input.entryId,
+        resolvedRevisionIds,
+        values: input.entryValues.values,
+        relationTargets: input.relationTargets,
+      },
+      baseRevisionIds: [...resolvedRevisionIds],
+    },
+    now,
+    codec,
+  );
+  if (!applied.ok) {
+    return { ok: false, code: applied.error.code, title: applied.error.title };
+  }
+  await new Outbox(db, codec).resolveConflict(input.conflictMutationId);
   return { ok: true, revisionIds: [...applied.value.localRevisionIds] };
 }

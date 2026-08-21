@@ -16,6 +16,8 @@
  *   - **its own blob root**, or file journeys would read each other's bytes.
  *   - **its own deployment key**, because the security journeys mount one and a
  *     shared file is a shared fate if a run rewrites it.
+ *   - **its own Vite dependency cache**, because concurrent optimizers cannot
+ *     atomically publish into the same `node_modules/.vite/deps` directory.
  *
  * What is *not* isolated is PostgreSQL itself — one server, several databases.
  * Starting five servers would cost more than the parallelism saves.
@@ -24,7 +26,7 @@
  * patched Firefox hangs before opening a page on the macOS development runtime.
  * That stack talks to the same PostgreSQL through `host.docker.internal` and
  * starts its own servers inside the container, so it needs a database of its own
- * and nothing else.
+ * plus host-side migration fixtures before the container starts.
  */
 
 import { spawn } from "node:child_process";
@@ -85,12 +87,13 @@ interface Stack {
   readonly project: string;
   readonly databaseName: string;
   readonly databaseUrl: string;
-  /** Absent for the container stack, which listens inside the container. */
+  /** Ports are absent for the container stack, which listens inside the container. */
   readonly apiPort?: number;
   readonly webPort?: number;
   readonly blobRoot?: string;
   readonly backupRoot?: string;
   readonly deploymentKeyFile?: string;
+  readonly viteCacheDir?: string;
   readonly inContainer: boolean;
 }
 
@@ -117,11 +120,20 @@ function planStacks(): Stack[] {
   return BROWSER_PROJECTS.map((project, index) => {
     const databaseName = `mon_e2e_${project.name.replaceAll("-", "_")}_${suffix}`;
     const inContainer = onMac && project.containerOnMac === true;
+    const blobRoot = path.join(repoRoot, ".dev-blobs-e2e", `${project.name}-${suffix}`);
+    const backupRoot = path.join(repoRoot, ".dev-backups-e2e", `${project.name}-${suffix}`);
+    const deploymentKeyFile = path.join(repoRoot, "secrets", `deployment-key.e2e-${project.name}`);
     if (inContainer) {
       return {
         project: project.name,
         databaseName,
         databaseUrl: databaseUrlFor(databaseName),
+        // Migrations run on the host for every isolated database, including
+        // Firefox's. The update guard needs the same disposable backup/key
+        // fixtures as host browser stacks before the container is launched.
+        blobRoot,
+        backupRoot,
+        deploymentKeyFile,
         inContainer: true,
       };
     }
@@ -131,9 +143,10 @@ function planStacks(): Stack[] {
       databaseUrl: databaseUrlFor(databaseName),
       apiPort: API_PORT_BASE + index,
       webPort: WEB_PORT_BASE + index,
-      blobRoot: path.join(repoRoot, ".dev-blobs-e2e", `${project.name}-${suffix}`),
-      backupRoot: path.join(repoRoot, ".dev-backups-e2e", `${project.name}-${suffix}`),
-      deploymentKeyFile: path.join(repoRoot, "secrets", `deployment-key.e2e-${project.name}`),
+      blobRoot,
+      backupRoot,
+      deploymentKeyFile,
+      viteCacheDir: path.join(repoRoot, "node_modules", ".vite-e2e", `${project.name}-${suffix}`),
       inContainer: false,
     };
   });
@@ -266,6 +279,9 @@ function cleanUpStack(stack: Stack): void {
   if (stack.deploymentKeyFile !== undefined) {
     rmSync(stack.deploymentKeyFile, { force: true });
   }
+  if (stack.viteCacheDir !== undefined) {
+    rmSync(stack.viteCacheDir, { recursive: true, force: true });
+  }
 }
 
 async function runStack(
@@ -310,6 +326,7 @@ async function runStack(
       MYOWNNOTION_BLOB_ROOT: stack.blobRoot as string,
       MYOWNNOTION_BACKUP_ROOT: stack.backupRoot as string,
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile as string,
+      MYOWNNOTION_VITE_CACHE_DIR: stack.viteCacheDir as string,
       // Playwright writes its report into one directory; five runs writing into
       // the same one would overwrite each other's failure artefacts, which are
       // exactly what someone reads after a red run.

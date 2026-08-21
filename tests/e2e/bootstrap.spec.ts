@@ -54,7 +54,7 @@ test.describe("the first-run gate", () => {
     // The workspace must not be rendered behind it: there is nothing there to
     // show, and showing it would suggest content exists that the security
     // layer has not been asked to protect.
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toHaveCount(0);
+    await expect(page.getByTestId("workspace-shell")).toHaveCount(0);
   });
 
   test("the page states the committed counts, and they are zero", async ({ page }) => {
@@ -118,7 +118,7 @@ test.describe("the full ceremony", () => {
     // The workspace itself is the confirmation: the shell swaps to it the
     // moment an owner exists, which is a stronger assertion than a panel
     // saying so.
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
     expect(await readCommittedCounts()).toEqual({ ownerCount: 1, workspaceCount: 1 });
@@ -218,12 +218,12 @@ test.describe("the full ceremony", () => {
     await download;
     await page.getByTestId("acknowledge-offline-storage").check();
     await page.getByTestId("confirm-offline-storage").click();
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
 
     await page.reload();
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
     await expect(page.getByTestId("begin-setup")).toHaveCount(0);

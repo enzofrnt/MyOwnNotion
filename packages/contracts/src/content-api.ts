@@ -213,6 +213,15 @@ export const RestoreItemSchema = Type.Object(
 );
 export type RestoreItemDto = Static<typeof RestoreItemSchema>;
 
+export const TrashImpactSchema = Type.Object(
+  {
+    isDatabase: Type.Boolean(),
+    activeEntryCount: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type TrashImpactDto = Static<typeof TrashImpactSchema>;
+
 export const MovePlacementSchema = Type.Object(
   {
     parentItemId: NullableUuid,
@@ -308,21 +317,6 @@ export const MutationResultSchema = Type.Object({
 });
 export type MutationResultDto = Static<typeof MutationResultSchema>;
 
-export const ChangeEnvelopeSchema = Type.Object({
-  sequence: Type.Integer({ minimum: 1 }),
-  mutationId: UuidSchema,
-  revisionIds: Type.Array(UuidSchema),
-  changedItems: Type.Optional(Type.Array(ItemSchema)),
-});
-export type ChangeEnvelopeDto = Static<typeof ChangeEnvelopeSchema>;
-
-export const ChangesResponseSchema = Type.Object({
-  changes: Type.Array(ChangeEnvelopeSchema),
-  nextCursor: Type.String(),
-  hasMore: Type.Boolean(),
-});
-export type ChangesResponseDto = Static<typeof ChangesResponseSchema>;
-
 export const QueuedMutationSchema = Type.Object(
   {
     mutationId: UuidSchema,
@@ -413,7 +407,10 @@ export const SearchResultSchema = Type.Object(
       Type.Literal("title"),
       Type.Literal("fileName"),
       Type.Literal("body"),
+      Type.Literal("property"),
     ]),
+    propertyId: Type.Union([UuidSchema, Type.Null()]),
+    propertyName: Type.Union([DisplayNameSchema, Type.Null()]),
     snippet: Type.Union([Type.String({ maxLength: 320 }), Type.Null()]),
     conflict: Type.Boolean(),
   },
@@ -453,6 +450,511 @@ export const SearchUnavailableProblemSchema = Type.Intersect([
 ]);
 export type SearchUnavailableProblemDto = Static<typeof SearchUnavailableProblemSchema>;
 
+// ---------------------------------------------------------------------------
+// Page-backed databases and structured tasks (feature 009)
+// ---------------------------------------------------------------------------
+
+const DatabaseStateSchema = Type.Union([Type.Literal("active"), Type.Literal("retired")]);
+const DatabaseEmptyConfigSchema = Type.Object({}, { additionalProperties: false });
+const DatabasePlacementInputSchema = Type.Object(
+  {
+    id: UuidSchema,
+    parentItemId: NullableUuid,
+    positionKey: Type.String({ minLength: 1, maxLength: 255 }),
+  },
+  { additionalProperties: false },
+);
+
+export const DatabasePropertyOptionSchema = Type.Object(
+  {
+    id: UuidSchema,
+    label: DisplayNameSchema,
+    positionKey: Type.String({ minLength: 1, maxLength: 255 }),
+    tone: Type.String({ pattern: "^[a-z][a-z0-9-]*$" }),
+    state: DatabaseStateSchema,
+  },
+  { additionalProperties: false },
+);
+
+const DatabasePropertyBase = {
+  id: UuidSchema,
+  name: DisplayNameSchema,
+  positionKey: Type.String({ minLength: 1, maxLength: 255 }),
+  state: DatabaseStateSchema,
+};
+
+export const DatabasePropertySchema = Type.Union([
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Union([
+        Type.Literal("title"),
+        Type.Literal("text"),
+        Type.Literal("number"),
+        Type.Literal("checkbox"),
+      ]),
+      config: DatabaseEmptyConfigSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Literal("date"),
+      config: Type.Object(
+        { mode: Type.Union([Type.Literal("date"), Type.Literal("instant")]) },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Union([
+        Type.Literal("status"),
+        Type.Literal("select"),
+        Type.Literal("multi-select"),
+      ]),
+      config: Type.Object(
+        { options: Type.Array(DatabasePropertyOptionSchema) },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ...DatabasePropertyBase,
+      type: Type.Literal("relation"),
+      config: Type.Object(
+        { cardinality: Type.Union([Type.Literal("one"), Type.Literal("many")]) },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+export const DatabasePropertyValueSchema = Type.Union([
+  Type.Object(
+    { kind: Type.Literal("text"), value: Type.String() },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("number"),
+      decimal: Type.String({ pattern: "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("date"), date: Type.String({ format: "date" }) },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("instant"), instant: Type.String({ format: "date-time" }) },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("status"), optionId: UuidSchema },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("select"), optionId: UuidSchema },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("multi-select"),
+      optionIds: Type.Array(UuidSchema, { uniqueItems: true }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("checkbox"), checked: Type.Boolean() },
+    { additionalProperties: false },
+  ),
+]);
+
+const UuidKeySchema = Type.String({
+  pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+});
+export const DatabaseValuesMapSchema = Type.Record(UuidKeySchema, DatabasePropertyValueSchema);
+export const DatabaseRelationTargetsMapSchema = Type.Record(
+  UuidKeySchema,
+  Type.Array(UuidSchema, { uniqueItems: true }),
+);
+
+export const DatabaseFilterCriterionSchema = Type.Object(
+  {
+    id: UuidSchema,
+    propertyId: UuidSchema,
+    operator: Type.Union(
+      [
+        "equals",
+        "not-equals",
+        "is-empty",
+        "is-not-empty",
+        "contains",
+        "not-contains",
+        "before",
+        "after",
+        "between",
+        "less-than",
+        "greater-than",
+      ].map((operator) => Type.Literal(operator)),
+    ),
+    operand: Type.Optional(Type.Unknown()),
+  },
+  { additionalProperties: false },
+);
+
+export const DatabaseSortCriterionSchema = Type.Object(
+  {
+    propertyId: UuidSchema,
+    direction: Type.Union([Type.Literal("ascending"), Type.Literal("descending")]),
+    missing: Type.Union([Type.Literal("first"), Type.Literal("last")]),
+  },
+  { additionalProperties: false },
+);
+
+export const DatabaseViewPropertySchema = Type.Object(
+  {
+    propertyId: UuidSchema,
+    visible: Type.Boolean(),
+    positionKey: Type.String({ minLength: 1, maxLength: 255 }),
+    width: Type.Optional(Type.Integer({ minimum: 80, maximum: 800 })),
+  },
+  { additionalProperties: false },
+);
+
+export const DatabaseViewSchema = Type.Object(
+  {
+    id: UuidSchema,
+    name: DisplayNameSchema,
+    type: Type.Union([
+      Type.Literal("table"),
+      Type.Literal("board"),
+      Type.Literal("gallery"),
+      Type.Literal("list"),
+      Type.Literal("calendar"),
+    ]),
+    positionKey: Type.String({ minLength: 1, maxLength: 255 }),
+    state: DatabaseStateSchema,
+    properties: Type.Array(DatabaseViewPropertySchema),
+    filter: Type.Object(
+      {
+        mode: Type.Union([Type.Literal("all"), Type.Literal("any")]),
+        criteria: Type.Array(DatabaseFilterCriterionSchema),
+      },
+      { additionalProperties: false },
+    ),
+    sorts: Type.Array(DatabaseSortCriterionSchema),
+    group: Type.Union([
+      Type.Object({ propertyId: UuidSchema }, { additionalProperties: false }),
+      Type.Null(),
+    ]),
+    options: Type.Object({}, { additionalProperties: true }),
+  },
+  { additionalProperties: false },
+);
+
+export const DatabaseTaskRoleMappingSchema = Type.Object(
+  {
+    statusPropertyId: UuidSchema,
+    dueDatePropertyId: NullableUuid,
+    priorityPropertyId: NullableUuid,
+  },
+  { additionalProperties: false },
+);
+
+export const DatabaseDefinitionSchema = Type.Object(
+  {
+    format: Type.Literal("myownnotion.database-definition+json"),
+    formatVersion: Type.Literal(1),
+    databaseId: UuidSchema,
+    properties: Type.Array(DatabasePropertySchema, { minItems: 1 }),
+    views: Type.Array(DatabaseViewSchema, { minItems: 1 }),
+    taskRoles: Type.Union([DatabaseTaskRoleMappingSchema, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+export type DatabaseDefinitionDto = Static<typeof DatabaseDefinitionSchema>;
+
+export const CreateDatabaseRequestSchema = Type.Object(
+  {
+    id: UuidSchema,
+    name: DisplayNameSchema,
+    placement: DatabasePlacementInputSchema,
+    titlePropertyId: UuidSchema,
+    titlePropertyName: Type.Optional(DisplayNameSchema),
+    initialViewId: UuidSchema,
+    initialViewName: DisplayNameSchema,
+  },
+  { additionalProperties: false },
+);
+export type CreateDatabaseRequestDto = Static<typeof CreateDatabaseRequestSchema>;
+
+export const DefinitionImpactSchema = Type.Object(
+  {
+    destructive: Type.Boolean(),
+    affectedEntryCount: Type.Integer({ minimum: 0 }),
+    affectedValueCount: Type.Integer({ minimum: 0 }),
+    reasons: Type.Array(
+      Type.Union([
+        Type.Literal("property-retired"),
+        Type.Literal("property-type-changed"),
+        Type.Literal("option-retired"),
+        Type.Literal("task-role-invalidated"),
+      ]),
+    ),
+    impactDigest: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+  },
+  { additionalProperties: false },
+);
+export type DefinitionImpactDto = Static<typeof DefinitionImpactSchema>;
+
+export const ReplaceDefinitionCandidateSchema = Type.Object(
+  { baseRevisionId: UuidSchema, definition: DatabaseDefinitionSchema },
+  { additionalProperties: false },
+);
+export const ReplaceDefinitionRequestSchema = Type.Object(
+  {
+    baseRevisionId: UuidSchema,
+    definition: DatabaseDefinitionSchema,
+    impactConfirmation: Type.Optional(
+      Type.Object(
+        {
+          digest: Type.String({ pattern: "^[a-f0-9]{64}$" }),
+          decision: Type.Union([
+            Type.Literal("preserve-incompatible"),
+            Type.Literal("discard-confirmed"),
+          ]),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+export type ReplaceDefinitionRequestDto = Static<typeof ReplaceDefinitionRequestSchema>;
+
+export const CreateEntryRequestSchema = Type.Object(
+  {
+    id: UuidSchema,
+    title: DisplayNameSchema,
+    placement: DatabasePlacementInputSchema,
+    document: Type.Optional(PageDocumentSchema),
+    values: DatabaseValuesMapSchema,
+    relationTargets: DatabaseRelationTargetsMapSchema,
+  },
+  { additionalProperties: false },
+);
+export type CreateEntryRequestDto = Static<typeof CreateEntryRequestSchema>;
+
+export const ReplaceEntryValuesRequestSchema = Type.Object(
+  {
+    baseRevisionId: UuidSchema,
+    values: DatabaseValuesMapSchema,
+    relationTargets: DatabaseRelationTargetsMapSchema,
+  },
+  { additionalProperties: false },
+);
+export type ReplaceEntryValuesRequestDto = Static<typeof ReplaceEntryValuesRequestSchema>;
+
+export const DatabaseSchema = Type.Object(
+  {
+    databaseId: UuidSchema,
+    definitionRevisionId: UuidSchema,
+    lifecycle: LifecycleSchema,
+    name: Type.String(),
+    definition: DatabaseDefinitionSchema,
+  },
+  { additionalProperties: false },
+);
+export type DatabaseDto = Static<typeof DatabaseSchema>;
+
+export const DatabaseEntrySchema = Type.Object(
+  {
+    databaseId: UuidSchema,
+    entryId: UuidSchema,
+    revisionId: UuidSchema,
+    lifecycle: LifecycleSchema,
+    title: Type.String(),
+    document: Type.Union([PageDocumentSchema, Type.Null()]),
+    values: DatabaseValuesMapSchema,
+    relationTargets: DatabaseRelationTargetsMapSchema,
+  },
+  { additionalProperties: false },
+);
+export type DatabaseEntryDto = Static<typeof DatabaseEntrySchema>;
+
+/** Full protected value payload used by snapshots and change catch-up. */
+export const DatabaseEntryValuesPayloadSchema = Type.Object(
+  {
+    format: Type.Literal("myownnotion.database-entry-values+json"),
+    formatVersion: Type.Literal(1),
+    databaseId: UuidSchema,
+    entryId: UuidSchema,
+    values: DatabaseValuesMapSchema,
+    preserved: Type.Array(
+      Type.Object(
+        {
+          propertyId: UuidSchema,
+          sourceType: Type.Union(
+            [
+              "title",
+              "text",
+              "number",
+              "date",
+              "status",
+              "select",
+              "multi-select",
+              "checkbox",
+              "relation",
+            ].map((type) => Type.Literal(type)),
+          ),
+          value: Type.Unknown(),
+          preservedAtRevisionId: UuidSchema,
+          reason: Type.Union([
+            Type.Literal("incompatible-conversion"),
+            Type.Literal("retired-property"),
+            Type.Literal("retired-option"),
+          ]),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+export type DatabaseEntryValuesPayloadDto = Static<typeof DatabaseEntryValuesPayloadSchema>;
+
+/** Exact local-projection row carried by sync, without duplicating item data. */
+export const DatabaseProjectionSchema = Type.Object(
+  {
+    itemId: UuidSchema,
+    definitionVersion: Type.Integer({ minimum: 1 }),
+    definition: DatabaseDefinitionSchema,
+  },
+  { additionalProperties: false },
+);
+export type DatabaseProjectionDto = Static<typeof DatabaseProjectionSchema>;
+
+export const DatabaseEntryProjectionSchema = Type.Object(
+  {
+    entryItemId: UuidSchema,
+    databaseId: UuidSchema,
+    valueVersion: Type.Integer({ minimum: 1 }),
+    values: DatabaseEntryValuesPayloadSchema,
+  },
+  { additionalProperties: false },
+);
+export type DatabaseEntryProjectionDto = Static<typeof DatabaseEntryProjectionSchema>;
+
+/**
+ * New projection sets are optional so a newer client can still read a feed
+ * produced before structured databases existed.
+ */
+export const ChangeEnvelopeSchema = Type.Object({
+  sequence: Type.Integer({ minimum: 1 }),
+  mutationId: UuidSchema,
+  revisionIds: Type.Array(UuidSchema),
+  changedItems: Type.Optional(Type.Array(ItemSchema)),
+  relationships: Type.Optional(Type.Array(RelationshipSchema)),
+  databases: Type.Optional(Type.Array(DatabaseProjectionSchema)),
+  databaseEntries: Type.Optional(Type.Array(DatabaseEntryProjectionSchema)),
+});
+export type ChangeEnvelopeDto = Static<typeof ChangeEnvelopeSchema>;
+
+export const ChangesResponseSchema = Type.Object({
+  changes: Type.Array(ChangeEnvelopeSchema),
+  nextCursor: Type.String(),
+  hasMore: Type.Boolean(),
+});
+export type ChangesResponseDto = Static<typeof ChangesResponseSchema>;
+
+export const DatabaseMutationResultSchema = Type.Object(
+  {
+    mutationId: UuidSchema,
+    revisionIds: Type.Array(UuidSchema, { minItems: 1 }),
+    database: DatabaseSchema,
+  },
+  { additionalProperties: false },
+);
+export type DatabaseMutationResultDto = Static<typeof DatabaseMutationResultSchema>;
+
+export const EntryMutationResultSchema = Type.Object(
+  {
+    mutationId: UuidSchema,
+    revisionIds: Type.Array(UuidSchema, { minItems: 1 }),
+    entry: DatabaseEntrySchema,
+  },
+  { additionalProperties: false },
+);
+export type EntryMutationResultDto = Static<typeof EntryMutationResultSchema>;
+
+export const DatabaseQuerySchema = Type.Object(
+  {
+    viewId: UuidSchema,
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 100 })),
+    cursor: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
+  },
+  { additionalProperties: false },
+);
+export type DatabaseQueryDto = Static<typeof DatabaseQuerySchema>;
+
+export const DatabaseQueryRowSchema = Type.Object(
+  {
+    entryId: UuidSchema,
+    revisionId: UuidSchema,
+    title: Type.String(),
+    values: DatabaseValuesMapSchema,
+    relationTargets: DatabaseRelationTargetsMapSchema,
+    groupId: Type.Union([Type.String(), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+export const DatabaseGroupSummarySchema = Type.Object(
+  { id: Type.String(), label: Type.String(), count: Type.Integer({ minimum: 0 }) },
+  { additionalProperties: false },
+);
+
+export const DatabaseQueryPageSchema = Type.Object(
+  {
+    databaseId: UuidSchema,
+    viewId: UuidSchema,
+    definitionRevisionId: UuidSchema,
+    generation: Type.Integer({ minimum: 1 }),
+    coverage: Type.Union([Type.Literal("complete"), Type.Literal("partial")]),
+    availableCount: Type.Integer({ minimum: 0 }),
+    expectedCount: Type.Integer({ minimum: 0 }),
+    rows: Type.Array(DatabaseQueryRowSchema, { maxItems: 100 }),
+    groups: Type.Array(DatabaseGroupSummarySchema),
+    nextCursor: Type.Union([Type.String(), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+export type DatabaseQueryPageDto = Static<typeof DatabaseQueryPageSchema>;
+
+export const DatabaseProjectionUnavailableProblemSchema = Type.Intersect([
+  ProblemSchema,
+  Type.Object({
+    code: Type.Union([
+      Type.Literal("database.projection-building"),
+      Type.Literal("database.projection-degraded"),
+    ]),
+    projectionState: Type.Union([Type.Literal("building"), Type.Literal("degraded")]),
+    indexedCount: Type.Integer({ minimum: 0 }),
+    expectedCount: Type.Integer({ minimum: 0 }),
+  }),
+]);
+export type DatabaseProjectionUnavailableProblemDto = Static<
+  typeof DatabaseProjectionUnavailableProblemSchema
+>;
+
 export const CanonicalSnapshotSchema = Type.Object({
   workspaceId: UuidSchema,
   schemaVersion: Type.Integer({ minimum: 1 }),
@@ -460,6 +962,10 @@ export const CanonicalSnapshotSchema = Type.Object({
   digest: Type.String({ pattern: "^[a-f0-9]{64}$" }),
   items: Type.Array(ItemSchema),
   relationships: Type.Array(RelationshipSchema),
+  // Optional for reading snapshots emitted before feature 009. New servers
+  // always send both arrays, including when they are empty.
+  databases: Type.Optional(Type.Array(DatabaseProjectionSchema)),
+  databaseEntries: Type.Optional(Type.Array(DatabaseEntryProjectionSchema)),
 });
 export type CanonicalSnapshotDto = Static<typeof CanonicalSnapshotSchema>;
 

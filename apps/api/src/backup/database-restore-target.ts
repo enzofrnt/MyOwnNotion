@@ -9,6 +9,7 @@
 import { createHash } from "node:crypto";
 import type { ContentStore } from "@myownnotion/blob-store";
 import {
+  buildItemSnapshot,
   rebuildEmbedUsages,
   recordPlacementUsage,
   registerContent,
@@ -17,11 +18,13 @@ import {
 } from "@myownnotion/database";
 import {
   canonicalLineageString,
+  type ExportedDatabase,
+  type ExportedDatabaseEntry,
   type ExportedItem,
   type RevisionHeader,
   type Uuid,
 } from "@myownnotion/domain";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RestoreTarget } from "./restore-service.ts";
 
@@ -67,6 +70,8 @@ export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uui
   await tx.execute(sql`DELETE FROM uploads WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM exports WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM relationships WHERE workspace_id = ${workspaceId}`);
+  await tx.execute(sql`DELETE FROM database_entries WHERE workspace_id = ${workspaceId}`);
+  await tx.execute(sql`DELETE FROM databases WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM file_usages WHERE used_by_item_id IN
     (SELECT id FROM items WHERE workspace_id = ${workspaceId})`);
   await tx.execute(sql`DELETE FROM page_documents WHERE page_id IN
@@ -97,6 +102,9 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
   const parentEdges: Array<{ revisionId: Uuid; parentRevisionId: Uuid }> = [];
   const mutationRevisions = new Map<Uuid, Uuid[]>();
   const pages: Array<{ id: Uuid; body: unknown }> = [];
+  const itemsById = new Map<Uuid, ExportedItem>();
+  const restoredDatabases = new Map<Uuid, ExportedDatabase>();
+  const restoredEntries = new Map<Uuid, ExportedDatabaseEntry>();
 
   return {
     writeFile: async (digest, bytes) => {
@@ -109,6 +117,7 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
 
     writeItem: async (raw) => {
       const item = raw as ExportedItem;
+      itemsById.set(item.id, item);
       await options.tx.insert(schema.items).values({
         id: item.id,
         workspaceId: options.workspaceId,
@@ -209,6 +218,44 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       }
     },
 
+    writeDatabase: async (raw) => {
+      const database = raw as ExportedDatabase;
+      if (!itemsById.has(database.databaseId)) {
+        throw new Error("a restored database has no host page");
+      }
+      restoredDatabases.set(database.databaseId, database);
+      await options.tx.insert(schema.databases).values({
+        itemId: database.databaseId,
+        workspaceId: options.workspaceId,
+        definitionVersion: database.definitionVersion,
+      });
+      await options.protectedContent?.writeDatabaseDefinition(options.tx, {
+        databaseId: database.databaseId,
+        definitionVersion: database.definitionVersion,
+        definition: database.definition,
+      });
+    },
+
+    writeDatabaseEntry: async (raw) => {
+      const entry = raw as ExportedDatabaseEntry;
+      if (!itemsById.has(entry.entryId) || !restoredDatabases.has(entry.databaseId)) {
+        throw new Error("a restored database entry has no page or database");
+      }
+      restoredEntries.set(entry.entryId, entry);
+      await options.tx.insert(schema.databaseEntries).values({
+        entryItemId: entry.entryId,
+        databaseId: entry.databaseId,
+        workspaceId: options.workspaceId,
+        valueVersion: entry.valueVersion,
+        addedRevisionId: entry.addedRevisionId,
+      });
+      await options.protectedContent?.writeDatabaseEntryValues(options.tx, {
+        entryId: entry.entryId,
+        valueVersion: entry.valueVersion,
+        values: entry.values,
+      });
+    },
+
     writeRelationship: async (raw) => {
       const relationship = raw as ExportedRelationship;
       await options.tx.insert(schema.relationships).values({
@@ -257,6 +304,29 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
       }
       for (const page of pages) {
         await rebuildEmbedUsages(options.tx, page.id, page.body);
+      }
+      for (const [itemId, item] of itemsById) {
+        const database = restoredDatabases.get(itemId);
+        const entry = restoredEntries.get(itemId);
+        if (database === undefined && entry === undefined) continue;
+        const snapshot = await buildItemSnapshot(options.tx, itemId);
+        if (database !== undefined) {
+          snapshot["databaseDefinition"] = database.definition;
+          snapshot["databaseDefinitionVersion"] = database.definitionVersion;
+        }
+        if (entry !== undefined) {
+          snapshot["databaseId"] = entry.databaseId;
+          snapshot["databaseEntryValues"] = entry.values;
+          snapshot["databaseEntryValueVersion"] = entry.valueVersion;
+        }
+        await options.tx
+          .update(schema.revisions)
+          .set({ snapshot })
+          .where(eq(schema.revisions.id, item.currentRevisionId));
+        await options.protectedContent?.writeRevisionSnapshot(options.tx, {
+          revisionId: item.currentRevisionId,
+          snapshot,
+        });
       }
     },
   };

@@ -10,9 +10,12 @@
 
 import { expect, test } from "./fixtures.ts";
 import {
+  clickItemAction,
   createChildItem,
   createRootItem,
+  openItemActions,
   openWorkspace,
+  openWorkspaceDiagnostics,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -28,13 +31,19 @@ test.describe("what the owner asks to keep", () => {
     await createRootItem(page, "folder", folder);
     await waitForSynchronized(page);
 
-    const control = page.getByTestId(`offline-${folder}`);
-    await expect(control).toHaveAttribute("aria-pressed", "false");
+    await openItemActions(page, folder);
+    const control = page.getByTestId(`offline-action-${folder}`);
+    await expect(control).toHaveAttribute("aria-checked", "false");
     await control.click();
-    // Announced through aria-pressed, not through a glyph alone: a control whose
+    // Announced through aria-checked, not through a glyph alone: a control whose
     // state is only visual leaves a screen-reader user unable to tell whether it
     // worked.
-    await expect(control).toHaveAttribute("aria-pressed", "true", { timeout: 30_000 });
+    await openItemActions(page, folder);
+    await expect(page.getByTestId(`offline-action-${folder}`)).toHaveAttribute(
+      "aria-checked",
+      "true",
+      { timeout: 30_000 },
+    );
   });
 
   test("the marking survives a reload, because it is content and not a device preference", async ({
@@ -44,10 +53,14 @@ test.describe("what the owner asks to keep", () => {
     await openWorkspace(page);
     await createRootItem(page, "folder", folder);
     await waitForSynchronized(page);
-    await page.getByTestId(`offline-${folder}`).click();
-    await expect(page.getByTestId(`offline-${folder}`)).toHaveAttribute("aria-pressed", "true", {
-      timeout: 30_000,
-    });
+    await clickItemAction(page, folder, `offline-action-${folder}`);
+    await openItemActions(page, folder);
+    await expect(page.getByTestId(`offline-action-${folder}`)).toHaveAttribute(
+      "aria-checked",
+      "true",
+      { timeout: 30_000 },
+    );
+    await page.keyboard.press("Escape");
     await waitForSynchronized(page);
 
     await page.reload();
@@ -55,9 +68,12 @@ test.describe("what the owner asks to keep", () => {
     // Stored with the item and carried in its revision, so every device learns
     // it — which is the whole reason it is not kept beside the expanded
     // branches in the local projection.
-    await expect(page.getByTestId(`offline-${folder}`)).toHaveAttribute("aria-pressed", "true", {
-      timeout: 30_000,
-    });
+    await openItemActions(page, folder);
+    await expect(page.getByTestId(`offline-action-${folder}`)).toHaveAttribute(
+      "aria-checked",
+      "true",
+      { timeout: 30_000 },
+    );
   });
 
   test("a marked branch opens with no network", async ({ page, context }) => {
@@ -67,7 +83,7 @@ test.describe("what the owner asks to keep", () => {
     await createRootItem(page, "folder", folder);
     await createChildItem(page, folder, "page", child);
     await waitForSynchronized(page);
-    await page.getByTestId(`offline-${folder}`).click();
+    await clickItemAction(page, folder, `offline-action-${folder}`);
     await waitForSynchronized(page);
 
     await context.setOffline(true);
@@ -90,6 +106,7 @@ test.describe("what the owner asks to keep", () => {
 test.describe("what this device says it is holding", () => {
   test("states a breakdown and whether the browser promised to keep it", async ({ page }) => {
     await openWorkspace(page);
+    await openWorkspaceDiagnostics(page);
     const panel = page.getByTestId("storage-panel");
     await expect(panel).toBeVisible({ timeout: 30_000 });
 
@@ -103,6 +120,7 @@ test.describe("what this device says it is holding", () => {
 
   test("offers unlimited as its own choice rather than a very large number", async ({ page }) => {
     await openWorkspace(page);
+    await openWorkspaceDiagnostics(page);
     const select = page.getByTestId("storage-limit");
     await expect(select).toBeVisible({ timeout: 30_000 });
     // Unlimited is the absence of a limit. A number standing in for it
@@ -119,6 +137,7 @@ test.describe("what this device says it is holding", () => {
     await waitForSynchronized(page);
     await selectItem(page, pageName);
     await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await openWorkspaceDiagnostics(page);
 
     await context.setOffline(true);
     try {

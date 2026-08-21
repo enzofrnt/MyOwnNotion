@@ -21,6 +21,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
+  CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -54,7 +55,7 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
     const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { "idempotency-key": randomUUID() },
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
         document: {
@@ -93,7 +94,7 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
     await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { "idempotency-key": randomUUID() },
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
         document: {

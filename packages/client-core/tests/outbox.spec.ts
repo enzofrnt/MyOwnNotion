@@ -24,7 +24,7 @@ let outbox: Outbox;
 beforeEach(async () => {
   ({ codec } = await createTestCodec());
   db = openLocalDatabase(`test-${generateUuidV7()}`);
-  outbox = new Outbox(db);
+  outbox = new Outbox(db, codec);
 });
 
 afterEach(async () => {
@@ -128,6 +128,32 @@ describe("retry lifecycle", () => {
     expect(pending[0]?.status).toBe("pending");
   });
 
+  it("atomically replaces a terminally refused command with a fresh rebased identity", async () => {
+    const refusedMutationId = await enqueue("Needs a merge");
+    const replacementMutationId = generateUuidV7();
+    const newBaseRevisionId = generateUuidV7();
+    const refused = await outbox.get(refusedMutationId);
+    const localRevisionId = refused?.localRevisionIds[0] as Uuid;
+    await outbox.markSending([refusedMutationId]);
+
+    await outbox.requeueMerged(
+      refusedMutationId,
+      replacementMutationId,
+      { ...refused?.payload, name: "Merged" },
+      [newBaseRevisionId],
+    );
+
+    expect(await outbox.get(refusedMutationId)).toBeNull();
+    expect(await outbox.get(replacementMutationId)).toMatchObject({
+      mutationId: replacementMutationId,
+      status: "pending",
+      lastAttemptAt: null,
+      baseRevisionIds: [newBaseRevisionId],
+      localRevisionIds: refused?.localRevisionIds,
+    });
+    expect((await db.revisionHeaders.get(localRevisionId))?.mutationId).toBe(replacementMutationId);
+  });
+
   it("drops the optimistic local revision headers on acknowledgement", async () => {
     const mutationId = await enqueue("Accepted");
     const row = await outbox.get(mutationId);
@@ -139,6 +165,84 @@ describe("retry lifecycle", () => {
     expect(await outbox.get(mutationId)).toBeNull();
     // Server state supersedes the optimistic header.
     expect(await db.revisionHeaders.get(localRevisionId)).toBeUndefined();
+  });
+
+  it("atomically rebases queued dependants onto the acknowledged server revision", async () => {
+    const createMutationId = await enqueue("Created then edited");
+    const create = await outbox.get(createMutationId);
+    const localCreateRevisionId = create?.localRevisionIds[0] as Uuid;
+    const itemId = create?.payload["id"] as Uuid;
+    const editMutationId = generateUuidV7();
+    const edit = await applyLocalMutation(
+      db,
+      {
+        mutationId: editMutationId,
+        commandType: "item.rename",
+        payload: {
+          itemId,
+          name: "Edited immediately",
+          baseRevisionId: localCreateRevisionId,
+        },
+        baseRevisionIds: [localCreateRevisionId],
+      },
+      () => new Date(),
+      codec,
+    );
+    expect(edit.ok).toBe(true);
+    const localEditRevisionId = edit.ok ? edit.value.localRevisionIds[0] : undefined;
+    const serverRevisionId = generateUuidV7();
+
+    await outbox.acknowledge(createMutationId, [serverRevisionId]);
+
+    expect(await outbox.get(editMutationId)).toMatchObject({
+      baseRevisionIds: [serverRevisionId],
+      payload: { baseRevisionId: serverRevisionId },
+    });
+    expect(
+      localEditRevisionId === undefined
+        ? undefined
+        : (await db.revisionHeaders.get(localEditRevisionId))?.parentRevisionIds,
+    ).toEqual([serverRevisionId]);
+    expect(await db.revisionHeaders.get(localCreateRevisionId)).toMatchObject({
+      local: 0,
+      canonicalRevisionId: serverRevisionId,
+    });
+    expect((await db.items.get(itemId))?.currentRevisionId).toBe(localEditRevisionId);
+  });
+
+  it("rebases a stale in-memory caller that starts just after acknowledgement", async () => {
+    const createMutationId = await enqueue("Created before acknowledgement");
+    const create = await outbox.get(createMutationId);
+    const localCreateRevisionId = create?.localRevisionIds[0] as Uuid;
+    const itemId = create?.payload["id"] as Uuid;
+    const serverRevisionId = generateUuidV7();
+
+    await outbox.acknowledge(createMutationId, [serverRevisionId]);
+
+    const editMutationId = generateUuidV7();
+    const edit = await applyLocalMutation(
+      db,
+      {
+        mutationId: editMutationId,
+        commandType: "item.rename",
+        // A mounted editor can still hold the optimistic revision for one
+        // render after the acknowledgement advances the projection.
+        payload: {
+          itemId,
+          name: "Edited from the stale render",
+          baseRevisionId: localCreateRevisionId,
+        },
+        baseRevisionIds: [localCreateRevisionId],
+      },
+      () => new Date(),
+      codec,
+    );
+
+    expect(edit.ok).toBe(true);
+    expect(await outbox.get(editMutationId)).toMatchObject({
+      baseRevisionIds: [serverRevisionId],
+      payload: { baseRevisionId: serverRevisionId },
+    });
   });
 
   it("acknowledging an unknown mutation is a no-op", async () => {

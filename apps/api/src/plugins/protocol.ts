@@ -48,7 +48,12 @@ export function registerProtocolAnnouncement(app: FastifyInstance): void {
   });
 }
 
-/** What this request's client announced, or null when it announced nothing. */
+/**
+ * What this request's client announced, or null for the legacy silent client.
+ *
+ * The domain maps null to protocol 1. Keeping that policy out of this adapter
+ * ensures reads and writes cannot disagree about what an absent header means.
+ */
 export function clientProtocolOf(request: FastifyRequest): number | null {
   const header = request.headers[CLIENT_PROTOCOL_HEADER];
   return parseClientVersion(Array.isArray(header) ? header[0] : header);

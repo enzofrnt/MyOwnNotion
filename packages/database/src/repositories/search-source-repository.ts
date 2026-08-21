@@ -9,7 +9,7 @@
 import type { ItemKind, Uuid } from "@myownnotion/domain";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
-import { items, pageDocuments } from "../schema/index.ts";
+import { databaseEntries, databases, items, pageDocuments } from "../schema/index.ts";
 
 type Executor = Database | Transaction;
 
@@ -22,6 +22,11 @@ export interface SearchSourceRecord {
     readonly format: "myownnotion.document+json";
     readonly formatVersion: number;
     readonly body: Readonly<Record<string, unknown>>;
+  } | null;
+  readonly databaseEntry?: {
+    readonly databaseId: Uuid;
+    readonly definitionVersion: number;
+    readonly valueVersion: number;
   } | null;
 }
 
@@ -38,6 +43,9 @@ type SearchSourceRow = {
   readonly documentFormat: string | null;
   readonly documentFormatVersion: number | null;
   readonly documentBody: unknown;
+  readonly databaseId: string | null;
+  readonly definitionVersion: number | null;
+  readonly valueVersion: number | null;
 };
 
 function mapSearchSource(row: SearchSourceRow): SearchSourceRecord {
@@ -54,6 +62,14 @@ function mapSearchSource(row: SearchSourceRow): SearchSourceRecord {
             formatVersion: row.documentFormatVersion,
             body: row.documentBody as Readonly<Record<string, unknown>>,
           },
+    databaseEntry:
+      row.databaseId === null || row.definitionVersion === null || row.valueVersion === null
+        ? null
+        : {
+            databaseId: row.databaseId as Uuid,
+            definitionVersion: row.definitionVersion,
+            valueVersion: row.valueVersion,
+          },
   };
 }
 
@@ -65,6 +81,9 @@ const searchSourceSelection = {
   documentFormat: pageDocuments.format,
   documentFormatVersion: pageDocuments.formatVersion,
   documentBody: pageDocuments.body,
+  databaseId: databaseEntries.databaseId,
+  definitionVersion: databases.definitionVersion,
+  valueVersion: databaseEntries.valueVersion,
 };
 
 /** Reads every active item in a stable order for an atomic index build. */
@@ -76,6 +95,8 @@ export async function listSearchSources(
     .select(searchSourceSelection)
     .from(items)
     .leftJoin(pageDocuments, eq(pageDocuments.pageId, items.id))
+    .leftJoin(databaseEntries, eq(databaseEntries.entryItemId, items.id))
+    .leftJoin(databases, eq(databases.itemId, databaseEntries.databaseId))
     .where(and(eq(items.workspaceId, workspaceId), eq(items.lifecycle, "active")))
     .orderBy(asc(items.id));
 
@@ -92,15 +113,29 @@ export async function readSearchSources(
   if (uniqueItemIds.length === 0) {
     return [];
   }
+  const dependentRows = await executor
+    .select({ entryId: databaseEntries.entryItemId })
+    .from(databaseEntries)
+    .where(
+      and(
+        eq(databaseEntries.workspaceId, workspaceId),
+        inArray(databaseEntries.databaseId, uniqueItemIds),
+      ),
+    );
+  const expandedItemIds = [
+    ...new Set([...uniqueItemIds, ...dependentRows.map(({ entryId }) => entryId as Uuid)]),
+  ];
   const rows = await executor
     .select(searchSourceSelection)
     .from(items)
     .leftJoin(pageDocuments, eq(pageDocuments.pageId, items.id))
+    .leftJoin(databaseEntries, eq(databaseEntries.entryItemId, items.id))
+    .leftJoin(databases, eq(databases.itemId, databaseEntries.databaseId))
     .where(
       and(
         eq(items.workspaceId, workspaceId),
         eq(items.lifecycle, "active"),
-        inArray(items.id, uniqueItemIds),
+        inArray(items.id, expandedItemIds),
       ),
     )
     .orderBy(asc(items.id));

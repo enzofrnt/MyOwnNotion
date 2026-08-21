@@ -21,7 +21,7 @@ YAML 2.8, Docker Buildx, official GitHub cache-enabled actions
 **Storage**: Committed JSON impact policy; per-run JSON impact plan; GitHub
 Actions caches for package downloads, browsers, and BuildKit layers
 **Testing**: Vitest contract tests for the planner and workflow invariants;
-existing unit, integration, contract, Playwright, image, and release gates
+existing unit, integration, contract, uninstrumented performance, Playwright, image, and release gates
 **Target Platform**: GitHub-hosted Ubuntu runners and the documented local
 container gate
 **Project Type**: pnpm monorepo with web, API, shared packages, and container
@@ -39,11 +39,14 @@ browser/viewport projects, and two production images
 
 | Principle | Gate | Status |
 |-----------|------|--------|
-| I. Privacy and Security by Design | Untrusted PR caches are isolated from trusted main/release scopes; policy fails closed. | PASS |
-| II. Local-First Reliability | `pnpm checks:local` remains the complete pre-push gate and is never reduced by selection. | PASS |
-| III. Explicit Data and State Semantics | The change set, impact rules, selected tests, reasons, and cache scopes are explicit artifacts. | PASS |
-| IV. Specification-Driven Delivery | Feature 016 contains spec, plan, tasks, contracts, and validation evidence. | PASS |
-| V. Testable Quality | Selection logic has contract tests; full trusted gates detect mapping drift. | PASS |
+| I. User Ownership and Local Resilience | CI selection changes no product data or offline behavior; the complete local gate remains available. | PASS |
+| II. One Spec, Any Agent | Feature 016 is the canonical directory and identifies the governing product-canvas sections. | PASS |
+| III. Incremental, Verifiable Delivery | Selection logic has contract tests; conservative fallbacks and full trusted/local gates detect mapping drift. | PASS |
+| IV. Privacy and Security by Default | Untrusted PR caches are isolated from trusted main/release scopes, contain no secrets, and fail closed. | PASS |
+| V. Simple, Modular Architecture | One declarative policy and two existing CI scripts provide selection without another service or runtime dependency. | PASS |
+| VI. Accessible and Predictable Experience | Required jobs never disappear, summaries explain every selection, and performance budgets remain measurable without instrumentation. | PASS |
+| VII. Reproducible Toolchains and Enforced Quality | Pinned pnpm tooling and all required quality, image, security, and publication gates remain blocking. | PASS |
+| VIII. Canonical Product Direction | The plan is traceable to product-canvas sections 38–42 and changes no release boundary. | PASS |
 
 No constitutional exception is required.
 
@@ -122,9 +125,11 @@ logic in YAML.
 1. An `impact` job checks out full history, computes the exact merge-base/head
    change set, validates the policy, writes `test-impact.json`, uploads it, and
    exposes compact outputs for downstream matrix construction.
-2. Unit, integration, and contract jobs remain required. Each downloads the
+2. Unit, integration, contract, and performance jobs remain required. Each downloads the
    plan and runs either a full group, the direct/related affected subset, or an
-   explicit successful no-op.
+   explicit successful no-op. Performance is isolated from coverage so timing
+   budgets measure the application rather than V8 instrumentation, and its job
+   starts alongside the other test groups.
 3. The E2E job uses a dynamic matrix containing the selected browser/viewport
    variants. An empty plan produces one `{ "project": "none" }` entry so the
    required job remains present.

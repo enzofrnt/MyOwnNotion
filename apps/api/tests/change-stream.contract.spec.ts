@@ -117,7 +117,7 @@ describe("subscribing to the stream", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     // On every response including this one, so a client holding a long-lived
     // stream cannot pass a handshake and then drift (FR-017).
-    expect(response.headers.get("x-myownnotion-protocol")).toBe("1");
+    expect(response.headers.get("x-myownnotion-protocol")).toBe("2");
     await reader.cancel();
   });
 

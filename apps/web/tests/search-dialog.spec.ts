@@ -21,6 +21,8 @@ const result: SearchClientResult = {
   title: "Architecture",
   path: [],
   matchedField: "body",
+  propertyId: null,
+  propertyName: null,
   snippet: '<img src=x onerror="alert(1)">',
   conflict: true,
   localAvailability: "offloaded",
@@ -144,6 +146,27 @@ describe("search dialog states", () => {
     expect(markup).toContain("Unresolved conflict");
   });
 
+  it("identifies the structured property responsible for a search match", () => {
+    const markup = renderToStaticMarkup(
+      SearchResults({
+        results: [
+          {
+            ...result,
+            matchedField: "property",
+            propertyId: asUuid("018f0000-0000-7000-8000-000000000205"),
+            propertyName: "Workflow",
+          },
+        ],
+        selectedItemId: null,
+        onOpen: () => undefined,
+        onSelectionChange: () => undefined,
+        onReturnToQuery: () => undefined,
+      }),
+    );
+
+    expect(markup).toContain("Matched property: Workflow");
+  });
+
   it("sends search text only in a JSON POST body", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -164,5 +187,6 @@ describe("search dialog states", () => {
     expect(url).not.toContain("sentinel");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ query: "sentinel private", limit: 20 });
+    expect(new Headers(init.headers).get("x-myownnotion-client-protocol")).toBe("2");
   });
 });

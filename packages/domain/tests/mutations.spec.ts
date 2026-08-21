@@ -15,6 +15,39 @@ describe("typed mutation dispatch (T073)", () => {
   it("parses every owned command type", () => {
     const itemId = generateUuidV7();
     const revisionId = generateUuidV7();
+    const titlePropertyId = generateUuidV7();
+    const viewId = generateUuidV7();
+    const entryId = generateUuidV7();
+    const databaseDefinition = {
+      format: "myownnotion.database-definition+json",
+      formatVersion: 1,
+      databaseId: itemId,
+      properties: [
+        {
+          id: titlePropertyId,
+          name: "Title",
+          type: "title",
+          positionKey: "a",
+          state: "active",
+          config: {},
+        },
+      ],
+      views: [
+        {
+          id: viewId,
+          name: "Table",
+          type: "table",
+          positionKey: "a",
+          state: "active",
+          properties: [{ propertyId: titlePropertyId, visible: true, positionKey: "a" }],
+          filter: { mode: "all", criteria: [] },
+          sorts: [],
+          group: null,
+          options: { density: "comfortable", freezeTitle: true },
+        },
+      ],
+      taskRoles: null,
+    };
     const samples: Record<string, Record<string, unknown>> = {
       "item.create": {
         id: generateUuidV7(),
@@ -54,6 +87,46 @@ describe("typed mutation dispatch (T073)", () => {
       },
       "relationship.remove": { relationshipId: generateUuidV7() },
       "revision.restore": { revisionId, currentRevisionId: generateUuidV7() },
+      "database.create": {
+        id: itemId,
+        name: "Database",
+        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "V" },
+        titlePropertyId,
+        initialViewId: viewId,
+        initialViewName: "Table",
+      },
+      "database.definition.replace": {
+        databaseId: itemId,
+        baseRevisionId: revisionId,
+        definition: databaseDefinition,
+      },
+      "database.definition.resolve-conflict": {
+        databaseId: itemId,
+        resolvedRevisionIds: [revisionId, generateUuidV7()],
+        definition: databaseDefinition,
+      },
+      "database.entry.create": {
+        databaseId: itemId,
+        id: entryId,
+        title: "Entry",
+        placement: { id: generateUuidV7(), parentItemId: itemId, positionKey: "V" },
+        values: {},
+        relationTargets: {},
+      },
+      "database.entry.values.replace": {
+        databaseId: itemId,
+        entryId,
+        baseRevisionId: revisionId,
+        values: {},
+        relationTargets: {},
+      },
+      "database.entry.values.resolve-conflict": {
+        databaseId: itemId,
+        entryId,
+        resolvedRevisionIds: [revisionId, generateUuidV7()],
+        values: {},
+        relationTargets: {},
+      },
     };
     for (const commandType of COMMAND_TYPES) {
       const payload = samples[commandType];

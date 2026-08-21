@@ -147,7 +147,12 @@ describe.each(REFERENCE_BACKUPS)("reference backup $file", (reference) => {
           }),
         ),
       );
-      expect(result).toEqual({ restoredItemCount: 3, restoredFileCount: 1 });
+      expect(result).toEqual({
+        restoredItemCount: 3,
+        restoredFileCount: 1,
+        restoredDatabaseCount: 0,
+        restoredDatabaseEntryCount: 0,
+      });
       const names = (
         await restored.handle.db.select({ name: schema.items.name }).from(schema.items)
       )
@@ -185,6 +190,8 @@ describe.each(REFERENCE_BACKUPS)("reference backup $file", (reference) => {
           ...expected,
           snippet: null,
           conflict: false,
+          propertyId: null,
+          propertyName: null,
         });
       }
     } finally {

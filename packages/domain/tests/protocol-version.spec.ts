@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import {
   describeProtocolRefusal,
+  LEGACY_PROTOCOL_VERSION,
   MINIMUM_READ_VERSION,
   MINIMUM_WRITE_VERSION,
   PROTOCOL_VERSION,
@@ -35,15 +36,19 @@ describe("the compatibility window", () => {
     // unreachable and the pair would express nothing a single value could not.
     expect(MINIMUM_READ_VERSION).toBeLessThanOrEqual(MINIMUM_WRITE_VERSION);
   });
+
+  it("keeps the preceding stable protocol readable but not writable", () => {
+    expect(PROTOCOL_VERSION).toBe(2);
+    expect(MINIMUM_WRITE_VERSION).toBe(2);
+    expect(MINIMUM_READ_VERSION).toBe(1);
+    expect(protocolAccessFor(1)).toEqual({ kind: "read-only", requiredVersion: 2 });
+  });
 });
 
 describe("a client that announces nothing", () => {
-  it("is given full access rather than refused", () => {
-    // Every client built before this feature announces nothing. Refusing them
-    // would break working installations at the moment of upgrade, which is
-    // precisely when an owner is least able to diagnose it. The header starts
-    // carrying information when the first incompatible change ships.
-    expect(protocolAccessFor(null)).toEqual({ kind: "full" });
+  it("is treated as the legacy protocol and kept read-only", () => {
+    expect(LEGACY_PROTOCOL_VERSION).toBe(1);
+    expect(protocolAccessFor(null)).toEqual({ kind: "read-only", requiredVersion: 2 });
   });
 
   it("treats an unparseable header as announcing nothing", () => {

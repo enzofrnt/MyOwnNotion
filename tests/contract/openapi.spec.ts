@@ -8,9 +8,17 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
   ChangeEnvelopeSchema,
+  CreateDatabaseRequestSchema,
+  CreateEntryRequestSchema,
   CreateItemSchema,
   CreatePlacementSchema,
   CreateRelationshipSchema,
+  DatabaseDefinitionSchema,
+  DatabaseEntrySchema,
+  DatabaseQueryPageSchema,
+  DatabaseQuerySchema,
+  DatabaseSchema,
+  DefinitionImpactSchema,
   HealthResponseSchema,
   ItemSchema,
   MutationResultSchema,
@@ -19,6 +27,8 @@ import {
   ProblemSchema,
   QueuedMutationResultSchema,
   QueuedMutationSchema,
+  ReplaceDefinitionRequestSchema,
+  ReplaceEntryValuesRequestSchema,
   RevisionSchema,
   SearchHealthSchema,
   SearchRequestSchema,
@@ -28,14 +38,20 @@ import {
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
+interface OpenApiSchema {
+  required?: string[];
+  enum?: string[];
+  properties?: Record<string, unknown>;
+  allOf?: OpenApiSchema[];
+  $ref?: string;
+}
+
 interface OpenApiDocument {
   openapi: string;
+  security?: unknown[];
   paths: Record<string, Record<string, unknown>>;
   components: {
-    schemas: Record<
-      string,
-      { required?: string[]; enum?: string[]; properties?: Record<string, unknown> }
-    >;
+    schemas: Record<string, OpenApiSchema>;
   };
 }
 
@@ -49,6 +65,11 @@ const searchDocumentPath = path.resolve(
   "../../specs/008-search/contracts/search-api.openapi.yaml",
 );
 const searchOpenapi = parse(readFileSync(searchDocumentPath, "utf8")) as OpenApiDocument;
+const databaseDocumentPath = path.resolve(
+  import.meta.dirname,
+  "../../specs/009-databases-structured-tasks/contracts/database-api.openapi.yaml",
+);
+const databaseOpenapi = parse(readFileSync(databaseDocumentPath, "utf8")) as OpenApiDocument;
 
 function requiredOf(schemaName: string): string[] {
   const schema = openapi.components.schemas[schemaName];
@@ -60,6 +81,21 @@ function requiredOfSearch(schemaName: string): string[] {
   const schema = searchOpenapi.components.schemas[schemaName];
   expect(schema, `Search OpenAPI schema ${schemaName} must exist`).toBeDefined();
   return schema?.required ?? [];
+}
+
+function requiredOfDatabase(schemaName: string): string[] {
+  const schema = databaseOpenapi.components.schemas[schemaName];
+  expect(schema, `Database OpenAPI schema ${schemaName} must exist`).toBeDefined();
+  const required = (candidate: OpenApiSchema | undefined): string[] => {
+    if (candidate === undefined) return [];
+    const referenced = candidate.$ref?.match(/^#\/components\/schemas\/(.+)$/)?.[1];
+    return [
+      ...(candidate.required ?? []),
+      ...(candidate.allOf ?? []).flatMap(required),
+      ...(referenced === undefined ? [] : required(databaseOpenapi.components.schemas[referenced])),
+    ];
+  };
+  return [...new Set(required(schema))];
 }
 
 function runtimeRequired(schema: { required?: string[] }): string[] {
@@ -203,5 +239,103 @@ describe("search OpenAPI contract", () => {
     for (const field of requiredOfSearch(name)) {
       expect(runtime, `${name}.${field} must be required at runtime`).toContain(field);
     }
+  });
+});
+
+describe("database OpenAPI contract", () => {
+  it("resolves every local schema and response reference", () => {
+    const references: string[] = [];
+    const visit = (value: unknown): void => {
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+      } else if (typeof value === "object" && value !== null) {
+        for (const [key, child] of Object.entries(value)) {
+          if (key === "$ref" && typeof child === "string") references.push(child);
+          else visit(child);
+        }
+      }
+    };
+    visit(databaseOpenapi);
+    for (const reference of references) {
+      const match = reference.match(/^#\/components\/(schemas|responses|parameters)\/(.+)$/);
+      expect(match, `unsupported reference ${reference}`).not.toBeNull();
+      const [, collection, name] = match as RegExpMatchArray;
+      expect(
+        (databaseOpenapi.components as unknown as Record<string, Record<string, unknown>>)[
+          collection as string
+        ]?.[name as string],
+        `missing ${reference}`,
+      ).toBeDefined();
+    }
+  });
+
+  it("keeps private definitions and values in authenticated request bodies", () => {
+    expect(databaseOpenapi.openapi).toMatch(/^3\.1\./);
+    expect(databaseOpenapi.security).toEqual([{ ownerSession: [] }]);
+    for (const [route, method] of [
+      ["/v1/databases", "post"],
+      ["/v1/databases/{databaseId}/definition/impact", "post"],
+      ["/v1/databases/{databaseId}/definition", "put"],
+      ["/v1/databases/{databaseId}/entries", "post"],
+      ["/v1/databases/{databaseId}/entries/{entryId}/values", "put"],
+      ["/v1/databases/{databaseId}/query", "post"],
+    ] as const) {
+      const operation = databaseOpenapi.paths[route]?.[method] as {
+        requestBody?: { required?: boolean };
+        parameters?: Array<{ in?: string }>;
+      };
+      expect(operation.requestBody?.required, `${method.toUpperCase()} ${route}`).toBe(true);
+      expect(operation.parameters ?? []).not.toContainEqual(
+        expect.objectContaining({ in: "query" }),
+      );
+    }
+  });
+
+  it("documents every database boundary and bounded saved-view query", () => {
+    expect(Object.keys(databaseOpenapi.paths)).toEqual(
+      expect.arrayContaining([
+        "/v1/databases",
+        "/v1/databases/{databaseId}",
+        "/v1/databases/{databaseId}/definition/impact",
+        "/v1/databases/{databaseId}/definition",
+        "/v1/databases/{databaseId}/entries",
+        "/v1/databases/{databaseId}/entries/{entryId}",
+        "/v1/databases/{databaseId}/entries/{entryId}/values",
+        "/v1/databases/{databaseId}/query",
+      ]),
+    );
+    const query = databaseOpenapi.components.schemas["DatabaseQuery"] as {
+      properties?: Record<string, { minimum?: number; maximum?: number; maxLength?: number }>;
+    };
+    expect(query.properties?.["limit"]).toMatchObject({ minimum: 1, maximum: 100 });
+    expect(query.properties?.["cursor"]).toMatchObject({ maxLength: 2048 });
+  });
+
+  it.each([
+    ["CreateDatabaseRequest", CreateDatabaseRequestSchema],
+    ["DatabaseDefinition", DatabaseDefinitionSchema],
+    ["ReplaceDefinitionRequest", ReplaceDefinitionRequestSchema],
+    ["DefinitionImpact", DefinitionImpactSchema],
+    ["Database", DatabaseSchema],
+    ["CreateEntryRequest", CreateEntryRequestSchema],
+    ["ReplaceEntryValuesRequest", ReplaceEntryValuesRequestSchema],
+    ["DatabaseEntry", DatabaseEntrySchema],
+    ["DatabaseQuery", DatabaseQuerySchema],
+    ["DatabaseQueryPage", DatabaseQueryPageSchema],
+  ] as const)("runtime %s requires every database OpenAPI-required field", (name, schema) => {
+    const runtime = runtimeRequired(schema as { required?: string[] });
+    for (const field of requiredOfDatabase(name)) {
+      expect(runtime, `${name}.${field} must be required at runtime`).toContain(field);
+    }
+  });
+
+  it("uses the shared safe problem shape for validation, conflicts, cursors and projection state", () => {
+    expect(runtimeRequired(ProblemSchema)).toEqual(requiredOfDatabase("Problem"));
+    const queryResponses = (
+      databaseOpenapi.paths["/v1/databases/{databaseId}/query"] as {
+        post: { responses: Record<string, unknown> };
+      }
+    ).post.responses;
+    expect(Object.keys(queryResponses).sort()).toEqual(["200", "400", "404", "409", "503"]);
   });
 });

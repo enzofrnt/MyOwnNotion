@@ -44,7 +44,7 @@
         "testFiles": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "groups": {
           "type": "array",
-          "items": { "enum": ["unit", "integration", "contract"] },
+          "items": { "enum": ["unit", "integration", "contract", "performance"] },
           "uniqueItems": true
         }
       }

@@ -21,9 +21,11 @@
  */
 
 import { randomUUID } from "node:crypto";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
+  CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   openWorkspace,
   selectItem,
@@ -31,7 +33,7 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
-async function openPage(page: import("@playwright/test").Page, name: string): Promise<string> {
+async function openPage(page: Page, name: string): Promise<string> {
   await openWorkspace(page);
   await createRootItem(page, "page", name);
   await waitForSynchronized(page);
@@ -40,8 +42,73 @@ async function openPage(page: import("@playwright/test").Page, name: string): Pr
   return (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
 }
 
-function surface(page: import("@playwright/test").Page) {
+function surface(page: Page) {
   return page.getByTestId("block-editor").locator(".ProseMirror");
+}
+
+function rootBlocks(editor: Locator): Locator {
+  return editor.locator(":scope > .bn-block-group > .bn-block-outer[data-id]");
+}
+
+function inlineContent(block: Locator): Locator {
+  return block.locator(":scope > .bn-block > .bn-block-content > .bn-inline-content").first();
+}
+
+function blockContent(block: Locator): Locator {
+  return block.locator(":scope > .bn-block > .bn-block-content").first();
+}
+
+async function typeIntoBlock(editor: Locator, block: Locator, text: string): Promise<void> {
+  const content = inlineContent(block);
+  // Empty ProseMirror paragraphs have no box of their own in every engine.
+  // Their BlockNote content wrapper is the actual visible insertion target.
+  await blockContent(block).click();
+  await expect(editor).toBeFocused();
+  await editor.pressSequentially(text);
+  await expect(content).toContainText(text);
+}
+
+async function appendParagraph(editor: Locator): Promise<Locator> {
+  const blocks = rootBlocks(editor);
+  const previousCount = await blocks.count();
+  await expect(editor).toBeFocused();
+  // The explicit keyboard alternative is handled by the editor itself and is
+  // therefore identical on hardware keyboards and mobile browser emulation.
+  await editor.press("ControlOrMeta+Alt+Enter");
+  await expect(blocks).toHaveCount(previousCount + 1);
+  const block = blocks.nth(previousCount);
+  await expect(blockContent(block)).toBeVisible();
+  await expect(blockContent(block)).toHaveAttribute("data-content-type", "paragraph");
+  return block;
+}
+
+async function typeParagraphs(editor: Locator, values: readonly string[]): Promise<void> {
+  for (const [index, value] of values.entries()) {
+    const block = rootBlocks(editor).last();
+    await typeIntoBlock(editor, block, value);
+    if (index < values.length - 1) await appendParagraph(editor);
+  }
+}
+
+async function selectLastTwoBlocks(page: Page, editor: Locator): Promise<void> {
+  const blocks = rootBlocks(editor);
+  const count = await blocks.count();
+  const earlier = inlineContent(blocks.nth(count - 2));
+  const later = inlineContent(blocks.nth(count - 1));
+  await earlier.scrollIntoViewIfNeeded();
+  await later.scrollIntoViewIfNeeded();
+  const earlierBox = await earlier.boundingBox();
+  const laterBox = await later.boundingBox();
+  if (earlierBox === null || laterBox === null)
+    throw new Error("Les deux blocs doivent être visibles.");
+
+  await page.mouse.move(laterBox.x + laterBox.width - 2, laterBox.y + laterBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(earlierBox.x + 2, earlierBox.y + earlierBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
+    .toContain("second");
 }
 
 test.describe("writing with Markdown-style shortcuts", () => {
@@ -65,7 +132,9 @@ test.describe("writing with Markdown-style shortcuts", () => {
     await page.keyboard.press("Delete");
     await surface(page).pressSequentially("- first item");
 
-    await expect(surface(page).locator("ul li")).toContainText("first item");
+    await expect(surface(page).locator('[data-content-type="bulletListItem"]')).toContainText(
+      "first item",
+    );
   });
 
   test("`> ` becomes a quote", async ({ page }) => {
@@ -79,62 +148,180 @@ test.describe("writing with Markdown-style shortcuts", () => {
   });
 });
 
-test.describe("the visible controls", () => {
-  test("insert each block type without touching the keyboard shortcuts", async ({ page }) => {
-    // FR-002 requires three routes, not one. An owner who never discovers the
-    // shortcuts must still be able to build the same document.
+test.describe("the contextual BlockNote controls", () => {
+  test("inserts and transforms five durable block types through distinct paths", async ({
+    page,
+  }) => {
     await openPage(page, uniqueName("ControlsPage"));
-    await surface(page).click();
-
-    await page.getByTestId("toggle-bulleted-list").click();
-    await expect(surface(page).locator("ul")).toBeVisible();
-
-    await page.getByTestId("toggle-checkbox").click();
-    await expect(
-      surface(page).locator('[data-type="taskList"], ul[data-type="taskList"]'),
-    ).toBeVisible();
-
-    await page.getByTestId("insert-divider").click();
-    await expect(surface(page).locator("hr")).toBeVisible();
-  });
-
-  test("the slash menu offers the block types and is a listbox", async ({ page }) => {
-    await openPage(page, uniqueName("SlashPage"));
-    await surface(page).click();
+    const editor = surface(page);
+    await editor.click();
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.press("Delete");
-    await page.keyboard.press("/");
 
-    const menu = page.getByTestId("slash-menu");
-    await expect(menu).toBeVisible();
-    // A listbox rather than a set of buttons, so focus stays in the editor and
-    // the selection the insertion acts on is not collapsed.
-    await expect(menu.getByRole("listbox")).toHaveAttribute("aria-activedescendant", /.+/);
-    await expect(page.getByTestId("slash-option-heading-1")).toBeVisible();
+    // Markdown is the zero-dialog route.
+    await editor.pressSequentially("# Titre principal");
+    await expect(editor.locator("h1")).toHaveText("Titre principal");
+    await page.keyboard.press("End");
+    const slashBlock = await appendParagraph(editor);
 
-    await page.keyboard.press("Escape");
-    await expect(menu).toBeHidden();
+    // The slash menu remains in the editor, is filtered and is localized.
+    await typeIntoBlock(editor, slashBlock, "/cit");
+    const slashMenu = page.getByRole("listbox");
+    await expect(slashMenu).toBeVisible();
+    await slashMenu.getByRole("option", { name: /^Citation/u }).click();
+    await expect(slashMenu).toBeHidden();
+    const quoteBlock = rootBlocks(editor).last();
+    await typeIntoBlock(editor, quoteBlock, "Une citation");
+    await expect(inlineContent(quoteBlock)).toHaveJSProperty("tagName", "BLOCKQUOTE");
+    const paragraphAfterQuote = await appendParagraph(editor);
+
+    await typeIntoBlock(editor, paragraphAfterQuote, "/div");
+    const dividerMenu = page.getByRole("listbox");
+    await dividerMenu.getByRole("option", { name: /^Diviseur/u }).click();
+    await expect(dividerMenu).toBeHidden();
+    await expect(editor.locator("hr")).toBeVisible();
+
+    // One click on the contextual plus opens the adjacent insertion point and
+    // its localized choices. An existing empty trailing block is reused.
+    await editor.locator(".bn-block-outer[data-id]").last().hover();
+    await page.getByRole("button", { name: "Ajouter un bloc" }).click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    const addMenu = page.getByRole("listbox");
+    await addMenu.getByRole("option", { name: /^Liste de tâches/u }).click();
+    await expect(addMenu).toBeHidden();
+    const checkBlock = rootBlocks(editor).last();
+    await typeIntoBlock(editor, checkBlock, "À faire");
+    await expect(checkBlock.locator('[data-content-type="checkListItem"]')).toContainText(
+      "À faire",
+    );
+
+    const paragraphAfterCheck = await appendParagraph(editor);
+    await typeIntoBlock(editor, paragraphAfterCheck, "À transformer");
+    const contextualBlock = rootBlocks(editor).filter({ hasText: "À transformer" }).last();
+    await contextualBlock.click({ button: "right" });
+    await page.getByTestId("context-transform-heading").click();
+    await expect(contextualBlock.locator("h1")).toContainText("À transformer");
+
+    // The handle itself exposes the same durable actions without requiring a
+    // secondary click or a global toolbar.
+    await contextualBlock.hover();
+    await page.getByRole("button", { name: "Ouvrir le menu du bloc" }).click();
+    await page.getByRole("menuitem", { name: "Dupliquer" }).click();
+    await expect(editor.getByText("À transformer", { exact: true })).toHaveCount(2);
+    await page.getByTestId("undo").click();
+    await expect(editor.getByText("À transformer", { exact: true })).toHaveCount(1);
+  });
+
+  test("formats a selection and creates a durable internal page link in two actions", async ({
+    page,
+  }) => {
+    const targetName = uniqueName("LinkTarget");
+    await openPage(page, targetName);
+    const sourceName = uniqueName("FormattingPage");
+    await openPage(page, sourceName);
+    const editor = surface(page);
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Delete");
+    await editor.pressSequentially("Texte à relier");
+    await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+
+    const toolbar = page.locator(".bn-formatting-toolbar");
+    await expect(toolbar).toBeVisible();
+    await toolbar.getByRole("button", { name: "Gras" }).click();
+    await expect(editor.locator("strong")).toContainText("relier");
+
+    // The selected range remains active after formatting: open the shared
+    // picker, then choose the target. No global form or technical ID is shown.
+    await toolbar.getByRole("button", { name: "Lien vers une page" }).click();
+    const picker = page.locator(".editor-page-link-picker");
+    await expect(picker).toBeVisible();
+    await picker.getByRole("option", { name: targetName }).click();
+    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toContainText("relier");
+
+    // Formatting and page-link creation are two independent local gestures.
+    // Undo removes only the latest one, then the preceding style; redo restores
+    // both without touching unrelated content.
+    await page.getByTestId("undo").click();
+    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toHaveCount(0);
+    await expect(editor.locator("strong")).toContainText("relier");
+    await page.getByTestId("undo").click();
+    await expect(editor.locator("strong")).toHaveCount(0);
+    await page.getByTestId("redo").click();
+    await page.getByTestId("redo").click();
+    await expect(editor.locator("strong")).toContainText("relier");
+    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toContainText("relier");
   });
 });
 
-test.describe("undo", () => {
-  test("restores the previous state and redo returns to the later one", async ({ page }) => {
-    // US1 scenario 3. Every action in FR-002 and FR-003 must be undoable, and a
-    // control implemented outside the transaction pipeline silently would not
-    // be — which is why this asserts on a control rather than on typing.
+test.describe("operational undo", () => {
+  test("undoes and redoes one contextual block transaction", async ({ page }) => {
     await openPage(page, uniqueName("UndoPage"));
-    await surface(page).click();
+    const editor = surface(page);
+    await editor.click();
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.press("Delete");
-    await surface(page).pressSequentially("before");
-    await page.getByTestId("toggle-heading").click();
-    await expect(surface(page).locator("h1")).toBeVisible();
+    await editor.pressSequentially("avant");
+    const block = editor.locator(".bn-block-outer[data-id]").filter({ hasText: "avant" }).last();
+    await block.click({ button: "right" });
+    await page.getByTestId("context-transform-heading").click();
+    await expect(editor.locator("h1")).toContainText("avant");
 
     await page.getByTestId("undo").click();
-    await expect(surface(page).locator("h1")).toHaveCount(0);
+    await expect(editor.locator("h1")).toHaveCount(0);
+    await expect(editor.locator("p")).toContainText("avant");
 
     await page.getByTestId("redo").click();
-    await expect(surface(page).locator("h1")).toBeVisible();
+    await expect(editor.locator("h1")).toContainText("avant");
+  });
+
+  test("moves a contiguous multi-block selection as one undoable gesture", async ({ page }) => {
+    await openPage(page, uniqueName("MoveGroupPage"));
+    const editor = surface(page);
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Delete");
+    await typeParagraphs(editor, ["premier", "second", "troisième"]);
+    await expect(rootBlocks(editor)).toHaveCount(3);
+    await expect(page.getByTestId("editor-error")).toHaveCount(0);
+
+    // A native range spanning two blocks is the same group the drag handle
+    // uses. Move it through the keyboard-equivalent DnD path.
+    await selectLastTwoBlocks(page, editor);
+    await page.keyboard.press("Alt+Shift+ArrowUp");
+    const blocks = rootBlocks(editor);
+    await expect(blocks.nth(0)).toContainText("second");
+    await expect(blocks.nth(1)).toContainText("troisième");
+    await expect(blocks.nth(2)).toContainText("premier");
+
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(blocks.nth(0)).toContainText("premier");
+    await expect(blocks.nth(1)).toContainText("second");
+    await expect(blocks.nth(2)).toContainText("troisième");
+  });
+
+  test("duplicates a contiguous multi-block selection as one undoable gesture", async ({
+    page,
+  }) => {
+    await openPage(page, uniqueName("DuplicateGroupPage"));
+    const editor = surface(page);
+    await editor.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Delete");
+    await typeParagraphs(editor, ["premier", "second", "troisième"]);
+    await expect(rootBlocks(editor)).toHaveCount(3);
+    await expect(page.getByTestId("editor-error")).toHaveCount(0);
+
+    // The fresh native range avoids depending on selection restoration after
+    // undo, which differs between editing engines while the document does not.
+    await selectLastTwoBlocks(page, editor);
+    await page.keyboard.press("ControlOrMeta+d");
+    await expect(editor.getByText("second", { exact: true })).toHaveCount(2);
+    await expect(editor.getByText("troisième", { exact: true })).toHaveCount(2);
+
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect(editor.getByText("second", { exact: true })).toHaveCount(1);
+    await expect(editor.getByText("troisième", { exact: true })).toHaveCount(1);
   });
 });
 
@@ -182,7 +369,7 @@ test.describe("a block this client does not recognise", () => {
       nested: { deep: [1, 2, 3] },
     };
     const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { "idempotency-key": randomUUID() },
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
         document: {
@@ -210,9 +397,8 @@ test.describe("a block this client does not recognise", () => {
     await expect(placeholder).toContainText("kanbanBoard");
 
     // Now edit around it and save.
-    await surface(page).click();
-    await page.keyboard.press("End");
-    await page.getByTestId("insert-block").click();
+    await placeholder.click({ button: "right" });
+    await page.getByTestId("context-insert-after").click();
     await surface(page).pressSequentially("a paragraph beside it");
     await page.getByTestId("save-document").click();
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
@@ -241,7 +427,7 @@ test.describe("a page written before the block editor existed", () => {
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
     const legacyBody = { text: "written by an older client", count: 3 };
     const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { "idempotency-key": randomUUID() },
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
         document: { format: "myownnotion.document+json", formatVersion: 1, body: legacyBody },

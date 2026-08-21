@@ -7,13 +7,27 @@
  */
 
 import { ChangesResponseSchema } from "@myownnotion/contracts";
-import { cursorToSequence, listChangesAfter, readItems } from "@myownnotion/database";
+import {
+  cursorToSequence,
+  listChangesAfter,
+  listRelationships,
+  readDatabaseEntryRecord,
+  readDatabaseRecord,
+  readItems,
+} from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
-import { resolveProtectedContent } from "../security/content-resolution.ts";
+import {
+  resolveProtectedContent,
+  resolveProtectedRelationships,
+} from "../security/content-resolution.ts";
+import {
+  resolveDatabaseEntryProjections,
+  resolveDatabaseProjections,
+} from "../sync/structured-payload.ts";
 
 export function registerChangeRoutes(app: FastifyInstance, context: AppContext): void {
   app.get(
@@ -53,15 +67,55 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
           context.protectedContent,
         );
         const itemsById = new Map(items.map((item) => [item.id, item]));
+        const databaseRecords = (
+          await Promise.all(itemIds.map((itemId) => readDatabaseRecord(tx, itemId)))
+        ).filter(
+          (record): record is NonNullable<typeof record> =>
+            record !== null && itemsById.get(record.databaseId)?.lifecycle !== "purged",
+        );
+        const entryRecords = (
+          await Promise.all(itemIds.map((itemId) => readDatabaseEntryRecord(tx, itemId)))
+        ).filter(
+          (record): record is NonNullable<typeof record> =>
+            record !== null && itemsById.get(record.entryId)?.lifecycle !== "purged",
+        );
+        const relationshipRows = (
+          await Promise.all(
+            itemIds.map((itemId) => listRelationships(tx, context.workspaceId, itemId)),
+          )
+        ).flat();
+        const uniqueRelationships = [
+          ...new Map(
+            relationshipRows.map((relationship) => [relationship.id, relationship]),
+          ).values(),
+        ];
+        const [relationships, databases, databaseEntries] = await Promise.all([
+          resolveProtectedRelationships(tx, uniqueRelationships, context.protectedContent),
+          resolveDatabaseProjections(tx, databaseRecords, context.protectedContent),
+          resolveDatabaseEntryProjections(tx, entryRecords, context.protectedContent),
+        ]);
         return {
-          changes: changes.changes.map((change) => ({
-            sequence: change.sequence,
-            mutationId: change.mutationId,
-            revisionIds: change.revisionIds,
-            changedItems: change.changedItemIds
-              .map((id) => itemsById.get(id))
-              .filter((item) => item !== undefined),
-          })),
+          changes: changes.changes.map((change) => {
+            const changedIds = new Set(change.changedItemIds);
+            return {
+              sequence: change.sequence,
+              mutationId: change.mutationId,
+              revisionIds: change.revisionIds,
+              changedItems: change.changedItemIds
+                .map((id) => itemsById.get(id))
+                .filter((item) => item !== undefined),
+              relationships: relationships
+                .filter(
+                  ({ sourceItemId, targetItemId }) =>
+                    changedIds.has(sourceItemId) || changedIds.has(targetItemId),
+                )
+                .sort((left, right) => left.id.localeCompare(right.id)),
+              databases: databases.filter(({ itemId }) => changedIds.has(itemId as Uuid)),
+              databaseEntries: databaseEntries.filter(({ entryItemId }) =>
+                changedIds.has(entryItemId as Uuid),
+              ),
+            };
+          }),
           nextCursor: changes.nextCursor,
           hasMore: changes.hasMore,
         };

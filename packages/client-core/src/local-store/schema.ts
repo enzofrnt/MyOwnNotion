@@ -8,7 +8,13 @@
  * a second source of truth.
  */
 
-import type { Uuid } from "@myownnotion/domain";
+import type {
+  DatabaseDefinition,
+  DatabaseMergeConflict,
+  EntryValues,
+  RelationTargets,
+  Uuid,
+} from "@myownnotion/domain";
 import { Dexie, type EntityTable } from "dexie";
 // The envelope type, not the codec: `local-encryption.ts` knows nothing about
 // the projection, so this is a leaf dependency rather than a cycle.
@@ -82,6 +88,14 @@ export interface LocalRevisionHeaderRow {
   readonly acceptedAt: string;
   /** True for optimistic local revisions not yet acknowledged by the server. */
   readonly local: 0 | 1;
+  /**
+   * Canonical identity returned for this optimistic revision.
+   *
+   * Kept for the lifetime of the page so an edit prepared by a render that
+   * still names the local revision can be rebased instead of becoming a false
+   * conflict. It is routing metadata, not owner-authored content.
+   */
+  readonly canonicalRevisionId?: Uuid;
 }
 
 /**
@@ -128,11 +142,60 @@ export interface ConflictRecordRow {
   readonly competingRevisionIds: Uuid[];
   readonly capturedAt: string;
   readonly errorCode: string;
+  /** Three complete versions retained when a structured merge needs the owner. */
+  readonly structured?: StructuredConflictContext;
 }
+
+export type StructuredConflictContext =
+  | {
+      readonly kind: "database-definition";
+      readonly conflicts: readonly DatabaseMergeConflict[];
+      readonly ancestor: DatabaseDefinition;
+      readonly local: DatabaseDefinition;
+      readonly remote: DatabaseDefinition;
+    }
+  | {
+      readonly kind: "database-entry-values";
+      readonly conflicts: readonly DatabaseMergeConflict[];
+      readonly ancestor: EntryValues;
+      readonly local: EntryValues;
+      readonly remote: EntryValues;
+      readonly ancestorRelationTargets: RelationTargets;
+      readonly localRelationTargets: RelationTargets;
+      readonly remoteRelationTargets: RelationTargets;
+    };
 
 export interface LocalMetaRow {
   readonly key: string;
   readonly value: unknown;
+}
+
+/** Open in memory; `definition` is replaced by ciphertext before persistence. */
+export interface LocalDatabaseRow {
+  readonly itemId: Uuid;
+  readonly definitionVersion: number;
+  readonly definition: DatabaseDefinition;
+}
+
+export interface SealedLocalDatabaseRow extends Omit<LocalDatabaseRow, "definition"> {
+  readonly sealedDefinition: LocalEnvelope;
+}
+
+/** Open in memory; values are sealed before the later version-6 Dexie write. */
+export interface LocalDatabaseEntryRow {
+  readonly entryItemId: Uuid;
+  readonly databaseId: Uuid;
+  readonly valueVersion: number;
+  readonly availability: "present" | "offloaded" | "never-fetched";
+  /**
+   * Empty when availability is not `present`; callers must inspect the
+   * availability field before treating this projection as evaluable.
+   */
+  readonly values: EntryValues;
+}
+
+export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow, "values"> {
+  readonly sealedValues: LocalEnvelope | null;
 }
 
 /**
@@ -149,7 +212,7 @@ export interface LocalMetaRow {
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 5;
+export const LOCAL_SCHEMA_VERSION = 7;
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -173,6 +236,73 @@ export interface SealedLocalItemRow extends Omit<LocalItemRow, "name" | "pageDoc
   readonly hasPageDocument: 0 | 1;
 }
 
+/** Lifecycle of the local operational representation of one page. */
+export type PageOperationStateStatus = "legacy" | "initializing" | "active" | "blocked";
+
+/** Whether the operational body is available on this device. */
+export type PageOperationLocalAvailability = "present" | "offloaded" | "never-fetched";
+
+/**
+ * Durable routing metadata for one operational page.
+ *
+ * Checkpoint bytes, canonical content, vectors and frontiers all live in the
+ * single sealed payload. Keeping one envelope is intentional: a reader can
+ * never combine a new frontier with an old projection, and IndexedDB exposes
+ * no owner-authored text even when every store is inspected directly.
+ */
+export interface SealedPageOperationStateRow {
+  readonly pageId: Uuid;
+  readonly status: PageOperationStateStatus;
+  readonly operationalVersion: number;
+  readonly canonicalFormatVersion: number;
+  readonly latestServerPageSequence: number;
+  readonly localAvailability: PageOperationLocalAvailability;
+  readonly lastAccessedAt: string;
+  /** Enters the AAD and prevents an older ciphertext replacing this row. */
+  readonly recordVersion: number;
+  readonly sealedState: LocalEnvelope;
+}
+
+export type PageOperationUpdateStatus = "pending" | "sending" | "accepted" | "blocked";
+
+/** One immutable operational update; its causal body and server result are sealed together. */
+export interface SealedPageOperationUpdateRow {
+  readonly updateId: Uuid;
+  readonly pageId: Uuid;
+  readonly status: PageOperationUpdateStatus;
+  readonly enqueueOrder: number;
+  readonly createdAt: string;
+  readonly recordVersion: number;
+  readonly sealedBody: LocalEnvelope;
+}
+
+export type LocalPageAmbiguityStatus =
+  | "open"
+  | "resolved-keep"
+  | "resolved-delete"
+  | "resolved-custom";
+
+/** Only non-content fields needed to list and route an ambiguity remain readable. */
+export interface SealedPageAmbiguityRow {
+  readonly ambiguityId: Uuid;
+  readonly pageId: Uuid;
+  readonly kind: "delete-edit" | "delete-move" | "type-transform" | "property-transform" | "schema";
+  readonly status: LocalPageAmbiguityStatus;
+  readonly openedAt: string;
+  readonly recordVersion: number;
+  readonly sealedDetails: LocalEnvelope;
+}
+
+/** Migration-only bridge for edits made before a page owns a shared CRDT history. */
+export interface SealedLegacyOfflineBranchRow {
+  readonly pageId: Uuid;
+  readonly branchId: Uuid;
+  readonly status: "editing" | "sending" | "blocked" | "converted";
+  readonly createdAt: string;
+  readonly recordVersion: number;
+  readonly sealedBranch: LocalEnvelope;
+}
+
 export type LocalDatabase = Dexie & {
   items: EntityTable<SealedLocalItemRow, "id">;
   placements: EntityTable<LocalPlacementRow, "id">;
@@ -181,6 +311,12 @@ export type LocalDatabase = Dexie & {
   outbox: EntityTable<OutboxMutationRow, "mutationId">;
   conflicts: EntityTable<ConflictRecordRow, "mutationId">;
   meta: EntityTable<LocalMetaRow, "key">;
+  databases: EntityTable<SealedLocalDatabaseRow, "itemId">;
+  databaseEntries: EntityTable<SealedLocalDatabaseEntryRow, "entryItemId">;
+  pageOperationStates: EntityTable<SealedPageOperationStateRow, "pageId">;
+  pageOperationUpdates: EntityTable<SealedPageOperationUpdateRow, "updateId">;
+  pageAmbiguities: EntityTable<SealedPageAmbiguityRow, "ambiguityId">;
+  legacyOfflineBranches: EntityTable<SealedLegacyOfflineBranchRow, "pageId">;
 };
 
 export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
@@ -248,7 +384,7 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
   // actually holds (feature 005). `localAvailability` is indexed because the
   // eviction pass queries by it, and answering "what can I release" by opening
   // every row would mean unsealing the whole projection to reclaim space.
-  db.version(LOCAL_SCHEMA_VERSION)
+  db.version(5)
     .stores({
       items: "id, kind, lifecycle, localAvailability",
       placements: "id, itemId, parentKey, [parentKey+kind]",
@@ -271,6 +407,38 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
           row.localAvailability = "present";
         });
     });
+  // Version 6 adds page-backed database capabilities and entry memberships.
+  // Both private payloads are already ciphertext when they enter these stores;
+  // the indexed fields are stable identities and local availability only.
+  db.version(6).stores({
+    items: "id, kind, lifecycle, localAvailability",
+    placements: "id, itemId, parentKey, [parentKey+kind]",
+    relationships: "id, sourceItemId, targetItemId",
+    revisionHeaders: "id, itemId, local",
+    outbox: "mutationId, status, enqueueOrder",
+    conflicts: "mutationId, capturedAt",
+    meta: "key",
+    databases: "itemId",
+    databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
+  });
+  // Version 7 introduces the convergent page journal. It adds stores only: no
+  // historical projection row is rewritten or discarded, which lets an
+  // installation upgrade while legacy offline work is still waiting.
+  db.version(LOCAL_SCHEMA_VERSION).stores({
+    items: "id, kind, lifecycle, localAvailability",
+    placements: "id, itemId, parentKey, [parentKey+kind]",
+    relationships: "id, sourceItemId, targetItemId",
+    revisionHeaders: "id, itemId, local",
+    outbox: "mutationId, status, enqueueOrder",
+    conflicts: "mutationId, capturedAt",
+    meta: "key",
+    databases: "itemId",
+    databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
+    pageOperationStates: "pageId, status, localAvailability, lastAccessedAt",
+    pageOperationUpdates: "updateId, pageId, status, enqueueOrder, [pageId+status]",
+    pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
+    legacyOfflineBranches: "pageId, branchId, status",
+  });
   return db;
 }
 

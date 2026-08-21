@@ -156,6 +156,22 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
           // The accepted batch remains successful; search invalidates and rebuilds itself.
         }
       }
+      if (
+        furthestSequence !== undefined &&
+        changedItemIds.size > 0 &&
+        context.structuredQueries !== undefined
+      ) {
+        try {
+          await context.structuredQueries.applyCommittedChanges(
+            [...changedItemIds],
+            furthestSequence,
+          );
+        } catch {
+          // The committed writes remain authoritative. The projection marks
+          // itself degraded and rebuilds from canonical content rather than
+          // turning a successful offline flush into a client-visible failure.
+        }
+      }
       return { results };
     },
   );

@@ -23,6 +23,10 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const ci = readFileSync(path.join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
+const licensePolicy = readFileSync(
+  path.join(repoRoot, "scripts", "ci", "license-policy.ts"),
+  "utf8",
+);
 const gha = (expression: string): string => `\${{ ${expression} }}`;
 
 /** The five security jobs FR-035 requires to be individually observable. */
@@ -42,6 +46,13 @@ const SECURITY_ARTIFACTS = [
   "container-scan.sarif",
   "license-policy.json",
 ] as const;
+
+describe("the dependency license policy", () => {
+  it("permits the MIT and MPL-2.0 foundations selected for the V1 workspace", () => {
+    expect(licensePolicy).toMatch(/^\s+"MIT",$/m);
+    expect(licensePolicy).toMatch(/^\s+"MPL-2\.0",$/m);
+  });
+});
 
 /** The `needs:` list of the aggregate job, as written. */
 function qualityGateNeeds(): readonly string[] {
@@ -99,6 +110,7 @@ describe("the aggregate", () => {
       "lint",
       "typecheck",
       "unit",
+      "performance",
       "integration",
       "reference-backups",
       "contract",
@@ -137,6 +149,20 @@ describe("safe reusable work", () => {
       `key: playwright-${gha("runner.os")}-${gha("runner.arch")}-${gha("steps.playwright-version.outputs.value")}`,
     );
     expect(ci).toContain("pnpm exec playwright install --with-deps");
+  });
+
+  it("provisions the protected-storage fixtures before migrating an E2E database", () => {
+    const block = /\n {2}e2e:\n([\s\S]*?)\n {2}build:\n/.exec(ci)?.[1] ?? "";
+
+    expect(block).toContain("Prepare disposable protected-storage fixtures");
+    expect(block).toContain('myownnotion_e2e_root="$RUNNER_TEMP/myownnotion-e2e"');
+    expect(block).toContain("printf 'MYOWNNOTION_DEPLOYMENT_KEY_FILE=%s\\n'");
+    expect(block).toContain('} >> "$GITHUB_ENV"');
+    expect(block).toContain('openssl rand -base64 32 > "$myownnotion_deployment_key_file"');
+    expect(block).not.toContain(gha("runner.temp"));
+    expect(block.indexOf("Prepare disposable protected-storage fixtures")).toBeLessThan(
+      block.indexOf("pnpm db:migrate"),
+    );
   });
 
   it("uses separate maximal BuildKit scopes for API and web", () => {
@@ -179,9 +205,12 @@ describe("affected test topology", () => {
 
   it("keeps required Vitest jobs present for empty selections", () => {
     expect(ci).toContain("No impacted unit tests");
+    expect(ci).toContain("No impacted performance tests");
+    expect(ci).toContain(`performance_mode: ${gha("steps.plan.outputs.performance_mode")}`);
     expect(ci).toContain("No impacted integration tests");
     expect(ci).toContain("No impacted contract tests");
     expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group unit");
+    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group performance");
     expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group integration");
     expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group contract");
   });

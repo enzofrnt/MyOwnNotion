@@ -41,6 +41,13 @@ export const LOCAL_ENTITY_TYPES = {
   relationshipMetadata: "local.relationship.metadata",
   outboxPayload: "local.outbox.payload",
   conflictPayload: "local.conflict.payload",
+  conflictStructured: "local.conflict.structured",
+  databaseDefinition: "local.database.definition",
+  databaseEntryValues: "local.database.entry-values",
+  pageOperationState: "local.page-operation.state",
+  pageOperationUpdate: "local.page-operation.update",
+  pageAmbiguityDetails: "local.page-ambiguity.details",
+  legacyOfflineBranch: "local.page-operation.legacy-branch",
 } as const;
 
 export interface LocalEnvelope {

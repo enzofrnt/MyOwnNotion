@@ -72,3 +72,51 @@ the official 3.12.0 binary, so no required gate was skipped or weakened.
 
 The pull-request CI remains the required validation of the exact proposed
 commit before merge.
+
+## 2026-08-20 regression maintenance
+
+Retained traces from pull-request run `32372167455` identified three independent
+CI/test-topology defects rather than four product regressions:
+
+- the full coverage command included the `performance` Vitest project, so V8
+  instrumentation pushed strict wall-clock budgets beyond their thresholds;
+- the WebKit reload journey reloaded as soon as the authenticated heading
+  appeared while the workspace module graph was still resolving;
+- the catch-up journey used route interception that neither disconnected an
+  already open EventSource nor emitted the browser's offline/online lifecycle.
+
+The correction keeps every gate strict. Performance is now a fourth affected
+Vitest group, runs without coverage instrumentation in its own required CI job,
+and remains present in `checks:local`. The browser journeys now wait for the
+usable workspace surface and use browser-context network state respectively;
+no timeout, retry allowance, or performance target changed.
+
+Targeted evidence on Node.js 24 and pnpm 10.33.3:
+
+- impact-plan and release-workflow contracts: **59/59 passed**;
+- format, lint, strict TypeScript, toolchain policy, YAML parsing, and
+  `git diff --check`: **passed**;
+- full uninstrumented performance project: **14/14 passed**; database view p95
+  198.8–204.6 ms against 1,000 ms, propagation p95 699.4 ms against 2,000 ms,
+  and local commit p95 15.4 ms against 300 ms;
+- session reload and missed-change catch-up, repeated three times on all five
+  browser/viewport profiles: **30/30 passed**.
+
+Final executable-tree evidence for commit `adeefc7d`:
+
+- `pnpm checks:local`: **passed**;
+- coverage: **2,425/2,425 tests passed**, 90% statements/lines, 91.24%
+  functions, and 85.72% branches;
+- uninstrumented performance: **14/14 passed**; database views at
+  195.6–201.6 ms p95, propagation at 682.7 ms p95, and local commits at
+  16.2 ms p95, all without changing their budgets;
+- database integration: **311/311 passed**; migration replay: **8/8 passed**;
+  contract suites: **1,041/1,041 passed**;
+- complete isolated Playwright matrix: **5/5 projects passed** in 642 seconds;
+- production builds, Linux amd64/arm64 API and web images, dependency audit,
+  secret scan, static security analysis, licence policy, and Compose contract:
+  **passed**.
+
+This evidence update is documentation-only and does not change an executable
+consumer, so the repository's documentation-only pre-push gate applies to the
+follow-up commit.

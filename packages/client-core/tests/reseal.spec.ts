@@ -14,8 +14,11 @@
 
 import type { LocalRecordCodec } from "@myownnotion/client-core";
 import {
+  type ConflictRecordRow,
   type LocalDatabase,
   type LocalItemRow,
+  Outbox,
+  type OutboxMutationRow,
   openLocalDatabase,
   resealPlaintextProjection,
 } from "@myownnotion/client-core";
@@ -142,5 +145,53 @@ describe("upgrading a plaintext projection", () => {
   it("does nothing to an empty projection", async () => {
     const outcome = await resealPlaintextProjection(db, codec);
     expect(outcome).toEqual({ resealed: 0, alreadySealed: 0, skipped: 0 });
+  });
+
+  it("upgrades readable queued work and all three structured conflict versions", async () => {
+    const outboxSentinel = "PLAIN_OUTBOX_DATABASE_FILTER_SENTINEL";
+    const conflictSentinel = "PLAIN_STRUCTURED_CONFLICT_SENTINEL";
+    const mutationId = generateUuidV7();
+    const queued: OutboxMutationRow = {
+      mutationId,
+      commandType: "database.definition.update",
+      payload: { filter: { value: outboxSentinel } },
+      baseRevisionIds: [],
+      localRevisionIds: [],
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      lastAttemptAt: null,
+      enqueueOrder: 1,
+    };
+    const conflict: ConflictRecordRow = {
+      mutationId: generateUuidV7(),
+      commandType: "database.definition.update",
+      payload: { name: conflictSentinel },
+      baseRevisionIds: [],
+      localRevisionIds: [],
+      competingRevisionIds: [generateUuidV7()],
+      capturedAt: new Date().toISOString(),
+      errorCode: "revision.conflict",
+      structured: {
+        kind: "database-definition",
+        conflicts: [],
+        ancestor: { label: `${conflictSentinel}_ANCESTOR` },
+        local: { label: `${conflictSentinel}_LOCAL` },
+        remote: { label: `${conflictSentinel}_REMOTE` },
+      } as never,
+    };
+    await db.outbox.put(queued);
+    await db.conflicts.put(conflict);
+
+    await resealPlaintextProjection(db, codec);
+
+    const stored = JSON.stringify({
+      outbox: await db.outbox.toArray(),
+      conflicts: await db.conflicts.toArray(),
+    });
+    expect(stored).not.toContain(outboxSentinel);
+    expect(stored).not.toContain(conflictSentinel);
+    const opened = new Outbox(db, codec);
+    expect(await opened.all()).toEqual([queued]);
+    expect(await opened.conflicts()).toEqual([conflict]);
   });
 });

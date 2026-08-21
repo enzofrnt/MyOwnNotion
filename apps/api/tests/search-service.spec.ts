@@ -1,5 +1,11 @@
 import type { SearchSourceRecord } from "@myownnotion/database";
-import { asUuid, type SearchPathSegment, type Uuid } from "@myownnotion/domain";
+import {
+  asUuid,
+  type DatabaseDefinition,
+  type EntryValues,
+  type SearchPathSegment,
+  type Uuid,
+} from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import {
   SearchService,
@@ -11,6 +17,13 @@ const ids = {
   title: asUuid("018f0000-0000-7000-8000-000000000101"),
   body: asUuid("018f0000-0000-7000-8000-000000000102"),
   folder: asUuid("018f0000-0000-7000-8000-000000000103"),
+  database: asUuid("018f0000-0000-7000-8000-000000000104"),
+  entry: asUuid("018f0000-0000-7000-8000-000000000105"),
+  titleProperty: asUuid("018f0000-0000-7000-8000-000000000106"),
+  statusProperty: asUuid("018f0000-0000-7000-8000-000000000107"),
+  todo: asUuid("018f0000-0000-7000-8000-000000000108"),
+  done: asUuid("018f0000-0000-7000-8000-000000000109"),
+  view: asUuid("018f0000-0000-7000-8000-000000000110"),
 };
 
 function source(
@@ -82,6 +95,114 @@ describe("SearchService", () => {
     expect(page.results[1]).toMatchObject({ matchedField: "body" });
     expect(page.results[1]?.snippet).toContain("reprise atomique");
     expect(page.results[1]?.path.at(-1)?.itemId).toBe(ids.body);
+  });
+
+  it("indexes task properties once and refreshes entries when their role definition changes", async () => {
+    const record = source(ids.entry, "page", "Release");
+    let definition: DatabaseDefinition = {
+      format: "myownnotion.database-definition+json",
+      formatVersion: 1,
+      databaseId: ids.database,
+      properties: [
+        {
+          id: ids.titleProperty,
+          name: "Title",
+          type: "title",
+          positionKey: "a",
+          state: "active",
+          config: {},
+        },
+        {
+          id: ids.statusProperty,
+          name: "Workflow",
+          type: "status",
+          positionKey: "b",
+          state: "active",
+          config: {
+            options: [
+              { id: ids.todo, label: "To do", positionKey: "a", tone: "gray", state: "active" },
+              { id: ids.done, label: "Done", positionKey: "b", tone: "green", state: "active" },
+            ],
+          },
+        },
+      ],
+      views: [
+        {
+          id: ids.view,
+          name: "Table",
+          type: "table",
+          positionKey: "a",
+          state: "active",
+          properties: [],
+          filter: { mode: "all", criteria: [] },
+          sorts: [],
+          group: null,
+          options: { density: "comfortable", freezeTitle: true },
+        },
+      ],
+      taskRoles: {
+        statusPropertyId: ids.statusProperty,
+        dueDatePropertyId: null,
+        priorityPropertyId: null,
+      },
+    };
+    const values: EntryValues = {
+      format: "myownnotion.database-entry-values+json",
+      formatVersion: 1,
+      databaseId: ids.database,
+      entryId: ids.entry,
+      values: { [ids.statusProperty]: { kind: "status", optionId: ids.todo } },
+      preserved: [],
+    };
+    const deps = dependencies([record]);
+    const service = new SearchService({
+      ...deps,
+      loadSourcesByIds: async (itemIds) =>
+        itemIds.includes(ids.entry) || itemIds.includes(ids.database) ? [record] : [],
+      resolveSources: async (records) =>
+        records.map((source) => ({
+          ...source,
+          title: source.storedName,
+          body: source.pageDocument?.body ?? null,
+          structuredValues: { definition, values },
+        })),
+    });
+
+    await service.rebuild();
+    await expect(service.search({ query: "to do" })).resolves.toMatchObject({
+      results: [
+        {
+          itemId: ids.entry,
+          matchedField: "property",
+          propertyId: ids.statusProperty,
+          propertyName: "Workflow",
+          snippet: null,
+        },
+      ],
+    });
+
+    definition = {
+      ...definition,
+      properties: definition.properties.map((property) =>
+        property.id === ids.statusProperty && property.type === "status"
+          ? {
+              ...property,
+              name: "Progress",
+              config: {
+                options: property.config.options.map((option) =>
+                  option.id === ids.todo ? { ...option, label: "Backlog" } : option,
+                ),
+              },
+            }
+          : property,
+      ),
+    };
+    await service.applyCommittedChanges([ids.database], 1);
+    await expect(service.search({ query: "backlog" })).resolves.toMatchObject({
+      results: [{ itemId: ids.entry, propertyName: "Progress" }],
+    });
+    await expect(service.search({ query: "to do" })).resolves.toMatchObject({ results: [] });
+    expect(service.status().indexedCount).toBe(1);
   });
 
   it("refuses complete search while the first generation is still cold", async () => {

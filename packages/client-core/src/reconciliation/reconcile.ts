@@ -20,13 +20,26 @@ import type {
 } from "@myownnotion/contracts";
 import {
   type BlockDocument,
+  type DatabaseDefinition,
+  type EntryValues,
+  generateUuidV7,
+  mergeDatabaseDefinitions,
   mergeDocuments,
+  mergeEntryValues,
+  mergeRelationTargets,
+  type RelationTargets,
   readDocumentBody,
   type Uuid,
 } from "@myownnotion/domain";
 import { LocalRepository } from "../local-store/local-repository.ts";
-import { type LocalDatabase, META_KEYS } from "../local-store/schema.ts";
+import {
+  type LocalDatabase,
+  META_KEYS,
+  type OutboxMutationRow,
+  type StructuredConflictContext,
+} from "../local-store/schema.ts";
 import { Outbox } from "../outbox/outbox.ts";
+import { withProjectionWrite } from "../outbox/projection-write-coordinator.ts";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 
 export interface ReconcileTransport {
@@ -71,6 +84,18 @@ export interface ReconcileOutcome {
 
 const BATCH_LIMIT = 100;
 
+function nextCausalBatch(rows: readonly OutboxMutationRow[]): OutboxMutationRow[] {
+  const batch: OutboxMutationRow[] = [];
+  const producedInBatch = new Set<Uuid>();
+  for (const row of rows) {
+    if (row.baseRevisionIds.some((revisionId) => producedInBatch.has(revisionId))) break;
+    batch.push(row);
+    for (const revisionId of row.localRevisionIds) producedInBatch.add(revisionId);
+    if (batch.length === BATCH_LIMIT) break;
+  }
+  return batch;
+}
+
 /**
  * Whether a refusal is a condition on the server rather than a competing change.
  *
@@ -107,14 +132,29 @@ function blocksOf(document: unknown): BlockDocument | null {
  * needs — and the cost of asking unnecessarily is an interruption, while the cost
  * of merging wrongly is lost work.
  */
+type AutomaticMergeAttempt =
+  | {
+      readonly kind: "merged";
+      readonly payload: Record<string, unknown>;
+      readonly baseRevisionIds: Uuid[];
+    }
+  | { readonly kind: "needs-owner"; readonly structured: StructuredConflictContext }
+  | null;
+
+function snapshotRecord(snapshot: unknown): Record<string, unknown> | null {
+  return typeof snapshot === "object" && snapshot !== null && !Array.isArray(snapshot)
+    ? (snapshot as Record<string, unknown>)
+    : null;
+}
+
 async function tryAutomaticMerge(
+  db: LocalDatabase,
+  codec: LocalRecordCodec,
   transport: ReconcileTransport,
   row: { commandType: string; payload: Record<string, unknown>; baseRevisionIds: Uuid[] },
   competingRevisionIds: readonly Uuid[],
-): Promise<{ payload: Record<string, unknown>; baseRevisionIds: Uuid[] } | null> {
-  if (row.commandType !== "page.document.replace" || transport.getRevision === undefined) {
-    return null;
-  }
+): Promise<AutomaticMergeAttempt> {
+  if (transport.getRevision === undefined) return null;
   const competing = competingRevisionIds[0];
   const ancestorId = row.baseRevisionIds[0];
   if (competing === undefined || competingRevisionIds.length !== 1 || ancestorId === undefined) {
@@ -132,8 +172,89 @@ async function tryAutomaticMerge(
     return null;
   }
 
-  const ancestorSnapshot = ancestorRead.value.snapshot as Record<string, unknown> | null;
-  const remoteSnapshot = remoteRead.value.snapshot as Record<string, unknown> | null;
+  const ancestorSnapshot = snapshotRecord(ancestorRead.value.snapshot);
+  const remoteSnapshot = snapshotRecord(remoteRead.value.snapshot);
+
+  if (row.commandType === "database.definition.replace") {
+    // A destructive confirmation digest is tied to the old base. Reusing it
+    // after a merge would turn an obsolete decision into permission.
+    if (row.payload["impactConfirmation"] !== undefined) return null;
+    const ancestor = ancestorSnapshot?.["databaseDefinition"] as DatabaseDefinition | undefined;
+    const local = row.payload["definition"] as DatabaseDefinition | undefined;
+    const remote = remoteSnapshot?.["databaseDefinition"] as DatabaseDefinition | undefined;
+    if (ancestor === undefined || local === undefined || remote === undefined) return null;
+    const outcome = mergeDatabaseDefinitions(ancestor, local, remote);
+    if (outcome.kind === "needs-owner") {
+      return {
+        kind: "needs-owner",
+        structured: {
+          kind: "database-definition",
+          conflicts: outcome.conflicts,
+          ancestor,
+          local,
+          remote,
+        },
+      };
+    }
+    return {
+      kind: "merged",
+      payload: { ...row.payload, baseRevisionId: competing, definition: outcome.value },
+      baseRevisionIds: [competing],
+    };
+  }
+
+  if (row.commandType === "database.entry.values.replace") {
+    const entryId = row.payload["entryId"];
+    if (typeof entryId !== "string") return null;
+    const stored = await db.databaseEntries.get(entryId as Uuid);
+    if (stored === undefined || stored.sealedValues === null) return null;
+    const local = (await codec.openDatabaseEntry(stored)).values;
+    const ancestor = ancestorSnapshot?.["databaseEntryValues"] as EntryValues | undefined;
+    const remote = remoteSnapshot?.["databaseEntryValues"] as EntryValues | undefined;
+    if (ancestor === undefined || remote === undefined) return null;
+    const ancestorRelationTargets =
+      (ancestorSnapshot?.["databaseRelationTargets"] as RelationTargets | undefined) ?? {};
+    const localRelationTargets =
+      (row.payload["relationTargets"] as RelationTargets | undefined) ?? {};
+    const remoteRelationTargets =
+      (remoteSnapshot?.["databaseRelationTargets"] as RelationTargets | undefined) ?? {};
+    const valueOutcome = mergeEntryValues({ ancestor, local, remote });
+    const relationOutcome = mergeRelationTargets(
+      ancestorRelationTargets,
+      localRelationTargets,
+      remoteRelationTargets,
+    );
+    if (valueOutcome.kind === "needs-owner" || relationOutcome.kind === "needs-owner") {
+      return {
+        kind: "needs-owner",
+        structured: {
+          kind: "database-entry-values",
+          conflicts: [
+            ...(valueOutcome.kind === "needs-owner" ? valueOutcome.conflicts : []),
+            ...(relationOutcome.kind === "needs-owner" ? relationOutcome.conflicts : []),
+          ],
+          ancestor,
+          local,
+          remote,
+          ancestorRelationTargets,
+          localRelationTargets,
+          remoteRelationTargets,
+        },
+      };
+    }
+    return {
+      kind: "merged",
+      payload: {
+        ...row.payload,
+        baseRevisionId: competing,
+        values: valueOutcome.value.values,
+        relationTargets: relationOutcome.value,
+      },
+      baseRevisionIds: [competing],
+    };
+  }
+
+  if (row.commandType !== "page.document.replace") return null;
   const ancestor = blocksOf(snapshotBody(ancestorSnapshot));
   const remote = blocksOf(snapshotBody(remoteSnapshot));
   const local = blocksOf((row.payload["document"] as { body?: unknown } | undefined)?.body);
@@ -147,6 +268,7 @@ async function tryAutomaticMerge(
   }
   const document = row.payload["document"] as Record<string, unknown>;
   return {
+    kind: "merged",
     payload: {
       ...row.payload,
       document: { ...document, body: outcome.document },
@@ -173,7 +295,7 @@ export async function reconcile(
   transport: ReconcileTransport,
   codec: LocalRecordCodec,
 ): Promise<ReconcileOutcome> {
-  const outbox = new Outbox(db);
+  const outbox = new Outbox(db, codec);
   const repository = new LocalRepository(db, codec);
 
   await outbox.recoverInterrupted();
@@ -196,7 +318,7 @@ export async function reconcile(
 
   // Submit the durable queue in stable order.
   for (;;) {
-    const pending = (await outbox.pending()).slice(0, BATCH_LIMIT);
+    const pending = nextCausalBatch(await outbox.pending());
     if (pending.length === 0) {
       break;
     }
@@ -232,7 +354,7 @@ export async function reconcile(
       const mutationId = result.mutationId as Uuid;
       if (result.status === "accepted" || result.status === "already-accepted") {
         accepted += 1;
-        await outbox.acknowledge(mutationId);
+        await outbox.acknowledge(mutationId, (result.revisionIds ?? []) as Uuid[]);
       } else if (result.status === "conflict") {
         // Before asking the owner anything: most "conflicts" are two devices
         // touching different paragraphs of the same page, and asking about those
@@ -245,16 +367,24 @@ export async function reconcile(
           row === undefined || alreadyMerged.has(mutationId)
             ? null
             : await tryAutomaticMerge(
+                db,
+                codec,
                 transport,
                 row,
                 (result.competingRevisionIds ?? []) as Uuid[],
               );
-        if (merged !== null) {
-          alreadyMerged.add(mutationId);
+        if (merged?.kind === "merged") {
+          const replacementMutationId = generateUuidV7();
+          alreadyMerged.add(replacementMutationId);
           // Requeued as an ordinary edit based on the head that beat it. Not as
           // a resolution: nothing needed deciding, so recording a two-parent
           // revision would put a conflict in the history that never happened.
-          await outbox.requeueMerged(mutationId, merged.payload, merged.baseRevisionIds);
+          await outbox.requeueMerged(
+            mutationId,
+            replacementMutationId,
+            merged.payload,
+            merged.baseRevisionIds,
+          );
           continue;
         }
         conflicts += 1;
@@ -262,6 +392,8 @@ export async function reconcile(
           mutationId,
           (result.competingRevisionIds ?? []) as Uuid[],
           result.problem?.code ?? "mutation.conflict",
+          undefined,
+          merged?.kind === "needs-owner" ? merged.structured : undefined,
         );
       } else if (isWriteBlock(result.problem?.code)) {
         // Refused by a condition on the server rather than by a competing
@@ -309,12 +441,42 @@ export async function reconcile(
             offline: true,
           };
         }
-        await repository.replaceFromSnapshot({
-          workspaceId: snapshot.value.workspaceId as Uuid,
-          schemaVersion: snapshot.value.schemaVersion,
-          cursor: snapshot.value.cursor,
-          items: snapshot.value.items as ItemDto[],
+        let yieldedToLocalMutation = false;
+        await withProjectionWrite(db, async () => {
+          // A mutation may have arrived while the snapshot request was in
+          // flight. Replacing its optimistic projection would keep the outbox
+          // but erase the local state it promises to represent. Let the next
+          // pass submit it first instead.
+          if ((await outbox.pending()).length > 0) {
+            yieldedToLocalMutation = true;
+            return;
+          }
+          await repository.replaceFromSnapshot({
+            workspaceId: snapshot.value.workspaceId as Uuid,
+            schemaVersion: snapshot.value.schemaVersion,
+            cursor: snapshot.value.cursor,
+            items: snapshot.value.items as ItemDto[],
+            relationships: snapshot.value.relationships,
+            ...(snapshot.value.databases === undefined
+              ? {}
+              : { databases: snapshot.value.databases }),
+            ...(snapshot.value.databaseEntries === undefined
+              ? {}
+              : { databaseEntries: snapshot.value.databaseEntries }),
+          });
         });
+        if (yieldedToLocalMutation) {
+          return {
+            submitted,
+            accepted,
+            conflicts,
+            blocked,
+            retained: (await outbox.pending()).length,
+            caughtUpTo: await repository.getLastChangeCursor(),
+            usedSnapshotFallback,
+            offline: false,
+          };
+        }
         usedSnapshotFallback = true;
         cursor = snapshot.value.cursor;
         continue;
@@ -331,12 +493,44 @@ export async function reconcile(
       };
     }
 
-    const changedItems = page.value.changes.flatMap((change) => change.changedItems ?? []);
-    if (changedItems.length > 0) {
-      await repository.applyServerItems(changedItems as ItemDto[]);
+    let yieldedToLocalMutation = false;
+    await withProjectionWrite(db, async () => {
+      // Network I/O happens outside this short lock. If local work landed while
+      // the page was loading, do not overwrite its projection with a response
+      // that necessarily predates it; the coalesced follow-up pass submits the
+      // local work and then catches up safely.
+      if ((await outbox.pending()).length > 0) {
+        yieldedToLocalMutation = true;
+        return;
+      }
+      for (const change of page.value.changes) {
+        await repository.applyServerChange({
+          cursor: String(change.sequence),
+          items: (change.changedItems ?? []) as ItemDto[],
+          ...(change.relationships === undefined ? {} : { relationships: change.relationships }),
+          ...(change.databases === undefined ? {} : { databases: change.databases }),
+          ...(change.databaseEntries === undefined
+            ? {}
+            : { databaseEntries: change.databaseEntries }),
+        });
+      }
+    });
+    if (yieldedToLocalMutation) {
+      return {
+        submitted,
+        accepted,
+        conflicts,
+        blocked,
+        retained: (await outbox.pending()).length,
+        caughtUpTo: await repository.getLastChangeCursor(),
+        usedSnapshotFallback,
+        offline: false,
+      };
     }
     cursor = page.value.nextCursor;
-    await repository.setMeta(META_KEYS.lastChangeCursor, cursor);
+    if (page.value.changes.length === 0) {
+      await repository.setMeta(META_KEYS.lastChangeCursor, cursor);
+    }
     if (!page.value.hasMore) {
       break;
     }

@@ -98,7 +98,7 @@ describe("logging configuration (T091)", () => {
     expect(captured.read()).not.toContain("\u001B[");
   });
 
-  it("redacts request bodies, auth headers, names, documents, and snapshots", () => {
+  it("redacts request bodies, auth headers, documents, and structured content", () => {
     for (const required of [
       "req.body",
       "req.headers.authorization",
@@ -111,6 +111,20 @@ describe("logging configuration (T091)", () => {
       "query",
       "title",
       "snippet",
+      "definition",
+      "values",
+      "relationTargets",
+      "properties",
+      "options",
+      "views",
+      "taskRoles",
+      "filter",
+      "sorts",
+      "group",
+      "label",
+      "metadata",
+      "err.message",
+      "err.stack",
     ]) {
       expect(REDACT_PATHS).toContain(required);
     }
@@ -160,10 +174,11 @@ describe("logging configuration (T091)", () => {
         },
       },
     });
-    app.post("/boom", async () => {
-      throw new Error("internal detail");
-    });
+    registerErrorHandling(app);
     const secret = "SecretPayloadValue-4242";
+    app.post("/boom", async () => {
+      throw new Error(`structured projection failed for ${secret}`);
+    });
     const response = await app.inject({
       method: "POST",
       url: "/boom",
@@ -172,6 +187,41 @@ describe("logging configuration (T091)", () => {
     await app.close();
     expect(response.statusCode).toBe(500);
     expect(captured.join("\n")).not.toContain(secret);
+    expect(response.body).not.toContain(secret);
+  });
+
+  it("recursively redacts structured labels, values, filters, and error details", () => {
+    const captured = captureDestination();
+    const logger = createApplicationLogger({
+      env: { MYOWNNOTION_LOG_COLOR: "never", NODE_ENV: "production" },
+      isTTY: false,
+      destination: captured.destination,
+    });
+    const secret = "PrivateStructuredSentinel-90210";
+    const databaseId = "018f2000-0000-7000-8000-000000000001";
+
+    logger.error(
+      {
+        databaseId,
+        indexedCount: 7,
+        projection: {
+          definition: {
+            properties: [{ name: secret, config: { options: [{ label: secret }] } }],
+            views: [{ name: secret, filter: { operand: { value: secret } } }],
+          },
+          values: { property: { kind: "text", value: secret } },
+          relationTargets: { property: [databaseId] },
+        },
+        err: new Error(`failed while comparing ${secret}`),
+      },
+      "structured projection failed",
+    );
+
+    const output = captured.read();
+    expect(output).not.toContain(secret);
+    expect(output).toContain(databaseId);
+    expect(output).toContain("indexedCount");
+    expect(output).toContain("structured projection failed");
   });
 
   it("removes query strings even when a caller tries a private GET search", async () => {

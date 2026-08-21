@@ -14,7 +14,9 @@
 
 import { expect, test } from "./fixtures.ts";
 import {
+  closeMobileNavigation,
   createRootItem,
+  ensureNavigationVisible,
   expectNoHorizontalOverflow,
   openWorkspace,
   selectItem,
@@ -36,11 +38,7 @@ const NARROW = { width: 320, height: 640 };
  */
 async function openNarrowWorkspace(page: import("@playwright/test").Page): Promise<void> {
   await openWorkspace(page);
-  const toggle = page.getByTestId("toggle-tree");
-  if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "false") {
-    await toggle.click();
-  }
-  await expect(page.getByTestId("workspace-tree")).toBeVisible();
+  await ensureNavigationVisible(page);
 }
 
 test.describe("at 320 pixels", () => {
@@ -136,7 +134,7 @@ test.describe("the collapsible tree", () => {
     await waitForSynchronized(page);
 
     await expect(page.getByTestId("workspace-tree")).toBeVisible();
-    await page.getByTestId("toggle-tree").click();
+    await closeMobileNavigation(page);
     await expect(page.getByTestId("workspace-tree")).toBeHidden();
 
     await page.getByTestId("toggle-tree").click();
@@ -162,9 +160,9 @@ test.describe("the collapsible tree", () => {
   test("declares whether it is open", async ({ page }) => {
     await page.setViewportSize(NARROW);
     await openWorkspace(page);
-    await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "true");
-    await page.getByTestId("toggle-tree").click();
     await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "false");
+    await page.getByTestId("toggle-tree").click();
+    await expect(page.getByTestId("toggle-tree")).toHaveAttribute("aria-expanded", "true");
   });
 
   test("stays out of the way on a desktop", async ({ page }) => {

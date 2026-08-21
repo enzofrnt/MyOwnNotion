@@ -9,11 +9,12 @@
  */
 
 import type { CanonicalItem, PageDocument, Placement, Relationship } from "../content/types.ts";
+import type { DatabaseDefinition, EntryValues } from "../databases/types.ts";
 import type { Uuid } from "../ids/uuid.ts";
 import type { RevisionHeader } from "../revisions/types.ts";
 
 export const CANONICAL_EXPORT_FORMAT = "myownnotion.export+json";
-export const CANONICAL_EXPORT_VERSION = 1;
+export const CANONICAL_EXPORT_VERSION = 2;
 
 export interface ExportedItem extends CanonicalItem {
   /** Per-installation choices needed to reproduce the owner's workspace. */
@@ -29,6 +30,20 @@ export interface ExportedItem extends CanonicalItem {
   readonly placements: ReadonlyArray<Placement>;
 }
 
+export interface ExportedDatabase {
+  readonly databaseId: Uuid;
+  readonly definitionVersion: number;
+  readonly definition: DatabaseDefinition;
+}
+
+export interface ExportedDatabaseEntry {
+  readonly entryId: Uuid;
+  readonly databaseId: Uuid;
+  readonly valueVersion: number;
+  readonly addedRevisionId: Uuid;
+  readonly values: EntryValues;
+}
+
 export interface CanonicalExportManifest {
   readonly format: typeof CANONICAL_EXPORT_FORMAT;
   readonly formatVersion: typeof CANONICAL_EXPORT_VERSION;
@@ -37,6 +52,8 @@ export interface CanonicalExportManifest {
   readonly exportedAt: string;
   readonly changeCursor: string;
   readonly items: ReadonlyArray<ExportedItem>;
+  readonly databases: ReadonlyArray<ExportedDatabase>;
+  readonly databaseEntries: ReadonlyArray<ExportedDatabaseEntry>;
   readonly relationships: ReadonlyArray<
     Relationship & {
       readonly createdRevisionId: Uuid;
@@ -51,6 +68,8 @@ export interface CanonicalExportManifest {
     readonly placements: number;
     readonly relationships: number;
     readonly revisions: number;
+    readonly databases: number;
+    readonly databaseEntries: number;
   };
 }
 
@@ -60,6 +79,9 @@ export interface BuildExportInput {
   readonly exportedAt: string;
   readonly changeCursor: string;
   readonly items: ReadonlyArray<ExportedItem>;
+  /** Optional only so pre-009 callers can build an empty structured projection. */
+  readonly databases?: ReadonlyArray<ExportedDatabase>;
+  readonly databaseEntries?: ReadonlyArray<ExportedDatabaseEntry>;
   readonly relationships: ReadonlyArray<
     Relationship & {
       readonly createdRevisionId: Uuid;
@@ -73,6 +95,10 @@ function sortById<T extends { readonly id: string }>(entries: ReadonlyArray<T>):
   return [...entries].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+function sortByKey<T>(entries: ReadonlyArray<T>, key: (entry: T) => string): T[] {
+  return [...entries].sort((left, right) => key(left).localeCompare(key(right)));
+}
+
 export function buildCanonicalExport(input: BuildExportInput): CanonicalExportManifest {
   // Purged items are represented only through revision headers and lifecycle
   // diagnostics; active and trashed items are exported completely (FR-025).
@@ -82,6 +108,8 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
   }));
   const relationships = sortById(input.relationships);
   const revisions = sortById(input.revisions);
+  const databases = sortByKey(input.databases ?? [], (database) => database.databaseId);
+  const databaseEntries = sortByKey(input.databaseEntries ?? [], (entry) => entry.entryId);
   return {
     format: CANONICAL_EXPORT_FORMAT,
     formatVersion: CANONICAL_EXPORT_VERSION,
@@ -90,6 +118,8 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
     exportedAt: input.exportedAt,
     changeCursor: input.changeCursor,
     items,
+    databases,
+    databaseEntries,
     relationships,
     revisions,
     counts: {
@@ -99,6 +129,8 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
       placements: items.reduce((total, item) => total + item.placements.length, 0),
       relationships: relationships.length,
       revisions: revisions.length,
+      databases: databases.length,
+      databaseEntries: databaseEntries.length,
     },
   };
 }
@@ -106,6 +138,16 @@ export function buildCanonicalExport(input: BuildExportInput): CanonicalExportMa
 /** Deterministic serialization used for digests and independent validation. */
 export function canonicalExportString(manifest: CanonicalExportManifest): string {
   return JSON.stringify(manifest, stableKeyOrder);
+}
+
+/** Stable structured subset used by backup manifests for an independent digest. */
+export function canonicalStructuredDataString(
+  manifest: Pick<CanonicalExportManifest, "databases" | "databaseEntries">,
+): string {
+  return JSON.stringify(
+    { databases: manifest.databases, databaseEntries: manifest.databaseEntries },
+    stableKeyOrder,
+  );
 }
 
 function stableKeyOrder(_key: string, value: unknown): unknown {
@@ -149,6 +191,15 @@ export function validateCanonicalExport(
   if (manifest.counts.revisions !== manifest.revisions.length) {
     issues.push({ code: "counts.revisions", detail: "Revision count does not match array" });
   }
+  if (manifest.counts.databases !== manifest.databases.length) {
+    issues.push({ code: "counts.databases", detail: "Database count does not match array" });
+  }
+  if (manifest.counts.databaseEntries !== manifest.databaseEntries.length) {
+    issues.push({
+      code: "counts.database-entries",
+      detail: "Database entry count does not match array",
+    });
+  }
 
   for (const item of manifest.items) {
     if (!revisionIds.has(item.currentRevisionId)) {
@@ -181,6 +232,64 @@ export function validateCanonicalExport(
           detail: `Relationship ${relationship.id} references missing item ${endpoint}`,
         });
       }
+    }
+  }
+
+  const databaseIds = new Set<Uuid>();
+  for (const database of manifest.databases) {
+    if (databaseIds.has(database.databaseId)) {
+      issues.push({
+        code: "database.duplicate",
+        detail: `Database ${database.databaseId} is listed more than once`,
+      });
+    }
+    databaseIds.add(database.databaseId);
+    if (!itemIds.has(database.databaseId)) {
+      issues.push({
+        code: "database.item-missing",
+        detail: `Database ${database.databaseId} has no exported host page`,
+      });
+    }
+    if (database.definition.databaseId !== database.databaseId) {
+      issues.push({
+        code: "database.definition-identity",
+        detail: `Database ${database.databaseId} carries a mismatched definition`,
+      });
+    }
+  }
+
+  const entryIds = new Set<Uuid>();
+  for (const entry of manifest.databaseEntries) {
+    if (entryIds.has(entry.entryId)) {
+      issues.push({
+        code: "database-entry.duplicate",
+        detail: `Database entry ${entry.entryId} is listed more than once`,
+      });
+    }
+    entryIds.add(entry.entryId);
+    if (!itemIds.has(entry.entryId)) {
+      issues.push({
+        code: "database-entry.item-missing",
+        detail: `Database entry ${entry.entryId} has no exported page`,
+      });
+    }
+    if (!databaseIds.has(entry.databaseId)) {
+      issues.push({
+        code: "database-entry.database-missing",
+        detail: `Database entry ${entry.entryId} references missing database ${entry.databaseId}`,
+      });
+    }
+    if (!revisionIds.has(entry.addedRevisionId)) {
+      issues.push({
+        code: "database-entry.revision-missing",
+        detail: `Database entry ${entry.entryId} references missing revision ${entry.addedRevisionId}`,
+      });
+    }
+    if (entry.values.entryId !== entry.entryId || entry.values.databaseId !== entry.databaseId) {
+      issues.push({
+        code: "database-entry.values-identity",
+        detail: `Database entry ${entry.entryId} carries mismatched values`,
+      });
     }
   }
 

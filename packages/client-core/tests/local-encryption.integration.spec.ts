@@ -114,6 +114,90 @@ describe("what reaches IndexedDB", () => {
   });
 });
 
+describe("structured database payloads", () => {
+  it("seals definitions and entry values under distinct versioned bindings", async () => {
+    const databaseId = generateUuidV7();
+    const titlePropertyId = generateUuidV7();
+    const textPropertyId = generateUuidV7();
+    const viewId = generateUuidV7();
+    const entryItemId = generateUuidV7();
+    const definition = {
+      format: "myownnotion.database-definition+json" as const,
+      formatVersion: 1 as const,
+      databaseId,
+      properties: [
+        {
+          id: titlePropertyId,
+          name: "Titre confidentiel",
+          type: "title" as const,
+          positionKey: "a",
+          state: "active" as const,
+          config: {},
+        },
+        {
+          id: textPropertyId,
+          name: "Décision sensible",
+          type: "text" as const,
+          positionKey: "b",
+          state: "active" as const,
+          config: {},
+        },
+      ],
+      views: [
+        {
+          id: viewId,
+          name: "Vue privée",
+          type: "table" as const,
+          positionKey: "a",
+          state: "active" as const,
+          properties: [],
+          filter: { mode: "all" as const, criteria: [] },
+          sorts: [],
+          group: null,
+          options: { density: "comfortable" as const, freezeTitle: true },
+        },
+      ],
+      taskRoles: null,
+    };
+    const values = {
+      format: "myownnotion.database-entry-values+json" as const,
+      formatVersion: 1 as const,
+      databaseId,
+      entryId: entryItemId,
+      values: { [textPropertyId]: { kind: "text" as const, value: "Plan de réorganisation" } },
+      preserved: [],
+    };
+
+    const sealedDatabase = await codec.sealDatabase({
+      itemId: databaseId,
+      definitionVersion: 3,
+      definition,
+    });
+    const sealedEntry = await codec.sealDatabaseEntry({
+      entryItemId,
+      databaseId,
+      valueVersion: 7,
+      availability: "present",
+      values,
+    });
+    const stored = JSON.stringify({ sealedDatabase, sealedEntry });
+    expect(stored).not.toContain("confidentiel");
+    expect(stored).not.toContain("réorganisation");
+    expect(await codec.openDatabase(sealedDatabase)).toEqual({
+      itemId: databaseId,
+      definitionVersion: 3,
+      definition,
+    });
+    expect(await codec.openDatabaseEntry(sealedEntry)).toEqual({
+      entryItemId,
+      databaseId,
+      valueVersion: 7,
+      availability: "present",
+      values,
+    });
+  });
+});
+
 describe("the queued work and the conflicts", () => {
   it("seals an outbox payload without disturbing its ordering fields", async () => {
     // The outbox is the least obvious leak: it holds the text of every edit
@@ -142,6 +226,7 @@ describe("the queued work and the conflicts", () => {
   });
 
   it("seals a conflict payload", async () => {
+    const structuredSentinel = "Confidential structured conflict version";
     const conflict: ConflictRecordRow = {
       mutationId: generateUuidV7(),
       commandType: "page.update",
@@ -151,12 +236,20 @@ describe("the queued work and the conflicts", () => {
       competingRevisionIds: [generateUuidV7()],
       capturedAt: new Date().toISOString(),
       errorCode: "revision.conflict",
+      structured: {
+        kind: "database-definition",
+        conflicts: [],
+        ancestor: { label: structuredSentinel },
+        local: { label: `${structuredSentinel} local` },
+        remote: { label: `${structuredSentinel} remote` },
+      } as never,
     };
 
     const sealed = await codec.sealConflict(conflict);
     await db.conflicts.put(sealed as unknown as ConflictRecordRow);
 
     expect(JSON.stringify(await db.conflicts.toArray())).not.toContain("severance");
+    expect(JSON.stringify(await db.conflicts.toArray())).not.toContain(structuredSentinel);
     expect(await codec.openConflict(sealed)).toEqual(conflict);
   });
 

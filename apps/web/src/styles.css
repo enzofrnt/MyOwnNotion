@@ -1,31 +1,55 @@
-:root {
-  color-scheme: dark light;
-  --bg: #101014;
-  --surface: #1a1a21;
-  --border: #2e2e3a;
-  --text: #e8e8ef;
-  --muted: #9a9aad;
-  --accent: #6c8cff;
-  --danger: #ff6c6c;
-  --ok: #58c98d;
-  --warn: #e5b567;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
+@import "tailwindcss";
+@import "./ui/tokens.css";
+@import "./ui/primitives/primitives.css";
+@import "./ui/ui-lab.css";
+@import "./features/navigation/navigation.css";
+@import "./features/workspace/workspace.css";
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  min-width: 20rem;
+  background: var(--ui-color-canvas);
+  accent-color: var(--ui-color-accent);
+}
+
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
+  min-width: 20rem;
+  min-height: 100vh;
+  background: var(--ui-color-canvas);
+  color: var(--ui-color-text);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-md);
+  line-height: var(--ui-leading-normal);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  color: var(--ui-color-text);
+  background: var(--ui-color-accent-soft);
 }
 
 .app-shell {
   max-width: 60rem;
   margin: 0 auto;
   padding: 1rem;
+}
+
+.app-shell--workspace {
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
 .app-header h1 {
@@ -221,39 +245,743 @@ select {
   font-size: 1rem;
 }
 
+/* Structured pages (feature 009). A database remains a page in the tree; this
+   surface adds schema and values without creating a second navigation model. */
+.database-create,
+.database-page,
+.entry-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  min-width: 0;
+}
+
+.database-create > label,
+.database-entry-create > label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.database-page__header,
+.database-panel__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.database-page__header h2,
+.database-panel__header h2 {
+  margin: 0;
+}
+
+.database-schema,
+.database-entry-create,
+.entry-properties,
+.entry-document,
+.database-impact,
+.property-editor,
+.task-configuration {
+  margin-top: 1rem;
+}
+
+.task-configuration,
+.entry-task-properties,
+.entry-ordinary-properties {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.task-configuration__heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.task-configuration__heading h3,
+.entry-task-properties h3 {
+  margin-top: 0;
+}
+
+.task-configuration__roles {
+  margin-top: 0.75rem;
+}
+
+.entry-task-properties,
+.entry-ordinary-properties {
+  margin-bottom: 0.75rem;
+}
+
+.entry-task-property + .entry-task-property {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.entry-task-property > .muted {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.database-schema ul {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+}
+
+.database-schema li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.database-schema li button {
+  margin-left: auto;
+}
+
+.database-impact {
+  padding: 0.75rem;
+  border: 2px solid var(--danger);
+  border-radius: 6px;
+}
+
+.database-field {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.35fr) minmax(10rem, 1fr);
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.database-field input:not([type="checkbox"]),
+.database-field select,
+.database-create input,
+.database-entry-create input,
+.property-editor input,
+.property-editor select {
+  min-width: 0;
+  width: 100%;
+}
+
+.database-field__error {
+  grid-column: 2;
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+.database-table-scroll {
+  max-height: 32rem;
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.database-table {
+  width: 100%;
+  min-width: max-content;
+  border-collapse: collapse;
+}
+
+.database-table th,
+.database-table td {
+  min-width: 10rem;
+  max-width: 24rem;
+  padding: 0.65rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.database-table th:last-child,
+.database-table td:last-child {
+  border-right: 0;
+}
+
+.database-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.database-view-tabs,
+.database-view-actions,
+.database-view-config {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.database-view-tabs {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  padding-bottom: 0.2rem;
+}
+
+.database-view-tabs [role="tab"] {
+  flex: 0 0 auto;
+  border-color: transparent;
+  background: transparent;
+}
+
+.database-view-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.database-columns[open],
+.database-rule-editor[open] {
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.database-columns summary,
+.database-rule-editor summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.database-columns label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.6rem 0.8rem 0 0;
+}
+
+.database-view-config {
+  margin-top: 0.75rem;
+  align-items: start;
+}
+
+.database-view-config > details {
+  flex: 1 1 18rem;
+}
+
+.database-rules {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1.5rem;
+}
+
+.database-rule {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.database-rule label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 9rem;
+}
+
+.database-rule--invalid {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.database-view-status {
+  min-height: 2rem;
+  margin-top: 0.75rem;
+  color: var(--muted);
+}
+
+.database-view-status p {
+  margin: 0.25rem 0;
+}
+
+.database-grid {
+  table-layout: fixed;
+}
+
+.database-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.database-grid [role="gridcell"]:focus {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.database-grid [data-grid-mode="editing"] {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.database-column-size {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin-left: 0.5rem;
+  padding: 0;
+  border: 0;
+}
+
+.database-column-size button {
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0.2rem;
+}
+
+.database-rule-controls {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.database-filter-period {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  gap: 0.5rem;
+  border: 0;
+  flex-wrap: wrap;
+}
+
+.database-filter-period legend {
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.database-view-rename,
+.database-column-control {
+  display: flex;
+  align-items: end;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.database-view-rename {
+  margin-top: 0.6rem;
+}
+
+.database-column-control + .database-column-control {
+  margin-top: 0.35rem;
+}
+
+.database-cell-title {
+  font-weight: 600;
+}
+
+.database-cell-editor {
+  display: grid;
+  min-width: min(22rem, 70vw);
+  gap: 0.45rem;
+}
+
+.database-cell-editor .database-field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.database-cell-editor__actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.database-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.database-list-scroll {
+  max-height: 32rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.database-list__entry {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.database-list--compact .database-list__entry {
+  padding: 0.5rem 0.65rem;
+}
+
+.database-list__title {
+  justify-self: start;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.database-list dl {
+  display: flex;
+  gap: 0.5rem 1.25rem;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.database-list dl div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.database-list dt {
+  color: var(--muted);
+}
+
+.database-list dd {
+  margin: 0;
+}
+
+.database-view-setting {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+
+.database-view-setting select {
+  min-width: min(14rem, 100%);
+}
+
+.database-board-scroll {
+  max-height: 36rem;
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin-top: 1rem;
+}
+
+.database-gallery-scroll {
+  max-width: 100%;
+  margin-top: 1rem;
+}
+
+.database-board {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: max-content;
+  margin: 0.75rem 0 0;
+  padding: 0 0 0.5rem;
+  list-style: none;
+}
+
+.database-board__column {
+  width: 18rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 94%, var(--muted));
+}
+
+.database-board__column header,
+.database-calendar__toolbar,
+.database-calendar__navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.database-board__column h3,
+.database-calendar h3,
+.database-calendar h4 {
+  margin: 0;
+}
+
+.database-card-list,
+.database-calendar__day ul,
+.database-calendar__unscheduled ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.database-card-list-scroll {
+  max-height: 28rem;
+  margin-top: 0.6rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.database-card-list-scroll .database-card-list {
+  margin-top: 0;
+}
+
+.database-card,
+.database-calendar__card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+.database-card[draggable="true"],
+.database-calendar__card[draggable="true"] {
+  cursor: grab;
+}
+
+.database-card__title {
+  justify-self: start;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.database-gallery-settings {
+  margin-bottom: 0.75rem;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.database-gallery-settings fieldset {
+  display: flex;
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  border: 0;
+  flex-wrap: wrap;
+}
+
+.database-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0 0 0.5rem;
+  list-style: none;
+}
+
+.database-gallery-viewport {
+  max-height: 32rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.database-gallery--virtualized {
+  display: block;
+}
+
+.database-gallery__virtual-item {
+  top: 0;
+}
+
+.database-gallery__card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.database-gallery__card > :not(.database-gallery__preview) {
+  margin-inline: 0.75rem;
+}
+
+.database-gallery__card > :last-child {
+  margin-bottom: 0.75rem;
+}
+
+.database-gallery__preview {
+  display: grid;
+  place-items: center;
+  min-height: 8rem;
+  padding: 0.75rem;
+  overflow: hidden;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 90%, var(--accent));
+}
+
+.database-gallery__preview p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.database-gallery__preview img {
+  width: 100%;
+  height: 9rem;
+  object-fit: cover;
+}
+
+.database-gallery dl {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.database-gallery dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.database-gallery dt {
+  color: var(--muted);
+}
+
+.database-gallery dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+
+.database-calendar {
+  min-width: 0;
+  margin-top: 1rem;
+}
+
+.database-calendar__toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.database-calendar__navigation h3 {
+  min-width: 10rem;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.database-calendar__month-scroll {
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.database-calendar__weekdays,
+.database-calendar__days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(8rem, 1fr));
+  min-width: 56rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.database-calendar__weekdays li {
+  padding: 0.5rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.database-calendar__day {
+  min-height: 8rem;
+  padding: 0.45rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.database-calendar__day:nth-child(7n) {
+  border-right: 0;
+}
+
+.database-calendar__card {
+  padding: 0.45rem;
+}
+
+.database-calendar__card input {
+  min-width: 0;
+  width: 100%;
+}
+
+.database-calendar__move-actions,
+.database-card__move-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.database-calendar__move-actions button,
+.database-card__move-actions button {
+  min-width: 0;
+  padding: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.database-calendar__unscheduled {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.database-calendar__unscheduled ul {
+  grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr));
+}
+
+.database-sync {
+  justify-self: start;
+  font-size: 0.8rem;
+}
+
+.database-sync--pending {
+  color: var(--warn);
+}
+
+.database-sync--conflict {
+  color: var(--danger);
+}
+
+.entry-document {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.database-shortcut {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
 .field-row {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 0.5rem;
-}
-
-.page-link-control {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin: 0.75rem 0;
-  padding: 0.5rem;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-}
-
-.page-link-control label {
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.page-link {
-  color: var(--link, #4ea1ff);
-  text-decoration: underline dotted;
-}
-
-.page-link::after {
-  content: " ↗";
-  font-size: 0.8em;
-  text-decoration: none;
 }
 
 .muted {
@@ -429,7 +1157,8 @@ textarea {
 
 .search-result__kind,
 .search-result__path,
-.search-result__snippet {
+.search-result__snippet,
+.search-result__property {
   color: var(--muted);
   font-size: 0.8rem;
 }
@@ -671,40 +1400,303 @@ textarea {
 }
 
 /* ---------------------------------------------------------------------------
-   The block editor (feature 003, US1)
+   Notion-like block editor (feature 017, US2)
    ------------------------------------------------------------------------ */
 
-.editor-surface {
-  min-height: 12rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border, #d0d0d0);
-  border-radius: 0.25rem;
-  /* Wide content scrolls inside its own container rather than widening the
-     page: FR-021 forbids horizontal page scrolling at 320 pixels, and a long
-     unbroken link or a code line is the usual way that happens. */
-  overflow-x: auto;
+.page-editor {
+  position: relative;
+  width: 100%;
+  min-width: 0;
 }
 
-.editor-surface:focus-visible,
-.editor-surface .ProseMirror-focused {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+.editor-history-controls {
+  display: flex;
+  min-height: var(--ui-target-compact);
+  justify-content: flex-end;
+  gap: var(--ui-space-1);
+  margin: 0 0 var(--ui-space-1);
 }
 
-.editor-surface pre {
-  overflow-x: auto;
+.editor-history-controls .ui-button {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+}
+
+/* BlockNote Community supplies the editing interactions; these variables make
+   every native toolbar, menu and content colour part of the product system. */
+.page-editor .bn-root,
+.page-editor .bn-root[data-color-scheme] {
+  --bn-font-family: var(--ui-font-sans);
+  --bn-border-radius: var(--ui-radius-md);
+  --bn-colors-editor-text: var(--ui-color-text);
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-text: var(--ui-color-text);
+  --bn-colors-menu-background: var(--ui-color-surface-raised);
+  --bn-colors-tooltip-text: var(--ui-color-text);
+  --bn-colors-tooltip-background: var(--ui-color-surface-raised);
+  --bn-colors-hovered-text: var(--ui-color-text);
+  --bn-colors-hovered-background: var(--ui-color-surface-hover);
+  --bn-colors-selected-text: var(--ui-color-text);
+  --bn-colors-selected-background: var(--ui-color-accent-soft);
+  --bn-colors-disabled-text: var(--ui-color-text-disabled);
+  --bn-colors-disabled-background: var(--ui-color-surface-sunken);
+  --bn-colors-shadow: transparent;
+  --bn-colors-border: var(--ui-color-border);
+  --bn-colors-side-menu: var(--ui-color-text-muted);
+  --bn-colors-highlights-gray-text: var(--ui-content-gray);
+  --bn-colors-highlights-gray-background: var(--ui-content-gray-soft);
+  --bn-colors-highlights-brown-text: var(--ui-content-brown);
+  --bn-colors-highlights-brown-background: var(--ui-content-brown-soft);
+  --bn-colors-highlights-red-text: var(--ui-content-red);
+  --bn-colors-highlights-red-background: var(--ui-content-red-soft);
+  --bn-colors-highlights-orange-text: var(--ui-content-orange);
+  --bn-colors-highlights-orange-background: var(--ui-content-orange-soft);
+  --bn-colors-highlights-yellow-text: var(--ui-content-yellow);
+  --bn-colors-highlights-yellow-background: var(--ui-content-yellow-soft);
+  --bn-colors-highlights-green-text: var(--ui-content-green);
+  --bn-colors-highlights-green-background: var(--ui-content-green-soft);
+  --bn-colors-highlights-blue-text: var(--ui-content-blue);
+  --bn-colors-highlights-blue-background: var(--ui-content-blue-soft);
+  --bn-colors-highlights-purple-text: var(--ui-content-purple);
+  --bn-colors-highlights-purple-background: var(--ui-content-purple-soft);
+  --bn-colors-highlights-pink-text: var(--ui-content-pink);
+  --bn-colors-highlights-pink-background: var(--ui-content-pink-soft);
+  --bn-shadow-medium: var(--ui-shadow-menu);
+  --bn-shadow-light: var(--ui-shadow-menu);
+}
+
+.page-editor .bn-container,
+.page-editor .bn-editor {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+}
+
+.page-editor .bn-editor.editor-surface {
+  min-height: 18rem;
+  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-12) var(--ui-space-11);
+  overflow-x: clip;
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  font-family: var(--ui-font-sans);
+  font-size: 1rem;
+  line-height: var(--ui-leading-relaxed);
+}
+
+.page-editor .bn-editor.editor-surface:focus-visible {
+  outline: none;
+  box-shadow: inset 2px 0 0 var(--ui-color-focus);
+}
+
+.page-editor .bn-block-content {
+  min-height: 1.875rem;
+  padding-block: 0.125rem;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="1"] {
+  padding-top: var(--ui-space-8);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: var(--ui-leading-tight);
+  letter-spacing: -0.025em;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="2"] {
+  padding-top: var(--ui-space-6);
+  font-size: 1.5rem;
+  line-height: var(--ui-leading-tight);
+  letter-spacing: -0.015em;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="3"] {
+  padding-top: var(--ui-space-4);
+  font-size: 1.1875rem;
+  line-height: 1.35;
+}
+
+.page-editor .bn-block-content[data-content-type="quote"] blockquote {
+  color: var(--ui-color-text-muted);
+  border-color: var(--ui-color-border-strong);
+}
+
+.page-editor .bn-block-content[data-content-type="divider"] hr {
+  border-color: var(--ui-color-border);
+}
+
+.page-editor .bn-block-content[data-content-type="codeBlock"] {
+  margin-block: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.page-editor .bn-block-content[data-content-type="codeBlock"] pre,
+.editor-surface pre {
+  max-width: 100%;
+  overflow-x: auto;
+  font-family: var(--ui-font-mono);
+}
+
+.page-editor .bn-inline-content code {
+  padding: 0.1em 0.28em;
+  background: var(--ui-color-surface-sunken);
+  border-radius: var(--ui-radius-xs);
+  font-family: var(--ui-font-mono);
+  font-size: 0.9em;
+}
+
+.page-editor .bn-ak-toolbar,
+.page-editor .bn-ak-menu,
+.page-editor .bn-suggestion-menu,
+.page-editor .bn-dropdown {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-menu);
+}
+
+.page-editor .bn-ak-toolbar {
+  gap: var(--ui-space-1);
+  max-width: min(40rem, calc(100vw - 2 * var(--ui-space-3)));
+  padding: var(--ui-space-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.page-editor .bn-ak-button {
+  min-width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  box-shadow: none;
+}
+
+.page-editor .bn-ak-button:hover,
+.page-editor .bn-ak-button[data-active],
+.page-editor .bn-ak-button[data-selected] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+  box-shadow: none;
+}
+
+.page-editor .bn-ak-button[data-focus-visible],
+.page-editor .bn-ak-menu-item[data-focus-visible] {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.page-editor .bn-ak-menu-item[aria-selected="true"],
+.page-editor .bn-ak-menu-item[data-active-item],
+.page-editor .bn-ak-menu-item:hover {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.page-editor .bn-side-menu {
+  gap: 1px;
+}
+
+.page-editor .bn-side-menu .bn-ak-button {
+  width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  padding: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.page-editor .editor-page-link-picker {
+  display: grid;
+  width: min(20rem, calc(100vw - 2 * var(--ui-space-4)));
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-menu);
+}
+
+.page-editor .editor-page-link-picker > label {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  font-weight: 650;
+}
+
+.page-editor .editor-page-link-picker > input {
+  width: 100%;
+  min-height: var(--ui-target);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.page-editor .editor-page-link-results {
+  display: grid;
+  max-height: 16rem;
+  gap: 1px;
+  overflow-y: auto;
+}
+
+.page-editor .editor-page-link-results > button {
+  display: flex;
+  width: 100%;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  text-align: left;
+}
+
+.page-editor .editor-page-link-results > button:hover,
+.page-editor .editor-page-link-results > button:focus-visible {
+  background: var(--ui-color-surface-hover);
 }
 
 /* An unrenderable block must look present and deliberate, never like an empty
    gap — a block that renders as nothing is indistinguishable from one that was
    lost, which is the failure FR-006 exists to prevent. */
 .editor-unknown-block {
-  padding: 0.75rem;
-  border: 1px dashed currentColor;
-  border-radius: 0.25rem;
-  font-style: italic;
-  opacity: 0.85;
+  display: grid;
+  width: 100%;
+  gap: var(--ui-space-1);
+  margin-block: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-warning-soft);
+  border: 1px dashed var(--ui-color-warning);
+  border-radius: var(--ui-radius-md);
+  font-size: var(--ui-text-sm);
+}
+
+.editor-unknown-block > button {
+  width: fit-content;
+  min-height: var(--ui-target-compact);
+  margin-top: var(--ui-space-1);
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-warning);
+  background: var(--ui-color-surface);
+  border: 1px solid currentColor;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+
+.editor-unknown-block > button:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
 }
 
 .block-controls {
@@ -748,42 +1740,21 @@ textarea {
    Page ↔ folder conversion (feature 004)
    ------------------------------------------------------------------------ */
 
-/* A real dialog rather than a tooltip: it interrupts, because the owner is
-   about to lose text. Positioned over the tree so the item it refers to stays
-   in view. */
+/* The shared dialog primitive owns positioning, portal, backdrop and focus.
+   Conversion only defines the content rhythm and action layout. */
 .convert-dialog {
-  position: fixed;
-  /* Pinned to both edges rather than centred with a 100vw width.
-     `100vw` includes the scrollbar, so `calc(100vw - 2rem)` overflowed on
-     engines that give scrollbars real width — green on macOS, where they are
-     overlays, and red on the Linux WebKit that CI runs. Insetting from both
-     sides cannot overflow, whatever the scrollbar does. */
-  inset-inline: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 20;
-  max-width: 32rem;
-  margin-inline: auto;
-  padding: 1rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  background: var(--surface, Canvas);
-  box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.25);
+  display: grid;
+  gap: var(--ui-space-4);
 }
 
-.convert-dialog:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+.convert-dialog > p {
+  margin: 0;
 }
 
-.convert-dialog h2 {
-  margin-top: 0;
-}
-
-.convert-dialog button {
-  /* Reachable by thumb at 320 pixels, like every other control. */
-  min-height: 2.75rem;
-  padding: 0 0.75rem;
+.convert-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
 }
 
 /* A file input sizes itself from the native button's label, whose width comes
@@ -899,6 +1870,55 @@ code,
   .block-controls button {
     min-height: 2.75rem;
     min-width: 2.75rem;
+  }
+
+  .database-field {
+    grid-template-columns: 1fr;
+  }
+
+  .database-field__error {
+    grid-column: 1;
+  }
+
+  .database-page {
+    padding: 0.65rem;
+  }
+
+  .database-toolbar {
+    position: static;
+  }
+
+  .database-view-actions > button,
+  .database-view-config > details,
+  .database-entry-create .field-row > * {
+    width: 100%;
+  }
+
+  .database-rule {
+    align-items: stretch;
+  }
+
+  .database-rule > label,
+  .database-rule > input,
+  .database-rule > select,
+  .database-rule > button {
+    width: 100%;
+  }
+
+  .database-table-scroll {
+    max-height: 70vh;
+    overscroll-behavior: contain;
+  }
+
+  .database-board__column {
+    width: min(17rem, calc(100vw - 3rem));
+  }
+
+  .database-calendar__toolbar,
+  .database-calendar__navigation,
+  .database-view-setting,
+  .database-view-setting select {
+    width: 100%;
   }
 }
 

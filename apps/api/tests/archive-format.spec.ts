@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { BackupManifest } from "@myownnotion/domain";
+import { type BackupManifest, canonicalStructuredDataString } from "@myownnotion/domain";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   decodeBackupArchive,
@@ -261,6 +261,34 @@ describe("archive content inspection", () => {
       ok: false,
       reason: expect.stringMatching(/number of items/i),
     });
+  });
+
+  it("checks structured counts and digest independently", () => {
+    const structured = { databases: [{}], databaseEntries: [{}, {}] };
+    const canonical = JSON.stringify({ items: [], ...structured });
+    const validStructuredDigest = digest(
+      Buffer.from(canonicalStructuredDataString(structured as never)),
+    );
+    expect(
+      inspect({
+        canonical,
+        manifest: manifestFor(canonical, [], {
+          databaseCount: 1,
+          databaseEntryCount: 2,
+          structuredDataDigest: validStructuredDigest,
+        }),
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      inspect({
+        canonical,
+        manifest: manifestFor(canonical, [], {
+          databaseCount: 1,
+          databaseEntryCount: 2,
+          structuredDataDigest: digest(Buffer.from("other")),
+        }),
+      }),
+    ).toMatchObject({ ok: false, reason: expect.stringMatching(/structured.*digest/i) });
   });
 
   it("checks every file against its recorded size and digest", () => {

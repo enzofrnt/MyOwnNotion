@@ -1,0 +1,134 @@
+import type { ProjectedItem } from "@myownnotion/client-core";
+import { generateUuidV7 } from "@myownnotion/domain";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { sidebarModeForWidth } from "../src/features/navigation/responsive-sidebar.tsx";
+import { PageHeader } from "../src/features/workspace/page-header.tsx";
+import { activeItemState } from "../src/features/workspace/use-active-item.ts";
+import { WorkspaceShell } from "../src/features/workspace/workspace-shell.tsx";
+import { WorkspaceState } from "../src/features/workspace/workspace-state.tsx";
+
+function item(
+  name: string,
+  parentItemId: string | null = null,
+  kind: ProjectedItem["kind"] = "page",
+): ProjectedItem {
+  const id = generateUuidV7();
+  return {
+    id,
+    kind,
+    name,
+    lifecycle: "active",
+    currentRevisionId: generateUuidV7(),
+    trashedAt: null,
+    purgeAfter: null,
+    favourite: false,
+    pageDocument: null,
+    file: null,
+    placements: [
+      {
+        id: generateUuidV7(),
+        itemId: id,
+        kind: "hierarchy",
+        parentItemId,
+        positionKey: "V",
+      },
+    ],
+  } as ProjectedItem;
+}
+
+describe("workspace shell", () => {
+  it("keeps navigation, header and readable main content as distinct landmarks", () => {
+    const markup = renderToStaticMarkup(
+      <WorkspaceShell
+        navigation={<nav aria-label="Navigation principale">Pages</nav>}
+        header={<PageHeader title="Feuille de route" />}
+        mobileNavigationOpen={false}
+        sidebarOpen
+        sidebarWidth={280}
+        onMobileNavigationOpenChange={() => undefined}
+        onSidebarOpenChange={() => undefined}
+        onSidebarWidthChange={() => undefined}
+      >
+        <article>Contenu éditorial</article>
+      </WorkspaceShell>,
+    );
+
+    expect(markup).toContain('data-testid="workspace-shell"');
+    expect(markup).toContain("<aside");
+    expect(markup).toContain('aria-label="Navigation de l’espace de travail"');
+    expect(markup).toContain("<header");
+    expect(markup).toContain('<main id="workspace-main"');
+    expect(markup).toContain('class="workspace-reading-column"');
+    expect(markup).toContain("Aller au contenu");
+  });
+
+  it("renders a stable title row, breadcrumb and reserved contextual actions", () => {
+    const markup = renderToStaticMarkup(
+      <PageHeader
+        title="Projet Atlas"
+        kind="page"
+        breadcrumbs={[
+          { id: "projects", label: "Projets", onOpen: () => undefined },
+          { id: "atlas", label: "Projet Atlas" },
+        ]}
+        status="Synchronisé"
+        actions={<button type="button">Plus d’actions</button>}
+      />,
+    );
+    expect(markup).toContain('aria-label="Fil d’Ariane"');
+    expect(markup).toContain('aria-current="page"');
+    expect(markup).toContain('<h1 data-testid="active-item-title">Projet Atlas</h1>');
+    expect(markup).toContain('data-testid="page-context-actions"');
+    expect(markup).toContain("Synchronisé");
+  });
+
+  it("keeps loading geometry explicit instead of returning a blank page", () => {
+    const markup = renderToStaticMarkup(createElement(WorkspaceState, { kind: "loading" }));
+    expect(markup).toContain('data-testid="workspace-shell-skeleton"');
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup.match(/workspace-skeleton/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(markup).toContain("Chargement de l’espace de travail");
+  });
+
+  it.each([
+    ["empty", "Votre espace est prêt"],
+    ["offline", "Contenu indisponible hors ligne"],
+    ["error", "L’espace n’a pas pu être chargé"],
+  ] as const)("renders an explicit %s workspace state", (kind, title) => {
+    const markup = renderToStaticMarkup(
+      <WorkspaceState kind={kind} diagnostics={<code>diagnostic secondaire</code>} />,
+    );
+
+    expect(markup).toContain(`data-testid="workspace-state-${kind}"`);
+    expect(markup).toContain(title);
+    expect(markup).toContain("Détails techniques");
+    expect(markup).toContain("diagnostic secondaire");
+  });
+
+  it("derives the current title and path from stable identities after rename and move", () => {
+    const root = item("Projets", null, "folder");
+    const archive = item("Archives", null, "folder");
+    const page = item("Atlas", root.id);
+    const renamedAndMoved = {
+      ...page,
+      name: "Atlas 2027",
+      placements: page.placements.map((placement) => ({
+        ...placement,
+        parentItemId: archive.id,
+      })),
+    };
+
+    const active = activeItemState([root, archive, renamedAndMoved], page.id);
+    expect(active.item?.id).toBe(page.id);
+    expect(active.item?.name).toBe("Atlas 2027");
+    expect(active.path.map((entry) => entry.name)).toEqual(["Archives", "Atlas 2027"]);
+  });
+
+  it("uses the documented desktop, tablet and mobile breakpoints", () => {
+    expect(sidebarModeForWidth(1280)).toBe("desktop");
+    expect(sidebarModeForWidth(900)).toBe("tablet");
+    expect(sidebarModeForWidth(320)).toBe("mobile");
+  });
+});

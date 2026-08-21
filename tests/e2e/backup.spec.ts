@@ -108,10 +108,8 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
   await page.getByTestId("back-to-workspace").click();
   const workspaceWarning = page.getByTestId("workspace-backup-stale");
   await expect(workspaceWarning).toBeVisible();
-  await expect(workspaceWarning).toContainText(
-    "not currently protected against losing this machine",
-  );
-  await workspaceWarning.getByRole("button", { name: "Review backups" }).click();
+  await expect(workspaceWarning).toContainText("Aucune sauvegarde vérifiée depuis plus d’un jour");
+  await workspaceWarning.getByRole("button", { name: "Vérifier les sauvegardes" }).click();
 
   const warning = page.getByTestId("backup-stale");
   await expect(warning).toHaveAttribute("role", "alert");

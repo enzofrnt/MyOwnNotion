@@ -23,6 +23,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createChildItem,
   createRootItem,
+  ensureNavigationVisible,
   openWorkspace,
   selectItem,
   uniqueName,
@@ -41,6 +42,7 @@ test.describe("content survives the security foundation (T108)", () => {
 
     await page.reload();
     await openWorkspace(page);
+    await ensureNavigationVisible(page);
     await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 30_000 });
   });
 
@@ -61,6 +63,7 @@ test.describe("content survives the security foundation (T108)", () => {
 
     await page.reload();
     await openWorkspace(page);
+    await ensureNavigationVisible(page);
     for (const name of [folder, first, second]) {
       await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 30_000 });
     }
@@ -88,6 +91,7 @@ test.describe("content survives the security foundation (T108)", () => {
 
       await page.reload();
       await openWorkspace(page);
+      await ensureNavigationVisible(page);
       await expect(page.getByTestId(`tree-item-${renamed}`)).toBeVisible({ timeout: 30_000 });
     }
   });
@@ -101,6 +105,7 @@ test.describe("content survives the security foundation (T108)", () => {
     const name = uniqueName("Writable");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
     await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible();
   });
 

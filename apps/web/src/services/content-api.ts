@@ -8,7 +8,16 @@
 import type {
   CanonicalSnapshotDto,
   ChangesResponseDto,
+  CreateDatabaseRequestDto,
+  CreateEntryRequestDto,
   CreateItemDto,
+  DatabaseDto,
+  DatabaseEntryDto,
+  DatabaseMutationResultDto,
+  DatabaseQueryDto,
+  DatabaseQueryPageDto,
+  DefinitionImpactDto,
+  EntryMutationResultDto,
   FileUsageDto,
   ItemDto,
   MutationResultDto,
@@ -16,10 +25,13 @@ import type {
   QueuedMutationDto,
   QueuedMutationResultDto,
   RelationshipDto,
+  ReplaceDefinitionRequestDto,
+  ReplaceEntryValuesRequestDto,
   SearchRequestDto,
   SearchResponseDto,
+  TrashImpactDto,
 } from "@myownnotion/contracts";
-import type { Uuid } from "@myownnotion/domain";
+import { PROTOCOL_VERSION, type Uuid } from "@myownnotion/domain";
 
 export type ApiResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -58,6 +70,10 @@ export class ContentApi {
     init: RequestInit & { mutationId?: Uuid } = {},
   ): Promise<ApiResult<T>> {
     const headers = new Headers(init.headers);
+    // Required since protocol 2: a silent client is protocol 1 and therefore
+    // read-only. Announce every request so writes cannot be mistaken for legacy
+    // traffic after a server upgrade.
+    headers.set("x-myownnotion-client-protocol", String(PROTOCOL_VERSION));
     if (init.body !== undefined && !(init.body instanceof FormData)) {
       headers.set("content-type", "application/json");
     }
@@ -133,6 +149,82 @@ export class ContentApi {
     return this.#request("/v1/items", { method: "POST", body: JSON.stringify(body), mutationId });
   }
 
+  async createDatabase(
+    mutationId: Uuid,
+    body: CreateDatabaseRequestDto,
+  ): Promise<ApiResult<DatabaseMutationResultDto>> {
+    return this.#request("/v1/databases", {
+      method: "POST",
+      body: JSON.stringify(body),
+      mutationId,
+    });
+  }
+
+  async getDatabase(databaseId: Uuid): Promise<ApiResult<DatabaseDto>> {
+    return this.#request(`/v1/databases/${databaseId}`);
+  }
+
+  async queryDatabase(
+    databaseId: Uuid,
+    request: DatabaseQueryDto,
+  ): Promise<ApiResult<DatabaseQueryPageDto>> {
+    return this.#request(`/v1/databases/${databaseId}/query`, {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+
+  async previewDatabaseDefinitionImpact(
+    databaseId: Uuid,
+    body: Pick<ReplaceDefinitionRequestDto, "baseRevisionId" | "definition">,
+  ): Promise<ApiResult<DefinitionImpactDto>> {
+    return this.#request(`/v1/databases/${databaseId}/definition/impact`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async replaceDatabaseDefinition(
+    mutationId: Uuid,
+    databaseId: Uuid,
+    body: ReplaceDefinitionRequestDto,
+  ): Promise<ApiResult<DatabaseMutationResultDto>> {
+    return this.#request(`/v1/databases/${databaseId}/definition`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+      mutationId,
+    });
+  }
+
+  async createDatabaseEntry(
+    mutationId: Uuid,
+    databaseId: Uuid,
+    body: CreateEntryRequestDto,
+  ): Promise<ApiResult<EntryMutationResultDto>> {
+    return this.#request(`/v1/databases/${databaseId}/entries`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      mutationId,
+    });
+  }
+
+  async getDatabaseEntry(databaseId: Uuid, entryId: Uuid): Promise<ApiResult<DatabaseEntryDto>> {
+    return this.#request(`/v1/databases/${databaseId}/entries/${entryId}`);
+  }
+
+  async replaceDatabaseEntryValues(
+    mutationId: Uuid,
+    databaseId: Uuid,
+    entryId: Uuid,
+    body: ReplaceEntryValuesRequestDto,
+  ): Promise<ApiResult<EntryMutationResultDto>> {
+    return this.#request(`/v1/databases/${databaseId}/entries/${entryId}/values`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+      mutationId,
+    });
+  }
+
   async renameItem(
     mutationId: Uuid,
     itemId: Uuid,
@@ -148,6 +240,10 @@ export class ContentApi {
 
   async trashItem(mutationId: Uuid, itemId: Uuid): Promise<ApiResult<MutationResultDto>> {
     return this.#request(`/v1/items/${itemId}/trash`, { method: "POST", mutationId });
+  }
+
+  async getTrashImpact(itemId: Uuid): Promise<ApiResult<TrashImpactDto>> {
+    return this.#request(`/v1/items/${itemId}/trash-impact`);
   }
 
   async restoreItem(

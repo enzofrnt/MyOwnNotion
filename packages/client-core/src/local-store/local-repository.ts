@@ -16,13 +16,21 @@
  * transaction and do only Dexie work inside it. Reads are the mirror image —
  * fetch under a transaction, open the rows after it.
  */
-import type { ItemDto } from "@myownnotion/contracts";
-import type { Uuid } from "@myownnotion/domain";
+import type {
+  DatabaseEntryProjectionDto,
+  DatabaseProjectionDto,
+  ItemDto,
+  RelationshipDto,
+} from "@myownnotion/contracts";
+import type { DatabaseDefinition, EntryValues, Uuid } from "@myownnotion/domain";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 import {
   type LocalDatabase,
+  type LocalDatabaseEntryRow,
+  type LocalDatabaseRow,
   type LocalItemRow,
   type LocalPlacementRow,
+  type LocalRelationshipRow,
   META_KEYS,
   parentKeyOf,
   type SealedLocalItemRow,
@@ -68,6 +76,34 @@ function placementRowsFrom(dto: ItemDto): LocalPlacementRow[] {
     parentKey: parentKeyOf((placement.parentItemId as Uuid | null) ?? null),
     positionKey: placement.positionKey,
   }));
+}
+
+function relationshipRowFrom(dto: RelationshipDto): LocalRelationshipRow {
+  return {
+    id: dto.id as Uuid,
+    sourceItemId: dto.sourceItemId as Uuid,
+    targetItemId: dto.targetItemId as Uuid,
+    relationType: dto.relationType,
+    metadata: (dto.metadata ?? {}) as Record<string, unknown>,
+  };
+}
+
+function databaseRowFrom(dto: DatabaseProjectionDto): LocalDatabaseRow {
+  return {
+    itemId: dto.itemId as Uuid,
+    definitionVersion: dto.definitionVersion,
+    definition: dto.definition as unknown as DatabaseDefinition,
+  };
+}
+
+function databaseEntryRowFrom(dto: DatabaseEntryProjectionDto): LocalDatabaseEntryRow {
+  return {
+    entryItemId: dto.entryItemId as Uuid,
+    databaseId: dto.databaseId as Uuid,
+    valueVersion: dto.valueVersion,
+    availability: "present",
+    values: dto.values as unknown as EntryValues,
+  };
 }
 
 export class LocalRepository {
@@ -125,27 +161,141 @@ export class LocalRepository {
     schemaVersion: number;
     cursor: string;
     items: ReadonlyArray<ItemDto>;
+    relationships?: ReadonlyArray<RelationshipDto>;
+    databases?: ReadonlyArray<DatabaseProjectionDto>;
+    databaseEntries?: ReadonlyArray<DatabaseEntryProjectionDto>;
   }): Promise<void> {
     const sealed = await this.#sealAll(input.items);
-    await this.db.transaction("rw", [this.db.items, this.db.placements, this.db.meta], async () => {
-      await this.db.items.clear();
-      await this.db.placements.clear();
-      for (const [index, dto] of input.items.entries()) {
-        const row = sealed[index];
-        if (row !== undefined) {
-          await this.db.items.put(row);
+    const relationshipRows = (input.relationships ?? []).map(relationshipRowFrom);
+    const retainedItemIds = new Set(
+      input.items.filter(({ lifecycle }) => lifecycle !== "purged").map(({ id }) => id),
+    );
+    const databaseRows = await Promise.all(
+      (input.databases ?? [])
+        .filter(({ itemId }) => retainedItemIds.has(itemId))
+        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+    );
+    const databaseEntryRows = await Promise.all(
+      (input.databaseEntries ?? [])
+        .filter(
+          ({ entryItemId, databaseId }) =>
+            retainedItemIds.has(entryItemId) && retainedItemIds.has(databaseId),
+        )
+        .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
+    );
+    await this.db.transaction(
+      "rw",
+      [
+        this.db.items,
+        this.db.placements,
+        this.db.relationships,
+        this.db.databases,
+        this.db.databaseEntries,
+        this.db.meta,
+      ],
+      async () => {
+        await this.db.items.clear();
+        await this.db.placements.clear();
+        await this.db.relationships.clear();
+        await this.db.databases.clear();
+        await this.db.databaseEntries.clear();
+        for (const [index, dto] of input.items.entries()) {
+          const row = sealed[index];
+          if (row !== undefined) {
+            await this.db.items.put(row);
+          }
+          const rows = placementRowsFrom(dto);
+          if (rows.length > 0) {
+            await this.db.placements.bulkPut(rows);
+          }
         }
-        const rows = placementRowsFrom(dto);
-        if (rows.length > 0) {
-          await this.db.placements.bulkPut(rows);
+        if (relationshipRows.length > 0) {
+          await this.db.relationships.bulkPut(relationshipRows);
         }
-      }
-      await this.db.meta.bulkPut([
-        { key: META_KEYS.workspaceId, value: input.workspaceId },
-        { key: META_KEYS.schemaVersion, value: input.schemaVersion },
-        { key: META_KEYS.lastChangeCursor, value: input.cursor },
-      ]);
-    });
+        if (databaseRows.length > 0) await this.db.databases.bulkPut(databaseRows);
+        if (databaseEntryRows.length > 0) {
+          await this.db.databaseEntries.bulkPut(databaseEntryRows);
+        }
+        await this.db.meta.bulkPut([
+          { key: META_KEYS.workspaceId, value: input.workspaceId },
+          { key: META_KEYS.schemaVersion, value: input.schemaVersion },
+          { key: META_KEYS.lastChangeCursor, value: input.cursor },
+        ]);
+      },
+    );
+  }
+
+  /** Applies one change envelope and advances its cursor in the same transaction. */
+  async applyServerChange(input: {
+    readonly cursor: string;
+    readonly items: ReadonlyArray<ItemDto>;
+    readonly relationships?: ReadonlyArray<RelationshipDto>;
+    readonly databases?: ReadonlyArray<DatabaseProjectionDto>;
+    readonly databaseEntries?: ReadonlyArray<DatabaseEntryProjectionDto>;
+  }): Promise<void> {
+    const sealedItems = await this.#sealAll(input.items);
+    const relationshipRows = (input.relationships ?? []).map(relationshipRowFrom);
+    const purgedItemIds = new Set(
+      input.items.filter(({ lifecycle }) => lifecycle === "purged").map(({ id }) => id),
+    );
+    const databaseRows = await Promise.all(
+      (input.databases ?? [])
+        .filter(({ itemId }) => !purgedItemIds.has(itemId))
+        .map((dto) => this.#codec.sealDatabase(databaseRowFrom(dto))),
+    );
+    const databaseEntryRows = await Promise.all(
+      (input.databaseEntries ?? [])
+        .filter(
+          ({ entryItemId, databaseId }) =>
+            !purgedItemIds.has(entryItemId) && !purgedItemIds.has(databaseId),
+        )
+        .map((dto) => this.#codec.sealDatabaseEntry(databaseEntryRowFrom(dto))),
+    );
+    const changedItemIds = new Set(input.items.map(({ id }) => id));
+    await this.db.transaction(
+      "rw",
+      [
+        this.db.items,
+        this.db.placements,
+        this.db.relationships,
+        this.db.databases,
+        this.db.databaseEntries,
+        this.db.meta,
+      ],
+      async () => {
+        for (const [index, dto] of input.items.entries()) {
+          const row = sealedItems[index];
+          if (row !== undefined) await this.db.items.put(row);
+          await this.db.placements.where("itemId").equals(dto.id).delete();
+          const placements = placementRowsFrom(dto);
+          if (placements.length > 0) await this.db.placements.bulkPut(placements);
+          // A source revision owns its complete active outgoing relationship
+          // set. Clearing before putting the envelope also transports removals.
+          await this.db.relationships.where("sourceItemId").equals(dto.id).delete();
+          if (dto.lifecycle === "purged") {
+            const itemId = dto.id as Uuid;
+            // The tombstone is canonical; structured rows are only derived
+            // projections. Keep the item identity unavailable, but remove its
+            // definition/membership/value material immediately. A purged host
+            // also invalidates every retained membership keyed to that base.
+            await this.db.databases.delete(itemId);
+            await this.db.databaseEntries.delete(itemId);
+            await this.db.databaseEntries.where("databaseId").equals(itemId).delete();
+          }
+        }
+        const relevantRelationships = relationshipRows.filter(({ sourceItemId }) =>
+          changedItemIds.has(sourceItemId),
+        );
+        if (relevantRelationships.length > 0) {
+          await this.db.relationships.bulkPut(relevantRelationships);
+        }
+        if (databaseRows.length > 0) await this.db.databases.bulkPut(databaseRows);
+        if (databaseEntryRows.length > 0) {
+          await this.db.databaseEntries.bulkPut(databaseEntryRows);
+        }
+        await this.db.meta.put({ key: META_KEYS.lastChangeCursor, value: input.cursor });
+      },
+    );
   }
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {

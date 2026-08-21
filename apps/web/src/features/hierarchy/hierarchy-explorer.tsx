@@ -7,24 +7,62 @@
  * loading, empty, offline, error, and conflict states are explicit.
  */
 
-import type { ProjectedItem } from "@myownnotion/client-core";
-import { readNavigationState, writeNavigationState } from "@myownnotion/client-core";
-import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  type ProjectedItem,
+  readNavigationState,
+  updateWorkspacePresentationState,
+} from "@myownnotion/client-core";
+import type {
+  DatabaseDto,
+  DatabaseEntryDto,
+  ReplaceDefinitionRequestDto,
+  ReplaceEntryValuesRequestDto,
+} from "@myownnotion/contracts";
+import {
+  type DatabaseDefinition,
+  generateUuidV7,
+  isUuid,
+  jsonValuesEqual,
+  type SafeError,
+  type Uuid,
+} from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SyncStatus } from "../../components/sync-status.tsx";
+import { DatabaseViewService } from "../../services/databases.ts";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { WorkspaceSearchService } from "../../services/search.ts";
+import { AppIcon } from "../../ui/icons.tsx";
+import { Button, Field } from "../../ui/primitives/index.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
+import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
+import { DatabaseConflictResolution } from "../databases/database-conflict-resolution.tsx";
+import { DATABASE_COPY } from "../databases/database-copy.ts";
+import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
+import { EntryPanel } from "../databases/entry-panel.tsx";
+import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { StoragePanel } from "../files/storage-panel.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
 import { BranchState } from "../navigation/branch-state.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
+import { NavigationItemMenu } from "../navigation/navigation-item-menu.tsx";
 import { Sidebar } from "../navigation/sidebar.tsx";
+import {
+  TreeDragDropProvider,
+  TreeDragHandle,
+  type TreeDragItem,
+  type TreeDropIntent,
+  TreeDropTarget,
+} from "../navigation/tree-drag-drop.tsx";
 import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
+import { PageHeader } from "../workspace/page-header.tsx";
+import { useActiveItem } from "../workspace/use-active-item.ts";
+import { WorkspaceShell } from "../workspace/workspace-shell.tsx";
+import { WorkspaceState } from "../workspace/workspace-state.tsx";
 import { FileNode } from "./file-node.tsx";
 import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
@@ -110,6 +148,27 @@ function flatten(nodes: TreeNode[], expanded: ReadonlySet<string>): TreeNode[] {
   );
 }
 
+function flattenAll(nodes: readonly TreeNode[]): TreeNode[] {
+  return nodes.flatMap((node) => [node, ...flattenAll(node.children)]);
+}
+
+function treeDragItems(nodes: readonly TreeNode[]): TreeDragItem[] {
+  return nodes.flatMap((node, siblingIndex) => {
+    const parentId =
+      node.item.placements.find((entry) => entry.kind === "hierarchy")?.parentItemId ?? null;
+    return [
+      {
+        id: node.item.id,
+        name: node.item.name,
+        parentId,
+        siblingIndex,
+        canContainChildren: node.item.kind !== "file",
+      },
+      ...treeDragItems(node.children),
+    ];
+  });
+}
+
 function searchBranchOptions(
   nodes: readonly TreeNode[],
   ancestors: readonly string[] = [],
@@ -124,18 +183,41 @@ function searchBranchOptions(
 }
 
 export function HierarchyExplorer({
+  backupStale,
+  onOpenBackups,
   onOpenSettings,
 }: {
+  readonly backupStale: boolean;
+  readonly onOpenBackups: () => void;
   /** Settings live outside the workspace, so the shortcut asks rather than routes. */
   readonly onOpenSettings: () => void;
 }) {
   const service = useMemo(() => localContent(), []);
+  const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  const refreshGeneration = useRef(0);
+  const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
+  const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
+  const [selectedEntry, setSelectedEntry] = useState<DatabaseEntryDto | null>(null);
+  const [entryDefinition, setEntryDefinition] = useState<DatabaseDefinition | null>(null);
+  const [structuredSelectionLoading, setStructuredSelectionLoading] = useState(false);
+  const structuredSelectionItemId = useRef<Uuid | null>(null);
+  const definitionMutationQueue = useRef<Promise<void>>(Promise.resolve());
+  const optimisticDatabaseDefinition = useRef<{
+    readonly databaseId: Uuid;
+    readonly definition: DatabaseDefinition;
+  } | null>(null);
+  const [entryReturnFocusId, setEntryReturnFocusId] = useState<Uuid | null>(null);
+  const remotelyOpenedEntry = useRef<{
+    readonly entry: DatabaseEntryDto;
+    readonly definition: DatabaseDefinition;
+  } | null>(null);
+  const [databaseFormParent, setDatabaseFormParent] = useState<Uuid | null | undefined>(undefined);
   // Which branches are open. Everything was permanently expanded before US3,
   // which is workable at ten items and unusable at a hundred.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -144,31 +226,50 @@ export function HierarchyExplorer({
   // open branch on the way in.
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [newItemName, setNewItemName] = useState("");
-  /**
-   * Whether the tree is showing at narrow widths.
-   *
-   * Open by default: an owner who lands on the workspace should see what is in
-   * it. The control only appears below the breakpoint, so on a desktop this
-   * state is set and never read.
-   */
-  const [treeOpen, setTreeOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [searchOpen, setSearchOpen] = useState(false);
-  const treeToggle = useRef<HTMLButtonElement | null>(null);
   const searchReturnFocus = useRef<HTMLElement | null>(null);
-  // Held in a ref so the key listener does not have to be rebound whenever the
-  // callback identity changes.
-  const closeTreeRef = useRef<() => void>(() => {});
 
   const openSearch = useCallback(() => {
     if (document.activeElement instanceof HTMLElement) {
       searchReturnFocus.current = document.activeElement;
     }
+    // Search is a workspace-level modal. Keeping the mobile navigation modal
+    // open underneath it leaves two focus traps competing for the keyboard.
+    // Mount search on the following frame so the drawer has fully released its
+    // focus trap before search sends focus to the query field.
+    if (mobileNavigationOpen) {
+      setMobileNavigationOpen(false);
+      requestAnimationFrame(() => setSearchOpen(true));
+      return;
+    }
     setSearchOpen(true);
-  }, []);
+  }, [mobileNavigationOpen]);
 
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
-    queueMicrotask(() => searchReturnFocus.current?.focus());
+    queueMicrotask(() => {
+      const previous = searchReturnFocus.current;
+      // A resize can replace the desktop sidebar with the mobile trigger while
+      // search is open. In that case the original control is detached, so
+      // returning focus to it would silently leave focus on the document body.
+      const target =
+        previous?.isConnected === true && previous.getClientRects().length > 0
+          ? previous
+          : document.querySelector<HTMLElement>('[data-testid="toggle-tree"]');
+      target?.focus();
+    });
+  }, []);
+
+  const openItem = useCallback((itemId: Uuid) => {
+    setSelectedId(itemId);
+    setMobileNavigationOpen(false);
+  }, []);
+
+  const openDatabaseCreation = useCallback((parentItemId: Uuid | null) => {
+    setDatabaseFormParent(parentItemId);
   }, []);
 
   useEffect(() => {
@@ -190,13 +291,23 @@ export function HierarchyExplorer({
     };
   }, [service]);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => () => databaseViews.dispose(), [databaseViews]);
+
+  const refresh = useCallback(async (): Promise<ProjectedItem[]> => {
+    const generation = ++refreshGeneration.current;
     const [activeItems, trash] = await Promise.all([
       service.listActiveItems(),
       service.listTrashedItems(),
     ]);
-    setItems(activeItems);
-    setTrashedItems(trash);
+    // Local writes and synchronization can notify almost simultaneously. An
+    // older IndexedDB read must never replace the projection produced by a
+    // newer refresh: doing so can briefly remove the selected entry and
+    // remount its form, discarding an unsaved property draft.
+    if (generation === refreshGeneration.current) {
+      setItems(activeItems);
+      setTrashedItems(trash);
+    }
+    return activeItems;
   }, [service]);
 
   useEffect(() => {
@@ -215,9 +326,17 @@ export function HierarchyExplorer({
         return;
       }
       setExpanded(new Set(navigation.expandedItemIds));
+      setSidebarOpen(navigation.sidebarOpen);
+      setSidebarWidth(navigation.sidebarWidth);
       setNavigationLoaded(true);
-      await refresh();
+      const activeItems = await refresh();
       if (!cancelled) {
+        setSelectedId(
+          navigation.lastVisitedItemId !== null &&
+            activeItems.some((item) => item.id === navigation.lastVisitedItemId)
+            ? (navigation.lastVisitedItemId as Uuid)
+            : null,
+        );
         // Subscription notifications can refresh the projection while the
         // service initializes. The workspace must not become interactive until
         // navigation hydration has also completed, or that late hydration can
@@ -242,22 +361,144 @@ export function HierarchyExplorer({
       return;
     }
     void (async () => {
-      const current = await readNavigationState(service.db);
-      await writeNavigationState(service.db, {
+      await updateWorkspacePresentationState(service.db, (current) => ({
         ...current,
+        sidebarOpen,
+        sidebarWidth,
         expandedItemIds: [...expanded],
         lastVisitedItemId: selectedId,
-      });
+      }));
     })();
-  }, [service, expanded, selectedId, navigationLoaded]);
+  }, [service, expanded, selectedId, navigationLoaded, sidebarOpen, sidebarWidth]);
 
   const tree = useMemo(() => buildTree(items), [items]);
   const searchBranches = useMemo(() => searchBranchOptions(tree), [tree]);
   const visibleNodes = useMemo(() => flatten(tree, expanded), [tree, expanded]);
-  const selectedItem = useMemo(
-    () => items.find((item) => item.id === selectedId) ?? null,
-    [items, selectedId],
-  );
+  const allNodes = useMemo(() => flattenAll(tree), [tree]);
+  const draggableTreeItems = useMemo(() => treeDragItems(tree), [tree]);
+  const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
+
+  useEffect(() => {
+    let cancelled = false;
+    const clearStructuredSelection = (): void => {
+      setSelectedDatabase(null);
+      setDatabaseEntries([]);
+      setSelectedEntry(null);
+      setEntryDefinition(null);
+    };
+    if (selectedItem === null || selectedItem.kind !== "page") {
+      clearStructuredSelection();
+      structuredSelectionItemId.current = null;
+      setStructuredSelectionLoading(false);
+      return;
+    }
+
+    if (structuredSelectionItemId.current !== selectedItem.id) {
+      setStructuredSelectionLoading(true);
+    }
+    void (async () => {
+      const databaseRow = await service.getDatabase(selectedItem.id);
+      if (cancelled) return;
+      if (databaseRow !== null) {
+        const rows = await service.listDatabaseEntries(selectedItem.id);
+        const entries = await Promise.all(
+          rows.map(async (row): Promise<DatabaseEntryDto | null> => {
+            const [item, relationTargets] = await Promise.all([
+              service.getItem(row.entryItemId),
+              service.getDatabaseEntryRelationTargets(selectedItem.id, row.entryItemId),
+            ]);
+            return item === null
+              ? null
+              : ({
+                  databaseId: selectedItem.id,
+                  entryId: row.entryItemId,
+                  revisionId: item.currentRevisionId,
+                  lifecycle: item.lifecycle,
+                  title: item.name,
+                  document: item.pageDocument,
+                  values: row.values.values,
+                  relationTargets,
+                } as unknown as DatabaseEntryDto);
+          }),
+        );
+        if (cancelled) return;
+        const optimistic =
+          optimisticDatabaseDefinition.current?.databaseId === selectedItem.id
+            ? optimisticDatabaseDefinition.current.definition
+            : null;
+        setSelectedDatabase({
+          databaseId: selectedItem.id,
+          definitionRevisionId: selectedItem.currentRevisionId,
+          lifecycle: selectedItem.lifecycle,
+          name: selectedItem.name,
+          definition: optimistic ?? databaseRow.definition,
+        } as unknown as DatabaseDto);
+        setDatabaseEntries(entries.filter((entry): entry is DatabaseEntryDto => entry !== null));
+        setSelectedEntry(null);
+        setEntryDefinition(null);
+        structuredSelectionItemId.current = selectedItem.id;
+        setStructuredSelectionLoading(false);
+        return;
+      }
+
+      const entryRow = await service.getDatabaseEntry(selectedItem.id);
+      if (entryRow === null) {
+        const remoteDatabase = await service.api.getDatabase(selectedItem.id);
+        if (cancelled) return;
+        if (remoteDatabase.ok) {
+          setSelectedDatabase(remoteDatabase.value);
+          setDatabaseEntries([]);
+          setSelectedEntry(null);
+          setEntryDefinition(null);
+          structuredSelectionItemId.current = selectedItem.id;
+          setStructuredSelectionLoading(false);
+          return;
+        }
+        const remoteEntry = remotelyOpenedEntry.current;
+        if (remoteEntry?.entry.entryId === selectedItem.id) {
+          setSelectedDatabase(null);
+          setDatabaseEntries([]);
+          setSelectedEntry(remoteEntry.entry);
+          setEntryDefinition(remoteEntry.definition);
+          structuredSelectionItemId.current = selectedItem.id;
+          setStructuredSelectionLoading(false);
+          return;
+        }
+        clearStructuredSelection();
+        structuredSelectionItemId.current = selectedItem.id;
+        setStructuredSelectionLoading(false);
+        return;
+      }
+      const [ownerDatabase, relationTargets] = await Promise.all([
+        service.getDatabase(entryRow.databaseId),
+        service.getDatabaseEntryRelationTargets(entryRow.databaseId, selectedItem.id),
+      ]);
+      if (cancelled) return;
+      if (ownerDatabase === null) {
+        clearStructuredSelection();
+        setStructuredSelectionLoading(false);
+        return;
+      }
+      setSelectedDatabase(null);
+      setDatabaseEntries([]);
+      setSelectedEntry({
+        databaseId: entryRow.databaseId,
+        entryId: selectedItem.id,
+        revisionId: selectedItem.currentRevisionId,
+        lifecycle: selectedItem.lifecycle,
+        title: selectedItem.name,
+        document: selectedItem.pageDocument,
+        values: entryRow.values.values,
+        relationTargets,
+      } as unknown as DatabaseEntryDto);
+      setEntryDefinition(ownerDatabase.definition);
+      structuredSelectionItemId.current = selectedItem.id;
+      setStructuredSelectionLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [service, selectedItem]);
 
   const openPageLink = useCallback(
     (rawItemId: string) => {
@@ -288,6 +529,110 @@ export function HierarchyExplorer({
     [items, trashedItems],
   );
 
+  const selectedDatabaseId = selectedDatabase?.databaseId as Uuid | undefined;
+  const querySelectedDatabaseView = useCallback(
+    async (viewId: Uuid) => {
+      if (selectedDatabaseId === undefined) {
+        return {
+          ok: false as const,
+          problem: {
+            type: "https://myownnotion.dev/problems/database.not-found",
+            title: DATABASE_COPY.hierarchy.notAvailable,
+            status: 404,
+            code: "database.not-found",
+          },
+        };
+      }
+      return await databaseViews.query(selectedDatabaseId, {
+        viewId,
+        limit: 100,
+      });
+    },
+    [databaseViews, selectedDatabaseId],
+  );
+
+  const updateSelectedDatabaseEntry = useCallback(
+    async (entryId: Uuid, update: DatabaseCellUpdate): Promise<void> => {
+      const databaseId = selectedDatabaseId;
+      if (databaseId === undefined) throw new Error(DATABASE_COPY.hierarchy.notAvailable);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const currentItem = await service.getItem(entryId);
+        if (currentItem === null) throw new Error(DATABASE_COPY.hierarchy.entryNotAvailable);
+        if (update.kind === "title") {
+          const result = await service.mutate(
+            "item.rename",
+            { itemId: entryId, name: update.title },
+            [currentItem.currentRevisionId],
+          );
+          if (result.ok) {
+            await refresh();
+            return;
+          }
+          if (result.error.code === "revision.stale-base") continue;
+          setProblem(result.error);
+          throw new Error(result.error.title);
+        }
+
+        const currentEntry = await service.getDatabaseEntry(entryId);
+        const currentRelations = await service.getDatabaseEntryRelationTargets(databaseId, entryId);
+        if (currentEntry === null || currentEntry.databaseId !== databaseId) {
+          throw new Error(DATABASE_COPY.hierarchy.valuesNotAvailable);
+        }
+        const values = { ...currentEntry.values.values };
+        const relationTargets = { ...currentRelations };
+        if (update.relationTargets !== undefined) {
+          relationTargets[update.propertyId] = update.relationTargets;
+          delete values[update.propertyId];
+        } else {
+          delete relationTargets[update.propertyId];
+          if (update.value === undefined) delete values[update.propertyId];
+          else values[update.propertyId] = update.value;
+        }
+        const result = await service.replaceDatabaseEntryValues(databaseId, entryId, {
+          baseRevisionId: currentItem.currentRevisionId,
+          values,
+          relationTargets,
+        } as unknown as ReplaceEntryValuesRequestDto);
+        if (result.ok) {
+          await refresh();
+          return;
+        }
+        if (result.error.code === "revision.stale-base") continue;
+        setProblem(result.error);
+        throw new Error(result.error.title);
+      }
+      const error: SafeError = {
+        code: "revision.stale-base",
+        title: DATABASE_COPY.hierarchy.entryCellChanged,
+      };
+      setProblem(error);
+      throw new Error(error.title);
+    },
+    [refresh, selectedDatabaseId, service],
+  );
+
+  const openSelectedDatabaseEntry = useCallback(
+    (entryId: Uuid, _trigger?: HTMLElement | null) => {
+      const database = selectedDatabase;
+      if (database === null) return;
+      setEntryReturnFocusId(entryId);
+      void (async () => {
+        if ((await service.getDatabaseEntry(entryId)) === null) {
+          const remote = await service.api.getDatabaseEntry(database.databaseId as Uuid, entryId);
+          if (remote.ok) {
+            remotelyOpenedEntry.current = {
+              entry: remote.value,
+              definition: database.definition as unknown as DatabaseDefinition,
+            };
+          }
+        }
+        setSelectedId(entryId);
+      })();
+    },
+    [selectedDatabase, service],
+  );
+  const clearEntryReturnFocus = useCallback(() => setEntryReturnFocusId(null), []);
+
   const runCommand = useCallback(
     async (commandType: string, payload: Record<string, unknown>, baseRevisionIds: Uuid[] = []) => {
       setProblem(null);
@@ -310,6 +655,23 @@ export function HierarchyExplorer({
         .map((node) => node.positionKey)
         .sort(),
     [visibleNodes],
+  );
+
+  const trashItem = useCallback(
+    async (node: TreeNode, confirmOrdinaryItem = false) => {
+      const impact = await service.previewTrashImpact(node.item.id);
+      if (impact.isDatabase) {
+        const message = DATABASE_COPY.hierarchy.trashImpact(
+          node.item.name,
+          impact.activeEntryCount,
+        );
+        if (!window.confirm(message)) return;
+      } else if (confirmOrdinaryItem && !window.confirm(`Move “${node.item.name}” to the trash?`)) {
+        return;
+      }
+      await runCommand("item.trash", { itemId: node.item.id }, [node.item.currentRevisionId]);
+    },
+    [runCommand, service],
   );
 
   const createItem = useCallback(
@@ -348,6 +710,25 @@ export function HierarchyExplorer({
       }
     },
     [newItemName, runCommand, siblingKeys],
+  );
+
+  const createDatabase = useCallback(
+    async (request: Parameters<typeof service.createDatabase>[0]) => {
+      setProblem(null);
+      const result = await service.createDatabase(request);
+      if (!result.ok) {
+        setProblem(result.error);
+        throw new Error(result.error.title);
+      }
+      setDatabaseFormParent(undefined);
+      setSelectedId(request.id as Uuid);
+      setMobileNavigationOpen(false);
+      if (request.placement.parentItemId !== null) {
+        setExpanded((current) => new Set(current).add(request.placement.parentItemId as Uuid));
+      }
+      await refresh();
+    },
+    [service, refresh],
   );
 
   const renameItem = useCallback(
@@ -399,7 +780,7 @@ export function HierarchyExplorer({
         return;
       }
       const parentId = placement.parentItemId;
-      const siblings = visibleNodes
+      const siblings = allNodes
         .filter((candidate) => {
           const candidatePlacement = candidate.item.placements.find(
             (entry) => entry.kind === "hierarchy",
@@ -421,7 +802,7 @@ export function HierarchyExplorer({
         [node.item.currentRevisionId],
       );
     },
-    [runCommand, visibleNodes],
+    [allNodes, runCommand],
   );
 
   const moveInto = useCallback(
@@ -435,6 +816,41 @@ export function HierarchyExplorer({
       );
     },
     [runCommand, siblingKeys],
+  );
+
+  const handleTreeDrop = useCallback(
+    (intent: Exclude<TreeDropIntent, { readonly kind: "rejected" }>) => {
+      const node = allNodes.find((candidate) => candidate.item.id === intent.itemId);
+      if (node === undefined) return;
+      if (intent.kind === "nest") {
+        void moveInto(node, intent.parentId as Uuid);
+        setExpanded((current) => new Set(current).add(intent.parentId));
+        return;
+      }
+
+      const siblings = allNodes
+        .filter((candidate) => {
+          if (candidate.item.id === node.item.id) return false;
+          const placement = candidate.item.placements.find((entry) => entry.kind === "hierarchy");
+          return (placement?.parentItemId ?? null) === intent.parentId;
+        })
+        .sort((left, right) => (left.positionKey < right.positionKey ? -1 : 1));
+      const targetIndex = siblings.findIndex((candidate) => candidate.item.id === intent.targetId);
+      if (targetIndex < 0) return;
+      const before = intent.edge === "before" ? siblings[targetIndex - 1] : siblings[targetIndex];
+      const after = intent.edge === "before" ? siblings[targetIndex] : siblings[targetIndex + 1];
+      const positionKey = safeKeyBetween(before?.positionKey ?? null, after?.positionKey ?? null);
+      void runCommand(
+        "placement.move",
+        {
+          placementId: node.placementId,
+          parentItemId: intent.parentId as Uuid | null,
+          positionKey,
+        },
+        [node.item.currentRevisionId],
+      );
+    },
+    [allNodes, moveInto, runCommand],
   );
 
   const keyboardNodes = useMemo(
@@ -491,7 +907,7 @@ export function HierarchyExplorer({
       setSelectedId(id as Uuid);
     },
     setExpanded: toggleBranch,
-    open: (id: string) => setSelectedId(id as Uuid),
+    open: (id: string) => openItem(id as Uuid),
     rename: (id: string) => {
       const node = visibleNodes.find((entry) => entry.item.id === id);
       if (node !== undefined) {
@@ -500,50 +916,9 @@ export function HierarchyExplorer({
     },
     remove: (id: string) => {
       const node = visibleNodes.find((entry) => entry.item.id === id);
-      if (node !== undefined && window.confirm(`Move “${node.item.name}” to the trash?`)) {
-        void runCommand("item.trash", { itemId: node.item.id });
-      }
+      if (node !== undefined) void trashItem(node, true);
     },
   });
-
-  useEffect(() => {
-    // Escape is bound to the document rather than to the container, and not
-    // only because a plain <div> with a key handler is a lint error: the owner
-    // may have tabbed out of the tree into the editor, and the panel still
-    // needs to close from wherever they are.
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape" || !treeOpen) {
-        return;
-      }
-      // Only when the owner is *in* the tree. A document-wide Escape handler
-      // competes with every dialog on the page: closing the conversion
-      // confirmation also collapsed the tree and pulled focus onto its toggle,
-      // which is a worse outcome than not handling the key at all.
-      const active = document.activeElement;
-      const inTree = active instanceof HTMLElement && active.closest("#workspace-tree") !== null;
-      if (inTree) {
-        closeTreeRef.current();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [treeOpen]);
-
-  const closeTree = useCallback(() => {
-    setTreeOpen(false);
-    // Back to the control that opened it. Leaving focus in a panel that is no
-    // longer on screen is how a keyboard journey ends without anyone noticing.
-    treeToggle.current?.focus();
-  }, []);
-  closeTreeRef.current = closeTree;
-
-  if (loadState === "loading") {
-    return (
-      <p className="loading-state" role="status">
-        Loading workspace…
-      </p>
-    );
-  }
 
   const renderNode = (node: TreeNode, level: number): React.ReactElement => {
     const isSelected = selectedId === node.item.id;
@@ -551,198 +926,116 @@ export function HierarchyExplorer({
     const parentId = parentPlacement?.parentItemId ?? null;
     return (
       <li key={node.item.id} role="none">
-        {/* biome-ignore lint/a11y/useKeyWithClickEvents: the ARIA tree pattern
-            puts one handler on the tree, not one per row. A row-level handler
-            would need every row in the tab order to receive its own key events,
-            which is the arrangement the pattern exists to avoid. Keyboard
-            operation is covered by useTreeKeyboard on the container and
-            asserted in keyboard-navigation.spec.ts. */}
-        <div
-          role="treeitem"
-          aria-level={level}
-          aria-selected={isSelected}
-          {...(isBranch(node) ? { "aria-expanded": expanded.has(node.item.id) } : {})}
-          tabIndex={isSelected || (selectedId === null && level === 1) ? 0 : -1}
-          className="tree-row"
-          data-testid={`tree-item-${node.item.name}`}
-          data-item-id={node.item.id}
-          onClick={() => setSelectedId(node.item.id)}
-        >
-          {isBranch(node) ? (
-            <button
-              type="button"
-              className="tree-twisty"
-              aria-label={
-                expanded.has(node.item.id)
-                  ? `Collapse ${node.item.name}`
-                  : `Expand ${node.item.name}`
-              }
-              data-testid={`toggle-${node.item.name}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleBranch(node.item.id, !expanded.has(node.item.id));
-              }}
+        <TreeDropTarget itemId={node.item.id}>
+          {({ isDropTarget, setNodeRef }) => (
+            /* biome-ignore lint/a11y/useKeyWithClickEvents: the ARIA tree pattern
+               puts one handler on the tree, not one per row. A row-level handler
+               would need every row in the tab order to receive its own key events,
+               which is the arrangement the pattern exists to avoid. Keyboard
+               operation is covered by useTreeKeyboard on the container and
+               asserted in keyboard-navigation.spec.ts. */
+            <div
+              ref={setNodeRef}
+              role="treeitem"
+              aria-level={level}
+              aria-selected={isSelected}
+              {...(isBranch(node) ? { "aria-expanded": expanded.has(node.item.id) } : {})}
+              tabIndex={isSelected || (selectedId === null && level === 1) ? 0 : -1}
+              className="tree-row"
+              data-testid={`tree-item-${node.item.name}`}
+              data-item-id={node.item.id}
+              data-drop-target={isDropTarget || undefined}
+              onClick={() => openItem(node.item.id)}
             >
-              {expanded.has(node.item.id) ? "▾" : "▸"}
-            </button>
-          ) : (
-            // Reserves the same width so names line up whether or not a row has
-            // children; hidden from assistive technology because it says
-            // nothing.
-            <span className="tree-twisty tree-twisty--leaf" aria-hidden="true" />
-          )}
-          <span className="tree-kind">{node.item.kind}</span>
-          <span className="tree-name">{node.item.name}</span>
-          {/* Marked, never as "missing" (FR-018). Content the server holds is
+              <TreeDragHandle itemId={node.item.id} itemName={node.item.name} />
+              {isBranch(node) ? (
+                <button
+                  type="button"
+                  className="tree-twisty"
+                  aria-label={
+                    expanded.has(node.item.id)
+                      ? `Collapse ${node.item.name}`
+                      : `Expand ${node.item.name}`
+                  }
+                  data-testid={`toggle-${node.item.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleBranch(node.item.id, !expanded.has(node.item.id));
+                  }}
+                >
+                  {expanded.has(node.item.id) ? "▾" : "▸"}
+                </button>
+              ) : (
+                // Reserves the same width so names line up whether or not a row has
+                // children; hidden from assistive technology because it says
+                // nothing.
+                <span className="tree-twisty tree-twisty--leaf" aria-hidden="true" />
+              )}
+              <span className="tree-kind">{node.item.kind}</span>
+              <span className="tree-name">{node.item.name}</span>
+              {/* Marked, never as "missing" (FR-018). Content the server holds is
               not lost because this device released it or has not fetched it, and
               the two are distinguished because they mean different things to an
               owner deciding whether something is safe. */}
-          {node.item.localAvailability !== "present" ? (
-            <span
-              className="muted"
-              data-testid={`availability-${node.item.name}`}
-              data-availability={node.item.localAvailability}
-            >
-              {node.item.localAvailability === "offloaded"
-                ? "not on this device"
-                : "not fetched yet"}
-            </span>
-          ) : null}
-          {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
-          <span className="tree-actions">
-            {node.item.kind !== "file" ? (
-              <>
-                <button
-                  type="button"
-                  aria-label={`New page inside ${node.item.name}`}
-                  onClick={() => void createItem("page", node.item.id)}
+              {node.item.localAvailability !== "present" ? (
+                <span
+                  className="muted"
+                  data-testid={`availability-${node.item.name}`}
+                  data-availability={node.item.localAvailability}
                 >
-                  +page
-                </button>
-                <button
-                  type="button"
-                  aria-label={`New folder inside ${node.item.name}`}
-                  onClick={() => void createItem("folder", node.item.id)}
-                >
-                  +folder
-                </button>
-              </>
-            ) : null}
-            {node.item.kind !== "file" ? (
-              <ConvertItemControl
-                itemId={node.item.id}
+                  {node.item.localAvailability === "offloaded"
+                    ? "not on this device"
+                    : "not fetched yet"}
+                </span>
+              ) : null}
+              {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
+              <NavigationItemMenu
                 itemName={node.item.name}
-                kind={node.item.kind as ConvertibleKind}
-                convert={convertItem}
-              />
-            ) : null}
-            <button
-              type="button"
-              aria-label={`Rename ${node.item.name}`}
-              onClick={() => void renameItem(node)}
-            >
-              rename
-            </button>
-            <button
-              type="button"
-              aria-label={`Move ${node.item.name} up`}
-              onClick={() => void reorder(node, -1)}
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              aria-label={`Move ${node.item.name} down`}
-              onClick={() => void reorder(node, 1)}
-            >
-              ↓
-            </button>
-            {parentId !== null ? (
-              <button
-                type="button"
-                aria-label={`Move ${node.item.name} to workspace root`}
-                onClick={() => void moveInto(node, null)}
-              >
-                →root
-              </button>
-            ) : null}
-            {selectedId !== null && selectedId !== node.item.id ? (
-              <button
-                type="button"
-                aria-label={`Move selected item into ${node.item.name}`}
-                onClick={() => {
+                canContainChildren={node.item.kind !== "file"}
+                canMoveToRoot={parentId !== null}
+                canMoveSelectedInside={selectedId !== null && selectedId !== node.item.id}
+                favourite={node.item.favourite}
+                keptOffline={node.item.offlineIntent}
+                conversion={
+                  node.item.kind === "file" ? undefined : (
+                    <ConvertItemControl
+                      itemId={node.item.id}
+                      itemName={node.item.name}
+                      kind={node.item.kind as ConvertibleKind}
+                      convert={convertItem}
+                    />
+                  )
+                }
+                onCreatePage={() => void createItem("page", node.item.id)}
+                onCreateFolder={() => void createItem("folder", node.item.id)}
+                onCreateDatabase={() => openDatabaseCreation(node.item.id)}
+                onRename={() => void renameItem(node)}
+                onMoveUp={() => void reorder(node, -1)}
+                onMoveDown={() => void reorder(node, 1)}
+                onMoveToRoot={() => void moveInto(node, null)}
+                onMoveSelectedInside={() => {
                   const selected = visibleNodes.find(
                     (candidate) => candidate.item.id === selectedId,
                   );
-                  if (selected !== undefined) {
-                    void moveInto(selected, node.item.id);
-                  }
+                  if (selected !== undefined) void moveInto(selected, node.item.id);
                 }}
-              >
-                ⤵selected
-              </button>
-            ) : null}
-            <button
-              type="button"
-              // The label states the action, not the current state: "Favourite
-              // X" on a row that is already one would leave a screen-reader
-              // user unable to tell which of the two it is.
-              aria-label={
-                node.item.favourite
-                  ? `Remove ${node.item.name} from favourites`
-                  : `Add ${node.item.name} to favourites`
-              }
-              aria-pressed={node.item.favourite}
-              data-testid={`favourite-${node.item.name}`}
-              onClick={() =>
-                // Deliberately without a causal base. The command carries the
-                // state being asked for, so two devices starring the same page
-                // agree rather than conflict — and asking an owner to resolve a
-                // conflict between "favourite" and "favourite" would be absurd.
-                void runCommand("item.favourite", {
-                  itemId: node.item.id,
-                  favourite: !node.item.favourite,
-                })
-              }
-            >
-              {node.item.favourite ? "★" : "☆"}
-            </button>
-            <button
-              type="button"
-              // The label states the action, not the state, for the same reason
-              // as the favourite control above.
-              aria-label={
-                node.item.offlineIntent
-                  ? `Stop keeping ${node.item.name} available offline`
-                  : `Keep ${node.item.name} available offline`
-              }
-              aria-pressed={node.item.offlineIntent}
-              data-testid={`offline-${node.item.name}`}
-              onClick={() =>
-                // No causal base, like the favourite: the command carries the
-                // state asked for, so two devices marking the same branch agree
-                // rather than conflict.
-                void runCommand("item.offline", {
-                  itemId: node.item.id,
-                  offline: !node.item.offlineIntent,
-                })
-              }
-            >
-              {node.item.offlineIntent ? "⭳kept" : "⭳"}
-            </button>
-            <button
-              type="button"
-              aria-label={`Trash ${node.item.name}`}
-              onClick={() =>
-                void runCommand("item.trash", { itemId: node.item.id }, [
-                  node.item.currentRevisionId,
-                ])
-              }
-            >
-              trash
-            </button>
-          </span>
-        </div>
+                onToggleFavourite={() =>
+                  void runCommand("item.favourite", {
+                    itemId: node.item.id,
+                    favourite: !node.item.favourite,
+                  })
+                }
+                onToggleOffline={() =>
+                  void runCommand("item.offline", {
+                    itemId: node.item.id,
+                    offline: !node.item.offlineIntent,
+                  })
+                }
+                onTrash={() => void trashItem(node)}
+              />
+            </div>
+          )}
+        </TreeDropTarget>
         {/* Rendered only when open. Hiding a collapsed branch with CSS would
             leave its rows in the accessibility tree and in the tab order, so a
             screen reader would announce children of a folder the owner has
@@ -766,92 +1059,461 @@ export function HierarchyExplorer({
     );
   };
 
-  return (
-    <section aria-label="Workspace hierarchy">
-      <SyncStatus service={service} />
+  const navigationTree = (
+    <div
+      id="workspace-tree"
+      className="workspace-tree"
+      data-open={sidebarOpen}
+      data-testid="workspace-tree"
+    >
+      {loadState === "loading" ? (
+        <BranchState kind="loading" />
+      ) : tree.length === 0 ? (
+        <p className="workspace-navigation__empty" data-testid="empty-state">
+          Aucune page pour le moment.
+        </p>
+      ) : (
+        <TreeDragDropProvider
+          items={draggableTreeItems}
+          onDrop={handleTreeDrop}
+          onRejected={() =>
+            setProblem({
+              code: "containment.cycle-rejected",
+              title: "Ce déplacement créerait une boucle dans l’arborescence.",
+            })
+          }
+        >
+          {/* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the list receives the tree role deliberately (WAI-ARIA tree over ul/li) */}
+          <ul role="tree" aria-label="Arborescence" className="tree" onKeyDown={onTreeKeyDown}>
+            {tree.map((node) => renderNode(node, 1))}
+          </ul>
+        </TreeDragDropProvider>
+      )}
+      {databaseFormParent !== undefined ? (
+        <CreateDatabaseForm
+          parentItemId={databaseFormParent}
+          positionKey={safeKeyBetween(siblingKeys(databaseFormParent).at(-1) ?? null, null)}
+          onCreate={createDatabase}
+        />
+      ) : null}
+    </div>
+  );
 
-      {/* Only rendered as a control below the breakpoint — CSS hides it wider
-          than that, where the tree is always in view and a toggle would be one
-          more thing to explain. */}
-      <button
-        type="button"
-        ref={treeToggle}
-        className="tree-toggle"
-        data-testid="toggle-tree"
-        aria-expanded={treeOpen}
-        aria-controls="workspace-tree"
-        onClick={() => {
-          setTreeOpen((open) => !open);
-        }}
-      >
-        {treeOpen ? "Hide the workspace tree" : "Show the workspace tree"}
-      </button>
-      {problem !== null ? (
-        <p className="status-banner" data-state="error" role="alert" data-testid="problem-banner">
-          {problem.code}: {problem.title}
+  const creationControls = (
+    <div className="workspace-navigation__create">
+      <Field
+        id="new-item-name"
+        label="Nom"
+        size="compact"
+        value={newItemName}
+        placeholder="Sans titre"
+        onChange={(event) => setNewItemName(event.target.value)}
+      />
+      <div className="workspace-navigation__create-actions">
+        <Button
+          size="compact"
+          variant="ghost"
+          data-testid="new-root-page"
+          onClick={() => void createItem("page", null)}
+        >
+          <AppIcon name="fileText" size="small" />
+          Page
+        </Button>
+        <Button
+          size="compact"
+          variant="ghost"
+          data-testid="new-root-folder"
+          onClick={() => void createItem("folder", null)}
+        >
+          <AppIcon name="folder" size="small" />
+          Dossier
+        </Button>
+        <Button
+          size="compact"
+          variant="ghost"
+          data-testid="new-root-database"
+          onClick={() => openDatabaseCreation(null)}
+        >
+          <AppIcon name="table" size="small" />
+          Base
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <WorkspaceShell
+      mobileNavigationOpen={mobileNavigationOpen}
+      sidebarOpen={sidebarOpen}
+      sidebarWidth={sidebarWidth}
+      onMobileNavigationOpenChange={setMobileNavigationOpen}
+      onSidebarOpenChange={setSidebarOpen}
+      onSidebarWidthChange={setSidebarWidth}
+      navigation={
+        <Sidebar
+          items={items}
+          tree={navigationTree}
+          creationControls={creationControls}
+          onOpen={openItem}
+          onOpenSettings={() => {
+            setMobileNavigationOpen(false);
+            onOpenSettings();
+          }}
+          onOpenBackups={() => {
+            setMobileNavigationOpen(false);
+            onOpenBackups();
+          }}
+          onOpenSearch={openSearch}
+        />
+      }
+      header={
+        <PageHeader
+          title={selectedItem?.name ?? "Bienvenue"}
+          kind={selectedItem?.kind ?? "workspace"}
+          breadcrumbs={activePath.map((item, index) => ({
+            id: item.id,
+            label: item.name,
+            ...(index === activePath.length - 1 ? {} : { onOpen: () => openItem(item.id) }),
+          }))}
+          status={<SyncStatus service={service} />}
+          actions={
+            <>
+              <Button
+                size="square"
+                variant="ghost"
+                aria-label="Sauvegardes"
+                data-testid="open-backups"
+                onClick={onOpenBackups}
+              >
+                <AppIcon name="archive" />
+                <span className="ui-visually-hidden">Sauvegardes</span>
+              </Button>
+              <Button
+                size="square"
+                variant="ghost"
+                aria-label="Réglages et sécurité"
+                data-testid="toggle-security-settings"
+                onClick={onOpenSettings}
+              >
+                <AppIcon name="settings" />
+                <span className="ui-visually-hidden">Réglages et sécurité</span>
+              </Button>
+            </>
+          }
+        />
+      }
+    >
+      {searchOpen && search !== null ? (
+        <SearchDialog
+          search={search}
+          branches={searchBranches}
+          onOpen={(itemId) => openItem(itemId)}
+          onClose={closeSearch}
+        />
+      ) : null}
+
+      {backupStale ? (
+        <p
+          className="status-banner"
+          data-state="error"
+          role="alert"
+          data-testid="workspace-backup-stale"
+        >
+          <strong>Aucune sauvegarde vérifiée depuis plus d’un jour.</strong>{" "}
+          <Button size="compact" variant="ghost" onClick={onOpenBackups}>
+            Vérifier les sauvegardes
+          </Button>
         </p>
       ) : null}
 
-      <div
-        id="workspace-tree"
-        className="workspace-tree"
-        data-open={treeOpen}
-        data-testid="workspace-tree"
-      >
-        <div className="toolbar">
-          <label htmlFor="new-item-name" className="muted">
-            Name
-          </label>
-          <input
-            id="new-item-name"
-            type="text"
-            value={newItemName}
-            placeholder="New item name"
-            onChange={(event) => setNewItemName(event.target.value)}
-          />
-          <button type="button" onClick={() => void createItem("folder", null)}>
-            New root folder
-          </button>
-          <button type="button" onClick={() => void createItem("page", null)}>
-            New root page
-          </button>
+      {problem !== null ? (
+        <div className="status-banner" data-state="error" role="alert" data-testid="problem-banner">
+          <strong>{problem.title}</strong>
+          <details>
+            <summary>Détails techniques</summary>
+            <code>{problem.code}</code>
+          </details>
         </div>
+      ) : null}
 
-        {/* Inside the collapsible region: at 320 pixels the shortcuts are part
-            of navigation, and leaving them on screen while the tree is put away
-            would defeat the point of putting it away. */}
-        <Sidebar
-          items={items}
-          onOpen={(itemId) => setSelectedId(itemId)}
-          onOpenSettings={onOpenSettings}
-          onOpenSearch={openSearch}
+      {loadState === "loading" ? (
+        <WorkspaceState kind="loading" />
+      ) : selectedItem === null ? (
+        <WorkspaceState
+          kind="empty"
+          detail={
+            items.length === 0
+              ? "Créez une première page depuis la barre latérale."
+              : "Choisissez une page dans la barre latérale pour reprendre votre travail."
+          }
         />
+      ) : null}
 
-        {searchOpen && search !== null ? (
-          <SearchDialog
-            search={search}
-            branches={searchBranches}
-            onOpen={(itemId) => setSelectedId(itemId)}
-            onClose={closeSearch}
-          />
-        ) : null}
-
-        {tree.length === 0 ? (
-          <p className="empty-state" data-testid="empty-state">
-            The workspace is empty. Create a folder or a page to begin.
-          </p>
-        ) : (
-          /* biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: the list receives the tree role deliberately (WAI-ARIA tree over ul/li) */
-          <ul role="tree" aria-label="Content tree" className="tree" onKeyDown={onTreeKeyDown}>
-            {tree.map((node) => renderNode(node, 1))}
-          </ul>
-        )}
-      </div>
-
-      <MutationStatus service={service} />
-      <StoragePanel service={service} />
-
+      {loadState === "ready" ? (
+        <details className="workspace-diagnostics">
+          <summary>État local et stockage</summary>
+          <MutationStatus service={service} />
+          <StoragePanel service={service} />
+        </details>
+      ) : null}
       {selectedItem !== null && selectedItem.kind === "page" ? (
+        <DatabaseConflictResolution
+          service={service}
+          itemId={selectedItem.id}
+          onResolved={() => void refresh()}
+        />
+      ) : null}
+
+      {selectedItem !== null && selectedItem.kind === "page" && structuredSelectionLoading ? (
+        <p className="loading-state" role="status">
+          Opening structured page…
+        </p>
+      ) : selectedItem !== null &&
+        selectedDatabase !== null &&
+        selectedDatabase.databaseId === selectedItem.id ? (
+        <DatabasePage
+          database={selectedDatabase}
+          entries={databaseEntries}
+          onPreviewDefinitionImpact={async (definition) => {
+            const current = await service.getItem(selectedItem.id);
+            return current === null
+              ? null
+              : await service.previewDatabaseDefinitionImpact(
+                  selectedItem.id,
+                  current.currentRevisionId,
+                  definition,
+                );
+          }}
+          onReplaceDefinition={(
+            definition: DatabaseDefinition,
+            confirmation?: DefinitionConfirmation,
+          ) => {
+            const previousDatabase = selectedDatabase;
+            optimisticDatabaseDefinition.current = {
+              databaseId: selectedItem.id,
+              definition,
+            };
+            setSelectedDatabase({
+              ...previousDatabase,
+              definition,
+            } as unknown as DatabaseDto);
+            const rollbackOptimisticDefinition = (): void => {
+              if (
+                optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
+                jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
+              ) {
+                optimisticDatabaseDefinition.current = null;
+              }
+              setSelectedDatabase((current) =>
+                current !== null && jsonValuesEqual(current.definition, definition)
+                  ? previousDatabase
+                  : current,
+              );
+            };
+            const operation = async (): Promise<void> => {
+              for (let attempt = 0; attempt < 3; attempt += 1) {
+                const [currentItem, currentDatabase] = await Promise.all([
+                  service.getItem(selectedItem.id),
+                  service.getDatabase(selectedItem.id),
+                ]);
+                if (
+                  currentItem === null ||
+                  currentDatabase === null ||
+                  !jsonValuesEqual(currentDatabase.definition, previousDatabase.definition)
+                ) {
+                  const error: SafeError = {
+                    code: "database.definition-conflict",
+                    title: DATABASE_COPY.hierarchy.schemaChanged,
+                  };
+                  rollbackOptimisticDefinition();
+                  setProblem(error);
+                  throw new Error(error.title);
+                }
+                const body = {
+                  baseRevisionId: currentItem.currentRevisionId,
+                  definition,
+                  ...(confirmation === undefined ? {} : { impactConfirmation: confirmation }),
+                } as unknown as ReplaceDefinitionRequestDto;
+                const result = await service.replaceDatabaseDefinition(selectedItem.id, body);
+                if (result.ok) {
+                  let syncState = await service.synchronize();
+                  for (let pass = 0; pass < 3; pass += 1) {
+                    if (
+                      syncState === "conflict" ||
+                      syncState === "offline" ||
+                      (await service.outbox.pending()).length === 0
+                    ) {
+                      break;
+                    }
+                    syncState = await service.synchronize();
+                  }
+                  if (syncState === "conflict") {
+                    const error: SafeError = {
+                      code: "database.definition-conflict",
+                      title: DATABASE_COPY.hierarchy.viewChanged,
+                    };
+                    rollbackOptimisticDefinition();
+                    setProblem(error);
+                    throw new Error(error.title);
+                  }
+                  const [updatedItem, updatedDatabase] = await Promise.all([
+                    service.getItem(selectedItem.id),
+                    service.getDatabase(selectedItem.id),
+                  ]);
+                  if (updatedItem !== null && updatedDatabase !== null) {
+                    const refreshed = {
+                      databaseId: selectedItem.id,
+                      definitionRevisionId: updatedItem.currentRevisionId,
+                      lifecycle: updatedItem.lifecycle,
+                      name: updatedItem.name,
+                      definition: updatedDatabase.definition,
+                    } as unknown as DatabaseDto;
+                    setSelectedDatabase((current) =>
+                      current !== null && jsonValuesEqual(current.definition, definition)
+                        ? refreshed
+                        : current,
+                    );
+                  }
+                  if (
+                    optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
+                    jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
+                  ) {
+                    optimisticDatabaseDefinition.current = null;
+                  }
+                  return;
+                }
+                if (result.error.code !== "revision.stale-base") {
+                  rollbackOptimisticDefinition();
+                  setProblem(result.error);
+                  throw new Error(result.error.title);
+                }
+              }
+              const error: SafeError = {
+                code: "revision.stale-base",
+                title: DATABASE_COPY.hierarchy.propertySaveChanged,
+              };
+              rollbackOptimisticDefinition();
+              setProblem(error);
+              throw new Error(error.title);
+            };
+            const queued = definitionMutationQueue.current.then(operation, operation);
+            definitionMutationQueue.current = queued.catch(() => undefined);
+            return queued;
+          }}
+          onCreateEntry={async (title) => {
+            const keys = siblingKeys(selectedItem.id);
+            const result = await service.createDatabaseEntry(selectedItem.id, {
+              id: generateUuidV7(),
+              title,
+              placement: {
+                id: generateUuidV7(),
+                parentItemId: selectedItem.id,
+                positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
+              },
+              document: {
+                format: "myownnotion.document+json",
+                formatVersion: 1,
+                body: {},
+              },
+              values: {},
+              relationTargets: {},
+            });
+            if (!result.ok) {
+              setProblem(result.error);
+              throw new Error(result.error.title);
+            }
+            setExpanded((current) => new Set(current).add(selectedItem.id));
+          }}
+          onQueryView={querySelectedDatabaseView}
+          onUpdateEntry={updateSelectedDatabaseEntry}
+          relationOptions={items
+            .filter((item) => item.kind === "page" && item.lifecycle === "active")
+            .map((item) => ({ id: item.id, label: item.name }))}
+          returnFocusEntryId={entryReturnFocusId}
+          onReturnFocusRestored={clearEntryReturnFocus}
+          onOpenEntry={openSelectedDatabaseEntry}
+        />
+      ) : selectedItem !== null &&
+        selectedEntry !== null &&
+        selectedEntry.entryId === selectedItem.id &&
+        entryDefinition !== null ? (
+        <EntryPanel
+          entry={selectedEntry}
+          definition={entryDefinition}
+          relationOptions={items
+            .filter((item) => item.kind === "page" && item.lifecycle === "active")
+            .map((item) => ({ id: item.id, label: item.name }))}
+          onSaveValues={async (values, relationTargets) => {
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              const [currentItem, currentEntry, currentRelations] = await Promise.all([
+                service.getItem(selectedItem.id),
+                service.getDatabaseEntry(selectedItem.id),
+                service.getDatabaseEntryRelationTargets(
+                  selectedEntry.databaseId as Uuid,
+                  selectedItem.id,
+                ),
+              ]);
+              if (
+                currentItem === null ||
+                currentEntry === null ||
+                !jsonValuesEqual(currentEntry.values.values, selectedEntry.values) ||
+                !jsonValuesEqual(currentRelations, selectedEntry.relationTargets)
+              ) {
+                const error: SafeError = {
+                  code: "database.definition-conflict",
+                  title: DATABASE_COPY.hierarchy.entryChanged,
+                };
+                setProblem(error);
+                throw new Error(error.title);
+              }
+              const result = await service.replaceDatabaseEntryValues(
+                selectedEntry.databaseId as Uuid,
+                selectedItem.id,
+                {
+                  baseRevisionId: currentItem.currentRevisionId,
+                  values,
+                  relationTargets,
+                } as unknown as ReplaceEntryValuesRequestDto,
+              );
+              if (result.ok) return;
+              if (result.error.code !== "revision.stale-base") {
+                setProblem(result.error);
+                throw new Error(result.error.title);
+              }
+            }
+            const error: SafeError = {
+              code: "revision.stale-base",
+              title: DATABASE_COPY.hierarchy.entrySaveChanged,
+            };
+            setProblem(error);
+            throw new Error(error.title);
+          }}
+          onClose={() => {
+            const databaseId = selectedEntry.databaseId as Uuid;
+            const url = new URL(window.location.href);
+            url.searchParams.delete("entry");
+            window.history.replaceState(window.history.state, "", url);
+            setSelectedId(databaseId);
+            remotelyOpenedEntry.current = null;
+          }}
+          pageContent={
+            <>
+              <EditorView
+                service={service}
+                itemId={selectedItem.id}
+                itemRevisionId={selectedItem.currentRevisionId}
+                items={items}
+                onOpenPage={openPageLink}
+              />
+              <AttachmentPanel
+                pageId={selectedItem.id}
+                onChanged={() => void refresh()}
+                onOpenUsage={(itemId) => openPageLink(itemId)}
+              />
+            </>
+          }
+        />
+      ) : selectedItem !== null && selectedItem.kind === "page" ? (
         <>
           <EditorView
             service={service}
@@ -903,6 +1565,6 @@ export function HierarchyExplorer({
           </ul>
         </section>
       ) : null}
-    </section>
+    </WorkspaceShell>
   );
 }

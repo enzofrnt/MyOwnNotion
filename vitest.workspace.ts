@@ -22,6 +22,14 @@ export default defineWorkspace([
   },
   {
     test: {
+      name: "page-state",
+      root: "packages/page-state",
+      environment: "node",
+      include: ["tests/**/*.spec.ts"],
+    },
+  },
+  {
+    test: {
       name: "contracts",
       root: "packages/contracts",
       environment: "node",
@@ -50,7 +58,7 @@ export default defineWorkspace([
       name: "web",
       root: "apps/web",
       environment: "node",
-      include: ["tests/**/*.spec.ts"],
+      include: ["tests/**/*.spec.{ts,tsx}"],
       setupFiles: ["tests/setup/indexeddb.ts"],
     },
   },
@@ -94,6 +102,7 @@ export default defineWorkspace([
       root: ".",
       environment: "node",
       include: ["tests/performance/**/*.spec.ts"],
+      setupFiles: ["packages/client-core/tests/setup/indexeddb.ts"],
       testTimeout: 600_000,
       hookTimeout: 600_000,
     },

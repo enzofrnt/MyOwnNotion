@@ -25,7 +25,13 @@
  */
 
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
-import type { LocalDatabase, LocalItemRow, SealedLocalItemRow } from "./schema.ts";
+import type {
+  ConflictRecordRow,
+  LocalDatabase,
+  LocalItemRow,
+  OutboxMutationRow,
+  SealedLocalItemRow,
+} from "./schema.ts";
 
 export interface ResealOutcome {
   /** Rows converted from plaintext by this pass. */
@@ -84,6 +90,25 @@ export async function resealPlaintextProjection(
     // whose body is not.
     await db.items.put(sealed);
     resealed += 1;
+  }
+
+  // Outbox and conflict stores existed before their codec was wired into the
+  // live write path. Upgrade those payloads too: database definitions, values,
+  // filters and all three conflict versions can otherwise remain readable on
+  // disk even though the main projection is sealed.
+  for (const row of (await db.outbox.toArray()) as unknown[]) {
+    if (typeof row === "object" && row !== null && "payload" in row) {
+      await db.outbox.put(
+        (await codec.sealOutbox(row as OutboxMutationRow)) as unknown as OutboxMutationRow,
+      );
+    }
+  }
+  for (const row of (await db.conflicts.toArray()) as unknown[]) {
+    if (typeof row === "object" && row !== null && "payload" in row) {
+      await db.conflicts.put(
+        (await codec.sealConflict(row as ConflictRecordRow)) as unknown as ConflictRecordRow,
+      );
+    }
   }
 
   return { resealed, alreadySealed, skipped };

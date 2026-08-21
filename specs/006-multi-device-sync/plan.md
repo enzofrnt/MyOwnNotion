@@ -1,5 +1,10 @@
 # Implementation Plan: Multi-Device Synchronization
 
+> **Supersession note (2026-08-20)**: This plan describes the delivered
+> feature-006 baseline. Feature 017 preserves its transport and device
+> foundations but replaces the page-body three-way merge with an operational,
+> convergent editing path.
+
 **Branch**: `feat/006-multi-device-sync` | **Date**: 2026-08-17 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/006-multi-device-sync/spec.md`

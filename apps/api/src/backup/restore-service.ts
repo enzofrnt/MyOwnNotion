@@ -159,6 +159,8 @@ export interface RestoreTarget {
   readonly writeItem: (item: unknown) => Promise<void>;
   readonly writeRelationship: (relationship: unknown) => Promise<void>;
   readonly writeRevision: (revision: unknown) => Promise<void>;
+  readonly writeDatabase?: (database: unknown) => Promise<void>;
+  readonly writeDatabaseEntry?: (entry: unknown) => Promise<void>;
   readonly writeFile: (digest: string, bytes: Buffer) => Promise<void>;
   /** Flushes writes that require every item and revision to exist first. */
   readonly finish?: () => Promise<void>;
@@ -167,6 +169,8 @@ export interface RestoreTarget {
 export interface RestoreResult {
   readonly restoredItemCount: number;
   readonly restoredFileCount: number;
+  readonly restoredDatabaseCount?: number;
+  readonly restoredDatabaseEntryCount?: number;
 }
 
 /**
@@ -183,7 +187,11 @@ export async function applyArchive(archive: Buffer, target: RestoreTarget): Prom
     items: unknown[];
     relationships: unknown[];
     revisions: unknown[];
+    databases?: unknown[];
+    databaseEntries?: unknown[];
   };
+  const databases = exported.databases ?? [];
+  const databaseEntries = exported.databaseEntries ?? [];
 
   // Files before items: an item that names a file the store does not hold is a
   // broken reference the moment it is written, and the window between the two
@@ -199,12 +207,29 @@ export async function applyArchive(archive: Buffer, target: RestoreTarget): Prom
   for (const revision of exported.revisions) {
     await target.writeRevision(revision);
   }
+  for (const database of databases) {
+    if (target.writeDatabase === undefined) {
+      throw new Error("the restore target cannot write structured databases");
+    }
+    await target.writeDatabase(database);
+  }
+  for (const entry of databaseEntries) {
+    if (target.writeDatabaseEntry === undefined) {
+      throw new Error("the restore target cannot write structured database entries");
+    }
+    await target.writeDatabaseEntry(entry);
+  }
   for (const relationship of exported.relationships) {
     await target.writeRelationship(relationship);
   }
   await target.finish?.();
 
-  return { restoredItemCount: exported.items.length, restoredFileCount };
+  return {
+    restoredItemCount: exported.items.length,
+    restoredFileCount,
+    restoredDatabaseCount: databases.length,
+    restoredDatabaseEntryCount: databaseEntries.length,
+  };
 }
 
 /** A restoration attempt identifier, minted before anything is written. */

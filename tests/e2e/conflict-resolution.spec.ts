@@ -52,7 +52,7 @@ test.describe("a device that is merely behind (FR-011)", () => {
 
       // The second device loads the page and then stops hearing anything.
       await openWorkspace(second.page);
-      await expect(second.page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
+      await selectItem(second.page, name);
       await second.page.route("**/v1/**", (route) => route.abort("connectionrefused"));
 
       // Only the first device writes. The second one is behind and has changed
@@ -64,8 +64,8 @@ test.describe("a device that is merely behind (FR-011)", () => {
 
       await second.page.unroute("**/v1/**");
       await second.page.reload();
-      await expect(second.page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
-      await expect(second.page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
+      await expect(second.page.getByTestId("workspace-shell")).toBeVisible();
+      await selectItem(second.page, name);
 
       // The assertion that matters: nothing to resolve. A false conflict here
       // would teach an owner that the question is noise, and they would stop
@@ -99,7 +99,6 @@ test.describe("a genuine divergence (US3)", () => {
 
       // Both devices hold the same starting point.
       await openWorkspace(second.page);
-      await expect(second.page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
       await selectItem(second.page, name);
 
       // The second device is cut off, then edits the same paragraph. This is the
@@ -159,7 +158,7 @@ test.describe("a genuine divergence (US3)", () => {
       await expect(second.page.getByTestId("conflict-resolution")).toHaveCount(0, {
         timeout: 15_000,
       });
-      await expect(second.page.getByTestId(`tree-item-${name}`)).toBeVisible();
+      await expect(second.page.getByTestId("active-item-title")).toHaveText(name);
       await waitForSynchronized(second.page);
 
       // And the resolution kept both originals: its revision has two parents,
