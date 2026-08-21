@@ -5,4 +5,5 @@ export * from "./document.ts";
 export * from "./legacy-offline-branch.ts";
 export * from "./rich-text.ts";
 export * from "./semantic-conflicts.ts";
+export * from "./undo-manager.ts";
 export * from "./update-envelope.ts";

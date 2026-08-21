@@ -984,33 +984,6 @@ select {
   margin-bottom: 0.5rem;
 }
 
-.page-link-control {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin: 0.75rem 0;
-  padding: 0.5rem;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-}
-
-.page-link-control label {
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.page-link {
-  color: var(--link, #4ea1ff);
-  text-decoration: underline dotted;
-}
-
-.page-link::after {
-  content: " ↗";
-  font-size: 0.8em;
-  text-decoration: none;
-}
-
 .muted {
   color: var(--muted);
   font-size: 0.8rem;
@@ -1427,40 +1400,303 @@ textarea {
 }
 
 /* ---------------------------------------------------------------------------
-   The block editor (feature 003, US1)
+   Notion-like block editor (feature 017, US2)
    ------------------------------------------------------------------------ */
 
-.editor-surface {
-  min-height: 12rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border, #d0d0d0);
-  border-radius: 0.25rem;
-  /* Wide content scrolls inside its own container rather than widening the
-     page: FR-021 forbids horizontal page scrolling at 320 pixels, and a long
-     unbroken link or a code line is the usual way that happens. */
-  overflow-x: auto;
+.page-editor {
+  position: relative;
+  width: 100%;
+  min-width: 0;
 }
 
-.editor-surface:focus-visible,
-.editor-surface .ProseMirror-focused {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+.editor-history-controls {
+  display: flex;
+  min-height: var(--ui-target-compact);
+  justify-content: flex-end;
+  gap: var(--ui-space-1);
+  margin: 0 0 var(--ui-space-1);
 }
 
-.editor-surface pre {
-  overflow-x: auto;
+.editor-history-controls .ui-button {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+}
+
+/* BlockNote Community supplies the editing interactions; these variables make
+   every native toolbar, menu and content colour part of the product system. */
+.page-editor .bn-root,
+.page-editor .bn-root[data-color-scheme] {
+  --bn-font-family: var(--ui-font-sans);
+  --bn-border-radius: var(--ui-radius-md);
+  --bn-colors-editor-text: var(--ui-color-text);
+  --bn-colors-editor-background: transparent;
+  --bn-colors-menu-text: var(--ui-color-text);
+  --bn-colors-menu-background: var(--ui-color-surface-raised);
+  --bn-colors-tooltip-text: var(--ui-color-text);
+  --bn-colors-tooltip-background: var(--ui-color-surface-raised);
+  --bn-colors-hovered-text: var(--ui-color-text);
+  --bn-colors-hovered-background: var(--ui-color-surface-hover);
+  --bn-colors-selected-text: var(--ui-color-text);
+  --bn-colors-selected-background: var(--ui-color-accent-soft);
+  --bn-colors-disabled-text: var(--ui-color-text-disabled);
+  --bn-colors-disabled-background: var(--ui-color-surface-sunken);
+  --bn-colors-shadow: transparent;
+  --bn-colors-border: var(--ui-color-border);
+  --bn-colors-side-menu: var(--ui-color-text-muted);
+  --bn-colors-highlights-gray-text: var(--ui-content-gray);
+  --bn-colors-highlights-gray-background: var(--ui-content-gray-soft);
+  --bn-colors-highlights-brown-text: var(--ui-content-brown);
+  --bn-colors-highlights-brown-background: var(--ui-content-brown-soft);
+  --bn-colors-highlights-red-text: var(--ui-content-red);
+  --bn-colors-highlights-red-background: var(--ui-content-red-soft);
+  --bn-colors-highlights-orange-text: var(--ui-content-orange);
+  --bn-colors-highlights-orange-background: var(--ui-content-orange-soft);
+  --bn-colors-highlights-yellow-text: var(--ui-content-yellow);
+  --bn-colors-highlights-yellow-background: var(--ui-content-yellow-soft);
+  --bn-colors-highlights-green-text: var(--ui-content-green);
+  --bn-colors-highlights-green-background: var(--ui-content-green-soft);
+  --bn-colors-highlights-blue-text: var(--ui-content-blue);
+  --bn-colors-highlights-blue-background: var(--ui-content-blue-soft);
+  --bn-colors-highlights-purple-text: var(--ui-content-purple);
+  --bn-colors-highlights-purple-background: var(--ui-content-purple-soft);
+  --bn-colors-highlights-pink-text: var(--ui-content-pink);
+  --bn-colors-highlights-pink-background: var(--ui-content-pink-soft);
+  --bn-shadow-medium: var(--ui-shadow-menu);
+  --bn-shadow-light: var(--ui-shadow-menu);
+}
+
+.page-editor .bn-container,
+.page-editor .bn-editor {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+}
+
+.page-editor .bn-editor.editor-surface {
+  min-height: 18rem;
+  padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-12) var(--ui-space-11);
+  overflow-x: clip;
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-md);
+  font-family: var(--ui-font-sans);
+  font-size: 1rem;
+  line-height: var(--ui-leading-relaxed);
+}
+
+.page-editor .bn-editor.editor-surface:focus-visible {
+  outline: none;
+  box-shadow: inset 2px 0 0 var(--ui-color-focus);
+}
+
+.page-editor .bn-block-content {
+  min-height: 1.875rem;
+  padding-block: 0.125rem;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="1"] {
+  padding-top: var(--ui-space-8);
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: var(--ui-leading-tight);
+  letter-spacing: -0.025em;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="2"] {
+  padding-top: var(--ui-space-6);
+  font-size: 1.5rem;
+  line-height: var(--ui-leading-tight);
+  letter-spacing: -0.015em;
+}
+
+.page-editor .bn-block-content[data-content-type="heading"][data-level="3"] {
+  padding-top: var(--ui-space-4);
+  font-size: 1.1875rem;
+  line-height: 1.35;
+}
+
+.page-editor .bn-block-content[data-content-type="quote"] blockquote {
+  color: var(--ui-color-text-muted);
+  border-color: var(--ui-color-border-strong);
+}
+
+.page-editor .bn-block-content[data-content-type="divider"] hr {
+  border-color: var(--ui-color-border);
+}
+
+.page-editor .bn-block-content[data-content-type="codeBlock"] {
+  margin-block: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.page-editor .bn-block-content[data-content-type="codeBlock"] pre,
+.editor-surface pre {
+  max-width: 100%;
+  overflow-x: auto;
+  font-family: var(--ui-font-mono);
+}
+
+.page-editor .bn-inline-content code {
+  padding: 0.1em 0.28em;
+  background: var(--ui-color-surface-sunken);
+  border-radius: var(--ui-radius-xs);
+  font-family: var(--ui-font-mono);
+  font-size: 0.9em;
+}
+
+.page-editor .bn-ak-toolbar,
+.page-editor .bn-ak-menu,
+.page-editor .bn-suggestion-menu,
+.page-editor .bn-dropdown {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-menu);
+}
+
+.page-editor .bn-ak-toolbar {
+  gap: var(--ui-space-1);
+  max-width: min(40rem, calc(100vw - 2 * var(--ui-space-3)));
+  padding: var(--ui-space-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.page-editor .bn-ak-button {
+  min-width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  box-shadow: none;
+}
+
+.page-editor .bn-ak-button:hover,
+.page-editor .bn-ak-button[data-active],
+.page-editor .bn-ak-button[data-selected] {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+  box-shadow: none;
+}
+
+.page-editor .bn-ak-button[data-focus-visible],
+.page-editor .bn-ak-menu-item[data-focus-visible] {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.page-editor .bn-ak-menu-item[aria-selected="true"],
+.page-editor .bn-ak-menu-item[data-active-item],
+.page-editor .bn-ak-menu-item:hover {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.page-editor .bn-side-menu {
+  gap: 1px;
+}
+
+.page-editor .bn-side-menu .bn-ak-button {
+  width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  padding: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.page-editor .editor-page-link-picker {
+  display: grid;
+  width: min(20rem, calc(100vw - 2 * var(--ui-space-4)));
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-menu);
+}
+
+.page-editor .editor-page-link-picker > label {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xs);
+  font-weight: 650;
+}
+
+.page-editor .editor-page-link-picker > input {
+  width: 100%;
+  min-height: var(--ui-target);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.page-editor .editor-page-link-results {
+  display: grid;
+  max-height: 16rem;
+  gap: 1px;
+  overflow-y: auto;
+}
+
+.page-editor .editor-page-link-results > button {
+  display: flex;
+  width: 100%;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  text-align: left;
+}
+
+.page-editor .editor-page-link-results > button:hover,
+.page-editor .editor-page-link-results > button:focus-visible {
+  background: var(--ui-color-surface-hover);
 }
 
 /* An unrenderable block must look present and deliberate, never like an empty
    gap — a block that renders as nothing is indistinguishable from one that was
    lost, which is the failure FR-006 exists to prevent. */
 .editor-unknown-block {
-  padding: 0.75rem;
-  border: 1px dashed currentColor;
-  border-radius: 0.25rem;
-  font-style: italic;
-  opacity: 0.85;
+  display: grid;
+  width: 100%;
+  gap: var(--ui-space-1);
+  margin-block: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-warning-soft);
+  border: 1px dashed var(--ui-color-warning);
+  border-radius: var(--ui-radius-md);
+  font-size: var(--ui-text-sm);
+}
+
+.editor-unknown-block > button {
+  width: fit-content;
+  min-height: var(--ui-target-compact);
+  margin-top: var(--ui-space-1);
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-warning);
+  background: var(--ui-color-surface);
+  border: 1px solid currentColor;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+
+.editor-unknown-block > button:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
 }
 
 .block-controls {

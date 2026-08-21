@@ -36,6 +36,9 @@ describe("operational page transactions", () => {
     expect(versionVectorBytesEqual(result.baseVersionVector, result.resultVersionVector)).toBe(
       false,
     );
+    expect(page.snapshot()).toEqual({
+      blocks: [paragraph(firstId, "Premier"), paragraph(secondId, "Deuxième")],
+    });
     await expect(page.project()).resolves.toMatchObject({
       pageId,
       document: {

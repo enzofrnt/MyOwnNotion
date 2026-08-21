@@ -244,7 +244,8 @@
         "prefixes": [
           "apps/web/src/features/databases/entry-panel",
           "apps/web/src/features/editor/",
-          "packages/domain/src/document/"
+          "packages/domain/src/document/",
+          "packages/page-state/"
         ],
         "suffixes": []
       }
@@ -288,7 +289,11 @@
       "test": "tests/e2e/editor-performance.spec.ts",
       "owners": {
         "exact": [],
-        "prefixes": ["apps/web/src/features/editor/", "packages/domain/src/document/"],
+        "prefixes": [
+          "apps/web/src/features/editor/",
+          "packages/domain/src/document/",
+          "packages/page-state/"
+        ],
         "suffixes": []
       }
     },
@@ -544,8 +549,9 @@
       "test": "tests/e2e/page-links.spec.ts",
       "owners": {
         "exact": [
-          "apps/web/src/features/editor/page-link.ts",
-          "apps/web/src/features/editor/page-link-control.tsx"
+          "apps/web/src/features/editor/blocknote-conversion.ts",
+          "apps/web/src/features/editor/editor-menus/page-link-picker.tsx",
+          "apps/web/src/features/editor/page-editor.tsx"
         ],
         "prefixes": ["packages/domain/src/document/"],
         "suffixes": []

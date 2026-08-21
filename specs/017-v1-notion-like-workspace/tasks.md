@@ -155,30 +155,30 @@ et projection après reload.
 
 ### Tests for User Story 2
 
-- [ ] T064 [P] [US2] Écrire les tests de correspondance canonique↔BlockNote et IDs dans `apps/web/tests/blocknote-round-trip.property.spec.ts`
-- [ ] T065 [P] [US2] Écrire les tests `getChanges()`→commandes minimales, dont move≠delete/insert, dans `apps/web/tests/editor-adapter.spec.ts`
-- [ ] T066 [P] [US2] Écrire les tests d'application distante sans écho et sélection stable dans `apps/web/tests/editor-remote-apply.spec.ts`
-- [ ] T067 [P] [US2] Écrire les tests IME, emoji, collage et offsets UTF-16 dans `apps/web/tests/editor-input.spec.ts`
-- [ ] T068 [P] [US2] Remplacer le journey éditeur minimal, y compris les maxima d'actions SC-012, dans `tests/e2e/block-editor.spec.ts`
+- [x] T064 [P] [US2] Écrire les tests de correspondance canonique↔BlockNote et IDs dans `apps/web/tests/blocknote-round-trip.property.spec.ts`
+- [x] T065 [P] [US2] Écrire les tests `getChanges()`→commandes minimales, dont move≠delete/insert, dans `apps/web/tests/editor-adapter.spec.ts`
+- [x] T066 [P] [US2] Écrire les tests d'application distante sans écho et sélection stable dans `apps/web/tests/editor-remote-apply.spec.ts`
+- [x] T067 [P] [US2] Écrire les tests IME, emoji, collage et offsets UTF-16 dans `apps/web/tests/editor-input.spec.ts`
+- [x] T068 [P] [US2] Remplacer le journey éditeur minimal, y compris les maxima d'actions SC-012, dans `tests/e2e/block-editor.spec.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T069 [US2] Définir le schéma BlockNote Community et les IDs canoniques dans `apps/web/src/features/editor/blocknote-schema.ts`
-- [ ] T070 [US2] Implémenter conversion initiale et diagnostic projection↔blocs visibles dans `apps/web/src/features/editor/blocknote-conversion.ts`
-- [ ] T071 [US2] Implémenter traduction ciblée des événements locaux vers `PageCommand` dans `apps/web/src/features/editor/editor-adapter.ts`
-- [ ] T072 [US2] Implémenter application des changements distants, suspension d'origine et restauration de sélection dans `apps/web/src/features/editor/editor-remote-apply.ts`
-- [ ] T073 [US2] Construire la session et surface BlockNote sans provider Yjs dans `apps/web/src/features/editor/page-editor.tsx` et `apps/web/src/features/editor/editor-view.tsx`
-- [ ] T074 [P] [US2] Construire slash menu français filtrable dans `apps/web/src/features/editor/editor-menus/slash-menu.tsx`
-- [ ] T075 [P] [US2] Construire poignée, ajout adjacent et menu de bloc dans `apps/web/src/features/editor/editor-menus/block-side-menu.tsx`
-- [ ] T076 [P] [US2] Construire toolbar flottante texte/liens/couleurs dans `apps/web/src/features/editor/editor-menus/formatting-toolbar.tsx`
-- [ ] T077 [US2] Implémenter sélection contiguë multi-blocs et actions atomiques dans `apps/web/src/features/editor/block-selection.ts`
-- [ ] T078 [US2] Traduire le DnD BlockNote en moves stables et afficher les refus dans `apps/web/src/features/editor/block-drag-drop.ts`
-- [ ] T079 [US2] Implémenter undo/redo local par opérations inverses sans cibler les updates distantes dans `packages/page-state/src/undo-manager.ts`
-- [ ] T080 [P] [US2] Porter le sélecteur de page-link vers la toolbar commune dans `apps/web/src/features/editor/editor-menus/page-link-picker.tsx`
-- [ ] T081 [P] [US2] Porter le placeholder non destructif des blocs inconnus dans `apps/web/src/features/editor/custom-blocks/unknown-block.tsx`
-- [ ] T082 [US2] Brancher le nouvel éditeur dans le shell avec fallback legacy lecture seule dans `apps/web/src/app.tsx` et `apps/web/src/features/editor/editor-surface.tsx`
-- [ ] T083 [US2] Ajouter commandes Markdown, clic droit et alternative clavier aux insertions dans `apps/web/src/features/editor/editor-shortcuts.ts`
-- [ ] T084 [US2] Valider le journey éditeur sur les cinq profils et enregistrer ses propriétaires dans `ci/test-impact.json`
+- [x] T069 [US2] Définir le schéma BlockNote Community et les IDs canoniques dans `apps/web/src/features/editor/blocknote-schema.ts`
+- [x] T070 [US2] Implémenter conversion initiale et diagnostic projection↔blocs visibles dans `apps/web/src/features/editor/blocknote-conversion.ts`
+- [x] T071 [US2] Implémenter traduction ciblée des événements locaux vers `PageCommand` dans `apps/web/src/features/editor/editor-adapter.ts`
+- [x] T072 [US2] Implémenter application des changements distants, suspension d'origine et restauration de sélection dans `apps/web/src/features/editor/editor-remote-apply.ts`
+- [x] T073 [US2] Construire la session et surface BlockNote sans provider Yjs dans `apps/web/src/features/editor/page-editor.tsx` et `apps/web/src/features/editor/editor-view.tsx`
+- [x] T074 [P] [US2] Construire slash menu français filtrable dans `apps/web/src/features/editor/editor-menus/slash-menu.tsx`
+- [x] T075 [P] [US2] Construire poignée, ajout adjacent et menu de bloc dans `apps/web/src/features/editor/editor-menus/block-side-menu.tsx`
+- [x] T076 [P] [US2] Construire toolbar flottante texte/liens/couleurs dans `apps/web/src/features/editor/editor-menus/formatting-toolbar.tsx`
+- [x] T077 [US2] Implémenter sélection contiguë multi-blocs et actions atomiques dans `apps/web/src/features/editor/block-selection.ts`
+- [x] T078 [US2] Traduire le DnD BlockNote en moves stables et afficher les refus dans `apps/web/src/features/editor/block-drag-drop.ts`
+- [x] T079 [US2] Implémenter undo/redo local par opérations inverses sans cibler les updates distantes dans `packages/page-state/src/undo-manager.ts`
+- [x] T080 [P] [US2] Porter le sélecteur de page-link vers la toolbar commune dans `apps/web/src/features/editor/editor-menus/page-link-picker.tsx`
+- [x] T081 [P] [US2] Porter le placeholder non destructif des blocs inconnus dans `apps/web/src/features/editor/custom-blocks/unknown-block.tsx`
+- [x] T082 [US2] Brancher le nouvel éditeur dans le shell avec fallback legacy lecture seule dans `apps/web/src/app.tsx` et `apps/web/src/features/editor/editor-surface.tsx`
+- [x] T083 [US2] Ajouter commandes Markdown, clic droit et alternative clavier aux insertions dans `apps/web/src/features/editor/editor-shortcuts.ts`
+- [x] T084 [US2] Valider le journey éditeur sur les cinq profils et enregistrer ses propriétaires dans `ci/test-impact.json`
 
 **Checkpoint**: US2 manipule les blocs v2 connus via l'état opérationnel local,
 sans dépendance commerciale et sans remplacement complet à chaque geste.

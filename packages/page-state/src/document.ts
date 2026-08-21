@@ -14,10 +14,13 @@ import {
   getOperationalBlockTree,
   initialiseOperationalBlockTree,
   insertOperationalBlock,
+  materialiseOperationalDocument,
   moveOperationalBlock,
+  type OperationalBlockState,
   operationalBlockPlacement,
   operationalBlockProperty,
   operationalBlockSnapshot,
+  operationalBlockState,
   operationalTextForBlock,
   setOperationalBlockProperty,
   type TransformableBlockType,
@@ -125,6 +128,7 @@ export type PageSemanticChange =
       readonly from: number;
       readonly to: number;
       readonly insertedLength: number;
+      readonly removedText: string;
       readonly blockAfter: CanonicalBlockV3;
     }
   | {
@@ -260,6 +264,7 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
     }
     case "replace-text": {
       const target = operationalTextForBlock(doc, command.blockId);
+      const removedText = target.text.toString().slice(command.from, command.to);
       replaceRichText(
         target.text,
         command.from,
@@ -273,6 +278,7 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
         from: command.from,
         to: command.to,
         insertedLength: command.text.length,
+        removedText,
         blockAfter: operationalBlockSnapshot(doc, command.blockId),
       };
     }
@@ -445,6 +451,20 @@ export class OperationalPageDocument {
 
   project(): Promise<CanonicalProjectionResult> {
     return projectCanonicalPage(this.#pageId, this.#doc);
+  }
+
+  /**
+   * Synchronous editor-facing projection. Digests remain the responsibility
+   * of `project()`; a mounted editor needs only the validated canonical value
+   * after each local gesture and must never read Loro internals directly.
+   */
+  snapshot(): BlockDocumentV3 {
+    return materialiseOperationalDocument(this.#doc);
+  }
+
+  /** One-block state used by local history; absent blocks return `null`. */
+  blockState(blockId: Uuid): OperationalBlockState | null {
+    return operationalBlockState(this.#doc, blockId);
   }
 
   checkpoint(): Promise<OperationalPageCheckpoint> {

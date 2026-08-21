@@ -1,4 +1,5 @@
 /** Internal page links stay distinct from hierarchy children. */
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   convertItem,
@@ -13,6 +14,40 @@ import {
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
+
+const PAGE_LINK_PREFIX = "myownnotion:page:";
+
+function editorSurface(page: Page): Locator {
+  return page.getByTestId("block-editor").locator(".ProseMirror");
+}
+
+function pageLinks(page: Page): Locator {
+  return editorSurface(page).locator(`a[href^="${PAGE_LINK_PREFIX}"]`);
+}
+
+async function linkSelectionToPage(page: Page, targetName: string): Promise<void> {
+  const toolbar = page.locator(".bn-formatting-toolbar");
+  await expect(toolbar).toBeVisible();
+  await toolbar.getByRole("button", { name: "Lien vers une page" }).click();
+  const picker = page.locator(".editor-page-link-picker");
+  await expect(picker).toBeVisible();
+  await picker.getByRole("option", { name: targetName, exact: true }).click();
+  await expect(picker).toBeHidden();
+}
+
+async function appendLinkedParagraph(page: Page, label: string, targetName: string): Promise<void> {
+  const editor = editorSurface(page);
+  await editor.locator(":scope > .bn-block-group > .bn-block-outer[data-id]").last().hover();
+  await page.getByRole("button", { name: "Ajouter un bloc" }).click();
+  const addMenu = page.getByRole("listbox");
+  await expect(addMenu).toBeVisible();
+  await addMenu.getByRole("option", { name: /^Paragraphe/u }).click();
+  await expect(addMenu).toBeHidden();
+  await expect(editor).toBeFocused();
+  await editor.pressSequentially(label);
+  await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+  await linkSelectionToPage(page, targetName);
+}
 
 test("links to another page without nesting it, including a descendant", async ({ page }) => {
   await openWorkspace(page);
@@ -30,15 +65,23 @@ test("links to another page without nesting it, including a descendant", async (
   await waitForSynchronized(page);
   await selectItem(page, source);
 
-  const linkTarget = page.getByLabel("Page link target", { exact: true });
-  await linkTarget.selectOption({ label: `${reference} (page)` });
-  await page.getByRole("button", { name: "Insert page link" }).click();
+  const editor = editorSurface(page);
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await editor.pressSequentially("référence");
+  await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+  await linkSelectionToPage(page, reference);
   await page.getByTestId("save-document").click();
   await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
   await waitForSynchronized(page);
 
-  const targetId = await page.locator(".page-link").getAttribute("data-page-link-target");
-  expect(targetId).toBeTruthy();
+  const targetHref = await pageLinks(page).first().getAttribute("href");
+  if (targetHref === null || !targetHref.startsWith(PAGE_LINK_PREFIX)) {
+    throw new Error("Le lien de page doit conserver une cible interne stable.");
+  }
+  const targetId = targetHref.slice(PAGE_LINK_PREFIX.length);
+  expect(targetId).not.toBe("");
   const childRow = page.getByTestId(`tree-item-${child}`);
   // The link insertion can reconcile the tree with the source branch
   // collapsed. Expand it before asserting placement: absence from a collapsed
@@ -50,16 +93,15 @@ test("links to another page without nesting it, including a descendant", async (
   await expect(page.getByTestId(`tree-item-${reference}`)).toHaveCount(1);
 
   // A page link is usable navigation, not merely decorated text.
-  await page.locator(".page-link").click();
+  await pageLinks(page).first().click();
   await expect(page.getByTestId(`tree-item-${reference}`)).toHaveAttribute("aria-selected", "true");
   await selectItem(page, source);
 
-  await linkTarget.selectOption({ label: `${child} (page)` });
-  await page.getByRole("button", { name: "Insert page link" }).click();
+  await appendLinkedParagraph(page, "enfant", child);
   await page.getByTestId("save-document").click();
   await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
   await waitForSynchronized(page);
-  await expect(page.locator(".page-link")).toHaveCount(2);
+  await expect(pageLinks(page)).toHaveCount(2);
   await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(1);
 
   // Moving the target changes only its hierarchy placement.
@@ -85,25 +127,19 @@ test("links to another page without nesting it, including a descendant", async (
   await waitForSynchronized(page);
 
   await selectItem(page, source);
-  await expect(page.locator(".page-link").first()).toHaveAttribute(
-    "data-page-link-target",
-    targetId ?? "",
-  );
+  await expect(pageLinks(page).first()).toHaveAttribute("href", targetHref);
 
   // Durable reload keeps the typed link separate from the tree placement.
   await page.reload();
   await openWorkspace(page);
   await selectItem(page, source);
-  await expect(page.locator(".page-link").first()).toHaveAttribute(
-    "data-page-link-target",
-    targetId ?? "",
-  );
+  await expect(pageLinks(page).first()).toHaveAttribute("href", targetHref);
   await expect(page.getByTestId(`tree-item-${reference}-renamed`)).toHaveCount(1);
 
   // Once both endpoints are in the local projection, following the link does
   // not require the server. The converted folder is selected by the same ID.
   await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-  await page.locator(".page-link").first().click();
+  await pageLinks(page).first().click();
   await expect(page.getByTestId(`tree-item-${reference}-renamed`)).toHaveAttribute(
     "aria-selected",
     "true",

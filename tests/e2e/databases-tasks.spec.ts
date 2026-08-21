@@ -91,10 +91,16 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   const legacyConversion = page.getByTestId("convert-legacy-document");
   if (await legacyConversion.isVisible()) await legacyConversion.click();
   await typeIntoEditor(page, editorialNote);
-  await page.getByTestId("toggle-checkbox").click();
+  const editorialBlock = page
+    .getByTestId("block-editor")
+    .locator(".bn-block-outer[data-id]")
+    .filter({ hasText: editorialNote })
+    .last();
+  await editorialBlock.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Liste de tâches" }).click();
   const documentCheckbox = page.getByTestId("block-editor").locator('input[type="checkbox"]');
   await expect(
-    page.getByTestId("block-editor").locator('[data-type="taskList"], ul[data-type="taskList"]'),
+    page.getByTestId("block-editor").locator('[data-content-type="checkListItem"]'),
   ).toBeVisible();
   await documentCheckbox.check();
   await saveDocument(page);

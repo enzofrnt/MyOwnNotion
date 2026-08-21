@@ -37,6 +37,7 @@ export type TransformableBlockType = Extract<
   | "checkbox"
   | "quote"
   | "code"
+  | "divider"
   | "toggle"
   | "callout"
 >;
@@ -44,6 +45,11 @@ export type TransformableBlockType = Extract<
 export interface OperationalBlockPlacement {
   readonly parentBlockId: Uuid | null;
   readonly beforeBlockId: Uuid | null;
+}
+
+export interface OperationalBlockState {
+  readonly block: CanonicalBlockV3;
+  readonly placement: OperationalBlockPlacement;
 }
 
 export class BlockTreeOperationError extends Error {
@@ -645,21 +651,41 @@ export function operationalBlockSnapshot(doc: LoroDoc, blockId: Uuid): Canonical
   return materialiseCanonicalNode(node);
 }
 
-export function operationalBlockPlacement(doc: LoroDoc, blockId: Uuid): OperationalBlockPlacement {
-  const tree = getOperationalBlockTree(doc);
-  const node = findOperationalNode(tree, blockId);
+function placementForNode(tree: LoroTree, node: LoroTreeNode): OperationalBlockPlacement {
   assertCanonicalNode(node, "placement");
   const parent = node.parent();
   const siblings = parent?.children() ?? tree.roots();
   const index = siblings.findIndex((sibling) => sibling.id === node.id);
   if (index < 0) {
-    throw new BlockTreeOperationError(`block ${blockId} has no visible placement`);
+    throw new BlockTreeOperationError(`block ${nodeIdentity(node)} has no visible placement`);
   }
   const before = siblings[index + 1];
   if (before !== undefined) assertCanonicalNode(before, "placement");
   return {
     parentBlockId: parent === undefined ? null : nodeIdentity(parent),
     beforeBlockId: before === undefined ? null : nodeIdentity(before),
+  };
+}
+
+export function operationalBlockPlacement(doc: LoroDoc, blockId: Uuid): OperationalBlockPlacement {
+  const tree = getOperationalBlockTree(doc);
+  return placementForNode(tree, findOperationalNode(tree, blockId));
+}
+
+/** Captures one canonical block for history without materialising the whole page. */
+export function operationalBlockState(doc: LoroDoc, blockId: Uuid): OperationalBlockState | null {
+  const tree = getOperationalBlockTree(doc);
+  const matches = findNodesByIdentity(tree, blockId);
+  if (matches.length === 0) return null;
+  if (matches.length > 1) {
+    throw new BlockTreeOperationError(`block identity ${blockId} is duplicated`);
+  }
+  const node = matches[0];
+  if (node === undefined) return null;
+  assertCanonicalNode(node, "history");
+  return {
+    block: materialiseCanonicalNode(node),
+    placement: placementForNode(tree, node),
   };
 }
 
@@ -721,6 +747,7 @@ const TRANSFORMABLE_BLOCK_TYPES: ReadonlySet<KnownBlockTypeV3> = new Set([
   "checkbox",
   "quote",
   "code",
+  "divider",
   "toggle",
   "callout",
 ]);
@@ -758,6 +785,9 @@ export function transformOperationalBlockType(
   }
   if ((node.children()?.length ?? 0) > 0 && !mayHaveChildrenV3(blockType)) {
     throw new BlockTreeOperationError(`${blockType} cannot retain the children of ${blockId}`);
+  }
+  if (blockType === "divider" && node.data.ensureMergeableText(CONTENT_KEY).toString() !== "") {
+    throw new BlockTreeOperationError("a divider can only replace an empty text block");
   }
   node.data.ensureMergeableText(CONTENT_KEY);
   node.data.set("type", blockType);
