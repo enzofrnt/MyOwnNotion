@@ -78,6 +78,28 @@ describe("operational page transactions", () => {
     expect((await page.project()).document).toEqual({ blocks: [paragraph(firstId, "Stable")] });
   });
 
+  it("rejects an invalid property without scanning or committing the rest of the page", () => {
+    const pageId = generateUuidV7();
+    const headingId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          { type: "heading", id: headingId, level: 1, content: [{ text: "Titre" }] },
+          paragraph(generateUuidV7(), "Voisin"),
+        ],
+      },
+    });
+    const before = page.versionVectorBytes();
+
+    expect(() =>
+      page.transact([{ type: "set-block-property", blockId: headingId, key: "level", value: 99 }]),
+    ).toThrow(PageCommandError);
+
+    expect(versionVectorBytesEqual(page.versionVectorBytes(), before)).toBe(true);
+    expect(page.snapshot().blocks[0]).toMatchObject({ type: "heading", level: 1 });
+  });
+
   it("keeps canonical identity through moves and rejects duplicate live identities", async () => {
     const pageId = generateUuidV7();
     const firstId = generateUuidV7();

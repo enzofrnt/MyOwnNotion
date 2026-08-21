@@ -276,6 +276,30 @@ describe("DatabaseQueryService", () => {
     expect(() => query(service, { limit: 1, cursor })).toThrowError(DatabaseQueryRequestError);
   });
 
+  it("refreshes changed entry buckets without rebuilding an unchanged definition", async () => {
+    let rejectUnchangedIndexReads = false;
+    const unchanged = entry(ids.entryB, "Beta", ids.done);
+    const guardedUnchanged = Object.defineProperty({ ...unchanged }, "title", {
+      enumerable: true,
+      get: () => {
+        if (rejectUnchangedIndexReads) throw new Error("unchanged entry was re-indexed");
+        return unchanged.title;
+      },
+    }) as StructuredProjectionSource["entries"][number];
+    const data = mutableDependencies([
+      source([entry(ids.entryA, "Alpha", ids.todo), guardedUnchanged]),
+    ]);
+    const service = new DatabaseQueryService(data.deps, Buffer.alloc(32, 12));
+    await service.rebuild();
+
+    data.replace([source([entry(ids.entryA, "Alpha done", ids.done), guardedUnchanged])]);
+    rejectUnchangedIndexReads = true;
+    await service.applyCommittedChanges([ids.entryA], 2);
+
+    expect(query(service).rows).toEqual([]);
+    expect(service.status()).toMatchObject({ state: "ready", generation: 2, indexedCount: 2 });
+  });
+
   it("degrades and refuses stale completeness when an incremental refresh fails", async () => {
     const data = mutableDependencies([source([entry(ids.entryA, "Alpha", ids.todo)])]);
     const service = new DatabaseQueryService(data.deps, Buffer.alloc(32, 10));

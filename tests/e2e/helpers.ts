@@ -24,7 +24,22 @@ export function uniqueName(prefix: string): string {
 }
 
 export async function openWorkspace(page: Page): Promise<void> {
-  await page.goto("/");
+  // A caller that has just reloaded is already on the workspace URL. Sending a
+  // second navigation immediately afterwards is redundant for users and trips
+  // a WebKit internal navigation race, especially while API routes are
+  // deliberately offline. Initial pages still start at `about:blank` and take
+  // the ordinary navigation path.
+  const currentUrl = page.url();
+  const atWorkspaceRoot =
+    currentUrl !== "about:blank" &&
+    (() => {
+      try {
+        return new URL(currentUrl).pathname === "/";
+      } catch {
+        return false;
+      }
+    })();
+  if (!atWorkspaceRoot) await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("workspace-shell")).toBeVisible();
   await expect(page.getByTestId("active-item-title")).toBeVisible();
   // Wait for the initial load (tree or empty state) to settle. On a phone the

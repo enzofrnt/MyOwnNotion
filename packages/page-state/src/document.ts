@@ -9,6 +9,7 @@ import type {
 import { collectDocumentIdsV3 } from "@myownnotion/domain";
 import { LoroDoc, type Side } from "loro-crdt";
 import {
+  assertOperationalBlock,
   assertOperationalBlockTree,
   deleteOperationalBlock,
   getOperationalBlockTree,
@@ -405,7 +406,26 @@ export class OperationalPageDocument {
 
     try {
       assertMetadata(working, this.#pageId);
-      assertOperationalBlockTree(working);
+      // Re-validating all 500 blocks after every keystroke made input latency
+      // scale with document length. Structural edits retain whole-tree
+      // validation because they can affect ancestry, identity uniqueness and
+      // sibling placement. Other edits validate only their changed canonical
+      // subtree, preserving the same schema guarantee at constant page cost.
+      const hasStructuralCommand = commands.some(
+        (command) =>
+          command.type === "insert-block" ||
+          command.type === "move-block" ||
+          command.type === "delete-block",
+      );
+      if (hasStructuralCommand) {
+        assertOperationalBlockTree(working);
+      } else {
+        const changedBlockIds = new Set<Uuid>();
+        for (const command of commands) {
+          if ("blockId" in command) changedBlockIds.add(command.blockId);
+        }
+        for (const blockId of changedBlockIds) assertOperationalBlock(working, blockId);
+      }
       working.commit({ origin: "myownnotion.editor" });
     } catch (error) {
       const detail = error instanceof Error ? error.message : "invalid operational projection";

@@ -114,7 +114,10 @@ export function ResponsiveSidebar({
         aria-label="Navigation de l’espace de travail"
         hidden={!open}
       >
-        <div className="workspace-sidebar-panel__content">{children}</div>
+        {/* biome-ignore lint/a11y/noNoninteractiveTabindex: this is the element that scrolls; keyboard users need to focus it to scroll when its descendants do not reach the clipped content. */}
+        <div className="workspace-sidebar-panel__content" tabIndex={0}>
+          {children}
+        </div>
         <hr
           className="workspace-sidebar-resizer"
           data-testid="sidebar-resizer"

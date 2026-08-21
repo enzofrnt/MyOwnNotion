@@ -25,6 +25,11 @@
   overflow-x: hidden;
 }
 
+.workspace-sidebar-panel__content:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: -2px;
+}
+
 .workspace-sidebar-trigger {
   position: fixed;
   top: var(--space-3);

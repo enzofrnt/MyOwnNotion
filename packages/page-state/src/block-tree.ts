@@ -651,6 +651,11 @@ export function operationalBlockSnapshot(doc: LoroDoc, blockId: Uuid): Canonical
   return materialiseCanonicalNode(node);
 }
 
+/** Validates one changed canonical subtree without projecting the whole page. */
+export function assertOperationalBlock(doc: LoroDoc, blockId: Uuid): void {
+  validateInputDocument({ blocks: [operationalBlockSnapshot(doc, blockId)] });
+}
+
 function placementForNode(tree: LoroTree, node: LoroTreeNode): OperationalBlockPlacement {
   assertCanonicalNode(node, "placement");
   const parent = node.parent();

@@ -38,9 +38,17 @@ function textKey(value: string): string {
     .toLocaleLowerCase("und");
 }
 
-function compareText(left: string, right: string): number {
-  const normalized = textKey(left).localeCompare(textKey(right), "und");
-  if (normalized !== 0) return normalized;
+function compareText(left: string, right: string, normalizedText?: Map<string, string>): number {
+  const normalized = (value: string): string => {
+    if (normalizedText === undefined) return textKey(value);
+    const current = normalizedText.get(value);
+    if (current !== undefined) return current;
+    const created = textKey(value);
+    normalizedText.set(value, created);
+    return created;
+  };
+  const comparison = normalized(left).localeCompare(normalized(right), "und");
+  if (comparison !== 0) return comparison;
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
@@ -105,12 +113,15 @@ function comparePresent(
   property: DatabaseProperty,
   left: ComparableValue,
   right: ComparableValue,
+  normalizedText?: Map<string, string>,
 ): number {
   const a = comparableScalar(property, left);
   const b = comparableScalar(property, right);
   if (a instanceof Decimal && b instanceof Decimal) return a.comparedTo(b);
   if (typeof a === "string" && typeof b === "string") {
-    return left.kind === "text" && right.kind === "text" ? compareText(a, b) : a.localeCompare(b);
+    return left.kind === "text" && right.kind === "text"
+      ? compareText(a, b, normalizedText)
+      : a.localeCompare(b);
   }
   return a === b ? 0 : a < b ? -1 : 1;
 }
@@ -250,6 +261,7 @@ function compareByCriterion(
   criterion: SortCriterion,
   left: DatabaseQueryEntry,
   right: DatabaseQueryEntry,
+  normalizedText?: Map<string, string>,
 ): number {
   const property = properties.get(criterion.propertyId);
   if (property === undefined) return 0;
@@ -265,7 +277,7 @@ function compareByCriterion(
         ? 1
         : -1;
   }
-  const comparison = comparePresent(property, a, b);
+  const comparison = comparePresent(property, a, b, normalizedText);
   return criterion.direction === "ascending" ? comparison : -comparison;
 }
 
@@ -371,6 +383,11 @@ export function evaluateDatabaseView(
   );
   if (view === undefined) return queryError("viewId", "view-unavailable");
   const properties = new Map(definition.properties.map((property) => [property.id, property]));
+  // Text normalization is substantially more expensive than comparing the
+  // resulting keys. A 100-of-100,000 top-K query compares the same titles many
+  // times, so cache each distinct key for this query instead of repeating
+  // Unicode normalization inside the heap comparator.
+  const normalizedText = new Map<string, string>();
 
   const preparedCriteria: Array<{
     criterion: FilterCriterion;
@@ -408,10 +425,13 @@ export function evaluateDatabaseView(
         });
   const compareRows = (left: DatabaseQueryEntry, right: DatabaseQueryEntry): number => {
     for (const criterion of view.sorts) {
-      const comparison = compareByCriterion(properties, criterion, left, right);
+      const comparison = compareByCriterion(properties, criterion, left, right, normalizedText);
       if (comparison !== 0) return comparison;
     }
-    return compareText(left.title, right.title) || left.entryId.localeCompare(right.entryId);
+    return (
+      compareText(left.title, right.title, normalizedText) ||
+      left.entryId.localeCompare(right.entryId)
+    );
   };
   // Group counts describe the entire filtered result, so grouped views keep
   // the full order. Ungrouped first pages can safely retain only their top K.

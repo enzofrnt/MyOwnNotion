@@ -31,6 +31,18 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
   });
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
   await page.evaluate(async () => await document.fonts.ready);
+  // Backup verification belongs to its own journey and persists across test
+  // content resets. It must not move this shell reference depending on which
+  // backup test happened to run earlier. The editor can also claim focus while
+  // mounting and scroll the document; capture the deliberate top-of-page state.
+  await page.addStyleTag({
+    content: '[data-testid="workspace-backup-stale"] { display: none !important; }',
+  });
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
+  await expect.poll(async () => await page.evaluate(() => window.scrollY)).toBe(0);
 }
 
 async function hoverContextualRowWithoutShift(page: Page): Promise<void> {

@@ -169,6 +169,114 @@ function buildIndexes(source: StructuredProjectionSource): PropertyIndexes {
   return { presence, equality };
 }
 
+/**
+ * Refreshes only the index buckets touched by committed entry revisions.
+ *
+ * `loadAffected` deliberately returns a complete source so publishing a new
+ * generation stays atomic. Rebuilding every property index from that source,
+ * however, turns one edited cell into O(properties × entries) work. Stable
+ * entry identities let us retain the immutable buckets from the previous
+ * generation and copy only the sets that actually change.
+ *
+ * A definition revision changes the meaning of those buckets, so schema/view
+ * changes still take the conservative full-rebuild path.
+ */
+function updateIndexes(
+  previousSource: StructuredProjectionSource,
+  nextSource: StructuredProjectionSource,
+  previousIndexes: PropertyIndexes,
+  changedItemIds: ReadonlySet<Uuid>,
+): PropertyIndexes {
+  if (previousSource.definitionRevisionId !== nextSource.definitionRevisionId) {
+    return buildIndexes(nextSource);
+  }
+
+  const before = new Map<Uuid, StructuredProjectionEntry>();
+  const after = new Map<Uuid, StructuredProjectionEntry>();
+  for (const entry of previousSource.entries) {
+    if (changedItemIds.has(entry.entryId)) before.set(entry.entryId, entry);
+  }
+  for (const entry of nextSource.entries) {
+    if (changedItemIds.has(entry.entryId)) after.set(entry.entryId, entry);
+  }
+
+  const removedCount = [...before.keys()].filter((entryId) => !after.has(entryId)).length;
+  const addedCount = [...after.keys()].filter((entryId) => !before.has(entryId)).length;
+  if (previousSource.entries.length - removedCount + addedCount !== nextSource.entries.length) {
+    // The dependency reported a broader source change than the item identities
+    // describe. Correctness wins over the incremental fast path.
+    return buildIndexes(nextSource);
+  }
+  if (before.size === 0 && after.size === 0) return previousIndexes;
+
+  const presence = new Map(previousIndexes.presence);
+  const equality = new Map(previousIndexes.equality);
+  const mutablePresence = new Map<Uuid, Set<Uuid>>();
+  const mutableEquality = new Map<Uuid, Map<string, ReadonlySet<Uuid>>>();
+  const mutableBuckets = new Map<Uuid, Map<string, Set<Uuid>>>();
+
+  const presenceSet = (propertyId: Uuid): Set<Uuid> => {
+    const current = mutablePresence.get(propertyId);
+    if (current !== undefined) return current;
+    const copy = new Set(presence.get(propertyId) ?? []);
+    mutablePresence.set(propertyId, copy);
+    presence.set(propertyId, copy);
+    return copy;
+  };
+  const equalityValues = (propertyId: Uuid): Map<string, ReadonlySet<Uuid>> => {
+    const current = mutableEquality.get(propertyId);
+    if (current !== undefined) return current;
+    const copy = new Map(equality.get(propertyId) ?? []);
+    mutableEquality.set(propertyId, copy);
+    equality.set(propertyId, copy);
+    return copy;
+  };
+  const equalityBucket = (propertyId: Uuid, key: string): Set<Uuid> => {
+    let propertyBuckets = mutableBuckets.get(propertyId);
+    if (propertyBuckets === undefined) {
+      propertyBuckets = new Map();
+      mutableBuckets.set(propertyId, propertyBuckets);
+    }
+    const current = propertyBuckets.get(key);
+    if (current !== undefined) return current;
+    const values = equalityValues(propertyId);
+    const copy = new Set(values.get(key) ?? []);
+    propertyBuckets.set(key, copy);
+    values.set(key, copy);
+    return copy;
+  };
+
+  const removeEntry = (entry: StructuredProjectionEntry): void => {
+    for (const property of nextSource.definition.properties) {
+      if (property.state !== "active") continue;
+      const value = entryValue(property, entry);
+      if (value === undefined) continue;
+      presenceSet(property.id).delete(entry.entryId);
+      equalityBucket(property.id, stableValueKey(value)).delete(entry.entryId);
+    }
+  };
+  const addEntry = (entry: StructuredProjectionEntry): void => {
+    for (const property of nextSource.definition.properties) {
+      if (property.state !== "active") continue;
+      const value = entryValue(property, entry);
+      if (value === undefined) continue;
+      presenceSet(property.id).add(entry.entryId);
+      equalityBucket(property.id, stableValueKey(value)).add(entry.entryId);
+    }
+  };
+
+  for (const entry of before.values()) removeEntry(entry);
+  for (const entry of after.values()) addEntry(entry);
+
+  for (const [propertyId, entries] of mutablePresence) {
+    if (entries.size === 0) presence.delete(propertyId);
+  }
+  for (const values of mutableEquality.values()) {
+    for (const [key, entries] of values) if (entries.size === 0) values.delete(key);
+  }
+  return { presence, equality };
+}
+
 function countEqualityIndexes(indexes: ReadonlyMap<Uuid, PropertyIndexes>): number {
   let count = 0;
   for (const index of indexes.values()) {
@@ -344,8 +452,19 @@ export class DatabaseQueryService {
           indexes.delete(databaseId);
         }
         for (const source of affected.sources) {
+          const previousSource = sources.get(source.databaseId);
           sources.set(source.databaseId, source);
-          indexes.set(source.databaseId, buildIndexes(source));
+          indexes.set(
+            source.databaseId,
+            previousSource === undefined
+              ? buildIndexes(source)
+              : updateIndexes(
+                  previousSource,
+                  source,
+                  indexes.get(source.databaseId) ?? buildIndexes(previousSource),
+                  new Set(change.itemIds),
+                ),
+          );
         }
         sourceCursor = Math.max(sourceCursor, change.sourceVersion);
       }
@@ -397,8 +516,19 @@ export class DatabaseQueryService {
           indexes.delete(databaseId);
         }
         for (const source of affected.sources) {
+          const previousSource = sources.get(source.databaseId);
           sources.set(source.databaseId, source);
-          indexes.set(source.databaseId, buildIndexes(source));
+          indexes.set(
+            source.databaseId,
+            previousSource === undefined
+              ? buildIndexes(source)
+              : updateIndexes(
+                  previousSource,
+                  source,
+                  indexes.get(source.databaseId) ?? buildIndexes(previousSource),
+                  new Set(uniqueItemIds),
+                ),
+          );
         }
         const indexedCount = [...sources.values()].reduce(
           (count, source) => count + source.entries.length,
