@@ -113,4 +113,16 @@ describe("upgrading, which happens only on an edit", () => {
       expect(serialiseDocument(reread.result.document)).toEqual(once);
     }
   });
+
+  it("derives the same identity from the same body, on every migration", () => {
+    // Page activation compares digests between two independent migrations of
+    // one stored body — client and server, or two devices offline. A random
+    // id made those documents differ every time, so a legacy page could never
+    // be activated. The id is now a pure function of the body.
+    const first = upgradeLegacyBody({ text: "written by an older client", count: 3 });
+    const second = upgradeLegacyBody({ count: 3, text: "written by an older client" });
+    const other = upgradeLegacyBody({ text: "something else" });
+    expect(first.blocks[0]?.id).toBe(second.blocks[0]?.id);
+    expect(first.blocks[0]?.id).not.toBe(other.blocks[0]?.id);
+  });
 });

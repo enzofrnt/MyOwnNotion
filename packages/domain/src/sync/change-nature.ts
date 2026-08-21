@@ -30,6 +30,7 @@ const NATURES: Readonly<Record<string, string>> = {
   "item.favourite": "marked as a favourite",
   "item.offline": "marked to keep on this device",
   "page.document.replace": "edited",
+  "page-operations.updated": "edited",
   "placement.move": "moved",
   "placement.remove": "unlinked from a place",
   "file.placement.add": "attached to a page",

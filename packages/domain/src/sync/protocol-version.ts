@@ -13,8 +13,11 @@
  * the write minimum, a client may look at its notes and not write to them.
  */
 
-/** The protocol this server speaks. Feature 009 introduces structured state. */
-export const PROTOCOL_VERSION = 2;
+/** The protocol this server speaks. Feature 017 introduces page operations. */
+export const PROTOCOL_VERSION = 3;
+
+/** The first protocol that can exchange convergent page-operation updates. */
+export const PAGE_OPERATION_PROTOCOL_VERSION = 3;
 
 /** The effective version of clients released before protocol announcements. */
 export const LEGACY_PROTOCOL_VERSION = 1;
@@ -54,6 +57,19 @@ export interface ProtocolWindow {
 export const CURRENT_PROTOCOL_WINDOW: ProtocolWindow = {
   minimumRead: MINIMUM_READ_VERSION,
   minimumWrite: MINIMUM_WRITE_VERSION,
+};
+
+/**
+ * Capability-specific gate for operational page routes.
+ *
+ * Protocol 2 remains a safe general writer for items, files and databases, but
+ * it can only read the canonical projection of an activated page. Keeping this
+ * separate from `CURRENT_PROTOCOL_WINDOW` avoids turning an editor upgrade
+ * into an installation-wide write outage.
+ */
+export const PAGE_OPERATION_PROTOCOL_WINDOW: ProtocolWindow = {
+  minimumRead: MINIMUM_READ_VERSION,
+  minimumWrite: PAGE_OPERATION_PROTOCOL_VERSION,
 };
 
 /**

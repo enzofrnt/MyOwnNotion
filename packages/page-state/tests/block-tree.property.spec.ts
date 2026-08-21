@@ -118,6 +118,77 @@ describe("the movable operational block tree", () => {
     );
   });
 
+  it("keeps concurrent column insertions aligned with their stable cells", async () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const anchorColumnId = generateUuidV7();
+    const rowId = generateUuidV7();
+    const anchorCellId = generateUuidV7();
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: [{ id: anchorColumnId, width: null }],
+            rows: [{ id: rowId, cells: [{ id: anchorCellId, content: [{ text: "Ancre" }] }] }],
+          },
+        ],
+      },
+    });
+    const checkpoint = await origin.checkpoint();
+    const left = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const right = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const leftColumnId = generateUuidV7();
+    const rightColumnId = generateUuidV7();
+    const leftCellId = generateUuidV7();
+    const rightCellId = generateUuidV7();
+
+    const leftUpdate = left.transact([
+      {
+        type: "insert-table-column",
+        tableId,
+        column: { id: leftColumnId, width: 160 },
+        cells: [{ rowId, cell: { id: leftCellId, content: [{ text: "Gauche" }] } }],
+        beforeColumnId: anchorColumnId,
+      },
+    ]);
+    const rightUpdate = right.transact([
+      {
+        type: "insert-table-column",
+        tableId,
+        column: { id: rightColumnId, width: 200 },
+        cells: [{ rowId, cell: { id: rightCellId, content: [{ text: "Droite" }] } }],
+        beforeColumnId: anchorColumnId,
+      },
+    ]);
+
+    left.importUpdate(rightUpdate.updateBytes);
+    right.importUpdate(leftUpdate.updateBytes);
+    const leftTable = left.snapshot().blocks[0];
+    const rightTable = right.snapshot().blocks[0];
+    expect(canonicalDocumentJsonV3(left.snapshot())).toBe(
+      canonicalDocumentJsonV3(right.snapshot()),
+    );
+    if (leftTable?.type !== "table" || rightTable?.type !== "table") {
+      throw new Error("table fixture disappeared");
+    }
+    const contentByColumn = new Map(
+      leftTable.columns.map((column, index) => [
+        column.id,
+        leftTable.rows[0]?.cells[index]?.content.map(({ text }) => text).join(""),
+      ]),
+    );
+    expect(contentByColumn).toEqual(
+      new Map([
+        [leftColumnId, "Gauche"],
+        [rightColumnId, "Droite"],
+        [anchorColumnId, "Ancre"],
+      ]),
+    );
+  });
+
   it("rejects a cycle without changing the tree", async () => {
     const pageId = generateUuidV7();
     const parentId = generateUuidV7();

@@ -193,4 +193,92 @@ describe("operational page transactions", () => {
       { text: "Cellule modifiée" },
     ]);
   });
+
+  it("inserts and deletes stable table rows and columns as structural operations", async () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const firstColumnId = generateUuidV7();
+    const firstRowId = generateUuidV7();
+    const firstCellId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: [{ id: firstColumnId, width: null }],
+            rows: [
+              {
+                id: firstRowId,
+                cells: [{ id: firstCellId, content: [{ text: "A1" }] }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const secondRowId = generateUuidV7();
+    const secondRowFirstCellId = generateUuidV7();
+    const secondColumnId = generateUuidV7();
+    const firstRowSecondCellId = generateUuidV7();
+    const secondRowSecondCellId = generateUuidV7();
+
+    page.transact([
+      {
+        type: "insert-table-row",
+        tableId,
+        row: {
+          id: secondRowId,
+          cells: [{ id: secondRowFirstCellId, content: [{ text: "A2" }] }],
+        },
+        beforeRowId: null,
+      },
+      {
+        type: "insert-table-column",
+        tableId,
+        column: { id: secondColumnId, width: 180 },
+        cells: [
+          {
+            rowId: firstRowId,
+            cell: { id: firstRowSecondCellId, content: [{ text: "B1" }] },
+          },
+          {
+            rowId: secondRowId,
+            cell: { id: secondRowSecondCellId, content: [{ text: "B2" }] },
+          },
+        ],
+        beforeColumnId: null,
+      },
+    ]);
+
+    let table = page.snapshot().blocks[0];
+    expect(table?.type === "table" ? table : null).toMatchObject({
+      columns: [{ id: firstColumnId }, { id: secondColumnId, width: 180 }],
+      rows: [
+        { id: firstRowId, cells: [{ id: firstCellId }, { id: firstRowSecondCellId }] },
+        {
+          id: secondRowId,
+          cells: [{ id: secondRowFirstCellId }, { id: secondRowSecondCellId }],
+        },
+      ],
+    });
+
+    page.transact([
+      { type: "delete-table-column", tableId, columnId: firstColumnId },
+      { type: "delete-table-row", tableId, rowId: firstRowId },
+    ]);
+    table = page.snapshot().blocks[0];
+    expect(table?.type === "table" ? table : null).toEqual({
+      type: "table",
+      id: tableId,
+      columns: [{ id: secondColumnId, width: 180 }],
+      rows: [
+        {
+          id: secondRowId,
+          cells: [{ id: secondRowSecondCellId, content: [{ text: "B2" }] }],
+        },
+      ],
+    });
+  });
 });

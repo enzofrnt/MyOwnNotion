@@ -861,6 +861,7 @@ export const ChangeEnvelopeSchema = Type.Object({
   sequence: Type.Integer({ minimum: 1 }),
   mutationId: UuidSchema,
   revisionIds: Type.Array(UuidSchema),
+  nature: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   changedItems: Type.Optional(Type.Array(ItemSchema)),
   relationships: Type.Optional(Type.Array(RelationshipSchema)),
   databases: Type.Optional(Type.Array(DatabaseProjectionSchema)),

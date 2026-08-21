@@ -1,4 +1,10 @@
-import { decodeFrontiers, encodeFrontiers, type Frontiers, VersionVector } from "loro-crdt";
+import {
+  decodeFrontiers,
+  decodeImportBlobMeta,
+  encodeFrontiers,
+  type Frontiers,
+  VersionVector,
+} from "loro-crdt";
 
 export const OPERATIONAL_FORMAT = "myownnotion.page-operations+loro" as const;
 export const OPERATIONAL_FORMAT_VERSION = 1 as const;
@@ -98,5 +104,38 @@ export async function verifyIncrementalUpdate(update: IncrementalPageUpdate): Pr
   }
   if (compareVersionVectorBytes(update.baseVersionVector, update.resultVersionVector) === "after") {
     throw new TypeError("an operational update cannot retreat its version vector");
+  }
+}
+
+/**
+ * Verifies that the untrusted transport base contains the dependencies encoded
+ * by the Loro update itself. The blob metadata is checksum-checked first; the
+ * client cannot make an update look causally ready by merely changing the JSON
+ * `baseVersionVector` beside it.
+ */
+export function verifyIncrementalUpdateBase(
+  updateBytes: Uint8Array,
+  declaredBaseBytes: Uint8Array,
+): void {
+  let declaredBase: VersionVector;
+  let metadata: ReturnType<typeof decodeImportBlobMeta>;
+  try {
+    declaredBase = VersionVector.decode(declaredBaseBytes);
+    metadata = decodeImportBlobMeta(updateBytes, true);
+  } catch {
+    throw new TypeError("operational update has an invalid causal base or encoding");
+  }
+  if (metadata.mode !== "update" && metadata.mode !== "outdated-update") {
+    throw new TypeError("operational update payload must be an incremental update");
+  }
+  for (const [peer, counter] of metadata.partialStartVersionVector.toJSON()) {
+    if ((declaredBase.get(peer) ?? 0) !== counter) {
+      throw new TypeError("operational update does not match its declared causal base");
+    }
+  }
+  for (const frontier of metadata.startFrontiers) {
+    if ((declaredBase.get(frontier.peer) ?? 0) <= frontier.counter) {
+      throw new TypeError("operational update dependencies are absent from its causal base");
+    }
   }
 }

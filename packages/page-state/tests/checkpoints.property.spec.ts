@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareVersionVectorBytes,
   OperationalPageDocument,
+  verifyIncrementalUpdateBase,
   versionVectorBytesEqual,
 } from "../src/index.ts";
 
@@ -47,6 +48,25 @@ describe("updates, version vectors and checkpoints", () => {
     expect((await receiver.project()).document).toEqual((await author.project()).document);
   });
 
+  it("verifies the causal base declared around an incremental update", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: { blocks: [{ type: "paragraph", id: blockId, content: [{ text: "A" }] }] },
+    });
+    const checkpoint = await origin.checkpoint();
+    const author = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const update = author.transact([{ type: "replace-text", blockId, from: 1, to: 1, text: "B" }]);
+
+    expect(() =>
+      verifyIncrementalUpdateBase(update.updateBytes, update.baseVersionVector),
+    ).not.toThrow();
+    expect(() => verifyIncrementalUpdateBase(update.updateBytes, new Uint8Array())).toThrow(
+      /causal base/u,
+    );
+  });
+
   it("round-trips a verified checkpoint with a fresh peer id", async () => {
     const pageId = generateUuidV7();
     const page = OperationalPageDocument.create({ pageId, document: { blocks: [] } });
@@ -61,6 +81,24 @@ describe("updates, version vectors and checkpoints", () => {
     );
     expect(compareVersionVectorBytes(checkpoint.versionVector, first.versionVectorBytes())).toBe(
       "equal",
+    );
+  });
+
+  it("opens the transport fields returned by the synchronization API", async () => {
+    const pageId = generateUuidV7();
+    const page = OperationalPageDocument.create({ pageId, document: { blocks: [] } });
+    const checkpoint = await page.checkpoint();
+
+    const restored = await OperationalPageDocument.fromSnapshotTransport({
+      pageId,
+      snapshotBytes: checkpoint.bytes,
+      snapshotDigest: checkpoint.digest,
+      versionVector: checkpoint.versionVector,
+    });
+
+    expect(restored.snapshot()).toEqual(page.snapshot());
+    expect(versionVectorBytesEqual(restored.versionVectorBytes(), checkpoint.versionVector)).toBe(
+      true,
     );
   });
 

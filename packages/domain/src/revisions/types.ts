@@ -74,6 +74,8 @@ export interface ChangeEnvelope {
   readonly sequence: number;
   readonly mutationId: Uuid;
   readonly revisionIds: ReadonlyArray<Uuid>;
+  /** Stable machine nature; operational pages use `page-operations.updated`. */
+  readonly nature?: string;
 }
 
 /** A queued client command with its stable identity and causal bases. */

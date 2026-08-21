@@ -25,6 +25,8 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { definePageOperationSchema } from "./page-operations.ts";
+import { authorizedDevices, protectedEnvelopes } from "./security/index.ts";
 
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType() {
@@ -606,3 +608,19 @@ export const restorationAttempts = pgTable(
     index("restoration_attempts_started_idx").on(table.startedAt),
   ],
 );
+
+export const {
+  pageOperationStates,
+  pageOperationUpdates,
+  pageOperationCheckpoints,
+  pageDeviceFrontiers,
+  pageAmbiguities,
+  pageLegacyBranchConversions,
+} = definePageOperationSchema({
+  workspaceId: workspaces.id,
+  itemId: items.id,
+  itemWorkspaceId: items.workspaceId,
+  revisionId: revisions.id,
+  deviceId: authorizedDevices.id,
+  protectedEnvelopeId: protectedEnvelopes.id,
+});

@@ -75,6 +75,8 @@ function toStored(row: EnvelopeRow): StoredEnvelope {
 }
 
 export interface WriteEnvelopeInput extends ProtectedRecordKey {
+  /** Stable row identity when another table needs to reference this envelope. */
+  readonly id?: string;
   readonly installationId: string;
   readonly envelope: EncryptedEnvelope;
   readonly now: Date;
@@ -96,11 +98,11 @@ export interface WriteEnvelopeInput extends ProtectedRecordKey {
 export async function writeProtectedRecord(
   executor: Executor,
   input: WriteEnvelopeInput,
-): Promise<void> {
-  await executor
+): Promise<string> {
+  const rows = await executor
     .insert(protectedEnvelopes)
     .values({
-      id: crypto.randomUUID(),
+      id: input.id ?? crypto.randomUUID(),
       installationId: input.installationId,
       workspaceId: input.workspaceId,
       entityType: input.entityType,
@@ -135,7 +137,11 @@ export async function writeProtectedRecord(
         aadDigest: input.envelope.aadDigest,
         updatedAt: input.now,
       },
-    });
+    })
+    .returning({ id: protectedEnvelopes.id });
+  const row = rows[0];
+  if (row === undefined) throw new Error("protected envelope was not written");
+  return row.id;
 }
 
 /**

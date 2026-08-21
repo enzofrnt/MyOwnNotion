@@ -13,6 +13,7 @@ export * from "./repositories/hierarchy-repository.ts";
 export * from "./repositories/item-reader.ts";
 export * from "./repositories/lifecycle-repository.ts";
 export * from "./repositories/move-branch.ts";
+export * from "./repositories/page-operation-repository.ts";
 export * from "./repositories/relationship-repository.ts";
 export * from "./repositories/revision-repository.ts";
 export * from "./repositories/search-source-repository.ts";

@@ -11,7 +11,8 @@ import {
   type MarkV3,
 } from "./block.ts";
 import type { BlockDocument, BlockDocumentV3 } from "./document.ts";
-import { type ValidationProblem, validateDocument } from "./validate.ts";
+import { readDocumentBody, upgradeLegacyBody } from "./legacy.ts";
+import { type ValidationProblem, validateDocument, validateDocumentV3 } from "./validate.ts";
 
 const V2_KNOWN_MARK_TYPES: ReadonlySet<string> = new Set(MARK_ORDER);
 
@@ -193,4 +194,18 @@ export function migrateDocumentV2BodyToV3(body: unknown): V2BodyMigrationResult 
       ),
     },
   };
+}
+
+/** One shared lazy-activation conversion for the server and every client. */
+export function migrateStoredPageDocumentToV3(input: {
+  readonly formatVersion: number;
+  readonly body: unknown;
+}): V2BodyMigrationResult {
+  if (input.formatVersion === 3) return validateDocumentV3(input.body);
+  const read = readDocumentBody(input.body);
+  if (read.kind === "legacy") {
+    return { ok: true, document: migrateDocumentV2ToV3(upgradeLegacyBody(read.body)) };
+  }
+  if (!read.result.ok) return read.result;
+  return { ok: true, document: migrateDocumentV2ToV3(read.result.document) };
 }

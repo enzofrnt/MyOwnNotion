@@ -231,6 +231,56 @@ describe("local operational undo", () => {
     expect(page.snapshot().blocks[0]).toEqual(source);
   });
 
+  it("undoes and redoes one table structure gesture without changing stable cells", () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const firstColumnId = generateUuidV7();
+    const secondColumnId = generateUuidV7();
+    const rowId = generateUuidV7();
+    const firstCellId = generateUuidV7();
+    const secondCellId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: [{ id: firstColumnId, width: null }],
+            rows: [{ id: rowId, cells: [{ id: firstCellId, content: [{ text: "A1" }] }] }],
+          },
+        ],
+      },
+    });
+    const history = new PageUndoManager(page);
+
+    history.execute([
+      {
+        type: "insert-table-column",
+        tableId,
+        column: { id: secondColumnId, width: 180 },
+        cells: [{ rowId, cell: { id: secondCellId, content: [{ text: "B1" }] } }],
+        beforeColumnId: null,
+      },
+    ]);
+    expect(page.snapshot().blocks[0]).toMatchObject({
+      columns: [{ id: firstColumnId }, { id: secondColumnId }],
+      rows: [{ cells: [{ id: firstCellId }, { id: secondCellId }] }],
+    });
+
+    history.undo();
+    expect(page.snapshot().blocks[0]).toMatchObject({
+      columns: [{ id: firstColumnId }],
+      rows: [{ cells: [{ id: firstCellId }] }],
+    });
+
+    history.redo();
+    expect(page.snapshot().blocks[0]).toMatchObject({
+      columns: [{ id: firstColumnId }, { id: secondColumnId }],
+      rows: [{ cells: [{ id: firstCellId }, { id: secondCellId }] }],
+    });
+  });
+
   it("reports an explicit failure when a remote deletion removed the local undo target", async () => {
     const pageId = generateUuidV7();
     const blockId = generateUuidV7();

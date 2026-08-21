@@ -89,6 +89,9 @@ importers:
       '@myownnotion/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@myownnotion/page-state':
+        specifier: workspace:*
+        version: link:../../packages/page-state
       '@simplewebauthn/server':
         specifier: ^13.3.2
         version: 13.3.2

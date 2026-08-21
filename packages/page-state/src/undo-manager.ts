@@ -149,6 +149,37 @@ function inverseFor(command: PageCommand, change: PageSemanticChange | undefined
             properties,
           };
     }
+    case "insert-table-row": {
+      semanticChange(change, "table-row-inserted");
+      return { type: "delete-table-row", tableId: command.tableId, rowId: command.row.id };
+    }
+    case "delete-table-row": {
+      const deleted = semanticChange(change, "table-row-deleted");
+      return {
+        type: "insert-table-row",
+        tableId: command.tableId,
+        row: deleted.row,
+        beforeRowId: deleted.beforeRowId,
+      };
+    }
+    case "insert-table-column": {
+      semanticChange(change, "table-column-inserted");
+      return {
+        type: "delete-table-column",
+        tableId: command.tableId,
+        columnId: command.column.id,
+      };
+    }
+    case "delete-table-column": {
+      const deleted = semanticChange(change, "table-column-deleted");
+      return {
+        type: "insert-table-column",
+        tableId: command.tableId,
+        column: deleted.column,
+        cells: deleted.cells,
+        beforeColumnId: deleted.beforeColumnId,
+      };
+    }
   }
 }
 
@@ -163,7 +194,16 @@ function buildInverse(
 }
 
 function commandBlockId(command: PageCommand): Uuid {
-  return command.type === "insert-block" ? command.block.id : command.blockId;
+  if (command.type === "insert-block") return command.block.id;
+  if (
+    command.type === "insert-table-row" ||
+    command.type === "delete-table-row" ||
+    command.type === "insert-table-column" ||
+    command.type === "delete-table-column"
+  ) {
+    return command.tableId;
+  }
+  return command.blockId;
 }
 
 function historyGuards(
@@ -187,6 +227,10 @@ function historyGuards(
       case "set-mark":
       case "set-block-property":
       case "set-block-type":
+      case "insert-table-row":
+      case "delete-table-row":
+      case "insert-table-column":
+      case "delete-table-column":
         requirement.content = true;
         break;
     }

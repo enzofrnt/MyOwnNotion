@@ -21,7 +21,7 @@
  * upgrade the bytes are still there.
  */
 
-import { generateUuidV7 } from "../ids/uuid.ts";
+import { asUuid, type Uuid } from "../ids/uuid.ts";
 import type { Block, JsonObject } from "./block.ts";
 import type { BlockDocument } from "./document.ts";
 import {
@@ -33,6 +33,59 @@ import {
 
 /** The block type used to carry a preserved v1 body. Deliberately unknown. */
 export const LEGACY_BODY_BLOCK_TYPE = "legacyBody";
+
+/**
+ * Stable JSON for identity derivation: key order as stored, nothing pretty.
+ * Two processes reading the same sealed envelope see the same bytes here,
+ * which is the whole point of the derived id below.
+ */
+function stableJson(value: JsonObject): string {
+  return JSON.stringify(value, (_key, nested: unknown) =>
+    typeof nested === "object" && nested !== null && !Array.isArray(nested)
+      ? Object.fromEntries(
+          Object.entries(nested as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1)),
+        )
+      : nested,
+  );
+}
+
+/**
+ * Derives the same UUID from the same legacy body, on every device.
+ *
+ * A random id would make two independent migrations of one stored body
+ * produce two different documents — different digests, so page activation's
+ * compare-and-swap could never agree, and two devices activating offline
+ * could never converge. The hash need not be cryptographic: the content is
+ * preserved opaquely regardless, and the id only has to be *stable* and
+ * collision-free in practice.
+ */
+function deriveLegacyBodyId(body: JsonObject): Uuid {
+  const source = stableJson(body);
+  let high = 0xcbf29ce484222325n;
+  let low = 0x84222325cbf29ce4n;
+  for (let index = 0; index < source.length; index += 1) {
+    const byte = BigInt(source.charCodeAt(index) & 0xff);
+    high ^= byte;
+    low ^= byte;
+    high = (high * 0x100000001b3n) & 0xffffffffffffffffn;
+    low = (low * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
+  const bytes = new Uint8Array(16);
+  for (let index = 0; index < 8; index += 1) {
+    bytes[index] = Number((high >> BigInt(8 * (7 - index))) & 0xffn);
+    bytes[8 + index] = Number((low >> BigInt(8 * (7 - index))) & 0xffn);
+  }
+  // Version 7, RFC variant: the shape every other identity in the canonical
+  // model uses, without claiming a timestamp this id does not have.
+  const versionByte = bytes[6] ?? 0;
+  const variantByte = bytes[8] ?? 0;
+  bytes[6] = (versionByte & 0x0f) | 0x70;
+  bytes[8] = (variantByte & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return asUuid(
+    `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`,
+  );
+}
 
 export type DocumentBodyRead =
   | { readonly kind: "blocks"; readonly result: ValidationResult }
@@ -82,7 +135,7 @@ export function readDocumentBody(body: unknown): DocumentBodyRead {
  * no separate preservation path had to be written for it.
  */
 export function upgradeLegacyBody(body: JsonObject): BlockDocument {
-  const id = generateUuidV7();
+  const id = deriveLegacyBodyId(body);
   const wrapper: JsonObject = {
     type: LEGACY_BODY_BLOCK_TYPE,
     id,

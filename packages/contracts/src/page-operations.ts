@@ -117,6 +117,27 @@ const CanonicalMarkV3Schema = Type.Object(
   { additionalProperties: true },
 );
 
+const CanonicalTableCellV3Schema = Type.Object(
+  { id: PageOperationUuidSchema },
+  { additionalProperties: true },
+);
+
+const CanonicalTableRowV3Schema = Type.Object(
+  {
+    id: PageOperationUuidSchema,
+    cells: Type.Array(CanonicalTableCellV3Schema, { maxItems: 10_000 }),
+  },
+  { additionalProperties: false },
+);
+
+const CanonicalTableColumnV3Schema = Type.Object(
+  {
+    id: PageOperationUuidSchema,
+    width: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
 export const LegacySemanticCommandSchema = Type.Union([
   Type.Object(
     {
@@ -134,10 +155,6 @@ export const LegacySemanticCommandSchema = Type.Union([
       parentBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
       beforeBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
     },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    { type: Type.Literal("delete-block"), blockId: PageOperationUuidSchema },
     { additionalProperties: false },
   ),
   Type.Object(
@@ -170,7 +187,60 @@ export const LegacySemanticCommandSchema = Type.Union([
       key: Type.String({ minLength: 1, maxLength: 128 }),
       before: Type.Unknown(),
       after: Type.Unknown(),
+      properties: Type.Optional(Type.Object({}, { additionalProperties: true })),
     },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("insert-table-row"),
+      tableId: PageOperationUuidSchema,
+      row: CanonicalTableRowV3Schema,
+      beforeRowId: Type.Union([PageOperationUuidSchema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("delete-table-row"),
+      tableId: PageOperationUuidSchema,
+      rowId: PageOperationUuidSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("insert-table-column"),
+      tableId: PageOperationUuidSchema,
+      column: CanonicalTableColumnV3Schema,
+      cells: Type.Array(
+        Type.Object(
+          {
+            rowId: PageOperationUuidSchema,
+            cell: CanonicalTableCellV3Schema,
+          },
+          { additionalProperties: false },
+        ),
+        { maxItems: 10_000 },
+      ),
+      beforeColumnId: Type.Union([PageOperationUuidSchema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("delete-table-column"),
+      tableId: PageOperationUuidSchema,
+      columnId: PageOperationUuidSchema,
+    },
+    { additionalProperties: false },
+  ),
+  // Keep the minimal block command last. Fastify's Ajv removes additional
+  // properties while evaluating unions; placed earlier, this shape would
+  // strip a replace-text command down to {type, blockId} before its own branch
+  // could validate it.
+  Type.Object(
+    { type: Type.Literal("delete-block"), blockId: PageOperationUuidSchema },
     { additionalProperties: false },
   ),
 ]);
@@ -298,6 +368,7 @@ export const ActivePageSyncResponseSchema = Type.Object(
     repeated: Type.Array(RepeatedPageUpdateSchema, { maxItems: MAX_PAGE_UPDATES_PER_SYNC }),
     remoteUpdates: Type.Array(RemotePageUpdateSchema, { maxItems: MAX_PAGE_UPDATES_PER_SYNC }),
     serverVersionVector: VersionVectorSchema,
+    throughPageSequence: SequenceSchema,
     latestPageSequence: SequenceSchema,
     hasMore: Type.Boolean(),
     canonical: CanonicalPageSummarySchema,
@@ -544,6 +615,9 @@ export function parsePageSyncResponse(value: unknown): PageSyncResponseDto {
     if (parsed.accepted.length + parsed.repeated.length > MAX_PAGE_UPDATES_PER_SYNC) {
       throw new PageOperationContractError("accepted page update count");
     }
+    if (parsed.throughPageSequence > parsed.latestPageSequence) {
+      throw new PageOperationContractError("active page sequence");
+    }
     assertUnique(
       [...parsed.accepted, ...parsed.repeated, ...parsed.remoteUpdates].map(
         ({ updateId }) => updateId,
@@ -558,7 +632,7 @@ export function parsePageSyncResponse(value: unknown): PageSyncResponseDto {
     assertOrderedPageSequences(
       parsed.remoteUpdates,
       0,
-      parsed.latestPageSequence,
+      parsed.throughPageSequence,
       "remote page update sequence",
     );
     let total = 0;

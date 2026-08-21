@@ -4,17 +4,25 @@ import type {
   JsonObject,
   JsonValue,
   MarkV3,
+  TableBlockV3,
+  TableCellV3,
+  TableColumnV3,
+  TableRowV3,
   Uuid,
 } from "@myownnotion/domain";
 import { collectDocumentIdsV3 } from "@myownnotion/domain";
-import { LoroDoc, type Side } from "loro-crdt";
+import { LoroDoc, type Side, VersionVector } from "loro-crdt";
 import {
   assertOperationalBlock,
   assertOperationalBlockTree,
   deleteOperationalBlock,
+  deleteOperationalTableColumn,
+  deleteOperationalTableRow,
   getOperationalBlockTree,
   initialiseOperationalBlockTree,
   insertOperationalBlock,
+  insertOperationalTableColumn,
+  insertOperationalTableRow,
   materialiseOperationalDocument,
   moveOperationalBlock,
   type OperationalBlockState,
@@ -22,6 +30,7 @@ import {
   operationalBlockProperty,
   operationalBlockSnapshot,
   operationalBlockState,
+  operationalCanonicalBlockId,
   operationalTextForBlock,
   setOperationalBlockProperty,
   type TransformableBlockType,
@@ -41,7 +50,12 @@ import {
   resolveRelativeTextPosition,
   setRichTextMark,
 } from "./rich-text.ts";
-import { encodeOperationalFrontiers, versionVectorBytesEqual } from "./update-envelope.ts";
+import {
+  encodeOperationalFrontiers,
+  OPERATIONAL_FORMAT,
+  OPERATIONAL_FORMAT_VERSION,
+  versionVectorBytesEqual,
+} from "./update-envelope.ts";
 
 export const OPERATIONAL_PAGE_SCHEMA = "myownnotion.page-operations" as const;
 export const OPERATIONAL_PAGE_SCHEMA_VERSION = 1 as const;
@@ -86,6 +100,32 @@ export type PageCommand =
       readonly blockId: Uuid;
       readonly blockType: TransformableBlockType;
       readonly properties?: JsonObject;
+    }
+  | {
+      readonly type: "insert-table-row";
+      readonly tableId: Uuid;
+      readonly row: TableRowV3;
+      readonly beforeRowId: Uuid | null;
+    }
+  | {
+      readonly type: "delete-table-row";
+      readonly tableId: Uuid;
+      readonly rowId: Uuid;
+    }
+  | {
+      readonly type: "insert-table-column";
+      readonly tableId: Uuid;
+      readonly column: TableColumnV3;
+      readonly cells: readonly {
+        readonly rowId: Uuid;
+        readonly cell: TableCellV3;
+      }[];
+      readonly beforeColumnId: Uuid | null;
+    }
+  | {
+      readonly type: "delete-table-column";
+      readonly tableId: Uuid;
+      readonly columnId: Uuid;
     };
 
 export type PageSemanticChange =
@@ -137,7 +177,7 @@ export type PageSemanticChange =
       readonly blockId: Uuid;
       readonly from: number;
       readonly to: number;
-      readonly markType: MarkV3["type"];
+      readonly mark: MarkV3;
       readonly enabled: boolean;
       readonly blockAfter: CanonicalBlockV3;
     }
@@ -156,6 +196,50 @@ export type PageSemanticChange =
       readonly afterType: TransformableBlockType;
       readonly blockBefore: CanonicalBlockV3;
       readonly blockAfter: CanonicalBlockV3;
+    }
+  | {
+      readonly type: "table-row-inserted";
+      readonly blockId: Uuid;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly row: TableRowV3;
+      readonly beforeRowId: Uuid | null;
+      readonly blockBefore: TableBlockV3;
+      readonly blockAfter: TableBlockV3;
+    }
+  | {
+      readonly type: "table-row-deleted";
+      readonly blockId: Uuid;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly row: TableRowV3;
+      readonly beforeRowId: Uuid | null;
+      readonly blockBefore: TableBlockV3;
+      readonly blockAfter: TableBlockV3;
+    }
+  | {
+      readonly type: "table-column-inserted";
+      readonly blockId: Uuid;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly column: TableColumnV3;
+      readonly cells: readonly {
+        readonly rowId: Uuid;
+        readonly cell: TableCellV3;
+      }[];
+      readonly beforeColumnId: Uuid | null;
+      readonly blockBefore: TableBlockV3;
+      readonly blockAfter: TableBlockV3;
+    }
+  | {
+      readonly type: "table-column-deleted";
+      readonly blockId: Uuid;
+      readonly affectedBlockIds: readonly Uuid[];
+      readonly column: TableColumnV3;
+      readonly cells: readonly {
+        readonly rowId: Uuid;
+        readonly cell: TableCellV3;
+      }[];
+      readonly beforeColumnId: Uuid | null;
+      readonly blockBefore: TableBlockV3;
+      readonly blockAfter: TableBlockV3;
     }
   | {
       /** Emitted by a schema migrator, never by an ordinary editor command. */
@@ -223,6 +307,35 @@ function assertMetadata(doc: LoroDoc, pageId: Uuid): void {
   ) {
     throw new TypeError("operational page metadata mismatch");
   }
+}
+
+function tableSnapshot(doc: LoroDoc, tableId: Uuid): TableBlockV3 {
+  const block = operationalBlockSnapshot(doc, tableId);
+  if (block.type !== "table") throw new TypeError(`${tableId} is not a table`);
+  return block;
+}
+
+function tableRowIdentities(row: TableRowV3): Uuid[] {
+  return [
+    row.id,
+    ...row.cells.flatMap((cell) => [
+      cell.id,
+      ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
+    ]),
+  ];
+}
+
+function tableColumnIdentities(
+  column: TableColumnV3,
+  cells: readonly { readonly rowId: Uuid; readonly cell: TableCellV3 }[],
+): Uuid[] {
+  return [
+    column.id,
+    ...cells.flatMap(({ cell }) => [
+      cell.id,
+      ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
+    ]),
+  ];
 }
 
 function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
@@ -294,7 +407,7 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
         blockId: command.blockId,
         from: command.from,
         to: command.to,
-        markType: command.mark.type,
+        mark: command.mark,
         enabled: command.enabled,
         blockAfter: operationalBlockSnapshot(doc, command.blockId),
       };
@@ -321,6 +434,100 @@ function applyCommand(doc: LoroDoc, command: PageCommand): PageSemanticChange {
         afterType: command.blockType,
         blockBefore,
         blockAfter: operationalBlockSnapshot(doc, command.blockId),
+      };
+    }
+    case "insert-table-row": {
+      const blockBefore = tableSnapshot(doc, command.tableId);
+      insertOperationalTableRow(doc, command.tableId, command.row, command.beforeRowId);
+      const blockAfter = tableSnapshot(doc, command.tableId);
+      const row = blockAfter.rows.find(({ id }) => id === command.row.id);
+      if (row === undefined) throw new TypeError(`inserted row ${command.row.id} is missing`);
+      return {
+        type: "table-row-inserted",
+        blockId: command.tableId,
+        affectedBlockIds: tableRowIdentities(row),
+        row,
+        beforeRowId: command.beforeRowId,
+        blockBefore,
+        blockAfter,
+      };
+    }
+    case "delete-table-row": {
+      const blockBefore = tableSnapshot(doc, command.tableId);
+      const rowIndex = blockBefore.rows.findIndex(({ id }) => id === command.rowId);
+      const row = blockBefore.rows[rowIndex];
+      if (row === undefined)
+        throw new TypeError(`row ${command.rowId} is not in ${command.tableId}`);
+      const beforeRowId = blockBefore.rows[rowIndex + 1]?.id ?? null;
+      deleteOperationalTableRow(doc, command.tableId, command.rowId);
+      return {
+        type: "table-row-deleted",
+        blockId: command.tableId,
+        affectedBlockIds: tableRowIdentities(row),
+        row,
+        beforeRowId,
+        blockBefore,
+        blockAfter: tableSnapshot(doc, command.tableId),
+      };
+    }
+    case "insert-table-column": {
+      const blockBefore = tableSnapshot(doc, command.tableId);
+      insertOperationalTableColumn(
+        doc,
+        command.tableId,
+        command.column,
+        command.cells,
+        command.beforeColumnId,
+      );
+      const blockAfter = tableSnapshot(doc, command.tableId);
+      const columnIndex = blockAfter.columns.findIndex(({ id }) => id === command.column.id);
+      const column = blockAfter.columns[columnIndex];
+      if (column === undefined) {
+        throw new TypeError(`inserted column ${command.column.id} is missing`);
+      }
+      const cells = blockAfter.rows.map((row) => {
+        const cell = row.cells[columnIndex];
+        if (cell === undefined) {
+          throw new TypeError(`inserted column ${command.column.id} has no cell in row ${row.id}`);
+        }
+        return { rowId: row.id, cell };
+      });
+      return {
+        type: "table-column-inserted",
+        blockId: command.tableId,
+        affectedBlockIds: tableColumnIdentities(column, cells),
+        column,
+        cells,
+        beforeColumnId: command.beforeColumnId,
+        blockBefore,
+        blockAfter,
+      };
+    }
+    case "delete-table-column": {
+      const blockBefore = tableSnapshot(doc, command.tableId);
+      const columnIndex = blockBefore.columns.findIndex(({ id }) => id === command.columnId);
+      const column = blockBefore.columns[columnIndex];
+      if (column === undefined) {
+        throw new TypeError(`column ${command.columnId} is not in ${command.tableId}`);
+      }
+      const cells = blockBefore.rows.map((row) => {
+        const cell = row.cells[columnIndex];
+        if (cell === undefined) {
+          throw new TypeError(`column ${command.columnId} has no cell in row ${row.id}`);
+        }
+        return { rowId: row.id, cell };
+      });
+      const beforeColumnId = blockBefore.columns[columnIndex + 1]?.id ?? null;
+      deleteOperationalTableColumn(doc, command.tableId, command.columnId);
+      return {
+        type: "table-column-deleted",
+        blockId: command.tableId,
+        affectedBlockIds: tableColumnIdentities(column, cells),
+        column,
+        cells,
+        beforeColumnId,
+        blockBefore,
+        blockAfter: tableSnapshot(doc, command.tableId),
       };
     }
   }
@@ -367,6 +574,34 @@ export class OperationalPageDocument {
     return new OperationalPageDocument(input.pageId, doc);
   }
 
+  /**
+   * Opens the fields carried by the HTTP checkpoint response.
+   *
+   * Frontiers are intentionally not duplicated on the wire: they are derived
+   * from the authenticated snapshot and then verified together with the digest
+   * and version vector by the ordinary checkpoint loader.
+   */
+  static async fromSnapshotTransport(input: {
+    readonly pageId: Uuid;
+    readonly snapshotBytes: Uint8Array;
+    readonly snapshotDigest: string;
+    readonly versionVector: Uint8Array;
+  }): Promise<OperationalPageDocument> {
+    const snapshot = LoroDoc.fromSnapshot(input.snapshotBytes);
+    return await OperationalPageDocument.fromCheckpoint({
+      pageId: input.pageId,
+      checkpoint: {
+        operationalFormat: OPERATIONAL_FORMAT,
+        operationalVersion: OPERATIONAL_FORMAT_VERSION,
+        pageId: input.pageId,
+        bytes: cloneBytes(input.snapshotBytes),
+        digest: input.snapshotDigest,
+        versionVector: cloneBytes(input.versionVector),
+        frontiers: cloneBytes(encodeOperationalFrontiers(snapshot.frontiers())),
+      },
+    });
+  }
+
   get pageId(): Uuid {
     return this.#pageId;
   }
@@ -378,6 +613,21 @@ export class OperationalPageDocument {
   versionVectorBytes(): Uint8Array {
     this.#doc.commit();
     return cloneBytes(this.#doc.oplogVersion().encode());
+  }
+
+  /** Encodes the exact frontier represented by a version this replica knows. */
+  frontiersForVersionVector(versionVector: Uint8Array): Uint8Array {
+    return cloneBytes(
+      encodeOperationalFrontiers(this.#doc.vvToFrontiers(VersionVector.decode(versionVector))),
+    );
+  }
+
+  /** Exports only operations absent from a known causal version. */
+  exportUpdateFrom(versionVector: Uint8Array): Uint8Array {
+    this.#doc.commit();
+    return cloneBytes(
+      this.#doc.export({ mode: "update", from: VersionVector.decode(versionVector) }),
+    );
   }
 
   transact(commands: readonly PageCommand[]): PageTransactionResult {
@@ -415,7 +665,11 @@ export class OperationalPageDocument {
         (command) =>
           command.type === "insert-block" ||
           command.type === "move-block" ||
-          command.type === "delete-block",
+          command.type === "delete-block" ||
+          command.type === "insert-table-row" ||
+          command.type === "delete-table-row" ||
+          command.type === "insert-table-column" ||
+          command.type === "delete-table-column",
       );
       if (hasStructuralCommand) {
         assertOperationalBlockTree(working);
@@ -485,6 +739,10 @@ export class OperationalPageDocument {
   /** One-block state used by local history; absent blocks return `null`. */
   blockState(blockId: Uuid): OperationalBlockState | null {
     return operationalBlockState(this.#doc, blockId);
+  }
+
+  canonicalBlockIdForIdentity(blockId: Uuid): Uuid | null {
+    return operationalCanonicalBlockId(this.#doc, blockId);
   }
 
   checkpoint(): Promise<OperationalPageCheckpoint> {
