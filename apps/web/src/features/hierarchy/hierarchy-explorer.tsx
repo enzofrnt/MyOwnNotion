@@ -184,15 +184,21 @@ function searchBranchOptions(
 
 export function HierarchyExplorer({
   backupStale,
+  pageOperationCsrfToken,
   onOpenBackups,
   onOpenSettings,
 }: {
   readonly backupStale: boolean;
+  readonly pageOperationCsrfToken: () => string | null;
   readonly onOpenBackups: () => void;
   /** Settings live outside the workspace, so the shortcut asks rather than routes. */
   readonly onOpenSettings: () => void;
 }) {
-  const service = useMemo(() => localContent(), []);
+  const service = useMemo(() => {
+    const content = localContent();
+    content.configurePageOperationAuthorization(pageOperationCsrfToken);
+    return content;
+  }, [pageOperationCsrfToken]);
   const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const [items, setItems] = useState<ProjectedItem[]>([]);
@@ -1501,7 +1507,6 @@ export function HierarchyExplorer({
               <EditorView
                 service={service}
                 itemId={selectedItem.id}
-                itemRevisionId={selectedItem.currentRevisionId}
                 items={items}
                 onOpenPage={openPageLink}
               />
@@ -1518,7 +1523,6 @@ export function HierarchyExplorer({
           <EditorView
             service={service}
             itemId={selectedItem.id}
-            itemRevisionId={selectedItem.currentRevisionId}
             items={items}
             onOpenPage={openPageLink}
           />

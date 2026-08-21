@@ -544,14 +544,35 @@ export async function openSecondDevice(
 }
 
 /**
- * Saves the open document and waits for the confirmation.
+ * Waits until the open document is durably saved on this device.
  *
- * The editor does not autosave — saving is an explicit button — so a journey
- * that types and then synchronizes is a journey that measures nothing: the text
- * never leaves the editor's own state. Waiting for the confirmation rather than
- * for a timeout is what makes the following assertions about the *saved* document.
+ * The editor autosaves: every gesture is committed encrypted to IndexedDB
+ * before the interface acknowledges it, so there is no save button to click.
+ * A journey that types and then synchronizes is a journey that measures
+ * nothing unless it first waits for durability — and durability here means the
+ * local commit, not a network round-trip. Waiting for the status line rather
+ * than for a timeout is what makes the following assertions about the *saved*
+ * document.
+ *
+ * The compatibility path (a page that cannot open a session) still shows the
+ * legacy button; both roads end at "the words are safe", which is what the
+ * caller cares about.
  */
-export async function saveDocument(page: Page): Promise<void> {
+export async function saveDocument(
+  page: Page,
+  options: { readonly until?: "durable" | "synced" } = {},
+): Promise<void> {
+  const status = page.getByTestId("editor-sync-status");
+  if (await status.count()) {
+    await expect(status).not.toHaveAttribute("data-state", "local-saving", { timeout: 15_000 });
+    await expect(status).toHaveAttribute("data-durable", "true", { timeout: 15_000 });
+    if (options.until === "synced") {
+      // The transport state, not the user-facing kind: an open ambiguity wraps
+      // the kind as « attention » while the frontier itself is confirmed.
+      await expect(status).toHaveAttribute("data-sync", "synced", { timeout: 20_000 });
+    }
+    return;
+  }
   await page.getByTestId("save-document").click();
   await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 15_000 });
 }

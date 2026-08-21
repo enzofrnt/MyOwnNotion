@@ -1,8 +1,8 @@
-import type { CanonicalBlockV3, InlineV3, MarkV3, Uuid } from "@myownnotion/domain";
+import type { CanonicalBlockV3, InlineV3, MarkV3, TableBlockV3, Uuid } from "@myownnotion/domain";
 import { isUuid, normaliseInlineV3 } from "@myownnotion/domain";
 import type { PageCommand } from "@myownnotion/page-state";
 import { stableMoveChanges } from "./block-drag-drop.ts";
-import { blockNoteBlockToCanonical } from "./blocknote-conversion.ts";
+import { blockNoteBlockToCanonical, blockNoteInlineToCanonical } from "./blocknote-conversion.ts";
 import type { EditorBlock, EditorBlocksChanged } from "./blocknote-schema.ts";
 
 export interface TextReplacement {
@@ -43,12 +43,18 @@ export function minimalTextReplacement(before: string, after: string): TextRepla
 }
 
 function textOf(block: EditorBlock): string {
+  if (block.type === "tableCell") {
+    return blockNoteInlineToCanonical(block.content)
+      .map((inline) => inline.text)
+      .join("");
+  }
   const canonical = blockNoteBlockToCanonical(block);
   if (canonical.type === "code") return canonical.text;
   return "content" in canonical ? canonical.content.map((inline) => inline.text).join("") : "";
 }
 
 function inlineOf(block: EditorBlock): readonly InlineV3[] {
+  if (block.type === "tableCell") return blockNoteInlineToCanonical(block.content);
   const canonical = blockNoteBlockToCanonical(block);
   if (canonical.type === "code" || !("content" in canonical)) return [];
   return canonical.content;
@@ -170,6 +176,14 @@ function canonicalType(block: EditorBlock): CanonicalBlockV3["type"] {
 }
 
 function typeCommand(before: EditorBlock, after: EditorBlock): PageCommand | null {
+  if (
+    before.type === "tableRow" ||
+    before.type === "tableCell" ||
+    after.type === "tableRow" ||
+    after.type === "tableCell"
+  ) {
+    return null;
+  }
   const previousType = canonicalType(before);
   const next = blockNoteBlockToCanonical(after);
   if (previousType === next.type) return null;
@@ -214,6 +228,14 @@ function typeCommand(before: EditorBlock, after: EditorBlock): PageCommand | nul
 }
 
 function propertyCommands(before: EditorBlock, after: EditorBlock): PageCommand[] {
+  if (
+    before.type === "tableRow" ||
+    before.type === "tableCell" ||
+    after.type === "tableRow" ||
+    after.type === "tableCell"
+  ) {
+    return [];
+  }
   const oldBlock = blockNoteBlockToCanonical(before);
   const newBlock = blockNoteBlockToCanonical(after);
   if (oldBlock.type !== newBlock.type) return [];
@@ -254,6 +276,60 @@ function propertyCommands(before: EditorBlock, after: EditorBlock): PageCommand[
       value: newBlock.language,
     });
   }
+  if (oldBlock.type === "callout" && newBlock.type === "callout") {
+    if (oldBlock.icon !== newBlock.icon) {
+      commands.push({
+        type: "set-block-property",
+        blockId: after.id as Uuid,
+        key: "icon",
+        value: newBlock.icon,
+      });
+    }
+    if (oldBlock.tone !== newBlock.tone) {
+      commands.push({
+        type: "set-block-property",
+        blockId: after.id as Uuid,
+        key: "tone",
+        value: newBlock.tone,
+      });
+    }
+  }
+  if (oldBlock.type === "image" && newBlock.type === "image") {
+    for (const key of ["fileItemId", "caption", "altText", "displayWidth"] as const) {
+      if (oldBlock[key] !== newBlock[key]) {
+        commands.push({
+          type: "set-block-property",
+          blockId: after.id as Uuid,
+          key,
+          value: newBlock[key],
+        });
+      }
+    }
+  }
+  if (oldBlock.type === "fileEmbed" && newBlock.type === "fileEmbed") {
+    for (const key of ["fileItemId", "caption"] as const) {
+      if (oldBlock[key] !== newBlock[key]) {
+        commands.push({
+          type: "set-block-property",
+          blockId: after.id as Uuid,
+          key,
+          value: newBlock[key],
+        });
+      }
+    }
+  }
+  if (oldBlock.type === "embed" && newBlock.type === "embed") {
+    for (const key of ["provider", "sourceUrl", "caption"] as const) {
+      if (oldBlock[key] !== newBlock[key]) {
+        commands.push({
+          type: "set-block-property",
+          blockId: after.id as Uuid,
+          key,
+          value: newBlock[key],
+        });
+      }
+    }
+  }
   return commands;
 }
 
@@ -265,9 +341,98 @@ function hasChangedAncestor(
   return parent !== undefined && changed.has(parent.id);
 }
 
+function isInternalTableBlock(block: EditorBlock): boolean {
+  return block.type === "tableRow" || block.type === "tableCell";
+}
+
+function findEditorBlock(blocks: readonly EditorBlock[], blockId: string): EditorBlock | undefined {
+  for (const block of blocks) {
+    if (block.id === blockId) return block;
+    const nested = findEditorBlock(block.children as EditorBlock[], blockId);
+    if (nested !== undefined) return nested;
+  }
+  return undefined;
+}
+
+function editorTable(block: EditorBlock): TableBlockV3 {
+  const canonical = blockNoteBlockToCanonical(block);
+  if (canonical.type !== "table") {
+    throw new TypeError(`le tableau ${block.id} n’a pas une structure éditable valide`);
+  }
+  return canonical;
+}
+
+function nestedEditorIds(block: EditorBlock): string[] {
+  return [block.id, ...block.children.flatMap((child) => nestedEditorIds(child as EditorBlock))];
+}
+
+function tableColumnCommands(
+  beforeBlock: EditorBlock,
+  afterBlock: EditorBlock,
+): { readonly commands: PageCommand[]; readonly handledIds: readonly string[] } {
+  const before = editorTable(beforeBlock);
+  const after = editorTable(afterBlock);
+  const beforeIds = new Set(before.columns.map(({ id }) => id));
+  const afterIds = new Set(after.columns.map(({ id }) => id));
+  const removed = before.columns.filter(({ id }) => !afterIds.has(id));
+  const added = after.columns.filter(({ id }) => !beforeIds.has(id));
+  const commonBefore = before.columns.filter(({ id }) => afterIds.has(id)).map(({ id }) => id);
+  const commonAfter = after.columns.filter(({ id }) => beforeIds.has(id)).map(({ id }) => id);
+  if (commonBefore.some((id, index) => id !== commonAfter[index])) {
+    throw new TypeError("la réorganisation des colonnes n’est pas encore une opération sûre");
+  }
+  for (const column of after.columns) {
+    const oldColumn = before.columns.find(({ id }) => id === column.id);
+    if (oldColumn !== undefined && oldColumn.width !== column.width) {
+      throw new TypeError("le redimensionnement des colonnes n’est pas encore une opération sûre");
+    }
+  }
+
+  const commands: PageCommand[] = removed.map((column) => ({
+    type: "delete-table-column",
+    tableId: after.id,
+    columnId: column.id,
+  }));
+  // Right-to-left insertion keeps every `beforeColumnId` resolvable when one
+  // editor gesture introduces more than one adjacent column.
+  for (const column of [...added].reverse()) {
+    const columnIndex = after.columns.findIndex(({ id }) => id === column.id);
+    const beforeColumnId = after.columns[columnIndex + 1]?.id ?? null;
+    const cells = before.rows.map((oldRow) => {
+      const row = after.rows.find(({ id }) => id === oldRow.id);
+      const cell = row?.cells[columnIndex];
+      if (cell === undefined) {
+        throw new TypeError(
+          `la colonne ${column.id} n’a pas de cellule pour la ligne ${oldRow.id}`,
+        );
+      }
+      return { rowId: oldRow.id, cell };
+    });
+    commands.push({
+      type: "insert-table-column",
+      tableId: after.id,
+      column,
+      cells,
+      beforeColumnId,
+    });
+  }
+
+  const changedColumnIds = new Set([...removed, ...added].map(({ id }) => id));
+  const handledIds: string[] = [];
+  for (const source of [before, after]) {
+    for (const row of source.rows) {
+      for (const [index, cell] of row.cells.entries()) {
+        if (changedColumnIds.has(source.columns[index]?.id as Uuid)) handledIds.push(cell.id);
+      }
+    }
+  }
+  return { commands, handledIds };
+}
+
 export function commandsFromBlockNoteChanges(input: {
   readonly changes: EditorBlocksChanged;
   readonly document: readonly EditorBlock[];
+  readonly tableIdForInternalBlock?: ((blockId: Uuid) => Uuid | null) | undefined;
 }): PageCommand[] {
   const needsLayout = input.changes.some(
     (change) => change.type === "insert" || change.type === "move",
@@ -280,9 +445,56 @@ export function commandsFromBlockNoteChanges(input: {
     input.changes.filter((change) => change.type === "delete").map((change) => change.block.id),
   );
   const commands: PageCommand[] = [];
+  const handledInternalIds = new Set<string>();
+
+  for (const change of input.changes) {
+    if (change.type !== "update" || change.block.type !== "table") continue;
+    const tableChanges = tableColumnCommands(change.prevBlock, change.block);
+    commands.push(...tableChanges.commands);
+    for (const blockId of tableChanges.handledIds) handledInternalIds.add(blockId);
+  }
+
+  for (const change of input.changes) {
+    if (change.type !== "insert" || change.block.type !== "tableRow") continue;
+    const placement = layout.get(change.block.id);
+    if (placement?.parentBlockId === null || placement === undefined) {
+      throw new TypeError(`la nouvelle ligne ${change.block.id} n’est rattachée à aucun tableau`);
+    }
+    const tableBlock = findEditorBlock(input.document, placement.parentBlockId);
+    if (tableBlock?.type !== "table" || !isUuid(change.block.id)) {
+      throw new TypeError(`la nouvelle ligne ${change.block.id} n’est pas dans un tableau valide`);
+    }
+    const row = editorTable(tableBlock).rows.find(({ id }) => id === change.block.id);
+    if (row === undefined)
+      throw new TypeError(`la nouvelle ligne ${change.block.id} est introuvable`);
+    commands.push({
+      type: "insert-table-row",
+      tableId: tableBlock.id as Uuid,
+      row,
+      beforeRowId: placement.beforeBlockId,
+    });
+    for (const blockId of nestedEditorIds(change.block)) handledInternalIds.add(blockId);
+  }
+
+  for (const change of input.changes) {
+    if (change.type !== "delete" || change.block.type !== "tableRow") continue;
+    if (!isUuid(change.block.id))
+      throw new TypeError("la ligne supprimée n’a pas d’identité stable");
+    const tableId = input.tableIdForInternalBlock?.(change.block.id) ?? null;
+    if (tableId === null) {
+      throw new TypeError(`le tableau de la ligne supprimée ${change.block.id} est introuvable`);
+    }
+    commands.push({ type: "delete-table-row", tableId, rowId: change.block.id });
+    for (const blockId of nestedEditorIds(change.block)) handledInternalIds.add(blockId);
+  }
 
   const inserts = input.changes
-    .filter((change) => change.type === "insert" && !hasChangedAncestor(change, insertedIds))
+    .filter(
+      (change) =>
+        change.type === "insert" &&
+        !isInternalTableBlock(change.block) &&
+        !hasChangedAncestor(change, insertedIds),
+    )
     .sort(
       (left, right) =>
         (layout.get(right.block.id)?.order ?? -1) - (layout.get(left.block.id)?.order ?? -1),
@@ -300,7 +512,7 @@ export function commandsFromBlockNoteChanges(input: {
 
   const moves = input.changes.some((change) => change.type === "move")
     ? stableMoveChanges(input.changes, input.document).filter(
-        (change) => !hasChangedAncestor(change, insertedIds),
+        (change) => !isInternalTableBlock(change.block) && !hasChangedAncestor(change, insertedIds),
       )
     : [];
   for (const change of moves) {
@@ -316,6 +528,7 @@ export function commandsFromBlockNoteChanges(input: {
 
   for (const change of input.changes) {
     if (change.type !== "update" || !isUuid(change.block.id)) continue;
+    if (change.block.type === "table" || change.block.type === "tableRow") continue;
     const changedType = typeCommand(change.prevBlock, change.block);
     if (changedType !== null) commands.push(changedType);
     const replacement = minimalTextReplacement(textOf(change.prevBlock), textOf(change.block));
@@ -332,6 +545,12 @@ export function commandsFromBlockNoteChanges(input: {
 
   for (const change of input.changes) {
     if (change.type !== "delete") continue;
+    if (isInternalTableBlock(change.block)) {
+      if (!handledInternalIds.has(change.block.id) && change.block.type === "tableRow") {
+        throw new TypeError(`la suppression de la ligne ${change.block.id} n’a pas été traduite`);
+      }
+      continue;
+    }
     const previousParent =
       "prevParent" in change
         ? (change as { readonly prevParent?: EditorBlock | null }).prevParent

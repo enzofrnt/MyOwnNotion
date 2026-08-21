@@ -1,13 +1,8 @@
 import { BlockNoteView } from "@blocknote/ariakit";
 import type { ProjectedItem } from "@myownnotion/client-core";
-import type { BlockDocument, Uuid } from "@myownnotion/domain";
-import { canonicalDocumentJsonV3, migrateDocumentV2ToV3 } from "@myownnotion/domain";
-import {
-  OperationalPageDocument,
-  type PageCommand,
-  type PageTransactionResult,
-  PageUndoManager,
-} from "@myownnotion/page-state";
+import type { BlockDocument, BlockDocumentV3, Uuid } from "@myownnotion/domain";
+import { canonicalDocumentJsonV3 } from "@myownnotion/domain";
+import type { PageCommand } from "@myownnotion/page-state";
 import "@blocknote/ariakit/style.css";
 import "@blocknote/core/style.css";
 import type { BlockNoteSchema as CommunityBlockNoteSchema, PartialBlock } from "@blocknote/core";
@@ -27,11 +22,9 @@ import { Button } from "../../ui/primitives/button.tsx";
 import { useTheme } from "../../ui/theme-provider.tsx";
 import { validateBlockDrop } from "./block-drag-drop.ts";
 import {
-  blockNoteBlockToCanonical,
   blockNoteDocumentToCanonical,
   canonicalDocumentToBlockNote,
   canonicalV3ToLegacyV2,
-  ensureEditableDocument,
 } from "./blocknote-conversion.ts";
 import {
   blockNoteSchema,
@@ -40,57 +33,26 @@ import {
   type EditorInstance,
 } from "./blocknote-schema.ts";
 import { commandsFromBlockNoteChanges, EditorChangeBatcher } from "./editor-adapter.ts";
+import {
+  createMemoryEditorEngine,
+  createSessionEditorEngine,
+  type EditorEngine,
+} from "./editor-engine.ts";
 import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
 import { FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
-import { EditorOriginGuard } from "./editor-remote-apply.ts";
+import { applyRemoteEditorProjection, EditorOriginGuard } from "./editor-remote-apply.ts";
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
 
 const PAGE_LINK_PREFIX = "myownnotion:page:";
 
-function assertVisibleProjection(input: {
-  readonly editor: EditorInstance;
-  readonly operational: OperationalPageDocument;
-  readonly commands: readonly PageCommand[];
-  readonly result: PageTransactionResult;
-}): void {
-  const hasStructuralChange = input.commands.some(
-    (command) =>
-      command.type === "insert-block" ||
-      command.type === "move-block" ||
-      command.type === "delete-block",
-  );
-  if (hasStructuralChange) {
-    const expected = canonicalDocumentJsonV3(input.operational.snapshot());
-    const visible = canonicalDocumentJsonV3(
-      blockNoteDocumentToCanonical(input.editor.document as EditorBlock[]),
-    );
-    if (expected !== visible) {
-      throw new Error("la projection visible ne correspond plus à l’état de page");
-    }
-    return;
-  }
+function canonicalJsonOfEditor(blocks: readonly EditorBlock[]): string {
+  return canonicalDocumentJsonV3(blockNoteDocumentToCanonical(blocks));
+}
 
-  const expectedByBlock = new Map<string, PageTransactionResult["semanticChanges"][number]>();
-  for (const change of input.result.semanticChanges) expectedByBlock.set(change.blockId, change);
-  for (const [blockId, change] of expectedByBlock) {
-    if (change.type === "block-deleted") {
-      if (input.editor.getBlock(blockId) !== undefined) {
-        throw new Error(`le bloc supprimé ${blockId} est encore visible`);
-      }
-      continue;
-    }
-    const visibleBlock = input.editor.getBlock(blockId) as EditorBlock | undefined;
-    if (visibleBlock === undefined) throw new Error(`le bloc ${blockId} n’est plus visible`);
-    const expected = canonicalDocumentJsonV3({ blocks: [change.blockAfter] });
-    const visible = canonicalDocumentJsonV3({
-      blocks: [blockNoteBlockToCanonical(visibleBlock)],
-    });
-    if (expected !== visible) {
-      throw new Error(`le bloc visible ${blockId} ne correspond plus à l’état de page`);
-    }
-  }
+function canonicalJsonOfDocument(document: BlockDocumentV3): string {
+  return canonicalDocumentJsonV3(document);
 }
 
 export interface PageEditorHandle {
@@ -105,6 +67,7 @@ export function PageEditor({
   handleRef,
   items,
   onOpenPage,
+  session,
 }: {
   readonly pageId: Uuid;
   readonly document: BlockDocument;
@@ -112,6 +75,8 @@ export function PageEditor({
   readonly handleRef: React.RefObject<PageEditorHandle | null>;
   readonly items: readonly ProjectedItem[];
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
+  /** Present when the page is backed by a durable editing session (FR-052). */
+  readonly session?: import("./editor-sync-status.tsx").EditorDurableSession | undefined;
 }) {
   const { resolvedTheme } = useTheme();
   const [editorError, setEditorError] = useState<string | null>(null);
@@ -119,20 +84,15 @@ export function PageEditor({
   const onOpenPageRef = useRef(onOpenPage);
   onOpenPageRef.current = onOpenPage;
 
-  // EditorSurface is keyed by page and opened revision. Keeping these objects
-  // for that whole mount prevents a harmless parent render from resetting a
-  // local operational history that has not yet reached the legacy save bridge.
-  const [operational] = useState(() =>
-    OperationalPageDocument.create({
-      pageId,
-      document: ensureEditableDocument(migrateDocumentV2ToV3(document)),
-    }),
+  // One engine per mounted surface. Keeping it for that whole mount prevents a
+  // harmless parent render from resetting an operational history — in memory
+  // or in the durable session — that the visible typing depends on.
+  const [engine] = useState<EditorEngine>(() =>
+    session === undefined
+      ? createMemoryEditorEngine(pageId, document)
+      : createSessionEditorEngine(session),
   );
-  const [history] = useState(() => new PageUndoManager(operational));
-  const initialContent = useMemo(
-    () => canonicalDocumentToBlockNote(operational.snapshot()),
-    [operational],
-  );
+  const initialContent = useMemo(() => canonicalDocumentToBlockNote(engine.snapshot()), [engine]);
   const editor = useCreateBlockNote(
     {
       schema: blockNoteSchema as unknown as ReturnType<typeof CommunityBlockNoteSchema.create>,
@@ -162,7 +122,7 @@ export function PageEditor({
         },
       },
     },
-    [operational],
+    [engine],
   ) as unknown as EditorInstance;
   const origin = useMemo(() => new EditorOriginGuard(), []);
   const viewEditor = editor as unknown as ComponentProps<typeof BlockNoteView>["editor"];
@@ -177,7 +137,7 @@ export function PageEditor({
     origin.run("recovery", () => {
       editor.replaceBlocks(
         editor.document,
-        canonicalDocumentToBlockNote(operational.snapshot()) as unknown as PartialBlock[],
+        canonicalDocumentToBlockNote(engine.snapshot()) as unknown as PartialBlock[],
       );
     });
     const fallbackId =
@@ -185,23 +145,37 @@ export function PageEditor({
         ? activeBlockId
         : editor.document[0]?.id;
     if (fallbackId !== undefined) editor.setTextCursorPosition(fallbackId, "end");
-  }, [editor, operational, origin]);
+  }, [editor, engine, origin]);
+
+  // Gestures arrive faster than durable commits resolve. The visible surface
+  // may therefore be several transactions ahead of the last completed one, so
+  // a per-gesture projection assertion would compare unrelated states. The
+  // guard instead runs when the pipeline drains: with nothing in flight, the
+  // visible document and the authority must agree exactly.
+  const inFlight = useRef(0);
+  const assertDrainedProjection = useCallback(() => {
+    if (inFlight.current > 0) return;
+    if (
+      canonicalJsonOfEditor(editor.document as EditorBlock[]) !==
+      canonicalJsonOfDocument(engine.snapshot())
+    ) {
+      throw new Error("la projection visible ne correspond plus à l’état de page");
+    }
+  }, [editor, engine]);
 
   const applyLocalChanges = useCallback(
     (changes: EditorBlocksChanged) => {
       if (!origin.acceptLocalChanges || changes.length === 0) return;
+      let commands: readonly PageCommand[] = [];
       try {
-        const commands = commandsFromBlockNoteChanges({
+        commands = commandsFromBlockNoteChanges({
           changes,
           document: editor.document as EditorBlock[],
+          tableIdForInternalBlock: (blockId) => engine.canonicalBlockIdForIdentity(blockId),
         });
         if (commands.length === 0) return;
         const dropRefusal = validateBlockDrop(changes, editor.document as EditorBlock[]);
         if (dropRefusal !== null) throw new Error(dropRefusal);
-        const result = history.execute(commands);
-        setHistoryVersion((version) => version + 1);
-        assertVisibleProjection({ editor, operational, commands, result });
-        setEditorError(null);
       } catch (error) {
         recoverVisibleProjection();
         setEditorError(
@@ -209,9 +183,46 @@ export function PageEditor({
             ? `Cette modification n’a pas été appliquée : ${error.message}`
             : "Cette modification n’a pas été appliquée.",
         );
+        return;
       }
+      // The gesture is already visible; the engine makes it authoritative.
+      // A blocked session keeps what the owner typed on screen and reports
+      // through its own state — only an execution refusal rewinds the view.
+      inFlight.current += 1;
+      setHistoryVersion((version) => version + 1);
+      void engine
+        .apply(commands)
+        .then(() => {
+          inFlight.current -= 1;
+          try {
+            assertDrainedProjection();
+            setEditorError(null);
+          } catch (error) {
+            recoverVisibleProjection();
+            setEditorError(
+              error instanceof Error
+                ? `Cette modification n’a pas été appliquée : ${error.message}`
+                : "Cette modification n’a pas été appliquée.",
+            );
+          }
+        })
+        .catch((error: unknown) => {
+          inFlight.current -= 1;
+          if (
+            session !== undefined &&
+            (session.sync.synchronizationKind === "blocked" || session.recoveryBuffer !== null)
+          ) {
+            return;
+          }
+          recoverVisibleProjection();
+          setEditorError(
+            error instanceof Error
+              ? `Cette modification n’a pas été appliquée : ${error.message}`
+              : "Cette modification n’a pas été appliquée.",
+          );
+        });
     },
-    [editor, history, operational, origin, recoverVisibleProjection],
+    [assertDrainedProjection, editor, engine, origin, recoverVisibleProjection, session],
   );
   const batcher = useMemo(() => new EditorChangeBatcher(applyLocalChanges), [applyLocalChanges]);
 
@@ -223,27 +234,57 @@ export function PageEditor({
     [batcher, editor],
   );
 
+  // The session is also fed from outside this component: remote merges adopted
+  // by the reconciler arrive as change events and must reach the visible
+  // surface by identity — never as a full replacement of the local draft.
+  useEffect(() => {
+    if (session === undefined) return;
+    return session.subscribe(
+      (change: {
+        readonly origin: string;
+        readonly document: Parameters<Parameters<typeof session.subscribe>[0]>[0]["document"];
+      }) => {
+        setHistoryVersion((version) => version + 1);
+        if (change.origin === "remote") {
+          applyRemoteEditorProjection({
+            editor,
+            origin,
+            next: canonicalDocumentToBlockNote(change.document) as EditorBlock[],
+          });
+        }
+      },
+    );
+  }, [editor, origin, session]);
+
   useEffect(() => {
     editor.isEditable = editable;
   }, [editable, editor]);
 
   const applyHistory = useCallback(
     (direction: "undo" | "redo") => {
-      try {
-        const result = direction === "undo" ? history.undo() : history.redo();
-        if (result === null) return;
-        recoverVisibleProjection();
-        setHistoryVersion((version) => version + 1);
-        setEditorError(null);
-      } catch (error) {
-        setEditorError(
-          error instanceof Error
-            ? `Impossible de ${direction === "undo" ? "revenir en arrière" : "rétablir"} : ${error.message}`
-            : "L’historique local n’a pas pu être appliqué.",
-        );
-      }
+      const apply = direction === "undo" ? engine.undo() : engine.redo();
+      void apply
+        .then((result) => {
+          if (!result.changed) return;
+          recoverVisibleProjection();
+          setHistoryVersion((version) => version + 1);
+          setEditorError(null);
+        })
+        .catch((error: unknown) => {
+          if (
+            session !== undefined &&
+            (session.sync.synchronizationKind === "blocked" || session.recoveryBuffer !== null)
+          ) {
+            return;
+          }
+          setEditorError(
+            error instanceof Error
+              ? `Impossible de ${direction === "undo" ? "revenir en arrière" : "rétablir"} : ${error.message}`
+              : "L’historique local n’a pas pu être appliqué.",
+          );
+        });
     },
-    [history, recoverVisibleProjection],
+    [engine, recoverVisibleProjection, session],
   );
   const undo = useCallback(() => applyHistory("undo"), [applyHistory]);
   const redo = useCallback(() => applyHistory("redo"), [applyHistory]);
@@ -259,7 +300,7 @@ export function PageEditor({
   useImperativeHandle(
     handleRef,
     () => ({
-      read: () => canonicalV3ToLegacyV2(operational.snapshot()),
+      read: () => canonicalV3ToLegacyV2(engine.snapshot()),
       focus: (target) => {
         const fallback = editor.document[0];
         const blockId = target?.blockId ?? (fallback?.id as Uuid | undefined);
@@ -268,7 +309,7 @@ export function PageEditor({
         }
       },
     }),
-    [editor, operational],
+    [editor, engine],
   );
 
   return (
@@ -297,7 +338,7 @@ export function PageEditor({
           data-testid="undo"
           aria-label="Annuler"
           title="Annuler (⌘Z)"
-          disabled={!editable || !history.canUndo}
+          disabled={!editable || !engine.canUndo}
           onClick={undo}
         >
           <AppIcon name="undo" />
@@ -309,7 +350,7 @@ export function PageEditor({
           data-testid="redo"
           aria-label="Rétablir"
           title="Rétablir (⇧⌘Z)"
-          disabled={!editable || !history.canRedo}
+          disabled={!editable || !engine.canRedo}
           onClick={redo}
         >
           <AppIcon name="redo" />

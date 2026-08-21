@@ -10,6 +10,7 @@ import {
   moveSelectedItemInto,
   openWorkspace,
   renameItem,
+  saveDocument,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -72,8 +73,7 @@ test("links to another page without nesting it, including a descendant", async (
   await editor.pressSequentially("référence");
   await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
   await linkSelectionToPage(page, reference);
-  await page.getByTestId("save-document").click();
-  await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+  await saveDocument(page, { until: "synced" });
   await waitForSynchronized(page);
 
   const targetHref = await pageLinks(page).first().getAttribute("href");
@@ -98,8 +98,7 @@ test("links to another page without nesting it, including a descendant", async (
   await selectItem(page, source);
 
   await appendLinkedParagraph(page, "enfant", child);
-  await page.getByTestId("save-document").click();
-  await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+  await saveDocument(page, { until: "synced" });
   await waitForSynchronized(page);
   await expect(pageLinks(page)).toHaveCount(2);
   await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(1);

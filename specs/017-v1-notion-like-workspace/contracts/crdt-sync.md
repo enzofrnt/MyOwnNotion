@@ -136,6 +136,7 @@ interface ActivePageSyncResponse {
     acceptedAt: Rfc3339Instant;
   }>;
   serverVersionVector: Base64Url;
+  throughPageSequence: number;
   latestPageSequence: number;
   hasMore: boolean;
   canonical: {
@@ -156,6 +157,12 @@ interface ActivePageSyncResponse {
 Le serveur n'inclut pas dans `remoteUpdates` une update déjà dominée par
 `persistedVersionVector`. Une update importée mais pas encore persistée sera
 redemandée au prochain appel : l'import est idempotent.
+
+`throughPageSequence` est la dernière ligne contiguë du journal que le serveur
+a effectivement examinée pour cette réponse, y compris une ligne déjà dominée
+ou accusée dans `accepted`/`repeated`. Le client l'avance seulement après avoir
+persisté la réponse. `latestPageSequence` décrit la tête du journal et ne doit
+jamais servir de curseur de rattrapage tant que `hasMore` vaut `true`.
 
 `revisionBoundary` est un hint de fermeture propre, jamais la garantie de
 durabilité. Le serveur applique sa propre politique : 30 secondes d'inactivité,
@@ -321,15 +328,32 @@ type LegacySemanticCommand =
       key: string;
       before: JsonValue;
       after: JsonValue;
-    };
+      properties?: JsonObject;
+    }
+  | {
+      type: "insert-table-row";
+      tableId: Uuid;
+      row: TableRowV3;
+      beforeRowId: Uuid | null;
+    }
+  | { type: "delete-table-row"; tableId: Uuid; rowId: Uuid }
+  | {
+      type: "insert-table-column";
+      tableId: Uuid;
+      column: TableColumnV3;
+      cells: Array<{ rowId: Uuid; cell: TableCellV3 }>;
+      beforeColumnId: Uuid | null;
+    }
+  | { type: "delete-table-column"; tableId: Uuid; columnId: Uuid };
 ~~~
 
 Les offsets de la branche sont UTF-16 comme l'éditeur. Les contextes bornés ne
 sont pas des identités causales ; ils aident seulement à vérifier le diff. Le
 serveur reconstruit le document local en rejouant les transactions sur la base
 et exige le même digest que `localDocument`. Il calcule ensuite le diff réel
-sur `base/local/head`, afin qu'un client ne puisse pas masquer une réduction
-de données dans une liste de commandes incomplète.
+sur `base/local/head`, y compris les lignes, colonnes et cellules de tableau,
+afin qu'un client ne puisse pas masquer une réduction de données dans une
+liste de commandes incomplète.
 
 `baseDocument` est omis si le serveur possède encore le snapshot. S'il est
 fourni, le serveur vérifie format, UUID, digest annoncé, lignée de révision

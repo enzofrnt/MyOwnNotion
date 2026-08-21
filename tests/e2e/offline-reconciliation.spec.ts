@@ -15,6 +15,7 @@ import {
   ensureNavigationRowVisible,
   openWorkspace,
   openWorkspaceDiagnostics,
+  saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -80,16 +81,17 @@ test.describe("offline continuity (US6)", () => {
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
 
-    // Select the page and note its identity.
+    // Go offline BEFORE the first editor open: with no network the page
+    // cannot be activated onto the operational protocol, so this journey
+    // exercises the legacy compatibility path it was written for — an edit
+    // captured as a full-document mutation, then confronted with a competing
+    // server revision.
+    await goOffline(page);
     await selectItem(page, pageName);
     const itemId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
     await expect(page.getByTestId("block-editor")).toBeVisible();
-
-    // Go offline and edit the document locally.
-    await goOffline(page);
     await typeIntoEditor(page, "offline edit");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible();
+    await saveDocument(page);
 
     // Meanwhile the server accepts a competing revision (another device).
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);

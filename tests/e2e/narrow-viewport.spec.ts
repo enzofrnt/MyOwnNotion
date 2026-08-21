@@ -19,6 +19,7 @@ import {
   ensureNavigationVisible,
   expectNoHorizontalOverflow,
   openWorkspace,
+  saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -90,8 +91,7 @@ test.describe("at 320 pixels", () => {
     await expect(surface.locator("h1")).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page);
     await expectNoHorizontalOverflow(page);
   });
 
@@ -103,7 +103,7 @@ test.describe("at 320 pixels", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
 
-    await expect(page.getByTestId("save-state")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("editor-sync-status")).toBeVisible({ timeout: 30_000 });
     await expectNoHorizontalOverflow(page);
   });
 

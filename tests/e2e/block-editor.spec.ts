@@ -28,6 +28,7 @@ import {
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   openWorkspace,
+  saveDocument,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -335,8 +336,7 @@ test.describe("the document survives", () => {
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.press("Delete");
     await surface(page).pressSequentially("# Kept");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await page.reload();
@@ -353,12 +353,16 @@ test.describe("the document survives", () => {
 
 test.describe("a block this client does not recognise", () => {
   test("is shown as unrenderable and kept unchanged through an edit", async ({ page, request }) => {
-    // FR-006 and SC-009, end to end. Seeded through the API with a block type
-    // no client version knows, then edited and saved from the editor: the
-    // unknown block must come back byte for byte.
+    // FR-030 and FR-070, end to end. Seeded through the API with a block type
+    // no client version knows — before the first open, because opening is
+    // what activates a page onto the operational protocol — then edited from
+    // the editor: the unknown block must come back byte for byte through
+    // activation, synchronization and canonical materialization.
     const name = uniqueName("UnknownBlockPage");
-    const itemId = await openPage(page, name);
-
+    await openWorkspace(page);
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    const itemId = (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
 
@@ -381,12 +385,12 @@ test.describe("a block this client does not recognise", () => {
     });
     expect(seeded.ok(), await seeded.text()).toBe(true);
 
+    // The document was written straight to the server, so the client has to
+    // pull it before the editor can render it. Without this the test races
+    // the reconciler: it passed on a fast machine, failed on a loaded CI
+    // runner, and reported itself flaky rather than wrong.
     await page.reload();
     await openWorkspace(page);
-    // The document was written straight to the server, so the client has to
-    // pull it before the editor can render it. Without this the test races the
-    // reconciler: it passed on a fast machine, failed on a loaded CI runner,
-    // and reported itself flaky rather than wrong.
     await waitForSynchronized(page);
     await selectItem(page, name);
 
@@ -396,13 +400,11 @@ test.describe("a block this client does not recognise", () => {
     await expect(placeholder).toBeVisible({ timeout: 30_000 });
     await expect(placeholder).toContainText("kanbanBoard");
 
-    // Now edit around it and save.
+    // Now edit beside it; autosave makes the edit durable and synchronized.
     await placeholder.click({ button: "right" });
     await page.getByTestId("context-insert-after").click();
     await surface(page).pressSequentially("a paragraph beside it");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
-    await waitForSynchronized(page);
+    await saveDocument(page, { until: "synced" });
 
     const after = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const body = (await after.json()) as {
@@ -414,15 +416,19 @@ test.describe("a block this client does not recognise", () => {
 });
 
 test.describe("a page written before the block editor existed", () => {
-  test("opens read-only and is not rewritten until the owner converts it", async ({
+  test("opens editable with its content intact and migrates only on first use", async ({
     page,
     request,
   }) => {
-    // A read is not a write. A client that rewrote an owner's stored document
-    // on open would be doing something they did not ask for and cannot audit.
+    // A read is not a rewrite. Opening a legacy page activates it onto the
+    // operational protocol (the documented v3 transition), but the owner's
+    // text must arrive intact and no revision may be created by looking —
+    // history moves when they write, not when they read.
     const name = uniqueName("LegacyPage");
-    const itemId = await openPage(page, name);
-
+    await openWorkspace(page);
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    const itemId = (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
     const legacyBody = { text: "written by an older client", count: 3 };
@@ -438,15 +444,13 @@ test.describe("a page written before the block editor existed", () => {
 
     await page.reload();
     await openWorkspace(page);
-    // The document was written straight to the server, so the client has to
-    // pull it before the editor can render it. Without this the test races the
-    // reconciler: it passed on a fast machine, failed on a loaded CI runner,
-    // and reported itself flaky rather than wrong.
     await waitForSynchronized(page);
     await selectItem(page, name);
 
-    await expect(page.getByTestId("legacy-document-notice")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("legacy-document-body")).toContainText("older client");
+    // The legacy text survives the transition and is immediately editable:
+    // the old read-only gate made conversion a second, lossy-feeling step.
+    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(surface(page)).toContainText("written by an older client", { timeout: 30_000 });
 
     // Nothing was written merely by looking at it: the head has not moved.
     const afterOpen = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
@@ -455,8 +459,17 @@ test.describe("a page written before the block editor existed", () => {
       expect(afterHead).toBe(seededHead);
     }
 
-    // Converting is the owner's action, and it keeps the original content.
-    await page.getByTestId("convert-legacy-document").click();
-    await expect(page.getByTestId("block-editor")).toBeVisible();
+    // The first real edit goes through the operational path and keeps what
+    // was already there.
+    await surface(page).click();
+    await page.keyboard.press("ControlOrMeta+ArrowRight");
+    await surface(page).pressSequentially(" — continued today");
+    await saveDocument(page, { until: "synced" });
+    await expect(surface(page)).toContainText("written by an older client — continued today");
+
+    const afterEdit = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
+    const editedHead = ((await afterEdit.json()) as { currentRevisionId: string })
+      .currentRevisionId;
+    expect(editedHead).not.toBe(seededHead);
   });
 });

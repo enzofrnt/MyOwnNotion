@@ -7,6 +7,7 @@ import {
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   openWorkspace,
+  saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -27,8 +28,7 @@ test.describe("revision history (US5)", () => {
 
     // Edit the document to supersede the original revision.
     await typeIntoEditor(page, "version 2");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible();
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
     await selectItem(page, pageName);
 
@@ -67,7 +67,7 @@ test.describe("revision history (US5)", () => {
 
     // Edit once so the original head is restorable history.
     await typeIntoEditor(page, "v2");
-    await page.getByTestId("save-document").click();
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
     await selectItem(page, pageName);
 

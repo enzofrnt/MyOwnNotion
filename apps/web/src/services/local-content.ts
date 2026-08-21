@@ -9,16 +9,23 @@
  */
 import {
   applyLocalMutation,
+  EncryptedPageOperationLog,
+  installPageCheckpoint,
+  LegacyPageEditingSession,
+  LegacyPageStateStore,
   LocalCipher,
   type LocalDatabase,
   type LocalDatabaseEntryRow,
   LocalDatabaseRepository,
   type LocalDatabaseRow,
   LocalKeyManager,
+  LocalPageStateStore,
   LocalRecordCodec,
   LocalRepository,
   Outbox,
   openLocalDatabase,
+  PageEditingSession,
+  PageReconciler,
   type ProjectedItem,
   type ReconcileTransport,
   reconcile,
@@ -39,16 +46,21 @@ import {
   type DatabaseDefinition,
   type DatabaseImpactConfirmation,
   type DefinitionImpact,
+  documentDigestV3,
   type EntryValues,
   generateUuidV7,
+  migrateStoredPageDocumentToV3,
   type PageDocument,
   previewDefinitionImpact,
   type RelationTargets,
+  readDocumentBody,
   type SafeError,
   type Uuid,
+  upgradeLegacyBody,
 } from "@myownnotion/domain";
 import { ContentApi } from "./content-api.ts";
 import { IndexedDbKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
+import { PageOperationsApi } from "./page-operations-api.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
 
 /**
@@ -65,6 +77,24 @@ export interface LocalContentSnapshot {
   readonly storagePersisted: boolean | null;
 }
 
+export type OpenOperationalPageResult =
+  | {
+      readonly ok: true;
+      /** `active`: shared operational state. `legacy-branch`: offline-first branch. */
+      readonly mode: "active" | "legacy-branch";
+      readonly session: PageEditingSession | LegacyPageEditingSession;
+      readonly reconciler: PageReconciler;
+      readonly close: () => void;
+    }
+  | {
+      readonly ok: false;
+      readonly offline: boolean;
+      readonly code: string;
+      readonly message: string;
+    };
+
+type SharedOpenedOperationalPage = Omit<Extract<OpenOperationalPageResult, { ok: true }>, "close">;
+
 type Listener = () => void;
 export type LocalProjectionChange =
   | { readonly kind: "upsert"; readonly itemIds: readonly Uuid[] }
@@ -78,6 +108,9 @@ export class LocalContentService {
   readonly databases: LocalDatabaseRepository;
   readonly outbox: Outbox;
   readonly api: ContentApi;
+  readonly pageOperationLog: EncryptedPageOperationLog;
+  readonly pageStateStore: LocalPageStateStore;
+  readonly pageOperationsApi: PageOperationsApi;
   #syncState: SyncState = "pending";
   #pendingCount = 0;
   #conflictCount = 0;
@@ -91,6 +124,12 @@ export class LocalContentService {
   #snapshot: LocalContentSnapshot;
   readonly #keys: LocalKeyManager;
   readonly #codec: LocalRecordCodec;
+  readonly #pageReconcilers = new Map<Uuid, PageReconciler>();
+  readonly #openingPages = new Map<
+    Uuid,
+    Promise<SharedOpenedOperationalPage | OpenOperationalPageResult>
+  >();
+  #pageCsrfToken: () => string | null = () => null;
   #unlocked: Promise<void> | null = null;
 
   constructor(api: ContentApi = new ContentApi(), databaseName = "myownnotion-local") {
@@ -101,10 +140,15 @@ export class LocalContentService {
     // minting a key is asynchronous, and a constructor that cannot await would
     // have to hand out a codec that is not ready yet.
     this.#keys = new LocalKeyManager(new IndexedDbKeyStorage());
-    this.#codec = new LocalRecordCodec(new LocalCipher(this.#keys), {
+    const cipher = new LocalCipher(this.#keys);
+    const operationContext = {
       installationId: databaseName,
       workspaceId: databaseName,
-    });
+    };
+    this.#codec = new LocalRecordCodec(cipher, operationContext);
+    this.pageOperationLog = new EncryptedPageOperationLog(this.db, cipher, operationContext);
+    this.pageStateStore = new LocalPageStateStore(this.pageOperationLog);
+    this.pageOperationsApi = new PageOperationsApi({ csrfToken: () => this.#pageCsrfToken() });
     this.repository = new LocalRepository(this.db, this.#codec);
     this.databases = new LocalDatabaseRepository(this.db, this.#codec);
     this.outbox = new Outbox(this.db, this.#codec);
@@ -118,6 +162,23 @@ export class LocalContentService {
       this.#keys.lock();
       await this.#emitProjection({ kind: "clear" });
     });
+  }
+
+  configurePageOperationAuthorization(csrfToken: () => string | null): void {
+    this.#pageCsrfToken = csrfToken;
+  }
+
+  pageReconciler(pageId: Uuid): PageReconciler {
+    let reconciler = this.#pageReconcilers.get(pageId);
+    if (reconciler === undefined) {
+      reconciler = new PageReconciler({
+        pageId,
+        log: this.pageOperationLog,
+        transport: this.pageOperationsApi,
+      });
+      this.#pageReconcilers.set(pageId, reconciler);
+    }
+    return reconciler;
   }
 
   /**
@@ -313,6 +374,225 @@ export class LocalContentService {
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {
     return this.repository.getItem(itemId);
+  }
+
+  /**
+   * Opens (activating if needed) the durable editing session for one page.
+   *
+   * Concurrent callers for the same page share one in-flight open. React
+   * strict effects and a double click both land here, and two parallel opens
+   * would each seed an empty page with its own first paragraph — two blocks
+   * where one belongs, merged permanently by the CRDT. The durable-page
+   * subscription stays per caller: each mounted editor subscribes and
+   * unsubscribes on its own, so one surface closing never blinds another.
+   */
+  async openOperationalPage(itemId: Uuid): Promise<OpenOperationalPageResult> {
+    const inFlight = this.#openingPages.get(itemId);
+    if (inFlight !== undefined) {
+      const shared = await inFlight;
+      if (!shared.ok) return shared;
+      return this.#attachToOpenedPage(shared.session, shared.reconciler, shared.mode);
+    }
+    const opened: Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> =
+      this.#openOperationalPageOnce(itemId).finally(() => {
+        this.#openingPages.delete(itemId);
+      });
+    this.#openingPages.set(itemId, opened);
+    const shared = await opened;
+    if (!shared.ok) return shared;
+    return this.#attachToOpenedPage(shared.session, shared.reconciler, shared.mode);
+  }
+
+  #attachToOpenedPage(
+    session: PageEditingSession | LegacyPageEditingSession,
+    reconciler: PageReconciler,
+    mode: "active" | "legacy-branch",
+  ): Extract<OpenOperationalPageResult, { ok: true }> {
+    const unsubscribe = reconciler.subscribeDurablePage(async () => {
+      if (mode === "active" && "adoptDurablePage" in session) {
+        await session.adoptDurablePage();
+      }
+    });
+    void reconciler.synchronize();
+    return { ok: true, mode, session, reconciler, close: unsubscribe };
+  }
+
+  async #openOperationalPageOnce(
+    itemId: Uuid,
+  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> {
+    await this.#unlock();
+    let state = await this.pageOperationLog.getState(itemId);
+    let activatedHere = false;
+    if (state === null) {
+      const item = await this.repository.getItem(itemId);
+      if (item === null || item.kind !== "page") {
+        return {
+          ok: false,
+          offline: false,
+          code: "item.not-found",
+          message: "This page is not available on this device.",
+        };
+      }
+      const stored = item.pageDocument ?? {
+        format: "myownnotion.document+json" as const,
+        formatVersion: 2,
+        body: {},
+      };
+      const migrated = migrateStoredPageDocumentToV3(stored);
+      if (!migrated.ok) {
+        return {
+          ok: false,
+          offline: false,
+          code: "page-operations.projection-invalid",
+          message: "This page cannot be activated without reducing its content.",
+        };
+      }
+      // The local projection can be a revision behind the server at the exact
+      // moment of a first open (creation echo still in flight). Activation is
+      // compare-and-swap, so it refuses a stale base instead of guessing.
+      // Catching up and retrying once turns that honest refusal into an
+      // ordinary open instead of stranding the page on the legacy path until
+      // a reload.
+      let expectedRevisionId = item.currentRevisionId;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const activation = await this.pageOperationsApi.activate(itemId, {
+          requestId: generateUuidV7(),
+          expectedRevisionId,
+          expectedCanonicalDigest: await documentDigestV3(migrated.document),
+        });
+        if (activation.ok) {
+          await installPageCheckpoint(this.pageOperationLog, activation.value);
+          activatedHere = true;
+          break;
+        }
+        const stale = activation.problem.code === "page-operations.activation-stale";
+        if (!stale || attempt === 1) {
+          // Offline with no shared state yet is not a refusal: the page opens
+          // on a local semantic branch and joins shared history when the
+          // network returns. Everything else is what it says it is.
+          if (activation.offline) {
+            return await this.#openLegacyBranchSession(itemId, stored.body);
+          }
+          return {
+            ok: false,
+            offline: activation.offline,
+            code: activation.problem.code,
+            message: activation.problem.message,
+          };
+        }
+        await this.synchronize();
+        const refreshed = await this.repository.getItem(itemId);
+        if (refreshed === null) {
+          return {
+            ok: false,
+            offline: false,
+            code: "item.not-found",
+            message: "This page is not available on this device.",
+          };
+        }
+        expectedRevisionId = refreshed.currentRevisionId;
+      }
+      state = await this.pageOperationLog.getState(itemId);
+    }
+
+    const reconciler = this.pageReconciler(itemId);
+    const session = await PageEditingSession.resume({
+      pageId: itemId,
+      log: this.pageOperationLog,
+      store: this.pageStateStore,
+      online: typeof navigator === "undefined" ? true : navigator.onLine,
+      publishDurableUpdate: () => {
+        void reconciler.synchronize();
+      },
+    });
+    if (session === null) {
+      return {
+        ok: false,
+        offline: false,
+        code: "page-operations.local-state-missing",
+        message: "The local operational checkpoint is unavailable.",
+      };
+    }
+    // An activated empty page has no blocks, and BlockNote cannot mount an
+    // empty document. The first paragraph is seeded as a real committed
+    // transaction — not faked in the editor — so its identity lives in the
+    // operational state and every device converges on it. Seeding belongs to
+    // the call that activated the page: a resuming tab already sees whatever
+    // the activating tab committed, and seeding again would duplicate it.
+    if (
+      activatedHere &&
+      state !== null &&
+      state.status === "active" &&
+      session.read().blocks.length === 0
+    ) {
+      await session.transact({
+        type: "insert-block",
+        block: { type: "paragraph", id: generateUuidV7(), content: [] },
+        parentBlockId: null,
+        beforeBlockId: null,
+      });
+    }
+    return { ok: true, mode: "active", session, reconciler };
+  }
+
+  /**
+   * Opens a never-activated page for offline editing.
+   *
+   * The branch records semantic transactions against the local projection's
+   * revision; the reconciler converts it to shared history on the first
+   * online pass. Nothing here can reach the server, so nothing here pretends
+   * to have (FR-027): the status line says the work is on this device only.
+   */
+  async #openLegacyBranchSession(
+    itemId: Uuid,
+    storedBody: unknown,
+  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> {
+    const item = await this.repository.getItem(itemId);
+    if (item === null || item.kind !== "page") {
+      return {
+        ok: false,
+        offline: false,
+        code: "item.not-found",
+        message: "This page is not available on this device.",
+      };
+    }
+    const read = readDocumentBody(storedBody);
+    const baseDocument =
+      read.kind === "blocks"
+        ? read.result.ok
+          ? read.result.document
+          : null
+        : upgradeLegacyBody(read.body);
+    if (baseDocument === null) {
+      return {
+        ok: false,
+        offline: false,
+        code: "page-operations.projection-invalid",
+        message: "This page cannot be opened without reducing its content.",
+      };
+    }
+    const existing = await this.pageOperationLog.getLegacyBranch(itemId);
+    if (existing?.branch.status === "converted") {
+      return {
+        ok: false,
+        offline: false,
+        code: "page-operations.local-state-missing",
+        message: "The converted page state has not arrived on this device yet.",
+      };
+    }
+    const reconciler = this.pageReconciler(itemId);
+    const session = await LegacyPageEditingSession.open({
+      pageId: itemId,
+      baseRevisionId: item.currentRevisionId,
+      baseDocument,
+      log: this.pageOperationLog,
+      store: new LegacyPageStateStore(this.pageOperationLog),
+      online: typeof navigator === "undefined" ? true : navigator.onLine,
+      publishDurableBranch: () => {
+        void reconciler.synchronize();
+      },
+    });
+    return { ok: true, mode: "legacy-branch", session, reconciler };
   }
 
   async getDatabase(databaseId: Uuid): Promise<LocalDatabaseRow | null> {

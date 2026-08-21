@@ -166,6 +166,15 @@ export class SecurityApi {
     return this.#csrfToken !== null;
   }
 
+  /**
+   * Supplies the current tab's memory-only token to other same-origin write
+   * transports. Callers must use it immediately as a header and never persist
+   * or place it in a URL.
+   */
+  csrfTokenForSameOriginWrite(): string | null {
+    return this.#csrfToken;
+  }
+
   async #send(
     path: string,
     init: RequestInit & { acceptsCookie?: boolean } = {},
