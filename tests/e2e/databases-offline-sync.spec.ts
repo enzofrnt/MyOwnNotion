@@ -10,10 +10,16 @@
 import type { Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  closeMobileNavigation,
+  ensureNavigationVisible,
   openSecondDevice,
   openWorkspace,
+  openWorkspaceDiagnostics,
+  saveEntryProperties,
   selectItem,
   uniqueName,
+  waitForDatabaseDefinitionIdle,
+  waitForDatabaseDefinitionSaved,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -37,7 +43,8 @@ async function goOnline(page: Page): Promise<void> {
 }
 
 async function createDatabase(page: Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "New root database" }).click();
+  await ensureNavigationVisible(page);
+  await page.getByTestId("new-root-database").click();
   const form = page.getByRole("form", { name: "Create a database" });
   await form.getByLabel("Create a database").fill(name);
   await form.getByRole("button", { name: "Create database" }).click();
@@ -57,7 +64,8 @@ async function addTextProperty(
   await editor.getByRole("button", { name: "Save property" }).click();
   await expect(editor).toBeHidden({ timeout: 15_000 });
   await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
-  if (options.online !== false) await waitForSynchronized(page);
+  if (options.online === false) await waitForDatabaseDefinitionIdle(page);
+  else await waitForDatabaseDefinitionSaved(page);
 }
 
 async function createEntry(page: Page, title: string): Promise<void> {
@@ -88,10 +96,7 @@ async function saveEntryValues(
   for (const [label, value] of Object.entries(values)) {
     await panel.getByLabel(label, { exact: true }).fill(value);
   }
-  await panel.getByRole("button", { name: "Save properties" }).click();
-  await expect(panel.getByRole("button", { name: "Save properties" })).toBeEnabled({
-    timeout: 15_000,
-  });
+  await saveEntryProperties(page);
 }
 
 async function closeEntry(page: Page): Promise<void> {
@@ -123,7 +128,6 @@ function pendingCommand(page: Page, commandType: string) {
 
 async function openDatabaseAfterReload(page: Page, databaseName: string): Promise<void> {
   await openWorkspace(page);
-  await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible({ timeout: 20_000 });
   await selectItem(page, databaseName);
   await expect(page.getByRole("heading", { name: databaseName })).toBeVisible({
     timeout: 15_000,
@@ -244,9 +248,6 @@ test.describe("structured offline convergence (US5)", () => {
     const second = await openSecondDevice(browser, baseURL);
     try {
       await openWorkspace(second.page);
-      await expect(second.page.getByTestId(`tree-item-${databaseName}`)).toBeVisible({
-        timeout: 20_000,
-      });
       await selectItem(second.page, databaseName);
       await expect(
         second.page.locator("[data-entry-trigger]").filter({ hasText: entryName }),
@@ -278,6 +279,7 @@ test.describe("structured offline convergence (US5)", () => {
         "local compatible note",
       );
       await expect(second.page.getByLabel("Owner", { exact: true })).toHaveValue("common owner");
+      await openWorkspaceDiagnostics(second.page);
       await expect(second.page.getByTestId("pending-mutations")).toBeVisible();
 
       // The online device changes another stable field from the common entry
@@ -397,9 +399,6 @@ test.describe("structured offline convergence (US5)", () => {
     const second = await openSecondDevice(browser, baseURL);
     try {
       await openWorkspace(second.page);
-      await expect(second.page.getByTestId(`tree-item-${databaseName}`)).toBeVisible({
-        timeout: 20_000,
-      });
       await selectItem(second.page, databaseName);
       const watchingCell = second.page
         .locator(".database-grid tbody tr")
@@ -434,12 +433,14 @@ test.describe("structured offline convergence (US5)", () => {
 
       // Membership and identity remain visible, but values and completeness do
       // not pretend to be available while the server cannot fill the gap.
+      await ensureNavigationVisible(second.page);
       const expandDatabase = second.page.getByRole("button", {
         name: `Expand ${databaseName}`,
         exact: true,
       });
       if (await expandDatabase.isVisible()) await expandDatabase.click();
       await expect(second.page.getByTestId(`tree-item-${entryName}`)).toBeVisible();
+      await closeMobileNavigation(second.page);
       await expect(second.page.getByText("Local data partial: 0 of 1")).toBeVisible();
       await expect(
         second.page.getByText("No entries in the data available on this device."),

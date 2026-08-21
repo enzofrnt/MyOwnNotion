@@ -9,10 +9,15 @@ import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
   createRootItem,
+  ensureNavigationVisible,
+  moveSelectedItemInto,
   openWorkspace,
+  renameItem,
   saveEntryProperties,
   selectItem,
+  trashItem,
   uniqueName,
+  waitForDatabaseDefinitionSaved,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -31,11 +36,11 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await createRootItem(page, "folder", folderName);
   await createRootItem(page, "page", targetName);
 
-  await page.getByRole("button", { name: "New root database" }).click();
+  await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
-  await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeAttached({ timeout: 15_000 });
   await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
   await waitForSynchronized(page);
 
@@ -50,7 +55,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
     }
     await editor.getByRole("button", { name: "Save property" }).click();
     await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
-    await waitForSynchronized(page);
+    await waitForDatabaseDefinitionSaved(page);
   };
 
   await addProperty("Notes", "text");
@@ -81,11 +86,10 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
 
   await selectItem(page, targetName);
-  page.once("dialog", async (dialog) => await dialog.accept(renamedTarget));
-  await page.getByRole("button", { name: `Rename ${targetName}` }).click();
+  await renameItem(page, targetName, renamedTarget);
   await expect(page.getByTestId(`tree-item-${renamedTarget}`)).toBeVisible({ timeout: 15_000 });
   await selectItem(page, renamedTarget);
-  await page.getByRole("button", { name: `Move selected item into ${folderName}` }).click();
+  await moveSelectedItemInto(page, folderName);
 
   await selectItem(page, databaseName);
   const reopenedEntryButton = page
@@ -105,7 +109,8 @@ test("announces the active entry count before trashing a database", async ({ pag
   const databaseName = uniqueName("Trash preview");
   const entryNames = [uniqueName("First entry"), uniqueName("Second entry")];
 
-  await page.getByRole("button", { name: "New root database" }).click();
+  await ensureNavigationVisible(page);
+  await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
@@ -116,13 +121,14 @@ test("announces the active entry count before trashing a database", async ({ pag
   }
 
   const confirmation = page.waitForEvent("dialog");
-  await page.getByRole("button", { name: `Trash ${databaseName}` }).click();
+  const trash = trashItem(page, databaseName);
 
   const dialog = await confirmation;
   expect(dialog.message()).toBe(
     `Move “${databaseName}” and 2 active database entries to the trash?`,
   );
   await dialog.dismiss();
+  await trash;
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible();
   await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
 });

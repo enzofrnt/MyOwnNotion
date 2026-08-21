@@ -272,6 +272,7 @@ making them take turns —
 | its own API and web ports (from 3301 and 5473) | five dev servers have to coexist |
 | its own blob root | otherwise file journeys read each other's bytes |
 | its own deployment key | a shared file is a shared fate if a run rewrites it |
+| its own Vite dependency cache | concurrent optimizers cannot publish atomically into one cache directory |
 
 PostgreSQL itself is *not* isolated: one server, several databases. Starting
 five servers would cost more than the parallelism saves.
@@ -512,12 +513,12 @@ This is the required local path for Firefox on macOS. Chromium and WebKit may
 still run directly on the host. The container is headless by default; failed
 journeys retain the usual Playwright traces and screenshots for debugging.
 
-**Run the container and the host suites one after the other, never at the same
-time.** Both reach the same PostgreSQL database, and every journey resets the
-canonical content in its `beforeEach`, so two concurrent suites delete each
-other's fixtures. The failures that follow look nothing like the cause: rows
-that never appear, and journeys that normally take a second taking twenty. Run
-Firefox first or last, but alone.
+When invoking the raw `pnpm test:e2e` and
+`pnpm test:e2e:firefox-container` commands yourself, run them one after the
+other. Those commands use the default PostgreSQL database, and concurrent
+journeys can delete each other's fixtures. `pnpm test:e2e:local` is the safe
+parallel exception: its matrix runner allocates an isolated database, ports,
+temporary directories, and Vite dependency cache to every browser project.
 
 Pushing a work branch triggers no automated gate: **the pull request is the
 first remote gate**, so the applicable local gate must pass before every push.

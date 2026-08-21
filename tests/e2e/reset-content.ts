@@ -7,7 +7,15 @@
  */
 import pg from "pg";
 
-export async function resetCanonicalContent(): Promise<void> {
+const MAX_RESET_ATTEMPTS = 5;
+const RETRYABLE_TRANSACTION_CODES = new Set(["40P01", "40001"]);
+
+function postgresErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
+async function resetCanonicalContentOnce(): Promise<void> {
   const connectionString =
     process.env["DATABASE_URL"] ??
     "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion";
@@ -41,5 +49,18 @@ export async function resetCanonicalContent(): Promise<void> {
     throw error;
   } finally {
     await client.end();
+  }
+}
+
+export async function resetCanonicalContent(): Promise<void> {
+  for (let attempt = 1; attempt <= MAX_RESET_ATTEMPTS; attempt += 1) {
+    try {
+      await resetCanonicalContentOnce();
+      return;
+    } catch (error) {
+      const retryable = RETRYABLE_TRANSACTION_CODES.has(postgresErrorCode(error) ?? "");
+      if (!retryable || attempt === MAX_RESET_ATTEMPTS) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, attempt * 50));
+    }
   }
 }

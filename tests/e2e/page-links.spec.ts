@@ -1,9 +1,14 @@
 /** Internal page links stay distinct from hierarchy children. */
 import { expect, test } from "./fixtures.ts";
 import {
+  convertItem,
   createChildItem,
   createRootItem,
+  ensureNavigationRowVisible,
+  ensureNavigationVisible,
+  moveSelectedItemInto,
   openWorkspace,
+  renameItem,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -59,18 +64,21 @@ test("links to another page without nesting it, including a descendant", async (
 
   // Moving the target changes only its hierarchy placement.
   await selectItem(page, reference);
-  await page.getByRole("button", { name: `Move selected item into ${destination}` }).click();
-  await page.getByRole("button", { name: `Expand ${destination}` }).click();
-  await expect(page.getByTestId(`tree-item-${reference}`)).toBeVisible();
+  await moveSelectedItemInto(page, destination);
   await waitForSynchronized(page);
+  await ensureNavigationVisible(page);
+  const destinationRow = page.getByTestId(`tree-item-${destination}`);
+  if ((await destinationRow.getAttribute("aria-expanded")) !== "true") {
+    await page.getByRole("button", { name: `Expand ${destination}` }).click();
+  }
+  await ensureNavigationRowVisible(page, reference);
 
-  await page.once("dialog", async (dialog) => dialog.accept(`${reference}-renamed`));
-  await page.getByRole("button", { name: `Rename ${reference}` }).click();
+  await renameItem(page, reference, `${reference}-renamed`);
   await expect(page.getByTestId(`tree-item-${reference}-renamed`)).toBeVisible();
   await selectItem(page, `${reference}-renamed`);
   // Conversion also preserves identity. The target is empty, so page → folder
   // is non-destructive and needs no confirmation.
-  await page.getByTestId(`convert-${reference}-renamed`).click();
+  await convertItem(page, `${reference}-renamed`);
   await expect(page.getByTestId(`convert-${reference}-renamed`)).toHaveText("to page", {
     timeout: 30_000,
   });

@@ -16,6 +16,8 @@
  *   - **its own blob root**, or file journeys would read each other's bytes.
  *   - **its own deployment key**, because the security journeys mount one and a
  *     shared file is a shared fate if a run rewrites it.
+ *   - **its own Vite dependency cache**, because concurrent optimizers cannot
+ *     atomically publish into the same `node_modules/.vite/deps` directory.
  *
  * What is *not* isolated is PostgreSQL itself — one server, several databases.
  * Starting five servers would cost more than the parallelism saves.
@@ -91,6 +93,7 @@ interface Stack {
   readonly blobRoot?: string;
   readonly backupRoot?: string;
   readonly deploymentKeyFile?: string;
+  readonly viteCacheDir?: string;
   readonly inContainer: boolean;
 }
 
@@ -143,6 +146,7 @@ function planStacks(): Stack[] {
       blobRoot,
       backupRoot,
       deploymentKeyFile,
+      viteCacheDir: path.join(repoRoot, "node_modules", ".vite-e2e", `${project.name}-${suffix}`),
       inContainer: false,
     };
   });
@@ -275,6 +279,9 @@ function cleanUpStack(stack: Stack): void {
   if (stack.deploymentKeyFile !== undefined) {
     rmSync(stack.deploymentKeyFile, { force: true });
   }
+  if (stack.viteCacheDir !== undefined) {
+    rmSync(stack.viteCacheDir, { recursive: true, force: true });
+  }
 }
 
 async function runStack(
@@ -319,6 +326,7 @@ async function runStack(
       MYOWNNOTION_BLOB_ROOT: stack.blobRoot as string,
       MYOWNNOTION_BACKUP_ROOT: stack.backupRoot as string,
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile as string,
+      MYOWNNOTION_VITE_CACHE_DIR: stack.viteCacheDir as string,
       // Playwright writes its report into one directory; five runs writing into
       // the same one would overwrite each other's failure artefacts, which are
       // exactly what someone reads after a red run.

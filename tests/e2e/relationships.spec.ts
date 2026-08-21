@@ -5,7 +5,9 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openWorkspace,
+  renameItem,
   selectItem,
+  trashItem,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -56,8 +58,7 @@ test.describe("stable identity and relationships (US3)", () => {
     expect(overflow).toBeLessThanOrEqual(24);
 
     // Rename the target: the relationship still resolves to the same item.
-    page.on("dialog", (dialog) => void dialog.accept(uniqueName("Renamed")));
-    await page.getByRole("button", { name: `Rename ${target}` }).click();
+    await renameItem(page, target, uniqueName("Renamed"));
     await waitForSynchronized(page);
     await selectItem(page, source);
     await expect(page.getByTestId("relationship-list")).toContainText(targetId ?? "");
@@ -65,7 +66,7 @@ test.describe("stable identity and relationships (US3)", () => {
     // Trash the target: the reference stays diagnosable, never redirected.
     const renamedRow = page.locator(`[data-item-id="${targetId}"]`);
     const renamedName = await renamedRow.locator(".tree-name").textContent();
-    await page.getByRole("button", { name: `Trash ${renamedName ?? ""}` }).click();
+    await trashItem(page, renamedName ?? "");
     await waitForSynchronized(page);
     await selectItem(page, source);
     await expect(page.getByTestId("relation-availability")).toContainText("trashed", {

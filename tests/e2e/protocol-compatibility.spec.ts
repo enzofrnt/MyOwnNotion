@@ -55,7 +55,7 @@ test.describe("an out-of-date client (FR-018 to FR-020)", () => {
     expect(readable).toBe(200);
 
     // And the workspace is usable, which is the observable half of FR-020.
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible();
   });
 });
 
@@ -91,7 +91,7 @@ test.describe("a revoked device (FR-021)", () => {
       // The first device is unaffected: revoking one device is not signing out.
       const stillWorks = uniqueName("AfterRevocation");
       await expect(page.getByTestId("sync-status")).toBeVisible();
-      await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
+      await expect(page.getByTestId("workspace-shell")).toBeVisible();
       expect(stillWorks).toBeTruthy();
     } finally {
       await second.context.close();

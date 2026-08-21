@@ -8,7 +8,12 @@
 
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
-import { openWorkspace, waitForSynchronized } from "./helpers.ts";
+import {
+  ensureNavigationVisible,
+  openWorkspace,
+  waitForDatabaseDefinitionSaved,
+  waitForSynchronized,
+} from "./helpers.ts";
 
 const SENTINELS = {
   database: "BROWSER_PRIVATE_DATABASE_SENTINEL_807431",
@@ -56,7 +61,8 @@ async function indexedDbContents(page: Page): Promise<string> {
 }
 
 async function createStructuredContent(page: Page): Promise<string> {
-  await page.getByRole("button", { name: "New root database" }).click();
+  await ensureNavigationVisible(page);
+  await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(SENTINELS.database);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
@@ -74,7 +80,7 @@ async function createStructuredContent(page: Page): Promise<string> {
   await propertyEditor.getByLabel("Type").selectOption("text");
   await propertyEditor.getByRole("button", { name: "Save property" }).click();
   await expect(propertyEditor).toBeHidden({ timeout: 15_000 });
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 
   const createEntry = page.locator(".database-entry-create");
   await createEntry.getByLabel("New entry").fill(SENTINELS.entry);

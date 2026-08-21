@@ -10,7 +10,9 @@ import {
   appendLegacySemanticTransaction,
   convertLegacyOfflineBranch,
   createLegacyOfflineBranch,
+  type LegacyOfflineBranch,
   LegacyOfflineBranchError,
+  type LegacySemanticCommand,
   OperationalPageDocument,
   planPageAmbiguityResolution,
   verifyLegacyOfflineBranch,
@@ -18,6 +20,25 @@ import {
 
 function legacyParagraph(id: Uuid, text: string): BlockDocument {
   return { blocks: [{ type: "paragraph", id, content: [{ text }] }] };
+}
+
+async function branchWith(input: {
+  readonly pageId: Uuid;
+  readonly baseDocument: BlockDocument;
+  readonly commands: readonly LegacySemanticCommand[];
+}): Promise<LegacyOfflineBranch> {
+  const branch = await createLegacyOfflineBranch({
+    branchId: generateUuidV7(),
+    pageId: input.pageId,
+    baseRevisionId: generateUuidV7(),
+    baseDocument: input.baseDocument,
+    createdAt: "2026-08-20T12:00:00.000Z",
+  });
+  return await appendLegacySemanticTransaction(branch, {
+    transactionId: generateUuidV7(),
+    sequence: 1,
+    commands: input.commands,
+  });
 }
 
 describe("legacy offline branches", () => {
@@ -183,6 +204,445 @@ describe("legacy offline branches", () => {
     activePage.transact(resolution.commands);
     expect(canonicalDocumentJsonV3((await activePage.project()).document)).toContain(
       "Original modifié",
+    );
+  });
+
+  it("replays and converts every legacy semantic command without replacing the document", async () => {
+    const pageId = generateUuidV7();
+    const firstId = generateUuidV7();
+    const secondId = generateUuidV7();
+    const insertedId = generateUuidV7();
+    const baseDocument: BlockDocument = {
+      blocks: [
+        { type: "paragraph", id: firstId, content: [{ text: "Alpha" }] },
+        { type: "paragraph", id: secondId, content: [{ text: "Beta" }] },
+      ],
+    };
+    const branch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "insert-block",
+          block: { type: "paragraph", id: insertedId, content: [{ text: "Inséré" }] },
+          parentBlockId: null,
+          beforeBlockId: secondId,
+        },
+        {
+          type: "move-block",
+          blockId: secondId,
+          parentBlockId: null,
+          beforeBlockId: firstId,
+        },
+        {
+          type: "set-mark",
+          blockId: firstId,
+          baseFrom: 0,
+          baseTo: 5,
+          mark: { type: "bold" },
+          enabled: true,
+        },
+        {
+          type: "replace-text",
+          blockId: firstId,
+          baseFrom: 1,
+          baseTo: 4,
+          beforeContext: "A",
+          afterContext: "a",
+          text: "LPH",
+        },
+        {
+          type: "set-type-or-property",
+          blockId: firstId,
+          key: "type",
+          before: "paragraph",
+          after: "heading",
+        },
+        {
+          type: "set-type-or-property",
+          blockId: firstId,
+          key: "level",
+          before: 1,
+          after: 3,
+        },
+        { type: "delete-block", blockId: secondId },
+      ],
+    });
+    const activePage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+
+    const conversion = await convertLegacyOfflineBranch({ branch, activePage });
+    expect(conversion.ambiguities).toEqual([]);
+    expect(conversion.commands.map(({ type }) => type)).toEqual([
+      "insert-block",
+      "move-block",
+      "set-mark",
+      "replace-text",
+      "set-block-type",
+      "set-block-property",
+      "delete-block",
+    ]);
+    expect(conversion.transaction?.changed).toBe(true);
+    expect(canonicalDocumentJsonV3((await activePage.project()).document)).toBe(
+      canonicalDocumentJsonV3(branch.localDocument),
+    );
+  });
+
+  it("validates branch metadata, sequence integrity and semantic proofs", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseDocument = legacyParagraph(blockId, "A🦜B");
+    const fresh = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument,
+      createdAt: "2026-08-20T12:00:00.000Z",
+    });
+    await expect(
+      createLegacyOfflineBranch({
+        branchId: generateUuidV7(),
+        pageId,
+        baseRevisionId: generateUuidV7(),
+        baseDocument,
+        createdAt: "not-a-date",
+      }),
+    ).rejects.toThrow(/creation time/u);
+    await expect(
+      appendLegacySemanticTransaction(
+        { ...fresh, status: "blocked" },
+        {
+          transactionId: generateUuidV7(),
+          sequence: 1,
+          commands: [],
+        },
+      ),
+    ).rejects.toThrow(/cannot be edited/u);
+    await expect(
+      appendLegacySemanticTransaction(fresh, {
+        transactionId: generateUuidV7(),
+        sequence: 2,
+        commands: [],
+      }),
+    ).rejects.toThrow(/next sequence/u);
+
+    const transactionId = generateUuidV7();
+    const one = await appendLegacySemanticTransaction(fresh, {
+      transactionId,
+      sequence: 1,
+      commands: [],
+    });
+    await expect(
+      appendLegacySemanticTransaction(one, { transactionId, sequence: 2, commands: [] }),
+    ).rejects.toThrow(/duplicated/u);
+    await expect(
+      verifyLegacyOfflineBranch({
+        ...fresh,
+        mode: "unsupported" as "legacy-branch",
+      }),
+    ).rejects.toThrow(/unsupported legacy branch mode/u);
+    await expect(
+      verifyLegacyOfflineBranch({ ...fresh, baseCanonicalDigest: "tampered" }),
+    ).rejects.toThrow(/base document digest/u);
+    expect(one.semanticTransactions).toHaveLength(1);
+    const firstTransaction = one.semanticTransactions[0];
+    if (firstTransaction === undefined) {
+      throw new Error("Expected the first semantic transaction to exist");
+    }
+    await expect(
+      verifyLegacyOfflineBranch({
+        ...one,
+        semanticTransactions: [{ ...firstTransaction, sequence: 2 }],
+      }),
+    ).rejects.toThrow(/contiguous/u);
+
+    const invalidCommands: Array<readonly [LegacySemanticCommand, RegExp]> = [
+      [
+        {
+          type: "replace-text",
+          blockId: generateUuidV7(),
+          baseFrom: 0,
+          baseTo: 0,
+          beforeContext: "",
+          afterContext: "",
+          text: "x",
+        },
+        /does not exist/u,
+      ],
+      [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 2,
+          baseTo: 2,
+          beforeContext: "",
+          afterContext: "",
+          text: "x",
+        },
+        /surrogate pair/u,
+      ],
+      [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: -1,
+          baseTo: 0,
+          beforeContext: "",
+          afterContext: "",
+          text: "x",
+        },
+        /outside its block/u,
+      ],
+      [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 1,
+          beforeContext: "wrong",
+          afterContext: "🦜B",
+          text: "x",
+        },
+        /before-context/u,
+      ],
+      [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 1,
+          beforeContext: "A",
+          afterContext: "wrong",
+          text: "x",
+        },
+        /after-context/u,
+      ],
+      [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 1,
+          baseTo: 1,
+          beforeContext: "x".repeat(65),
+          afterContext: "",
+          text: "x",
+        },
+        /must not exceed/u,
+      ],
+      [
+        {
+          type: "set-mark",
+          blockId: generateUuidV7(),
+          baseFrom: 0,
+          baseTo: 1,
+          mark: { type: "bold" },
+          enabled: true,
+        },
+        /does not exist/u,
+      ],
+      [
+        {
+          type: "set-type-or-property",
+          blockId: generateUuidV7(),
+          key: "type",
+          before: "paragraph",
+          after: "heading",
+        },
+        /does not exist/u,
+      ],
+      [
+        {
+          type: "set-type-or-property",
+          blockId,
+          key: "type",
+          before: "heading",
+          after: "paragraph",
+        },
+        /precondition/u,
+      ],
+      [
+        {
+          type: "set-type-or-property",
+          blockId,
+          key: "type",
+          before: "paragraph",
+          after: "image",
+        },
+        /unsupported/u,
+      ],
+    ];
+    for (const [command, expected] of invalidCommands) {
+      await expect(
+        appendLegacySemanticTransaction(fresh, {
+          transactionId: generateUuidV7(),
+          sequence: 1,
+          commands: [command],
+        }),
+      ).rejects.toThrow(expected);
+    }
+  });
+
+  it("keeps idempotent inserts empty and reports a colliding insert as schema ambiguity", async () => {
+    const pageId = generateUuidV7();
+    const baseId = generateUuidV7();
+    const insertedId = generateUuidV7();
+    const baseDocument = legacyParagraph(baseId, "Base");
+    const inserted = { type: "paragraph" as const, id: insertedId, content: [{ text: "Même" }] };
+    const branch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        { type: "insert-block", block: inserted, parentBlockId: null, beforeBlockId: null },
+      ],
+    });
+    const [baseBlock] = migrateDocumentV2ToV3(baseDocument).blocks;
+    if (baseBlock === undefined) {
+      throw new Error("Expected the migrated base block to exist");
+    }
+    const samePage = OperationalPageDocument.create({
+      pageId,
+      document: { blocks: [baseBlock, inserted] },
+    });
+    const same = await convertLegacyOfflineBranch({ branch, activePage: samePage });
+    expect(same.commands).toEqual([]);
+    expect(same.transaction).toBeUndefined();
+    expect(same.ambiguities).toEqual([]);
+
+    const collisionPage = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [baseBlock, { ...inserted, content: [{ text: "Concurrent" }] }],
+      },
+    });
+    const collision = await convertLegacyOfflineBranch({
+      branch,
+      activePage: collisionPage,
+    });
+    expect(collision.commands).toEqual([]);
+    expect(collision.ambiguities[0]?.kind).toBe("schema");
+  });
+
+  it("classifies concurrent moves, marks, types and properties without data loss", async () => {
+    const pageId = generateUuidV7();
+    const firstId = generateUuidV7();
+    const secondId = generateUuidV7();
+    const baseDocument: BlockDocument = {
+      blocks: [
+        { type: "paragraph", id: firstId, content: [{ text: "Alpha" }] },
+        { type: "paragraph", id: secondId, content: [{ text: "Beta" }] },
+      ],
+    };
+
+    const moveBranch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        { type: "move-block", blockId: secondId, parentBlockId: null, beforeBlockId: firstId },
+      ],
+    });
+    const deletedPage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    deletedPage.transact([{ type: "delete-block", blockId: secondId }]);
+    expect(
+      (await convertLegacyOfflineBranch({ branch: moveBranch, activePage: deletedPage }))
+        .ambiguities[0]?.kind,
+    ).toBe("delete-move");
+
+    const markBranch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "set-mark",
+          blockId: firstId,
+          baseFrom: 0,
+          baseTo: 1,
+          mark: { type: "bold" },
+          enabled: true,
+        },
+      ],
+    });
+    const editedPage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    editedPage.transact([
+      { type: "replace-text", blockId: firstId, from: 0, to: 5, text: "Autre" },
+    ]);
+    expect(
+      (await convertLegacyOfflineBranch({ branch: markBranch, activePage: editedPage }))
+        .ambiguities[0]?.kind,
+    ).toBe("schema");
+
+    const typeBranch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "set-type-or-property",
+          blockId: firstId,
+          key: "type",
+          before: "paragraph",
+          after: "heading",
+        },
+      ],
+    });
+    const transformedPage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    transformedPage.transact([{ type: "set-block-type", blockId: firstId, blockType: "checkbox" }]);
+    expect(
+      (await convertLegacyOfflineBranch({ branch: typeBranch, activePage: transformedPage }))
+        .ambiguities[0]?.kind,
+    ).toBe("type-transform");
+
+    const propertyBranch = await branchWith({
+      pageId,
+      baseDocument,
+      commands: [
+        {
+          type: "set-type-or-property",
+          blockId: firstId,
+          key: "future",
+          before: null,
+          after: { z: 2, a: [1, true] },
+        },
+      ],
+    });
+    const propertyPage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    propertyPage.transact([
+      { type: "set-block-property", blockId: firstId, key: "future", value: { other: true } },
+    ]);
+    const propertyConflict = await convertLegacyOfflineBranch({
+      branch: propertyBranch,
+      activePage: propertyPage,
+    });
+    expect(propertyConflict.ambiguities[0]).toMatchObject({
+      kind: "property-transform",
+      propertyKey: "future",
+    });
+  });
+
+  it("refuses conversion into a different page", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseDocument = legacyParagraph(blockId, "Base");
+    const branch = await branchWith({ pageId, baseDocument, commands: [] });
+    const activePage = OperationalPageDocument.create({
+      pageId: generateUuidV7(),
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+
+    await expect(convertLegacyOfflineBranch({ branch, activePage })).rejects.toThrow(
+      /does not match/u,
     );
   });
 });

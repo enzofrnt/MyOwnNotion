@@ -8,9 +8,18 @@
  * being true, rather than a comment asserting it.
  */
 
-import type { ProjectedItem } from "@myownnotion/client-core";
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  openLocalDatabase,
+  type ProjectedItem,
+  readWorkspacePresentationState,
+  updateWorkspacePresentationState,
+  writeWorkspacePresentationState,
+} from "@myownnotion/client-core";
 import { generateUuidV7 } from "@myownnotion/domain";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { favouritesOf, recentsOf } from "../src/features/navigation/sidebar.tsx";
 
 function item(name: string, favourite: boolean, revisionId = generateUuidV7()): ProjectedItem {
@@ -68,5 +77,80 @@ describe("recents", () => {
     // starring something must not move it in the recents order.
     const items = [item("starred", true), item("plain", false)];
     expect(recentsOf(items)).toHaveLength(2);
+  });
+});
+
+describe("workspace presentation persistence", () => {
+  const databases: ReturnType<typeof openLocalDatabase>[] = [];
+
+  afterEach(async () => {
+    await Promise.all(databases.splice(0).map(async (database) => await database.delete()));
+  });
+
+  function database() {
+    const db = openLocalDatabase(`sidebar-${generateUuidV7()}`);
+    databases.push(db);
+    return db;
+  }
+
+  it("hydrates legacy navigation values with safe sidebar defaults", async () => {
+    const db = database();
+    await db.meta.put({
+      key: "navigation-state",
+      value: {
+        expandedItemIds: ["branch-a"],
+        lastVisitedItemId: "page-a",
+        scrollPositions: [],
+      },
+    });
+
+    await expect(readWorkspacePresentationState(db)).resolves.toMatchObject({
+      sidebarOpen: true,
+      sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+      expandedItemIds: ["branch-a"],
+      lastVisitedItemId: "page-a",
+    });
+  });
+
+  it("persists open state, bounded width, branches and the last item together", async () => {
+    const db = database();
+    await writeWorkspacePresentationState(db, {
+      sidebarOpen: false,
+      sidebarWidth: MAX_SIDEBAR_WIDTH + 200,
+      expandedItemIds: ["branch-a", "branch-b"],
+      lastVisitedItemId: "page-b",
+      scrollPositions: [],
+      scrollAnchors: [],
+    });
+
+    await expect(readWorkspacePresentationState(db)).resolves.toMatchObject({
+      sidebarOpen: false,
+      sidebarWidth: MAX_SIDEBAR_WIDTH,
+      expandedItemIds: ["branch-a", "branch-b"],
+      lastVisitedItemId: "page-b",
+    });
+  });
+
+  it("merges independent sidebar and tree writes without restoring stale fields", async () => {
+    const db = database();
+    await Promise.all([
+      updateWorkspacePresentationState(db, (state) => ({
+        ...state,
+        sidebarWidth: MIN_SIDEBAR_WIDTH,
+        sidebarOpen: false,
+      })),
+      updateWorkspacePresentationState(db, (state) => ({
+        ...state,
+        expandedItemIds: ["branch-c"],
+        lastVisitedItemId: "page-c",
+      })),
+    ]);
+
+    await expect(readWorkspacePresentationState(db)).resolves.toMatchObject({
+      sidebarOpen: false,
+      sidebarWidth: MIN_SIDEBAR_WIDTH,
+      expandedItemIds: ["branch-c"],
+      lastVisitedItemId: "page-c",
+    });
   });
 });

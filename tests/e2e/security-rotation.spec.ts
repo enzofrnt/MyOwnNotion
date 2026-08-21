@@ -150,9 +150,10 @@ async function openSecurity(page: import("@playwright/test").Page): Promise<void
   }
   await page.getByTestId("password-input").fill(PASSWORD);
   await page.getByTestId("sign-in-password").click();
-  await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+  await expect(page.getByTestId("workspace-shell")).toBeVisible({
     timeout: 30_000,
   });
+  await expect(page.getByTestId("active-item-title")).toBeVisible();
   await page.getByTestId("toggle-security-settings").click();
   await expect(page.getByRole("heading", { name: "Encryption keys" })).toBeVisible({
     timeout: 30_000,
@@ -239,7 +240,7 @@ test.describe("a blocked installation", () => {
     await openSecurity(page);
 
     await page.getByTestId("back-to-workspace").click();
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible();
   });
 });
 

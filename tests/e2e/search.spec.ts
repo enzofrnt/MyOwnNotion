@@ -8,12 +8,17 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  convertItem,
   createChildItem,
   createRootItem,
+  ensureNavigationVisible,
+  moveSelectedItemInto,
   openSecondDevice,
   openWorkspace,
+  renameItem,
   saveDocument,
   selectItem,
+  trashItem,
   typeIntoEditor,
   uniqueName,
   waitForSynchronized,
@@ -153,7 +158,8 @@ test.describe("workspace search refinement (US3)", () => {
     await page.keyboard.press("Enter");
     await expect(dialog).toBeHidden();
 
-    const searchTrigger = page.getByRole("button", { name: /Search Ctrl\/⌘ K/u });
+    await ensureNavigationVisible(page);
+    const searchTrigger = page.getByRole("button", { name: /Rechercher.*⌘ K/u });
     await searchTrigger.focus();
     dialog = await searchFor(page, token);
     await dialog.getByLabel("Folders").uncheck();
@@ -194,7 +200,9 @@ test.describe("workspace search refinement (US3)", () => {
 
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
-    await expect(searchTrigger).toBeFocused();
+    // The desktop search control was replaced when the layout crossed the
+    // mobile breakpoint, so focus returns to the visible navigation trigger.
+    await expect(page.getByTestId("toggle-tree")).toBeFocused();
   });
 
   test("loads an opaque next page without losing the selected result", async ({ page }) => {
@@ -261,6 +269,9 @@ test.describe("workspace search freshness (US4)", () => {
     const second = await openSecondDevice(browser, baseURL);
     try {
       await Promise.all([openWorkspace(page), openWorkspace(second.page)]);
+      // Open navigation during setup, before the remote write. The watching
+      // device remains untouched until the new identity has propagated.
+      await ensureNavigationVisible(second.page);
       const name = uniqueName("second-device-search");
       const startedAt = performance.now();
 
@@ -312,8 +323,7 @@ test.describe("workspace search freshness (US4)", () => {
     await expect(dialog.getByRole("listitem").filter({ hasText: oldName })).toBeVisible();
     await dialog.getByRole("button", { name: "Close search" }).click();
 
-    page.once("dialog", async (prompt) => await prompt.accept(currentName));
-    await page.getByRole("button", { name: `Rename ${oldName}` }).click();
+    await renameItem(page, oldName, currentName);
     await waitForSynchronized(page);
 
     dialog = await searchFor(page, oldName);
@@ -324,7 +334,7 @@ test.describe("workspace search freshness (US4)", () => {
     await dialog.getByRole("button", { name: "Close search" }).click();
 
     await selectItem(page, currentName);
-    await page.getByRole("button", { name: `Move selected item into ${destination}` }).click();
+    await moveSelectedItemInto(page, destination);
     await waitForSynchronized(page);
     dialog = await searchFor(page, currentName);
     await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toContainText(
@@ -332,10 +342,16 @@ test.describe("workspace search freshness (US4)", () => {
     );
     await dialog.getByRole("button", { name: "Close search" }).click();
 
+    await ensureNavigationVisible(page);
     await page.getByRole("button", { name: `Expand ${destination}` }).click();
-    await page.getByTestId(`convert-${currentName}`).click();
-    await expect(page.getByTestId("convert-confirmation")).toBeVisible();
+    await convertItem(page, currentName);
+    const conversion = page.getByTestId("convert-confirmation");
+    await expect(conversion).toBeVisible();
     await page.getByTestId("confirm-convert").click();
+    // Confirmation runs an async content-preserving mutation. Opening another
+    // modal before this one has closed races its final-focus restoration with
+    // the search input, which is not a state an owner can intentionally reach.
+    await expect(conversion).toBeHidden({ timeout: 30_000 });
     await waitForSynchronized(page);
 
     dialog = await searchFor(page, bodyPhrase);
@@ -347,7 +363,7 @@ test.describe("workspace search freshness (US4)", () => {
     );
     await dialog.getByRole("button", { name: "Close search" }).click();
 
-    await page.getByRole("button", { name: `Trash ${currentName}` }).click();
+    await trashItem(page, currentName);
     await waitForSynchronized(page);
     dialog = await searchFor(page, currentName);
     await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();

@@ -33,6 +33,7 @@ COPY packages/client-core/package.json packages/client-core/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/database/package.json packages/database/
 COPY packages/domain/package.json packages/domain/
+COPY packages/page-state/package.json packages/page-state/
 COPY packages/test-utils/package.json packages/test-utils/
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \

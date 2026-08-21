@@ -7,6 +7,7 @@ import {
   saveEntryProperties,
   typeIntoEditor,
   uniqueName,
+  waitForDatabaseDefinitionSaved,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -30,7 +31,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   const editorialNote = uniqueName("editorial-checkbox");
 
   await createRootItem(page, "page", projectName);
-  await page.getByRole("button", { name: "New root database" }).click();
+  await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
@@ -48,7 +49,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
     }
     await editor.getByRole("button", { name: "Save property" }).click();
     await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
-    await waitForSynchronized(page);
+    await waitForDatabaseDefinitionSaved(page);
   };
 
   await addProperty("Notes", "text");
@@ -60,11 +61,15 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   const taskConfiguration = page.locator(".task-configuration");
   await taskConfiguration.getByRole("button", { name: "Enable task tracking" }).click();
   await expect(taskConfiguration.getByLabel("Task status property")).toHaveValue(/.+/u);
+  await waitForDatabaseDefinitionSaved(page);
   await taskConfiguration.getByLabel("Task due date property").selectOption({ label: "Deadline" });
+  await expect(taskConfiguration.getByLabel("Task due date property")).toHaveValue(/.+/u);
+  await waitForDatabaseDefinitionSaved(page);
   await taskConfiguration
     .getByLabel("Task priority property")
     .selectOption({ label: "Importance" });
-  await waitForSynchronized(page);
+  await expect(taskConfiguration.getByLabel("Task priority property")).toHaveValue(/.+/u);
+  await waitForDatabaseDefinitionSaved(page);
 
   const createEntry = page.locator(".database-entry-create");
   await createEntry.getByLabel("New entry").fill(taskName);

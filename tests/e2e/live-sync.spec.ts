@@ -18,8 +18,10 @@ import {
   apiOrigin,
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
+  ensureNavigationVisible,
   openSecondDevice,
   openWorkspace,
+  renameItem,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -40,6 +42,10 @@ test.describe("live synchronization (US1)", () => {
       await expect(second.page.getByTestId("live-connection-state")).toBeVisible({
         timeout: 15_000,
       });
+      // Opening the mobile drawer is part of initial setup, before the remote
+      // mutation. It remains untouched afterwards, preserving the live-update
+      // property this journey exists to prove.
+      await ensureNavigationVisible(second.page);
 
       const created = uniqueName("LiveFolder");
       const startedAt = Date.now();
@@ -70,6 +76,7 @@ test.describe("live synchronization (US1)", () => {
       await waitForSynchronized(page);
 
       await openWorkspace(second.page);
+      await ensureNavigationVisible(second.page);
       await expect(second.page.getByTestId(`tree-item-${original}`)).toBeVisible({
         timeout: 15_000,
       });
@@ -77,8 +84,7 @@ test.describe("live synchronization (US1)", () => {
       const renamed = uniqueName("AfterRename");
       // The rename control asks through `window.prompt`, so the dialog is
       // answered rather than a field filled.
-      page.once("dialog", (dialog) => void dialog.accept(renamed));
-      await page.getByRole("button", { name: `Rename ${original}` }).click();
+      await renameItem(page, original, renamed);
       await waitForSynchronized(page);
 
       await expect(second.page.getByTestId(`tree-item-${renamed}`)).toBeVisible({
@@ -103,6 +109,7 @@ test.describe("catching up after an absence (US2)", () => {
     const away = await openSecondDevice(browser, baseURL);
     try {
       await openWorkspace(away.page);
+      await ensureNavigationVisible(away.page);
 
       // The device really goes away. Request interception only rejects future
       // fetches: it leaves an EventSource that is already open connected and

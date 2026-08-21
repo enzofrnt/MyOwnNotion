@@ -94,7 +94,7 @@ async function openDevices(page: import("@playwright/test").Page): Promise<void>
   await openPasswordForm(page);
   await page.getByTestId("password-input").fill(PASSWORD);
   await page.getByTestId("sign-in-password").click();
-  await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible({
+  await expect(page.getByTestId("workspace-shell")).toBeVisible({
     timeout: 30_000,
   });
   await page.getByTestId("toggle-security-settings").click();

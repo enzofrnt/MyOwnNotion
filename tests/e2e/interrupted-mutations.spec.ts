@@ -3,7 +3,16 @@
  */
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
-import { createRootItem, openWorkspace, uniqueName, waitForSynchronized } from "./helpers.ts";
+import {
+  createChildItem,
+  createRootItem,
+  ensureNavigationRowVisible,
+  moveSelectedItemInto,
+  openWorkspace,
+  openWorkspaceDiagnostics,
+  uniqueName,
+  waitForSynchronized,
+} from "./helpers.ts";
 
 async function blockApi(page: Page): Promise<void> {
   await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
@@ -19,11 +28,13 @@ test.describe("interrupted mutations (US4)", () => {
     await blockApi(page);
     const name = uniqueName("Interrupted");
     await createRootItem(page, "folder", name);
+    await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // Simulate a process interruption: reload while the queue is pending.
     await page.reload();
-    await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
+    await ensureNavigationRowVisible(page, name);
+    await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // The recovered row is reported as retrying, not as a fresh pending
@@ -37,6 +48,7 @@ test.describe("interrupted mutations (US4)", () => {
     await page.unroute("**/health");
     await page.reload();
     await openWorkspace(page);
+    await openWorkspaceDiagnostics(page);
     await waitForSynchronized(page);
     await expect(page.getByTestId(`tree-item-${name}`)).toHaveCount(1);
     await expect(page.getByTestId("mutation-status-empty")).toBeVisible();
@@ -49,13 +61,11 @@ test.describe("interrupted mutations (US4)", () => {
     const parent = uniqueName("CycleParent");
     const child = uniqueName("CycleChild");
     await createRootItem(page, "folder", parent);
-    await page.getByLabel("Name", { exact: true }).fill(child);
-    await page.getByRole("button", { name: `New folder inside ${parent}` }).click();
-    await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible();
+    await createChildItem(page, parent, "folder", child);
 
     // Try to move the parent into its child: rejected explicitly, tree intact.
     await page.getByTestId(`tree-item-${parent}`).click();
-    await page.getByRole("button", { name: `Move selected item into ${child}` }).click();
+    await moveSelectedItemInto(page, child);
     await expect(page.getByTestId("problem-banner")).toContainText("containment.cycle-rejected");
     await expect(page.getByTestId(`tree-item-${parent}`)).toBeVisible();
     await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible();

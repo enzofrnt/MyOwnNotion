@@ -71,6 +71,7 @@ export function DatabasePage({
   const [propertyDraft, setPropertyDraft] = useState<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
   const [propertyError, setPropertyError] = useState<string | null>(null);
   const [savingProperty, setSavingProperty] = useState(false);
+  const [pendingDefinitionMutations, setPendingDefinitionMutations] = useState(0);
   const [entryTitle, setEntryTitle] = useState("");
   const [entryError, setEntryError] = useState<string | null>(null);
   const [savingEntry, setSavingEntry] = useState(false);
@@ -86,6 +87,17 @@ export function DatabasePage({
   // already passed that contract validation, so the UI works on the branded
   // shape from here onward.
   const definition = database.definition as unknown as DatabaseDefinition;
+  const replaceDefinition = async (
+    next: DatabaseDefinition,
+    confirmation?: DefinitionConfirmation,
+  ): Promise<void> => {
+    setPendingDefinitionMutations((current) => current + 1);
+    try {
+      await onReplaceDefinition(next, confirmation);
+    } finally {
+      setPendingDefinitionMutations((current) => Math.max(0, current - 1));
+    }
+  };
   const activeProperties = definition.properties.filter((property) => property.state === "active");
   const viewContext = useDatabaseView(definition);
   const activeView =
@@ -189,42 +201,69 @@ export function DatabasePage({
       : effectiveQueryState === "ready" && loadedPage?.viewId === activeView?.id
         ? loadedPage
         : fallbackPage;
+  const canRestoreEntryFocus = page !== null;
   useEffect(() => {
-    if (returnFocusEntryId === undefined || returnFocusEntryId === null || page === null) {
+    if (returnFocusEntryId === undefined || returnFocusEntryId === null || !canRestoreEntryFocus) {
       return;
     }
-    let completion: number | undefined;
     let frame: number | undefined;
     let attempts = 0;
+    let completed = false;
+    let lastFocusedTrigger: HTMLElement | null = null;
+
+    // Clear the saved selection now, never from a delayed callback that could
+    // land after the owner has started another controlled-input draft.
+    viewContext.finishEntryReturn();
+
+    const complete = (): void => {
+      if (completed) return;
+      completed = true;
+      onReturnFocusRestored?.();
+    };
+
     const restore = (): void => {
       const trigger = document.querySelector<HTMLElement>(
         `[data-entry-trigger="${returnFocusEntryId}"]`,
       );
-      if (trigger !== null) {
-        const activeElement = document.activeElement;
-        const userMovedFocus =
-          activeElement instanceof HTMLElement &&
-          activeElement !== document.body &&
-          activeElement.isConnected;
-        if (!userMovedFocus) trigger.focus();
-        completion = window.setTimeout(() => {
-          viewContext.finishEntryReturn();
-          onReturnFocusRestored?.();
-        }, 300);
+      const activeElement = document.activeElement;
+      const userMovedFocus =
+        lastFocusedTrigger !== null &&
+        activeElement instanceof HTMLElement &&
+        activeElement !== document.body &&
+        activeElement !== lastFocusedTrigger &&
+        activeElement.isConnected;
+      if (userMovedFocus) {
+        complete();
         return;
       }
+
+      // A local fallback, then the loaded view, can each render their own
+      // trigger. Follow only those replacements; never steal focus once the
+      // owner has moved to another connected control.
+      if (trigger !== null) {
+        if (activeElement !== trigger) trigger.focus();
+        lastFocusedTrigger = trigger;
+      }
       attempts += 1;
-      if (attempts < 12) frame = requestAnimationFrame(restore);
+      if (attempts < 20) {
+        frame = requestAnimationFrame(restore);
+      } else {
+        complete();
+      }
     };
-    frame = requestAnimationFrame(restore);
+    restore();
     return () => {
       if (frame !== undefined) cancelAnimationFrame(frame);
-      if (completion !== undefined) window.clearTimeout(completion);
     };
-  }, [onReturnFocusRestored, page, returnFocusEntryId, viewContext.finishEntryReturn]);
+  }, [
+    canRestoreEntryFocus,
+    onReturnFocusRestored,
+    returnFocusEntryId,
+    viewContext.finishEntryReturn,
+  ]);
 
   const saveView = async (view: NonNullable<typeof activeView>): Promise<void> => {
-    await onReplaceDefinition(replaceSavedView(definition, view));
+    await replaceDefinition(replaceSavedView(definition, view));
   };
 
   const openEntryFromView = (entryId: Uuid, trigger: HTMLElement | null): void => {
@@ -254,16 +293,20 @@ export function DatabasePage({
         ],
       })),
     };
+    const submittedDraft = propertyDraft;
+    // Commit the form state at submission time. A previous asynchronous save
+    // must never close a newer editor that the owner has already opened.
+    setPropertyDraft(EMPTY_PROPERTY_DRAFT);
+    setPropertyError(null);
+    setEditingProperty(false);
     setSavingProperty(true);
-    void Promise.resolve(onReplaceDefinition(candidate))
-      .then(() => {
-        setPropertyDraft(EMPTY_PROPERTY_DRAFT);
-        setPropertyError(null);
-        setEditingProperty(false);
-        setSavingProperty(false);
-      })
+    void replaceDefinition(candidate)
       .catch(() => {
+        setPropertyDraft(submittedDraft);
         setPropertyError(DATABASE_COPY.page.propertySaveFailed);
+        setEditingProperty(true);
+      })
+      .finally(() => {
         setSavingProperty(false);
       });
   };
@@ -304,7 +347,7 @@ export function DatabasePage({
       setImpact(preview);
       return;
     }
-    await onReplaceDefinition(candidate);
+    await replaceDefinition(candidate);
   };
 
   const createEntry = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -331,11 +374,16 @@ export function DatabasePage({
   };
 
   return (
-    <section className="database-page" aria-labelledby={`database-heading-${database.databaseId}`}>
+    <section
+      className="database-page"
+      aria-labelledby={`database-heading-${database.databaseId}`}
+      aria-busy={pendingDefinitionMutations > 0}
+      data-definition-state={pendingDefinitionMutations > 0 ? "saving" : "idle"}
+    >
       <header className="database-page__header">
         <div>
           <p className="muted">{DATABASE_COPY.page.eyebrow}</p>
-          <h2 id={`database-heading-${database.databaseId}`}>{database.name}</h2>
+          <h2 id={`database-heading-${database.databaseId}`}>Database contents</h2>
         </div>
         <button type="button" disabled={savingProperty} onClick={() => setEditingProperty(true)}>
           {DATABASE_COPY.page.addProperty}
@@ -364,7 +412,7 @@ export function DatabasePage({
             definition={definition}
             activeViewId={activeView.id}
             onSelectView={viewContext.selectView}
-            onChange={(next) => onReplaceDefinition(next)}
+            onChange={replaceDefinition}
           />
           <div className="database-view-config">
             <FilterEditor
@@ -402,7 +450,7 @@ export function DatabasePage({
         </ul>
       </section>
 
-      <TaskConfiguration definition={definition} onChange={onReplaceDefinition} />
+      <TaskConfiguration definition={definition} onChange={replaceDefinition} />
 
       {impact !== null && pendingDefinition !== null ? (
         <section
@@ -416,7 +464,7 @@ export function DatabasePage({
             <button
               type="button"
               onClick={() => {
-                void onReplaceDefinition(pendingDefinition, {
+                void replaceDefinition(pendingDefinition, {
                   digest: impact.impactDigest,
                   decision: "preserve-incompatible",
                 });
@@ -430,7 +478,7 @@ export function DatabasePage({
               type="button"
               className="danger"
               onClick={() => {
-                void onReplaceDefinition(pendingDefinition, {
+                void replaceDefinition(pendingDefinition, {
                   digest: impact.impactDigest,
                   decision: "discard-confirmed",
                 });

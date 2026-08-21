@@ -39,6 +39,15 @@ function portPolicy() {
  * comes from the Dexie projection — never from HTTP caches.
  */
 export default defineConfig({
+  ...(process.env["MYOWNNOTION_VITE_CACHE_DIR"] === undefined
+    ? {}
+    : { cacheDir: process.env["MYOWNNOTION_VITE_CACHE_DIR"] }),
+  optimizeDeps: {
+    // The browser entry resolves its Wasm payload relative to import.meta.url.
+    // Pre-bundling relocates the JS into node_modules/.vite without copying the
+    // sibling Wasm file, so the browser receives Vite's HTML fallback instead.
+    exclude: ["loro-crdt"],
+  },
   resolve: {
     alias: [
       {

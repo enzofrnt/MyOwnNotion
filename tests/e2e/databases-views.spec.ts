@@ -1,11 +1,13 @@
 import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
+  ensureNavigationVisible,
   openSecondDevice,
   openWorkspace,
   saveEntryProperties,
   selectItem,
   uniqueName,
+  waitForDatabaseDefinitionSaved,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -22,7 +24,8 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     gamma: uniqueName("Gamma"),
   };
 
-  await page.getByRole("button", { name: "New root database" }).click();
+  await ensureNavigationVisible(page);
+  await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
@@ -35,6 +38,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await propertyEditor.getByLabel("Options, separated by commas").fill("To do, Done");
   await propertyEditor.getByRole("button", { name: "Save property" }).click();
   await expect(page.locator(".database-schema").getByText("Status", { exact: true })).toBeVisible();
+  await waitForDatabaseDefinitionSaved(page);
 
   const createEntry = async (title: string, status: "To do" | "Done"): Promise<void> => {
     const trigger = await createDatabaseEntry(page, title);
@@ -96,7 +100,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(page.locator(`[data-entry-trigger]`).filter({ hasText: entries.beta })).toHaveCount(
     0,
   );
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 
   await filterEditor.getByLabel("Filter combination").selectOption("all");
   await filterEditor.getByRole("button", { name: "Save filters" }).click();
@@ -106,12 +110,12 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(page.locator(`[data-entry-trigger]`).filter({ hasText: entries.gamma })).toHaveCount(
     0,
   );
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 
   await filterEditor.getByRole("button", { name: "Clear filters" }).click();
   await filterEditor.getByRole("button", { name: "Save filters" }).click();
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(3);
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 
   const sortEditor = page.locator(".database-rule-editor").filter({ hasText: /^Sort & group/ });
   await sortEditor.locator("summary").click();
@@ -127,7 +131,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
           .evaluateAll((nodes) => nodes.map((node) => node.textContent?.trim())),
     )
     .toEqual([entries.gamma, entries.beta, entries.alpha]);
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 
   const columns = page.locator(".database-columns");
   await columns.locator("summary").click();
@@ -135,12 +139,12 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(
     page.locator(".database-grid").getByRole("columnheader", { name: /Status/ }),
   ).toHaveCount(0);
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
   await columns.getByRole("checkbox", { name: "Status" }).check();
   await expect(
     page.locator(".database-grid").getByRole("columnheader", { name: /Status/ }),
   ).toBeVisible();
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
   await columns.getByRole("button", { name: "Move Status column earlier" }).click();
   await expect
     .poll(async () =>
@@ -149,15 +153,15 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
         .evaluateAll((headers) => headers.map((header) => header.textContent?.trim())),
     )
     .toEqual([expect.stringContaining("Status"), expect.stringContaining("Title")]);
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
   await page.getByRole("button", { name: "Widen Title" }).click();
   await expect(page.getByRole("group", { name: "Title width 280 pixels" })).toBeVisible();
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 
   await page.getByRole("button", { name: "New list view" }).click();
   const listTab = page.getByRole("tab", { name: /List 2/ });
   await expect(listTab).toBeVisible({ timeout: 15_000 });
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
   await listTab.click();
   await expect(page.locator(".database-list")).toBeVisible();
   await expect(page.locator(".database-list__entry")).toHaveCount(3);
@@ -166,10 +170,9 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await expect(viewName).toHaveValue("Planning");
   await page.getByRole("button", { name: "Rename view" }).click();
   await expect(page.getByRole("tab", { name: /Planning/ })).toBeVisible();
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 
   await page.reload();
-  await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible({ timeout: 15_000 });
   await selectItem(page, databaseName);
   await expect(page.getByRole("tab", { name: /Planning/ })).toHaveAttribute(
     "aria-selected",
@@ -182,9 +185,6 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   const second = await openSecondDevice(browser, baseURL);
   try {
     await openWorkspace(second.page);
-    await expect(second.page.getByTestId(`tree-item-${databaseName}`)).toBeVisible({
-      timeout: 15_000,
-    });
     await selectItem(second.page, databaseName);
     await expect(second.page.getByRole("tab", { name: /Planning/ })).toBeVisible({
       timeout: 15_000,

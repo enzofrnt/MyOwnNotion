@@ -22,6 +22,13 @@ function expectValid(body: unknown) {
   return result.document;
 }
 
+function expectInvalid(body: unknown, expectedPath: string) {
+  const result = validateDocumentV3(body);
+  expect(result.ok).toBe(false);
+  if (result.ok) return;
+  expect(result.problems.map(({ path }) => path)).toContain(expectedPath);
+}
+
 describe("the canonical v3 parser", () => {
   it("accepts the V1 block catalogue, including stable table identities", () => {
     const columnId = generateUuidV7();
@@ -202,6 +209,396 @@ describe("the canonical v3 parser", () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  it("reports malformed document, block, inline and mark structures precisely", () => {
+    const blockId = generateUuidV7();
+    const targetItemId = generateUuidV7();
+    const circular: { self?: unknown } = {};
+    circular.self = circular;
+    const sparse: unknown[] = [];
+    sparse.length = 2;
+    sparse[1] = "kept";
+    const arrayWithProperty = Object.assign(["kept"], { future: true });
+    const symbolKey = Symbol("future");
+    const objectWithSymbol = { [symbolKey]: true };
+    const objectWithHiddenProperty = Object.defineProperty({}, "hidden", {
+      enumerable: false,
+      value: true,
+    });
+    const objectWithAccessor = Object.defineProperty({}, "accessor", {
+      enumerable: true,
+      get: () => true,
+    });
+    const throwingPrototype = new Proxy(
+      {},
+      {
+        getPrototypeOf() {
+          throw new Error("prototype unavailable");
+        },
+      },
+    );
+    let tooDeep: unknown = { type: "paragraph", id: generateUuidV7(), content: [] };
+    for (let depth = 0; depth < 33; depth += 1) {
+      tooDeep = {
+        type: "toggle",
+        id: generateUuidV7(),
+        content: [],
+        children: [tooDeep],
+      };
+    }
+
+    const invalidCases: readonly {
+      readonly body: unknown;
+      readonly path: string;
+    }[] = [
+      { body: null, path: "" },
+      { body: circular, path: "" },
+      { body: { blocks: [], future: true }, path: "future" },
+      { body: { blocks: "not-an-array" }, path: "blocks" },
+      { body: { blocks: [null] }, path: "blocks[0]" },
+      { body: { blocks: [{ id: blockId }] }, path: "blocks[0].type" },
+      {
+        body: { blocks: [{ type: "paragraph", id: blockId, content: "bad" }] },
+        path: "blocks[0].content",
+      },
+      {
+        body: { blocks: [{ type: "paragraph", id: blockId, content: [null] }] },
+        path: "blocks[0].content[0]",
+      },
+      {
+        body: { blocks: [{ type: "paragraph", id: blockId, content: [{}] }] },
+        path: "blocks[0].content[0].text",
+      },
+      {
+        body: {
+          blocks: [
+            { type: "paragraph", id: blockId, content: [{ text: String.fromCharCode(0xd800) }] },
+          ],
+        },
+        path: "blocks[0].content[0].text",
+      },
+      {
+        body: { blocks: [{ type: "paragraph", id: blockId, content: [{ text: "\u0001" }] }] },
+        path: "blocks[0].content[0].text",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [{ text: "x".repeat(1_048_577) }] }],
+        },
+        path: "blocks[0].content[0].text",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [{ text: "x", future: true }] }],
+        },
+        path: "blocks[0].content[0].future",
+      },
+      {
+        body: { blocks: [{ type: "paragraph", id: blockId, content: [{ text: "x", marks: 1 }] }] },
+        path: "blocks[0].content[0].marks",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [{ text: "x", marks: [null] }] }],
+        },
+        path: "blocks[0].content[0].marks[0]",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [{ text: "x", marks: [{}] }] }],
+        },
+        path: "blocks[0].content[0].marks[0].type",
+      },
+      {
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: blockId,
+              content: [{ text: "x", marks: [{ type: "bold", future: true }] }],
+            },
+          ],
+        },
+        path: "blocks[0].content[0].marks[0].future",
+      },
+      {
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: blockId,
+              content: [{ text: "x", marks: [{ type: "link", href: "relative" }] }],
+            },
+          ],
+        },
+        path: "blocks[0].content[0].marks[0].href",
+      },
+      {
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: blockId,
+              content: [{ text: "x", marks: [{ type: "pageLink", targetItemId: "bad" }] }],
+            },
+          ],
+        },
+        path: "blocks[0].content[0].marks[0].targetItemId",
+      },
+      {
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: blockId,
+              content: [{ text: "x", marks: [{ type: "textColor", color: "cyan" }] }],
+            },
+          ],
+        },
+        path: "blocks[0].content[0].marks[0].color",
+      },
+      {
+        body: {
+          blocks: [
+            {
+              type: "paragraph",
+              id: blockId,
+              content: [
+                {
+                  text: "x",
+                  marks: [
+                    { type: "pageLink", targetItemId },
+                    { type: "pageLink", targetItemId },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        path: "blocks[0].content[0].marks[1]",
+      },
+      {
+        body: {
+          blocks: [{ type: "toggle", id: blockId, content: [], children: "bad" }],
+        },
+        path: "blocks[0].children",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [], future: Number.NaN }],
+        },
+        path: "blocks[0].future",
+      },
+      {
+        body: { blocks: [{ type: "paragraph", id: blockId, content: [], future: sparse }] },
+        path: "blocks[0].future[0]",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [], future: arrayWithProperty }],
+        },
+        path: "blocks[0].future",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [], future: objectWithSymbol }],
+        },
+        path: "blocks[0].future",
+      },
+      {
+        body: {
+          blocks: [
+            { type: "paragraph", id: blockId, content: [], future: objectWithHiddenProperty },
+          ],
+        },
+        path: "blocks[0].future.hidden",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [], future: objectWithAccessor }],
+        },
+        path: "blocks[0].future.accessor",
+      },
+      {
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [], future: throwingPrototype }],
+        },
+        path: "blocks[0].future",
+      },
+      {
+        body: { blocks: [{ type: "paragraph", id: blockId, content: [], future: undefined }] },
+        path: "blocks[0].future",
+      },
+    ];
+
+    for (const { body, path } of invalidCases) expectInvalid(body, path);
+
+    const deepResult = validateDocumentV3({ blocks: [tooDeep] });
+    expect(deepResult.ok).toBe(false);
+    if (!deepResult.ok) {
+      expect(deepResult.problems.some((problem) => /children/u.test(problem.path))).toBe(true);
+    }
+  });
+
+  it("rejects malformed properties for every structured V1 block", () => {
+    const id = generateUuidV7();
+    const columnId = generateUuidV7();
+    const rowId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const fileItemId = generateUuidV7();
+    const table = (columns: unknown, rows: unknown) => ({ type: "table", id, columns, rows });
+    const validColumn = { id: columnId, width: null };
+    const validCell = { id: cellId, content: [] };
+    const validRow = { id: rowId, cells: [validCell] };
+    const invalidCases: readonly { readonly block: unknown; readonly path: string }[] = [
+      { block: { type: "heading", id, level: 4, content: [] }, path: "blocks[0].level" },
+      { block: { type: "checkbox", id, checked: "yes", content: [] }, path: "blocks[0].checked" },
+      { block: { type: "code", id, text: 1, language: null }, path: "blocks[0].text" },
+      { block: { type: "code", id, text: "x", language: false }, path: "blocks[0].language" },
+      {
+        block: { type: "code", id, text: "x", language: "x".repeat(101) },
+        path: "blocks[0].language",
+      },
+      {
+        block: { type: "callout", id, content: [], icon: 1, tone: "default" },
+        path: "blocks[0].icon",
+      },
+      {
+        block: { type: "callout", id, content: [], icon: "A", tone: "default" },
+        path: "blocks[0].icon",
+      },
+      {
+        block: { type: "callout", id, content: [], icon: null, tone: "cyan" },
+        path: "blocks[0].tone",
+      },
+      { block: table([], [validRow]), path: "blocks[0].columns" },
+      { block: table([validColumn], []), path: "blocks[0].rows" },
+      { block: table([null], [validRow]), path: "blocks[0].columns[0]" },
+      {
+        block: table([{ ...validColumn, future: true }], [validRow]),
+        path: "blocks[0].columns[0].future",
+      },
+      { block: table([{ id: "bad", width: null }], [validRow]), path: "blocks[0].columns[0].id" },
+      {
+        block: table([{ id: columnId, width: 79 }], [validRow]),
+        path: "blocks[0].columns[0].width",
+      },
+      { block: table([validColumn], [null]), path: "blocks[0].rows[0]" },
+      {
+        block: table([validColumn], [{ ...validRow, future: true }]),
+        path: "blocks[0].rows[0].future",
+      },
+      {
+        block: table([validColumn], [{ id: "bad", cells: [validCell] }]),
+        path: "blocks[0].rows[0].id",
+      },
+      { block: table([validColumn], [{ id: rowId, cells: [] }]), path: "blocks[0].rows[0].cells" },
+      {
+        block: table([validColumn], [{ id: rowId, cells: [null] }]),
+        path: "blocks[0].rows[0].cells[0]",
+      },
+      {
+        block: table([validColumn], [{ id: rowId, cells: [{ ...validCell, future: true }] }]),
+        path: "blocks[0].rows[0].cells[0].future",
+      },
+      {
+        block: {
+          type: "image",
+          id,
+          fileItemId: "bad",
+          caption: null,
+          altText: null,
+          displayWidth: null,
+        },
+        path: "blocks[0].fileItemId",
+      },
+      {
+        block: { type: "image", id, fileItemId, caption: 1, altText: null, displayWidth: null },
+        path: "blocks[0].caption",
+      },
+      {
+        block: { type: "image", id, fileItemId, caption: null, altText: 1, displayWidth: null },
+        path: "blocks[0].altText",
+      },
+      {
+        block: { type: "image", id, fileItemId, caption: null, altText: null, displayWidth: 79 },
+        path: "blocks[0].displayWidth",
+      },
+      {
+        block: { type: "fileEmbed", id, fileItemId, caption: false },
+        path: "blocks[0].caption",
+      },
+      {
+        block: {
+          type: "embed",
+          id,
+          provider: "unknown",
+          sourceUrl: "https://example.com",
+          caption: null,
+        },
+        path: "blocks[0].provider",
+      },
+      {
+        block: { type: "embed", id, provider: "bookmark", sourceUrl: "not-a-url", caption: null },
+        path: "blocks[0].sourceUrl",
+      },
+      {
+        block: {
+          type: "embed",
+          id,
+          provider: "bookmark",
+          sourceUrl: "https://user:secret@example.com",
+          caption: null,
+        },
+        path: "blocks[0].sourceUrl",
+      },
+      {
+        block: {
+          type: "embed",
+          id,
+          provider: "bookmark",
+          sourceUrl: "https://example.com?api_key=secret",
+          caption: null,
+        },
+        path: "blocks[0].sourceUrl",
+      },
+      {
+        block: {
+          type: "embed",
+          id,
+          provider: "bookmark",
+          sourceUrl: "https://example.com",
+          caption: false,
+        },
+        path: "blocks[0].caption",
+      },
+    ];
+
+    for (const { block, path } of invalidCases) expectInvalid({ blocks: [block] }, path);
+  });
+
+  it("accepts each allowlisted HTTPS embed host", () => {
+    const embeds = [
+      ["bookmark", "https://example.com/path"],
+      ["youtube", "https://www.youtube.com/watch?v=123"],
+      ["youtube", "https://youtu.be/123"],
+      ["vimeo", "https://player.vimeo.com/video/123"],
+      ["figma", "https://www.figma.com/file/123"],
+      ["github", "https://github.com/enzofrnt/MyOwnNotion"],
+      ["drawio", "https://app.diagrams.net/"],
+      ["drawio", "https://embed.draw.io/"],
+    ] as const;
+
+    expectValid({
+      blocks: embeds.map(([provider, sourceUrl]) => ({
+        type: "embed",
+        id: generateUuidV7(),
+        provider,
+        sourceUrl,
+        caption: null,
+      })),
+    });
+  });
 });
 
 describe("v3 canonicalisation", () => {
@@ -349,6 +746,21 @@ describe("the v3 envelope", () => {
         body: { blocks: [] },
       }).ok,
     ).toBe(false);
+  });
+
+  it("reports malformed envelopes and prefixes body problems", () => {
+    expect(validatePageDocumentEnvelopeV3(null).ok).toBe(false);
+    const result = validatePageDocumentEnvelopeV3({
+      format: "other",
+      formatVersion: 2,
+      body: { blocks: [{ type: "heading", id: "bad", level: 9, content: [] }] },
+      future: true,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.problems.map(({ path }) => path)).toEqual(
+      expect.arrayContaining(["future", "format", "formatVersion", "body.blocks[0].id"]),
+    );
   });
 });
 

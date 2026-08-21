@@ -25,9 +25,12 @@ export function uniqueName(prefix: string): string {
 
 export async function openWorkspace(page: Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
-  // Wait for the initial load (tree or empty state) to settle.
-  await expect(page.locator('[role="tree"], [data-testid="empty-state"]').first()).toBeVisible({
+  await expect(page.getByTestId("workspace-shell")).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toBeVisible();
+  // Wait for the initial load (tree or empty state) to settle. On a phone the
+  // navigation is a closed modal drawer, so readiness is represented by the
+  // settled content being attached rather than necessarily visible.
+  await expect(page.locator('[role="tree"], [data-testid="empty-state"]').first()).toBeAttached({
     timeout: 15_000,
   });
 }
@@ -45,7 +48,8 @@ export async function openWorkspace(page: Page): Promise<void> {
  * do. `toHaveValue` alone only waits; it cannot put the name back.
  */
 async function typeItemName(page: Page, name: string): Promise<void> {
-  const field = page.getByLabel("Name", { exact: true });
+  await ensureNavigationVisible(page);
+  const field = page.getByLabel("Nom", { exact: true });
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await field.fill(name);
     if ((await field.inputValue()) === name) {
@@ -62,9 +66,7 @@ export async function createRootItem(
   name: string,
 ): Promise<void> {
   await typeItemName(page, name);
-  await page
-    .getByRole("button", { name: kind === "page" ? "New root page" : "New root folder" })
-    .click();
+  await page.getByTestId(kind === "page" ? "new-root-page" : "new-root-folder").click();
   // The same 15-second budget `createChildItem` already uses, and for the same
   // reason. These two helpers do the same work, but only the child one was
   // hardened when it last flaked; this one kept Playwright's 5-second default
@@ -91,14 +93,117 @@ export async function createChildItem(
   // here that does not retry, so a re-render landing between resolving the
   // locator and scrolling it detached the element and failed the journey —
   // intermittently, which is the worst way for it to fail.
-  await page.getByRole("button", { name: `New ${kind} inside ${parentName}` }).click();
+  await clickItemAction(page, parentName, `new-${kind}-inside-${parentName}`);
   await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
+}
+
+export async function ensureNavigationVisible(page: Page): Promise<void> {
+  // Observe the actual interactive surface. The structural `workspace-tree`
+  // wrapper may have no box of its own on desktop even while its tree is fully
+  // visible, which makes Playwright correctly report the wrapper itself as
+  // hidden.
+  const navigation = page.locator('[role="tree"], [data-testid="empty-state"]').first();
+  const trigger = page.getByTestId("toggle-tree");
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await expect
+      .poll(async () => (await navigation.isVisible()) || (await trigger.isVisible()), {
+        timeout: 15_000,
+      })
+      .toBe(true);
+    if (await navigation.isVisible()) return;
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click();
+    }
+    try {
+      await expect(navigation).toBeVisible({ timeout: 3_000 });
+      return;
+    } catch {
+      // A reload can replace the responsive trigger between resolution and
+      // click. Retry against the current trigger instead of waiting on the
+      // detached interaction for the rest of the test budget.
+    }
+  }
+  await expect(navigation).toBeVisible({ timeout: 15_000 });
+}
+
+export async function ensureNavigationRowVisible(page: Page, itemName: string): Promise<Locator> {
+  await ensureNavigationVisible(page);
+  const row = page.getByTestId(`tree-item-${itemName}`);
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  return row;
+}
+
+/** Opens one row's accessible action menu without relying on hover state. */
+export async function openItemActions(page: Page, itemName: string): Promise<void> {
+  const row = await ensureNavigationRowVisible(page, itemName);
+  await row.focus();
+  const trigger = page.getByTestId(`item-actions-${itemName}`);
+  await trigger.click();
+  await expect(page.getByRole("menu", { name: `Actions pour ${itemName}` })).toBeVisible();
+}
+
+/** Dismisses the modal navigation before interacting with mobile page content. */
+export async function closeMobileNavigation(page: Page): Promise<void> {
+  const dismiss = page.getByRole("button", { name: "Fermer" });
+  if (await dismiss.isVisible()) {
+    await dismiss.click();
+  }
+}
+
+/** Chooses one action from a hierarchy row's menu. */
+export async function clickItemAction(
+  page: Page,
+  itemName: string,
+  actionTestId: string,
+): Promise<void> {
+  await openItemActions(page, itemName);
+  await page.getByTestId(actionTestId).click();
+}
+
+export async function renameItem(page: Page, itemName: string, nextName: string): Promise<void> {
+  page.once("dialog", (dialog) => void dialog.accept(nextName));
+  await clickItemAction(page, itemName, `rename-${itemName}`);
+}
+
+export async function trashItem(page: Page, itemName: string): Promise<void> {
+  await clickItemAction(page, itemName, `trash-${itemName}`);
+}
+
+export async function moveItemToRoot(page: Page, itemName: string): Promise<void> {
+  await clickItemAction(page, itemName, `move-root-${itemName}`);
+}
+
+export async function moveItemUp(page: Page, itemName: string): Promise<void> {
+  await clickItemAction(page, itemName, `move-up-${itemName}`);
+}
+
+export async function moveSelectedItemInto(page: Page, targetName: string): Promise<void> {
+  await clickItemAction(page, targetName, `move-selected-inside-${targetName}`);
+}
+
+/** Reveals and activates the conversion control beside a hierarchy row. */
+export async function convertItem(page: Page, itemName: string): Promise<void> {
+  const row = await ensureNavigationRowVisible(page, itemName);
+  await row.focus();
+  await page.getByTestId(`convert-${itemName}`).click();
+}
+
+/** Opens the secondary local-state disclosure before asserting its diagnostics. */
+export async function openWorkspaceDiagnostics(page: Page): Promise<void> {
+  await closeMobileNavigation(page);
+  const diagnostics = page.locator("details.workspace-diagnostics");
+  await expect(diagnostics).toBeVisible({ timeout: 15_000 });
+  if ((await diagnostics.getAttribute("open")) === null) {
+    await diagnostics.locator("summary").click();
+  }
+  await expect(diagnostics).toHaveAttribute("open", "");
 }
 
 /** Selects a tree item by clicking its name (never the action buttons). */
 export async function selectItem(page: Page, name: string): Promise<void> {
-  await page.getByTestId(`tree-item-${name}`).locator(".tree-name").click();
-  await expect(page.getByTestId(`tree-item-${name}`)).toHaveAttribute("aria-selected", "true", {
+  const row = await ensureNavigationRowVisible(page, name);
+  await row.locator(".tree-name").click();
+  await expect(row).toHaveAttribute("aria-selected", "true", {
     timeout: 15_000,
   });
 }
@@ -137,9 +242,27 @@ export async function saveEntryProperties(page: Page): Promise<void> {
   await waitForSynchronized(page);
 }
 
+/** Waits for an acknowledged database-definition edit to finish locally. */
+export async function waitForDatabaseDefinitionIdle(page: Page): Promise<void> {
+  await expect(page.locator(".database-page")).toHaveAttribute("data-definition-state", "idle", {
+    timeout: 20_000,
+  });
+}
+
+/** Waits for an acknowledged database-definition edit to finish locally and remotely. */
+export async function waitForDatabaseDefinitionSaved(page: Page): Promise<void> {
+  await waitForDatabaseDefinitionIdle(page);
+  await waitForSynchronized(page);
+}
+
 export async function waitForSynchronized(page: Page): Promise<void> {
-  // The queue must drain (no pending/conflict rows) and the state settle.
-  await expect(page.getByTestId("mutation-status-empty")).toBeVisible({ timeout: 20_000 });
+  // The queue must drain (no pending/conflict rows) and the state settle. The
+  // diagnostic is deliberately collapsed in the polished workspace, so assert
+  // its state rather than requiring that implementation detail to be visible.
+  await expect(page.getByTestId("mutation-status-empty")).toHaveText(
+    "All local changes are accepted.",
+    { timeout: 20_000 },
+  );
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
     timeout: 20_000,
   });

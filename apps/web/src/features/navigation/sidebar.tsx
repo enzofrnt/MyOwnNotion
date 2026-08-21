@@ -1,25 +1,9 @@
-/**
- * Favourites, recents, and the way to settings (T053, US3, FR-012).
- *
- * Three shortcuts that answer three different questions, which is why they are
- * three lists rather than one ranked one: *what did I mark as important*, *what
- * was touched lately*, and *where do I change how this works*.
- *
- * **Favourites are server-backed** because the spec makes them
- * per-installation. The alternative — keeping them beside the expanded
- * branches in the local projection — would mean a page starred on the laptop is
- * not starred on the phone, and for a single-owner product that is a bug the
- * owner would report rather than a design.
- *
- * **Recents means recently changed, not recently opened.** Opening a page is
- * not a mutation, so a per-installation "recently opened" would need the client
- * to write to the server every time the owner looked at something. What is
- * already known everywhere is when an item last changed, and the revision
- * identifier carries it: revision ids are UUIDv7, so their ordering *is* time
- * ordering. The list is honest about which of the two it shows.
- */
+/** Focused workspace navigation: search, shortcuts, hierarchy and settings. */
 
 import type { ProjectedItem } from "@myownnotion/client-core";
+import type { ReactNode } from "react";
+import { AppIcon } from "../../ui/icons.tsx";
+import { Button } from "../../ui/primitives/index.ts";
 
 /** How many rows a shortcut list shows before it stops being a shortcut. */
 const SHORTCUT_LIMIT = 5;
@@ -30,25 +14,24 @@ export function favouritesOf(items: readonly ProjectedItem[]): ProjectedItem[] {
     .toSorted((left, right) => left.name.localeCompare(right.name));
 }
 
-/**
- * The most recently changed items, newest first.
- *
- * Sorted on `currentRevisionId` rather than on a timestamp the row does not
- * carry. UUIDv7 puts a millisecond timestamp in its leading bits, so a plain
- * lexicographic comparison of two revision ids orders them by when they were
- * created — no clock reading, and no field to keep in step.
- */
+/** UUIDv7 revision identities put the most recently changed item first. */
 export function recentsOf(items: readonly ProjectedItem[]): ProjectedItem[] {
   return items
     .toSorted((left, right) => right.currentRevisionId.localeCompare(left.currentRevisionId))
     .slice(0, SHORTCUT_LIMIT);
 }
 
+function itemIcon(item: ProjectedItem): "file" | "fileText" | "folder" {
+  if (item.kind === "folder") return "folder";
+  if (item.kind === "file") return "file";
+  return "fileText";
+}
+
 function ShortcutList({
-  items,
-  testId,
   emptyMessage,
+  items,
   onOpen,
+  testId,
 }: {
   readonly items: readonly ProjectedItem[];
   readonly testId: string;
@@ -57,23 +40,23 @@ function ShortcutList({
 }) {
   if (items.length === 0) {
     return (
-      <p className="empty-state" data-testid={`${testId}-empty`}>
+      <p className="workspace-navigation__empty" data-testid={`${testId}-empty`}>
         {emptyMessage}
       </p>
     );
   }
   return (
-    <ul className="tree" data-testid={testId}>
+    <ul className="workspace-shortcuts" data-testid={testId}>
       {items.map((item) => (
-        <li key={item.id} className="tree-row">
-          <span className="tree-kind">{item.kind}</span>
+        <li key={item.id}>
           <button
             type="button"
-            className="link tree-name"
+            className="workspace-shortcut"
             data-testid={`${testId}-${item.name}`}
             onClick={() => onOpen(item.id)}
           >
-            {item.name}
+            <AppIcon name={itemIcon(item)} size="small" />
+            <span>{item.name}</span>
           </button>
         </li>
       ))}
@@ -81,55 +64,90 @@ function ShortcutList({
   );
 }
 
-export function Sidebar({
-  items,
-  onOpen,
-  onOpenSettings,
-  onOpenSearch,
-  onCreateDatabase,
-}: {
+export interface SidebarProps {
   readonly items: readonly ProjectedItem[];
+  readonly tree: ReactNode;
+  readonly creationControls: ReactNode;
+  readonly footerStatus?: ReactNode;
   readonly onOpen: (itemId: ProjectedItem["id"]) => void;
   readonly onOpenSettings: () => void;
+  readonly onOpenBackups: () => void;
   readonly onOpenSearch: () => void;
-  readonly onCreateDatabase: () => void;
-}) {
+}
+
+export function Sidebar({
+  creationControls,
+  footerStatus,
+  items,
+  onOpen,
+  onOpenBackups,
+  onOpenSearch,
+  onOpenSettings,
+  tree,
+}: SidebarProps) {
   const favourites = favouritesOf(items);
   const recents = recentsOf(items);
 
   return (
-    <nav className="sidebar" aria-label="Workspace shortcuts" data-testid="sidebar">
-      <button type="button" className="search-trigger" onClick={onOpenSearch}>
-        Search <kbd>Ctrl/⌘ K</kbd>
-      </button>
-      <button type="button" className="database-shortcut" onClick={onCreateDatabase}>
-        New database
-      </button>
+    <nav className="workspace-navigation" aria-label="Navigation principale" data-testid="sidebar">
+      <header className="workspace-navigation__brand">
+        <span className="workspace-navigation__mark" aria-hidden="true">
+          M
+        </span>
+        <h2>MyOwnNotion</h2>
+      </header>
 
-      <section aria-labelledby="sidebar-favourites-heading">
-        <h2 id="sidebar-favourites-heading">Favourites</h2>
+      <Button className="workspace-navigation__search" variant="ghost" onClick={onOpenSearch}>
+        <AppIcon name="search" />
+        <span>Rechercher</span>
+        <kbd>⌘ K</kbd>
+      </Button>
+
+      <section
+        className="workspace-navigation__section"
+        aria-labelledby="sidebar-favourites-heading"
+      >
+        <h3 id="sidebar-favourites-heading">Favoris</h3>
         <ShortcutList
           items={favourites}
           testId="favourites"
-          emptyMessage="Nothing is marked as a favourite yet."
+          emptyMessage="Aucun favori pour le moment."
           onOpen={onOpen}
         />
       </section>
 
-      <section aria-labelledby="sidebar-recents-heading">
-        <h2 id="sidebar-recents-heading">Recent</h2>
-        <p className="muted">Most recently changed, on any device.</p>
+      <section className="workspace-navigation__section" aria-labelledby="sidebar-recents-heading">
+        <h3 id="sidebar-recents-heading">Récents</h3>
         <ShortcutList
           items={recents}
           testId="recents"
-          emptyMessage="Nothing has been changed yet."
+          emptyMessage="Aucune modification récente."
           onOpen={onOpen}
         />
       </section>
 
-      <button type="button" className="link" data-testid="open-settings" onClick={onOpenSettings}>
-        Settings
-      </button>
+      <section
+        className="workspace-navigation__section workspace-navigation__tree"
+        aria-labelledby="sidebar-tree-heading"
+      >
+        <div className="workspace-navigation__section-heading">
+          <h3 id="sidebar-tree-heading">Espace privé</h3>
+        </div>
+        {creationControls}
+        {tree}
+      </section>
+
+      <footer className="workspace-navigation__footer">
+        {footerStatus}
+        <Button variant="ghost" data-testid="open-backups-sidebar" onClick={onOpenBackups}>
+          <AppIcon name="archive" />
+          Sauvegardes
+        </Button>
+        <Button variant="ghost" data-testid="open-settings" onClick={onOpenSettings}>
+          <AppIcon name="settings" />
+          Réglages et sécurité
+        </Button>
+      </footer>
     </nav>
   );
 }

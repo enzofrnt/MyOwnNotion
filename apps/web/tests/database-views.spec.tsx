@@ -9,6 +9,7 @@ import { FilterEditor } from "../src/features/databases/filter-editor.tsx";
 import { SortGroupEditor } from "../src/features/databases/sort-group-editor.tsx";
 import {
   readDatabaseViewContext,
+  resolveActiveDatabaseViewId,
   writeDatabaseViewContext,
 } from "../src/features/databases/use-database-view.ts";
 
@@ -199,6 +200,19 @@ describe("saved database views (T041)", () => {
     expect(state["unrelated"]).toBe("kept");
     expect(readDatabaseViewContext(state, ids.database, ids.table)).toEqual(context);
     expect(readDatabaseViewContext(state, ids.database, ids.list)).toBeNull();
+  });
+
+  it("keeps an explicit tab selection when an older definition effect settles", () => {
+    expect(
+      resolveActiveDatabaseViewId({
+        activeViewIds: [ids.table, ids.list],
+        currentViewId: ids.table,
+        requestedViewId: ids.list,
+        urlViewId: ids.table,
+        firstActiveViewId: ids.table,
+        databaseChanged: false,
+      }),
+    ).toBe(ids.list);
   });
 
   it("renders a semantic compact list and explicit complete coverage", () => {

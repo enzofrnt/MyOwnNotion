@@ -219,7 +219,7 @@ function validateUnicodeText(value: string, allowCodeControls: boolean): void {
     const unit = value.charCodeAt(index);
     if (unit >= 0xd800 && unit <= 0xdbff) {
       const next = value.charCodeAt(index + 1);
-      if (next < 0xdc00 || next > 0xdfff) {
+      if (!(next >= 0xdc00 && next <= 0xdfff)) {
         throw new RichTextOperationError("text must contain valid Unicode scalar values");
       }
       index += 1;

@@ -117,7 +117,7 @@ describe("database editor surfaces (T022)", () => {
         onOpenEntry: vi.fn(),
       }),
     );
-    expect(markup).toContain("Projects");
+    expect(markup).toContain("Database contents");
     expect(markup).toContain("Estimate");
     expect(markup).toContain("Add property");
     expect(markup).toContain("New entry");

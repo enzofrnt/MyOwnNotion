@@ -1,6 +1,14 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
-import { openWorkspace, saveEntryProperties, uniqueName, waitForSynchronized } from "./helpers.ts";
+import {
+  createDatabaseEntry,
+  ensureNavigationVisible,
+  openWorkspace,
+  saveEntryProperties,
+  uniqueName,
+  waitForDatabaseDefinitionSaved,
+  waitForSynchronized,
+} from "./helpers.ts";
 
 async function addProperty(
   page: Page,
@@ -18,7 +26,7 @@ async function addProperty(
   }
   await editor.getByRole("button", { name: "Save property" }).click();
   await expect(editor).toBeHidden({ timeout: 15_000 });
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 }
 
 async function createEntry(
@@ -26,13 +34,7 @@ async function createEntry(
   title: string,
   values: { readonly summary: string; readonly due?: string },
 ): Promise<void> {
-  const form = page.locator(".database-entry-create");
-  const input = form.getByLabel("New entry");
-  await input.fill(title);
-  await expect(input).toHaveValue(title);
-  await form.getByRole("button", { name: "New entry" }).click();
-  const trigger = page.locator("[data-entry-trigger]").filter({ hasText: title }).first();
-  await expect(trigger).toBeVisible({ timeout: 15_000 });
+  const trigger = await createDatabaseEntry(page, title);
   await waitForSynchronized(page);
   await trigger.click();
   const panel = page.locator(".entry-panel");
@@ -58,7 +60,7 @@ async function createView(page: Page, buttonName: string, tabName: RegExp): Prom
   const tab = page.getByRole("tab", { name: tabName });
   await expect(tab).toBeVisible({ timeout: 15_000 });
   await expect(tab).toHaveAttribute("aria-selected", "true");
-  await waitForSynchronized(page);
+  await waitForDatabaseDefinitionSaved(page);
 }
 
 test("uses one canonical entry across board, gallery and calendar at pointer, keyboard and narrow layouts", async ({
@@ -73,7 +75,8 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   const firstDate = `${month}-10`;
   const secondDate = `${month}-11`;
 
-  await page.getByRole("button", { name: "New root database" }).click();
+  await ensureNavigationVisible(page);
+  await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   const createDatabaseButton = createDatabase.getByRole("button", { name: "Create database" });
@@ -139,6 +142,7 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
       .filter({ hasText: alpha })
       .locator("[data-entry-trigger]"),
   ).toHaveAttribute("data-entry-trigger", canonicalEntryId as string);
+  await waitForSynchronized(page);
 
   await page.getByRole("tab", { name: /Table/ }).click();
   const alphaRow = page.locator(".database-grid tbody tr").filter({ hasText: alpha });
@@ -150,7 +154,14 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   );
 
   await page.getByRole("tab", { name: /Gallery 4/ }).click();
-  await page.setViewportSize({ width: 320, height: 800 });
+  await expect(page.getByRole("tab", { name: /Gallery 4/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  // 200% zoom on a 640px viewport produces the same 320 CSS-pixel reflow
+  // target without accidentally testing an unsupported effective width of
+  // 160px.
+  await page.setViewportSize({ width: 640, height: 800 });
   await page.evaluate(() => {
     document.documentElement.style.zoom = "200%";
   });
@@ -160,10 +171,11 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(documentOverflow).toBeLessThanOrEqual(24);
-  await page
+  const narrowCardTrigger = page
     .locator(".database-gallery__card")
     .filter({ hasText: alpha })
-    .getByRole("button")
-    .click();
+    .getByRole("button");
+  await narrowCardTrigger.focus();
+  await narrowCardTrigger.press("Enter");
   await expect(page.locator(".entry-panel").getByRole("heading", { name: alpha })).toBeVisible();
 });

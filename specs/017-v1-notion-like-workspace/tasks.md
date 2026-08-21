@@ -121,23 +121,23 @@ l'éditeur riche.
 
 ### Tests for User Story 1
 
-- [ ] T050 [P] [US1] Écrire les tests du shell, header et états de chargement dans `apps/web/tests/workspace-shell.spec.tsx`
-- [ ] T051 [P] [US1] Étendre les tests de persistance sidebar/branches/dernier item dans `apps/web/tests/sidebar.spec.ts`
-- [ ] T052 [P] [US1] Écrire le journey desktop/mobile du shell et du focus drawer dans `tests/e2e/workspace-shell.spec.ts`
-- [ ] T053 [P] [US1] Écrire les références visuelles shell clair/sombre et assert le layout shift contextuel ≤ 1 px dans `tests/e2e/workspace-shell-visual.spec.ts`
+- [X] T050 [P] [US1] Écrire les tests du shell, header et états de chargement dans `apps/web/tests/workspace-shell.spec.tsx`
+- [X] T051 [P] [US1] Étendre les tests de persistance sidebar/branches/dernier item dans `apps/web/tests/sidebar.spec.ts`
+- [X] T052 [P] [US1] Écrire le journey desktop/mobile du shell et du focus drawer dans `tests/e2e/workspace-shell.spec.ts`
+- [X] T053 [P] [US1] Écrire les références visuelles shell clair/sombre et assert le layout shift contextuel ≤ 1 px dans `tests/e2e/workspace-shell-visual.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T054 [US1] Construire le layout shell, les landmarks et la colonne de lecture dans `apps/web/src/features/workspace/workspace-shell.tsx` et `apps/web/src/app.tsx`
-- [ ] T055 [P] [US1] Construire header de page, fil d'Ariane et actions contextuelles dans `apps/web/src/features/workspace/page-header.tsx`
-- [ ] T056 [US1] Recomposer la sidebar avec sections recherche/favoris/récents/arbre/réglages dans `apps/web/src/features/navigation/sidebar.tsx`
-- [ ] T057 [US1] Remplacer les rangées de boutons par menus de ligne clavier/toucher dans `apps/web/src/features/navigation/navigation-item-menu.tsx` et `apps/web/src/features/hierarchy/hierarchy-explorer.tsx`
-- [ ] T058 [US1] Ajouter DnD dnd-kit, cible, autoscroll et capteur clavier sans cycle dans `apps/web/src/features/navigation/tree-drag-drop.tsx`
-- [ ] T059 [US1] Persister largeur, ouverture, branches et dernier item dans `packages/client-core/src/navigation/presentation-state.ts` et `apps/web/src/features/navigation/branch-state.tsx`
-- [ ] T060 [US1] Implémenter sidebar redimensionnable desktop et drawer mobile avec retour de focus dans `apps/web/src/features/navigation/responsive-sidebar.tsx`
-- [ ] T061 [US1] Maintenir titre, chemin, sélection et focus lors des mutations dans `apps/web/src/features/workspace/use-active-item.ts`
-- [ ] T062 [US1] Intégrer skeletons, états vides et diagnostics secondaires du shell dans `apps/web/src/features/workspace/workspace-state.tsx`
-- [ ] T063 [US1] Enregistrer les nouveaux journeys et leurs propriétaires dans `ci/test-impact.json`
+- [X] T054 [US1] Construire le layout shell, les landmarks et la colonne de lecture dans `apps/web/src/features/workspace/workspace-shell.tsx` et `apps/web/src/app.tsx`
+- [X] T055 [P] [US1] Construire header de page, fil d'Ariane et actions contextuelles dans `apps/web/src/features/workspace/page-header.tsx`
+- [X] T056 [US1] Recomposer la sidebar avec sections recherche/favoris/récents/arbre/réglages dans `apps/web/src/features/navigation/sidebar.tsx`
+- [X] T057 [US1] Remplacer les rangées de boutons par menus de ligne clavier/toucher dans `apps/web/src/features/navigation/navigation-item-menu.tsx` et `apps/web/src/features/hierarchy/hierarchy-explorer.tsx`
+- [X] T058 [US1] Ajouter DnD dnd-kit, cible, autoscroll et capteur clavier sans cycle dans `apps/web/src/features/navigation/tree-drag-drop.tsx`
+- [X] T059 [US1] Persister largeur, ouverture, branches et dernier item dans `packages/client-core/src/navigation/presentation-state.ts` et `apps/web/src/features/navigation/branch-state.tsx`
+- [X] T060 [US1] Implémenter sidebar redimensionnable desktop et drawer mobile avec retour de focus dans `apps/web/src/features/navigation/responsive-sidebar.tsx`
+- [X] T061 [US1] Maintenir titre, chemin, sélection et focus lors des mutations dans `apps/web/src/features/workspace/use-active-item.ts`
+- [X] T062 [US1] Intégrer skeletons, états vides et diagnostics secondaires du shell dans `apps/web/src/features/workspace/workspace-state.tsx`
+- [X] T063 [US1] Enregistrer les nouveaux journeys et leurs propriétaires dans `ci/test-impact.json`
 
 **Checkpoint**: US1 fonctionne avec les données existantes et reste testable
 sans dépendre des blocs riches.

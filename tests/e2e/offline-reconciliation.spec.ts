@@ -12,7 +12,9 @@ import {
   apiOrigin,
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
+  ensureNavigationRowVisible,
   openWorkspace,
+  openWorkspaceDiagnostics,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -42,28 +44,31 @@ test.describe("offline continuity (US6)", () => {
     // 2. Server disappears; the client reloads.
     await goOffline(page);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "MyOwnNotion" })).toBeVisible();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible();
     // Loaded hierarchy remains readable from the durable projection.
-    await expect(page.getByTestId(`tree-item-${loaded}`)).toBeVisible({ timeout: 15_000 });
+    await ensureNavigationRowVisible(page, loaded);
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "offline");
 
     // 3. Mutations offline: create and rename with durable pending entries.
     const offlineItem = uniqueName("CreatedOffline");
     await createRootItem(page, "folder", offlineItem);
+    await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // 4. Restart the client while still offline: state and queue survive.
     await page.reload();
-    await expect(page.getByTestId(`tree-item-${offlineItem}`)).toBeVisible({ timeout: 15_000 });
+    await ensureNavigationRowVisible(page, offlineItem);
+    await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // 5. Reconnect: the outbox submits idempotently and drains.
     await goOnline(page);
     await page.reload();
     await openWorkspace(page);
+    await openWorkspaceDiagnostics(page);
     await waitForSynchronized(page);
-    await expect(page.getByTestId(`tree-item-${offlineItem}`)).toBeVisible();
     await expect(page.getByTestId("mutation-status-empty")).toBeVisible();
+    await ensureNavigationRowVisible(page, offlineItem);
   });
 
   test("a competing server revision produces a durable conflict record", async ({
@@ -106,6 +111,7 @@ test.describe("offline continuity (US6)", () => {
     await page.unroute("**/v1/**");
     await page.reload();
     await openWorkspace(page);
+    await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("conflict-records")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "conflict");
     // The conflict names the competing revision explicitly.

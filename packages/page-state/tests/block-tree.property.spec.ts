@@ -1,10 +1,43 @@
-import { canonicalDocumentJsonV3, generateUuidV7, type Uuid } from "@myownnotion/domain";
+import {
+  type BlockDocumentV3,
+  canonicalDocumentJsonV3,
+  generateUuidV7,
+  type Uuid,
+  validateDocumentV3,
+} from "@myownnotion/domain";
 import fc from "fast-check";
+import { LoroDoc } from "loro-crdt";
 import { describe, expect, it } from "vitest";
-import { OperationalPageDocument, PageCommandError } from "../src/index.ts";
+import {
+  BlockTreeOperationError,
+  configureRichText,
+  deleteOperationalBlock,
+  findOperationalNode,
+  getOperationalBlockTree,
+  initialiseOperationalBlockTree,
+  insertOperationalBlock,
+  isTransformableBlockType,
+  materialiseOperationalDocument,
+  moveOperationalBlock,
+  OperationalPageDocument,
+  operationalBlockPlacement,
+  operationalBlockProperty,
+  operationalBlockSnapshot,
+  operationalTextForBlock,
+  PageCommandError,
+  setOperationalBlockProperty,
+  transformOperationalBlockType,
+} from "../src/index.ts";
 
 function paragraph(id: Uuid, text: string) {
   return { type: "paragraph" as const, id, content: [{ text }] };
+}
+
+function operational(document: BlockDocumentV3): LoroDoc {
+  const doc = new LoroDoc();
+  configureRichText(doc);
+  initialiseOperationalBlockTree(doc, document);
+  return doc;
 }
 
 describe("the movable operational block tree", () => {
@@ -121,5 +154,240 @@ describe("the movable operational block tree", () => {
       ]),
     ).toThrow(PageCommandError);
     expect(canonicalDocumentJsonV3((await page.project()).document)).toBe(before);
+  });
+
+  it("round-trips every V1 block shape, opaque fields and an unknown block", async () => {
+    const unknown = validateDocumentV3({
+      blocks: [
+        {
+          type: "futureWidget",
+          id: generateUuidV7(),
+          payload: { nested: [true, 3, null] },
+        },
+      ],
+    });
+    if (!unknown.ok) throw new Error("unknown block fixture should be valid");
+    const unknownBlock = unknown.document.blocks[0];
+    if (unknownBlock === undefined) throw new Error("unknown block fixture is empty");
+    const tableCellId = generateUuidV7();
+    const document: BlockDocumentV3 = {
+      blocks: [
+        {
+          ...paragraph(generateUuidV7(), "Paragraphe"),
+          rawExtraProperties: { future: { enabled: true } },
+        },
+        { type: "heading", id: generateUuidV7(), level: 2, content: [{ text: "Titre" }] },
+        {
+          type: "bulletedListItem",
+          id: generateUuidV7(),
+          content: [{ text: "Puce" }],
+          children: [paragraph(generateUuidV7(), "Enfant")],
+        },
+        {
+          type: "numberedListItem",
+          id: generateUuidV7(),
+          content: [{ text: "Numéro" }],
+        },
+        {
+          type: "checkbox",
+          id: generateUuidV7(),
+          checked: true,
+          content: [{ text: "À faire" }],
+        },
+        { type: "quote", id: generateUuidV7(), content: [{ text: "Citation" }] },
+        { type: "code", id: generateUuidV7(), text: "const x = 1;", language: "ts" },
+        { type: "divider", id: generateUuidV7() },
+        {
+          type: "toggle",
+          id: generateUuidV7(),
+          content: [{ text: "Détails" }],
+          children: [paragraph(generateUuidV7(), "Contenu")],
+        },
+        {
+          type: "callout",
+          id: generateUuidV7(),
+          content: [{ text: "Conseil" }],
+          icon: "💡",
+          tone: "yellow",
+          children: [paragraph(generateUuidV7(), "Suite")],
+        },
+        {
+          type: "table",
+          id: generateUuidV7(),
+          columns: [{ id: generateUuidV7(), width: 240 }],
+          rows: [
+            {
+              id: generateUuidV7(),
+              cells: [
+                {
+                  id: tableCellId,
+                  content: [{ text: "Cellule" }],
+                  children: [paragraph(generateUuidV7(), "Sous-bloc")],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "image",
+          id: generateUuidV7(),
+          fileItemId: generateUuidV7(),
+          caption: "Vue",
+          altText: "Aperçu",
+          displayWidth: 640,
+        },
+        {
+          type: "fileEmbed",
+          id: generateUuidV7(),
+          fileItemId: generateUuidV7(),
+          caption: null,
+        },
+        {
+          type: "embed",
+          id: generateUuidV7(),
+          provider: "github",
+          sourceUrl: "https://github.com/enzofrnt/MyOwnNotion",
+          caption: "Dépôt",
+        },
+        unknownBlock,
+      ],
+    };
+    const doc = operational(document);
+
+    expect(canonicalDocumentJsonV3(materialiseOperationalDocument(doc))).toBe(
+      canonicalDocumentJsonV3(document),
+    );
+    expect(operationalBlockSnapshot(doc, tableCellId).type).toBe("table");
+  });
+
+  it("supports properties, transformations and editable text capabilities", () => {
+    const paragraphId = generateUuidV7();
+    const containerId = generateUuidV7();
+    const childId = generateUuidV7();
+    const codeId = generateUuidV7();
+    const dividerId = generateUuidV7();
+    const imageId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const doc = operational({
+      blocks: [
+        paragraph(paragraphId, "Texte"),
+        {
+          type: "toggle",
+          id: containerId,
+          content: [{ text: "Parent" }],
+          children: [paragraph(childId, "Enfant")],
+        },
+        { type: "code", id: codeId, text: "code", language: null },
+        { type: "divider", id: dividerId },
+        {
+          type: "image",
+          id: imageId,
+          fileItemId: generateUuidV7(),
+          caption: null,
+          altText: null,
+          displayWidth: null,
+        },
+        {
+          type: "table",
+          id: generateUuidV7(),
+          columns: [{ id: generateUuidV7(), width: null }],
+          rows: [
+            {
+              id: generateUuidV7(),
+              cells: [{ id: cellId, content: [{ text: "cell" }] }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(isTransformableBlockType("heading")).toBe(true);
+    expect(isTransformableBlockType("image")).toBe(false);
+    expect(isTransformableBlockType(3)).toBe(false);
+    expect(operationalBlockProperty(doc, paragraphId, "future")).toBeUndefined();
+    setOperationalBlockProperty(doc, paragraphId, "future", { nested: [1, true] });
+    expect(operationalBlockProperty(doc, paragraphId, "future")).toEqual({ nested: [1, true] });
+    expect(() => operationalBlockProperty(doc, paragraphId, "content")).toThrow(/structural/u);
+    expect(() => setOperationalBlockProperty(doc, paragraphId, "id", "other")).toThrow(
+      /structural/u,
+    );
+
+    transformOperationalBlockType(doc, paragraphId, "heading", { level: 3 });
+    expect(operationalBlockSnapshot(doc, paragraphId)).toMatchObject({
+      type: "heading",
+      level: 3,
+    });
+    transformOperationalBlockType(doc, paragraphId, "checkbox", undefined);
+    expect(operationalBlockSnapshot(doc, paragraphId)).toMatchObject({
+      type: "checkbox",
+      checked: false,
+    });
+    transformOperationalBlockType(doc, paragraphId, "code", undefined);
+    expect(operationalTextForBlock(doc, paragraphId)).toMatchObject({
+      allowsMarks: false,
+      allowsCodeControls: true,
+    });
+    expect(operationalTextForBlock(doc, codeId).allowsCodeControls).toBe(true);
+    expect(operationalTextForBlock(doc, cellId).allowsMarks).toBe(true);
+    expect(() => operationalTextForBlock(doc, dividerId)).toThrow(/no editable text/u);
+    expect(() => transformOperationalBlockType(doc, imageId, "paragraph", undefined)).toThrow(
+      /cannot be transformed/u,
+    );
+    expect(() => transformOperationalBlockType(doc, containerId, "code", undefined)).toThrow(
+      /cannot retain/u,
+    );
+  });
+
+  it("validates placements and protects internal table identities", () => {
+    const firstId = generateUuidV7();
+    const secondId = generateUuidV7();
+    const parentId = generateUuidV7();
+    const childId = generateUuidV7();
+    const rowId = generateUuidV7();
+    const cellId = generateUuidV7();
+    const doc = operational({
+      blocks: [
+        paragraph(firstId, "A"),
+        paragraph(secondId, "B"),
+        {
+          type: "toggle",
+          id: parentId,
+          content: [{ text: "Parent" }],
+          children: [paragraph(childId, "Child")],
+        },
+        {
+          type: "table",
+          id: generateUuidV7(),
+          columns: [{ id: generateUuidV7(), width: null }],
+          rows: [{ id: rowId, cells: [{ id: cellId, content: [] }] }],
+        },
+      ],
+    });
+
+    expect(operationalBlockPlacement(doc, firstId)).toEqual({
+      parentBlockId: null,
+      beforeBlockId: secondId,
+    });
+    expect(operationalBlockPlacement(doc, childId)).toEqual({
+      parentBlockId: parentId,
+      beforeBlockId: null,
+    });
+    expect(() =>
+      insertOperationalBlock(doc, paragraph(generateUuidV7(), "bad"), parentId, secondId),
+    ).toThrow(/not under/u);
+    expect(() => insertOperationalBlock(doc, paragraph(firstId, "duplicate"), null, null)).toThrow(
+      /already exists/u,
+    );
+    expect(() => moveOperationalBlock(doc, firstId, null, firstId)).toThrow(/before itself/u);
+    expect(() => moveOperationalBlock(doc, firstId, secondId, null)).toThrow(/cannot contain/u);
+    expect(() => operationalBlockPlacement(doc, rowId)).toThrow(/internal/u);
+    expect(() => deleteOperationalBlock(doc, cellId)).toThrow(/internal/u);
+    expect(() => findOperationalNode(getOperationalBlockTree(doc), generateUuidV7())).toThrow(
+      BlockTreeOperationError,
+    );
+    deleteOperationalBlock(doc, secondId);
+    expect(() => findOperationalNode(getOperationalBlockTree(doc), secondId)).toThrow(
+      /does not exist/u,
+    );
   });
 });

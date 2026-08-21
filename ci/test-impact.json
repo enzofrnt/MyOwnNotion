@@ -487,6 +487,32 @@
       }
     },
     {
+      "test": "tests/e2e/workspace-shell.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/workspace/",
+          "packages/client-core/src/navigation/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/workspace-shell-visual.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css", "apps/web/src/ui/tokens.css"],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/workspace/",
+          "apps/web/src/ui/primitives/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/offline-availability.spec.ts",
       "owners": {
         "exact": ["apps/web/src/service-worker.ts"],

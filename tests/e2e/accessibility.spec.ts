@@ -7,11 +7,17 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "./fixtures.ts";
 import {
+  convertItem,
   createRootItem,
+  ensureNavigationRowVisible,
+  ensureNavigationVisible,
+  openItemActions,
   openWorkspace,
+  openWorkspaceDiagnostics,
   selectItem,
   typeIntoEditor,
   uniqueName,
+  waitForDatabaseDefinitionSaved,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -22,20 +28,23 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await createRootItem(page, "folder", name);
 
     // Semantic structure.
-    const tree = page.getByRole("tree", { name: "Content tree" });
+    const tree = page.getByRole("tree", { name: "Arborescence" });
     await expect(tree).toBeVisible();
     const item = page.getByRole("treeitem").filter({ hasText: name }).first();
     await expect(item).toBeVisible();
     await expect(item).toHaveAttribute("aria-level", "1");
 
-    // Every mutation control is a labelled button reachable by keyboard.
+    // One labelled trigger keeps the row compact; every mutation remains a
+    // named menu item reachable by keyboard or touch.
+    await expect(page.getByRole("button", { name: `Actions pour ${name}` })).toBeVisible();
+    await openItemActions(page, name);
     for (const label of [
-      `New page inside ${name}`,
-      `Rename ${name}`,
-      `Move ${name} up`,
-      `Trash ${name}`,
+      "Nouvelle page à l’intérieur",
+      "Renommer",
+      "Déplacer vers le haut",
+      "Placer dans la corbeille",
     ]) {
-      await expect(page.getByRole("button", { name: label })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: label })).toBeVisible();
     }
 
     // Status messaging uses live regions.
@@ -44,7 +53,8 @@ test.describe("accessibility (all viewports/browsers)", () => {
 
   test("interactive elements expose visible focus", async ({ page }) => {
     await openWorkspace(page);
-    const nameInput = page.getByLabel("Name", { exact: true });
+    await ensureNavigationVisible(page);
+    const nameInput = page.getByLabel("Nom", { exact: true });
     await nameInput.focus();
     const outline = await nameInput.evaluate((element) => getComputedStyle(element).outlineStyle);
     expect(outline).not.toBe("none");
@@ -52,10 +62,11 @@ test.describe("accessibility (all viewports/browsers)", () => {
 
   test("keyboard-only operation: create, select, and navigate", async ({ page }) => {
     await openWorkspace(page);
+    await ensureNavigationVisible(page);
     const name = uniqueName("KeyboardOnly");
-    await page.getByLabel("Name", { exact: true }).fill(name);
+    await page.getByLabel("Nom", { exact: true }).fill(name);
     // Reach and activate the create button with the keyboard only.
-    await page.getByRole("button", { name: "New root folder" }).focus();
+    await page.getByTestId("new-root-folder").focus();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible();
 
@@ -73,17 +84,19 @@ test.describe("accessibility (all viewports/browsers)", () => {
 
   test("the layout stays operable at the current viewport", async ({ page }) => {
     await openWorkspace(page);
+    await ensureNavigationVisible(page);
     // Toolbar must be reachable within the viewport on every configured
     // project, including mobile sizes; created items stay operable after
     // scrolling (no horizontal cut-off).
-    await page.getByRole("button", { name: "New root folder" }).scrollIntoViewIfNeeded();
-    await expect(page.getByRole("button", { name: "New root folder" })).toBeInViewport();
+    await page.getByTestId("new-root-folder").scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("new-root-folder")).toBeInViewport();
     const name = uniqueName("Responsive");
     await createRootItem(page, "folder", name);
     // Selecting proves the newly rendered row is operable and uses Playwright's
     // retryable click/scroll path if WebKit replaces it during reconciliation.
     await selectItem(page, name);
-    await expect(page.getByTestId(`tree-item-${name}`)).toBeInViewport();
+    const row = await ensureNavigationRowVisible(page, name);
+    await expect(row).toBeInViewport();
     // No horizontal overflow: the document is not wider than the viewport.
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -171,7 +184,7 @@ test.describe("automated accessibility audit", () => {
     await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
 
-    await page.getByTestId(`convert-${name}`).click();
+    await convertItem(page, name);
     await expect(page.getByTestId("convert-confirmation")).toBeVisible({ timeout: 30_000 });
 
     const found = await violations(page);
@@ -250,6 +263,7 @@ test.describe("the file surfaces (feature 005)", () => {
 
   test("the storage panel has no critical or serious violations", async ({ page }) => {
     await openWorkspace(page);
+    await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("storage-panel")).toBeVisible({ timeout: 30_000 });
     expect(await fileViolations(page)).toEqual([]);
   });
@@ -320,9 +334,10 @@ test.describe("structured database view accessibility (feature 009)", () => {
     page,
   }) => {
     await openWorkspace(page);
+    await ensureNavigationVisible(page);
     const databaseName = uniqueName("Accessible planning");
     const entryName = uniqueName("Keyboard card");
-    await page.getByRole("button", { name: "New root database" }).click();
+    await page.getByTestId("new-root-database").click();
     const createDatabase = page.getByRole("form", { name: "Create a database" });
     await createDatabase.getByLabel("Create a database").fill(databaseName);
     const createDatabaseButton = createDatabase.getByRole("button", { name: "Create database" });
@@ -343,7 +358,7 @@ test.describe("structured database view accessibility (feature 009)", () => {
       }
       await editor.getByRole("button", { name: "Save property" }).click();
       await expect(editor).toBeHidden({ timeout: 15_000 });
-      await waitForSynchronized(page);
+      await waitForDatabaseDefinitionSaved(page);
     };
     await addProperty("Status", "status");
     await addProperty("Due", "date");
@@ -378,6 +393,7 @@ test.describe("structured database view accessibility (feature 009)", () => {
       const tab = page.getByRole("tab", { name: tabName });
       await expect(tab).toBeVisible({ timeout: 15_000 });
       await expect(tab).toHaveAttribute("aria-selected", "true");
+      await waitForDatabaseDefinitionSaved(page);
     };
     await createView("New list view", /List 2/);
     await createView("New board view", /Board 3/);

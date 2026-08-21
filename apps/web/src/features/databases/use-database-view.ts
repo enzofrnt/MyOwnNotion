@@ -7,6 +7,11 @@ export interface DatabaseViewContext {
   readonly scrollTop: number;
 }
 
+interface RequestedDatabaseView {
+  readonly id: Uuid;
+  observedActive: boolean;
+}
+
 const VIEW_CONTEXTS_KEY = "myOwnNotionDatabaseViewContexts";
 const VIEW_CONTEXT_STORAGE_PREFIX = "myOwnNotion.databaseView";
 
@@ -112,6 +117,28 @@ function persistContext(databaseId: Uuid, context: DatabaseViewContext): void {
   }
 }
 
+export function resolveActiveDatabaseViewId({
+  activeViewIds,
+  currentViewId,
+  requestedViewId,
+  urlViewId,
+  firstActiveViewId,
+  databaseChanged,
+}: {
+  readonly activeViewIds: readonly Uuid[];
+  readonly currentViewId: Uuid;
+  readonly requestedViewId: Uuid | null;
+  readonly urlViewId: Uuid | null;
+  readonly firstActiveViewId: Uuid;
+  readonly databaseChanged: boolean;
+}): Uuid {
+  if (!databaseChanged && requestedViewId !== null && activeViewIds.includes(requestedViewId)) {
+    return requestedViewId;
+  }
+  if (!databaseChanged && activeViewIds.includes(currentViewId)) return currentViewId;
+  return urlViewId ?? firstActiveViewId;
+}
+
 export function useDatabaseView(definition: DatabaseDefinition) {
   const firstActive = definition.views.find(({ state }) => state === "active");
   if (firstActive === undefined) throw new Error("A database needs one active view");
@@ -127,11 +154,11 @@ export function useDatabaseView(definition: DatabaseDefinition) {
   });
   const contextRef = useRef(context);
   const databaseId = useRef(definition.databaseId);
-  // Creating a view selects its ID in the same event that publishes the new
-  // definition. An effect from the previous render can still run in between
-  // those two renders and cannot see that ID yet. Remember the explicit user
-  // choice so that stale effect cannot reset it to the first view.
-  const requestedViewId = useRef<Uuid | null>(null);
+  // Definition and entry refreshes can settle after a tab click. Remember the
+  // explicit choice for as long as that view remains active so no stale effect
+  // can restore the previously selected tab. A newly created view is allowed
+  // one transient definition where its ID is not published yet.
+  const requestedView = useRef<RequestedDatabaseView | null>(null);
   const triggers = useRef(new Map<Uuid, HTMLElement>());
   const activeViewIds = useMemo(
     () => definition.views.filter(({ state }) => state === "active").map(({ id }) => id),
@@ -141,19 +168,30 @@ export function useDatabaseView(definition: DatabaseDefinition) {
   useEffect(() => {
     const databaseChanged = databaseId.current !== definition.databaseId;
     databaseId.current = definition.databaseId;
-    if (databaseChanged) requestedViewId.current = null;
+    if (databaseChanged) requestedView.current = null;
     const urlView = viewFromUrl(definition);
     setContext((current) => {
       const currentIsActive = activeViewIds.includes(current.activeViewId);
-      const requested = requestedViewId.current;
-      if (!databaseChanged && requested === current.activeViewId && !currentIsActive) {
+      const requested = requestedView.current;
+      const requestedIsActive = requested !== null && activeViewIds.includes(requested.id);
+      if (
+        !databaseChanged &&
+        requested?.id === current.activeViewId &&
+        !requested.observedActive &&
+        !currentIsActive
+      ) {
         return current;
       }
-      if (requested !== null && activeViewIds.includes(requested)) {
-        requestedViewId.current = null;
-      }
-      const activeViewId =
-        !databaseChanged && currentIsActive ? current.activeViewId : (urlView ?? firstActive.id);
+      if (requestedIsActive && requested !== null) requested.observedActive = true;
+      else if (requested?.observedActive === true) requestedView.current = null;
+      const activeViewId = resolveActiveDatabaseViewId({
+        activeViewIds,
+        currentViewId: current.activeViewId,
+        requestedViewId: requestedIsActive && requested !== null ? requested.id : null,
+        urlViewId: urlView,
+        firstActiveViewId: firstActive.id,
+        databaseChanged,
+      });
       if (activeViewId === current.activeViewId && !databaseChanged) return current;
       const next =
         storedContext(definition.databaseId, activeViewId) ??
@@ -177,7 +215,10 @@ export function useDatabaseView(definition: DatabaseDefinition) {
 
   const selectView = useCallback(
     (activeViewId: Uuid): void => {
-      requestedViewId.current = activeViewId;
+      requestedView.current = {
+        id: activeViewId,
+        observedActive: activeViewIds.includes(activeViewId),
+      };
       writeViewToUrl(activeViewId);
       updateContext(
         () =>
@@ -188,7 +229,7 @@ export function useDatabaseView(definition: DatabaseDefinition) {
           },
       );
     },
-    [definition.databaseId, updateContext],
+    [activeViewIds, definition.databaseId, updateContext],
   );
 
   const rememberScroll = useCallback(

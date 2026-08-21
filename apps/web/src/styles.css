@@ -2,6 +2,8 @@
 @import "./ui/tokens.css";
 @import "./ui/primitives/primitives.css";
 @import "./ui/ui-lab.css";
+@import "./features/navigation/navigation.css";
+@import "./features/workspace/workspace.css";
 
 * {
   box-sizing: border-box;
@@ -42,6 +44,12 @@ textarea {
   max-width: 60rem;
   margin: 0 auto;
   padding: 1rem;
+}
+
+.app-shell--workspace {
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
 .app-header h1 {
@@ -1496,42 +1504,21 @@ textarea {
    Page ↔ folder conversion (feature 004)
    ------------------------------------------------------------------------ */
 
-/* A real dialog rather than a tooltip: it interrupts, because the owner is
-   about to lose text. Positioned over the tree so the item it refers to stays
-   in view. */
+/* The shared dialog primitive owns positioning, portal, backdrop and focus.
+   Conversion only defines the content rhythm and action layout. */
 .convert-dialog {
-  position: fixed;
-  /* Pinned to both edges rather than centred with a 100vw width.
-     `100vw` includes the scrollbar, so `calc(100vw - 2rem)` overflowed on
-     engines that give scrollbars real width — green on macOS, where they are
-     overlays, and red on the Linux WebKit that CI runs. Insetting from both
-     sides cannot overflow, whatever the scrollbar does. */
-  inset-inline: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 20;
-  max-width: 32rem;
-  margin-inline: auto;
-  padding: 1rem;
-  border: 1px solid currentColor;
-  border-radius: 0.5rem;
-  background: var(--surface, Canvas);
-  box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.25);
+  display: grid;
+  gap: var(--ui-space-4);
 }
 
-.convert-dialog:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+.convert-dialog > p {
+  margin: 0;
 }
 
-.convert-dialog h2 {
-  margin-top: 0;
-}
-
-.convert-dialog button {
-  /* Reachable by thumb at 320 pixels, like every other control. */
-  min-height: 2.75rem;
-  padding: 0 0.75rem;
+.convert-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
 }
 
 /* A file input sizes itself from the native button's label, whose width comes

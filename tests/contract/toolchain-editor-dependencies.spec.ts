@@ -107,6 +107,22 @@ describe("the V1 editor toolchain", () => {
     ).toBe("1.14.1");
   });
 
+  it("copies every workspace manifest before installing image dependencies", () => {
+    const workspaceManifests = workspaceManifestPaths().filter(
+      (manifestPath) => manifestPath !== "package.json",
+    );
+
+    for (const dockerfilePath of ["docker/api.Dockerfile", "docker/web.Dockerfile"]) {
+      const dockerfile = readFileSync(path.join(repoRoot, dockerfilePath), "utf8");
+      for (const manifestPath of workspaceManifests) {
+        const packageDirectory = path.dirname(manifestPath);
+        expect(dockerfile, `${dockerfilePath} does not install ${manifestPath}`).toContain(
+          `COPY ${manifestPath} ${packageDirectory}/`,
+        );
+      }
+    }
+  });
+
   it("contains no BlockNote XL dependency", () => {
     for (const manifestPath of workspaceManifestPaths()) {
       const xlDependency = dependencyEntries(readManifest(manifestPath)).find(([name]) =>
@@ -116,6 +132,14 @@ describe("the V1 editor toolchain", () => {
         undefined,
       );
     }
+  });
+
+  it("keeps Loro's browser Wasm beside its loader during Vite development", () => {
+    const viteConfig = readFileSync(path.join(repoRoot, "apps/web/vite.config.ts"), "utf8");
+
+    expect(viteConfig).toContain('replacement: "loro-crdt/browser"');
+    expect(viteConfig).toMatch(/optimizeDeps:\s*\{[\s\S]*?exclude:\s*\["loro-crdt"\]/);
+    expect(viteConfig).toContain('process.env["MYOWNNOTION_VITE_CACHE_DIR"]');
   });
 
   it("keeps page-state independent from editor, UI, storage and server frameworks", () => {
