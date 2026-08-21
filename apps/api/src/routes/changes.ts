@@ -101,6 +101,7 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
               sequence: change.sequence,
               mutationId: change.mutationId,
               revisionIds: change.revisionIds,
+              nature: change.nature,
               changedItems: change.changedItemIds
                 .map((id) => itemsById.get(id))
                 .filter((item) => item !== undefined),

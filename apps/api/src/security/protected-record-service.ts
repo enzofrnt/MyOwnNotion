@@ -69,6 +69,8 @@ export interface ProtectedRecordServiceDeps {
 }
 
 export interface ProtectedWrite {
+  /** Optional stable envelope row id for records referenced by another table. */
+  readonly id?: string;
   readonly entityType: string;
   readonly entityId: string;
   readonly recordVersion: number;
@@ -111,7 +113,7 @@ export class ProtectedRecordService {
    * would be a record that a completed rotation had already passed over,
    * leaving data behind a key the rotation was meant to stop using.
    */
-  async write(executor: Database | Transaction, input: ProtectedWrite): Promise<void> {
+  async write(executor: Database | Transaction, input: ProtectedWrite): Promise<string> {
     const dataKey = await this.#deps.keys.dataKey(executor, { writable: true });
     const binding = this.#binding({
       entityType: input.entityType,
@@ -120,7 +122,8 @@ export class ProtectedRecordService {
       recordVersion: input.recordVersion,
     });
     const envelope = sealEnvelope(dataKey.material, binding, input.payload);
-    await writeProtectedRecord(executor, {
+    return await writeProtectedRecord(executor, {
+      ...(input.id === undefined ? {} : { id: input.id }),
       installationId: this.#deps.installationId,
       workspaceId: this.#deps.workspaceId,
       entityType: input.entityType,

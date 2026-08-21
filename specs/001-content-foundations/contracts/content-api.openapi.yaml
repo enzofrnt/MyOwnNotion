@@ -15,6 +15,7 @@ tags:
   - name: Placements
   - name: Relationships
   - name: Revisions
+  - name: Page Operations
   - name: Export
 paths:
   /health:
@@ -454,6 +455,92 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
+  /v1/page-operations/{pageId}/activate:
+    post:
+      tags: [Page Operations]
+      operationId: activatePageOperations
+      description: >-
+        Atomically creates the verified Loro checkpoint for a legacy page whose
+        revision and canonical v3 digest still match the client.
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+        - $ref: '#/components/parameters/ClientProtocol'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivatePageOperations' }
+      responses:
+        '200':
+          description: Existing or newly verified operational checkpoint
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PageOperationCheckpoint' }
+        '409': { $ref: '#/components/responses/PageOperationProblem' }
+        '426': { $ref: '#/components/responses/PageOperationProblem' }
+  /v1/page-operations/{pageId}/sync:
+    post:
+      tags: [Page Operations]
+      operationId: synchronizePageOperations
+      description: >-
+        Confirms a durable client frontier, imports bounded incremental updates
+        idempotently, and returns only causally missing updates or a checkpoint.
+      parameters:
+        - $ref: '#/components/parameters/PageId'
+        - $ref: '#/components/parameters/ClientProtocol'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PageOperationSyncRequest' }
+      responses:
+        '200':
+          description: Incremental exchange, checkpoint, or legacy-branch conversion
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/ActivePageOperationSyncResponse' }
+                  - { $ref: '#/components/schemas/PageOperationCheckpoint' }
+        '409': { $ref: '#/components/responses/PageOperationProblem' }
+        '426': { $ref: '#/components/responses/PageOperationProblem' }
+  /v1/page-ambiguities/{ambiguityId}:
+    get:
+      tags: [Page Operations]
+      operationId: getPageAmbiguity
+      parameters:
+        - $ref: '#/components/parameters/AmbiguityId'
+        - $ref: '#/components/parameters/ClientProtocol'
+      responses:
+        '200':
+          description: Protected recoverable alternatives and resolution choices
+          headers:
+            Cache-Control:
+              schema: { const: no-store }
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '404': { $ref: '#/components/responses/Problem' }
+  /v1/page-ambiguities/{ambiguityId}/resolve:
+    post:
+      tags: [Page Operations]
+      operationId: resolvePageAmbiguity
+      parameters:
+        - $ref: '#/components/parameters/AmbiguityId'
+        - $ref: '#/components/parameters/ClientProtocol'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolvePageAmbiguity' }
+      responses:
+        '200':
+          description: Resolution operation and resulting canonical revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivePageOperationSyncResponse' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/PageOperationProblem' }
   /v1/mutations/batch:
     post:
       tags: [Revisions]
@@ -527,6 +614,21 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
 components:
   parameters:
+    ClientProtocol:
+      in: header
+      name: X-MyOwnNotion-Client-Protocol
+      required: true
+      schema: { type: integer, minimum: 3 }
+    PageId:
+      in: path
+      name: pageId
+      required: true
+      schema: { $ref: '#/components/schemas/Uuid' }
+    AmbiguityId:
+      in: path
+      name: ambiguityId
+      required: true
+      schema: { $ref: '#/components/schemas/Uuid' }
     ItemId:
       in: path
       name: itemId
@@ -554,12 +656,204 @@ components:
       description: Client-generated UUIDv7 mutation identity
       schema: { $ref: '#/components/schemas/Uuid' }
   responses:
+    PageOperationProblem:
+      description: Stable convergent synchronization refusal
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/PageOperationProblem' }
     Problem:
       description: Safe validation, conflict, or integrity error
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
   schemas:
+    PageOperationDigest:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+    PageOperationBase64Url:
+      type: string
+      pattern: '^[A-Za-z0-9_-]*$'
+    PageOperationUpdate:
+      type: object
+      required: [updateId, baseVersionVector, updateBytes, updateDigest, createdAt]
+      properties:
+        updateId: { $ref: '#/components/schemas/Uuid' }
+        baseVersionVector: { $ref: '#/components/schemas/PageOperationBase64Url' }
+        updateBytes: { $ref: '#/components/schemas/PageOperationBase64Url' }
+        updateDigest: { $ref: '#/components/schemas/PageOperationDigest' }
+        createdAt: { type: string, format: date-time }
+      additionalProperties: false
+    RemotePageOperationUpdate:
+      type: object
+      required: [updateId, pageSequence, authoredByDeviceId, updateBytes, updateDigest, acceptedAt]
+      properties:
+        updateId: { $ref: '#/components/schemas/Uuid' }
+        pageSequence: { type: integer, minimum: 1 }
+        authoredByDeviceId: { $ref: '#/components/schemas/Uuid' }
+        updateBytes: { $ref: '#/components/schemas/PageOperationBase64Url' }
+        updateDigest: { $ref: '#/components/schemas/PageOperationDigest' }
+        acceptedAt: { type: string, format: date-time }
+      additionalProperties: false
+    PageAmbiguitySummary:
+      type: object
+      required: [ambiguityId, pageId, kind, blockIds, openedAt, status]
+      properties:
+        ambiguityId: { $ref: '#/components/schemas/Uuid' }
+        pageId: { $ref: '#/components/schemas/Uuid' }
+        kind: { enum: [delete-edit, delete-move, type-transform, property-transform, schema] }
+        blockIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
+        openedAt: { type: string, format: date-time }
+        status: { const: open }
+      additionalProperties: false
+    ActivatePageOperations:
+      type: object
+      required: [requestId, expectedRevisionId, expectedCanonicalDigest]
+      properties:
+        requestId: { $ref: '#/components/schemas/Uuid' }
+        expectedRevisionId: { $ref: '#/components/schemas/Uuid' }
+        expectedCanonicalDigest: { $ref: '#/components/schemas/PageOperationDigest' }
+      additionalProperties: false
+    PageOperationSyncRequest:
+      oneOf:
+        - type: object
+          required: [mode, requestId, operationalVersion, persistedVersionVector, knownServerPageSequence, updates, maxRemoteBytes]
+          properties:
+            mode: { const: active }
+            requestId: { $ref: '#/components/schemas/Uuid' }
+            operationalVersion: { const: 1 }
+            persistedVersionVector: { $ref: '#/components/schemas/PageOperationBase64Url' }
+            knownServerPageSequence: { type: integer, minimum: 0 }
+            updates:
+              type: array
+              maxItems: 64
+              items: { $ref: '#/components/schemas/PageOperationUpdate' }
+            maxRemoteBytes: { type: integer, minimum: 1, maximum: 1048576 }
+            revisionBoundary: { const: editor-closed }
+          additionalProperties: false
+        - type: object
+          required: [mode, requestId, knownServerPageSequence, maxRemoteBytes]
+          properties:
+            mode: { const: empty }
+            requestId: { $ref: '#/components/schemas/Uuid' }
+            knownServerPageSequence: { const: 0 }
+            maxRemoteBytes: { type: integer, minimum: 1, maximum: 1048576 }
+          additionalProperties: false
+        - type: object
+          description: One-time semantic bridge for a v2 page edited while offline.
+          required: [mode, requestId, branchId, baseRevisionId, baseCanonicalDigest, localDocument, localDocumentDigest, semanticTransactions, createdAt]
+          properties:
+            mode: { const: legacy-branch }
+            requestId: { $ref: '#/components/schemas/Uuid' }
+            branchId: { $ref: '#/components/schemas/Uuid' }
+            baseRevisionId: { $ref: '#/components/schemas/Uuid' }
+            baseCanonicalDigest: { $ref: '#/components/schemas/PageOperationDigest' }
+            baseDocument: { $ref: '#/components/schemas/PageDocument' }
+            localDocument: { $ref: '#/components/schemas/PageDocument' }
+            localDocumentDigest: { $ref: '#/components/schemas/PageOperationDigest' }
+            semanticTransactions: { type: array, maxItems: 10000, items: { type: object } }
+            createdAt: { type: string, format: date-time }
+          additionalProperties: false
+    PageOperationCheckpoint:
+      type: object
+      required: [mode, requestId, pageId, operationalVersion, checkpointId, checkpointBytes, checkpointDigest, versionVector, throughPageSequence, canonicalDigest, lastConsolidatedRevisionId, hasUnconsolidatedChanges, followingUpdates, latestPageSequence, hasMore, ambiguities]
+      properties:
+        mode: { const: checkpoint }
+        requestId: { $ref: '#/components/schemas/Uuid' }
+        pageId: { $ref: '#/components/schemas/Uuid' }
+        operationalVersion: { const: 1 }
+        checkpointId: { $ref: '#/components/schemas/Uuid' }
+        checkpointBytes: { $ref: '#/components/schemas/PageOperationBase64Url' }
+        checkpointDigest: { $ref: '#/components/schemas/PageOperationDigest' }
+        versionVector: { $ref: '#/components/schemas/PageOperationBase64Url' }
+        throughPageSequence: { type: integer, minimum: 0 }
+        canonicalDigest: { $ref: '#/components/schemas/PageOperationDigest' }
+        lastConsolidatedRevisionId:
+          oneOf: [{ $ref: '#/components/schemas/Uuid' }, { type: 'null' }]
+        hasUnconsolidatedChanges: { type: boolean }
+        followingUpdates:
+          type: array
+          maxItems: 64
+          items: { $ref: '#/components/schemas/RemotePageOperationUpdate' }
+        latestPageSequence: { type: integer, minimum: 0 }
+        hasMore: { type: boolean }
+        ambiguities:
+          type: array
+          items: { $ref: '#/components/schemas/PageAmbiguitySummary' }
+      additionalProperties: false
+    ActivePageOperationSyncResponse:
+      type: object
+      required: [mode, requestId, pageId, accepted, repeated, remoteUpdates, serverVersionVector, throughPageSequence, latestPageSequence, hasMore, canonical, ambiguities, fileRequirements]
+      properties:
+        mode: { const: active }
+        requestId: { $ref: '#/components/schemas/Uuid' }
+        pageId: { $ref: '#/components/schemas/Uuid' }
+        accepted: { type: array, maxItems: 64, items: { type: object } }
+        repeated: { type: array, maxItems: 64, items: { type: object } }
+        remoteUpdates:
+          type: array
+          maxItems: 64
+          items: { $ref: '#/components/schemas/RemotePageOperationUpdate' }
+        serverVersionVector: { $ref: '#/components/schemas/PageOperationBase64Url' }
+        throughPageSequence: { type: integer, minimum: 0 }
+        latestPageSequence: { type: integer, minimum: 0 }
+        hasMore: { type: boolean }
+        canonical:
+          type: object
+          required: [format, formatVersion, digest, lastConsolidatedRevisionId, hasUnconsolidatedChanges]
+          properties:
+            format: { const: myownnotion.document+json }
+            formatVersion: { const: 3 }
+            digest: { $ref: '#/components/schemas/PageOperationDigest' }
+            lastConsolidatedRevisionId:
+              oneOf: [{ $ref: '#/components/schemas/Uuid' }, { type: 'null' }]
+            hasUnconsolidatedChanges: { type: boolean }
+          additionalProperties: false
+        ambiguities:
+          type: array
+          items: { $ref: '#/components/schemas/PageAmbiguitySummary' }
+        fileRequirements: { type: array, items: { type: object } }
+      additionalProperties: false
+    ResolvePageAmbiguity:
+      oneOf:
+        - type: object
+          required: [requestId, decision]
+          properties:
+            requestId: { $ref: '#/components/schemas/Uuid' }
+            decision: { const: confirm-delete }
+          additionalProperties: false
+        - type: object
+          required: [requestId, decision, parentBlockId, beforeBlockId]
+          properties:
+            requestId: { $ref: '#/components/schemas/Uuid' }
+            decision: { enum: [restore-change, custom] }
+            parentBlockId:
+              oneOf: [{ $ref: '#/components/schemas/Uuid' }, { type: 'null' }]
+            beforeBlockId:
+              oneOf: [{ $ref: '#/components/schemas/Uuid' }, { type: 'null' }]
+            result: { type: object }
+          additionalProperties: false
+    PageOperationProblem:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          enum:
+            - page-operations.protocol-read-only
+            - page-operations.activation-stale
+            - page-operations.update-id-reused
+            - page-operations.digest-mismatch
+            - page-operations.dependencies-missing
+            - page-operations.projection-invalid
+            - page-operations.device-revoked
+            - page-operations.rotation-blocked
+            - page-operations.quota
+            - page-operations.schema-unsupported
+        message: { type: string, minLength: 1, maxLength: 1000 }
+        requiredProtocol: { const: 3 }
+        readAllowed: { type: boolean }
+      additionalProperties: false
     Uuid:
       type: string
       format: uuid
@@ -715,6 +1009,7 @@ components:
       required: [mutationId, revisionIds]
       properties:
         mutationId: { $ref: '#/components/schemas/Uuid' }
+        nature: { type: string, minLength: 1, maxLength: 128 }
         revisionIds:
           type: array
           minItems: 1
