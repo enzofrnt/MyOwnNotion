@@ -1,25 +1,15 @@
 {
-  "version": "0.16.1",
+  "version": "0.16.0",
   "integration_state_schema": 1,
   "installed_integrations": [
-    "codex",
-    "cursor-agent",
-    "claude"
+    "opencode"
   ],
   "integration_settings": {
-    "codex": {
-      "script": "sh",
-      "invoke_separator": "-"
-    },
-    "cursor-agent": {
-      "script": "sh",
-      "invoke_separator": "-"
-    },
-    "claude": {
-      "script": "sh",
-      "invoke_separator": "-"
+    "opencode": {
+      "script": "py",
+      "invoke_separator": "."
     }
   },
-  "integration": "claude",
-  "default_integration": "codex"
+  "integration": "opencode",
+  "default_integration": "opencode"
 }
