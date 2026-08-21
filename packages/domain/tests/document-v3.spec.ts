@@ -86,6 +86,25 @@ describe("the canonical v3 parser", () => {
     expect(document.blocks).toHaveLength(7);
   });
 
+  it("parses an already-wrapped unknown block to itself and keeps its digest stable", async () => {
+    // The conversion handshake digests the local document on the device and
+    // re-digests the supplied envelope on the server. The device sends the
+    // canonical in-memory blocks — wrappers included — so a second parse that
+    // nested a fresh wrapper inside the first would change the canonical
+    // bytes and reject an honest branch with digest-mismatch forever.
+    const stored = { type: "kanbanBoard", id: generateUuidV7(), columns: 2, nested: { v: [1] } };
+    const firstPass = expectValid({ blocks: [stored] });
+    const wireBody = {
+      blocks: JSON.parse(JSON.stringify(firstPass.blocks)) as unknown[],
+    };
+    const secondPass = expectValid(wireBody);
+    expect(secondPass).toEqual(firstPass);
+    expect(canonicalDocumentJsonV3(secondPass)).toBe(canonicalDocumentJsonV3(firstPass));
+    expect(await documentDigestV3(wireBody as BlockDocumentV3)).toBe(
+      await documentDigestV3(firstPass),
+    );
+  });
+
   it("refuses ambiguous marks instead of choosing one silently", () => {
     const result = validateDocumentV3({
       blocks: [

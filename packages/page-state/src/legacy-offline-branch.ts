@@ -112,6 +112,13 @@ export interface LegacyOfflineBranch {
   readonly localDocument: BlockDocumentV3;
   readonly localDocumentDigest: string;
   readonly semanticTransactions: readonly LegacySemanticTransaction[];
+  /**
+   * The transaction that gave a freshly opened empty page its first paragraph,
+   * so BlockNote has something to mount. It is device-local bootstrap: it is
+   * never persisted alone, and a branch holding only it counts as unedited —
+   * opening a page migrates nothing (plan §6).
+   */
+  readonly bootstrapTransactionId?: Uuid;
   readonly createdAt: string;
   readonly status: "editing" | "sending" | "blocked" | "converted";
 }

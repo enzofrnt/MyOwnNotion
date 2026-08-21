@@ -49,10 +49,7 @@ export function EditorView({
   readonly onOpenPage?: (itemId: string) => void;
 }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  /** Bumped when an offline branch converts underneath the open editor. */
-  const [reopenNonce, setReopenNonce] = useState(0);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reopenNonce drives the single intentional remount after a branch conversion.
   useEffect(() => {
     let cancelled = false;
     setState({ kind: "loading" });
@@ -83,11 +80,10 @@ export function EditorView({
       cancelled = true;
     };
     // The item, and nothing about its revision: another device advancing the
-    // revision must never remount this editor under somebody's cursor.
-    // reopenNonce is the deliberate exception: bumping it is exactly how an
-    // offline branch that converted underneath this surface asks for one
-    // controlled remount onto the active session.
-  }, [service, itemId, editingAllowed, reopenNonce]);
+    // revision must never remount this editor under somebody's cursor. A
+    // converting branch hands over in place (session-level upgrade), so no
+    // remount is ever needed while the surface stays open.
+  }, [service, itemId, editingAllowed]);
 
   // Releases the session subscription when the owner leaves the page, so a
   // closed surface never keeps adopting remote merges into a dead editor.
@@ -99,14 +95,14 @@ export function EditorView({
 
   // Connectivity changes the honest status wording and drives resumption:
   // coming back online must flush pending work without waiting for a
-  // keystroke (FR-027). For an offline branch it also means conversion may
-  // have landed, at which point this editor swaps to the active session.
+  // keystroke (FR-027). A legacy branch schedules its own conversion from
+  // inside the session queue, so only active pages need a nudge here.
   useEffect(() => {
     if (state.kind !== "ready") return;
     const { mode, session, reconciler } = state;
     const goOnline = () => {
       session.setOnline(true);
-      void reconciler.synchronize();
+      if (mode === "active") void reconciler.synchronize();
     };
     const goOffline = () => session.setOnline(false);
     window.addEventListener("online", goOnline);
@@ -114,11 +110,6 @@ export function EditorView({
     return () => {
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
-      if (mode === "legacy-branch") {
-        // The branch may have converted while we were mounted; reopening
-        // picks up the active session instead of a frozen offline one.
-        void reconciler.synchronize().then(() => setReopenNonce((nonce) => nonce + 1));
-      }
     };
   }, [state]);
 

@@ -8,6 +8,7 @@ import {
   UnnestBlockButton,
 } from "@blocknote/react";
 import type { ProjectedItem } from "@myownnotion/client-core";
+import { useCallback } from "react";
 import { PageLinkPicker } from "./page-link-picker.tsx";
 
 function MyOwnNotionFormattingToolbar({
@@ -41,11 +42,14 @@ export function EditorFormattingToolbar({
   readonly currentItemId: string;
   readonly items: readonly ProjectedItem[];
 }) {
-  return (
-    <FormattingToolbarController
-      formattingToolbar={() => (
-        <MyOwnNotionFormattingToolbar currentItemId={currentItemId} items={items} />
-      )}
-    />
+  // FormattingToolbarController renders this prop as a component type. A fresh
+  // inline arrow on every parent render would remount the whole toolbar
+  // subtree — dismissing an open page-link picker mid-gesture — whenever an
+  // unrelated session event (autosave, conversion handover) re-rendered the
+  // editor. Identity must change only when the inputs actually do.
+  const toolbar = useCallback(
+    () => <MyOwnNotionFormattingToolbar currentItemId={currentItemId} items={items} />,
+    [currentItemId, items],
   );
+  return <FormattingToolbarController formattingToolbar={toolbar} />;
 }

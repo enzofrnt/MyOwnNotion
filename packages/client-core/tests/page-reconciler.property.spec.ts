@@ -13,7 +13,12 @@ import {
 } from "@myownnotion/client-core";
 import type { ActivePageSyncRequestDto, ActivePageSyncResponseDto } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
-import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
+import {
+  appendLegacySemanticTransaction,
+  createLegacyOfflineBranch,
+  OperationalPageDocument,
+  sha256Hex,
+} from "@myownnotion/page-state";
 import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -398,5 +403,134 @@ describe("PageReconciler", () => {
     ).resolves.toMatchObject({ kind: "synced", exchanges: 2 });
     expect(requestSizes).toEqual([64, 6]);
     expect(await log.listUpdates(pageId)).toEqual([]);
+  });
+
+  it("does not convert a branch that holds only the empty-document bootstrap", async () => {
+    // Opening a never-activated page seeds BlockNote's first paragraph as a
+    // real journal transaction, but it stays in memory until the owner writes.
+    // A record that somehow holds only the bootstrap is a read, not a write:
+    // converting it would activate the page server-side just because someone
+    // looked at it (plan §6).
+    const pageId = generateUuidV7();
+    const bootstrapTransactionId = generateUuidV7();
+    const seededBlockId = generateUuidV7();
+    let branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument: { blocks: [] },
+      createdAt: "2026-08-21T12:00:00.000Z",
+    });
+    branch = {
+      ...(await appendLegacySemanticTransaction(branch, {
+        transactionId: bootstrapTransactionId,
+        sequence: 1,
+        commands: [
+          {
+            type: "insert-block",
+            block: { type: "paragraph", id: seededBlockId, content: [] },
+            parentBlockId: null,
+            beforeBlockId: null,
+          },
+        ],
+      })),
+      bootstrapTransactionId,
+    };
+    await log.putLegacyBranch({
+      pageId,
+      branchId: branch.branchId,
+      status: "editing",
+      createdAt: branch.createdAt,
+      recordVersion: 1,
+      requiredFileIds: [],
+      branch,
+    });
+    const transport: PageSyncTransport = {
+      async sync() {
+        throw new Error("unexpected active sync");
+      },
+      async convertLegacyBranch() {
+        throw new Error("unexpected legacy branch conversion");
+      },
+    };
+
+    await expect(
+      new PageReconciler({ pageId, log, transport }).synchronize(),
+    ).resolves.toMatchObject({ kind: "synced", exchanges: 0 });
+  });
+
+  it("converts a branch as soon as a real user transaction joins the bootstrap", async () => {
+    const pageId = generateUuidV7();
+    const bootstrapTransactionId = generateUuidV7();
+    const userTransactionId = generateUuidV7();
+    const seededBlockId = generateUuidV7();
+    let branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument: { blocks: [] },
+      createdAt: "2026-08-21T12:00:00.000Z",
+    });
+    branch = {
+      ...(await appendLegacySemanticTransaction(branch, {
+        transactionId: bootstrapTransactionId,
+        sequence: 1,
+        commands: [
+          {
+            type: "insert-block",
+            block: { type: "paragraph", id: seededBlockId, content: [] },
+            parentBlockId: null,
+            beforeBlockId: null,
+          },
+        ],
+      })),
+      bootstrapTransactionId,
+    };
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: userTransactionId,
+      sequence: 2,
+      commands: [
+        {
+          type: "insert-block",
+          block: { type: "paragraph", id: generateUuidV7(), content: [{ text: "hi" }] },
+          parentBlockId: null,
+          beforeBlockId: seededBlockId,
+        },
+      ],
+    });
+    await log.putLegacyBranch({
+      pageId,
+      branchId: branch.branchId,
+      status: "editing",
+      createdAt: branch.createdAt,
+      recordVersion: 2,
+      requiredFileIds: [],
+      branch,
+    });
+    let conversionRequests = 0;
+    const transport: PageSyncTransport = {
+      async sync() {
+        throw new Error("unexpected active sync");
+      },
+      async convertLegacyBranch(_pageId, request) {
+        conversionRequests += 1;
+        expect(request.semanticTransactions.map(({ transactionId }) => transactionId)).toEqual([
+          bootstrapTransactionId,
+          userTransactionId,
+        ]);
+        return {
+          ok: false,
+          offline: true,
+          problem: { code: "network.unreachable", message: "offline probe" },
+        };
+      },
+    };
+
+    // The conversion attempt itself is the assertion; the transport refusal
+    // surfaces as an ordinary offline outcome, not a crash.
+    await expect(
+      new PageReconciler({ pageId, log, transport }).synchronize(),
+    ).resolves.toMatchObject({ kind: "offline" });
+    expect(conversionRequests).toBe(1);
   });
 });

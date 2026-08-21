@@ -354,10 +354,10 @@ test.describe("the document survives", () => {
 test.describe("a block this client does not recognise", () => {
   test("is shown as unrenderable and kept unchanged through an edit", async ({ page, request }) => {
     // FR-030 and FR-070, end to end. Seeded through the API with a block type
-    // no client version knows — before the first open, because opening is
-    // what activates a page onto the operational protocol — then edited from
-    // the editor: the unknown block must come back byte for byte through
-    // activation, synchronization and canonical materialization.
+    // no client version knows — before the first open, so the seed cannot race
+    // the editor — then edited from the editor: the unknown block must come
+    // back byte for byte through conversion, synchronization and canonical
+    // materialization.
     const name = uniqueName("UnknownBlockPage");
     await openWorkspace(page);
     await createRootItem(page, "page", name);
@@ -420,10 +420,10 @@ test.describe("a page written before the block editor existed", () => {
     page,
     request,
   }) => {
-    // A read is not a rewrite. Opening a legacy page activates it onto the
-    // operational protocol (the documented v3 transition), but the owner's
-    // text must arrive intact and no revision may be created by looking —
-    // history moves when they write, not when they read.
+    // A read is not a rewrite. Opening a never-activated page migrates nothing
+    // (plan §6): the owner's text arrives intact, no revision is created by
+    // looking, and the stored document protocol keeps accepting plain writes.
+    // History moves when they write, not when they read (FR-064).
     const name = uniqueName("LegacyPage");
     await openWorkspace(page);
     await createRootItem(page, "page", name);
@@ -431,12 +431,20 @@ test.describe("a page written before the block editor existed", () => {
     const itemId = (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
-    const legacyBody = { text: "written by an older client", count: 3 };
+    const seededBody = {
+      blocks: [
+        {
+          type: "paragraph",
+          id: "01924f8e-7c1a-7000-8000-0000000000aa",
+          content: [{ type: "text", text: "written by an older client" }],
+        },
+      ],
+    };
     const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
-        document: { format: "myownnotion.document+json", formatVersion: 1, body: legacyBody },
+        document: { format: "myownnotion.document+json", formatVersion: 2, body: seededBody },
       },
     });
     expect(seeded.ok(), await seeded.text()).toBe(true);
@@ -447,29 +455,59 @@ test.describe("a page written before the block editor existed", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
 
-    // The legacy text survives the transition and is immediately editable:
-    // the old read-only gate made conversion a second, lossy-feeling step.
+    // The existing text survives and is immediately editable.
     await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
     await expect(surface(page)).toContainText("written by an older client", { timeout: 30_000 });
 
-    // Nothing was written merely by looking at it: the head has not moved.
+    // Nothing was written merely by looking at it: the head has not moved and
+    // the stored document protocol still accepts a plain v2 write.
     const afterOpen = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const afterHead = ((await afterOpen.json()) as { currentRevisionId: string }).currentRevisionId;
     if (seededHead !== undefined) {
       expect(afterHead).toBe(seededHead);
     }
+    const stillPlain = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
+      data: {
+        baseRevisionId: afterHead,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: {
+            blocks: [
+              ...seededBody.blocks,
+              {
+                type: "paragraph",
+                id: "01924f8e-7c1a-7000-8000-0000000000ab",
+                content: [{ type: "text", text: "appended without activating" }],
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(stillPlain.ok(), await stillPlain.text()).toBe(true);
+    await page.reload();
+    await openWorkspace(page);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    await expect(surface(page)).toContainText("appended without activating", { timeout: 30_000 });
 
     // The first real edit goes through the operational path and keeps what
     // was already there.
-    await surface(page).click();
-    await page.keyboard.press("ControlOrMeta+ArrowRight");
-    await surface(page).pressSequentially(" — continued today");
+    const editor = surface(page);
+    // Clicking the retained paragraph focuses the surface — after a reload,
+    // mobile browsers do not hand focus to the editor on selection alone.
+    await blockContent(rootBlocks(editor).last()).click();
+    const continued = await appendParagraph(editor);
+    await typeIntoBlock(editor, continued, "continued today after activation");
     await saveDocument(page, { until: "synced" });
-    await expect(surface(page)).toContainText("written by an older client — continued today");
+    await expect(surface(page)).toContainText("appended without activating");
+    await expect(surface(page)).toContainText("continued today after activation");
 
     const afterEdit = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const editedHead = ((await afterEdit.json()) as { currentRevisionId: string })
       .currentRevisionId;
-    expect(editedHead).not.toBe(seededHead);
+    expect(editedHead).not.toBe(afterHead);
   });
 });

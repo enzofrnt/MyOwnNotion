@@ -328,6 +328,18 @@ export function applyRemoteEditorProjection(input: {
   readonly next: readonly EditorBlock[];
 }): RemoteEditorApplyResult {
   const previous = input.editor.document as EditorBlock[];
+
+  // An identical projection must not touch the surface at all. A handover or
+  // echoed merge often replays exactly what is already visible; reasserting
+  // even the selection would collapse an open range and dismiss
+  // selection-driven UI (toolbars, link pickers) mid-gesture.
+  if (
+    planRemoteEditorChanges(previous, input.next).length === 0 &&
+    visibleProjection(previous) === visibleProjection(input.next)
+  ) {
+    return { targetedChanges: [], repairedProjection: false, restoredSelection: null };
+  }
+
   let selection: StableEditorSelection | null = null;
   try {
     selection = {

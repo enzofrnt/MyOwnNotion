@@ -410,7 +410,28 @@ export class PageReconciler {
     // active checkpoint, which installs exactly like any other.
     const branch = await this.#log.getLegacyBranch(this.#pageId);
     if (branch !== null && branch.status !== "converted") {
-      return await this.#convertBranch(branch);
+      const bootstrapOnly =
+        branch.branch.bootstrapTransactionId !== undefined
+          ? branch.branch.semanticTransactions.length === 1 &&
+            branch.branch.semanticTransactions[0]?.transactionId ===
+              branch.branch.bootstrapTransactionId
+          : branch.branch.semanticTransactions.length === 0;
+      if (!bootstrapOnly) {
+        return await this.#convertBranch(branch);
+      }
+      const state = await this.#log.getState(this.#pageId);
+      if (state === null || state.status !== "active") {
+        // Opening a page migrates nothing (plan §6): a branch holding only the
+        // empty-document bootstrap is a read, not a write, so there is nothing
+        // to convert and nothing to push.
+        return {
+          kind: "synced",
+          exchanges: 0,
+          latestPageSequence: 0,
+          fileRequirements: [],
+        };
+      }
+      // Another device activated this page; fall through and pull normally.
     }
 
     while (exchanges < this.#maxExchanges) {

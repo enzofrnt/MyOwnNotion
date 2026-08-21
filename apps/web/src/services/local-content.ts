@@ -10,7 +10,6 @@
 import {
   applyLocalMutation,
   EncryptedPageOperationLog,
-  installPageCheckpoint,
   LegacyPageEditingSession,
   LegacyPageStateStore,
   LocalCipher,
@@ -46,7 +45,6 @@ import {
   type DatabaseDefinition,
   type DatabaseImpactConfirmation,
   type DefinitionImpact,
-  documentDigestV3,
   type EntryValues,
   generateUuidV7,
   migrateStoredPageDocumentToV3,
@@ -408,12 +406,16 @@ export class LocalContentService {
     reconciler: PageReconciler,
     mode: "active" | "legacy-branch",
   ): Extract<OpenOperationalPageResult, { ok: true }> {
-    const unsubscribe = reconciler.subscribeDurablePage(async () => {
-      if (mode === "active" && "adoptDurablePage" in session) {
-        await session.adoptDurablePage();
-      }
+    const unsubscribe = reconciler.subscribeDurablePage(async (durableState) => {
+      if (durableState.status !== "active") return;
+      // Both session kinds upgrade in place: an active session merges remote
+      // checkpoints, and a legacy session hands over to its resumed active
+      // successor on the same serial queue as gestures (plan §6, FR-064).
+      if ("adoptDurablePage" in session) await session.adoptDurablePage();
     });
-    void reconciler.synchronize();
+    // A legacy branch manages its own conversion at queue drain points; an
+    // out-of-band synchronize here could convert behind the session's back.
+    if (mode === "active") void reconciler.synchronize();
     return { ok: true, mode, session, reconciler, close: unsubscribe };
   }
 
@@ -421,8 +423,7 @@ export class LocalContentService {
     itemId: Uuid,
   ): Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> {
     await this.#unlock();
-    let state = await this.pageOperationLog.getState(itemId);
-    let activatedHere = false;
+    const state = await this.pageOperationLog.getState(itemId);
     if (state === null) {
       const item = await this.repository.getItem(itemId);
       if (item === null || item.kind !== "page") {
@@ -447,52 +448,11 @@ export class LocalContentService {
           message: "This page cannot be activated without reducing its content.",
         };
       }
-      // The local projection can be a revision behind the server at the exact
-      // moment of a first open (creation echo still in flight). Activation is
-      // compare-and-swap, so it refuses a stale base instead of guessing.
-      // Catching up and retrying once turns that honest refusal into an
-      // ordinary open instead of stranding the page on the legacy path until
-      // a reload.
-      let expectedRevisionId = item.currentRevisionId;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const activation = await this.pageOperationsApi.activate(itemId, {
-          requestId: generateUuidV7(),
-          expectedRevisionId,
-          expectedCanonicalDigest: await documentDigestV3(migrated.document),
-        });
-        if (activation.ok) {
-          await installPageCheckpoint(this.pageOperationLog, activation.value);
-          activatedHere = true;
-          break;
-        }
-        const stale = activation.problem.code === "page-operations.activation-stale";
-        if (!stale || attempt === 1) {
-          // Offline with no shared state yet is not a refusal: the page opens
-          // on a local semantic branch and joins shared history when the
-          // network returns. Everything else is what it says it is.
-          if (activation.offline) {
-            return await this.#openLegacyBranchSession(itemId, stored.body);
-          }
-          return {
-            ok: false,
-            offline: activation.offline,
-            code: activation.problem.code,
-            message: activation.problem.message,
-          };
-        }
-        await this.synchronize();
-        const refreshed = await this.repository.getItem(itemId);
-        if (refreshed === null) {
-          return {
-            ok: false,
-            offline: false,
-            code: "item.not-found",
-            message: "This page is not available on this device.",
-          };
-        }
-        expectedRevisionId = refreshed.currentRevisionId;
-      }
-      state = await this.pageOperationLog.getState(itemId);
+      // A simple open migrates nothing (plan §6): the page opens on a local
+      // semantic branch over the local projection, online or offline. The
+      // first real edit publishes the branch, and the reconciler converts it
+      // onto shared history on the first online pass (FR-064).
+      return await this.#openLegacyBranchSession(itemId, stored.body);
     }
 
     const reconciler = this.pageReconciler(itemId);
@@ -513,18 +473,13 @@ export class LocalContentService {
         message: "The local operational checkpoint is unavailable.",
       };
     }
-    // An activated empty page has no blocks, and BlockNote cannot mount an
-    // empty document. The first paragraph is seeded as a real committed
-    // transaction — not faked in the editor — so its identity lives in the
-    // operational state and every device converges on it. Seeding belongs to
-    // the call that activated the page: a resuming tab already sees whatever
-    // the activating tab committed, and seeding again would duplicate it.
-    if (
-      activatedHere &&
-      state !== null &&
-      state.status === "active" &&
-      session.read().blocks.length === 0
-    ) {
+    // An active page with no blocks cannot mount in BlockNote. The first
+    // paragraph is seeded as a real committed transaction — not faked in the
+    // editor — so its identity lives in the operational state and every
+    // device converges on it. This is only reachable when the empty state came
+    // from elsewhere (another device's conversion); a locally pristine page
+    // opens on the legacy branch above and seeds nothing durable.
+    if (state.status === "active" && session.read().blocks.length === 0) {
       await session.transact({
         type: "insert-block",
         block: { type: "paragraph", id: generateUuidV7(), content: [] },
@@ -587,9 +542,15 @@ export class LocalContentService {
       baseDocument,
       log: this.pageOperationLog,
       store: new LegacyPageStateStore(this.pageOperationLog),
+      // Backing for the in-place upgrade once the branch converts.
+      activeStore: new LocalPageStateStore(this.pageOperationLog),
       online: typeof navigator === "undefined" ? true : navigator.onLine,
-      publishDurableBranch: () => {
+      publishDurableUpdate: () => {
         void reconciler.synchronize();
+      },
+      requestConversion: async () => {
+        const outcome = await reconciler.synchronize();
+        return outcome.kind === "synced" ? "converted" : "unavailable";
       },
     });
     return { ok: true, mode: "legacy-branch", session, reconciler };

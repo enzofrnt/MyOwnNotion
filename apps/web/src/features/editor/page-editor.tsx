@@ -96,7 +96,12 @@ export function PageEditor({
   const editor = useCreateBlockNote(
     {
       schema: blockNoteSchema as unknown as ReturnType<typeof CommunityBlockNoteSchema.create>,
-      initialContent: initialContent as unknown as PartialBlock[],
+      // BlockNote refuses an empty array; its own default paragraph stands in
+      // until a real block exists. Sessions seed one before mounting, so this
+      // is a belt-and-braces guard, not the normal path.
+      ...(initialContent.length === 0
+        ? {}
+        : { initialContent: initialContent as unknown as PartialBlock[] }),
       dictionary: fr,
       animations: false,
       defaultStyles: false,
