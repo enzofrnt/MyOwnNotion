@@ -126,6 +126,20 @@ export class PageOperationsApi implements PageSyncTransport {
     return await this.#post(`/v1/page-operations/${pageId}/sync`, request);
   }
 
+  /**
+   * Submits the owner's decision for one ambiguity (T152).
+   *
+   * The resulting operations reach this device through the page's normal
+   * catch-up, so the editor adopts them by identity like any other remote
+   * merge — resolution is not a second writing path.
+   */
+  async resolveAmbiguity(
+    ambiguityId: Uuid,
+    request: { requestId: Uuid; decision: "confirm-delete" | "restore-change" },
+  ): Promise<PageSyncTransportResult> {
+    return await this.#post(`/v1/page-ambiguities/${ambiguityId}/resolve`, request);
+  }
+
   async activate(
     pageId: Uuid,
     request: ActivatePageRequestDto,

@@ -15,11 +15,17 @@
  * proof exists (FR-026, FR-052, FR-053, FR-061).
  */
 
-import type { PageReconciler, PageScrollAnchor, ProjectedItem } from "@myownnotion/client-core";
+import type {
+  PageAmbiguityRecord,
+  PageReconciler,
+  PageScrollAnchor,
+  ProjectedItem,
+} from "@myownnotion/client-core";
 import type { Uuid } from "@myownnotion/domain";
-import { emptyDocument } from "@myownnotion/domain";
-import { useEffect, useRef, useState } from "react";
+import { emptyDocument, generateUuidV7 } from "@myownnotion/domain";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { PageAmbiguityNotice } from "../sync/page-ambiguity-notice.tsx";
 import { usePageReconciler } from "../sync/use-page-reconciler.ts";
 import { EditorSurface, type EditorSurfaceHandle } from "./editor-surface.tsx";
 import { type EditorDurableSession, EditorSyncStatus } from "./editor-sync-status.tsx";
@@ -58,6 +64,22 @@ export function EditorView({
 }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const restorePending = useRef(initialScrollAnchor);
+  const [ambiguities, setAmbiguities] = useState<readonly PageAmbiguityRecord[]>([]);
+
+  const resolveAmbiguity = useCallback(
+    (ambiguityId: string, decision: "confirm-delete" | "restore-change") => {
+      void (async () => {
+        await service.pageOperationsApi.resolveAmbiguity(ambiguityId as Uuid, {
+          requestId: generateUuidV7() as Uuid,
+          decision,
+        });
+        if (state.kind === "ready") void state.reconciler.synchronize();
+        const records = await service.pageOperationLog.listOpenAmbiguities(itemId);
+        setAmbiguities(records);
+      })();
+    },
+    [service, itemId, state],
+  );
 
   // Restored once the surface is ready, then retried briefly: early attempts
   // can run against a shell BlockNote has not filled yet, and a document too
@@ -124,12 +146,19 @@ export function EditorView({
   useEffect(() => {
     let cancelled = false;
     setState({ kind: "loading" });
+    let refreshAmbiguities = () => {};
     void service.openOperationalPage(itemId).then((opened) => {
       if (cancelled) {
         if (opened.ok) opened.close();
         return;
       }
       if (opened.ok) {
+        refreshAmbiguities = () => {
+          void service.pageOperationLog.listOpenAmbiguities(itemId).then((records) => {
+            if (!cancelled) setAmbiguities(records);
+          });
+        };
+        refreshAmbiguities();
         setState({
           kind: "ready",
           mode: opened.mode,
@@ -199,6 +228,7 @@ export function EditorView({
 
   return (
     <section className="panel" aria-label="Page content" data-testid="operational-editor">
+      <PageAmbiguityNotice records={ambiguities} onResolve={resolveAmbiguity} />
       {/* Keyed by item and mode alone: the session owns causality, so another
           device's write must never remount this surface. A mode change (an
           offline branch converting) is exactly the one remount that should

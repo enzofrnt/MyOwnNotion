@@ -307,6 +307,22 @@ export class LocalContentService {
   }
 
   /**
+   * Pings every open page's reconciler (T149).
+   *
+   * A `page-operations.updated` announcement means some page changed; the
+   * workspace pass refreshes items, but only the page's own exchange pulls
+   * the remote deltas an open editor must adopt. A ping that finds nothing
+   * new is one cheap frontier confirmation.
+   */
+  synchronizeOpenPages(): void {
+    for (const reconciler of this.#pageReconcilers.values()) {
+      void reconciler.synchronize().catch(() => {
+        // Offline or blocked: the page state already says so honestly.
+      });
+    }
+  }
+
+  /**
    * Full reconciliation pass; resolves to the resulting sync state.
    *
    * Passes are serialized and coalesced. Two concurrent passes used to be
