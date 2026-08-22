@@ -244,6 +244,11 @@ export class LegacyPageEditingSession {
     });
     const session = new LegacyPageEditingSession(options, branch, existing, page);
     await session.#ensureEditableBootstrap();
+    // Returning to a page that holds unconverted offline work converges it
+    // right away: waiting for a gesture or an online *transition* would leave
+    // the owner staring at « à synchroniser » until they typed something,
+    // even though the device is online and the queue is idle (FR-064).
+    session.#scheduleConversion();
     return session;
   }
 

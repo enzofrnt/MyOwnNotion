@@ -118,6 +118,10 @@ test.describe("what survives an unexpected close", () => {
 
     await typeIntoEditor(page, "typed before the crash");
     await saveDocument(page);
+    // The session's Dexie transaction resolved; engines differ in when the
+    // browser flushes that write-back to disk. Reloading inside that window
+    // tests the engine, not the application boundary (FR-028).
+    await page.waitForTimeout(400);
 
     await page.reload();
     await openWorkspace(page);
