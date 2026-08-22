@@ -7,6 +7,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
+import type { PageCommand } from "../src/document.ts";
 import {
   appendLegacySemanticTransaction,
   convertLegacyOfflineBranch,
@@ -19,7 +20,6 @@ import {
   planPageAmbiguityResolution,
   verifyLegacyOfflineBranch,
 } from "../src/index.ts";
-import type { PageCommand } from "../src/document.ts";
 
 function legacyParagraph(id: Uuid, text: string): BlockDocument {
   return { blocks: [{ type: "paragraph", id, content: [{ text }] }] };
