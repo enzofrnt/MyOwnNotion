@@ -188,6 +188,7 @@ export class LegacyPageEditingSession {
   #branch: LegacyOfflineBranch;
   #record: LegacyOfflineBranchRecord | null;
   #successor: PageEditingSession | null = null;
+  #handoverProjectionPending = false;
   #converting = false;
   #upgrade: Promise<void> | null = null;
   #online: boolean;
@@ -466,7 +467,7 @@ export class LegacyPageEditingSession {
       if (this.#queuedTransactions === 0 && this.#localCommit !== "blocked") {
         this.#localCommit = "idle";
       }
-      this.#refreshSync("status");
+      if (!this.#publishHandoverProjectionIfIdle()) this.#refreshSync("status");
       this.#scheduleConversion();
     });
   }
@@ -680,7 +681,25 @@ export class LegacyPageEditingSession {
       }
     });
     this.#successor = resumed;
-    this.#refreshSync("status");
+    // The checkpoint can contain edits made on other devices while this
+    // legacy branch was offline. Publishing only a status transition leaves
+    // the mounted editor on the branch projection even though `read()` now
+    // points at the merged active document. Besides hiding remote work, a
+    // later editor change can then translate that stale projection back into
+    // local operations. The event must nevertheless wait for gestures already
+    // visible in BlockNote to finish replaying onto the successor; applying an
+    // earlier checkpoint in the middle of that queue would erase their visual
+    // projection. The last queued transaction publishes the final merged
+    // document, or this does so immediately when the queue is already idle.
+    this.#handoverProjectionPending = true;
+    if (!this.#publishHandoverProjectionIfIdle()) this.#refreshSync("status");
+  }
+
+  #publishHandoverProjectionIfIdle(): boolean {
+    if (!this.#handoverProjectionPending || this.#queuedTransactions !== 0) return false;
+    this.#handoverProjectionPending = false;
+    this.#refreshSync("remote");
+    return true;
   }
 
   #blockAfterLocalFailure(error: unknown, failed: FailedLegacyCommit | null): void {

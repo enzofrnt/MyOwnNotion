@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type BlockDocumentV3,
   canonicalDocumentJsonV3,
+  childrenOfV3,
   documentDigestV3,
   embeddedFilesV3,
   exportMarkdownV3,
@@ -30,6 +31,25 @@ function expectInvalid(body: unknown, expectedPath: string) {
 }
 
 describe("the canonical v3 parser", () => {
+  it("treats an omitted container child list as empty", () => {
+    const child = { type: "divider" as const, id: generateUuidV7() };
+    expect(
+      childrenOfV3({
+        type: "toggle",
+        id: generateUuidV7(),
+        content: [],
+      }),
+    ).toEqual([]);
+    expect(
+      childrenOfV3({
+        type: "toggle",
+        id: generateUuidV7(),
+        content: [],
+        children: [child],
+      }),
+    ).toEqual([child]);
+  });
+
   it("accepts the V1 block catalogue, including stable table identities", () => {
     const columnId = generateUuidV7();
     const document = expectValid({
@@ -604,8 +624,6 @@ describe("the canonical v3 parser", () => {
       ["vimeo", "https://player.vimeo.com/video/123"],
       ["figma", "https://www.figma.com/file/123"],
       ["github", "https://github.com/enzofrnt/MyOwnNotion"],
-      ["drawio", "https://app.diagrams.net/"],
-      ["drawio", "https://embed.draw.io/"],
     ] as const;
 
     expectValid({

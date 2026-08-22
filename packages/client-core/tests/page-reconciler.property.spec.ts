@@ -104,6 +104,14 @@ function activeResponse(
   };
 }
 
+function deferred<T = void>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 describe("page update batching", () => {
   it("always selects a causal prefix bounded by count and decoded bytes", () => {
     fc.assert(
@@ -133,6 +141,81 @@ describe("page update batching", () => {
 });
 
 describe("PageReconciler", () => {
+  it("never recovers another page's genuinely in-flight update", async () => {
+    const first = fixture();
+    const second = fixture();
+    const firstCommit = await commitEdit(first.page, first.blockId, " first", 1);
+    await commitEdit(second.page, second.blockId, " second", 1);
+    const firstTransportEntered = deferred();
+    const releaseFirstTransport = deferred();
+    const firstTransport: PageSyncTransport = {
+      async sync(_pageId, request) {
+        if (request.mode !== "active") throw new Error("expected active sync");
+        firstTransportEntered.resolve();
+        await releaseFirstTransport.promise;
+        return {
+          ok: true,
+          value: activeResponse(request, first.pageId, {
+            accepted: [
+              {
+                updateId: firstCommit.update.updateId,
+                pageSequence: 1,
+                resultVersionVector: encodePageOperationBytes(
+                  firstCommit.update.resultVersionVector,
+                ),
+              },
+            ],
+            serverVersionVector: encodePageOperationBytes(firstCommit.update.resultVersionVector),
+            latestPageSequence: 1,
+            canonical: {
+              format: "myownnotion.document+json",
+              formatVersion: 3,
+              digest: firstCommit.state.projection?.canonicalDigest ?? "",
+              lastConsolidatedRevisionId: null,
+              hasUnconsolidatedChanges: true,
+            },
+          }),
+        };
+      },
+      async convertLegacyBranch() {
+        throw new Error("unexpected legacy branch conversion");
+      },
+    };
+    const secondTransport: PageSyncTransport = {
+      async sync() {
+        return {
+          ok: false,
+          offline: true,
+          problem: { code: "network.unreachable", message: "offline" },
+        };
+      },
+      async convertLegacyBranch() {
+        throw new Error("unexpected legacy branch conversion");
+      },
+    };
+
+    const firstPass = new PageReconciler({
+      pageId: first.pageId,
+      log,
+      transport: firstTransport,
+    }).synchronize();
+    await firstTransportEntered.promise;
+    expect((await log.getUpdate(firstCommit.update.updateId))?.status).toBe("sending");
+
+    await expect(
+      new PageReconciler({
+        pageId: second.pageId,
+        log,
+        transport: secondTransport,
+      }).synchronize(),
+    ).resolves.toMatchObject({ kind: "offline" });
+    expect((await log.getUpdate(firstCommit.update.updateId))?.status).toBe("sending");
+
+    releaseFirstTransport.resolve();
+    await expect(firstPass).resolves.toMatchObject({ kind: "synced" });
+    expect(await log.getUpdate(firstCommit.update.updateId)).toBeNull();
+  });
+
   it("blocks a submitted batch when a successful response violates the negotiated contract", async () => {
     const { pageId, blockId, page } = fixture();
     const committed = await commitEdit(page, blockId, " local", 1);
@@ -208,9 +291,51 @@ describe("PageReconciler", () => {
     });
 
     await expect(reconciler.synchronize()).resolves.toMatchObject({ kind: "synced" });
-    expect(backgroundErrors).toHaveLength(1);
+    expect(backgroundErrors.length).toBeGreaterThanOrEqual(1);
     expect(await log.listUpdates(pageId)).toEqual([]);
     expect((await log.getState(pageId))?.serverVersionVector).not.toBeNull();
+  });
+
+  it("replays the current durable state to a subscriber that arrived after the exchange", async () => {
+    const { pageId, blockId, page } = fixture();
+    const committed = await commitEdit(page, blockId, " local", 1);
+    const transport: PageSyncTransport = {
+      async sync(_pageId, request) {
+        if (request.mode !== "active") throw new Error("expected active sync");
+        return {
+          ok: true,
+          value: activeResponse(request, pageId, {
+            accepted: [
+              {
+                updateId: committed.update.updateId,
+                pageSequence: 1,
+                resultVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+              },
+            ],
+            serverVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            latestPageSequence: 1,
+            canonical: {
+              format: "myownnotion.document+json",
+              formatVersion: 3,
+              digest: committed.state.projection?.canonicalDigest ?? "",
+              lastConsolidatedRevisionId: null,
+              hasUnconsolidatedChanges: true,
+            },
+          }),
+        };
+      },
+      async convertLegacyBranch() {
+        throw new Error("unexpected legacy branch conversion");
+      },
+    };
+    const reconciler = new PageReconciler({ pageId, log, transport });
+    await expect(reconciler.synchronize()).resolves.toMatchObject({ kind: "synced" });
+    const replayed = deferred<{ readonly latestServerPageSequence: number }>();
+
+    const unsubscribe = reconciler.subscribeDurablePage((state) => replayed.resolve(state));
+
+    await expect(replayed.promise).resolves.toMatchObject({ latestServerPageSequence: 1 });
+    unsubscribe();
   });
 
   it("retries a response lost after server acceptance with the same immutable update id", async () => {
@@ -461,13 +586,15 @@ describe("PageReconciler", () => {
 
   it("converts a branch as soon as a real user transaction joins the bootstrap", async () => {
     const pageId = generateUuidV7();
+    const localBaseRevisionId = generateUuidV7();
+    const canonicalBaseRevisionId = generateUuidV7();
     const bootstrapTransactionId = generateUuidV7();
     const userTransactionId = generateUuidV7();
     const seededBlockId = generateUuidV7();
     let branch = await createLegacyOfflineBranch({
       branchId: generateUuidV7(),
       pageId,
-      baseRevisionId: generateUuidV7(),
+      baseRevisionId: localBaseRevisionId,
       baseDocument: { blocks: [] },
       createdAt: "2026-08-21T12:00:00.000Z",
     });
@@ -507,6 +634,19 @@ describe("PageReconciler", () => {
       requiredFileIds: [],
       branch,
     });
+    // Item creation acknowledgements retain this alias specifically for work
+    // prepared by a still-mounted surface. A legacy branch is one such caller:
+    // its journal remains based on the same content, but the server only knows
+    // the canonical revision identity it returned.
+    await db.revisionHeaders.put({
+      id: localBaseRevisionId,
+      itemId: pageId,
+      mutationId: generateUuidV7(),
+      parentRevisionIds: [],
+      acceptedAt: "2026-08-21T12:00:01.000Z",
+      local: 0,
+      canonicalRevisionId: canonicalBaseRevisionId,
+    });
     let conversionRequests = 0;
     const transport: PageSyncTransport = {
       async sync() {
@@ -514,6 +654,7 @@ describe("PageReconciler", () => {
       },
       async convertLegacyBranch(_pageId, request) {
         conversionRequests += 1;
+        expect(request.baseRevisionId).toBe(canonicalBaseRevisionId);
         expect(request.semanticTransactions.map(({ transactionId }) => transactionId)).toEqual([
           bootstrapTransactionId,
           userTransactionId,

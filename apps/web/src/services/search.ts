@@ -7,8 +7,11 @@ import {
 import type { SearchRequestDto, SearchResultDto } from "@myownnotion/contracts";
 import {
   normaliseSearchText,
+  prepareSearchQuery,
   type SearchCandidate,
+  type SearchDocument,
   type SearchMatchedField,
+  tokenizeSearchText,
   type Uuid,
 } from "@myownnotion/domain";
 import type { SearchWorkerCommand, SearchWorkerResult } from "../features/search/search.worker.ts";
@@ -16,6 +19,7 @@ import type { ContentApi } from "./content-api.ts";
 import type { LocalContentService, LocalProjectionChange } from "./local-content.ts";
 
 const SNIPPET_LIMIT = 320;
+const SEARCH_WORKER_REQUEST_TIMEOUT_MS = 10_000;
 
 export interface SearchWorkerClient {
   request(command: SearchWorkerCommand): Promise<SearchWorkerResult>;
@@ -26,6 +30,7 @@ export interface WorkspaceSearchContent {
   readonly api: Pick<ContentApi, "search">;
   readonly repository: LocalContentService["repository"];
   readonly databases?: LocalContentService["databases"];
+  readonly pageOperationLog?: LocalContentService["pageOperationLog"];
   subscribeProjection(
     listener: (change: LocalProjectionChange) => void | Promise<void>,
   ): () => void;
@@ -42,6 +47,7 @@ class BrowserSearchWorkerClient implements SearchWorkerClient {
     {
       readonly resolve: (result: SearchWorkerResult) => void;
       readonly reject: (error: Error) => void;
+      readonly timeout: ReturnType<typeof setTimeout>;
     }
   >();
   #requestId = 0;
@@ -57,11 +63,13 @@ class BrowserSearchWorkerClient implements SearchWorkerClient {
           return;
         }
         this.#pending.delete(event.data.requestId);
+        clearTimeout(pending.timeout);
         pending.resolve(event.data.result);
       },
     );
     this.#worker.addEventListener("error", () => {
       for (const pending of this.#pending.values()) {
+        clearTimeout(pending.timeout);
         pending.reject(new Error("Local search worker failed"));
       }
       this.#pending.clear();
@@ -72,7 +80,11 @@ class BrowserSearchWorkerClient implements SearchWorkerClient {
     this.#requestId += 1;
     const requestId = this.#requestId;
     return new Promise((resolve, reject) => {
-      this.#pending.set(requestId, { resolve, reject });
+      const timeout = setTimeout(() => {
+        if (!this.#pending.delete(requestId)) return;
+        reject(new Error("Local search worker did not answer"));
+      }, SEARCH_WORKER_REQUEST_TIMEOUT_MS);
+      this.#pending.set(requestId, { resolve, reject, timeout });
       this.#worker.postMessage({ requestId, command });
     });
   }
@@ -80,6 +92,7 @@ class BrowserSearchWorkerClient implements SearchWorkerClient {
   terminate(): void {
     this.#worker.terminate();
     for (const pending of this.#pending.values()) {
+      clearTimeout(pending.timeout);
       pending.reject(new Error("Local search worker terminated"));
     }
     this.#pending.clear();
@@ -108,6 +121,24 @@ function safeSnippet(bodyText: string, matchedTerms: readonly string[]): string 
 
 function primaryField(candidate: SearchCandidate): SearchMatchedField {
   return candidate.matchedFields[0] ?? (candidate.kind === "file" ? "fileName" : "title");
+}
+
+/**
+ * The worker is an acceleration structure, never an availability authority.
+ * Projection notifications and IndexedDB commits are intentionally decoupled,
+ * so a worker candidate can briefly describe content that this device has just
+ * released. Revalidate the candidate against the current projection before it
+ * is exposed to the owner.
+ */
+function documentStillMatches(document: SearchDocument, rawQuery: string): boolean {
+  const query = prepareSearchQuery(rawQuery);
+  if (!query.ok) return false;
+  const terms = tokenizeSearchText(
+    [document.title, document.bodyText, ...document.properties.map(({ text }) => text)].join("\n"),
+  );
+  return query.value.terms.every((queryTerm) =>
+    terms.some((indexedTerm) => indexedTerm.startsWith(queryTerm)),
+  );
 }
 
 function serverResult(result: SearchResultDto): SearchClientResult {
@@ -148,10 +179,16 @@ export class WorkspaceSearchService {
   ) {
     this.#content = content;
     this.#api = options.api ?? content.api;
-    this.#source = options.source ?? new LocalSearchSource(content.repository, content.databases);
+    this.#source =
+      options.source ??
+      new LocalSearchSource(content.repository, content.databases, content.pageOperationLog);
     this.#worker = options.worker ?? new BrowserSearchWorkerClient();
-    this.#unsubscribeProjection = content.subscribeProjection(async (change) => {
-      await this.#onProjectionChange(change);
+    this.#unsubscribeProjection = content.subscribeProjection((change) => {
+      // Search is a rebuildable acceleration structure, never part of the
+      // canonical projection commit. A cold or failed worker must not hold the
+      // workspace synchronization promise — and therefore the whole UI — open.
+      // Search itself still awaits this serial queue before answering a query.
+      void this.#onProjectionChange(change).catch(() => undefined);
     });
   }
 
@@ -217,7 +254,12 @@ export class WorkspaceSearchService {
     if (change.kind === "rebuild" || this.#initialBuild === null) {
       const build = this.#enqueue(async () => await this.#build());
       this.#initialBuild = build;
-      await build;
+      try {
+        await build;
+      } catch (error) {
+        if (this.#initialBuild === build) this.#initialBuild = null;
+        throw error;
+      }
       return;
     }
     await this.#enqueue(async () => await this.#upsert(change.itemIds));
@@ -248,25 +290,25 @@ export class WorkspaceSearchService {
     const entryById = new Map(entries.map((entry) => [entry.document.itemId, entry]));
     const results = response.candidates.flatMap((candidate): SearchClientResult[] => {
       const entry = entryById.get(candidate.itemId);
-      if (entry === undefined) {
+      if (entry === undefined || !documentStillMatches(entry.document, request.query)) {
         return [];
       }
       const matchedField = primaryField(candidate);
       return [
         {
           itemId: candidate.itemId,
-          revisionId: candidate.revisionId,
-          kind: candidate.kind,
-          title: candidate.title,
+          revisionId: entry.document.revisionId,
+          kind: entry.document.kind,
+          title: entry.document.title,
           path: entry.path,
           matchedField,
           propertyId: matchedField === "property" ? candidate.matchedPropertyId : null,
           propertyName: matchedField === "property" ? candidate.matchedPropertyName : null,
           snippet:
             matchedField === "body"
-              ? safeSnippet(candidate.bodyText, candidate.matchedTerms)
+              ? safeSnippet(entry.document.bodyText, candidate.matchedTerms)
               : null,
-          conflict: candidate.conflict,
+          conflict: entry.document.conflict,
           localAvailability: entry.localAvailability,
           source: "local",
           localState: entry.syncState,
@@ -377,10 +419,9 @@ export class WorkspaceSearchService {
     }
     this.#disposed = true;
     this.#unsubscribeProjection();
-    try {
-      await this.#worker.request({ type: "clear" });
-    } finally {
-      this.#worker.terminate();
-    }
+    // Termination already drops the transient index. Waiting for a `clear`
+    // response first leaves a failed worker alive forever during React's
+    // development remount, which can stall Firefox before the workspace opens.
+    this.#worker.terminate();
   }
 }

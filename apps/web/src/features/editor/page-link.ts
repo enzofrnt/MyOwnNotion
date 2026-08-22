@@ -1,8 +1,10 @@
 /** Internal page-link mark: a canonical target, never a hierarchy placement. */
 
 import type { ProjectedItem } from "@myownnotion/client-core";
-import type { Uuid } from "@myownnotion/domain";
 import { Mark } from "@tiptap/core";
+import { pageLinkHrefFor } from "./page-link-href.ts";
+
+export { pageLinkHrefFor } from "./page-link-href.ts";
 
 export const PageLink = Mark.create({
   name: "pageLink",
@@ -28,7 +30,10 @@ export const PageLink = Mark.create({
     return [
       "a",
       {
-        href: typeof targetItemId === "string" ? `#page=${targetItemId}` : "#",
+        href:
+          typeof targetItemId === "string"
+            ? pageLinkHrefFor(targetItemId as Parameters<typeof pageLinkHrefFor>[0])
+            : "#",
         "data-page-link-target": typeof targetItemId === "string" ? targetItemId : "",
         "aria-label": "Internal page link",
         class: "page-link",
@@ -76,37 +81,5 @@ export function pageLinkStatePresentation(state: PageLinkTargetState): {
       return { className: "page-link page-link-unavailable", suffix: " (cible indisponible)" };
     case "unknown":
       return { className: "page-link page-link-unknown", suffix: " (cible inconnue)" };
-  }
-}
-
-export function pageLinkHrefFor(targetItemId: Uuid): string {
-  return `myownnotion:page:${targetItemId}`;
-}
-
-const PAGE_LINK_HREF_PATTERN = /^myownnotion:page:(.+)$/u;
-
-/**
- * Annotates rendered anchors so target state is visible and announced
- * (FR-022). Idempotent: safe to run after every BlockNote re-render.
- */
-export function annotatePageLinkAnchors(
-  root: HTMLElement,
-  items: readonly Pick<ProjectedItem, "id" | "lifecycle">[],
-): void {
-  const anchors = root.querySelectorAll<HTMLAnchorElement>("a[href]");
-  for (const anchor of anchors) {
-    const match = PAGE_LINK_HREF_PATTERN.exec(anchor.getAttribute("href") ?? "");
-    if (match === null || match[1] === undefined) continue;
-    const state = pageLinkTargetState(match[1], items);
-    const { className, suffix } = pageLinkStatePresentation(state);
-    if (anchor.className !== className) anchor.className = className;
-    const label = anchor.textContent ?? "";
-    if (suffix !== "" && !label.endsWith(suffix)) {
-      anchor.setAttribute("aria-label", `${label}${suffix}`);
-      anchor.setAttribute("data-page-link-state", state);
-    } else if (suffix === "") {
-      anchor.removeAttribute("data-page-link-state");
-      anchor.removeAttribute("aria-label");
-    }
   }
 }

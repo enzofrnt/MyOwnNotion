@@ -27,14 +27,14 @@ import {
   serialiseEditorTableColumns,
   TABLE_COLUMNS_PROP,
 } from "./custom-blocks/table.tsx";
-
-const PAGE_LINK_PREFIX = "myownnotion:page:";
+import { pageLinkTargetFromHref } from "./page-link-href.ts";
 
 type VisibleBlock = EditorBlock | EditorPartialBlock;
 type VisibleInline = {
   readonly type?: string;
   readonly text?: string;
   readonly styles?: Record<string, unknown>;
+  readonly props?: Record<string, unknown>;
   readonly href?: string;
   readonly content?: readonly VisibleInline[];
 };
@@ -84,8 +84,8 @@ function inlineToBlockNote(content: readonly InlineV3[]): unknown[] {
       result.push({ type: "link", href: link.href, content: [text] });
     } else if (link?.type === "pageLink") {
       result.push({
-        type: "link",
-        href: `${PAGE_LINK_PREFIX}${link.targetItemId}`,
+        type: "pageLink",
+        props: { targetItemId: link.targetItemId },
         content: [text],
       });
     } else {
@@ -300,15 +300,36 @@ export function blockNoteInlineToCanonical(content: unknown): readonly InlineV3[
     }
     if (entry.type === "link") {
       const href = "href" in entry && typeof entry.href === "string" ? entry.href : "";
-      const linkMark: MarkV3 = href.startsWith(PAGE_LINK_PREFIX)
-        ? { type: "pageLink", targetItemId: href.slice(PAGE_LINK_PREFIX.length) as Uuid }
-        : { type: "link", href };
+      const pageTarget = pageLinkTargetFromHref(href);
+      const linkMark: MarkV3 =
+        pageTarget === null
+          ? { type: "link", href }
+          : { type: "pageLink", targetItemId: pageTarget };
       const linkedContent = "content" in entry && Array.isArray(entry.content) ? entry.content : [];
       for (const child of linkedContent) {
         if (child === null || typeof child !== "object" || !("text" in child)) continue;
         const text = typeof child.text === "string" ? child.text : "";
         const styles = "styles" in child ? (child.styles as Record<string, unknown>) : undefined;
         const marks = [...marksFromStyles(styles), linkMark];
+        if (text !== "") result.push({ text, marks });
+      }
+      continue;
+    }
+    if (entry.type === "pageLink") {
+      const rawTarget = entry.props?.["targetItemId"];
+      const pageTarget = pageLinkTargetFromHref(
+        typeof rawTarget === "string" ? `#page=${rawTarget}` : null,
+      );
+      if (pageTarget === null) continue;
+      const linkedContent = "content" in entry && Array.isArray(entry.content) ? entry.content : [];
+      for (const child of linkedContent) {
+        if (child === null || typeof child !== "object" || !("text" in child)) continue;
+        const text = typeof child.text === "string" ? child.text : "";
+        const styles = "styles" in child ? (child.styles as Record<string, unknown>) : undefined;
+        const marks: MarkV3[] = [
+          ...marksFromStyles(styles),
+          { type: "pageLink", targetItemId: pageTarget },
+        ];
         if (text !== "") result.push({ text, marks });
       }
     }

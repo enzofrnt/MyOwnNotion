@@ -2,7 +2,7 @@ import { createReactBlockSpec } from "@blocknote/react";
 import { type EmbedProvider, validateDocumentV3 } from "@myownnotion/domain";
 import { useState } from "react";
 
-const PROVIDERS = ["bookmark", "youtube", "vimeo", "figma", "github", "drawio"] as const;
+const PROVIDERS = ["bookmark", "youtube", "vimeo", "figma", "github"] as const;
 const VALIDATION_BLOCK_ID = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056";
 
 export function isSafeEmbedSource(provider: EmbedProvider, sourceUrl: string): boolean {
@@ -30,7 +30,7 @@ function previewUrl(provider: EmbedProvider, sourceUrl: string): string | null {
     const videoId = url.pathname.split("/").filter(Boolean).at(-1);
     return videoId ? `https://player.vimeo.com/video/${encodeURIComponent(videoId)}` : null;
   }
-  if (provider === "figma" || provider === "drawio") return sourceUrl;
+  if (provider === "figma") return sourceUrl;
   return null;
 }
 

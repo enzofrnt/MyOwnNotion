@@ -9,6 +9,7 @@ import {
   useComponentsContext,
   useExtensionState,
 } from "@blocknote/react";
+import { memo, useCallback } from "react";
 import {
   deleteSelectedBlocks,
   duplicateSelectedBlocks,
@@ -43,7 +44,7 @@ function MyOwnNotionDragHandleMenu({ onError }: { readonly onError: (message: st
         className="bn-menu-item"
         onClick={() => execute(() => void duplicateSelectedBlocks(editor))}
       >
-        Dupliquer
+        <span data-testid="side-menu-duplicate">Dupliquer</span>
       </Item>
       <Item
         className="bn-menu-item"
@@ -89,17 +90,28 @@ function MyOwnNotionDragHandleMenu({ onError }: { readonly onError: (message: st
 }
 
 /** Contextual adjacent-add and draggable handle supplied by BlockNote Community. */
-export function BlockSideMenu({ onError }: { readonly onError: (message: string) => void }) {
-  return (
-    <SideMenuController
-      sideMenu={() => (
-        <SideMenu>
-          <AddBlockButton />
-          <DragHandleButton
-            dragHandleMenu={() => <MyOwnNotionDragHandleMenu onError={onError} />}
-          />
-        </SideMenu>
-      )}
-    />
+export const BlockSideMenu = memo(function BlockSideMenu({
+  onError,
+}: {
+  readonly onError: (message: string) => void;
+}) {
+  // The editor rerenders when a durable commit settles so undo/redo controls
+  // can refresh. Keep BlockNote's render callback stable across that status
+  // update: replacing it remounts the floating controller and closes an open
+  // drag-handle menu underneath the user's pointer.
+  const renderDragHandleMenu = useCallback(
+    () => <MyOwnNotionDragHandleMenu onError={onError} />,
+    [onError],
   );
-}
+  const renderSideMenu = useCallback(
+    () => (
+      <SideMenu>
+        <AddBlockButton />
+        <DragHandleButton dragHandleMenu={renderDragHandleMenu} />
+      </SideMenu>
+    ),
+    [renderDragHandleMenu],
+  );
+
+  return <SideMenuController sideMenu={renderSideMenu} />;
+});

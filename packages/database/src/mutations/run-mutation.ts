@@ -17,11 +17,16 @@ export interface RunMutationOptions {
 const RETRYABLE_SQLSTATE = new Set(["40001", "40P01"]);
 
 function isRetryable(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) {
-    return false;
+  let current: unknown = error;
+  const seen = new Set<object>();
+  for (let depth = 0; depth < 8 && typeof current === "object" && current !== null; depth += 1) {
+    if (seen.has(current)) return false;
+    seen.add(current);
+    const record = current as { readonly code?: unknown; readonly cause?: unknown };
+    if (typeof record.code === "string" && RETRYABLE_SQLSTATE.has(record.code)) return true;
+    current = record.cause;
   }
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" && RETRYABLE_SQLSTATE.has(code);
+  return false;
 }
 
 export class SerializationRetryExceededError extends Error {

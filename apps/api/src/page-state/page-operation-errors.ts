@@ -1,5 +1,6 @@
 export type PageOperationServiceProblemCode =
   | "page-operations.activation-stale"
+  | "page-operations.not-active"
   | "page-operations.dependencies-missing"
   | "page-operations.digest-mismatch"
   | "page-operations.projection-invalid"

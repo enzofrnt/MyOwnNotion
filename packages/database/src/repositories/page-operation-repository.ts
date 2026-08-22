@@ -8,7 +8,7 @@
  */
 
 import type { Uuid } from "@myownnotion/domain";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import {
   pageAmbiguities,
@@ -17,6 +17,7 @@ import {
   pageOperationCheckpoints,
   pageOperationStates,
   pageOperationUpdates,
+  protectedEnvelopes,
 } from "../schema/index.ts";
 
 type Executor = Database | Transaction;
@@ -82,6 +83,110 @@ export async function lockPageOperationState(
     );
   }
   return state;
+}
+
+/**
+ * Removes the complete operational authority before a page stops being a
+ * page. The row lock serializes this destructive transition with active sync;
+ * a client that was already waiting will subsequently observe no state and be
+ * blocked explicitly instead of reviving the destroyed content.
+ */
+export async function retirePageOperationState(
+  tx: Transaction,
+  workspaceId: Uuid,
+  pageId: Uuid,
+): Promise<void> {
+  const states = await tx
+    .select()
+    .from(pageOperationStates)
+    .where(
+      and(eq(pageOperationStates.workspaceId, workspaceId), eq(pageOperationStates.pageId, pageId)),
+    )
+    .for("update")
+    .limit(1);
+  const state = states[0];
+  if (state === undefined) return;
+
+  // One PostgreSQL transaction owns one client. Keep its reads sequential;
+  // cross-check concurrency belongs between transactions, not inside one.
+  const updates = await tx
+    .select({
+      base: pageOperationUpdates.baseFrontierEnvelopeId,
+      result: pageOperationUpdates.resultFrontierEnvelopeId,
+      update: pageOperationUpdates.updateEnvelopeId,
+    })
+    .from(pageOperationUpdates)
+    .where(eq(pageOperationUpdates.pageId, pageId));
+  const checkpoints = await tx
+    .select({
+      frontier: pageOperationCheckpoints.frontierEnvelopeId,
+      snapshot: pageOperationCheckpoints.snapshotEnvelopeId,
+    })
+    .from(pageOperationCheckpoints)
+    .where(eq(pageOperationCheckpoints.pageId, pageId));
+  const frontiers = await tx
+    .select({ frontier: pageDeviceFrontiers.frontierEnvelopeId })
+    .from(pageDeviceFrontiers)
+    .where(eq(pageDeviceFrontiers.pageId, pageId));
+  const ambiguities = await tx
+    .select({ details: pageAmbiguities.detailsEnvelopeId })
+    .from(pageAmbiguities)
+    .where(eq(pageAmbiguities.pageId, pageId));
+  const conversions = await tx
+    .select({ response: pageLegacyBranchConversions.responseEnvelopeId })
+    .from(pageLegacyBranchConversions)
+    .where(eq(pageLegacyBranchConversions.pageId, pageId));
+  const envelopeIds = new Set<Uuid>();
+  const remember = (value: string | null): void => {
+    if (value !== null) envelopeIds.add(value as Uuid);
+  };
+  remember(state.currentFrontierEnvelopeId);
+  remember(state.revisionWindowFrontierEnvelopeId);
+  for (const row of updates) {
+    remember(row.base);
+    remember(row.result);
+    remember(row.update);
+  }
+  for (const row of checkpoints) {
+    remember(row.frontier);
+    remember(row.snapshot);
+  }
+  for (const row of frontiers) remember(row.frontier);
+  for (const row of ambiguities) remember(row.details);
+  for (const row of conversions) remember(row.response);
+
+  // Clear the deferred checkpoint reference and active-state completeness
+  // fields before deleting dependent rows in foreign-key order.
+  await tx
+    .update(pageOperationStates)
+    .set({
+      status: "initializing",
+      currentCheckpointId: null,
+      currentFrontierEnvelopeId: null,
+      operationalDigest: null,
+      revisionWindowStartedAt: null,
+      revisionWindowLastUpdateAt: null,
+      revisionWindowFrontierEnvelopeId: null,
+      bootstrappedAt: null,
+    })
+    .where(
+      and(eq(pageOperationStates.workspaceId, workspaceId), eq(pageOperationStates.pageId, pageId)),
+    );
+  await tx
+    .delete(pageLegacyBranchConversions)
+    .where(eq(pageLegacyBranchConversions.pageId, pageId));
+  await tx.delete(pageAmbiguities).where(eq(pageAmbiguities.pageId, pageId));
+  await tx.delete(pageDeviceFrontiers).where(eq(pageDeviceFrontiers.pageId, pageId));
+  await tx.delete(pageOperationUpdates).where(eq(pageOperationUpdates.pageId, pageId));
+  await tx.delete(pageOperationCheckpoints).where(eq(pageOperationCheckpoints.pageId, pageId));
+  await tx
+    .delete(pageOperationStates)
+    .where(
+      and(eq(pageOperationStates.workspaceId, workspaceId), eq(pageOperationStates.pageId, pageId)),
+    );
+  if (envelopeIds.size > 0) {
+    await tx.delete(protectedEnvelopes).where(inArray(protectedEnvelopes.id, [...envelopeIds]));
+  }
 }
 
 export interface InsertInitializingPageOperationStateInput {
@@ -230,6 +335,18 @@ export async function readPageOperationUpdate(
   return rows[0] ?? null;
 }
 
+export async function readPageOperationUpdates(
+  executor: Executor,
+  updateIds: readonly Uuid[],
+): Promise<ReadonlyMap<Uuid, PageOperationUpdateRow>> {
+  if (updateIds.length === 0) return new Map();
+  const rows = await executor
+    .select()
+    .from(pageOperationUpdates)
+    .where(inArray(pageOperationUpdates.id, [...updateIds]));
+  return new Map(rows.map((row) => [row.id as Uuid, row]));
+}
+
 export async function readPageOperationCheckpoint(
   executor: Executor,
   input: { readonly workspaceId: Uuid; readonly pageId: Uuid; readonly checkpointId: Uuid },
@@ -358,6 +475,101 @@ export async function appendAcceptedPageOperationUpdate(
     );
   }
   return { kind: "accepted", pageSequence, update, state };
+}
+
+export interface AppendAcceptedPageOperationBatchInput {
+  readonly pageId: Uuid;
+  readonly workspaceId: Uuid;
+  readonly updates: readonly Omit<
+    AppendAcceptedPageOperationUpdateInput,
+    "pageId" | "workspaceId" | "operationalDigest" | "canonicalDigest" | "acceptedAt"
+  >[];
+  readonly operationalDigest: string;
+  readonly canonicalDigest: string;
+  readonly acceptedAt: Date;
+}
+
+export interface AppendAcceptedPageOperationBatchResult {
+  readonly updates: readonly PageOperationUpdateRow[];
+  readonly state: PageOperationStateRow;
+}
+
+/**
+ * Appends a causally verified request batch behind one page lock.
+ *
+ * The service has already rejected repeats and imported every update before it
+ * reaches this boundary. PostgreSQL therefore only needs one immutable insert
+ * and one final-state update; the transaction remains all-or-nothing and every
+ * update keeps its own monotonic page sequence and encrypted frontier.
+ */
+export async function appendAcceptedPageOperationUpdates(
+  tx: Transaction,
+  input: AppendAcceptedPageOperationBatchInput,
+): Promise<AppendAcceptedPageOperationBatchResult> {
+  const locked = await lockPageOperationState(tx, input.workspaceId, input.pageId);
+  if (locked.status !== "active") {
+    throw new PageOperationRepositoryError(
+      "state-not-active",
+      "page operation update requires an active page state",
+    );
+  }
+  if (input.updates.length === 0) return { updates: [], state: locked };
+
+  const values = input.updates.map((update, index) => ({
+    id: update.updateId,
+    pageId: input.pageId,
+    workspaceId: input.workspaceId,
+    pageSequence: locked.lastUpdateSequence + index + 1,
+    authoredByDeviceId: update.authoredByDeviceId,
+    baseFrontierEnvelopeId: update.baseFrontierEnvelopeId,
+    resultFrontierEnvelopeId: update.resultFrontierEnvelopeId,
+    updateEnvelopeId: update.updateEnvelopeId,
+    updateDigest: update.updateDigest,
+    status: "accepted" as const,
+    failureCode: null,
+    acceptedAt: input.acceptedAt,
+  }));
+  const inserted = await tx.insert(pageOperationUpdates).values(values).returning();
+  if (inserted.length !== values.length) {
+    throw new Error("not every page operation update was inserted");
+  }
+  const byId = new Map(inserted.map((row) => [row.id, row]));
+  const updates = values.map(({ id }) => {
+    const row = byId.get(id);
+    if (row === undefined) throw new Error("an inserted page operation update is missing");
+    return row;
+  });
+  const last = input.updates.at(-1);
+  if (last === undefined) throw new Error("the accepted page operation batch is empty");
+  const lastUpdateSequence = locked.lastUpdateSequence + input.updates.length;
+  const stateRows = await tx
+    .update(pageOperationStates)
+    .set({
+      currentFrontierEnvelopeId: last.resultFrontierEnvelopeId,
+      operationalDigest: input.operationalDigest,
+      canonicalDigest: input.canonicalDigest,
+      lastUpdateSequence,
+      revisionWindowStartedAt: locked.revisionWindowStartedAt ?? input.acceptedAt,
+      revisionWindowLastUpdateAt: input.acceptedAt,
+      revisionWindowFrontierEnvelopeId: last.resultFrontierEnvelopeId,
+      updatedAt: input.acceptedAt,
+    })
+    .where(
+      and(
+        eq(pageOperationStates.pageId, input.pageId),
+        eq(pageOperationStates.workspaceId, input.workspaceId),
+        eq(pageOperationStates.lastUpdateSequence, locked.lastUpdateSequence),
+      ),
+    )
+    .returning();
+  const state = stateRows[0];
+  if (state === undefined) {
+    throw new PageOperationRepositoryError(
+      "state-advanced-concurrently",
+      "page operation state advanced while its locked update batch was appended",
+    );
+  }
+  return { updates, state };
 }
 
 export async function listPageOperationUpdatesAfter(

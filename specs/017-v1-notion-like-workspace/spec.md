@@ -90,6 +90,13 @@ responsabilité explicite de ces comportements dans son propre périmètre.
   seule une révocation explicite permet de cesser de retenir sa frontière de
   synchronisation.
 
+### Session 2026-08-22
+
+- Q: La stack V1 doit-elle embarquer un serveur Draw.io ? → R: Non. Les fichiers
+  `.drawio` restent des pièces jointes téléchargeables. Toute future édition de
+  diagrammes vient après les fondations V1, s'exécute directement dans
+  MyOwnNotion et n'ajoute ni conteneur Draw.io ni embed public.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Entrer dans un espace de travail focalisé (Priority: P1)
@@ -771,6 +778,9 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - Nouveaux types de bases, propriétés, filtres ou vues au-delà de la 009.
 - Graphe, tableaux blancs, partage public, annotations et MCP, qui conservent
   leurs features dédiées.
+- Prévisualisation ou édition Draw.io. Les fichiers restent téléchargeables via
+  la fondation 005 ; un futur moteur de diagrammes interne appartient à la
+  feature tableaux blancs ou à une feature de suivi postérieure.
 - Remplacement du modèle canonique par le format interne d'un moteur d'édition,
   ou utilisation du document interne complet de cet éditeur comme unité de
   synchronisation.

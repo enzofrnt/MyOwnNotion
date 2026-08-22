@@ -586,7 +586,8 @@ Les formats concernés incluent notamment :
 - images ;
 - PDF ;
 - SVG ;
-- Draw.io ;
+- fichiers Draw.io, conservés comme fichiers opaques tant qu'aucun éditeur
+  interne n'est livré ;
 - documents courants ;
 - archives.
 
@@ -622,10 +623,14 @@ L'application doit prévisualiser directement :
 - JPEG ;
 - GIF ;
 - WebP ;
-- autres formats d'image courants ;
-- Draw.io.
+- autres formats d'image courants.
 
-Les fichiers Draw.io doivent être prévisualisables et modifiables.
+La prévisualisation et l'édition Draw.io ne font pas partie de la V1. Un fichier
+`.drawio` reste stockable, synchronisable et téléchargeable comme n'importe
+quelle pièce jointe. Si cette capacité est développée après les fondations
+d'édition et de synchronisation, son moteur s'exécutera directement dans
+MyOwnNotion : aucun serveur ou conteneur Draw.io séparé, et aucun embed public
+`diagrams.net`, ne fait partie de la stack autorisée.
 
 Lorsqu'un moteur d'édition mature existe, son intégration doit être privilégiée plutôt que de reconstruire inutilement la même fonctionnalité. L'intégration doit néanmoins respecter l'identité visuelle, les permissions, le hors-ligne et le modèle de sauvegarde de MyOwnNotion.
 
@@ -1832,7 +1837,8 @@ L'achèvement de cette phase, y compris la convergence visuelle et interactive, 
 
 21. bases de données et tâches avancées ;
 22. graphe ;
-23. tableaux blancs ;
+23. tableaux blancs puis, si le besoin est confirmé, import ou édition de
+    diagrammes par un moteur interne à MyOwnNotion ;
 24. partage public et annotations ;
 25. MCP.
 

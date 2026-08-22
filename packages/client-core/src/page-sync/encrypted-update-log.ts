@@ -95,6 +95,13 @@ export interface PageAmbiguityRecord {
   readonly details: PageAmbiguity;
 }
 
+/** One causally consistent IndexedDB read used to (re)open an editor session. */
+export interface PageOperationLocalSnapshot {
+  readonly state: PageOperationStateRecord | null;
+  readonly updates: PageOperationUpdateRecord[];
+  readonly ambiguities: PageAmbiguityRecord[];
+}
+
 export interface LegacyOfflineBranchRecord {
   readonly pageId: Uuid;
   readonly branchId: Uuid;
@@ -750,6 +757,34 @@ export class EncryptedPageOperationLog {
   async getState(pageId: Uuid): Promise<PageOperationStateRecord | null> {
     const row = await this.db.pageOperationStates.get(pageId);
     return row === undefined ? null : await this.codec.openState(row);
+  }
+
+  /**
+   * Reads the state row, update journal and open ambiguities from one IndexedDB
+   * snapshot, then decrypts them after the transaction closes.
+   *
+   * Reading those tables through three independent promises can observe a
+   * reconciler between its atomic state advance and a later read. The pair is
+   * valid before and after that commit, but the mixed view reconstructs
+   * neither frontier and used to leave a returning editor stuck on “Loading”.
+   */
+  async readPageSnapshot(pageId: Uuid): Promise<PageOperationLocalSnapshot> {
+    const [stateRow, updateRows, ambiguityRows] = await this.db.transaction(
+      "r",
+      [this.db.pageOperationStates, this.db.pageOperationUpdates, this.db.pageAmbiguities],
+      async () =>
+        await Promise.all([
+          this.db.pageOperationStates.get(pageId),
+          this.db.pageOperationUpdates.where("pageId").equals(pageId).sortBy("enqueueOrder"),
+          this.db.pageAmbiguities.where("[pageId+status]").equals([pageId, "open"]).toArray(),
+        ]),
+    );
+    const [state, updates, ambiguities] = await Promise.all([
+      stateRow === undefined ? Promise.resolve(null) : this.codec.openState(stateRow),
+      Promise.all(updateRows.map(async (row) => await this.codec.openUpdate(row))),
+      Promise.all(ambiguityRows.map(async (row) => await this.codec.openAmbiguity(row))),
+    ]);
+    return { state, updates, ambiguities };
   }
 
   async getUpdate(updateId: Uuid): Promise<PageOperationUpdateRecord | null> {

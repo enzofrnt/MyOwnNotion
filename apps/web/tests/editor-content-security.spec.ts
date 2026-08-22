@@ -10,7 +10,6 @@ describe("editor content security", () => {
       expect(isSafeEmbedSource("vimeo", "https://player.vimeo.com/video/1")).toBe(true);
       expect(isSafeEmbedSource("github", "https://gist.github.com/a/1")).toBe(true);
       expect(isSafeEmbedSource("figma", "https://www.figma.com/file/x")).toBe(true);
-      expect(isSafeEmbedSource("drawio", "https://app.diagrams.net/#x")).toBe(true);
     });
 
     it("refuses non-https, lookalike hosts and credential URLs", () => {
@@ -34,9 +33,15 @@ describe("editor content security", () => {
     it("keeps safe schemes", () => {
       expect(safeLinkHref("https://example.org/a")).toBe("https://example.org/a");
       expect(safeLinkHref("mailto:owner@example.org")).toBe("mailto:owner@example.org");
+      expect(safeLinkHref("#page=0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056")).toBe(
+        "#page=0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056",
+      );
+      // Already stored documents remain readable through the one-way href
+      // migration; new links always use the browser-safe hash above.
       expect(safeLinkHref("myownnotion:page:0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056")).toBe(
         "myownnotion:page:0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056",
       );
+      expect(safeLinkHref("#page=not-a-uuid")).toBeNull();
     });
 
     it("strips executable and opaque schemes", () => {

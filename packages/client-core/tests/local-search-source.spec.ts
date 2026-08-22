@@ -1,5 +1,7 @@
 import {
   applyLocalMutation,
+  EncryptedPageOperationLog,
+  LocalCipher,
   type LocalDatabase,
   LocalDatabaseRepository,
   LocalRepository,
@@ -8,6 +10,10 @@ import {
 } from "@myownnotion/client-core";
 import type { ItemDto } from "@myownnotion/contracts";
 import { type DatabaseDefinition, generateUuidV7, type Uuid } from "@myownnotion/domain";
+import {
+  appendLegacySemanticTransaction,
+  createLegacyOfflineBranch,
+} from "@myownnotion/page-state";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestCodec, type TestCodec } from "./helpers/codec.ts";
 
@@ -151,6 +157,70 @@ describe("LocalSearchSource", () => {
       document: { title: "Après", sourceVersion: 7 },
       syncState: "pending",
     });
+  });
+
+  it("indexes an unconverted offline page branch instead of its stale consolidated body", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseRevisionId = generateUuidV7();
+    await repository.applyServerItems([
+      item({
+        id: pageId,
+        name: "Offline draft",
+        body: {
+          blocks: [{ type: "paragraph", id: blockId, content: [{ text: "old body" }] }],
+        },
+      }),
+    ]);
+    const operations = new EncryptedPageOperationLog(db, new LocalCipher(testCodec.keys), {
+      installationId: "018f2b7c-0000-7000-8000-000000000001",
+      workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+    });
+    let branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId,
+      baseDocument: {
+        blocks: [{ type: "paragraph", id: blockId, content: [{ text: "old body" }] }],
+      },
+      createdAt: "2026-08-22T12:00:00.000Z",
+    });
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 1,
+      commands: [
+        {
+          type: "replace-text",
+          blockId,
+          baseFrom: 0,
+          baseTo: "old body".length,
+          beforeContext: "",
+          afterContext: "",
+          text: "new searchable offline body",
+        },
+      ],
+    });
+    await operations.putLegacyBranch({
+      pageId,
+      branchId: branch.branchId,
+      status: "editing",
+      createdAt: branch.createdAt,
+      recordVersion: 1,
+      branch,
+      requiredFileIds: [],
+    });
+
+    const entries = await new LocalSearchSource(repository, undefined, operations).read(
+      [pageId],
+      3,
+    );
+
+    expect(entries).toMatchObject([
+      {
+        document: { itemId: pageId, bodyText: "new searchable offline body" },
+        syncState: "pending",
+      },
+    ]);
   });
 
   it("resolves the active root and descendants of the current local hierarchy", async () => {

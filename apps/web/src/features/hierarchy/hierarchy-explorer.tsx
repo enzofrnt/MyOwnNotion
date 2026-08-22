@@ -73,6 +73,7 @@ import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
 
 type LoadState = "loading" | "ready";
+type LoadPhase = "initializing" | "reading-local" | "seeding" | "navigation" | "refreshing";
 
 interface TreeNode {
   readonly item: ProjectedItem;
@@ -209,6 +210,7 @@ export function HierarchyExplorer({
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loadPhase, setLoadPhase] = useState<LoadPhase>("initializing");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
   /** Device-local scroll anchors, kept beside the rest of the ergonomics. */
@@ -339,14 +341,18 @@ export function HierarchyExplorer({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      setLoadPhase("initializing");
       await service.initialize();
       // First boot on this device: seed the projection when reachable.
+      setLoadPhase("reading-local");
       if ((await service.listActiveItems()).length === 0) {
+        setLoadPhase("seeding");
         await service.seedFromServer();
       }
       // Which branches were open is device ergonomics, not content: it lives
       // in the local projection and never syncs. Restoring it is what makes
       // returning to the workspace feel like returning (FR-014).
+      setLoadPhase("navigation");
       const navigation = await readNavigationState(service.db);
       if (cancelled) {
         return;
@@ -356,6 +362,7 @@ export function HierarchyExplorer({
       setSidebarWidth(navigation.sidebarWidth);
       presentationRef.current = navigation;
       setNavigationLoaded(true);
+      setLoadPhase("refreshing");
       const activeItems = await refresh();
       if (!cancelled) {
         setSelectedId(
@@ -1264,7 +1271,7 @@ export function HierarchyExplorer({
       ) : null}
 
       {loadState === "loading" ? (
-        <WorkspaceState kind="loading" />
+        <WorkspaceState kind="loading" phase={loadPhase} />
       ) : selectedItem === null ? (
         <WorkspaceState
           kind="empty"

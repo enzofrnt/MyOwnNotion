@@ -91,7 +91,9 @@ place, afin qu'un même numéro ne désigne jamais deux features différentes.
 **Canevas** : sections 15 à 18
 
 Expérience complète des fichiers et pièces jointes, prévisualisations,
-Draw.io, quotas locaux, disponibilité hors ligne et déchargement sûr.
+quotas locaux, disponibilité hors ligne et déchargement sûr. L'ancien serveur
+Draw.io a été retiré : les fichiers `.drawio` restent des pièces jointes
+téléchargeables, sans éditeur externe ni service supplémentaire.
 
 ### 006 — Multi-device synchronization
 
@@ -204,7 +206,10 @@ section 22.
 
 ### 011 — Whiteboards
 
-Tableaux blancs, cartes, dessins, connexions et références canoniques. Canevas :
+Tableaux blancs, cartes, dessins, connexions et références canoniques. Une
+éventuelle compatibilité Draw.io vient seulement ici ou dans une feature de
+suivi, après les fondations V1, avec un moteur exécuté directement dans
+MyOwnNotion — jamais avec un serveur Draw.io séparé ou un embed public. Canevas :
 section 23.
 
 ### 012 — Public sharing and annotations

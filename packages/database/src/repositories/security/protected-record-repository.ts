@@ -145,6 +145,49 @@ export async function writeProtectedRecord(
 }
 
 /**
+ * Inserts immutable protected records in one statement.
+ *
+ * Operational updates mint fresh envelope identities and never rewrite them.
+ * Keeping that property explicit lets an offline catch-up persist hundreds of
+ * encrypted fragments without turning one atomic request into hundreds of SQL
+ * round trips. Any identity collision is an integrity error and fails the
+ * caller's transaction instead of silently replacing ciphertext.
+ */
+export async function insertProtectedRecords(
+  executor: Executor,
+  inputs: readonly (WriteEnvelopeInput & { readonly id: string })[],
+): Promise<readonly string[]> {
+  if (inputs.length === 0) return [];
+  const rows = await executor
+    .insert(protectedEnvelopes)
+    .values(
+      inputs.map((input) => ({
+        id: input.id,
+        installationId: input.installationId,
+        workspaceId: input.workspaceId,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        keyGeneration: input.envelope.keyGeneration,
+        recordVersion: input.envelope.recordVersion,
+        format: input.envelope.format,
+        algorithm: input.envelope.algorithm,
+        salt: input.envelope.salt,
+        nonce: input.envelope.nonce,
+        ciphertext: input.envelope.ciphertext,
+        tag: input.envelope.tag,
+        aadDigest: input.envelope.aadDigest,
+        createdAt: input.now,
+        updatedAt: input.now,
+      })),
+    )
+    .returning({ id: protectedEnvelopes.id });
+  if (rows.length !== inputs.length) {
+    throw new Error("not every protected envelope was inserted");
+  }
+  return rows.map(({ id }) => id);
+}
+
+/**
  * Reads the current envelope for an entity, or a specific version.
  *
  * Without a version this returns the highest one, which is the record as it

@@ -56,6 +56,9 @@ export type EditorDurableSession = PageEditingSession | LegacyPageEditingSession
 
 export function EditorSyncStatus({ session }: { readonly session: EditorDurableSession }) {
   const [sync, setSync] = useState<PageSyncState>(session.sync);
+  const remoteAdoptionErrorType =
+    "remoteAdoptionErrorType" in session ? session.remoteAdoptionErrorType : null;
+  const importingRemote = "importingRemote" in session && session.importingRemote;
 
   useEffect(
     () =>
@@ -73,6 +76,10 @@ export function EditorSyncStatus({ session }: { readonly session: EditorDurableS
         data-state={sync.kind}
         data-sync={sync.synchronizationKind}
         data-durable={sync.locallyDurable ? "true" : "false"}
+        data-pending-count={sync.pendingCount}
+        data-attention-count={sync.attentionCount}
+        data-adoption-error={remoteAdoptionErrorType ?? undefined}
+        data-importing-remote={importingRemote ? "true" : "false"}
         role="status"
         aria-live="polite"
       >

@@ -27,10 +27,13 @@ import {
   apiOrigin,
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
+  editorApplyCount,
+  editorChangeSequence,
   openWorkspace,
   saveDocument,
   selectItem,
   uniqueName,
+  waitForEditorSettled,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -98,18 +101,42 @@ async function selectLastTwoBlocks(page: Page, editor: Locator): Promise<void> {
   const later = inlineContent(blocks.nth(count - 1));
   await earlier.scrollIntoViewIfNeeded();
   await later.scrollIntoViewIfNeeded();
-  const earlierBox = await earlier.boundingBox();
-  const laterBox = await later.boundingBox();
-  if (earlierBox === null || laterBox === null)
-    throw new Error("Les deux blocs doivent être visibles.");
-
-  await page.mouse.move(laterBox.x + laterBox.width - 2, laterBox.y + laterBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(earlierBox.x + 2, earlierBox.y + earlierBox.height / 2, { steps: 8 });
-  await page.mouse.up();
+  await editor.evaluate((root) => {
+    const visibleBlocks = root.querySelectorAll(
+      ":scope > .bn-block-group > .bn-block-outer[data-id]",
+    );
+    const first = visibleBlocks.item(visibleBlocks.length - 2).querySelector(".bn-inline-content");
+    const last = visibleBlocks.item(visibleBlocks.length - 1).querySelector(".bn-inline-content");
+    if (!(first instanceof HTMLElement) || !(last instanceof HTMLElement)) {
+      throw new Error("Les deux blocs doivent être visibles.");
+    }
+    (root as HTMLElement).focus();
+    const range = document.createRange();
+    range.setStart(first, 0);
+    range.setEnd(last, last.childNodes.length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
     .toContain("second");
+}
+
+async function applyEditorHistory(page: Page, action: "undo" | "redo"): Promise<void> {
+  await waitForEditorSettled(page);
+  // A selected range owns BlockNote's transient formatting toolbar. Finish
+  // that interaction before starting the independent history action, then put
+  // the target in the unobscured middle of a narrow viewport: WebKit otherwise
+  // aligns it underneath the sticky page header while trying to click it.
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".bn-formatting-toolbar")).toBeHidden();
+  const control = page.getByTestId(action);
+  await control.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect(control).toBeEnabled();
+  const beforeSequence = await editorChangeSequence(page);
+  await control.click();
+  await waitForEditorSettled(page, { afterSequence: beforeSequence });
 }
 
 test.describe("writing with Markdown-style shortcuts", () => {
@@ -181,6 +208,7 @@ test.describe("the contextual BlockNote controls", () => {
     await dividerMenu.getByRole("option", { name: /^Diviseur/u }).click();
     await expect(dividerMenu).toBeHidden();
     await expect(editor.locator("hr")).toBeVisible();
+    await waitForEditorSettled(page);
 
     // One click on the contextual plus opens the adjacent insertion point and
     // its localized choices. An existing empty trailing block is reused.
@@ -205,11 +233,17 @@ test.describe("the contextual BlockNote controls", () => {
 
     // The handle itself exposes the same durable actions without requiring a
     // secondary click or a global toolbar.
+    await saveDocument(page, { until: "synced" });
     await contextualBlock.hover();
     await page.getByRole("button", { name: "Ouvrir le menu du bloc" }).click();
-    await page.getByRole("menuitem", { name: "Dupliquer" }).click();
+    // Opening a menu can overlap the tail of an SSE echo. The burst sequence
+    // deliberately does not increment twice inside that same quiet window, so
+    // the authoritative apply count is the specific witness for duplication.
+    const beforeDuplicate = await editorApplyCount(page);
+    await page.getByTestId("side-menu-duplicate").click();
+    await waitForEditorSettled(page, { afterApplyCount: beforeDuplicate });
     await expect(editor.getByText("À transformer", { exact: true })).toHaveCount(2);
-    await page.getByTestId("undo").click();
+    await applyEditorHistory(page, "undo");
     await expect(editor.getByText("À transformer", { exact: true })).toHaveCount(1);
   });
 
@@ -237,21 +271,22 @@ test.describe("the contextual BlockNote controls", () => {
     await toolbar.getByRole("button", { name: "Lien vers une page" }).click();
     const picker = page.locator(".editor-page-link-picker");
     await expect(picker).toBeVisible();
+    await picker.getByLabel("Lien vers une page").fill(targetName);
     await picker.getByRole("option", { name: targetName }).click();
-    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toContainText("relier");
+    await expect(editor.locator('a[href^="#page="]')).toContainText("relier");
 
     // Formatting and page-link creation are two independent local gestures.
     // Undo removes only the latest one, then the preceding style; redo restores
     // both without touching unrelated content.
-    await page.getByTestId("undo").click();
-    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toHaveCount(0);
+    await applyEditorHistory(page, "undo");
+    await expect(editor.locator('a[href^="#page="]')).toHaveCount(0);
     await expect(editor.locator("strong")).toContainText("relier");
-    await page.getByTestId("undo").click();
+    await applyEditorHistory(page, "undo");
     await expect(editor.locator("strong")).toHaveCount(0);
-    await page.getByTestId("redo").click();
-    await page.getByTestId("redo").click();
+    await applyEditorHistory(page, "redo");
+    await applyEditorHistory(page, "redo");
     await expect(editor.locator("strong")).toContainText("relier");
-    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toContainText("relier");
+    await expect(editor.locator('a[href^="#page="]')).toContainText("relier");
   });
 });
 
@@ -268,11 +303,11 @@ test.describe("operational undo", () => {
     await page.getByTestId("context-transform-heading").click();
     await expect(editor.locator("h1")).toContainText("avant");
 
-    await page.getByTestId("undo").click();
+    await applyEditorHistory(page, "undo");
     await expect(editor.locator("h1")).toHaveCount(0);
     await expect(editor.locator("p")).toContainText("avant");
 
-    await page.getByTestId("redo").click();
+    await applyEditorHistory(page, "redo");
     await expect(editor.locator("h1")).toContainText("avant");
   });
 
@@ -285,6 +320,7 @@ test.describe("operational undo", () => {
     await typeParagraphs(editor, ["premier", "second", "troisième"]);
     await expect(rootBlocks(editor)).toHaveCount(3);
     await expect(page.getByTestId("editor-error")).toHaveCount(0);
+    await saveDocument(page);
 
     // A native range spanning two blocks is the same group the drag handle
     // uses. Move it through the keyboard-equivalent DnD path.

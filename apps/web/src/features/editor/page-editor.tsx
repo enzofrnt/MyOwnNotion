@@ -1,7 +1,6 @@
 import { BlockNoteView } from "@blocknote/ariakit";
 import type { ProjectedItem } from "@myownnotion/client-core";
-import type { BlockDocument, BlockDocumentV3, Uuid } from "@myownnotion/domain";
-import { canonicalDocumentJsonV3 } from "@myownnotion/domain";
+import type { BlockDocument, Uuid } from "@myownnotion/domain";
 import type { PageCommand } from "@myownnotion/page-state";
 import "@blocknote/ariakit/style.css";
 import "@blocknote/core/style.css";
@@ -21,11 +20,7 @@ import { AppIcon } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
 import { useTheme } from "../../ui/theme-provider.tsx";
 import { validateBlockDrop } from "./block-drag-drop.ts";
-import {
-  blockNoteDocumentToCanonical,
-  canonicalDocumentToBlockNote,
-  canonicalV3ToLegacyV2,
-} from "./blocknote-conversion.ts";
+import { canonicalDocumentToBlockNote, canonicalV3ToLegacyV2 } from "./blocknote-conversion.ts";
 import {
   blockNoteSchema,
   type EditorBlock,
@@ -46,17 +41,10 @@ import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
 import { FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
 import { applyRemoteEditorProjection, EditorOriginGuard } from "./editor-remote-apply.ts";
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
-import { annotatePageLinkAnchors } from "./page-link.ts";
+import { pageLinkTargetFromHref } from "./page-link-href.ts";
+import { updatePageLinkPresentations } from "./page-link-inline-content.ts";
 
-const PAGE_LINK_PREFIX = "myownnotion:page:";
-
-function canonicalJsonOfEditor(blocks: readonly EditorBlock[]): string {
-  return canonicalDocumentJsonV3(blockNoteDocumentToCanonical(blocks));
-}
-
-function canonicalJsonOfDocument(document: BlockDocumentV3): string {
-  return canonicalDocumentJsonV3(document);
-}
+const EDITOR_PROJECTION_QUIET_MS = 120;
 
 export interface PageEditorHandle {
   read(): BlockDocument;
@@ -85,6 +73,7 @@ export function PageEditor({
   const [editorError, setEditorError] = useState<string | null>(null);
   const [, setHistoryVersion] = useState(0);
   const onOpenPageRef = useRef(onOpenPage);
+  const editorHostRef = useRef<HTMLElement | null>(null);
   onOpenPageRef.current = onOpenPage;
 
   // One engine per mounted surface. Keeping it for that whole mount prevents a
@@ -112,12 +101,13 @@ export function PageEditor({
       tabBehavior: "prefer-indent",
       links: {
         isValidLink: (href) =>
-          href.startsWith(PAGE_LINK_PREFIX) || /^(?:https?|mailto):/u.test(href),
+          pageLinkTargetFromHref(href) !== null || /^(?:https?|mailto):/u.test(href),
         onClick: (event) => {
           const href = (event.target as HTMLElement | null)?.closest("a")?.getAttribute("href");
-          if (href?.startsWith(PAGE_LINK_PREFIX)) {
+          const targetItemId = pageLinkTargetFromHref(href);
+          if (targetItemId !== null) {
             event.preventDefault();
-            onOpenPageRef.current?.(href.slice(PAGE_LINK_PREFIX.length));
+            onOpenPageRef.current?.(targetItemId);
           }
         },
       },
@@ -155,25 +145,118 @@ export function PageEditor({
     if (fallbackId !== undefined) editor.setTextCursorPosition(fallbackId, "end");
   }, [editor, engine, origin]);
 
-  // Gestures arrive faster than durable commits resolve. The visible surface
-  // may therefore be several transactions ahead of the last completed one, so
-  // a per-gesture projection assertion would compare unrelated states. The
-  // guard instead runs when the pipeline drains: with nothing in flight, the
-  // visible document and the authority must agree exactly.
+  // Gestures arrive faster than durable commits resolve, and BlockNote may
+  // publish the last browser input one task after its DOM is already visible.
+  // A temporary empty pipeline is therefore not a save boundary. Settlement
+  // requires a quiet window with no newer browser activity and no commit in
+  // flight. Canonical projection validity is proved by the atomic commit; a
+  // visual BlockNote round-trip is not an authority check because opaque
+  // blocks intentionally have a lossy placeholder representation.
   const inFlight = useRef(0);
-  const assertDrainedProjection = useCallback(() => {
-    if (inFlight.current > 0) return;
-    if (
-      canonicalJsonOfEditor(editor.document as EditorBlock[]) !==
-      canonicalJsonOfDocument(engine.snapshot())
-    ) {
-      throw new Error("la projection visible ne correspond plus à l’état de page");
+  const editorActivitySequence = useRef(0);
+  const editorLocalChangeCount = useRef(0);
+  const editorSuppressedChangeCount = useRef(0);
+  const editorApplyCount = useRef(0);
+  const editorApplyFailureCount = useRef(0);
+  const lastEditorApplyErrorType = useRef<string | null>(null);
+  const lastEditorActivityAt = useRef(0);
+  const editorSettled = useRef(true);
+  const remoteProjectionPending = useRef(false);
+  const projectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const writeEditorSettlementState = useCallback(() => {
+    const host = editorHostRef.current;
+    if (host === null) return;
+    host.setAttribute("data-editor-change-sequence", String(editorActivitySequence.current));
+    host.setAttribute("data-editor-settled", editorSettled.current ? "true" : "false");
+    host.setAttribute("data-editor-local-change-count", String(editorLocalChangeCount.current));
+    host.setAttribute(
+      "data-editor-suppressed-change-count",
+      String(editorSuppressedChangeCount.current),
+    );
+    host.setAttribute("data-editor-apply-count", String(editorApplyCount.current));
+    host.setAttribute("data-editor-apply-failures", String(editorApplyFailureCount.current));
+    if (lastEditorApplyErrorType.current === null) {
+      host.removeAttribute("data-editor-apply-error");
+    } else {
+      host.setAttribute("data-editor-apply-error", lastEditorApplyErrorType.current);
     }
-  }, [editor, engine]);
+  }, []);
+
+  const markEditorActivity = useCallback(() => {
+    const beginsBurst = editorSettled.current;
+    if (beginsBurst) editorActivitySequence.current += 1;
+    lastEditorActivityAt.current = Date.now();
+    editorSettled.current = false;
+    if (beginsBurst) writeEditorSettlementState();
+  }, [writeEditorSettlementState]);
+
+  const markEditorSettled = useCallback(() => {
+    if (inFlight.current > 0) return;
+    editorSettled.current = true;
+    writeEditorSettlementState();
+    // Undo/redo availability is presentation state. Updating it once per
+    // settled burst avoids re-rendering a 500-block surface for every key.
+    setHistoryVersion((version) => version + 1);
+  }, [writeEditorSettlementState]);
+
+  const applyPendingRemoteProjection = useCallback(() => {
+    if (!remoteProjectionPending.current) return;
+    remoteProjectionPending.current = false;
+    // A remote notification can arrive between the browser painting a key and
+    // BlockNote publishing its change. Applying the event's captured document
+    // at that instant rewinds the visible key and can move the selection. Wait
+    // for the local queue to drain, then project the engine's *current*
+    // authority, which includes every local commit and every adopted remote
+    // update that arrived in the meantime.
+    applyRemoteEditorProjection({
+      editor,
+      origin,
+      next: canonicalDocumentToBlockNote(engine.snapshot()) as EditorBlock[],
+    });
+  }, [editor, engine, origin]);
+
+  const scheduleProjectionSettlement = useCallback(() => {
+    if (projectionTimer.current !== null) return;
+    const inspect = (): void => {
+      const remainingQuietTime =
+        EDITOR_PROJECTION_QUIET_MS - (Date.now() - lastEditorActivityAt.current);
+      if (remainingQuietTime > 0) {
+        projectionTimer.current = setTimeout(inspect, remainingQuietTime);
+        return;
+      }
+      if (inFlight.current > 0) {
+        // A cold IndexedDB transaction can outlive the quiet window. Keep one
+        // bounded check alive; the completion callback does not need to race
+        // the timer to make progress.
+        projectionTimer.current = setTimeout(inspect, EDITOR_PROJECTION_QUIET_MS);
+        return;
+      }
+      projectionTimer.current = null;
+      applyPendingRemoteProjection();
+      setEditorError(null);
+      markEditorSettled();
+    };
+    projectionTimer.current = setTimeout(inspect, EDITOR_PROJECTION_QUIET_MS);
+  }, [applyPendingRemoteProjection, markEditorSettled]);
+
+  useEffect(
+    () => () => {
+      if (projectionTimer.current !== null) clearTimeout(projectionTimer.current);
+    },
+    [],
+  );
 
   const applyLocalChanges = useCallback(
     (changes: EditorBlocksChanged) => {
-      if (!origin.acceptLocalChanges || changes.length === 0) return;
+      if (changes.length === 0) return;
+      editorLocalChangeCount.current += 1;
+      if (!origin.acceptLocalChanges) {
+        editorSuppressedChangeCount.current += 1;
+        writeEditorSettlementState();
+        return;
+      }
+      markEditorActivity();
       let commands: readonly PageCommand[] = [];
       try {
         commands = commandsFromBlockNoteChanges({
@@ -181,7 +264,10 @@ export function PageEditor({
           document: editor.document as EditorBlock[],
           tableIdForInternalBlock: (blockId) => engine.canonicalBlockIdForIdentity(blockId),
         });
-        if (commands.length === 0) return;
+        if (commands.length === 0) {
+          scheduleProjectionSettlement();
+          return;
+        }
         const dropRefusal = validateBlockDrop(changes, editor.document as EditorBlock[]);
         if (dropRefusal !== null) throw new Error(dropRefusal);
       } catch (error) {
@@ -191,35 +277,32 @@ export function PageEditor({
             ? `Cette modification n’a pas été appliquée : ${error.message}`
             : "Cette modification n’a pas été appliquée.",
         );
+        scheduleProjectionSettlement();
         return;
       }
       // The gesture is already visible; the engine makes it authoritative.
       // A blocked session keeps what the owner typed on screen and reports
       // through its own state — only an execution refusal rewinds the view.
+      editorApplyCount.current += 1;
+      writeEditorSettlementState();
       inFlight.current += 1;
-      setHistoryVersion((version) => version + 1);
       void engine
         .apply(commands)
         .then(() => {
           inFlight.current -= 1;
-          try {
-            assertDrainedProjection();
-            setEditorError(null);
-          } catch (error) {
-            recoverVisibleProjection();
-            setEditorError(
-              error instanceof Error
-                ? `Cette modification n’a pas été appliquée : ${error.message}`
-                : "Cette modification n’a pas été appliquée.",
-            );
-          }
+          scheduleProjectionSettlement();
         })
         .catch((error: unknown) => {
           inFlight.current -= 1;
+          editorApplyFailureCount.current += 1;
+          lastEditorApplyErrorType.current =
+            error instanceof Error ? error.name : "UnknownEditorApplyError";
+          writeEditorSettlementState();
           if (
             session !== undefined &&
             (session.sync.synchronizationKind === "blocked" || session.recoveryBuffer !== null)
           ) {
+            markEditorSettled();
             return;
           }
           recoverVisibleProjection();
@@ -228,9 +311,20 @@ export function PageEditor({
               ? `Cette modification n’a pas été appliquée : ${error.message}`
               : "Cette modification n’a pas été appliquée.",
           );
+          scheduleProjectionSettlement();
         });
     },
-    [assertDrainedProjection, editor, engine, origin, recoverVisibleProjection, session],
+    [
+      editor,
+      engine,
+      markEditorActivity,
+      markEditorSettled,
+      origin,
+      recoverVisibleProjection,
+      scheduleProjectionSettlement,
+      session,
+      writeEditorSettlementState,
+    ],
   );
   const batcher = useMemo(() => new EditorChangeBatcher(applyLocalChanges), [applyLocalChanges]);
 
@@ -252,50 +346,42 @@ export function PageEditor({
         readonly origin: string;
         readonly document: Parameters<Parameters<typeof session.subscribe>[0]>[0]["document"];
       }) => {
-        setHistoryVersion((version) => version + 1);
         if (change.origin === "remote") {
-          applyRemoteEditorProjection({
-            editor,
-            origin,
-            next: canonicalDocumentToBlockNote(change.document) as EditorBlock[],
-          });
+          remoteProjectionPending.current = true;
+          markEditorActivity();
+          scheduleProjectionSettlement();
         }
       },
     );
-  }, [editor, origin, session]);
+  }, [markEditorActivity, scheduleProjectionSettlement, session]);
 
   useEffect(() => {
     editor.isEditable = editable;
   }, [editable, editor]);
 
-  // Page-link anchors carry their target's state (FR-022). BlockNote re-renders
-  // links as plain anchors, so annotation runs on mount, on item changes and on
-  // any DOM mutation inside the surface — idempotent by construction.
-  const editorHostRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    const host = editorHostRef.current;
-    if (host === null) return;
-    annotatePageLinkAnchors(host, items);
-    const observer = new MutationObserver(() => annotatePageLinkAnchors(host, items));
-    observer.observe(host, { childList: true, subtree: true, characterData: true });
-    return () => observer.disconnect();
-  }, [items]);
+    updatePageLinkPresentations(editor, items, onOpenPage);
+  }, [editor, items, onOpenPage]);
 
   const applyHistory = useCallback(
     (direction: "undo" | "redo") => {
+      markEditorActivity();
+      inFlight.current += 1;
       const apply = direction === "undo" ? engine.undo() : engine.redo();
       void apply
         .then((result) => {
-          if (!result.changed) return;
-          recoverVisibleProjection();
-          setHistoryVersion((version) => version + 1);
+          inFlight.current -= 1;
+          if (result.changed) recoverVisibleProjection();
           setEditorError(null);
+          scheduleProjectionSettlement();
         })
         .catch((error: unknown) => {
+          inFlight.current -= 1;
           if (
             session !== undefined &&
             (session.sync.synchronizationKind === "blocked" || session.recoveryBuffer !== null)
           ) {
+            markEditorSettled();
             return;
           }
           setEditorError(
@@ -303,9 +389,17 @@ export function PageEditor({
               ? `Impossible de ${direction === "undo" ? "revenir en arrière" : "rétablir"} : ${error.message}`
               : "L’historique local n’a pas pu être appliqué.",
           );
+          scheduleProjectionSettlement();
         });
     },
-    [engine, recoverVisibleProjection, session],
+    [
+      engine,
+      markEditorActivity,
+      markEditorSettled,
+      recoverVisibleProjection,
+      scheduleProjectionSettlement,
+      session,
+    ],
   );
   const undo = useCallback(() => applyHistory("undo"), [applyHistory]);
   const redo = useCallback(() => applyHistory("redo"), [applyHistory]);
@@ -380,6 +474,7 @@ export function PageEditor({
     <section
       ref={(element) => {
         editorHostRef.current = element;
+        writeEditorSettlementState();
       }}
       className="page-editor"
       data-testid="block-editor"
@@ -404,8 +499,16 @@ export function PageEditor({
       }}
       onBeforeInputCapture={(event) => {
         if (!editable) return;
+        markEditorActivity();
         const action = historyActionFromInputType((event.nativeEvent as InputEvent).inputType);
-        if (action === null) return;
+        if (action === null) {
+          // Most inputs also publish a BlockNote change, which replaces this
+          // fallback after its durable commit. Inputs that make no canonical
+          // change must still be allowed to settle instead of leaving the
+          // surface permanently marked as busy.
+          scheduleProjectionSettlement();
+          return;
+        }
         event.preventDefault();
         if (action === "undo") undo();
         else redo();

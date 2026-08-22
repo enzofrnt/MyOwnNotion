@@ -143,8 +143,22 @@ export class LocalPageStateStore {
     const expectedStateRecordVersion = previous?.recordVersion ?? 0;
     this.#hooks.at?.("before-encryption");
 
+    // The session serialises local gestures, so the common case starts from
+    // the exact frontier already committed in the state row. Its in-memory
+    // page is then the proof document for this transaction; rebuilding the
+    // same 500-block checkpoint and replaying the whole pending journal on
+    // every key only delays paint. A different frontier still takes the full
+    // reconstruction path so a write made by another tab is merged (or
+    // rejected as causally incomplete) before the atomic record-version gate.
+    const startsAtDurableFrontier =
+      previous === null ||
+      versionVectorBytesEqual(previous.versionVector, input.transaction.baseVersionVector);
     let durablePage = input.page;
-    if (previous?.checkpoint !== null && previous?.checkpoint !== undefined) {
+    if (
+      !startsAtDurableFrontier &&
+      previous?.checkpoint !== null &&
+      previous?.checkpoint !== undefined
+    ) {
       durablePage = await OperationalPageDocument.fromCheckpoint({
         pageId: input.page.pageId,
         checkpoint: previous.checkpoint,
@@ -179,7 +193,7 @@ export class LocalPageStateStore {
       checkpoint.versionVector,
       checkpoint.frontiers,
       projection.operationalFrontier,
-      previous === null,
+      startsAtDurableFrontier,
     );
 
     const createdAt = input.createdAt ?? new Date().toISOString();

@@ -44,7 +44,16 @@ async function releasePageBodyFromDevice(page: Page, name: string): Promise<void
         request.onerror = () => reject(request.error ?? new Error("local database unavailable"));
         request.onsuccess = () => {
           const database = request.result;
-          const transaction = database.transaction("items", "readwrite");
+          const transaction = database.transaction(
+            [
+              "items",
+              "pageOperationStates",
+              "pageOperationUpdates",
+              "pageAmbiguities",
+              "legacyOfflineBranches",
+            ],
+            "readwrite",
+          );
           const store = transaction.objectStore("items");
           const read = store.get(id);
           read.onerror = () => reject(read.error ?? new Error("local page unavailable"));
@@ -59,6 +68,18 @@ async function releasePageBodyFromDevice(page: Page, name: string): Promise<void
               sealedPageBody: null,
               localAvailability: "offloaded",
             });
+            transaction.objectStore("pageOperationStates").delete(id);
+            transaction.objectStore("legacyOfflineBranches").delete(id);
+            for (const storeName of ["pageOperationUpdates", "pageAmbiguities"]) {
+              const indexedStore = transaction.objectStore(storeName);
+              const cursor = indexedStore.index("pageId").openKeyCursor(IDBKeyRange.only(id));
+              cursor.onsuccess = () => {
+                const match = cursor.result;
+                if (match === null) return;
+                indexedStore.delete(match.primaryKey);
+                match.continue();
+              };
+            }
           };
           transaction.oncomplete = () => {
             database.close();
@@ -93,7 +114,7 @@ test.describe("offline workspace search (US2)", () => {
 
     await selectItem(page, offloadedPage);
     await typeIntoEditor(page, releasedBodyPhrase);
-    await saveDocument(page);
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
     await releasePageBodyFromDevice(page, offloadedPage);
 
@@ -104,7 +125,10 @@ test.describe("offline workspace search (US2)", () => {
     try {
       await typeIntoEditor(page, pendingBodyPhrase);
       await saveDocument(page);
-      await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "offline", {
+      // Page operations have their own transport and status. The workspace
+      // outbox can truthfully be empty while this open page still has durable
+      // work waiting for a network, so assert the page-level signal.
+      await expect(page.getByTestId("editor-sync-status")).toHaveAttribute("data-sync", "offline", {
         timeout: 20_000,
       });
 

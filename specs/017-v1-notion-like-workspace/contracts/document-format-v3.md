@@ -206,7 +206,7 @@ interface FileEmbedBlockV3 {
 interface EmbedBlockV3 {
   type: "embed";
   id: Uuid;
-  provider: "bookmark" | "youtube" | "vimeo" | "figma" | "github" | "drawio";
+  provider: "bookmark" | "youtube" | "vimeo" | "figma" | "github";
   sourceUrl: string;
   caption: string | null;
 }
@@ -220,6 +220,11 @@ document. `displayWidth` est `null` ou un entier de 80 à 2 400 pixels logiques.
 Le rendu distant est opt-in, sandboxé et ne rend jamais du HTML stocké dans le
 document. Sans consentement ou hors ligne, le bloc reste un lien statique. Les
 tokens, paramètres secrets et HTML de fournisseur sont interdits.
+
+Draw.io n'est pas un fournisseur d'embed. Un fichier `.drawio` reste une pièce
+jointe opaque et téléchargeable ; une éventuelle édition de diagrammes sera une
+capacité interne future de l'application, jamais une iframe ni un service
+Draw.io séparé de la stack.
 
 ## 7. Contenu inconnu
 

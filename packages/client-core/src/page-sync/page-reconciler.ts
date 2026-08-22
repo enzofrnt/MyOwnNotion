@@ -304,6 +304,22 @@ export class PageReconciler {
     listener: (state: PageOperationStateRecord) => void | Promise<void>,
   ): () => void {
     this.#durablePageListeners.add(listener);
+    // A surface can subscribe while an exchange is committing or just after
+    // it completed. Replaying the current durable state closes that window:
+    // subscriptions behave like state observation, not edge-only events, so a
+    // freshly mounted session cannot keep an obsolete `sending` snapshot
+    // forever merely because it missed one notification.
+    void this.#log
+      .getState(this.#pageId)
+      .then(async (state) => {
+        if (state === null || !this.#durablePageListeners.has(listener)) return;
+        try {
+          await listener(state);
+        } catch (error) {
+          this.#onBackgroundError?.(error);
+        }
+      })
+      .catch((error: unknown) => this.#onBackgroundError?.(error));
     return () => this.#durablePageListeners.delete(listener);
   }
 
@@ -329,11 +345,20 @@ export class PageReconciler {
    * `converted` — a crash between the two replays the request harmlessly.
    */
   async #convertBranch(branch: LegacyOfflineBranchRecord): Promise<PageReconcileOutcome> {
+    // A branch can be opened from an optimistic item revision while the item
+    // creation is still travelling through the workspace outbox. Once that
+    // mutation is accepted, the revision header deliberately retains the
+    // local -> canonical alias for stale in-memory callers. Resolve the alias
+    // at transport time: the immutable branch journal still describes the
+    // exact same base document, while the server receives the revision
+    // identity it actually issued and can validate its lineage.
+    const baseRevisionHeader = await this.#log.db.revisionHeaders.get(branch.branch.baseRevisionId);
+    const baseRevisionId = baseRevisionHeader?.canonicalRevisionId ?? branch.branch.baseRevisionId;
     const request: LegacyOfflineBranchSyncRequestDto = {
       mode: "legacy-branch",
       requestId: this.#createRequestId(),
       branchId: branch.branchId,
-      baseRevisionId: branch.branch.baseRevisionId,
+      baseRevisionId,
       baseCanonicalDigest: branch.branch.baseCanonicalDigest,
       baseDocument: {
         format: "myownnotion.document+json",
@@ -400,7 +425,6 @@ export class PageReconciler {
   }
 
   async #run(): Promise<PageReconcileOutcome> {
-    await this.#log.recoverInterruptedSending();
     let exchanges = 0;
     let latestRequirements: readonly PageFileRequirement[] = [];
 

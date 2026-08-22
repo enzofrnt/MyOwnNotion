@@ -268,92 +268,109 @@ export class PageActivationService {
     readonly requestId: Uuid;
     readonly maxRemoteBytes: number;
   }): Promise<PageCheckpointResponseDto> {
-    const state = await readPageOperationState(this.#deps.db, this.#deps.workspaceId, input.pageId);
-    if (state?.status !== "active" || state.currentCheckpointId === null) {
-      throw new PageOperationServiceError(
-        "page-operations.projection-invalid",
-        "The page has no verified operational checkpoint.",
-        409,
-      );
-    }
-    const checkpoint = await readPageOperationCheckpoint(this.#deps.db, {
-      workspaceId: this.#deps.workspaceId,
-      pageId: input.pageId,
-      checkpointId: state.currentCheckpointId as Uuid,
-    });
-    if (checkpoint === null || !["verified", "retained"].includes(checkpoint.state)) {
-      throw new PageOperationServiceError(
-        "page-operations.projection-invalid",
-        "The current operational checkpoint is not verified.",
-        409,
-      );
-    }
+    return await this.#deps.db.transaction(
+      async (tx) => {
+        const state = await readPageOperationState(tx, this.#deps.workspaceId, input.pageId);
+        if (state === null || state.status === "legacy") {
+          throw new PageOperationServiceError(
+            "page-operations.not-active",
+            "The page has not entered operational synchronization yet.",
+            409,
+          );
+        }
+        if (state.status !== "active" || state.currentCheckpointId === null) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "The page has no verified operational checkpoint.",
+            409,
+          );
+        }
+        const checkpoint = await readPageOperationCheckpoint(tx, {
+          workspaceId: this.#deps.workspaceId,
+          pageId: input.pageId,
+          checkpointId: state.currentCheckpointId as Uuid,
+        });
+        if (checkpoint === null || !["verified", "retained"].includes(checkpoint.state)) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "The current operational checkpoint is not verified.",
+            409,
+          );
+        }
 
-    const snapshot = await this.#deps.crypto.openBytes(
-      this.#deps.db,
-      "checkpoint",
-      checkpoint.snapshotEnvelopeId as Uuid,
-    );
-    if ((await sha256Hex(snapshot)) !== checkpoint.snapshotDigest) {
-      throw new PageOperationServiceError(
-        "page-operations.projection-invalid",
-        "The current operational checkpoint failed its integrity check.",
-        409,
-      );
-    }
-    const frontier = await this.#deps.crypto.openFrontier(
-      this.#deps.db,
-      checkpoint.frontierEnvelopeId as Uuid,
-    );
-    const candidates = await listPageOperationUpdatesAfter(this.#deps.db, {
-      workspaceId: this.#deps.workspaceId,
-      pageId: input.pageId,
-      after: checkpoint.throughPageSequence,
-      limit: 65,
-    });
-    const followingUpdates: RemotePageUpdateDto[] = [];
-    let totalBytes = 0;
-    for (const update of candidates.slice(0, 64)) {
-      const bytes = await this.#deps.crypto.openBytes(
-        this.#deps.db,
-        "update",
-        update.updateEnvelopeId as Uuid,
-      );
-      if (followingUpdates.length > 0 && totalBytes + bytes.byteLength > input.maxRemoteBytes)
-        break;
-      if (bytes.byteLength > input.maxRemoteBytes) break;
-      totalBytes += bytes.byteLength;
-      followingUpdates.push({
-        updateId: update.id as Uuid,
-        pageSequence: update.pageSequence,
-        authoredByDeviceId: update.authoredByDeviceId as Uuid,
-        updateBytes: base64url(bytes),
-        updateDigest: update.updateDigest,
-        acceptedAt: update.acceptedAt.toISOString(),
-      });
-    }
+        const snapshot = await this.#deps.crypto.openBytes(
+          tx,
+          "checkpoint",
+          checkpoint.snapshotEnvelopeId as Uuid,
+        );
+        if ((await sha256Hex(snapshot)) !== checkpoint.snapshotDigest) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "The current operational checkpoint failed its integrity check.",
+            409,
+          );
+        }
+        const frontier = await this.#deps.crypto.openFrontier(
+          tx,
+          checkpoint.frontierEnvelopeId as Uuid,
+        );
+        const candidates = await listPageOperationUpdatesAfter(tx, {
+          workspaceId: this.#deps.workspaceId,
+          pageId: input.pageId,
+          after: checkpoint.throughPageSequence,
+          limit: 65,
+        });
+        const followingUpdates: RemotePageUpdateDto[] = [];
+        let totalBytes = 0;
+        for (const update of candidates.slice(0, 64)) {
+          const bytes = await this.#deps.crypto.openBytes(
+            tx,
+            "update",
+            update.updateEnvelopeId as Uuid,
+          );
+          if (followingUpdates.length > 0 && totalBytes + bytes.byteLength > input.maxRemoteBytes)
+            break;
+          if (bytes.byteLength > input.maxRemoteBytes) break;
+          totalBytes += bytes.byteLength;
+          followingUpdates.push({
+            updateId: update.id as Uuid,
+            pageSequence: update.pageSequence,
+            authoredByDeviceId: update.authoredByDeviceId as Uuid,
+            updateBytes: base64url(bytes),
+            updateDigest: update.updateDigest,
+            acceptedAt: update.acceptedAt.toISOString(),
+          });
+        }
 
-    return {
-      mode: "checkpoint",
-      requestId: input.requestId,
-      pageId: input.pageId,
-      operationalVersion: 1,
-      checkpointId: checkpoint.id as Uuid,
-      checkpointBytes: base64url(snapshot),
-      checkpointDigest: checkpoint.snapshotDigest,
-      versionVector: base64url(frontier.versionVector),
-      throughPageSequence: checkpoint.throughPageSequence,
-      canonicalDigest: checkpoint.canonicalDigest,
-      lastConsolidatedRevisionId: state.lastRevisionId as Uuid | null,
-      hasUnconsolidatedChanges: state.revisionWindowStartedAt !== null,
-      followingUpdates,
-      latestPageSequence: state.lastUpdateSequence,
-      hasMore:
-        candidates.length > followingUpdates.length ||
-        state.lastUpdateSequence >
-          (followingUpdates.at(-1)?.pageSequence ?? checkpoint.throughPageSequence),
-      ambiguities: [],
-    };
+        return {
+          mode: "checkpoint",
+          requestId: input.requestId,
+          pageId: input.pageId,
+          operationalVersion: 1,
+          checkpointId: checkpoint.id as Uuid,
+          checkpointBytes: base64url(snapshot),
+          checkpointDigest: checkpoint.snapshotDigest,
+          versionVector: base64url(frontier.versionVector),
+          throughPageSequence: checkpoint.throughPageSequence,
+          canonicalDigest: checkpoint.canonicalDigest,
+          lastConsolidatedRevisionId: state.lastRevisionId as Uuid | null,
+          hasUnconsolidatedChanges: state.revisionWindowStartedAt !== null,
+          followingUpdates,
+          latestPageSequence: state.lastUpdateSequence,
+          hasMore:
+            candidates.length > followingUpdates.length ||
+            state.lastUpdateSequence >
+              (followingUpdates.at(-1)?.pageSequence ?? checkpoint.throughPageSequence),
+          ambiguities: [],
+        };
+      },
+      // READ COMMITTED can observe the state row before a concurrent append
+      // and the update rows after it, producing a checkpoint whose declared
+      // latest sequence is lower than an included update. One repeatable
+      // read-only snapshot keeps every field in this response on the same
+      // causal frontier without blocking writers.
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
   }
 
   async isActive(pageId: Uuid): Promise<boolean> {

@@ -1,6 +1,7 @@
 import {
   type ActivePageSyncRequestDto,
   CSRF_TOKEN_HEADER,
+  MAX_PAGE_UPDATE_BATCH_BYTES,
   PAGE_OPERATION_PROTOCOL_VERSION,
 } from "@myownnotion/contracts";
 import { generateUuidV7 } from "@myownnotion/domain";
@@ -26,6 +27,52 @@ afterEach(() => {
 });
 
 describe("PageOperationsApi", () => {
+  it("retrieves an active checkpoint without activating a legacy page", async () => {
+    const pageId = generateUuidV7();
+    const requestId = generateUuidV7();
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          mode: "checkpoint",
+          requestId,
+          pageId,
+          operationalVersion: 1,
+          checkpointId: generateUuidV7(),
+          checkpointBytes: "",
+          checkpointDigest: digest,
+          versionVector: "",
+          throughPageSequence: 0,
+          canonicalDigest: digest,
+          lastConsolidatedRevisionId: null,
+          hasUnconsolidatedChanges: false,
+          followingUpdates: [],
+          latestPageSequence: 0,
+          hasMore: false,
+          ambiguities: [],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const api = new PageOperationsApi({
+      baseUrl: "https://workspace.test",
+      csrfToken: () => "csrf-secret",
+      fetch: fetchMock,
+    });
+
+    await expect(api.checkpoint(pageId, requestId)).resolves.toMatchObject({
+      ok: true,
+      value: { mode: "checkpoint", requestId, pageId },
+    });
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(`https://workspace.test/v1/page-operations/${pageId}/sync`);
+    expect(JSON.parse(String(init?.body))).toEqual({
+      mode: "empty",
+      requestId,
+      knownServerPageSequence: 0,
+      maxRemoteBytes: MAX_PAGE_UPDATE_BATCH_BYTES,
+    });
+  });
+
   it("sends protocol, session cookie and CSRF token on the same-origin sync route", async () => {
     const pageId = generateUuidV7();
     const body = request();

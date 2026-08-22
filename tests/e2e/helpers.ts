@@ -44,7 +44,9 @@ export async function openWorkspace(page: Page): Promise<void> {
   await expect(page.getByTestId("active-item-title")).toBeVisible();
   // Wait for the initial load (tree or empty state) to settle. On a phone the
   // navigation is a closed modal drawer, so readiness is represented by the
-  // settled content being attached rather than necessarily visible.
+  // settled content being attached rather than necessarily visible. Derived
+  // services such as search are forbidden from holding this readiness boundary
+  // open; a timeout here therefore reports a real boot failure.
   await expect(page.locator('[role="tree"], [data-testid="empty-state"]').first()).toBeAttached({
     timeout: 15_000,
   });
@@ -176,8 +178,52 @@ export async function clickItemAction(
 }
 
 export async function renameItem(page: Page, itemName: string, nextName: string): Promise<void> {
+  const submitted = page.waitForResponse(
+    (response) => {
+      if (!response.url().endsWith("/v1/mutations/batch")) return false;
+      try {
+        const body = response.request().postDataJSON() as {
+          readonly mutations?: readonly {
+            readonly commandType?: unknown;
+            readonly payload?: { readonly name?: unknown };
+          }[];
+        };
+        return (
+          body.mutations?.some(
+            ({ commandType, payload }) =>
+              commandType === "item.rename" && payload?.name === nextName,
+          ) === true
+        );
+      } catch {
+        return false;
+      }
+    },
+    { timeout: 20_000 },
+  );
   page.once("dialog", (dialog) => void dialog.accept(nextName));
   await clickItemAction(page, itemName, `rename-${itemName}`);
+  // The click handler intentionally runs asynchronously. A generic "queue is
+  // empty" assertion can therefore pass before this specific rename has even
+  // reached the outbox. Observe its own batch response so following actions
+  // cannot accidentally race the mutation they are meant to follow.
+  const response = await submitted;
+  expect(response.ok(), `rename batch returned HTTP ${response.status()}`).toBe(true);
+  const request = response.request().postDataJSON() as {
+    readonly mutations: readonly { readonly mutationId: string; readonly payload: unknown }[];
+  };
+  const mutationId = request.mutations.find(
+    ({ payload }) =>
+      typeof payload === "object" &&
+      payload !== null &&
+      (payload as { readonly name?: unknown }).name === nextName,
+  )?.mutationId;
+  const body = (await response.json()) as {
+    readonly results?: readonly { readonly mutationId: string; readonly status: string }[];
+  };
+  expect(body.results?.find((result) => result.mutationId === mutationId)?.status).toMatch(
+    /^(?:accepted|already-accepted)$/u,
+  );
+  await expect(page.getByTestId(`tree-item-${nextName}`)).toBeVisible({ timeout: 15_000 });
 }
 
 export async function trashItem(page: Page, itemName: string): Promise<void> {
@@ -457,16 +503,73 @@ export async function readSessionCookie(
  * useful place for it to point.
  */
 export async function waitForEditor(page: Page): Promise<void> {
-  await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+  const editor = page.getByTestId("block-editor");
+  await expect(editor).toBeVisible({ timeout: 30_000 });
+  await expect(editor).toHaveAttribute("data-editor-settled", /^(?:true|false)$/u, {
+    timeout: 15_000,
+  });
+}
+
+/** Browser input observed by the editor, including work not durable yet. */
+export async function editorChangeSequence(page: Page): Promise<number> {
+  const value = await page.getByTestId("block-editor").getAttribute("data-editor-change-sequence");
+  const sequence = Number(value);
+  if (!Number.isSafeInteger(sequence) || sequence < 0) {
+    throw new Error(`invalid editor change sequence: ${String(value)}`);
+  }
+  return sequence;
+}
+
+/** Canonical editor batches handed to the operational engine. */
+export async function editorApplyCount(page: Page): Promise<number> {
+  const value = await page.getByTestId("block-editor").getAttribute("data-editor-apply-count");
+  const count = Number(value);
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new Error(`invalid editor apply count: ${String(value)}`);
+  }
+  return count;
+}
+
+/**
+ * Waits for both sides of the editor boundary: the last browser gesture has
+ * reached the adapter, and every resulting local transaction is durable.
+ */
+export async function waitForEditorSettled(
+  page: Page,
+  options: { readonly afterApplyCount?: number; readonly afterSequence?: number } = {},
+): Promise<void> {
+  await waitForEditor(page);
+  if (options.afterApplyCount !== undefined) {
+    await expect
+      .poll(() => editorApplyCount(page), {
+        timeout: 15_000,
+        message: "the editor did not hand the gesture to the operational engine",
+      })
+      .toBeGreaterThan(options.afterApplyCount);
+  }
+  if (options.afterSequence !== undefined) {
+    await expect
+      .poll(() => editorChangeSequence(page), {
+        timeout: 15_000,
+        message: "the editor did not observe the browser gesture",
+      })
+      .toBeGreaterThan(options.afterSequence);
+  }
+  await expect(page.getByTestId("block-editor")).toHaveAttribute("data-editor-settled", "true", {
+    timeout: 20_000,
+  });
 }
 
 export async function typeIntoEditor(page: Page, text: string): Promise<void> {
-  await waitForEditor(page);
+  await waitForEditorSettled(page);
+  const beforeSequence = await editorChangeSequence(page);
   const surface = page.getByTestId("block-editor").locator(".ProseMirror");
   await surface.click();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.press("Delete");
   await surface.pressSequentially(text);
+  await waitForEditorSettled(page, { afterSequence: beforeSequence });
+  await expect(surface).toContainText(text);
 }
 
 /**
@@ -563,7 +666,20 @@ export async function saveDocument(
   options: { readonly until?: "durable" | "synced" } = {},
 ): Promise<void> {
   const status = page.getByTestId("editor-sync-status");
+  const legacySave = page.getByTestId("save-document");
+  // Selecting or reloading a page first renders a loading boundary. Counting
+  // controls in that instant used to mistake a not-yet-mounted operational
+  // editor for the legacy form, then wait forever for a save button that would
+  // never exist on slower Firefox runs. Wait until one editing path has
+  // actually declared itself before choosing it.
+  await expect
+    .poll(async () => (await status.count()) > 0 || (await legacySave.count()) > 0, {
+      timeout: 30_000,
+      message: "the page did not expose an operational status or a legacy save control",
+    })
+    .toBe(true);
   if (await status.count()) {
+    await waitForEditorSettled(page);
     await expect(status).not.toHaveAttribute("data-state", "local-saving", { timeout: 15_000 });
     await expect(status).toHaveAttribute("data-durable", "true", { timeout: 15_000 });
     if (options.until === "synced") {
@@ -573,7 +689,7 @@ export async function saveDocument(
     }
     return;
   }
-  await page.getByTestId("save-document").click();
+  await legacySave.click();
   await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 15_000 });
 }
 

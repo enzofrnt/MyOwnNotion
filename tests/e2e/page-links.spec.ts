@@ -16,7 +16,7 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
-const PAGE_LINK_PREFIX = "myownnotion:page:";
+const PAGE_LINK_PREFIX = "#page=";
 
 function editorSurface(page: Page): Locator {
   return page.getByTestId("block-editor").locator(".ProseMirror");
@@ -32,8 +32,24 @@ async function linkSelectionToPage(page: Page, targetName: string): Promise<void
   await toolbar.getByRole("button", { name: "Lien vers une page" }).click();
   const picker = page.locator(".editor-page-link-picker");
   await expect(picker).toBeVisible();
+  await picker.getByLabel("Lien vers une page").fill(targetName);
   await picker.getByRole("option", { name: targetName, exact: true }).click();
   await expect(picker).toBeHidden();
+}
+
+async function selectPreviousWord(page: Page, expected: string): Promise<void> {
+  // `pressSequentially` has dispatched the DOM input when it returns, but the
+  // BlockNote adapter may still be publishing that final change. Selecting in
+  // the same task can then be replaced by the durable projection, leaving a
+  // caret and no formatting toolbar. Start the selection only after the typed
+  // word has crossed the local durability boundary.
+  await saveDocument(page);
+  await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""), {
+      message: `the editor did not select ${expected}`,
+    })
+    .toBe(expected);
 }
 
 async function appendLinkedParagraph(page: Page, label: string, targetName: string): Promise<void> {
@@ -46,7 +62,7 @@ async function appendLinkedParagraph(page: Page, label: string, targetName: stri
   await expect(addMenu).toBeHidden();
   await expect(editor).toBeFocused();
   await editor.pressSequentially(label);
-  await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+  await selectPreviousWord(page, label);
   await linkSelectionToPage(page, targetName);
 }
 
@@ -71,7 +87,7 @@ test("links to another page without nesting it, including a descendant", async (
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.press("Delete");
   await editor.pressSequentially("référence");
-  await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+  await selectPreviousWord(page, "référence");
   await linkSelectionToPage(page, reference);
   await saveDocument(page, { until: "synced" });
   await waitForSynchronized(page);

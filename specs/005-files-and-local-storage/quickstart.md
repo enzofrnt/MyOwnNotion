@@ -71,10 +71,10 @@ The text written on the page is still there.
 
 ## Scenario 5 — Previews cannot reach the workspace (FR-010, FR-013)
 
-1. Upload a PDF, a PNG, an SVG, and a Draw.io file; open each.
+1. Upload a PDF, a PNG, and an SVG file; open each.
 2. Upload an SVG containing a script that tries to read the page around it.
 
-**Expected**: the first four preview in the application. The script cannot
+**Expected**: the first three preview in the application. The script cannot
 reach the workspace. Confirm the headers:
 
 ```bash
@@ -82,14 +82,14 @@ curl -sI http://127.0.0.1:3001/v1/files/<itemId>/content | \
   grep -iE "content-disposition|x-content-type-options|content-security-policy"
 ```
 
-## Scenario 6 — Draw.io is served by this installation (research decision 2)
+## Scenario 6 — Draw.io remains an ordinary file (FR-011)
 
-1. Open a Draw.io file, edit it, save.
+1. Upload and open a `.drawio` file.
 2. Watch the network panel.
 
-**Expected**: no request leaves this origin. A request to `diagrams.net` is a
-defect, not a detail: it would mean the owner's diagram was sent to a third
-party.
+**Expected**: the application states that the format is not previewed and offers
+a download. No editor container is needed and no request reaches
+`diagrams.net`, `draw.io` or `jgraph.com`.
 
 ## Scenario 7 — A marked branch works with no network (FR-015, FR-016)
 

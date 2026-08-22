@@ -427,11 +427,7 @@
       "test": "tests/e2e/file-preview.spec.ts",
       "owners": {
         "exact": [],
-        "prefixes": [
-          "apps/web/src/features/files/drawio-",
-          "apps/web/src/features/files/file-preview",
-          "packages/blob-store/src/"
-        ],
+        "prefixes": ["apps/web/src/features/files/file-preview", "packages/blob-store/src/"],
         "suffixes": []
       }
     },

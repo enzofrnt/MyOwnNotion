@@ -417,6 +417,12 @@ retirer les chemins temporaires.
 - [ ] T205 Préparer puis exécuter l'essai SC-001/SC-002 avec dix participants et consigner temps, succès et compréhension de la sauvegarde dans `specs/017-v1-notion-like-workspace/usability-validation.md`
 - [ ] T206 Exécuter `pnpm checks:local` sur le commit final et consigner le gate exact dans `specs/017-v1-notion-like-workspace/validation.md`
 - [ ] T207 Converger spec, plan, tasks, code et preuves puis marquer uniquement les exigences réellement satisfaites dans `specs/017-v1-notion-like-workspace/tasks.md` et `specs/017-v1-notion-like-workspace/validation.md`
+- [X] T208 Retirer le service Draw.io et ses variables de `compose.yaml` et `.env.example`
+- [X] T209 Supprimer l'iframe Draw.io et le fournisseur d'embed externe du code et du contrat canonique v3
+- [X] T210 Garantir par contrat Compose et journey que `.drawio` reste téléchargeable sans service ni requête tierce
+- [X] T211 Reporter explicitement toute édition de diagrammes interne après les fondations V1 dans le canevas, la roadmap et les artifacts 005/017
+- [X] T212 Persister atomiquement les lots d'updates avec projection unique, séquences contiguës et lectures/scellements groupés
+- [X] T213 Empêcher les services dérivés et la permission de stockage persistant de bloquer le démarrage, puis valider Firefox avec cinq stacks parallèles
 
 ---
 
@@ -541,3 +547,6 @@ pas la V1 annoncée** : US3, US5, US7 et US6 restent obligatoires.
   base ou la matrice Playwright complète respectent les limites documentées.
 - Aucune fonctionnalité XL, présence multi-utilisateur, IA ou service hébergé
   ne peut entrer par opportunisme dans cette feature.
+- Aucun serveur Draw.io ne fait partie de la stack. Les `.drawio` restent des
+  fichiers opaques ; une éventuelle édition interne est postérieure aux
+  fondations V1.

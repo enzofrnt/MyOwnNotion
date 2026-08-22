@@ -340,6 +340,10 @@ describe("LegacyPageEditingSession", () => {
       activeStore: new LocalPageStateStore(log),
       requestConversion: () => gate.promise,
     });
+    const handoverDocuments: BlockDocumentV3[] = [];
+    session.subscribe(({ origin, document }) => {
+      if (origin === "remote") handoverDocuments.push(document);
+    });
 
     // The first edit drains the queue and schedules the conversion.
     await session.transact({
@@ -373,6 +377,10 @@ describe("LegacyPageEditingSession", () => {
     expect(session.canUndo).toBe(true);
     expect(await db.legacyOfflineBranches.count()).toBe(1);
     expect(await db.pageOperationUpdates.count()).toBe(1);
+    expect(handoverDocuments).toHaveLength(1);
+    expect(handoverDocuments[0]?.blocks[0]).toMatchObject({
+      content: [{ text: "Secret one two" }],
+    });
   });
 
   it("lets a durable-page listener upgrade mid-conversion without deadlocking", async () => {
@@ -415,6 +423,42 @@ describe("LegacyPageEditingSession", () => {
     );
     await vi.waitFor(() => expect(session.sync.kind).toBe("synced"));
     expect(await db.pageOperationUpdates.count()).toBe(0);
+  });
+
+  it("publishes a merged conversion checkpoint as a remote document change", async () => {
+    const input = fixture();
+    const session = await LegacyPageEditingSession.open({
+      ...input,
+      log,
+      store: new LegacyPageStateStore(log),
+      activeStore: new LocalPageStateStore(log),
+    });
+    const remoteBlockId = generateUuidV7();
+    const merged: BlockDocumentV3 = {
+      blocks: [
+        ...structuredClone(input.baseDocument.blocks),
+        {
+          type: "paragraph",
+          id: remoteBlockId,
+          content: [{ text: "Remote words" }],
+        },
+      ],
+    };
+    const changes: Array<{ origin: string; document: BlockDocumentV3 }> = [];
+    session.subscribe(({ origin, document }) => changes.push({ origin, document }));
+
+    await installConvertedCheckpoint(log, input.pageId, merged);
+    await session.adoptDurablePage();
+
+    await vi.waitFor(() => expect(session.read().blocks).toHaveLength(2));
+    await vi.waitFor(() =>
+      expect(
+        changes.some(
+          ({ origin, document }) =>
+            origin === "remote" && document.blocks.some(({ id }) => id === remoteBlockId),
+        ),
+      ).toBe(true),
+    );
   });
 
   it("replays a gesture onto the active session when another driver converts first", async () => {

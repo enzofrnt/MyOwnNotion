@@ -34,11 +34,10 @@
 Two items deserve a word rather than a bare tick, because they were the ones
 that needed a second pass.
 
-**Implementation details.** The spec names Draw.io, PDF, SVG, PNG, JPEG, GIF
-and WebP. These are file formats the product commits to opening, not technology
-choices, so they belong in a specification. "Integrate a mature engine" is
-recorded as an assumption rather than a requirement precisely because *which*
-engine is a planning decision.
+**Implementation details.** The spec names PDF, SVG, PNG, JPEG, GIF and WebP as
+formats the product commits to previewing. Draw.io is named only to make the
+boundary explicit: it remains downloadable, while any future editor is internal
+to MyOwnNotion and belongs after the V1 foundations.
 
 **Bounded scope.** Whiteboards and graph views are named in the spec only as
 places a file can be referenced from. The boundary is stated explicitly in the

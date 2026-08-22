@@ -59,7 +59,7 @@ test.describe("workspace search (US1)", () => {
 
     await selectItem(page, bodyPage);
     await typeIntoEditor(page, bodyPhrase);
-    await saveDocument(page);
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await page.getByTestId("attachment-upload").setInputFiles({
@@ -316,7 +316,7 @@ test.describe("workspace search freshness (US4)", () => {
 
     await selectItem(page, oldName);
     await typeIntoEditor(page, bodyPhrase);
-    await saveDocument(page);
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     let dialog = await searchFor(page, bodyPhrase);

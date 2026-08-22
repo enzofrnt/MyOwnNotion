@@ -5,7 +5,12 @@ import type {
   BlocksChanged,
   PartialBlock,
 } from "@blocknote/core";
-import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs } from "@blocknote/core";
+import {
+  BlockNoteSchema,
+  createHeadingBlockSpec,
+  defaultBlockSpecs,
+  defaultInlineContentSpecs,
+} from "@blocknote/core";
 import { calloutBlockSpec } from "./custom-blocks/callout.tsx";
 import { codeBlockSpec } from "./custom-blocks/code-block.tsx";
 import { embedBlockSpec } from "./custom-blocks/embed.tsx";
@@ -14,6 +19,7 @@ import { imageBlockSpec } from "./custom-blocks/image.tsx";
 import { tableBlockSpec, tableCellBlockSpec, tableRowBlockSpec } from "./custom-blocks/table.tsx";
 import { toggleBlockSpec } from "./custom-blocks/toggle.tsx";
 import { unknownBlockSpec } from "./custom-blocks/unknown-block.tsx";
+import { pageLinkInlineContentSpec } from "./page-link-inline-content.ts";
 
 type NonToggleHeadingProps = Omit<
   ReturnType<typeof createHeadingBlockSpec>["config"]["propSchema"],
@@ -56,6 +62,10 @@ export const blockNoteSchema = BlockNoteSchema.create({
     fileEmbed: fileEmbedBlockSpec(),
     embed: embedBlockSpec(),
     unknown: unknownBlockSpec(),
+  },
+  inlineContentSpecs: {
+    ...defaultInlineContentSpecs,
+    pageLink: pageLinkInlineContentSpec,
   },
 });
 

@@ -147,35 +147,47 @@ export function EditorView({
     let cancelled = false;
     setState({ kind: "loading" });
     let refreshAmbiguities = () => {};
-    void service.openOperationalPage(itemId).then((opened) => {
-      if (cancelled) {
-        if (opened.ok) opened.close();
-        return;
-      }
-      if (opened.ok) {
-        refreshAmbiguities = () => {
-          void service.pageOperationLog.listOpenAmbiguities(itemId).then((records) => {
-            if (!cancelled) setAmbiguities(records);
+    void service
+      .openOperationalPage(itemId)
+      .then((opened) => {
+        if (cancelled) {
+          if (opened.ok) opened.close();
+          return;
+        }
+        if (opened.ok) {
+          refreshAmbiguities = () => {
+            void service.pageOperationLog.listOpenAmbiguities(itemId).then((records) => {
+              if (!cancelled) setAmbiguities(records);
+            });
+          };
+          refreshAmbiguities();
+          setState({
+            kind: "ready",
+            mode: opened.mode,
+            session: opened.session,
+            reconciler: opened.reconciler,
+            close: opened.close,
           });
-        };
-        refreshAmbiguities();
+          return;
+        }
         setState({
-          kind: "ready",
-          mode: opened.mode,
-          session: opened.session,
-          reconciler: opened.reconciler,
-          close: opened.close,
+          kind: "unavailable",
+          reason:
+            opened.offline && !editingAllowed
+              ? "This page cannot be opened while offline on a device that cannot write locally."
+              : opened.message,
         });
-        return;
-      }
-      setState({
-        kind: "unavailable",
-        reason:
-          opened.offline && !editingAllowed
-            ? "This page cannot be opened while offline on a device that cannot write locally."
-            : opened.message,
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setState({
+          kind: "unavailable",
+          reason:
+            error instanceof Error
+              ? `This page could not be opened safely: ${error.message}`
+              : "This page could not be opened safely.",
+        });
       });
-    });
     return () => {
       cancelled = true;
     };

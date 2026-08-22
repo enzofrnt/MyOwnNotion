@@ -20,6 +20,15 @@ export interface DatabaseOfflineReadiness {
 }
 
 /**
+ * Persistence is a best-effort eviction hint, never a workspace readiness
+ * dependency. Firefox can leave the permission promise unsettled when several
+ * isolated profiles start together, so a browser API that does not answer must
+ * degrade to "unknown" instead of holding the whole application on its loading
+ * screen forever.
+ */
+const PERSISTENCE_REQUEST_TIMEOUT_MS = 2_000;
+
+/**
  * Verifies a database pin against actual local coverage.
  *
  * The durable-storage request protects the whole origin; coverage still comes
@@ -38,18 +47,26 @@ export async function databaseOfflineReadiness(
   return { ...coverage, persisted };
 }
 
-export async function requestPersistentStorage(): Promise<boolean | null> {
+export async function requestPersistentStorage(
+  timeoutMs = PERSISTENCE_REQUEST_TIMEOUT_MS,
+): Promise<boolean | null> {
   if (typeof navigator === "undefined" || navigator.storage?.persist === undefined) {
     return null;
   }
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const alreadyPersisted = await navigator.storage.persisted();
-    if (alreadyPersisted) {
-      return true;
-    }
-    return await navigator.storage.persist();
+    const request = (async () => {
+      const alreadyPersisted = await navigator.storage.persisted();
+      return alreadyPersisted ? true : await navigator.storage.persist();
+    })();
+    const timeout = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), timeoutMs);
+    });
+    return await Promise.race([request, timeout]);
   } catch {
     return null;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 

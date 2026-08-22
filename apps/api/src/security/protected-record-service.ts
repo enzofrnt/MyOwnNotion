@@ -17,9 +17,11 @@
 import type { Database, Transaction } from "@myownnotion/database";
 import {
   assertEnvelopeMatches,
+  insertProtectedRecords,
   readProtectedRecord,
   readProtectedRecords,
   SecurityRepositoryError,
+  type StoredEnvelope,
   writeProtectedRecord,
 } from "@myownnotion/database";
 import {
@@ -77,6 +79,10 @@ export interface ProtectedWrite {
   readonly payload: Uint8Array;
 }
 
+export interface ImmutableProtectedWrite extends ProtectedWrite {
+  readonly id: string;
+}
+
 export interface ProtectedRead {
   readonly entityType: string;
   readonly entityId: string;
@@ -131,6 +137,39 @@ export class ProtectedRecordService {
       envelope,
       now: this.#deps.now(),
     });
+  }
+
+  /** Seals and inserts fresh immutable records with one key lookup and one SQL write. */
+  async writeNewMany(
+    executor: Database | Transaction,
+    inputs: readonly ImmutableProtectedWrite[],
+  ): Promise<readonly string[]> {
+    if (inputs.length === 0) return [];
+    const dataKey = await this.#deps.keys.dataKey(executor, { writable: true });
+    const now = this.#deps.now();
+    const records = inputs.map((input) => {
+      const binding = this.#binding({
+        entityType: input.entityType,
+        entityId: input.entityId,
+        keyGeneration: dataKey.generation,
+        recordVersion: input.recordVersion,
+      });
+      return {
+        id: input.id,
+        installationId: this.#deps.installationId,
+        workspaceId: this.#deps.workspaceId,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        envelope: sealEnvelope(dataKey.material, binding, input.payload),
+        now,
+      };
+    });
+    const storedIds = await insertProtectedRecords(executor, records);
+    const expected = new Set(inputs.map(({ id }) => id));
+    if (storedIds.length !== expected.size || storedIds.some((id) => !expected.has(id))) {
+      throw new Error("protected envelope identities changed while being stored");
+    }
+    return storedIds;
   }
 
   /**
@@ -233,7 +272,7 @@ export class ProtectedRecordService {
       entityType: input.entityType,
       entityIds: input.entityIds,
     });
-    const opened = new Map<string, Uint8Array>();
+    const byGeneration = new Map<number, Array<[string, StoredEnvelope]>>();
     for (const [entityId, record] of stored) {
       const binding = this.#binding({
         entityType: input.entityType,
@@ -242,20 +281,31 @@ export class ProtectedRecordService {
         recordVersion: record.recordVersion,
       });
       assertEnvelopeMatches(record, binding);
-      const dataKey = await this.#deps.keys.dataKey(executor, {
-        generation: record.keyGeneration,
-        writable: false,
-      });
-      try {
-        opened.set(entityId, openEnvelope(dataKey.material, record.envelope, binding));
-      } catch (error) {
-        if (error instanceof EnvelopeDecryptionError) {
-          throw new SecurityRepositoryError(
-            "protected_read_failed",
-            "a record in this batch did not authenticate",
-          );
+      const entries = byGeneration.get(record.keyGeneration) ?? [];
+      entries.push([entityId, record]);
+      byGeneration.set(record.keyGeneration, entries);
+    }
+    const opened = new Map<string, Uint8Array>();
+    for (const [generation, entries] of byGeneration) {
+      const dataKey = await this.#deps.keys.dataKey(executor, { generation, writable: false });
+      for (const [entityId, record] of entries) {
+        const binding = this.#binding({
+          entityType: input.entityType,
+          entityId,
+          keyGeneration: record.keyGeneration,
+          recordVersion: record.recordVersion,
+        });
+        try {
+          opened.set(entityId, openEnvelope(dataKey.material, record.envelope, binding));
+        } catch (error) {
+          if (error instanceof EnvelopeDecryptionError) {
+            throw new SecurityRepositoryError(
+              "protected_read_failed",
+              "a record in this batch did not authenticate",
+            );
+          }
+          throw error;
         }
-        throw error;
       }
     }
     return opened;

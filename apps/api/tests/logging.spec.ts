@@ -177,7 +177,10 @@ describe("logging configuration (T091)", () => {
     registerErrorHandling(app);
     const secret = "SecretPayloadValue-4242";
     app.post("/boom", async () => {
-      throw new Error(`structured projection failed for ${secret}`);
+      const databaseError = Object.assign(new Error(`constraint contained ${secret}`), {
+        code: "23505",
+      });
+      throw new Error(`structured projection failed for ${secret}`, { cause: databaseError });
     });
     const response = await app.inject({
       method: "POST",
@@ -188,6 +191,13 @@ describe("logging configuration (T091)", () => {
     expect(response.statusCode).toBe(500);
     expect(captured.join("\n")).not.toContain(secret);
     expect(response.body).not.toContain(secret);
+    const errorRecord = captured
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .find((record) => record["msg"] === "unhandled error");
+    expect(errorRecord).toMatchObject({
+      unexpectedErrorTypes: ["Error"],
+      unexpectedErrorCodes: ["23505"],
+    });
   });
 
   it("recursively redacts structured labels, values, filters, and error details", () => {

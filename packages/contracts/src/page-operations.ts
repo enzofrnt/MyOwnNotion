@@ -472,6 +472,7 @@ export type ResolvePageAmbiguityRequestDto = Static<typeof ResolvePageAmbiguityR
 
 export const PAGE_OPERATION_PROBLEM_CODES = [
   "page-operations.protocol-read-only",
+  "page-operations.not-active",
   "page-operations.activation-stale",
   "page-operations.update-id-reused",
   "page-operations.digest-mismatch",

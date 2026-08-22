@@ -105,7 +105,13 @@ function envelopeBytes(envelope: { readonly ciphertext: string } | null | undefi
 
 /** What is holding the space, grouped as an owner would think of it. */
 async function breakdownOf(db: LocalDatabase): Promise<Array<{ label: string; bytes: number }>> {
-  const items = await db.items.toArray();
+  const [items, states, updates, ambiguities, branches] = await Promise.all([
+    db.items.toArray(),
+    db.pageOperationStates.toArray(),
+    db.pageOperationUpdates.toArray(),
+    db.pageAmbiguities.toArray(),
+    db.legacyOfflineBranches.toArray(),
+  ]);
   let fileBytes = 0;
   let pageBytes = 0;
   for (const item of items) {
@@ -115,6 +121,10 @@ async function breakdownOf(db: LocalDatabase): Promise<Array<{ label: string; by
     }
     pageBytes += envelopeBytes(item.sealedPageBody);
   }
+  pageBytes += states.reduce((total, row) => total + envelopeBytes(row.sealedState), 0);
+  pageBytes += updates.reduce((total, row) => total + envelopeBytes(row.sealedBody), 0);
+  pageBytes += ambiguities.reduce((total, row) => total + envelopeBytes(row.sealedDetails), 0);
+  pageBytes += branches.reduce((total, row) => total + envelopeBytes(row.sealedBranch), 0);
   const queued = await db.outbox.count();
   return [
     { label: "Files held on this device", bytes: fileBytes },
@@ -144,24 +154,64 @@ export async function runEviction(
     usedBytes: measurement.usedBytes,
     limitBytes: measurement.limitBytes,
   });
+  const released: string[] = [];
+  let releasedBytes = 0;
   for (const candidate of plan.release) {
-    const row = await db.items.get(candidate.itemId as never);
-    if (row === undefined) {
-      continue;
+    const didRelease = await db.transaction(
+      "rw",
+      [
+        db.items,
+        db.pageOperationStates,
+        db.pageOperationUpdates,
+        db.pageAmbiguities,
+        db.legacyOfflineBranches,
+      ],
+      async () => {
+        const row = await db.items.get(candidate.itemId as never);
+        if (row === undefined || row.localAvailability !== "present") return false;
+        if (row.kind === "page") {
+          const [updates, ambiguities, branch] = await Promise.all([
+            db.pageOperationUpdates.where("pageId").equals(row.id).toArray(),
+            db.pageAmbiguities.where("pageId").equals(row.id).toArray(),
+            db.legacyOfflineBranches.get(row.id),
+          ]);
+          if (
+            updates.some(({ status }) => status !== "accepted") ||
+            ambiguities.some(({ status }) => status === "open") ||
+            (branch !== undefined && branch.status !== "converted")
+          ) {
+            return false;
+          }
+          await db.pageOperationStates.delete(row.id);
+          if (updates.length > 0) {
+            await db.pageOperationUpdates.bulkDelete(updates.map(({ updateId }) => updateId));
+          }
+          if (ambiguities.length > 0) {
+            await db.pageAmbiguities.bulkDelete(ambiguities.map(({ ambiguityId }) => ambiguityId));
+          }
+          if (branch !== undefined) await db.legacyOfflineBranches.delete(row.id);
+        }
+        // Content released, title and metadata kept (FR-018). The row stays,
+        // so the owner still sees the item and can download it again.
+        await db.items.put({
+          ...row,
+          sealedPageBody: null,
+          sealedFile: null,
+          localAvailability: "offloaded",
+        });
+        return true;
+      },
+    );
+    if (didRelease) {
+      released.push(candidate.itemId);
+      releasedBytes += candidate.byteLength;
     }
-    // Content released, title and metadata kept (FR-018). The row stays, so the
-    // owner still sees the item and can bring it back; what goes is the sealed
-    // body, which the server can return.
-    await db.items.put({
-      ...row,
-      sealedPageBody: null,
-      sealedFile: null,
-      localAvailability: "offloaded",
-    });
   }
   return {
-    released: plan.release.map((entry) => entry.itemId),
-    stillOverLimit: plan.stillOverLimit,
+    released,
+    stillOverLimit:
+      measurement.limitBytes !== null &&
+      measurement.usedBytes - releasedBytes > measurement.limitBytes,
   };
 }
 
@@ -193,17 +243,44 @@ async function candidatesFrom(
     }
   }
 
-  const items = await db.items.toArray();
+  const [items, states, updates, ambiguities, branches] = await Promise.all([
+    db.items.toArray(),
+    db.pageOperationStates.toArray(),
+    db.pageOperationUpdates.toArray(),
+    db.pageAmbiguities.toArray(),
+    db.legacyOfflineBranches.toArray(),
+  ]);
+  const unsafeOperationalPages = new Set<string>();
+  for (const row of updates) {
+    if (row.status !== "accepted") unsafeOperationalPages.add(row.pageId);
+  }
+  for (const row of ambiguities) {
+    if (row.status === "open") unsafeOperationalPages.add(row.pageId);
+  }
+  for (const row of branches) {
+    if (row.status !== "converted") unsafeOperationalPages.add(row.pageId);
+  }
+  const operationalBytes = new Map<string, number>();
+  const addOperationalBytes = (pageId: string, bytes: number): void => {
+    operationalBytes.set(pageId, (operationalBytes.get(pageId) ?? 0) + bytes);
+  };
+  for (const row of states) addOperationalBytes(row.pageId, envelopeBytes(row.sealedState));
+  for (const row of updates) addOperationalBytes(row.pageId, envelopeBytes(row.sealedBody));
+  for (const row of ambiguities) addOperationalBytes(row.pageId, envelopeBytes(row.sealedDetails));
+  for (const row of branches) addOperationalBytes(row.pageId, envelopeBytes(row.sealedBranch));
   return items
     .filter((item) => item.localAvailability === "present")
     .map((item) => ({
       itemId: item.id,
-      byteLength: envelopeBytes(item.sealedFile) + envelopeBytes(item.sealedPageBody),
+      byteLength:
+        envelopeBytes(item.sealedFile) +
+        envelopeBytes(item.sealedPageBody) +
+        (operationalBytes.get(item.id) ?? 0),
       // No access log yet, so ordering falls back to identity, which is
       // creation order for UUIDv7 — oldest first, which is the intended
       // direction. Replaced by a real timestamp when one exists.
       lastAccessedAt: 0,
-      recoverable: !queued.has(item.id),
+      recoverable: !queued.has(item.id) && !unsafeOperationalPages.has(item.id),
       offlineIntent: item.offlineIntent,
       kind: item.kind === "file" ? "file-content" : "page-content",
     }));

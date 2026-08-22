@@ -196,7 +196,10 @@ export function registerErrorHandling(app: FastifyInstance): void {
       error.statusCode !== undefined && error.statusCode >= 400 ? error.statusCode : 500;
     if (statusCode >= 500) {
       // Log the full error server-side; expose nothing private (FR-022).
-      _request.log.error({ err: error }, "unhandled error");
+      _request.log.error(
+        { err: error, ...safeUnexpectedErrorDiagnostics(error) },
+        "unhandled error",
+      );
       const problem: ProblemBody = {
         type: "https://myownnotion.dev/problems/internal.unexpected",
         title: "Unexpected server error",
@@ -227,6 +230,39 @@ export function registerErrorHandling(app: FastifyInstance): void {
     };
     return reply.status(404).header("content-type", "application/problem+json").send(problem);
   });
+}
+
+/**
+ * Retains only stable technical classifications from an unexpected error.
+ *
+ * Error messages and stacks may contain owner content, SQL values or paths and
+ * remain redacted. Constructor names and machine codes (for example a
+ * PostgreSQL SQLSTATE nested under Drizzle's `cause`) are finite identifiers:
+ * they make an operational 500 diagnosable without weakening that boundary.
+ */
+function safeUnexpectedErrorDiagnostics(error: unknown): {
+  readonly unexpectedErrorTypes: readonly string[];
+  readonly unexpectedErrorCodes: readonly string[];
+} {
+  const types = new Set<string>();
+  const codes = new Set<string>();
+  const seen = new Set<object>();
+  let current: unknown = error;
+  for (let depth = 0; depth < 8 && typeof current === "object" && current !== null; depth += 1) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    const record = current as Record<string, unknown>;
+    const constructorName = Object.getPrototypeOf(current)?.constructor?.name;
+    for (const candidate of [record["name"], constructorName]) {
+      if (typeof candidate === "string" && /^[A-Za-z][A-Za-z0-9]{0,63}$/u.test(candidate)) {
+        types.add(candidate);
+      }
+    }
+    const code = record["code"];
+    if (typeof code === "string" && /^[A-Z0-9_]{2,32}$/u.test(code)) codes.add(code);
+    current = record["cause"];
+  }
+  return { unexpectedErrorTypes: [...types], unexpectedErrorCodes: [...codes] };
 }
 
 // ---------------------------------------------------------------------------

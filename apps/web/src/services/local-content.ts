@@ -10,6 +10,7 @@
 import {
   applyLocalMutation,
   EncryptedPageOperationLog,
+  installPageCheckpoint,
   LegacyPageEditingSession,
   LegacyPageStateStore,
   LocalCipher,
@@ -129,6 +130,7 @@ export class LocalContentService {
   >();
   #pageCsrfToken: () => string | null = () => null;
   #unlocked: Promise<void> | null = null;
+  #initialization: Promise<void> | null = null;
 
   constructor(api: ContentApi = new ContentApi(), databaseName = "myownnotion-local") {
     this.api = api;
@@ -173,6 +175,13 @@ export class LocalContentService {
         pageId,
         log: this.pageOperationLog,
         transport: this.pageOperationsApi,
+        // Search, backlinks and every projection consumer must observe the
+        // same verified operational document as the editor. A server response
+        // updates the encrypted page state independently from the workspace
+        // outbox, so it needs its own projection notification.
+        onDurablePage: async () => {
+          await this.#emitProjection({ kind: "upsert", itemIds: [pageId] });
+        },
       });
       this.#pageReconcilers.set(pageId, reconciler);
     }
@@ -299,11 +308,41 @@ export class LocalContentService {
     };
   }
 
-  /** Opens local storage and reconciles once; safe to call on every boot. */
+  /** Opens local storage and reconciles once; concurrent boot callers coalesce. */
   async initialize(): Promise<void> {
-    await this.db.open();
-    this.#storagePersisted = await requestPersistentStorage();
-    await this.synchronize();
+    const initialization =
+      this.#initialization ??
+      (async () => {
+        await this.db.open();
+        await this.#unlock();
+        // `sending` is a crash marker, not a transport lease. Recover it once
+        // before any page reconciler can start; doing this at the beginning of
+        // every page pass resets another page's genuinely in-flight updates.
+        await this.pageOperationLog.recoverInterruptedSending();
+        await this.synchronize();
+        // Persistence is an eviction hint, not a content-readiness gate. Some
+        // Firefox profiles leave this browser permission unsettled; update the
+        // diagnostic when it answers without keeping the workspace behind it.
+        void requestPersistentStorage()
+          .then(async (persisted) => {
+            this.#storagePersisted = persisted;
+            await this.#notify();
+          })
+          .catch(() => {
+            // The helper already maps browser failures to `null`; this catch is
+            // for a later notification failure and cannot invalidate the sync
+            // that made the workspace ready.
+          });
+      })();
+    this.#initialization = initialization;
+    try {
+      await initialization;
+    } catch (error) {
+      // A transient storage/key failure must remain retryable by a later boot
+      // attempt, while successful initialization stays a one-time boundary.
+      if (this.#initialization === initialization) this.#initialization = null;
+      throw error;
+    }
   }
 
   /**
@@ -439,9 +478,27 @@ export class LocalContentService {
     itemId: Uuid,
   ): Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> {
     await this.#unlock();
-    const state = await this.pageOperationLog.getState(itemId);
+    let state = await this.pageOperationLog.getState(itemId);
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+    if (state === null && online) {
+      const checkpoint = await this.pageOperationsApi.checkpoint(itemId, generateUuidV7());
+      if (checkpoint.ok) {
+        state = await installPageCheckpoint(this.pageOperationLog, checkpoint.value);
+        if (state.projection !== null) {
+          await this.repository.cacheOperationalPageProjection(itemId, state.projection.document);
+        }
+        await this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
+      } else if (!checkpoint.offline && checkpoint.problem.code !== "page-operations.not-active") {
+        return {
+          ok: false,
+          offline: false,
+          code: checkpoint.problem.code,
+          message: checkpoint.problem.message,
+        };
+      }
+    }
     if (state === null) {
-      const item = await this.repository.getItem(itemId);
+      let item = await this.repository.getItem(itemId);
       if (item === null || item.kind !== "page") {
         return {
           ok: false,
@@ -449,6 +506,38 @@ export class LocalContentService {
           code: "item.not-found",
           message: "This page is not available on this device.",
         };
+      }
+      if (item.localAvailability !== "present" || item.pageDocument === null) {
+        if (online) {
+          const remote = await this.api.getItem(itemId);
+          if (remote.ok) {
+            await this.repository.applyServerItems([remote.value]);
+            item = await this.repository.getItem(itemId);
+          } else {
+            return {
+              ok: false,
+              offline: remote.offline,
+              code: remote.problem.code,
+              message: remote.problem.detail ?? remote.problem.title,
+            };
+          }
+        }
+        if (
+          item === null ||
+          item.kind !== "page" ||
+          item.localAvailability !== "present" ||
+          item.pageDocument === null
+        ) {
+          return {
+            ok: false,
+            offline: !online,
+            code: "content.not-available-locally",
+            message:
+              item?.localAvailability === "offloaded"
+                ? "This page was released from this device and needs a connection to download again."
+                : "This page has not been downloaded to this device yet.",
+          };
+        }
       }
       const stored = item.pageDocument ?? {
         format: "myownnotion.document+json" as const,
@@ -476,8 +565,9 @@ export class LocalContentService {
       pageId: itemId,
       log: this.pageOperationLog,
       store: this.pageStateStore,
-      online: typeof navigator === "undefined" ? true : navigator.onLine,
+      online,
       publishDurableUpdate: () => {
+        void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
         void reconciler.synchronize();
       },
     });
@@ -562,7 +652,11 @@ export class LocalContentService {
       activeStore: new LocalPageStateStore(this.pageOperationLog),
       online: typeof navigator === "undefined" ? true : navigator.onLine,
       publishDurableUpdate: () => {
+        void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
         void reconciler.synchronize();
+      },
+      publishDurableBranch: () => {
+        void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
       },
       requestConversion: async () => {
         const outcome = await reconciler.synchronize();

@@ -69,22 +69,28 @@ export function registerSnapshotRoutes(app: FastifyInstance, context: AppContext
         const databaseRecords = (await listDatabaseRecords(tx, context.workspaceId)).filter(
           ({ databaseId }) => retainedItemIds.has(databaseId),
         );
-        const entryRecords = (
-          await Promise.all(
-            databaseRecords.map((record) => listDatabaseEntryRecords(tx, record.databaseId)),
-          )
-        )
-          .flat()
-          .filter(({ entryId }) => retainedItemIds.has(entryId));
-        const [relationships, databases, databaseEntries] = await Promise.all([
-          resolveProtectedRelationships(
+        const entryRecords = [];
+        for (const record of databaseRecords) {
+          const records = await listDatabaseEntryRecords(tx, record.databaseId);
+          entryRecords.push(...records.filter(({ entryId }) => retainedItemIds.has(entryId)));
+        }
+        const relationships = (
+          await resolveProtectedRelationships(
             tx,
             await listRelationships(tx, context.workspaceId),
             context.protectedContent,
-          ).then((rows) => rows.sort((left, right) => left.id.localeCompare(right.id))),
-          resolveDatabaseProjections(tx, databaseRecords, context.protectedContent),
-          resolveDatabaseEntryProjections(tx, entryRecords, context.protectedContent),
-        ]);
+          )
+        ).sort((left, right) => left.id.localeCompare(right.id));
+        const databases = await resolveDatabaseProjections(
+          tx,
+          databaseRecords,
+          context.protectedContent,
+        );
+        const databaseEntries = await resolveDatabaseEntryProjections(
+          tx,
+          entryRecords,
+          context.protectedContent,
+        );
         const payload = {
           workspaceId: context.workspaceId,
           schemaVersion: context.schemaVersion,

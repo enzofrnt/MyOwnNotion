@@ -80,6 +80,14 @@ describe("runMutation", () => {
     expect(attempts.length).toBe(2);
   });
 
+  it("finds a retryable SQLSTATE wrapped by the query layer", async () => {
+    const wrapped = new Error("query execution failed", { cause: serializationFailure });
+    const { db, attempts } = fakeDb([wrapped, wrapped]);
+
+    expect(await runMutation(db, async () => "recovered")).toBe("recovered");
+    expect(attempts.length).toBe(3);
+  });
+
   it("surfaces an explicit error once the attempt bound is reached", async () => {
     const { db, attempts } = fakeDb([
       serializationFailure,
@@ -126,6 +134,15 @@ describe("runMutation", () => {
   it("propagates a thrown non-object value", async () => {
     const { db } = fakeDb(["a string failure"]);
     await expect(runMutation(db, async () => "never")).rejects.toBe("a string failure");
+  });
+
+  it("stops safely when an error cause chain contains a cycle", async () => {
+    const cyclic: { cause?: unknown } = {};
+    cyclic.cause = cyclic;
+    const { db, attempts } = fakeDb([cyclic]);
+
+    await expect(runMutation(db, async () => "never")).rejects.toBe(cyclic);
+    expect(attempts.length).toBe(1);
   });
 
   it("performs a single attempt when maxAttempts is 1", async () => {

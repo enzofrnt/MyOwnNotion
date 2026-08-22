@@ -125,14 +125,11 @@ test.describe("what is previewed and what is not", () => {
   });
 });
 
-test.describe("the diagram editor never reaches a third party", () => {
-  test("no request leaves this origin for diagrams.net while the workspace is used", async ({
-    page,
-  }) => {
-    // The invariant, asserted independently of whether the editor container is
-    // running: the failure being guarded against is not "the editor is broken"
-    // but "the owner's diagram was sent to someone else", and that shows up as a
-    // request rather than as a symptom.
+test.describe("deferred diagram support", () => {
+  test("keeps a Draw.io file downloadable without loading an external editor", async ({ page }) => {
+    // Diagram editing is deliberately outside the current product foundation.
+    // Until an editor is implemented inside MyOwnNotion, the file remains an
+    // ordinary attachment and no diagrams.net request is permitted.
     const foreign: string[] = [];
     page.on("request", (request) => {
       const host = new URL(request.url()).hostname.toLowerCase();
@@ -155,9 +152,9 @@ test.describe("the diagram editor never reaches a third party", () => {
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
     await page.getByTestId(`preview-file-${fileName}`).click();
-    await page.waitForTimeout(1500);
+    await expect(page.getByTestId("file-unsupported")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("unsupported-download")).toBeVisible();
 
-    // Any entry here is a data leak, not a detail.
     expect(foreign).toEqual([]);
   });
 });

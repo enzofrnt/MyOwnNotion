@@ -333,7 +333,7 @@ describe("activation, ambiguity resolution and stable problems", () => {
 
   it("pins the protocol and the documented stable problem vocabulary", () => {
     expect(PAGE_OPERATION_PROTOCOL_VERSION).toBe(3);
-    expect(PAGE_OPERATION_PROBLEM_CODES).toHaveLength(10);
+    expect(PAGE_OPERATION_PROBLEM_CODES).toHaveLength(11);
     for (const code of PAGE_OPERATION_PROBLEM_CODES) {
       expect(parsePageOperationProblem({ code, message: "Action requise" }).code).toBe(code);
     }

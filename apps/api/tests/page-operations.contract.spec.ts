@@ -174,6 +174,24 @@ describe("page-operation route guards", () => {
 });
 
 describe("activation and checkpoint catch-up", () => {
+  it("distinguishes a legacy page from a corrupt active checkpoint", async () => {
+    const page = await createLegacyPage();
+    const response = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers: await authenticate(),
+      payload: {
+        mode: "empty",
+        requestId: generateUuidV7(),
+        knownServerPageSequence: 0,
+        maxRemoteBytes: 1024 * 1024,
+      },
+    });
+
+    expect(response.statusCode, response.body).toBe(409);
+    expect(response.json()).toMatchObject({ code: "page-operations.not-active" });
+  });
+
   it("activates once, returns a verified checkpoint and replays idempotently", async () => {
     const page = await createLegacyPage();
     const headers = await authenticate();
@@ -393,6 +411,111 @@ describe("activation and checkpoint catch-up", () => {
       formatVersion: 3,
       body: { blocks: [{ id: blockId, type: "paragraph" }] },
     });
+  });
+
+  it("commits a complete offline typing batch with contiguous immutable sequences", async () => {
+    const page = await createLegacyPage();
+    const headers = await authenticate();
+    const activated = await activation(page, headers);
+    expect(activated.statusCode, activated.body).toBe(200);
+    const checkpoint = activated.json() as {
+      checkpointBytes: string;
+      checkpointDigest: string;
+      versionVector: string;
+    };
+    const author = await OperationalPageDocument.fromSnapshotTransport({
+      pageId: page.itemId,
+      snapshotBytes: Buffer.from(checkpoint.checkpointBytes, "base64url"),
+      snapshotDigest: checkpoint.checkpointDigest,
+      versionVector: Buffer.from(checkpoint.versionVector, "base64url"),
+    });
+    const blockId = generateUuidV7();
+    const text = "thirty-five-offline-characters-safe";
+    const updates = [];
+    for (const [index, character] of [...text].entries()) {
+      const transaction = author.transact(
+        index === 0
+          ? [
+              {
+                type: "insert-block" as const,
+                block: { type: "paragraph" as const, id: blockId, content: [{ text: character }] },
+                parentBlockId: null,
+                beforeBlockId: null,
+              },
+            ]
+          : [
+              {
+                type: "replace-text" as const,
+                blockId,
+                from: index,
+                to: index,
+                text: character,
+              },
+            ],
+      );
+      updates.push({
+        updateId: generateUuidV7(),
+        baseVersionVector: Buffer.from(transaction.baseVersionVector).toString("base64url"),
+        updateBytes: Buffer.from(transaction.updateBytes).toString("base64url"),
+        updateDigest: await sha256Hex(transaction.updateBytes),
+        createdAt: "2026-08-21T12:00:00.000Z",
+      });
+    }
+
+    const accepted = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "active",
+        requestId: generateUuidV7(),
+        operationalVersion: 1,
+        persistedVersionVector: Buffer.from(author.versionVectorBytes()).toString("base64url"),
+        knownServerPageSequence: 0,
+        updates,
+        maxRemoteBytes: 1024 * 1024,
+      },
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    expect(accepted.json().accepted).toEqual(
+      updates.map(({ updateId }, index) =>
+        expect.objectContaining({ updateId, pageSequence: index + 1 }),
+      ),
+    );
+    expect(accepted.json()).toMatchObject({
+      repeated: [],
+      latestPageSequence: updates.length,
+      hasMore: false,
+    });
+
+    const replica = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "active",
+        requestId: generateUuidV7(),
+        operationalVersion: 1,
+        persistedVersionVector: checkpoint.versionVector,
+        knownServerPageSequence: 0,
+        updates: [],
+        maxRemoteBytes: 1024 * 1024,
+      },
+    });
+    expect(replica.statusCode, replica.body).toBe(200);
+    expect(replica.json().remoteUpdates).toHaveLength(updates.length);
+    expect(
+      replica
+        .json()
+        .remoteUpdates.map(({ pageSequence }: { pageSequence: number }) => pageSequence),
+    ).toEqual(updates.map((_, index) => index + 1));
+
+    const item = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${page.itemId}`,
+      headers,
+    });
+    expect(JSON.stringify(item.json().pageDocument)).toContain(text);
   });
 });
 

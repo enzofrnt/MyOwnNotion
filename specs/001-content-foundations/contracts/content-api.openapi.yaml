@@ -841,6 +841,7 @@ components:
         code:
           enum:
             - page-operations.protocol-read-only
+            - page-operations.not-active
             - page-operations.activation-stale
             - page-operations.update-id-reused
             - page-operations.digest-mismatch

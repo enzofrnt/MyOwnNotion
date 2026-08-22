@@ -123,6 +123,88 @@ describe("offloading", () => {
     expect(row?.localAvailability).toBe("offloaded");
   });
 
+  it("releases the synchronized operational checkpoint with the old page projection", async () => {
+    const page = await seedItem({ kind: "page", bodySize: 5000 });
+    const acceptedUpdateId = generateUuidV7();
+    const resolvedAmbiguityId = generateUuidV7();
+    await db.pageOperationStates.put({
+      pageId: page,
+      status: "active",
+      operationalVersion: 1,
+      canonicalFormatVersion: 3,
+      latestServerPageSequence: 7,
+      localAvailability: "present",
+      lastAccessedAt: new Date().toISOString(),
+      recordVersion: 1,
+      sealedState: envelope(6000),
+    } as never);
+    await db.pageOperationUpdates.put({
+      updateId: acceptedUpdateId,
+      pageId: page,
+      status: "accepted",
+      enqueueOrder: 1,
+      createdAt: new Date().toISOString(),
+      recordVersion: 1,
+      sealedBody: envelope(1000),
+    } as never);
+    await db.pageAmbiguities.put({
+      ambiguityId: resolvedAmbiguityId,
+      pageId: page,
+      kind: "delete-edit",
+      status: "resolved-keep",
+      openedAt: new Date().toISOString(),
+      recordVersion: 1,
+      sealedDetails: envelope(1000),
+    } as never);
+    await db.legacyOfflineBranches.put({
+      pageId: page,
+      branchId: generateUuidV7(),
+      status: "converted",
+      createdAt: new Date().toISOString(),
+      recordVersion: 1,
+      sealedBranch: envelope(1000),
+    } as never);
+
+    const released = await runEviction(db, {
+      limitBytes: 0,
+      usedBytes: 14_000,
+      persisted: false,
+      measuredAt: new Date().toISOString(),
+      breakdown: [],
+    });
+
+    expect(released.released).toContain(page);
+    expect(await db.pageOperationStates.get(page)).toBeUndefined();
+    expect(await db.pageOperationUpdates.get(acceptedUpdateId)).toBeUndefined();
+    expect(await db.pageAmbiguities.get(resolvedAmbiguityId)).toBeUndefined();
+    expect(await db.legacyOfflineBranches.get(page)).toBeUndefined();
+    expect((await db.items.get(page))?.sealedPageBody).toBeNull();
+  });
+
+  it("never releases a page with a pending operational update", async () => {
+    const page = await seedItem({ kind: "page", bodySize: 5000 });
+    await db.pageOperationUpdates.put({
+      updateId: generateUuidV7(),
+      pageId: page,
+      status: "pending",
+      enqueueOrder: 1,
+      createdAt: new Date().toISOString(),
+      recordVersion: 1,
+      sealedBody: envelope(1000),
+    } as never);
+
+    const released = await runEviction(db, {
+      limitBytes: 0,
+      usedBytes: 6000,
+      persisted: false,
+      measuredAt: new Date().toISOString(),
+      breakdown: [],
+    });
+
+    expect(released.released).not.toContain(page);
+    expect((await db.items.get(page))?.localAvailability).toBe("present");
+  });
+
   it("never releases an item the owner marked to keep", async () => {
     const kept = await seedItem({ kind: "file", bodySize: 9000, offlineIntent: true });
 

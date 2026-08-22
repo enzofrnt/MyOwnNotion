@@ -141,9 +141,11 @@ const override = parse(
 const envExample = readFileSync(path.join(repoRoot, ".env.example"), "utf8");
 
 describe("the services the baseline defines", () => {
-  it("has api, web, postgres, and the one-shot migrate job", () => {
-    const services = Object.keys(base.services ?? {});
-    expect(services).toEqual(expect.arrayContaining(["api", "web", "postgres", "migrate"]));
+  it("contains only the application, PostgreSQL, and the one-shot migrate job", () => {
+    const services = Object.keys(base.services ?? {}).sort();
+    expect(services).toEqual(["api", "migrate", "postgres", "web"]);
+    expect(base.services).not.toHaveProperty("drawio");
+    expect(envExample).not.toMatch(/DRAWIO/i);
   });
 
   it("gives every long-running service a health check", () => {

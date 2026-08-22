@@ -2,7 +2,7 @@
  * Reading both rotation policies (T085, US5, FR-025 – FR-027).
  *
  * The domain decides what a policy's dates mean; this reads the rows and asks
- * it, for both kinds at once. Both, always — an installation whose wrapping
+ * it, for both kinds in the same health view. Both, always — an installation whose wrapping
  * key is fine and whose data key is overdue is not a healthy installation, and
  * a caller given one answer would believe it was.
  *
@@ -44,8 +44,6 @@ export interface RotationHealth {
    */
   readonly writesAllowed: boolean;
 }
-
-const KINDS: readonly RotationKind[] = ["wrapping-key", "data-key"];
 
 export class RotationPolicyService {
   readonly #deps: RotationPolicyServiceDeps;
@@ -90,9 +88,11 @@ export class RotationPolicyService {
 
   /** Both policies, and whether writes may proceed. */
   async health(executor: Database | Transaction = this.#deps.db): Promise<RotationHealth> {
-    const [wrappingKey, dataKey] = await Promise.all(
-      KINDS.map(async (kind) => await this.#evaluate(executor, kind)),
-    );
+    // A transaction is backed by one pg client. Starting both reads together
+    // queues overlapping client.query calls, which pg 9 rejects. Keep the
+    // policy pair in one transaction, but read it in connection order.
+    const wrappingKey = await this.#evaluate(executor, "wrapping-key");
+    const dataKey = await this.#evaluate(executor, "data-key");
     return {
       wrappingKey: wrappingKey ?? null,
       dataKey: dataKey ?? null,

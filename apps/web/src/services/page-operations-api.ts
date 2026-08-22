@@ -4,7 +4,9 @@ import type { PageSyncTransport, PageSyncTransportResult } from "@myownnotion/cl
 import {
   type ActivatePageRequestDto,
   CSRF_TOKEN_HEADER,
+  type EmptyPageSyncRequestDto,
   type LegacyOfflineBranchSyncRequestDto,
+  MAX_PAGE_UPDATE_BATCH_BYTES,
   PAGE_OPERATION_PROTOCOL_VERSION,
   type PageCheckpointResponseDto,
   type PageSyncRequestDto,
@@ -109,6 +111,32 @@ export class PageOperationsApi implements PageSyncTransport {
 
   async sync(pageId: Uuid, request: PageSyncRequestDto): Promise<PageSyncTransportResult> {
     return await this.#post(`/v1/page-operations/${pageId}/sync`, request);
+  }
+
+  /**
+   * Reads an already-active page's verified checkpoint without activating a
+   * legacy page. A new device must join the existing CRDT history before it
+   * edits; deriving a fresh branch from the materialized JSON would lose the
+   * causal base that produced that projection.
+   */
+  async checkpoint(pageId: Uuid, requestId: Uuid): Promise<PageActivationTransportResult> {
+    const request: EmptyPageSyncRequestDto = {
+      mode: "empty",
+      requestId,
+      knownServerPageSequence: 0,
+      maxRemoteBytes: MAX_PAGE_UPDATE_BATCH_BYTES,
+    };
+    const result = await this.#post(`/v1/page-operations/${pageId}/sync`, request);
+    if (!result.ok) return result;
+    if (result.value.mode === "checkpoint") return { ok: true, value: result.value };
+    return {
+      ok: false,
+      offline: false,
+      problem: {
+        code: "page-operations.projection-invalid",
+        message: "Page checkpoint retrieval returned an unexpected synchronization mode.",
+      },
+    };
   }
 
   /**

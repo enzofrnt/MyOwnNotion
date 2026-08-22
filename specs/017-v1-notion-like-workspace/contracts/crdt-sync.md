@@ -284,6 +284,13 @@ interface LegacyOfflineBranchSyncRequest {
 rechargements et retries. Deux payloads différents sous le même `branchId` sont
 une violation d'intégrité.
 
+Si la branche a été ouverte pendant que la création optimiste de sa page était
+encore dans l'outbox, sa révision de base peut garder l'identité locale connue
+par la session montée. Avant chaque envoi, le client résout l'alias
+local→canonique conservé lors de l'accusé serveur. Le journal et son document de
+base ne sont pas réécrits ; seule l'identité de révision transmise devient celle
+que le serveur a réellement créée et peut vérifier.
+
 ~~~ts
 interface LegacySemanticTransaction {
   transactionId: Uuid;
@@ -395,6 +402,24 @@ simple différence de paragraphe ne devient pas un conflit de page entière.
 Un appel `mode: "active"` avec `updates: []` suffit. Il n'existe pas d'endpoint
 GET avec version vector en query string.
 
+L'état local `sending` représente uniquement une tentative interrompue. Il est
+récupéré une fois à l'initialisation du stockage, avant le démarrage des
+réconciliateurs. Un passage de synchronisation vivant ne récupère jamais les
+updates d'une autre page : il pourrait sinon remettre en attente un envoi réel
+et laisser les deux réconciliateurs se disputer la même ligne durable.
+
+Un lot reçu dans une même requête est validé et importé dans son ordre causal,
+puis projeté une seule fois. Le serveur scelle en groupe les octets et les
+frontiers, attribue une séquence contiguë à chaque update immuable et avance
+l'état final de la page dans la même transaction PostgreSQL. Aucun lecteur ne
+peut observer un préfixe du lot. Un échec d'enveloppe, de projection ou d'insert
+annule le lot entier ; l'idempotence reste portée par chaque `updateId`, pas par
+l'identité de la requête.
+
+Les index dérivés comme la recherche peuvent reconstruire leur projection après
+ce commit, mais ils ne font pas partie de l'accusé canonique et ne peuvent
+bloquer ni le démarrage du workspace ni la synchronisation durable.
+
 ## 9. Ambiguïtés
 
 ~~~ts
@@ -474,6 +499,7 @@ coalescés n'entraînent qu'un échange de frontiers.
 | Code | Effet client |
 | --- | --- |
 | `page-operations.protocol-read-only` | conserver local, bloquer l'envoi, demander mise à jour |
+| `page-operations.not-active` | ouvrir la projection legacy sans confondre cette absence avec une corruption |
 | `page-operations.activation-stale` | recharger tête/projection, ne rien supprimer |
 | `page-operations.update-id-reused` | erreur d'intégrité, bloquer l'appareil |
 | `page-operations.digest-mismatch` | conserver bytes locaux, diagnostic/réparation |

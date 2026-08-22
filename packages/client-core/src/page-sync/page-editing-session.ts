@@ -173,6 +173,16 @@ export class PageEditingSession {
   #queuedTransactions = 0;
   #recoveryBuffer: PageEditingRecoveryBuffer | null = null;
   #failedCommit: FailedCommitContext | null = null;
+  #remoteAdoptionErrorType: string | null = null;
+  /**
+   * Last document attached to a semantic session event.
+   *
+   * Status-only transitions are deliberately allowed to reuse this immutable
+   * projection. Materialising a 500-block Loro tree just to change
+   * "saving" into "pending" puts persistence work on the keystroke's paint
+   * path even though status consumers never read the document.
+   */
+  #publishedDocument: BlockDocumentV3;
 
   private constructor(
     options: OpenPageEditingSessionOptions,
@@ -194,25 +204,26 @@ export class PageEditingSession {
     this.#online = options.online ?? true;
     this.#nextEnqueueOrder = Math.max(0, ...updates.map(({ enqueueOrder }) => enqueueOrder)) + 1;
     this.#sync = this.#deriveSync();
+    this.#publishedDocument = options.page.snapshot();
   }
 
   static async open(options: OpenPageEditingSessionOptions): Promise<PageEditingSession> {
-    const [operationState, updates, ambiguities] = await Promise.all([
-      options.log.getState(options.page.pageId),
-      options.log.listUpdates(options.page.pageId),
-      options.log.listOpenAmbiguities(options.page.pageId),
-    ]);
+    const {
+      state: operationState,
+      updates,
+      ambiguities,
+    } = await options.log.readPageSnapshot(options.page.pageId);
     return new PageEditingSession(options, operationState, updates, ambiguities);
   }
 
   static async resume(
     options: ResumePageEditingSessionOptions,
   ): Promise<PageEditingSession | null> {
-    const [operationState, updates, ambiguities] = await Promise.all([
-      options.log.getState(options.pageId),
-      options.log.listUpdates(options.pageId),
-      options.log.listOpenAmbiguities(options.pageId),
-    ]);
+    const {
+      state: operationState,
+      updates,
+      ambiguities,
+    } = await options.log.readPageSnapshot(options.pageId);
     if (operationState?.checkpoint === null || operationState?.checkpoint === undefined) {
       return null;
     }
@@ -241,6 +252,15 @@ export class PageEditingSession {
       ...this.#recoveryBuffer,
       document: copyDocument(this.#recoveryBuffer.document),
     };
+  }
+
+  /** Redacted support diagnostic; never contains document text or a stack. */
+  get remoteAdoptionErrorType(): string | null {
+    return this.#remoteAdoptionErrorType;
+  }
+
+  get importingRemote(): boolean {
+    return this.#importingRemote;
   }
 
   get canUndo(): boolean {
@@ -308,11 +328,11 @@ export class PageEditingSession {
   }
 
   async refreshFromDurableState(): Promise<void> {
-    const [operationState, updates, ambiguities] = await Promise.all([
-      this.#log.getState(this.pageId),
-      this.#log.listUpdates(this.pageId),
-      this.#log.listOpenAmbiguities(this.pageId),
-    ]);
+    const {
+      state: operationState,
+      updates,
+      ambiguities,
+    } = await this.#log.readPageSnapshot(this.pageId);
     this.#operationState = operationState;
     this.#updates = updates;
     this.#ambiguities = ambiguities;
@@ -324,15 +344,31 @@ export class PageEditingSession {
   }
 
   /** Imports a response only after the reconciler has committed it to IndexedDB. */
-  async adoptDurablePage(): Promise<void> {
-    await this.#tail;
+  adoptDurablePage(): Promise<void> {
+    // Adoption is part of the same serial authority as local gestures. Merely
+    // awaiting the current tail leaves a gap in which a new gesture can attach
+    // to that resolved tail while this method is reading an older checkpoint.
+    // The stale read then cannot dominate the now-visible editor and its
+    // listener silently misses the acknowledgement, leaving already accepted
+    // updates displayed as pending. Chaining first closes that gap: gestures
+    // queued after the notification run against the adopted frontier.
+    const adoption = this.#tail.then(async () => await this.#adoptDurablePage());
+    this.#tail = adoption.then(
+      () => undefined,
+      () => undefined,
+    );
+    return adoption;
+  }
+
+  async #adoptDurablePage(): Promise<void> {
+    this.#remoteAdoptionErrorType = null;
     this.setImportingRemote(true);
     try {
-      const [operationState, updates, ambiguities] = await Promise.all([
-        this.#log.getState(this.pageId),
-        this.#log.listUpdates(this.pageId),
-        this.#log.listOpenAmbiguities(this.pageId),
-      ]);
+      const {
+        state: operationState,
+        updates,
+        ambiguities,
+      } = await this.#log.readPageSnapshot(this.pageId);
       if (operationState?.checkpoint === null || operationState?.checkpoint === undefined) {
         throw new Error("the durable operational page has no checkpoint");
       }
@@ -363,6 +399,10 @@ export class PageEditingSession {
         Math.max(0, ...updates.map(({ enqueueOrder }) => enqueueOrder)) + 1,
       );
       this.#refreshSync("remote");
+    } catch (error) {
+      this.#remoteAdoptionErrorType =
+        error instanceof Error && error.name !== "" ? error.name : "UnknownError";
+      throw error;
     } finally {
       this.setImportingRemote(false);
     }
@@ -390,7 +430,7 @@ export class PageEditingSession {
         updateId: failed.input.updateId,
         transaction: failed.transaction,
         committed,
-        document: this.read(),
+        document: this.#publishedDocument,
       };
     } catch (error) {
       this.#blockAfterLocalFailure(error, failed);
@@ -435,7 +475,7 @@ export class PageEditingSession {
         updateId,
         transaction,
         committed,
-        document: this.read(),
+        document: this.#publishedDocument,
       } satisfies DurablePageEditResult;
     });
 
@@ -565,9 +605,10 @@ export class PageEditingSession {
     updateId?: Uuid,
   ): void {
     this.#sync = this.#deriveSync();
+    if (origin !== "status") this.#publishedDocument = this.read();
     const change: PageSessionChange = {
       origin,
-      document: this.read(),
+      document: this.#publishedDocument,
       sync: this.#sync,
       ...(transaction === undefined ? {} : { transaction }),
       ...(updateId === undefined ? {} : { updateId }),

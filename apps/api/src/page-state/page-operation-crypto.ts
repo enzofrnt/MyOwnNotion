@@ -27,6 +27,18 @@ export interface ProtectedOperationalFrontier {
   readonly frontiers: Uint8Array;
 }
 
+export interface OperationalUpdateEnvelopeInput {
+  readonly updateBytes: Uint8Array;
+  readonly baseFrontier: ProtectedOperationalFrontier;
+  readonly resultFrontier: ProtectedOperationalFrontier;
+}
+
+export interface OperationalUpdateEnvelopeIds {
+  readonly updateEnvelopeId: Uuid;
+  readonly baseFrontierEnvelopeId: Uuid;
+  readonly resultFrontierEnvelopeId: Uuid;
+}
+
 function copyBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
   copy.set(bytes);
@@ -107,11 +119,78 @@ export class PageOperationCrypto {
     return copyBytes(bytes);
   }
 
+  async openBytesMany(
+    executor: Executor,
+    kind: PageOperationProtectedKind,
+    envelopeIds: readonly Uuid[],
+  ): Promise<ReadonlyMap<Uuid, Uint8Array>> {
+    const opened = await this.#records.readMany(executor, {
+      entityType: PAGE_OPERATION_ENTITY_TYPES[kind],
+      entityIds: envelopeIds,
+    });
+    const result = new Map<Uuid, Uint8Array>();
+    for (const [id, bytes] of opened) result.set(id as Uuid, copyBytes(bytes));
+    return result;
+  }
+
   async sealFrontier(executor: Transaction, frontier: ProtectedOperationalFrontier): Promise<Uuid> {
     return await this.sealBytes(executor, "frontier", encodeFrontier(frontier));
   }
 
   async openFrontier(executor: Executor, envelopeId: Uuid): Promise<ProtectedOperationalFrontier> {
     return decodeFrontier(await this.openBytes(executor, "frontier", envelopeId));
+  }
+
+  async openFrontiers(
+    executor: Executor,
+    envelopeIds: readonly Uuid[],
+  ): Promise<ReadonlyMap<Uuid, ProtectedOperationalFrontier>> {
+    const opened = await this.openBytesMany(executor, "frontier", envelopeIds);
+    const result = new Map<Uuid, ProtectedOperationalFrontier>();
+    for (const [id, bytes] of opened) result.set(id, decodeFrontier(bytes));
+    return result;
+  }
+
+  /** Seals one immutable catch-up batch with one key lookup and one SQL insert. */
+  async sealUpdateBatch(
+    executor: Transaction,
+    updates: readonly OperationalUpdateEnvelopeInput[],
+  ): Promise<readonly OperationalUpdateEnvelopeIds[]> {
+    const identities = updates.map(() => ({
+      updateEnvelopeId: generateUuidV7(),
+      baseFrontierEnvelopeId: generateUuidV7(),
+      resultFrontierEnvelopeId: generateUuidV7(),
+    }));
+    await this.#records.writeNewMany(
+      executor,
+      updates.flatMap((update, index) => {
+        const ids = identities[index];
+        if (ids === undefined) throw new Error("operational envelope identity is missing");
+        return [
+          {
+            id: ids.baseFrontierEnvelopeId,
+            entityType: PAGE_OPERATION_ENTITY_TYPES.frontier,
+            entityId: ids.baseFrontierEnvelopeId,
+            recordVersion: 1,
+            payload: encodeFrontier(update.baseFrontier),
+          },
+          {
+            id: ids.resultFrontierEnvelopeId,
+            entityType: PAGE_OPERATION_ENTITY_TYPES.frontier,
+            entityId: ids.resultFrontierEnvelopeId,
+            recordVersion: 1,
+            payload: encodeFrontier(update.resultFrontier),
+          },
+          {
+            id: ids.updateEnvelopeId,
+            entityType: PAGE_OPERATION_ENTITY_TYPES.update,
+            entityId: ids.updateEnvelopeId,
+            recordVersion: 1,
+            payload: copyBytes(update.updateBytes),
+          },
+        ];
+      }),
+    );
+    return identities;
   }
 }

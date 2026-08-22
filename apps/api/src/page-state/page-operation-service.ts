@@ -6,6 +6,7 @@
 import type { ActivePageSyncRequestDto, ActivePageSyncResponseDto } from "@myownnotion/contracts";
 import {
   appendAcceptedPageOperationUpdate,
+  appendAcceptedPageOperationUpdates,
   buildItemSnapshot,
   confirmPageDeviceFrontier,
   type Database,
@@ -14,11 +15,13 @@ import {
   listOpenPageAmbiguities,
   listPageOperationUpdatesAfter,
   lockPageOperationState,
+  PageOperationRepositoryError,
   type PageOperationStateRow,
+  type PageOperationUpdateRow,
   readPageAmbiguityByLogicalKey,
   readPageDeviceFrontier,
   readPageOperationCheckpoint,
-  readPageOperationUpdate,
+  readPageOperationUpdates,
   recordChange,
   runMutation,
   schema,
@@ -80,7 +83,19 @@ export class PageOperationService {
   }
 
   async #load(tx: Transaction, pageId: Uuid): Promise<LoadedOperationalPage> {
-    const state = await lockPageOperationState(tx, this.#deps.workspaceId, pageId);
+    let state: PageOperationStateRow;
+    try {
+      state = await lockPageOperationState(tx, this.#deps.workspaceId, pageId);
+    } catch (error) {
+      if (error instanceof PageOperationRepositoryError && error.code === "state-not-found") {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "The page no longer has operational state.",
+          409,
+        );
+      }
+      throw error;
+    }
     if (state.status !== "active" || state.currentCheckpointId === null) {
       throw new PageOperationServiceError(
         "page-operations.projection-invalid",
@@ -144,8 +159,20 @@ export class PageOperationService {
           409,
         );
       }
+      const updateBytesByEnvelope = await this.#deps.crypto.openBytesMany(
+        tx,
+        "update",
+        rows.map(({ updateEnvelopeId }) => updateEnvelopeId as Uuid),
+      );
       for (const row of rows) {
-        const bytes = await this.#deps.crypto.openBytes(tx, "update", row.updateEnvelopeId as Uuid);
+        const bytes = updateBytesByEnvelope.get(row.updateEnvelopeId as Uuid);
+        if (bytes === undefined) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "The operational update log is incomplete.",
+            409,
+          );
+        }
         if ((await sha256Hex(bytes)) !== row.updateDigest || document.importUpdate(bytes).pending) {
           throw new PageOperationServiceError(
             "page-operations.projection-invalid",
@@ -207,9 +234,26 @@ export class PageOperationService {
       const repeated: ActivePageSyncResponseDto["repeated"] = [];
       const responseUpdateIds = new Set<string>();
       const newUpdates = [] as ActivePageSyncRequestDto["updates"][number][];
+      const repeatedUpdates: Array<{
+        readonly candidate: ActivePageSyncRequestDto["updates"][number];
+        readonly existing: PageOperationUpdateRow;
+      }> = [];
+      const existingUpdates = await readPageOperationUpdates(
+        tx,
+        input.request.updates.map(({ updateId }) => updateId as Uuid),
+      );
+      const seenUpdateIds = new Set<string>();
 
       for (const candidate of input.request.updates) {
-        const existing = await readPageOperationUpdate(tx, candidate.updateId as Uuid);
+        if (seenUpdateIds.has(candidate.updateId)) {
+          throw new PageOperationServiceError(
+            "page-operations.update-id-reused",
+            "An operational update identity appears more than once in one request.",
+            409,
+          );
+        }
+        seenUpdateIds.add(candidate.updateId);
+        const existing = existingUpdates.get(candidate.updateId as Uuid) ?? null;
         if (existing === null) {
           newUpdates.push(candidate);
           continue;
@@ -226,10 +270,21 @@ export class PageOperationService {
             409,
           );
         }
-        const result = await this.#deps.crypto.openFrontier(
-          tx,
-          existing.resultFrontierEnvelopeId as Uuid,
-        );
+        repeatedUpdates.push({ candidate, existing });
+      }
+      const repeatedFrontiers = await this.#deps.crypto.openFrontiers(
+        tx,
+        repeatedUpdates.map(({ existing }) => existing.resultFrontierEnvelopeId as Uuid),
+      );
+      for (const { existing } of repeatedUpdates) {
+        const result = repeatedFrontiers.get(existing.resultFrontierEnvelopeId as Uuid);
+        if (result === undefined) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "A repeated operational update has no retained frontier.",
+            409,
+          );
+        }
         repeated.push({
           updateId: existing.id as Uuid,
           pageSequence: existing.pageSequence,
@@ -239,6 +294,13 @@ export class PageOperationService {
       }
 
       const pending = [...newUpdates];
+      const importedUpdates: Array<{
+        readonly candidate: (typeof newUpdates)[number];
+        readonly updateBytes: Uint8Array;
+        readonly baseVersionVector: Uint8Array;
+        readonly resultVersionVector: Uint8Array;
+        readonly resultFrontiers: Uint8Array;
+      }> = [];
       while (pending.length > 0) {
         let progressed = false;
         for (let index = 0; index < pending.length; ) {
@@ -275,39 +337,14 @@ export class PageOperationService {
               409,
             );
           }
-          const [projection, resultCheckpoint] = await Promise.all([
-            document.project(),
-            document.checkpoint(),
-          ]);
-          const baseFrontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
-            versionVector: baseVersionVector,
-            frontiers: document.frontiersForVersionVector(baseVersionVector),
+          const resultVersionVector = imported.versionVector;
+          importedUpdates.push({
+            candidate,
+            updateBytes,
+            baseVersionVector,
+            resultVersionVector,
+            resultFrontiers: document.frontiersForVersionVector(resultVersionVector),
           });
-          const resultFrontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
-            versionVector: resultCheckpoint.versionVector,
-            frontiers: resultCheckpoint.frontiers,
-          });
-          const updateEnvelopeId = await this.#deps.crypto.sealBytes(tx, "update", updateBytes);
-          const appended = await appendAcceptedPageOperationUpdate(tx, {
-            updateId: candidate.updateId as Uuid,
-            pageId: input.pageId,
-            workspaceId: this.#deps.workspaceId,
-            authoredByDeviceId: input.deviceId,
-            baseFrontierEnvelopeId,
-            resultFrontierEnvelopeId,
-            updateEnvelopeId,
-            updateDigest: candidate.updateDigest,
-            operationalDigest: projection.operationalDigest,
-            canonicalDigest: projection.canonicalDigest,
-            acceptedAt: this.#deps.now(),
-          });
-          state = appended.state;
-          accepted.push({
-            updateId: candidate.updateId as Uuid,
-            pageSequence: appended.pageSequence,
-            resultVersionVector: encode(resultCheckpoint.versionVector),
-          });
-          responseUpdateIds.add(candidate.updateId);
           pending.splice(index, 1);
           progressed = true;
         }
@@ -320,7 +357,57 @@ export class PageOperationService {
         }
       }
 
+      // A request is one atomic transaction: no observer can see the state
+      // between two accepted updates. Materialising and hashing the whole Loro
+      // document after every keystroke made a 35-update offline catch-up export
+      // roughly 70 complete snapshots. Import the causal batch first, project
+      // once, then retain every immutable update identity and frontier.
       const projection = await document.project();
+      const envelopeIds = await this.#deps.crypto.sealUpdateBatch(
+        tx,
+        importedUpdates.map(
+          ({ updateBytes, baseVersionVector, resultVersionVector, resultFrontiers }) => ({
+            updateBytes,
+            baseFrontier: {
+              versionVector: baseVersionVector,
+              frontiers: document.frontiersForVersionVector(baseVersionVector),
+            },
+            resultFrontier: { versionVector: resultVersionVector, frontiers: resultFrontiers },
+          }),
+        ),
+      );
+      const appended = await appendAcceptedPageOperationUpdates(tx, {
+        pageId: input.pageId,
+        workspaceId: this.#deps.workspaceId,
+        updates: importedUpdates.map(({ candidate }, index) => {
+          const envelopes = envelopeIds[index];
+          if (envelopes === undefined) {
+            throw new Error("an operational update envelope batch is incomplete");
+          }
+          return {
+            updateId: candidate.updateId as Uuid,
+            authoredByDeviceId: input.deviceId,
+            ...envelopes,
+            updateDigest: candidate.updateDigest,
+          };
+        }),
+        operationalDigest: projection.operationalDigest,
+        canonicalDigest: projection.canonicalDigest,
+        acceptedAt: this.#deps.now(),
+      });
+      state = appended.state;
+      for (const [index, imported] of importedUpdates.entries()) {
+        const persisted = appended.updates[index];
+        if (persisted === undefined) throw new Error("an accepted operational update is missing");
+        const { candidate, resultVersionVector } = imported;
+        accepted.push({
+          updateId: candidate.updateId as Uuid,
+          pageSequence: persisted.pageSequence,
+          resultVersionVector: encode(resultVersionVector),
+        });
+        responseUpdateIds.add(candidate.updateId);
+      }
+
       let fileRequirements: ActivePageSyncResponseDto["fileRequirements"] = [];
       if (accepted.length > 0) {
         if (state.lastRevisionId === null) {
@@ -376,11 +463,19 @@ export class PageOperationService {
             limit: 256,
           });
           if (rows.length === 0) break;
+          const resultFrontiers = await this.#deps.crypto.openFrontiers(
+            tx,
+            rows.map(({ resultFrontierEnvelopeId }) => resultFrontierEnvelopeId as Uuid),
+          );
           for (const row of rows) {
-            const result = await this.#deps.crypto.openFrontier(
-              tx,
-              row.resultFrontierEnvelopeId as Uuid,
-            );
+            const result = resultFrontiers.get(row.resultFrontierEnvelopeId as Uuid);
+            if (result === undefined) {
+              throw new PageOperationServiceError(
+                "page-operations.projection-invalid",
+                "An operational update has no retained frontier.",
+                409,
+              );
+            }
             if (versionVectorDominates(persistedVersionVector, result.versionVector)) {
               confirmedPageSequence = row.pageSequence;
             }
@@ -428,20 +523,41 @@ export class PageOperationService {
       const remoteUpdates: ActivePageSyncResponseDto["remoteUpdates"] = [];
       let remoteBytes = 0;
       let throughPageSequence = input.request.knownServerPageSequence;
-      for (const row of candidates.slice(0, 64)) {
+      const candidateRows = candidates.slice(0, 64);
+      const candidateFrontiers = await this.#deps.crypto.openFrontiers(
+        tx,
+        candidateRows.map(({ resultFrontierEnvelopeId }) => resultFrontierEnvelopeId as Uuid),
+      );
+      const candidateBytes = await this.#deps.crypto.openBytesMany(
+        tx,
+        "update",
+        candidateRows.map(({ updateEnvelopeId }) => updateEnvelopeId as Uuid),
+      );
+      for (const row of candidateRows) {
         if (responseUpdateIds.has(row.id)) {
           throughPageSequence = row.pageSequence;
           continue;
         }
-        const result = await this.#deps.crypto.openFrontier(
-          tx,
-          row.resultFrontierEnvelopeId as Uuid,
-        );
+        const result = candidateFrontiers.get(row.resultFrontierEnvelopeId as Uuid);
+        if (result === undefined) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "An operational update has no retained frontier.",
+            409,
+          );
+        }
         if (versionVectorDominates(persistedVersionVector, result.versionVector)) {
           throughPageSequence = row.pageSequence;
           continue;
         }
-        const bytes = await this.#deps.crypto.openBytes(tx, "update", row.updateEnvelopeId as Uuid);
+        const bytes = candidateBytes.get(row.updateEnvelopeId as Uuid);
+        if (bytes === undefined) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "An operational update has no retained bytes.",
+            409,
+          );
+        }
         if (
           remoteUpdates.length > 0 &&
           remoteBytes + bytes.byteLength > input.request.maxRemoteBytes
@@ -678,15 +794,23 @@ export class PageOperationService {
     });
     const bases = new Map<string, Uint8Array>();
     const results = new Map<string, Uint8Array>();
+    const frontiers = await this.#deps.crypto.openFrontiers(
+      tx,
+      rows.flatMap(({ baseFrontierEnvelopeId, resultFrontierEnvelopeId }) => [
+        baseFrontierEnvelopeId as Uuid,
+        resultFrontierEnvelopeId as Uuid,
+      ]),
+    );
     for (const row of rows) {
-      const baseFrontier = await this.#deps.crypto.openFrontier(
-        tx,
-        row.baseFrontierEnvelopeId as Uuid,
-      );
-      const resultFrontier = await this.#deps.crypto.openFrontier(
-        tx,
-        row.resultFrontierEnvelopeId as Uuid,
-      );
+      const baseFrontier = frontiers.get(row.baseFrontierEnvelopeId as Uuid);
+      const resultFrontier = frontiers.get(row.resultFrontierEnvelopeId as Uuid);
+      if (baseFrontier === undefined || resultFrontier === undefined) {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "An operational update has an incomplete causal frontier.",
+          409,
+        );
+      }
       bases.set(row.id, baseFrontier.versionVector);
       results.set(row.id, resultFrontier.versionVector);
     }
@@ -716,6 +840,11 @@ export class PageOperationService {
     }
 
     if (interesting.size > 0) {
+      const updateBytes = await this.#deps.crypto.openBytesMany(
+        tx,
+        "update",
+        rows.map(({ updateEnvelopeId }) => updateEnvelopeId as Uuid),
+      );
       // Each concurrent intention is replayed in ISOLATION from the shared
       // pre-convergence state: sequential replay would hide a text edit
       // behind another device's deletion of the same block, and the whole
@@ -726,9 +855,15 @@ export class PageOperationService {
       });
       for (const row of rows) {
         if (interesting.has(row.id)) continue;
-        common.importUpdate(
-          await this.#deps.crypto.openBytes(tx, "update", row.updateEnvelopeId as Uuid),
-        );
+        const bytes = updateBytes.get(row.updateEnvelopeId as Uuid);
+        if (bytes === undefined) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "An operational update has no retained bytes.",
+            409,
+          );
+        }
+        common.importUpdate(bytes);
       }
       const commonCheckpoint = await common.checkpoint();
       const beforeBlocks = (await common.project()).document.blocks;
@@ -736,11 +871,15 @@ export class PageOperationService {
       const records: SemanticUpdateRecord[] = [];
       for (const row of rows) {
         if (!interesting.has(row.id)) continue;
-        const baseFrontier = await this.#deps.crypto.openFrontier(
-          tx,
-          row.baseFrontierEnvelopeId as Uuid,
-        );
-        const bytes = await this.#deps.crypto.openBytes(tx, "update", row.updateEnvelopeId as Uuid);
+        const baseVersionVector = bases.get(row.id);
+        const bytes = updateBytes.get(row.updateEnvelopeId as Uuid);
+        if (baseVersionVector === undefined || bytes === undefined) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "An operational update has incomplete retained content.",
+            409,
+          );
+        }
         const isolated = await OperationalPageDocument.fromCheckpoint({
           pageId: input.pageId,
           checkpoint: commonCheckpoint,
@@ -756,7 +895,7 @@ export class PageOperationService {
         records.push(
           semanticRecordFromProjectionDiff({
             updateId: row.id as Uuid,
-            baseVersionVector: baseFrontier.versionVector,
+            baseVersionVector,
             resultVersionVector: isolated.versionVectorBytes(),
             beforeBlocks,
             afterBlocks,

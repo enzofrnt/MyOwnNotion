@@ -784,8 +784,6 @@ function isSafeEmbedUrlV3(provider: EmbedProvider, sourceUrl: string): boolean {
       return hostAllowed("figma.com");
     case "github":
       return hostAllowed("github.com");
-    case "drawio":
-      return hostAllowed("diagrams.net") || hostAllowed("draw.io");
   }
 }
 

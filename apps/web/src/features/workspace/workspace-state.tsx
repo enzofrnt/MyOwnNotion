@@ -5,17 +5,19 @@ export type WorkspaceStateKind = "loading" | "empty" | "offline" | "error";
 
 export interface WorkspaceStateProps {
   readonly kind: WorkspaceStateKind;
+  readonly phase?: string;
   readonly detail?: string;
   readonly diagnostics?: ReactNode;
   readonly onRetry?: () => void;
 }
 
-export function WorkspaceState({ diagnostics, detail, kind, onRetry }: WorkspaceStateProps) {
+export function WorkspaceState({ diagnostics, detail, kind, onRetry, phase }: WorkspaceStateProps) {
   if (kind === "loading") {
     return (
       <div
         className="workspace-state workspace-state--loading"
         data-testid="workspace-shell-skeleton"
+        data-load-phase={phase}
         role="status"
         aria-busy="true"
       >

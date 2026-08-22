@@ -39,8 +39,9 @@ export function usePageReconciler(
       session.setOnline(false);
     };
 
-    // Rows left `sending` by a crash rejoin the queue inside the first pass;
-    // an offline device skips the network but still records honest state.
+    // Boot initialization has already returned rows interrupted in `sending`
+    // to the queue. This first page pass therefore only handles live work and
+    // cannot reset another page's active transport.
     if (mode === "active") void reconciler.synchronize();
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       goOffline();

@@ -1646,6 +1646,30 @@ code,
   color: var(--ui-color-text-muted);
 }
 
+.page-editor a.page-link {
+  padding-inline: 0.12em;
+  color: var(--ui-color-info);
+  background: var(--ui-color-info-soft);
+  border-radius: var(--ui-radius-xs);
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.page-editor a.page-link-deleted,
+.page-editor a.page-link-unknown {
+  color: var(--ui-color-danger);
+  background: var(--ui-color-danger-soft);
+  text-decoration-style: wavy;
+}
+
+.page-editor a.page-link-unavailable {
+  color: var(--ui-color-warning);
+  background: var(--ui-color-warning-soft);
+  text-decoration-style: dashed;
+}
+
 .page-editor .editor-page-link-picker {
   display: grid;
   width: min(20rem, calc(100vw - 2 * var(--ui-space-4)));

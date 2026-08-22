@@ -22,7 +22,7 @@ import type {
   ItemDto,
   RelationshipDto,
 } from "@myownnotion/contracts";
-import type { DatabaseDefinition, EntryValues, Uuid } from "@myownnotion/domain";
+import type { BlockDocumentV3, DatabaseDefinition, EntryValues, Uuid } from "@myownnotion/domain";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 import {
   type LocalDatabase,
@@ -315,6 +315,24 @@ export class LocalRepository {
       return null;
     }
     return (await this.#openAll([fetched]))[0] ?? null;
+  }
+
+  /** Restores an offloaded page row from a verified operational projection. */
+  async cacheOperationalPageProjection(pageId: Uuid, document: BlockDocumentV3): Promise<void> {
+    const row = await this.db.items.get(pageId);
+    if (row === undefined) throw new Error(`page item not found: ${pageId}`);
+    const item = await this.#codec.openItem(row);
+    if (item.kind !== "page") throw new TypeError(`item is not a page: ${pageId}`);
+    const sealed = await this.#codec.sealItem({
+      ...item,
+      localAvailability: "present",
+      pageDocument: {
+        format: "myownnotion.document+json",
+        formatVersion: 3,
+        body: { blocks: structuredClone(document.blocks) },
+      },
+    });
+    await this.db.items.put(sealed);
   }
 
   async listItems(lifecycle?: LocalItemRow["lifecycle"]): Promise<ProjectedItem[]> {

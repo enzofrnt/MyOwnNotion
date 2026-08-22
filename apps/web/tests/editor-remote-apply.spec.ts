@@ -95,6 +95,15 @@ function fakeEditor(
 }
 
 describe("targeted remote application", () => {
+  it("treats omitted leaf children as an empty collection", () => {
+    const { children: _currentChildren, ...currentLeaf } = paragraph(FIRST, "before");
+    const { children: _nextChildren, ...nextLeaf } = paragraph(FIRST, "after");
+
+    expect(
+      planRemoteEditorChanges([currentLeaf as EditorBlock], [nextLeaf as EditorBlock]),
+    ).toEqual([{ type: "update", block: nextLeaf }]);
+  });
+
   it("plans a move and a text update without rebuilding unrelated blocks", () => {
     const first = paragraph(FIRST, "first");
     const second = paragraph(SECOND, "second");
@@ -167,5 +176,26 @@ describe("targeted remote application", () => {
     expect(state.cursorMoves).toBe(0);
     expect(state.localEchoes).toBe(0);
     expect(state.activeBlockId).toBe(SECOND);
+  });
+
+  it("ignores editor-only representation differences when canonical content is unchanged", () => {
+    const origin = new EditorOriginGuard();
+    const durable = paragraph(FIRST, "typing stays focused");
+    const visible = {
+      ...durable,
+      props: { ...durable.props, transientEditorDecoration: "active" },
+    } as EditorBlock;
+    const { editor, state } = fakeEditor([visible], FIRST, origin);
+
+    // Raw BlockNote props differ, so the targeted planner would propose an
+    // update. The canonical projection deliberately ignores that editor-only
+    // decoration; an acknowledgement/handover must therefore be a DOM no-op.
+    expect(planRemoteEditorChanges([visible], [durable])).toHaveLength(1);
+    const result = applyRemoteEditorProjection({ editor, origin, next: [durable] });
+
+    expect(result.targetedChanges).toEqual([]);
+    expect(result.repairedProjection).toBe(false);
+    expect(state.cursorMoves).toBe(0);
+    expect(state.document).toEqual([visible]);
   });
 });

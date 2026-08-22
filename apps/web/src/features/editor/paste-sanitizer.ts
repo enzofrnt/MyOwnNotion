@@ -8,6 +8,7 @@
  */
 
 import type { EditorPartialBlock } from "./blocknote-schema.ts";
+import { isPageLinkHref } from "./page-link-href.ts";
 
 const REPRESENTABLE_TYPES: ReadonlySet<string> = new Set([
   "paragraph",
@@ -29,7 +30,7 @@ const REPRESENTABLE_TYPES: ReadonlySet<string> = new Set([
   "unknown",
 ]);
 
-const SAFE_LINK_PATTERN = /^(?:https?:|mailto:|myownnotion:page:)/u;
+const SAFE_EXTERNAL_LINK_PATTERN = /^(?:https?:|mailto:)/u;
 const MAX_PASTE_BLOCKS = 500;
 const MAX_PASTE_DEPTH = 20;
 
@@ -57,7 +58,7 @@ function isInlineArray(content: unknown): content is InlineContentNode[] {
 /** Keeps the text of a link whose href cannot be trusted, dropping only the mark. */
 export function safeLinkHref(href: unknown): string | null {
   if (typeof href !== "string" || href.length > 2_048) return null;
-  return SAFE_LINK_PATTERN.test(href) ? href : null;
+  return SAFE_EXTERNAL_LINK_PATTERN.test(href) || isPageLinkHref(href) ? href : null;
 }
 
 function sanitizeInline(nodes: readonly unknown[]): { nodes: unknown[]; reduced: boolean } {

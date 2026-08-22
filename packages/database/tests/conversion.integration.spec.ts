@@ -15,7 +15,12 @@
  *   - **identity survives**, so every reference to the item still resolves.
  */
 
-import { schema, submitMutation } from "@myownnotion/database";
+import {
+  insertInitializingPageOperationState,
+  readPageOperationState,
+  schema,
+  submitMutation,
+} from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -195,6 +200,28 @@ describe("page to folder", () => {
       .from(schema.protectedEnvelopes)
       .where(eq(schema.protectedEnvelopes.entityId, page));
     expect(envelopes).toHaveLength(0);
+  });
+
+  it("retires operational state before changing the item kind", async () => {
+    const page = await createItem("page", "o");
+    await writeDocument(page);
+    const [item] = await context.handle.db
+      .select({ currentRevisionId: schema.items.currentRevisionId })
+      .from(schema.items)
+      .where(eq(schema.items.id, page));
+    await context.handle.db.transaction(async (tx) => {
+      await insertInitializingPageOperationState(tx, {
+        pageId: page,
+        workspaceId: context.workspaceId,
+        canonicalDigest: "a".repeat(64),
+        lastRevisionId: item?.currentRevisionId as Uuid,
+        now: new Date(),
+      });
+    });
+
+    expect((await convert(page, "folder", true)).result.status).toBe("accepted");
+    expect(await kindOf(page)).toBe("folder");
+    expect(await readPageOperationState(context.handle.db, context.workspaceId, page)).toBeNull();
   });
 
   it("keeps every child when the content is destroyed", async () => {

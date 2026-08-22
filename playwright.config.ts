@@ -77,6 +77,7 @@ export default defineConfig({
     {
       command: "pnpm --filter @myownnotion/api run dev",
       url: `http://127.0.0.1:${apiPort}/health`,
+      stdout: process.env["MYOWNNOTION_E2E_SERVER_STDOUT"] === "1" ? "pipe" : "ignore",
       reuseExistingServer: !isCI,
       timeout: 120_000,
       env: {
