@@ -192,138 +192,6 @@ export class PageOperationService {
   }
 
   /** Shared locked loader for migration and later server-side maintenance. */
-  async loadForMutation(tx: Transaction, pageId: Uuid): Promise<LoadedOperationalPage> {
-    return await this.#load(tx, pageId);
-  }
-
-  /**
-   * Applies server-authored commands — ambiguity resolutions today — through
-   * the same transactional path as client updates: transact, project,
-   * materialize, append an accepted update row, then record one change-feed
-   * entry (plan §8: a resolution is a semantic boundary).
-   *
-   * The resolution revision closes the consolidation window and becomes the
-   * page's retained boundary; source updates stay immutable.
-   */
-  async applyServerCommands(
-    input: {
-      readonly pageId: Uuid;
-      readonly deviceId: Uuid;
-      readonly mutationId: Uuid;
-      readonly commands: readonly import("@myownnotion/page-state").PageCommand[];
-    },
-    /** Joins a caller's transaction: nesting two serializable runners would
-     * hide the new revision from the caller's snapshot and break its FK. */
-    existingTx?: Transaction,
-  ): Promise<{ revisionId: Uuid }> {
-    const work = async (tx: Transaction) => {
-      const loaded = await this.#load(tx, input.pageId);
-      const document = loaded.document;
-      // The resolution applies on top of the current merged state; its causal
-      // base is therefore exactly what the page holds before transacting.
-      const baseVersionVector = document.versionVectorBytes();
-      const transaction = document.transact(input.commands);
-      if (!transaction.changed) {
-        throw new PageOperationServiceError(
-          "page-operations.projection-invalid",
-          "A resolution produced no operational change.",
-          409,
-        );
-      }
-      const [projection, resultCheckpoint] = await Promise.all([
-        document.project(),
-        document.checkpoint(),
-      ]);
-      await this.#deps.materializer.materialize(tx, {
-        workspaceId: this.#deps.workspaceId,
-        pageId: input.pageId,
-        revisionId: loaded.state.lastRevisionId as Uuid,
-        projection,
-      });
-
-      const baseFrontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
-        versionVector: baseVersionVector,
-        frontiers: document.frontiersForVersionVector(baseVersionVector),
-      });
-      const resultFrontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
-        versionVector: resultCheckpoint.versionVector,
-        frontiers: resultCheckpoint.frontiers,
-      });
-      const updateEnvelopeId = await this.#deps.crypto.sealBytes(
-        tx,
-        "update",
-        transaction.updateBytes,
-      );
-      const appended = await appendAcceptedPageOperationUpdate(tx, {
-        updateId: input.mutationId,
-        pageId: input.pageId,
-        workspaceId: this.#deps.workspaceId,
-        authoredByDeviceId: input.deviceId,
-        baseFrontierEnvelopeId,
-        resultFrontierEnvelopeId,
-        updateEnvelopeId,
-        updateDigest: await sha256Hex(transaction.updateBytes),
-        operationalDigest: projection.operationalDigest,
-        canonicalDigest: projection.canonicalDigest,
-        acceptedAt: this.#deps.now(),
-      });
-      void appended;
-
-      const revisionId = generateUuidV7();
-      await insertRevision(tx, {
-        id: revisionId,
-        itemId: input.pageId,
-        mutationId: input.mutationId,
-        parentRevisionIds:
-          loaded.state.lastRevisionId === null ? [] : [loaded.state.lastRevisionId as Uuid],
-        snapshot: await buildItemSnapshot(tx, input.pageId),
-        acceptedAt: this.#deps.now(),
-      });
-      await tx
-        .update(schema.pageOperationStates)
-        .set({
-          lastRevisionId: revisionId,
-          revisionWindowStartedAt: null,
-          revisionWindowLastUpdateAt: null,
-          revisionWindowFrontierEnvelopeId: null,
-          updatedAt: this.#deps.now(),
-        })
-        .where(
-          and(
-            eq(schema.pageOperationStates.pageId, input.pageId),
-            eq(schema.pageOperationStates.workspaceId, this.#deps.workspaceId),
-          ),
-        );
-      await tx
-        .update(schema.items)
-        .set({ currentRevisionId: revisionId, updatedAt: this.#deps.now() })
-        .where(eq(schema.items.id, input.pageId));
-
-      const acceptedAt = this.#deps.now();
-      await tx.insert(schema.mutations).values({
-        id: input.mutationId,
-        workspaceId: this.#deps.workspaceId,
-        commandType: "page-operations.updated",
-        status: "accepted",
-        submittedAt: acceptedAt,
-        acceptedAt,
-        resultRevisionIds: [revisionId],
-      });
-      await recordChange(tx, {
-        workspaceId: this.#deps.workspaceId,
-        mutationId: input.mutationId,
-        revisionIds: [revisionId],
-        changedItemIds: [input.pageId],
-      });
-      return { revisionId };
-    };
-    if (existingTx !== undefined) {
-      return await work(existingTx);
-    }
-    const { revisionId } = await runMutation(this.#deps.db, work);
-    return { revisionId };
-  }
-
   async sync(input: {
     readonly pageId: Uuid;
     readonly deviceId: Uuid;
@@ -649,6 +517,138 @@ export class PageOperationService {
       }
     }
     return response;
+  }
+
+  async loadForMutation(tx: Transaction, pageId: Uuid): Promise<LoadedOperationalPage> {
+    return await this.#load(tx, pageId);
+  }
+
+  /**
+   * Applies server-authored commands — ambiguity resolutions today — through
+   * the same transactional path as client updates: transact, project,
+   * materialize, append an accepted update row, then record one change-feed
+   * entry (plan §8: a resolution is a semantic boundary).
+   *
+   * The resolution revision closes the consolidation window and becomes the
+   * page's retained boundary; source updates stay immutable.
+   */
+  /**
+   * Applies server-authored commands — ambiguity resolutions today — inside
+   * the caller's transaction: transact, project, materialize, append an
+   * accepted update row, then record one change-feed entry (plan §8: a
+   * resolution is a semantic boundary).
+   *
+   * The resolution revision closes the consolidation window and becomes the
+   * page's retained boundary; source updates stay immutable. Announcements
+   * belong to the caller, which knows when its own transaction commits.
+   */
+  async applyServerCommands(
+    input: {
+      readonly pageId: Uuid;
+      readonly deviceId: Uuid;
+      readonly mutationId: Uuid;
+      readonly commands: readonly import("@myownnotion/page-state").PageCommand[];
+    },
+    tx: Transaction,
+  ): Promise<{ revisionId: Uuid }> {
+    const loaded = await this.#load(tx, input.pageId);
+    const document = loaded.document;
+    // The resolution applies on top of the current merged state; its causal
+    // base is therefore exactly what the page holds before transacting.
+    const baseVersionVector = document.versionVectorBytes();
+    const transaction = document.transact(input.commands);
+    if (!transaction.changed) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "A resolution produced no operational change.",
+        409,
+      );
+    }
+    const [projection, resultCheckpoint] = await Promise.all([
+      document.project(),
+      document.checkpoint(),
+    ]);
+    await this.#deps.materializer.materialize(tx, {
+      workspaceId: this.#deps.workspaceId,
+      pageId: input.pageId,
+      revisionId: loaded.state.lastRevisionId as Uuid,
+      projection,
+    });
+
+    const baseFrontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
+      versionVector: baseVersionVector,
+      frontiers: document.frontiersForVersionVector(baseVersionVector),
+    });
+    const resultFrontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
+      versionVector: resultCheckpoint.versionVector,
+      frontiers: resultCheckpoint.frontiers,
+    });
+    const updateEnvelopeId = await this.#deps.crypto.sealBytes(
+      tx,
+      "update",
+      transaction.updateBytes,
+    );
+    await appendAcceptedPageOperationUpdate(tx, {
+      updateId: input.mutationId,
+      pageId: input.pageId,
+      workspaceId: this.#deps.workspaceId,
+      authoredByDeviceId: input.deviceId,
+      baseFrontierEnvelopeId,
+      resultFrontierEnvelopeId,
+      updateEnvelopeId,
+      updateDigest: await sha256Hex(transaction.updateBytes),
+      operationalDigest: projection.operationalDigest,
+      canonicalDigest: projection.canonicalDigest,
+      acceptedAt: this.#deps.now(),
+    });
+
+    const revisionId = generateUuidV7();
+    await insertRevision(tx, {
+      id: revisionId,
+      itemId: input.pageId,
+      mutationId: input.mutationId,
+      parentRevisionIds:
+        loaded.state.lastRevisionId === null ? [] : [loaded.state.lastRevisionId as Uuid],
+      snapshot: await buildItemSnapshot(tx, input.pageId),
+      acceptedAt: this.#deps.now(),
+    });
+    await tx
+      .update(schema.pageOperationStates)
+      .set({
+        lastRevisionId: revisionId,
+        revisionWindowStartedAt: null,
+        revisionWindowLastUpdateAt: null,
+        revisionWindowFrontierEnvelopeId: null,
+        updatedAt: this.#deps.now(),
+      })
+      .where(
+        and(
+          eq(schema.pageOperationStates.pageId, input.pageId),
+          eq(schema.pageOperationStates.workspaceId, this.#deps.workspaceId),
+        ),
+      );
+    await tx
+      .update(schema.items)
+      .set({ currentRevisionId: revisionId, updatedAt: this.#deps.now() })
+      .where(eq(schema.items.id, input.pageId));
+
+    const acceptedAt = this.#deps.now();
+    await tx.insert(schema.mutations).values({
+      id: input.mutationId,
+      workspaceId: this.#deps.workspaceId,
+      commandType: "page-operations.updated",
+      status: "accepted",
+      submittedAt: acceptedAt,
+      acceptedAt,
+      resultRevisionIds: [revisionId],
+    });
+    await recordChange(tx, {
+      workspaceId: this.#deps.workspaceId,
+      mutationId: input.mutationId,
+      revisionIds: [revisionId],
+      changedItemIds: [input.pageId],
+    });
+    return { revisionId };
   }
 
   /**

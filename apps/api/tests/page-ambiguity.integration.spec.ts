@@ -1,6 +1,6 @@
 /** Durable delete/edit ambiguities: detection, detail, resolution (T143, US5). */
 
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { type CanonicalBlockV3, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -75,6 +75,19 @@ function syncPayload(
         createdAt: "2026-08-22T06:00:00.000Z",
       },
     ],
+    maxRemoteBytes: 1024 * 1024,
+  };
+}
+
+function syncEmpty(headers: Record<string, string>, persistedVersionVector: Uint8Array) {
+  void headers;
+  return {
+    mode: "active",
+    requestId: generateUuidV7(),
+    operationalVersion: 1,
+    persistedVersionVector: Buffer.from(persistedVersionVector).toString("base64url"),
+    knownServerPageSequence: 0,
+    updates: [],
     maxRemoteBytes: 1024 * 1024,
   };
 }
@@ -222,5 +235,119 @@ describe("page ambiguities", () => {
       },
     });
     expect(repeat.statusCode).toBe(409);
+
+    // Unknown identifiers stay not-found without leaking detail.
+    const unknownDetail = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/page-ambiguities/${generateUuidV7()}`,
+      headers,
+    });
+    expect(unknownDetail.statusCode).toBe(404);
+    const unknownResolve = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-ambiguities/${generateUuidV7()}/resolve`,
+      headers,
+      payload: { requestId: generateUuidV7(), decision: "confirm-delete" },
+    });
+    expect(unknownResolve.statusCode).toBe(404);
+
+    // A custom decision without its result block is refused with a stable
+    // validation problem, not an unexpected failure.
+    const customWithoutResult = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-ambiguities/${summary?.ambiguityId}/resolve`,
+      headers,
+      payload: { requestId: generateUuidV7(), decision: "custom" },
+    });
+    expect(customWithoutResult.statusCode).toBe(400);
+  });
+
+  it("installs a custom resolution result as the owner supplied it", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage();
+    const left = await activateActiveReplica(page, headers);
+    const right = await activateActiveReplica(page, headers);
+
+    const seed = left.transact([
+      {
+        type: "insert-block",
+        parentBlockId: null,
+        beforeBlockId: null,
+        block: { type: "paragraph", id: BLOCK_A, content: [{ text: "original" }] },
+      },
+    ]);
+    right.importUpdate(seed.updateBytes);
+    const seedPayload = syncPayload(left, seed);
+    const seedUpdate = seedPayload.updates[0];
+    if (seedUpdate === undefined) throw new Error("seed payload lost its update");
+    seedUpdate.updateDigest = await sha256Hex(seed.updateBytes);
+    const seeded = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: seedPayload,
+    });
+    expect(seeded.statusCode, seeded.body).toBe(200);
+
+    const deletion = left.transact([{ type: "delete-block", blockId: BLOCK_A }]);
+    const edition = right.transact([
+      { type: "replace-text", blockId: BLOCK_A, from: 0, to: 8, text: "édité" },
+    ]);
+    for (const [replica, transaction] of [
+      [left, deletion],
+      [right, edition],
+    ] as const) {
+      const payload = syncPayload(replica, transaction);
+      const update = payload.updates[0];
+      if (update === undefined) throw new Error("payload lost its update");
+      update.updateDigest = await sha256Hex(transaction.updateBytes);
+      const response = await harness.api.built.app.inject({
+        method: "POST",
+        url: `/v1/page-operations/${page.itemId}/sync`,
+        headers,
+        payload,
+      });
+      expect(response.statusCode, response.body).toBe(200);
+    }
+
+    const list = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: syncEmpty(headers, left.versionVectorBytes()),
+    });
+    expect(list.statusCode, list.body).toBe(200);
+    const ambiguities = (list.json() as { ambiguities: Array<{ ambiguityId: string }> })
+      .ambiguities;
+    const summary = ambiguities.at(-1);
+    expect(summary).toBeDefined();
+
+    const customBlock: CanonicalBlockV3 = {
+      type: "paragraph",
+      id: BLOCK_A,
+      content: [{ text: "fusion manuelle du propriétaire" }],
+    };
+    const resolved = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-ambiguities/${summary?.ambiguityId}/resolve`,
+      headers,
+      payload: {
+        requestId: generateUuidV7(),
+        decision: "custom",
+        result: customBlock,
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    });
+    expect(resolved.statusCode, resolved.body).toBe(200);
+
+    const stored = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${page.itemId}`,
+      headers,
+    });
+    expect(JSON.stringify(stored.json().pageDocument.body)).toContain(
+      "fusion manuelle du propriétaire",
+    );
   });
 });

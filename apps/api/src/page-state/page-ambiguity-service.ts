@@ -162,12 +162,11 @@ export class PageAmbiguityService {
                 beforeBlockId: input.request.beforeBlockId ?? null,
               } as const;
             case "custom":
-              if (input.request.result === undefined) {
-                throw new SemanticConflictError("a custom resolution requires its result block");
-              }
+              // The request contract requires `result` for custom decisions;
+              // parseResolvePageAmbiguityRequest has rejected anything else.
               return {
                 decision: "custom",
-                result: input.request.result,
+                result: input.request.result as CanonicalBlockV3,
                 parentBlockId: input.request.parentBlockId ?? null,
                 beforeBlockId: input.request.beforeBlockId ?? null,
               } as const;
