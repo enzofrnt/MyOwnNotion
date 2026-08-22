@@ -97,19 +97,21 @@ export class BackupSchedule {
     if (this.#running) {
       // A backup already in flight. Starting a second would produce two archives
       // of the same moment and, worse, two writers staging to the same place.
-      return;
-    }
-    const due = backupIsDue({
-      now: this.#now(),
-      lastRunAt: await this.deps.lastScheduledRunAt(),
-      hour: this.deps.hour ?? DEFAULT_BACKUP_HOUR,
-      timeZone: this.deps.timeZone ?? "UTC",
-    });
-    if (!due) {
+      // The claim is made before the first await: two ticks arriving together
+      // must both see it, not both miss it.
       return;
     }
     this.#running = true;
     try {
+      const due = backupIsDue({
+        now: this.#now(),
+        lastRunAt: await this.deps.lastScheduledRunAt(),
+        hour: this.deps.hour ?? DEFAULT_BACKUP_HOUR,
+        timeZone: this.deps.timeZone ?? "UTC",
+      });
+      if (!due) {
+        return;
+      }
       await this.deps.runBackup();
     } finally {
       this.#running = false;

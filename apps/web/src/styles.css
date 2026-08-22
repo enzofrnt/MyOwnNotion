@@ -323,12 +323,6 @@ select {
   border-top: 1px solid var(--border);
 }
 
-.entry-task-property > .muted {
-  margin: 0 0 0.25rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
 .database-schema ul {
   display: grid;
   gap: 0.4rem;
@@ -989,6 +983,15 @@ select {
   font-size: 0.8rem;
 }
 
+/* Declared after `.muted` so the pair never descends in specificity: the
+   compound selector must keep winning the shared font-size without relying
+   on source position against the utility it refines. */
+.entry-task-property > .muted {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 /* Links, which had no style at all until feature 005 added the first one.
    An unstyled anchor takes the browser's default dark blue, which on this dark
    surface fails the contrast threshold outright — caught by the axe audit over
@@ -1533,8 +1536,40 @@ textarea {
   border-radius: var(--ui-radius-md);
 }
 
-.page-editor .bn-block-content[data-content-type="codeBlock"] pre,
-.editor-surface pre {
+/* Generic monospace overflow floors, declared here rather than in the
+   narrow-viewport section so every later compound selector that ends in
+   `pre` or `code` sits above them instead of below. */
+pre,
+code {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Long unbroken strings — a URL, an identifier — break rather than push.
+   `.tree-name` needs no entry: it only ever appears inside `.tree-row`,
+   which already breaks words. */
+code,
+.save-state {
+  overflow-wrap: anywhere;
+}
+
+.editor-code-block pre {
+  margin: 0;
+  padding: var(--ui-space-3) var(--ui-space-4) var(--ui-space-4);
+  border: 0;
+}
+
+/* Each version stays legible without becoming the whole screen. */
+.conflict-columns pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.editor-surface pre,
+.page-editor .bn-block-content[data-content-type="codeBlock"] pre {
   max-width: 100%;
   overflow-x: auto;
   font-family: var(--ui-font-mono);
@@ -1802,12 +1837,6 @@ textarea {
 .editor-embed-block :focus-visible {
   outline: 2px solid var(--ui-color-focus);
   outline-offset: 1px;
-}
-
-.editor-code-block pre {
-  margin: 0;
-  padding: var(--ui-space-3) var(--ui-space-4) var(--ui-space-4);
-  border: 0;
 }
 
 .page-editor .bn-block:has(> .bn-block-content[data-content-type="table"]) {
@@ -2108,20 +2137,9 @@ input[type="file"] {
   overflow-x: clip;
 }
 
-pre,
-code,
-.editor-surface pre {
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-/* Long unbroken strings — a URL, an identifier — break rather than push. */
-code,
-.tree-name,
-.save-state,
-.connection-status code {
-  overflow-wrap: anywhere;
-}
+/* The `pre`/`code` overflow floors that serve this section live beside the
+   editor's code-block rules (which they must not out-rank), earlier in this
+   file. */
 
 .connection-status {
   margin-bottom: 1rem;
@@ -2274,15 +2292,6 @@ code,
   padding: 0.5rem;
   vertical-align: top;
   text-align: left;
-}
-
-.conflict-columns pre {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  /* Each version stays legible without becoming the whole screen. */
-  max-height: 12rem;
-  overflow-y: auto;
 }
 
 .conflict-columns fieldset {

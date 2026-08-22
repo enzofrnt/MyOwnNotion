@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import {
   executeCommand,
+  executeImportFile,
   type MutationContext,
   previewDatabaseTrashImpact,
   readCurrentDatabaseDefinition,
@@ -171,5 +173,65 @@ describe("database lifecycle is one membership-aware transaction (T102)", () => 
     expect((await context.handle.db.select().from(schema.revisions)).length).toBe(
       revisionCountTrashed,
     );
+  });
+});
+
+describe("a file inside a trashed branch", () => {
+  it("loses its in-branch placement and is trashed with it when nothing else holds it", async () => {
+    const folderId = generateUuidV7();
+    await submit({
+      type: "item.create",
+      id: folderId,
+      kind: "folder",
+      name: "Branche",
+      placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+    });
+
+    // Import a file directly inside the folder (hierarchy placement).
+    const fileId = generateUuidV7();
+    const bytes = new TextEncoder().encode("pièce jointe");
+    const importMutationId = generateUuidV7();
+    await runMutation(context.handle.db, async (tx) => {
+      const execution = await executeImportFile(tx, {
+        mutationId: importMutationId,
+        workspaceId: context.workspaceId,
+        itemId: fileId,
+        name: "piece.txt",
+        mediaType: "text/plain",
+        content: {
+          contentId: generateUuidV7(),
+          sha256: new Uint8Array(createHash("sha256").update(bytes).digest()),
+          byteLength: bytes.byteLength,
+          storageKey: createHash("sha256").update(bytes).digest("hex"),
+          verifiedAt: new Date(),
+          reusedExisting: false,
+        },
+        placement: { kind: "hierarchy", parentItemId: folderId, positionKey: "V" },
+        acceptedAt: new Date(),
+      });
+      if (!execution.ok) throw new Error(execution.error.code);
+      await tx.insert(schema.mutations).values({
+        id: importMutationId,
+        workspaceId: context.workspaceId,
+        commandType: "file.import",
+        status: "accepted",
+        submittedAt: new Date(),
+        acceptedAt: new Date(),
+        resultRevisionIds: [execution.value.revisionId],
+      });
+    });
+
+    const trash = await submit({ type: "item.trash", itemId: folderId });
+    expect(trash.result.status).toBe("accepted");
+    expect(trash.changedItemIds).toContain(fileId);
+
+    const states = await context.handle.db
+      .select({ id: schema.items.id, lifecycle: schema.items.lifecycle })
+      .from(schema.items)
+      .where(inArray(schema.items.id, [folderId, fileId]));
+    expect(new Set(states.map((row) => row.lifecycle))).toEqual(new Set(["trashed"]));
+
+    const restore = await submit({ type: "item.restore", itemId: folderId });
+    expect(restore.result.status).toBe("accepted");
   });
 });

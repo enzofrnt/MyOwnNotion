@@ -913,3 +913,39 @@ describe("commands with no offline semantics", () => {
     });
   }
 });
+
+describe("conversion and definition validation", () => {
+  it("refuses converting a page with content to a folder without confirmation", async () => {
+    const id = generateUuidV7();
+    const create = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.create",
+        payload: {
+          id,
+          kind: "page",
+          name: "With content",
+          placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+    expect(create.ok).toBe(true);
+
+    const convert = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.convert",
+        payload: { id, targetKind: "folder", confirmedDestruction: false },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+    expect(convert.ok).toBe(false);
+  });
+});

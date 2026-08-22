@@ -534,3 +534,71 @@ describe("PageReconciler", () => {
     expect(conversionRequests).toBe(1);
   });
 });
+
+describe("reconciler refusal paths", () => {
+  it("blocks the page when the local state has no checkpoint", async () => {
+    const pageId = generateUuidV7();
+    const reconciler = new PageReconciler({
+      pageId,
+      log,
+      transport: {
+        async sync() {
+          return { ok: false, offline: false, problem: { code: "ok", message: "" } };
+        },
+        async convertLegacyBranch() {
+          throw new Error("unexpected legacy-branch conversion");
+        },
+      },
+    });
+    const outcome = await reconciler.synchronize();
+    expect(outcome.kind).toBe("blocked");
+    if (outcome.kind === "blocked") {
+      expect(outcome.problemCode).toBe("page-operations.local-state-missing");
+    }
+  });
+
+  it("returns offline when the transport reports a network failure", async () => {
+    const { pageId, blockId, page } = fixture();
+    await commitEdit(page, blockId, "B", 1);
+    const reconciler = new PageReconciler({
+      pageId,
+      log,
+      transport: {
+        async sync() {
+          return { ok: false, offline: true, problem: { code: "network", message: "offline" } };
+        },
+        async convertLegacyBranch() {
+          throw new Error("unexpected legacy-branch conversion");
+        },
+      },
+    });
+    const outcome = await reconciler.synchronize();
+    expect(outcome.kind).toBe("offline");
+  });
+
+  it("propagates blocking problem codes from the server", async () => {
+    const { pageId, blockId, page } = fixture();
+    await commitEdit(page, blockId, "B", 1);
+    const reconciler = new PageReconciler({
+      pageId,
+      log,
+      transport: {
+        async sync() {
+          return {
+            ok: false,
+            offline: false,
+            problem: { code: "page-operations.device-revoked", message: "revoked" },
+          };
+        },
+        async convertLegacyBranch() {
+          throw new Error("unexpected legacy-branch conversion");
+        },
+      },
+    });
+    const outcome = await reconciler.synchronize();
+    expect(outcome.kind).toBe("blocked");
+    if (outcome.kind === "blocked") {
+      expect(outcome.problemCode).toBe("page-operations.device-revoked");
+    }
+  });
+});

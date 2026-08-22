@@ -419,3 +419,66 @@ describe("derivePageSyncState", () => {
     ).toMatchObject({ kind: "blocked", blockedReason: "operation", locallyDurable: true });
   });
 });
+
+describe("recovery and remote adoption", () => {
+  it("retries a blocked commit once durability is available again", async () => {
+    const { blockId, page } = pageFixture();
+    const quotaFailure = new DOMException("quota exhausted", "QuotaExceededError");
+    const durable = new LocalPageStateStore(log);
+    let failing = true;
+    const session = await PageEditingSession.open({
+      page,
+      log,
+      store: {
+        async commitLocalTransaction(input) {
+          if (failing) throw quotaFailure;
+          return await durable.commitLocalTransaction(input);
+        },
+      },
+    });
+
+    await expect(
+      session.transact({
+        type: "replace-text",
+        blockId,
+        from: 1,
+        to: 1,
+        text: " retenu",
+      }),
+    ).rejects.toBe(quotaFailure);
+    expect(session.recoveryBuffer).not.toBeNull();
+
+    failing = false;
+    const retried = await session.retryBlockedCommit();
+    expect(retried.changed).toBe(true);
+    expect(session.recoveryBuffer).toBeNull();
+    expect(session.read().blocks[0]).toMatchObject({
+      content: [{ text: "A retenu" }],
+    });
+    // The retried transaction reached the durable store exactly once.
+    expect(await db.pageOperationUpdates.count()).toBe(1);
+  });
+
+  it("adopts a remotely advanced durable page into the visible editor", async () => {
+    const { blockId, page } = pageFixture();
+    const session = await PageEditingSession.open({
+      page,
+      log,
+      store: new LocalPageStateStore(log),
+    });
+    await session.transact({
+      type: "replace-text",
+      blockId,
+      from: 1,
+      to: 1,
+      text: "A",
+    });
+
+    // Adopt through the same seam the reconciler uses after committing a
+    // response: the visible editor re-reads the durable authority and
+    // confirms it includes everything the editor shows (FR-059).
+    await session.adoptDurablePage();
+    expect(session.sync.synchronizationKind).not.toBe("blocked");
+    expect(session.read().blocks[0]).toMatchObject({ content: [{ text: "AA" }] });
+  });
+});

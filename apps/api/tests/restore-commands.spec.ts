@@ -344,4 +344,64 @@ describe("recorded restoration commands", () => {
       data: { backupId: applyFailureId, errorType: "unknown" },
     });
   });
+
+  it("applies a destructive restoration over an explicit --yes", async () => {
+    const backupId = await seedBackup();
+    const result = await restoreApplyCommand(
+      {
+        db: harness.built.context.db,
+        workspaceId: harness.built.context.workspaceId,
+        destination,
+        open: async (ciphertext) => ciphertext,
+        installation: { schemaVersion: 1, recordFormatVersion: 1 },
+        contentStore: harness.built.context.contentStore,
+        safetyBackup: async () => randomUUID(),
+      },
+      { id: backupId, dryRun: false, yes: true, terminalAvailable: false },
+    );
+    expect(result.code).toBe(0);
+    // The workspace was cleared and the archive's state written back in its
+    // place, inside one transaction.
+    const attempts = await harness.built.context.db
+      .select()
+      .from(schema.restorationAttempts)
+      .where(eq(schema.restorationAttempts.backupId, backupId));
+    expect(attempts.at(-1)).toMatchObject({ outcome: "succeeded" });
+  });
+
+  it("asks on the terminal when no --yes was given, and obeys the answer", async () => {
+    const deps = {
+      db: harness.built.context.db,
+      workspaceId: harness.built.context.workspaceId,
+      destination,
+      open: async (ciphertext: Buffer) => ciphertext,
+      installation: { schemaVersion: 1, recordFormatVersion: 1 },
+      contentStore: harness.built.context.contentStore,
+      safetyBackup: async () => randomUUID(),
+    };
+    const declinedId = await seedBackup();
+    const seenScopes: unknown[] = [];
+    const declined = await restoreApplyCommand(deps, {
+      id: declinedId,
+      dryRun: false,
+      yes: false,
+      terminalAvailable: true,
+      askForConfirmation: (scope) => {
+        seenScopes.push(scope);
+        return false;
+      },
+    });
+    expect(seenScopes).toHaveLength(1);
+    expect(declined.code).toBe(3);
+
+    const approvedId = await seedBackup();
+    const approved = await restoreApplyCommand(deps, {
+      id: approvedId,
+      dryRun: false,
+      yes: false,
+      terminalAvailable: true,
+      askForConfirmation: async () => true,
+    });
+    expect(approved.code).toBe(0);
+  });
 });

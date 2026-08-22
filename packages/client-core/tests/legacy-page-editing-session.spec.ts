@@ -504,3 +504,54 @@ async function installConvertedCheckpoint(
     });
   }
 }
+
+describe("blocked-commit recovery on the legacy branch", () => {
+  it("retries a failed durability commit and clears the recovery buffer", async () => {
+    const input = fixture();
+    const quotaFailure = new DOMException("quota exhausted", "QuotaExceededError");
+    const realStore = new LegacyPageStateStore(log);
+    let failing = true;
+    const session = await LegacyPageEditingSession.open({
+      ...input,
+      log,
+      store: {
+        async commitLegacyBranch(commit) {
+          if (failing) throw quotaFailure;
+          return await realStore.commitLegacyBranch(commit);
+        },
+      },
+    });
+
+    await expect(
+      session.transact({
+        type: "replace-text",
+        blockId: input.blockId,
+        from: 6,
+        to: 6,
+        text: " retenu",
+      }),
+    ).rejects.toBe(quotaFailure);
+    expect(session.sync.kind).toBe("blocked");
+    expect(session.recoveryBuffer).not.toBeNull();
+
+    failing = false;
+    const retried = await session.retryBlockedCommit();
+    expect(retried.changed).toBe(true);
+    expect(session.recoveryBuffer).toBeNull();
+    expect(session.read().blocks[0]).toMatchObject({
+      content: [{ text: "Secret retenu" }],
+    });
+  });
+
+  it("refuses a retry when nothing is blocked", async () => {
+    const input = fixture();
+    const session = await LegacyPageEditingSession.open({
+      ...input,
+      log,
+      store: new LegacyPageStateStore(log),
+    });
+    await expect(session.retryBlockedCommit()).rejects.toBeInstanceOf(
+      LegacyPageEditingSessionBlockedError,
+    );
+  });
+});

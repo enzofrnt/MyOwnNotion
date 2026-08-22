@@ -8,8 +8,8 @@
  * rather than adding to the last run.
  */
 
-import { describe, expect, it } from "vitest";
-import { backupIsDue, dayIn, hourIn } from "../src/backup/schedule.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { BackupSchedule, backupIsDue, dayIn, hourIn } from "../src/backup/schedule.ts";
 
 const PARIS = "Europe/Paris";
 
@@ -105,5 +105,113 @@ describe("the days a clock moves", () => {
     // 23:30 UTC is already tomorrow in Paris, and a schedule that used UTC days
     // would run twice on one Paris day and never on another.
     expect(dayIn(PARIS, at("2026-08-18T23:30:00Z"))).toBe("2026-08-19");
+  });
+});
+
+describe("the schedule loop", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function scheduleWith(overrides: {
+    readonly runBackup?: () => Promise<void>;
+    readonly lastScheduledRunAt?: () => Promise<Date | null>;
+    readonly logger?: { error: (details: unknown, message: string) => void };
+    readonly now?: () => Date;
+  }): BackupSchedule & { runs: number[] } {
+    const state = { runs: [] as number[] };
+    const schedule = new BackupSchedule({
+      runBackup:
+        overrides.runBackup ??
+        (async () => {
+          state.runs.push(Date.now());
+        }),
+      lastScheduledRunAt: overrides.lastScheduledRunAt ?? (async () => null),
+      logger: overrides.logger ?? { error: () => undefined },
+      hour: 4,
+      timeZone: "UTC",
+      ...(overrides.now === undefined ? {} : { now: overrides.now }),
+    });
+    return Object.assign(schedule, state);
+  }
+
+  it("runs when due and stays quiet when not", async () => {
+    const due = scheduleWith({ now: () => at("2026-08-18T04:00:00Z") });
+    await due.evaluate();
+    expect(due.runs).toHaveLength(1);
+
+    const early = scheduleWith({ now: () => at("2026-08-18T03:59:00Z") });
+    await early.evaluate();
+    expect(early.runs).toHaveLength(0);
+  });
+
+  it("never starts a second backup while one is in flight", async () => {
+    // Two ticks firing while the first archive is still being written would
+    // stage two archives of the same moment into the same place.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    const schedule = new BackupSchedule({
+      runBackup: async () => {
+        calls += 1;
+        await gate;
+      },
+      lastScheduledRunAt: async () => null,
+      logger: { error: () => undefined },
+      now: () => at("2026-08-18T04:00:00Z"),
+    });
+    const first = schedule.evaluate();
+    await schedule.evaluate();
+    release();
+    await first;
+    expect(calls).toBe(1);
+  });
+
+  it("keeps the schedule alive when an evaluation fails", async () => {
+    vi.useFakeTimers();
+    const logged: string[] = [];
+    const schedule = new BackupSchedule({
+      runBackup: async () => undefined,
+      lastScheduledRunAt: async () => {
+        throw new Error("the ledger is unreadable");
+      },
+      logger: { error: (_details, message) => logged.push(message) },
+      now: () => at("2026-08-18T04:00:00Z"),
+      tickMs: 1_000,
+    });
+    schedule.start();
+    await vi.advanceTimersByTimeAsync(2_500);
+    schedule.stop();
+    // The immediate evaluation plus the ticks at one and two seconds all
+    // failed, and every failure was caught by the guard rather than escaping:
+    // one bad night must not become permanent silence.
+    expect(logged).toEqual([
+      "scheduled backup failed",
+      "scheduled backup failed",
+      "scheduled backup failed",
+    ]);
+  });
+
+  it("stops cleanly and releases the timer", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    const schedule = new BackupSchedule({
+      runBackup: async () => {
+        calls += 1;
+      },
+      lastScheduledRunAt: async () => null,
+      logger: { error: () => undefined },
+      now: () => at("2026-08-18T04:00:00Z"),
+      tickMs: 1_000,
+    });
+    schedule.start();
+    await vi.advanceTimersByTimeAsync(0);
+    schedule.stop();
+    await vi.advanceTimersByTimeAsync(10_000);
+    // The immediate evaluation happened; nothing after `stop` did. A timer that
+    // kept the event loop alive would also stop the container from ever exiting.
+    expect(calls).toBe(1);
   });
 });

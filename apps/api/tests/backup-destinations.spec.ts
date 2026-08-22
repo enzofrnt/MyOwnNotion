@@ -18,6 +18,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BackupDestination } from "../src/backup/destinations/destination.ts";
+import { DestinationUnavailableError } from "../src/backup/destinations/destination.ts";
 import { FilesystemDestination } from "../src/backup/destinations/filesystem.ts";
 import { GoogleDriveDestination } from "../src/backup/destinations/google-drive.ts";
 
@@ -175,5 +176,24 @@ describe("what a destination is told", () => {
     // A provider that can list your backups should learn nothing from the
     // listing: a date and an identifier, never an item count or a title.
     expect(name).not.toMatch(/item|page|folder|workspace/i);
+  });
+});
+
+describe("an unusable destination", () => {
+  it("names the destination, not tonight's archive", () => {
+    // An unreachable destination means every backup will fail until somebody
+    // fixes it: the error has to point at the destination itself.
+    const error = new DestinationUnavailableError("filesystem", "the root is gone");
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe("DestinationUnavailableError");
+    expect(error.destination).toBe("filesystem");
+    expect(error.message).toBe("backup destination filesystem is unavailable: the root is gone");
+  });
+
+  it("is what a traversal-shaped name raises", async () => {
+    const destination = new FilesystemDestination(mkdtempSync(path.join(root, "traversal-")));
+    await expect(
+      destination.put("../escape.bin", Readable.from(Buffer.from("no")), 2),
+    ).rejects.toMatchObject({ name: "DestinationUnavailableError" });
   });
 });

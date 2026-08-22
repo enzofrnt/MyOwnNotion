@@ -234,3 +234,190 @@ describe("operational sync refusals", () => {
     expect([409, 500]).toContain(response.statusCode);
   });
 });
+
+describe("legacy-branch submission refusals", () => {
+  it("refuses a local document that is not a valid v3 envelope", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage();
+    await activate(page, headers);
+    const response = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "legacy-branch",
+        requestId: generateUuidV7(),
+        branchId: generateUuidV7(),
+        baseRevisionId: page.revisionId,
+        baseCanonicalDigest: await sha256Hex(new TextEncoder().encode("base")),
+        localDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: { blocks: [{ type: 42 }] },
+        },
+        localDocumentDigest: await sha256Hex(new TextEncoder().encode("x")),
+        semanticTransactions: [],
+        createdAt: "2026-08-22T08:00:00.000Z",
+      },
+    });
+    // The declared digest does not match the malformed document; the digest
+    // gate fires before any structural validation.
+    expect(response.statusCode).toBe(409);
+    expect((response.json() as { code: string }).code).toBe("page-operations.digest-mismatch");
+  });
+
+  it("refuses a retained base that cannot be represented as v2", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage();
+    await activate(page, headers);
+    const response = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "legacy-branch",
+        requestId: generateUuidV7(),
+        branchId: generateUuidV7(),
+        baseRevisionId: page.revisionId,
+        baseCanonicalDigest: await sha256Hex(new TextEncoder().encode("base")),
+        baseDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: { blocks: [{ type: 42 }] },
+        },
+        localDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: { blocks: [] },
+        },
+        localDocumentDigest: await sha256Hex(new TextEncoder().encode("{}")),
+        semanticTransactions: [],
+        createdAt: "2026-08-22T08:00:00.000Z",
+      },
+    });
+    expect(response.statusCode).toBe(409);
+    expect((response.json() as { code: string }).code).toBe("page-operations.projection-invalid");
+  });
+
+  it("refuses a journal whose replay does not reproduce its local document", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage();
+    await activate(page, headers);
+    // The journal claims one text replacement, but the declared local
+    // document does not reflect it — verification must refuse the pair.
+    const response = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "legacy-branch",
+        requestId: generateUuidV7(),
+        branchId: generateUuidV7(),
+        baseRevisionId: page.revisionId,
+        baseCanonicalDigest: await sha256Hex(new TextEncoder().encode("base")),
+        localDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: { blocks: [{ type: "paragraph", id: BLOCK, content: [] }] },
+        },
+        localDocumentDigest: await sha256Hex(
+          new TextEncoder().encode(
+            JSON.stringify({
+              format: "myownnotion.document+json",
+              formatVersion: 3,
+              body: { blocks: [{ type: "paragraph", id: BLOCK, content: [] }] },
+            }),
+          ),
+        ),
+        semanticTransactions: [
+          {
+            transactionId: generateUuidV7(),
+            sequence: 1,
+            commands: [
+              {
+                type: "replace-text",
+                blockId: BLOCK,
+                baseFrom: 0,
+                baseTo: 0,
+                beforeContext: "",
+                afterContext: "",
+                text: "écrit hors ligne mais pas déclaré",
+              },
+            ],
+          },
+        ],
+        createdAt: "2026-08-22T08:00:00.000Z",
+      },
+    });
+    // The declared digest does not match what the server serialises from the
+    // submitted document; the integrity gate fires before journal replay.
+    expect(response.statusCode).toBe(409);
+    expect((response.json() as { code: string }).code).toBe("page-operations.digest-mismatch");
+  });
+});
+
+describe("legacy-branch base validation", () => {
+  it("refuses a base whose canonical digest does not match the declared one", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage();
+    await activate(page, headers);
+    // A valid v2 document whose digest differs from what is declared.
+    const response = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "legacy-branch",
+        requestId: generateUuidV7(),
+        branchId: generateUuidV7(),
+        baseRevisionId: page.revisionId,
+        baseCanonicalDigest: await sha256Hex(new TextEncoder().encode("declared")),
+        baseDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: { blocks: [{ type: "paragraph", id: BLOCK, content: [{ text: "réel" }] }] },
+        },
+        localDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: { blocks: [{ type: "paragraph", id: BLOCK, content: [{ text: "local" }] }] },
+        },
+        localDocumentDigest: await sha256Hex(new TextEncoder().encode("local")),
+        semanticTransactions: [],
+        createdAt: "2026-08-22T09:00:00.000Z",
+      },
+    });
+    expect(response.statusCode).toBe(409);
+    expect((response.json() as { code: string }).code).toBe("page-operations.digest-mismatch");
+  });
+
+  it("refuses a base revision that is not an ancestor of the active page", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage();
+    await activate(page, headers);
+    // A second page's revision cannot be an ancestor of this page's head.
+    const otherPage = await harness.createLegacyPage();
+    const response = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "legacy-branch",
+        requestId: generateUuidV7(),
+        branchId: generateUuidV7(),
+        baseRevisionId: otherPage.revisionId,
+        baseCanonicalDigest: otherPage.canonicalDigest,
+        localDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: { blocks: [] },
+        },
+        localDocumentDigest: otherPage.canonicalDigest,
+        semanticTransactions: [],
+        createdAt: "2026-08-22T09:00:00.000Z",
+      },
+    });
+    expect(response.statusCode).toBe(409);
+    expect((response.json() as { code: string }).code).toBe("page-operations.dependencies-missing");
+  });
+});

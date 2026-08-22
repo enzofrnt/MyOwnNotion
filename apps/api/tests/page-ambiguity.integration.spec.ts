@@ -57,7 +57,7 @@ async function activateActiveReplica(
 }
 
 function syncPayload(
-  replica: OperationalPageDocument,
+  _replica: OperationalPageDocument,
   transaction: ReturnType<OperationalPageDocument["transact"]>,
 ) {
   return {
