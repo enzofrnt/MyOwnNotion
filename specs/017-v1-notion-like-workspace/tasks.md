@@ -236,9 +236,9 @@ chaque frontière puis retrouver transaction, curseur, scroll et statut exacts.
 
 - [x] T105 [P] [US4] Écrire les tests de session editor→commit local→statut dans `packages/client-core/tests/page-editing-session.spec.ts`
 - [x] T106 [P] [US4] Étendre la fault injection de reprise à toutes les frontières dans `packages/client-core/tests/page-operation-atomicity.spec.ts`
-- [ ] T107 [P] [US4] Écrire les tests de scroll par ancre et fallback dans `apps/web/tests/page-scroll-restoration.spec.tsx`
-- [ ] T108 [P] [US4] Écrire les tests quota/clé/protocole et buffer récupérable dans `apps/web/tests/editor-local-failure.spec.tsx`
-- [ ] T109 [P] [US4] Écrire les journeys crash/reload, offline et scroll dans `tests/e2e/page-autosave-recovery.spec.ts` et `tests/e2e/page-scroll-restoration.spec.ts`
+- [x] T107 [P] [US4] Écrire les tests de scroll par ancre et fallback dans `apps/web/tests/page-scroll-restoration.spec.tsx`
+- [x] T108 [P] [US4] Écrire les tests quota/clé/protocole et buffer récupérable dans `apps/web/tests/editor-local-failure.spec.tsx`
+- [x] T109 [P] [US4] Écrire les journeys crash/reload, offline et scroll dans `tests/e2e/page-autosave-recovery.spec.ts` et `tests/e2e/page-scroll-restoration.spec.ts`
 
 ### Implementation for User Story 4
 
@@ -246,12 +246,12 @@ chaque frontière puis retrouver transaction, curseur, scroll et statut exacts.
 - [x] T111 [US4] Dériver `local-saving/local-saved/pending/syncing/synced/offline/blocked/attention` dans `packages/client-core/src/page-sync/page-sync-state.ts`
 - [x] T112 [US4] Remplacer le bouton save par autosauvegarde et statut commun dans `apps/web/src/features/editor/editor-sync-status.tsx` et `apps/web/src/features/save-state/save-state-indicator.tsx`
 - [x] T113 [US4] Implémenter buffer de secours, copie et blocage des gestes destructifs après échec local dans `apps/web/src/features/editor/local-commit-recovery.tsx`
-- [ ] T114 [US4] Reprendre updates `sending`, branches legacy et uploads au boot/online dans `packages/client-core/src/page-sync/page-reconciler.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
-- [ ] T115 [US4] Persister ancre de bloc, offset et fallback pixel dans `packages/client-core/src/navigation/presentation-state.ts`
-- [ ] T116 [US4] Capturer/restaurer sélection et scroll sans saut tardif dans `apps/web/src/features/editor/editor-view-state.ts`
-- [ ] T117 [US4] Intégrer états offline, clés, quota et ambiguïtés à la copie utilisateur dans `apps/web/src/features/save-state/blocked-notice.tsx` et `apps/web/src/ui/copy/fr.ts`
+- [x] T114 [US4] Reprendre updates `sending`, branches legacy et uploads au boot/online dans `packages/client-core/src/page-sync/page-reconciler.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
+- [x] T115 [US4] Persister ancre de bloc, offset et fallback pixel dans `packages/client-core/src/navigation/presentation-state.ts`
+- [x] T116 [US4] Capturer/restaurer sélection et scroll sans saut tardif dans `apps/web/src/features/editor/editor-view-state.ts`
+- [x] T117 [US4] Intégrer états offline, clés, quota et ambiguïtés à la copie utilisateur dans `apps/web/src/features/save-state/blocked-notice.tsx` et `apps/web/src/ui/copy/fr.ts`
 - [x] T118 [US4] Supprimer le bouton de sauvegarde du parcours normal seulement après activation de la session dans `apps/web/src/features/editor/editor-surface.tsx`
-- [ ] T119 [US4] Enregistrer les journeys autosave/scroll dans `ci/test-impact.json`
+- [x] T119 [US4] Enregistrer les journeys autosave/scroll dans `ci/test-impact.json`
 
 **Checkpoint**: Toute frappe confirmée est durable localement et la position de
 travail survit aux interruptions, même avant synchronisation serveur.

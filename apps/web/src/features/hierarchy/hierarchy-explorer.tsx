@@ -9,9 +9,14 @@
 
 import {
   DEFAULT_SIDEBAR_WIDTH,
+  normalizeWorkspacePresentationState,
+  type PageScrollAnchor,
   type ProjectedItem,
   readNavigationState,
+  rememberScrollAnchor,
+  scrollAnchorFor,
   updateWorkspacePresentationState,
+  type WorkspacePresentationState,
 } from "@myownnotion/client-core";
 import type {
   DatabaseDto,
@@ -206,6 +211,21 @@ export function HierarchyExplorer({
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  /** Device-local scroll anchors, kept beside the rest of the ergonomics. */
+  const presentationRef = useRef<WorkspacePresentationState | null>(null);
+  const onCaptureScrollAnchor = useCallback(
+    (itemId: Uuid, anchor: PageScrollAnchor) => {
+      // The ref is updated synchronously: returning to the page can render
+      // before the Dexie commit resolves, and a stale ref would open the page
+      // at the top as if the owner had never been there.
+      const base = presentationRef.current ?? normalizeWorkspacePresentationState(undefined);
+      presentationRef.current = rememberScrollAnchor(base, itemId, anchor);
+      void updateWorkspacePresentationState(service.db, (current) =>
+        rememberScrollAnchor(current, itemId, anchor),
+      );
+    },
+    [service],
+  );
   const refreshGeneration = useRef(0);
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
   const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
@@ -334,6 +354,7 @@ export function HierarchyExplorer({
       setExpanded(new Set(navigation.expandedItemIds));
       setSidebarOpen(navigation.sidebarOpen);
       setSidebarWidth(navigation.sidebarWidth);
+      presentationRef.current = navigation;
       setNavigationLoaded(true);
       const activeItems = await refresh();
       if (!cancelled) {
@@ -1509,6 +1530,12 @@ export function HierarchyExplorer({
                 itemId={selectedItem.id}
                 items={items}
                 onOpenPage={openPageLink}
+                initialScrollAnchor={
+                  presentationRef.current === null
+                    ? null
+                    : scrollAnchorFor(presentationRef.current, selectedItem.id)
+                }
+                onCaptureScrollAnchor={onCaptureScrollAnchor}
               />
               <AttachmentPanel
                 pageId={selectedItem.id}
@@ -1521,9 +1548,16 @@ export function HierarchyExplorer({
       ) : selectedItem !== null && selectedItem.kind === "page" ? (
         <>
           <EditorView
+            key={`page-${selectedItem.id}`}
             service={service}
             itemId={selectedItem.id}
             items={items}
+            initialScrollAnchor={
+              presentationRef.current === null
+                ? null
+                : scrollAnchorFor(presentationRef.current, selectedItem.id)
+            }
+            onCaptureScrollAnchor={onCaptureScrollAnchor}
             onOpenPage={openPageLink}
           />
           <AttachmentPanel

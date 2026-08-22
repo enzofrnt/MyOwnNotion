@@ -564,6 +564,19 @@
       }
     },
     {
+      "test": "tests/e2e/page-autosave-recovery.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/page-documents.ts"],
+        "prefixes": [
+          "packages/client-core/src/page-sync/",
+          "packages/page-state/",
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/sync/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/page-links.spec.ts",
       "owners": {
         "exact": [
@@ -572,6 +585,19 @@
           "apps/web/src/features/editor/page-editor.tsx"
         ],
         "prefixes": ["packages/domain/src/document/"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/page-scroll-restoration.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/page-documents.ts"],
+        "prefixes": [
+          "packages/client-core/src/navigation/",
+          "packages/client-core/src/page-sync/",
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/hierarchy/"
+        ],
         "suffixes": []
       }
     },
