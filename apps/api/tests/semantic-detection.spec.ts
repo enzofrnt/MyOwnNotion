@@ -192,3 +192,77 @@ describe("semantic records from projection diffs", () => {
     expect(record.semanticChanges).toHaveLength(0);
   });
 });
+
+describe("extractProps coverage across block kinds", () => {
+  it("compares checkbox, heading, code, fileEmbed and embed properties", () => {
+    const id = generateUuidV7();
+    const cases = [
+      {
+        before: { type: "checkbox", id, checked: false, content: [] },
+        after: { type: "checkbox", id, checked: true, content: [] },
+        key: "checked",
+      },
+      {
+        before: { type: "heading", id, level: 1, content: [] },
+        after: { type: "heading", id, level: 3, content: [] },
+        key: "level",
+      },
+      {
+        before: { type: "code", id, text: "a", language: null },
+        after: { type: "code", id, text: "a", language: "ts" },
+        key: "language",
+      },
+      {
+        before: {
+          type: "fileEmbed",
+          id,
+          fileItemId: "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f24b1",
+          caption: null,
+        },
+        after: {
+          type: "fileEmbed",
+          id,
+          fileItemId: "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f24b1",
+          caption: "note",
+        },
+        key: "caption",
+      },
+      {
+        before: {
+          type: "embed",
+          id,
+          provider: "youtube",
+          sourceUrl: "https://www.youtube.com/watch?v=a",
+          caption: null,
+        },
+        after: {
+          type: "embed",
+          id,
+          provider: "youtube",
+          sourceUrl: "https://www.youtube.com/watch?v=b",
+          caption: null,
+        },
+        key: "sourceUrl",
+      },
+    ] as Array<{
+      before: CanonicalBlockV3;
+      after: CanonicalBlockV3;
+      key: string;
+    }>;
+
+    for (const { before, after, key } of cases) {
+      const record = semanticRecordFromProjectionDiff({
+        updateId: generateUuidV7(),
+        baseVersionVector: new Uint8Array(),
+        resultVersionVector: new Uint8Array(),
+        beforeBlocks: [before],
+        afterBlocks: [after],
+      });
+      const change = record.semanticChanges.find(
+        (candidate) => candidate.type === "block-property-set",
+      );
+      expect(change, `${before.type}.${key}`).toBeDefined();
+      expect(change?.type === "block-property-set" ? change.key : "").toBe(key);
+    }
+  });
+});
