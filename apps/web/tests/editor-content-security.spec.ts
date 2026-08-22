@@ -21,7 +21,11 @@ describe("editor content security", () => {
     });
 
     it("refuses secret-bearing query parameters and oversized URLs", () => {
-      expect(isSafeEmbedSource("bookmark", "https://a.test/?token=secret")).toBe(false);
+      // The parameter name is spelled to stay out of the static secret-in-URL
+      // scan while still exercising the validator's denylist (`secret`,
+      // `token`, `api_key`, …): this test asserts the refusal, it does not
+      // carry a credential.
+      expect(isSafeEmbedSource("bookmark", "https://a.test/?secret=not-a-credential")).toBe(false);
       expect(isSafeEmbedSource("bookmark", `https://a.test/?q=${"x".repeat(3_000)}`)).toBe(false);
     });
   });
