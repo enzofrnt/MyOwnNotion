@@ -646,3 +646,46 @@ export async function listOpenPageAmbiguities(
     )
     .orderBy(asc(pageAmbiguities.openedAt), asc(pageAmbiguities.id));
 }
+
+export async function readPageAmbiguityById(
+  executor: Executor,
+  input: { readonly workspaceId: Uuid; readonly ambiguityId: Uuid },
+): Promise<PageAmbiguityRow | null> {
+  const rows = await executor
+    .select()
+    .from(pageAmbiguities)
+    .where(
+      and(
+        eq(pageAmbiguities.workspaceId, input.workspaceId),
+        eq(pageAmbiguities.id, input.ambiguityId),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function resolvePageAmbiguityRow(
+  tx: Transaction,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly ambiguityId: Uuid;
+    readonly status: "resolved-delete" | "resolved-keep" | "resolved-custom";
+    readonly resolutionRevisionId: Uuid;
+    readonly resolvedAt: Date;
+  },
+): Promise<void> {
+  await tx
+    .update(pageAmbiguities)
+    .set({
+      status: input.status,
+      resolutionRevisionId: input.resolutionRevisionId,
+      resolvedAt: input.resolvedAt,
+    })
+    .where(
+      and(
+        eq(pageAmbiguities.workspaceId, input.workspaceId),
+        eq(pageAmbiguities.id, input.ambiguityId),
+        eq(pageAmbiguities.status, "open"),
+      ),
+    );
+}

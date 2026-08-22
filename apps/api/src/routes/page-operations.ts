@@ -17,6 +17,7 @@ import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { LegacyBranchService } from "../page-state/legacy-branch-service.ts";
 import type { PageActivationService } from "../page-state/page-activation-service.ts";
+import type { PageAmbiguityService } from "../page-state/page-ambiguity-service.ts";
 import { PageOperationServiceError } from "../page-state/page-operation-errors.ts";
 import type { PageOperationService } from "../page-state/page-operation-service.ts";
 import { sendSecurityProblem } from "../plugins/errors.ts";
@@ -33,6 +34,7 @@ export interface PageOperationRouteDeps {
   readonly activation: PageActivationService;
   readonly legacy: LegacyBranchService;
   readonly operations: PageOperationService;
+  readonly ambiguities: PageAmbiguityService;
   readonly require: AuthenticationGate;
 }
 
@@ -166,10 +168,15 @@ export function registerPageOperationRoutes(
       requirePageOperationProtocol(request);
       reply.header("cache-control", "no-store");
       if ((await authorizeOperationalRequest(deps, request, reply, false)) === null) return reply;
-      return sendSecurityProblem(reply, {
-        code: "not_found",
-        correlationId: requestContext(request).correlationId,
-      });
+      const { ambiguityId } = request.params as { ambiguityId: Uuid };
+      try {
+        return await deps.ambiguities.detail({ ambiguityId });
+      } catch (error) {
+        if (error instanceof PageOperationServiceError) {
+          return sendPageOperationProblem(reply, error);
+        }
+        throw error;
+      }
     },
   );
 
@@ -183,12 +190,22 @@ export function registerPageOperationRoutes(
     },
     async (request, reply) => {
       requirePageOperationProtocol(request);
-      if ((await authorizeOperationalRequest(deps, request, reply, true)) === null) return reply;
-      parseResolvePageAmbiguityRequest(request.body);
-      return sendSecurityProblem(reply, {
-        code: "not_found",
-        correlationId: requestContext(request).correlationId,
-      });
+      const owner = await authorizeOperationalRequest(deps, request, reply, true);
+      if (owner === null) return reply;
+      const body = parseResolvePageAmbiguityRequest(request.body);
+      const { ambiguityId } = request.params as { ambiguityId: Uuid };
+      try {
+        return await deps.ambiguities.resolve({
+          ambiguityId,
+          deviceId: owner.deviceId as Uuid,
+          request: body as Parameters<PageAmbiguityService["resolve"]>[0]["request"],
+        });
+      } catch (error) {
+        if (error instanceof PageOperationServiceError) {
+          return sendPageOperationProblem(reply, error);
+        }
+        throw error;
+      }
     },
   );
 }

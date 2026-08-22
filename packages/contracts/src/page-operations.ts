@@ -430,14 +430,27 @@ export const ActivatePageRequestSchema = Type.Object(
 );
 export type ActivatePageRequestDto = Static<typeof ActivatePageRequestSchema>;
 
+// Every variant declares all four body properties. Fastify's AJV runs with
+// removeAdditional, which strips "additional" properties while trialing a
+// union variant — a payload aimed at restore-change would lose
+// parentBlockId/beforeBlockId during the failed confirm-delete trial and then
+// fail that very variant for missing them. Declaring the full property set
+// per variant (with per-variant required lists) keeps trials harmless.
+const ResolveShared = {
+  requestId: PageOperationUuidSchema,
+  parentBlockId: Type.Optional(Type.Union([PageOperationUuidSchema, Type.Null()])),
+  beforeBlockId: Type.Optional(Type.Union([PageOperationUuidSchema, Type.Null()])),
+  result: Type.Optional(CanonicalBlockSubtreeV3Schema),
+} as const;
+
 export const ResolvePageAmbiguityRequestSchema = Type.Union([
   Type.Object(
-    { requestId: PageOperationUuidSchema, decision: Type.Literal("confirm-delete") },
+    { ...ResolveShared, decision: Type.Literal("confirm-delete") },
     { additionalProperties: false },
   ),
   Type.Object(
     {
-      requestId: PageOperationUuidSchema,
+      ...ResolveShared,
       decision: Type.Literal("restore-change"),
       parentBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
       beforeBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
@@ -446,7 +459,7 @@ export const ResolvePageAmbiguityRequestSchema = Type.Union([
   ),
   Type.Object(
     {
-      requestId: PageOperationUuidSchema,
+      ...ResolveShared,
       decision: Type.Literal("custom"),
       result: CanonicalBlockSubtreeV3Schema,
       parentBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),

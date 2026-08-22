@@ -30,6 +30,7 @@ import {
 import { CanonicalMaterializer } from "./page-state/canonical-materializer.ts";
 import { LegacyBranchService } from "./page-state/legacy-branch-service.ts";
 import { PageActivationService } from "./page-state/page-activation-service.ts";
+import { PageAmbiguityService } from "./page-state/page-ambiguity-service.ts";
 import { PageOperationCrypto } from "./page-state/page-operation-crypto.ts";
 import { PageOperationService } from "./page-state/page-operation-service.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
@@ -554,11 +555,21 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       search,
       now,
     });
+    const pageAmbiguities = new PageAmbiguityService({
+      db: database.db,
+      workspaceId: workspace.id,
+      crypto: pageOperationCrypto,
+      operations: pageOperations,
+      materializer: canonicalMaterializer,
+      rotationPolicies,
+      now,
+    });
     registerPageOperationRoutes(app, {
       db: database.db,
       require: requireOwner,
       activation: pageActivation,
       operations: pageOperations,
+      ambiguities: pageAmbiguities,
       legacy: new LegacyBranchService({
         db: database.db,
         workspaceId: workspace.id,

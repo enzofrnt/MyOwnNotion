@@ -298,7 +298,7 @@ obtiennent projection/historique identiques ; delete/edit reste récupérable.
 - [x] T140 [US5] Implémenter activation lazy atomique et protection de `page.document.replace` dans `apps/api/src/page-state/page-activation-service.ts` et `apps/api/src/routes/page-documents.ts`
 - [x] T141 [US5] Implémenter conversion idempotente `LegacyOfflineBranch` dans `apps/api/src/page-state/legacy-branch-service.ts`
 - [ ] T142 [US5] Implémenter checkpoint candidat/vérifié, frontier et compaction bornée par appareils dans `apps/api/src/page-state/checkpoint-service.ts`
-- [ ] T143 [US5] Implémenter création/détail/résolution des ambiguïtés sans altérer les sources dans `apps/api/src/page-state/page-ambiguity-service.ts`
+- [x] T143 [US5] Implémenter création/détail/résolution des ambiguïtés sans altérer les sources dans `apps/api/src/page-state/page-ambiguity-service.ts`
 - [x] T144 [US5] Exposer sync, activate et ambiguity routes avec guards existants dans `apps/api/src/routes/page-operations.ts` et `apps/api/src/app.ts`
 - [x] T145 [US5] Ajouter `page-operations.updated` au change feed et au signal SSE dans `packages/domain/src/sync/change-nature.ts`, `apps/api/src/routes/changes.ts` et `apps/api/src/routes/change-stream.ts`
 - [ ] T146 [US5] Consolider après 30 s idle, 5 min max et bornes, exposer le retard de projection et restaurer par opérations dans `apps/api/src/page-state/page-history-service.ts` et `apps/api/src/routes/revisions.ts`

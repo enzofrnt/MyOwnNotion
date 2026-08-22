@@ -6,11 +6,16 @@
 import type { ActivePageSyncRequestDto, ActivePageSyncResponseDto } from "@myownnotion/contracts";
 import {
   appendAcceptedPageOperationUpdate,
+  buildItemSnapshot,
   confirmPageDeviceFrontier,
   type Database,
+  insertPageAmbiguity,
+  insertRevision,
+  listOpenPageAmbiguities,
   listPageOperationUpdatesAfter,
   lockPageOperationState,
   type PageOperationStateRow,
+  readPageAmbiguityByLogicalKey,
   readPageDeviceFrontier,
   readPageOperationCheckpoint,
   readPageOperationUpdate,
@@ -19,21 +24,25 @@ import {
   schema,
   type Transaction,
 } from "@myownnotion/database";
-import type { Uuid } from "@myownnotion/domain";
+import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import {
+  detectPageAmbiguities,
   type OperationalPageCheckpoint,
   OperationalPageDocument,
+  type SemanticUpdateRecord,
   sha256Hex,
   verifyIncrementalUpdateBase,
   versionVectorBytesEqual,
   versionVectorDominates,
 } from "@myownnotion/page-state";
+import { and, eq } from "drizzle-orm";
 import type { SearchService } from "../search/search-service.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 import type { CanonicalMaterializer } from "./canonical-materializer.ts";
 import type { PageOperationCrypto } from "./page-operation-crypto.ts";
 import { PageOperationServiceError } from "./page-operation-errors.ts";
+import { semanticRecordFromProjectionDiff } from "./semantic-detection.ts";
 
 export interface PageOperationServiceDeps {
   readonly db: Database;
@@ -59,6 +68,7 @@ function encode(value: Uint8Array): string {
 export interface LoadedOperationalPage {
   readonly document: OperationalPageDocument;
   readonly state: PageOperationStateRow;
+  readonly checkpoint: OperationalPageCheckpoint;
 }
 
 export class PageOperationService {
@@ -178,12 +188,140 @@ export class PageOperationService {
         409,
       );
     }
-    return { document, state };
+    return { document, state, checkpoint };
   }
 
   /** Shared locked loader for migration and later server-side maintenance. */
   async loadForMutation(tx: Transaction, pageId: Uuid): Promise<LoadedOperationalPage> {
     return await this.#load(tx, pageId);
+  }
+
+  /**
+   * Applies server-authored commands — ambiguity resolutions today — through
+   * the same transactional path as client updates: transact, project,
+   * materialize, append an accepted update row, then record one change-feed
+   * entry (plan §8: a resolution is a semantic boundary).
+   *
+   * The resolution revision closes the consolidation window and becomes the
+   * page's retained boundary; source updates stay immutable.
+   */
+  async applyServerCommands(
+    input: {
+      readonly pageId: Uuid;
+      readonly deviceId: Uuid;
+      readonly mutationId: Uuid;
+      readonly commands: readonly import("@myownnotion/page-state").PageCommand[];
+    },
+    /** Joins a caller's transaction: nesting two serializable runners would
+     * hide the new revision from the caller's snapshot and break its FK. */
+    existingTx?: Transaction,
+  ): Promise<{ revisionId: Uuid }> {
+    const work = async (tx: Transaction) => {
+      const loaded = await this.#load(tx, input.pageId);
+      const document = loaded.document;
+      // The resolution applies on top of the current merged state; its causal
+      // base is therefore exactly what the page holds before transacting.
+      const baseVersionVector = document.versionVectorBytes();
+      const transaction = document.transact(input.commands);
+      if (!transaction.changed) {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "A resolution produced no operational change.",
+          409,
+        );
+      }
+      const [projection, resultCheckpoint] = await Promise.all([
+        document.project(),
+        document.checkpoint(),
+      ]);
+      await this.#deps.materializer.materialize(tx, {
+        workspaceId: this.#deps.workspaceId,
+        pageId: input.pageId,
+        revisionId: loaded.state.lastRevisionId as Uuid,
+        projection,
+      });
+
+      const baseFrontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
+        versionVector: baseVersionVector,
+        frontiers: document.frontiersForVersionVector(baseVersionVector),
+      });
+      const resultFrontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
+        versionVector: resultCheckpoint.versionVector,
+        frontiers: resultCheckpoint.frontiers,
+      });
+      const updateEnvelopeId = await this.#deps.crypto.sealBytes(
+        tx,
+        "update",
+        transaction.updateBytes,
+      );
+      const appended = await appendAcceptedPageOperationUpdate(tx, {
+        updateId: input.mutationId,
+        pageId: input.pageId,
+        workspaceId: this.#deps.workspaceId,
+        authoredByDeviceId: input.deviceId,
+        baseFrontierEnvelopeId,
+        resultFrontierEnvelopeId,
+        updateEnvelopeId,
+        updateDigest: await sha256Hex(transaction.updateBytes),
+        operationalDigest: projection.operationalDigest,
+        canonicalDigest: projection.canonicalDigest,
+        acceptedAt: this.#deps.now(),
+      });
+      void appended;
+
+      const revisionId = generateUuidV7();
+      await insertRevision(tx, {
+        id: revisionId,
+        itemId: input.pageId,
+        mutationId: input.mutationId,
+        parentRevisionIds:
+          loaded.state.lastRevisionId === null ? [] : [loaded.state.lastRevisionId as Uuid],
+        snapshot: await buildItemSnapshot(tx, input.pageId),
+        acceptedAt: this.#deps.now(),
+      });
+      await tx
+        .update(schema.pageOperationStates)
+        .set({
+          lastRevisionId: revisionId,
+          revisionWindowStartedAt: null,
+          revisionWindowLastUpdateAt: null,
+          revisionWindowFrontierEnvelopeId: null,
+          updatedAt: this.#deps.now(),
+        })
+        .where(
+          and(
+            eq(schema.pageOperationStates.pageId, input.pageId),
+            eq(schema.pageOperationStates.workspaceId, this.#deps.workspaceId),
+          ),
+        );
+      await tx
+        .update(schema.items)
+        .set({ currentRevisionId: revisionId, updatedAt: this.#deps.now() })
+        .where(eq(schema.items.id, input.pageId));
+
+      const acceptedAt = this.#deps.now();
+      await tx.insert(schema.mutations).values({
+        id: input.mutationId,
+        workspaceId: this.#deps.workspaceId,
+        commandType: "page-operations.updated",
+        status: "accepted",
+        submittedAt: acceptedAt,
+        acceptedAt,
+        resultRevisionIds: [revisionId],
+      });
+      await recordChange(tx, {
+        workspaceId: this.#deps.workspaceId,
+        mutationId: input.mutationId,
+        revisionIds: [revisionId],
+        changedItemIds: [input.pageId],
+      });
+      return { revisionId };
+    };
+    if (existingTx !== undefined) {
+      return await work(existingTx);
+    }
+    const { revisionId } = await runMutation(this.#deps.db, work);
+    return { revisionId };
   }
 
   async sync(input: {
@@ -402,6 +540,17 @@ export class PageOperationService {
           });
         }
       }
+      // Ambiguity detection over the causal window the client could not see:
+      // every stored update its persisted frontier does not dominate is
+      // concurrent with or newer than the client's work, so exactly those get
+      // their semantic delta reconstructed and compared pairwise (FR-058).
+      const ambiguitySummaries = await this.#detectAmbiguities(tx, {
+        pageId: input.pageId,
+        checkpoint: loaded.checkpoint,
+        persistedVersionVector,
+        state: loaded.state,
+      });
+
       const candidates = await listPageOperationUpdatesAfter(tx, {
         workspaceId: this.#deps.workspaceId,
         pageId: input.pageId,
@@ -486,7 +635,7 @@ export class PageOperationService {
           lastConsolidatedRevisionId: state.lastRevisionId as Uuid | null,
           hasUnconsolidatedChanges: state.revisionWindowStartedAt !== null,
         },
-        ambiguities: [],
+        ambiguities: ambiguitySummaries,
         fileRequirements,
       };
     });
@@ -501,4 +650,160 @@ export class PageOperationService {
     }
     return response;
   }
+
+  /**
+   * Detects durable ambiguities inside the causal window the client could not
+   * see, and summarises every still-open ambiguity for the response.
+   *
+   * An update is interesting when the client's persisted frontier does not
+   * dominate its result: it is concurrent with or newer than the work the
+   * client had, so only those need their semantic delta reconstructed — by
+   * replaying the log from the verified checkpoint and diffing the canonical
+   * projections on either side of each import (FR-058).
+   */
+  async #detectAmbiguities(
+    tx: Transaction,
+    input: {
+      readonly pageId: Uuid;
+      readonly checkpoint: OperationalPageCheckpoint;
+      readonly persistedVersionVector: Uint8Array;
+      readonly state: PageOperationStateRow;
+    },
+  ): Promise<ActivePageSyncResponseDto["ambiguities"]> {
+    const rows = await listPageOperationUpdatesAfter(tx, {
+      workspaceId: this.#deps.workspaceId,
+      pageId: input.pageId,
+      after: Math.max(0, input.state.lastUpdateSequence - 100),
+      limit: 10_000,
+    });
+    const bases = new Map<string, Uint8Array>();
+    const results = new Map<string, Uint8Array>();
+    for (const row of rows) {
+      const baseFrontier = await this.#deps.crypto.openFrontier(
+        tx,
+        row.baseFrontierEnvelopeId as Uuid,
+      );
+      const resultFrontier = await this.#deps.crypto.openFrontier(
+        tx,
+        row.resultFrontierEnvelopeId as Uuid,
+      );
+      bases.set(row.id, baseFrontier.versionVector);
+      results.set(row.id, resultFrontier.versionVector);
+    }
+    // Two updates are ambiguous candidates exactly when neither author knew
+    // the other's effect: A's base does not dominate B's result and vice
+    // versa. Result-to-result comparison cannot express this — acceptance
+    // order merges later results into a common frontier even when the
+    // intentions were authored concurrently offline.
+    const interesting = new Set<string>();
+    const entries = [...results.keys()];
+    for (let left = 0; left < entries.length; left += 1) {
+      const leftId = entries[left] as string;
+      for (let right = left + 1; right < entries.length; right += 1) {
+        const rightId = entries[right] as string;
+        const leftBase = bases.get(leftId) as Uint8Array;
+        const rightBase = bases.get(rightId) as Uint8Array;
+        const leftResult = results.get(leftId) as Uint8Array;
+        const rightResult = results.get(rightId) as Uint8Array;
+        if (
+          !versionVectorDominates(leftBase, rightResult) &&
+          !versionVectorDominates(rightBase, leftResult)
+        ) {
+          interesting.add(leftId);
+          interesting.add(rightId);
+        }
+      }
+    }
+
+    if (interesting.size > 0) {
+      // Each concurrent intention is replayed in ISOLATION from the shared
+      // pre-convergence state: sequential replay would hide a text edit
+      // behind another device's deletion of the same block, and the whole
+      // point of detection is to see both intentions (FR-058).
+      const common = await OperationalPageDocument.fromCheckpoint({
+        pageId: input.pageId,
+        checkpoint: input.checkpoint,
+      });
+      for (const row of rows) {
+        if (interesting.has(row.id)) continue;
+        common.importUpdate(
+          await this.#deps.crypto.openBytes(tx, "update", row.updateEnvelopeId as Uuid),
+        );
+      }
+      const commonCheckpoint = await common.checkpoint();
+      const beforeBlocks = (await common.project()).document.blocks;
+
+      const records: SemanticUpdateRecord[] = [];
+      for (const row of rows) {
+        if (!interesting.has(row.id)) continue;
+        const baseFrontier = await this.#deps.crypto.openFrontier(
+          tx,
+          row.baseFrontierEnvelopeId as Uuid,
+        );
+        const bytes = await this.#deps.crypto.openBytes(tx, "update", row.updateEnvelopeId as Uuid);
+        const isolated = await OperationalPageDocument.fromCheckpoint({
+          pageId: input.pageId,
+          checkpoint: commonCheckpoint,
+        });
+        const imported = isolated.importUpdate(bytes);
+        if (imported.pending) {
+          // The intention depends on work outside the shared state; its delta
+          // cannot be isolated here and stays undetected until a later pass
+          // sees it against a wider common frontier.
+          continue;
+        }
+        const afterBlocks = (await isolated.project()).document.blocks;
+        records.push(
+          semanticRecordFromProjectionDiff({
+            updateId: row.id as Uuid,
+            baseVersionVector: baseFrontier.versionVector,
+            resultVersionVector: isolated.versionVectorBytes(),
+            beforeBlocks,
+            afterBlocks,
+          }),
+        );
+      }
+      for (const ambiguity of detectPageAmbiguities(records)) {
+        const existing = await readPageAmbiguityByLogicalKey(tx, {
+          pageId: input.pageId,
+          logicalKey: ambiguity.logicalKey,
+        });
+        if (existing !== null) continue;
+        const detailsEnvelopeId = await this.#deps.crypto.sealBytes(
+          tx,
+          "ambiguity",
+          new TextEncoder().encode(JSON.stringify(ambiguity)),
+        );
+        await insertPageAmbiguity(tx, {
+          ambiguityId: generateUuidV7(),
+          pageId: input.pageId,
+          workspaceId: this.#deps.workspaceId,
+          logicalKey: ambiguity.logicalKey,
+          kind: ambiguity.kind,
+          detailsEnvelopeId,
+          sourceUpdateIds: [...ambiguity.sourceUpdateIds],
+          openedAt: this.#deps.now(),
+        });
+      }
+    }
+
+    const open = await listOpenPageAmbiguities(tx, {
+      workspaceId: this.#deps.workspaceId,
+      pageId: input.pageId,
+    });
+    return open.map((row) => ({
+      ambiguityId: row.id as Uuid,
+      pageId: input.pageId,
+      kind: row.kind as ActivePageSyncResponseDto["ambiguities"][number]["kind"],
+      blockIds: blockIdsForAmbiguity(row.logicalKey),
+      openedAt: row.openedAt.toISOString(),
+      status: "open" as const,
+    }));
+  }
+}
+
+/** The stable logical key embeds the involved block ids; recover them for summaries. */
+function blockIdsForAmbiguity(logicalKey: string): Uuid[] {
+  const match = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/giu;
+  return [...new Set([...logicalKey.matchAll(match)].map((m) => m[1] as Uuid))];
 }

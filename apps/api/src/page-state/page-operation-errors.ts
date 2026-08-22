@@ -5,6 +5,9 @@ export type PageOperationServiceProblemCode =
   | "page-operations.projection-invalid"
   | "page-operations.schema-unsupported"
   | "page-operations.update-id-reused"
+  | "page-operations.validation"
+  | "ambiguity.not-found"
+  | "ambiguity.already-resolved"
   | "item.not-found";
 
 export class PageOperationServiceError extends Error {
