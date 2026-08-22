@@ -1,4 +1,5 @@
 import { createReactBlockSpec } from "@blocknote/react";
+import { EditorFileStateLine } from "../editor-file-state.tsx";
 
 export const imageBlockSpec = createReactBlockSpec(
   {
@@ -24,6 +25,7 @@ export const imageBlockSpec = createReactBlockSpec(
           <span aria-hidden="true">▧</span>
           <span>Aperçu local de l’image</span>
         </div>
+        <EditorFileStateLine fileItemId={block.props.fileItemId} />
         <label>
           <span className="sr-only">Légende de l’image</span>
           <input

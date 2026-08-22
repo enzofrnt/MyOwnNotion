@@ -25,6 +25,7 @@ import {
   OperationalPageDocument,
   sha256Hex,
   verifyIncrementalUpdateBase,
+  versionVectorBytesEqual,
   versionVectorDominates,
 } from "@myownnotion/page-state";
 import type { SearchService } from "../search/search-service.ts";
@@ -147,13 +148,33 @@ export class PageOperationService {
     }
 
     const projection = await document.project();
-    if (
-      projection.canonicalDigest !== state.canonicalDigest ||
-      projection.operationalDigest !== state.operationalDigest
-    ) {
+    // The canonical digest must match, and the causal frontier of the replay
+    // must equal the stored frontier. The raw snapshot byte hash is order
+    // dependent — Loro may encode the same logical state differently depending
+    // on the order updates were imported in — so it cannot be the replay
+    // identity; the version vector is that identity.
+    if (projection.canonicalDigest !== state.canonicalDigest) {
       throw new PageOperationServiceError(
         "page-operations.projection-invalid",
         "The operational state no longer matches its canonical projection.",
+        409,
+      );
+    }
+    if (state.currentFrontierEnvelopeId === null) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The operational state has no recorded frontier.",
+        409,
+      );
+    }
+    const stateFrontier = await this.#deps.crypto.openFrontier(
+      tx,
+      state.currentFrontierEnvelopeId as Uuid,
+    );
+    if (!versionVectorBytesEqual(document.versionVectorBytes(), stateFrontier.versionVector)) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The operational state no longer matches its recorded frontier.",
         409,
       );
     }

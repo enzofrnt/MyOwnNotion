@@ -1,4 +1,5 @@
 import { createReactBlockSpec } from "@blocknote/react";
+import { EditorFileStateLine } from "../editor-file-state.tsx";
 
 export const fileEmbedBlockSpec = createReactBlockSpec(
   {
@@ -24,7 +25,7 @@ export const fileEmbedBlockSpec = createReactBlockSpec(
             }
           />
         </label>
-        <span className="muted">Disponible depuis le stockage local</span>
+        <EditorFileStateLine fileItemId={block.props.fileItemId} />
       </article>
     ),
     toExternalHTML: ({ block }) => (

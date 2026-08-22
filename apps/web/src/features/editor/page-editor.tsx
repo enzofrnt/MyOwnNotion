@@ -38,12 +38,15 @@ import {
   createSessionEditorEngine,
   type EditorEngine,
 } from "./editor-engine.ts";
+import { editorFileTransferQueue } from "./editor-file-state.tsx";
+import { insertDroppedFiles } from "./editor-files.ts";
 import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
 import { FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
 import { applyRemoteEditorProjection, EditorOriginGuard } from "./editor-remote-apply.ts";
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
+import { annotatePageLinkAnchors } from "./page-link.ts";
 
 const PAGE_LINK_PREFIX = "myownnotion:page:";
 
@@ -265,6 +268,19 @@ export function PageEditor({
     editor.isEditable = editable;
   }, [editable, editor]);
 
+  // Page-link anchors carry their target's state (FR-022). BlockNote re-renders
+  // links as plain anchors, so annotation runs on mount, on item changes and on
+  // any DOM mutation inside the surface — idempotent by construction.
+  const editorHostRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const host = editorHostRef.current;
+    if (host === null) return;
+    annotatePageLinkAnchors(host, items);
+    const observer = new MutationObserver(() => annotatePageLinkAnchors(host, items));
+    observer.observe(host, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [items]);
+
   const applyHistory = useCallback(
     (direction: "undo" | "redo") => {
       const apply = direction === "undo" ? engine.undo() : engine.redo();
@@ -294,6 +310,49 @@ export function PageEditor({
   const undo = useCallback(() => applyHistory("undo"), [applyHistory]);
   const redo = useCallback(() => applyHistory("redo"), [applyHistory]);
   const reportEditorError = useCallback((message: string) => setEditorError(message), []);
+
+  // Dropped or pasted files become durable document references first (T095):
+  // the block commit goes through the same engine as any gesture, then the
+  // bytes follow the resumable transfer queue on their own schedule.
+  const fileQueue = useMemo(editorFileTransferQueue, []);
+  const acceptFiles = useCallback(
+    (files: readonly File[]) => {
+      if (!editable || files.length === 0) return;
+      let parentId: Uuid | null = null;
+      let beforeId: Uuid | null = null;
+      try {
+        const cursor = editor.getTextCursorPosition().block;
+        parentId = null;
+        beforeId = cursor.id as Uuid;
+      } catch {
+        beforeId = null;
+      }
+      void insertDroppedFiles(engine, files, {
+        parentBlockId: parentId,
+        beforeBlockId: beforeId,
+      })
+        .then((inserted) => {
+          // The insertion went straight to the authority, so the visible
+          // surface must be re-projected from it (a plain onChange echo never
+          // happened for this gesture).
+          if (inserted.length > 0) recoverVisibleProjection();
+          // One transfer per inserted block, in the same order as the files.
+          inserted.forEach((entry, index) => {
+            const file = files[index];
+            if (file !== undefined) fileQueue.enqueue(entry.fileItemId, file);
+          });
+          void fileQueue.flush();
+        })
+        .catch((error: unknown) => {
+          setEditorError(
+            error instanceof Error
+              ? `Ce fichier n’a pas pu être inséré : ${error.message}`
+              : "Ce fichier n’a pas pu être inséré.",
+          );
+        });
+    },
+    [editable, editor, engine, fileQueue, recoverVisibleProjection],
+  );
   const shortcuts = useEditorShortcuts({
     editor,
     editable,
@@ -319,6 +378,9 @@ export function PageEditor({
 
   return (
     <section
+      ref={(element) => {
+        editorHostRef.current = element;
+      }}
       className="page-editor"
       data-testid="block-editor"
       aria-label="Éditeur de page"
@@ -326,6 +388,20 @@ export function PageEditor({
       onCompositionEnd={() => batcher.endComposition()}
       onKeyDownCapture={shortcuts.onKeyDown}
       onContextMenu={shortcuts.onContextMenu}
+      onDrop={(event) => {
+        const files = [...event.dataTransfer.files];
+        if (files.length === 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        acceptFiles(files);
+      }}
+      onPasteCapture={(event) => {
+        const files = [...event.clipboardData.files];
+        if (files.length === 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        acceptFiles(files);
+      }}
       onBeforeInputCapture={(event) => {
         if (!editable) return;
         const action = historyActionFromInputType((event.nativeEvent as InputEvent).inputType);

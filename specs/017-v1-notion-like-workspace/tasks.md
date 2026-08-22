@@ -197,9 +197,9 @@ rouvrir hors ligne, l'exporter et vérifier références, sécurité et inconnus
 
 - [x] T085 [P] [US3] Étendre les propriétés de round-trip à tous les blocs v3 dans `apps/web/tests/blocknote-v3-round-trip.property.spec.ts`
 - [x] T086 [P] [US3] Écrire les tests domain d'export et extraction v3 dans `packages/domain/tests/document-v3-export.property.spec.ts`
-- [ ] T087 [P] [US3] Écrire les tests de sécurité URL/embed/paste dans `apps/web/tests/editor-content-security.spec.ts`
-- [ ] T088 [P] [US3] Écrire le journey de page riche et export dans `tests/e2e/rich-page.spec.ts`
-- [ ] T089 [P] [US3] Écrire le journey fichiers/images hors ligne avec toutes les communications tierces bloquées dans `tests/e2e/editor-offline-media.spec.ts`
+- [x] T087 [P] [US3] Écrire les tests de sécurité URL/embed/paste dans `apps/web/tests/editor-content-security.spec.ts`
+- [x] T088 [P] [US3] Écrire le journey de page riche et export dans `tests/e2e/rich-page.spec.ts`
+- [x] T089 [P] [US3] Écrire le journey fichiers/images hors ligne avec toutes les communications tierces bloquées dans `tests/e2e/editor-offline-media.spec.ts`
 
 ### Implementation for User Story 3
 
@@ -208,16 +208,16 @@ rouvrir hors ligne, l'exporter et vérifier références, sécurité et inconnus
 - [ ] T092 [P] [US3] Implémenter code, langue et copie sûre dans `apps/web/src/features/editor/custom-blocks/code-block.tsx`
 - [ ] T093 [P] [US3] Implémenter image et fileEmbed liés aux items 005 dans `apps/web/src/features/editor/custom-blocks/image.tsx` et `apps/web/src/features/editor/custom-blocks/file-embed.tsx`
 - [ ] T094 [P] [US3] Implémenter embed allowlist, consentement et sandbox dans `apps/web/src/features/editor/custom-blocks/embed.tsx`
-- [ ] T095 [US3] Brancher dépôt/collage de fichiers sur la file durable existante dans `apps/web/src/features/editor/editor-files.ts` et `apps/web/src/features/files/upload.ts`
-- [ ] T096 [US3] Implémenter souligné, couleurs et surlignage selon tokens dans `apps/web/src/features/editor/blocknote-schema.ts` et `apps/web/src/features/editor/editor-menus/formatting-toolbar.tsx`
-- [ ] T097 [US3] Assainir collage riche avec fallback texte sans réduction silencieuse dans `apps/web/src/features/editor/paste-sanitizer.ts`
-- [ ] T098 [US3] Afficher états actif/supprimé/indisponible/inconnu des page-links dans `apps/web/src/features/editor/page-link.ts` et `apps/web/src/features/editor/editor-menus/page-link-picker.tsx`
-- [ ] T099 [US3] Étendre Markdown, export canonique, recherche et usages de fichiers aux types v3 dans `packages/domain/src/document/export-markdown.ts`, `packages/domain/src/export/canonical-export.ts` et `packages/domain/src/search/document-text.ts`
-- [ ] T100 [US3] Ajouter validation et projection des tables/médias/embeds au modèle opérationnel dans `packages/page-state/src/canonical-projection.ts`
-- [ ] T101 [US3] Garantir transformations de type sans perte, avec confirmation si nécessaire, dans `packages/page-state/src/document.ts` et `apps/web/src/features/editor/editor-menus/block-side-menu.tsx`
-- [ ] T102 [US3] Relier disponibilité locale et transfert séparé des octets au statut des blocs dans `apps/web/src/features/editor/editor-file-state.tsx`
-- [ ] T103 [US3] Ajouter copie française des blocs, erreurs et exports dans `apps/web/src/ui/copy/fr.ts`
-- [ ] T104 [US3] Enregistrer les journeys riche/média dans `ci/test-impact.json`
+- [x] T095 [US3] Brancher dépôt/collage de fichiers sur la file durable existante dans `apps/web/src/features/editor/editor-files.ts` et `apps/web/src/features/files/upload.ts`
+- [x] T096 [US3] Implémenter souligné, couleurs et surlignage selon tokens dans `apps/web/src/features/editor/blocknote-schema.ts` et `apps/web/src/features/editor/editor-menus/formatting-toolbar.tsx`
+- [x] T097 [US3] Assainir collage riche avec fallback texte sans réduction silencieuse dans `apps/web/src/features/editor/paste-sanitizer.ts`
+- [x] T098 [US3] Afficher états actif/supprimé/indisponible/inconnu des page-links dans `apps/web/src/features/editor/page-link.ts` et `apps/web/src/features/editor/editor-menus/page-link-picker.tsx`
+- [x] T099 [US3] Étendre Markdown, export canonique, recherche et usages de fichiers aux types v3 dans `packages/domain/src/document/export-markdown.ts`, `packages/domain/src/export/canonical-export.ts` et `packages/domain/src/search/document-text.ts`
+- [x] T100 [US3] Ajouter validation et projection des tables/médias/embeds au modèle opérationnel dans `packages/page-state/src/canonical-projection.ts`
+- [x] T101 [US3] Garantir transformations de type sans perte, avec confirmation si nécessaire, dans `packages/page-state/src/document.ts` et `apps/web/src/features/editor/editor-menus/block-side-menu.tsx`
+- [x] T102 [US3] Relier disponibilité locale et transfert séparé des octets au statut des blocs dans `apps/web/src/features/editor/editor-file-state.tsx`
+- [x] T103 [US3] Ajouter copie française des blocs, erreurs et exports dans `apps/web/src/ui/copy/fr.ts`
+- [x] T104 [US3] Enregistrer les journeys riche/média dans `ci/test-impact.json`
 
 **Checkpoint**: US3 couvre la page riche V1, mais le chemin réseau v3 complet
 reste à fermer dans US5.
@@ -294,7 +294,7 @@ obtiennent projection/historique identiques ; delete/edit reste récupérable.
 
 - [x] T137 [US5] Implémenter ouverture/scellement des updates, vectors, checkpoints et ambiguïtés dans `apps/api/src/page-state/page-operation-crypto.ts`
 - [x] T138 [US5] Implémenter matérialisation, validation, digests, liens, usages et recherche dans `apps/api/src/page-state/canonical-materializer.ts`
-- [ ] T139 [US5] Implémenter service transactionnel import→ambiguïtés→projection→révision→change feed dans `apps/api/src/page-state/page-operation-service.ts`
+- [x] T139 [US5] Implémenter service transactionnel import→ambiguïtés→projection→révision→change feed dans `apps/api/src/page-state/page-operation-service.ts`
 - [x] T140 [US5] Implémenter activation lazy atomique et protection de `page.document.replace` dans `apps/api/src/page-state/page-activation-service.ts` et `apps/api/src/routes/page-documents.ts`
 - [x] T141 [US5] Implémenter conversion idempotente `LegacyOfflineBranch` dans `apps/api/src/page-state/legacy-branch-service.ts`
 - [ ] T142 [US5] Implémenter checkpoint candidat/vérifié, frontier et compaction bornée par appareils dans `apps/api/src/page-state/checkpoint-service.ts`

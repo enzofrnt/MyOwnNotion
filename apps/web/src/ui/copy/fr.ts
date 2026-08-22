@@ -37,6 +37,48 @@ export const FR_COPY = {
     optional: "facultatif",
     required: "obligatoire",
   },
+  editor: {
+    blocks: {
+      paragraph: "Texte",
+      heading1: "Titre 1",
+      heading2: "Titre 2",
+      heading3: "Titre 3",
+      bulletListItem: "Liste à puces",
+      numberedListItem: "Liste numérotée",
+      checkListItem: "Tâche",
+      quote: "Citation",
+      codeBlock: "Code",
+      divider: "Séparateur",
+      toggleListItem: "Section repliable",
+      callout: "Encadré",
+      table: "Tableau",
+      image: "Image",
+      fileEmbed: "Fichier",
+      embed: "Contenu intégré",
+    },
+    errors: {
+      notApplied: "Cette modification n’a pas été appliquée.",
+      projectionDrift:
+        "L’affichage ne correspondait plus au contenu enregistré ; il a été réaligné.",
+      unknownTransform:
+        "Un bloc non pris en charge ne peut pas être transformé sans risquer de perdre son contenu.",
+      moveRefused: "Ce déplacement est refusé : la destination n’accepte pas ce bloc.",
+      undoFailed: "Impossible de revenir en arrière",
+      redoFailed: "Impossible de rétablir",
+    },
+    files: {
+      localOnly: "Enregistré localement — transfert en attente",
+      transferring: "Transfert en cours",
+      verifying: "Vérification du serveur…",
+      synchronized: "Octets vérifiés sur le serveur",
+      blockedNetwork: "Transfert en attente du réseau.",
+    },
+    pageLinks: {
+      deleted: "cible supprimée",
+      unavailable: "cible indisponible",
+      unknown: "cible inconnue",
+    },
+  },
   date: {
     invalid: "Date invalide",
   },

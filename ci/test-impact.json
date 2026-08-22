@@ -263,6 +263,20 @@
       }
     },
     {
+      "test": "tests/e2e/conflict-resolution.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/features/save-state/conflict-notice.tsx"],
+        "prefixes": [
+          "apps/web/src/features/databases/database-conflict-",
+          "apps/web/src/features/sync/",
+          "packages/domain/src/databases/merge",
+          "packages/domain/src/sync/",
+          "packages/client-core/src/reconciliation/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/connection-trust.spec.ts",
       "owners": {
         "exact": ["apps/api/src/routes/health.ts"],
@@ -275,6 +289,106 @@
       }
     },
     {
+      "test": "tests/e2e/databases-offline-sync.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/mutation-batch.ts",
+          "apps/web/src/services/content-api.ts",
+          "apps/web/src/services/local-content.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/client-core/src/outbox/",
+          "packages/client-core/src/reconciliation/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/databases-schema.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/databases.ts",
+          "apps/web/src/services/content-api.ts",
+          "apps/web/src/services/local-content.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/",
+          "packages/database/src/repositories/database-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/databases-security.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/export.ts",
+          "apps/api/src/security/protected-content.ts",
+          "apps/web/src/services/local-content.ts",
+          "packages/client-core/src/security/local-record-codec.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/databases/",
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/local-store/",
+          "packages/client-core/src/outbox/",
+          "packages/client-core/src/security/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/databases-tasks.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/search/search-service.ts",
+          "apps/web/src/services/search.ts",
+          "packages/database/src/repositories/search-source-repository.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/search/",
+          "packages/client-core/src/search/",
+          "packages/domain/src/databases/",
+          "packages/domain/src/search/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/databases-views.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/databases/database-query-service.ts",
+          "apps/api/src/routes/databases.ts",
+          "apps/web/src/services/databases.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/databases-visual-views.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/databases/database-query-service.ts", "apps/web/src/styles.css"],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/devices.spec.ts",
       "owners": {
         "exact": [
@@ -282,6 +396,18 @@
           "apps/web/src/features/security/device-panel.tsx"
         ],
         "prefixes": ["apps/api/src/security/device-", "packages/domain/src/security/device-"],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/editor-offline-media.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/page-documents.ts", "apps/web/src/features/files/upload.ts"],
+        "prefixes": [
+          "apps/web/src/features/editor/",
+          "packages/domain/src/document/",
+          "packages/page-state/"
+        ],
         "suffixes": []
       }
     },
@@ -350,106 +476,6 @@
       }
     },
     {
-      "test": "tests/e2e/databases-schema.spec.ts",
-      "owners": {
-        "exact": [
-          "apps/api/src/routes/databases.ts",
-          "apps/web/src/services/content-api.ts",
-          "apps/web/src/services/local-content.ts"
-        ],
-        "prefixes": [
-          "apps/web/src/features/databases/",
-          "packages/client-core/src/databases/",
-          "packages/domain/src/databases/",
-          "packages/database/src/repositories/database-"
-        ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/databases-offline-sync.spec.ts",
-      "owners": {
-        "exact": [
-          "apps/api/src/routes/mutation-batch.ts",
-          "apps/web/src/services/content-api.ts",
-          "apps/web/src/services/local-content.ts"
-        ],
-        "prefixes": [
-          "apps/web/src/features/databases/",
-          "packages/client-core/src/databases/",
-          "packages/client-core/src/outbox/",
-          "packages/client-core/src/reconciliation/",
-          "packages/domain/src/databases/"
-        ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/databases-security.spec.ts",
-      "owners": {
-        "exact": [
-          "apps/api/src/routes/export.ts",
-          "apps/api/src/security/protected-content.ts",
-          "apps/web/src/services/local-content.ts",
-          "packages/client-core/src/security/local-record-codec.ts"
-        ],
-        "prefixes": [
-          "apps/api/src/databases/",
-          "apps/web/src/features/databases/",
-          "packages/client-core/src/local-store/",
-          "packages/client-core/src/outbox/",
-          "packages/client-core/src/security/"
-        ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/databases-views.spec.ts",
-      "owners": {
-        "exact": [
-          "apps/api/src/databases/database-query-service.ts",
-          "apps/api/src/routes/databases.ts",
-          "apps/web/src/services/databases.ts"
-        ],
-        "prefixes": [
-          "apps/web/src/features/databases/",
-          "packages/client-core/src/databases/",
-          "packages/domain/src/databases/"
-        ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/databases-visual-views.spec.ts",
-      "owners": {
-        "exact": ["apps/api/src/databases/database-query-service.ts", "apps/web/src/styles.css"],
-        "prefixes": [
-          "apps/web/src/features/databases/",
-          "packages/client-core/src/databases/",
-          "packages/domain/src/databases/"
-        ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/databases-tasks.spec.ts",
-      "owners": {
-        "exact": [
-          "apps/api/src/search/search-service.ts",
-          "apps/web/src/services/search.ts",
-          "packages/database/src/repositories/search-source-repository.ts"
-        ],
-        "prefixes": [
-          "apps/web/src/features/databases/",
-          "apps/web/src/features/search/",
-          "packages/client-core/src/search/",
-          "packages/domain/src/databases/",
-          "packages/domain/src/search/"
-        ],
-        "suffixes": []
-      }
-    },
-    {
       "test": "tests/e2e/interrupted-mutations.spec.ts",
       "owners": {
         "exact": ["apps/api/src/routes/mutation-batch.ts"],
@@ -484,36 +510,28 @@
       }
     },
     {
+      "test": "tests/e2e/live-sync.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/change-stream.ts",
+          "apps/api/src/routes/changes.ts",
+          "apps/api/src/sync/change-notifier.ts",
+          "packages/database/src/repositories/change-repository.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/sync/",
+          "packages/client-core/src/databases/",
+          "packages/client-core/src/reconciliation/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/narrow-viewport.spec.ts",
       "owners": {
         "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
         "prefixes": ["apps/web/src/features/hierarchy/", "apps/web/src/features/navigation/"],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/workspace-shell.spec.ts",
-      "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
-        "prefixes": [
-          "apps/web/src/features/hierarchy/",
-          "apps/web/src/features/navigation/",
-          "apps/web/src/features/workspace/",
-          "packages/client-core/src/navigation/"
-        ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/workspace-shell-visual.spec.ts",
-      "owners": {
-        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css", "apps/web/src/ui/tokens.css"],
-        "prefixes": [
-          "apps/web/src/features/hierarchy/",
-          "apps/web/src/features/navigation/",
-          "apps/web/src/features/workspace/",
-          "apps/web/src/ui/primitives/"
-        ],
         "suffixes": []
       }
     },
@@ -558,6 +576,18 @@
       }
     },
     {
+      "test": "tests/e2e/protocol-compatibility.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/plugins/protocol.ts",
+          "apps/api/src/routes/change-stream.ts",
+          "packages/domain/src/sync/protocol-version.ts"
+        ],
+        "prefixes": ["apps/api/src/security/device-"],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/relationships.spec.ts",
       "owners": {
         "exact": ["apps/api/src/routes/relationships.ts"],
@@ -583,46 +613,14 @@
       }
     },
     {
-      "test": "tests/e2e/live-sync.spec.ts",
+      "test": "tests/e2e/rich-page.spec.ts",
       "owners": {
-        "exact": [
-          "apps/api/src/routes/change-stream.ts",
-          "apps/api/src/routes/changes.ts",
-          "apps/api/src/sync/change-notifier.ts",
-          "packages/database/src/repositories/change-repository.ts"
-        ],
+        "exact": ["apps/api/src/routes/page-documents.ts"],
         "prefixes": [
-          "apps/web/src/features/sync/",
-          "packages/client-core/src/databases/",
-          "packages/client-core/src/reconciliation/",
-          "packages/domain/src/databases/"
+          "apps/web/src/features/editor/",
+          "packages/domain/src/document/",
+          "packages/page-state/"
         ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/conflict-resolution.spec.ts",
-      "owners": {
-        "exact": ["apps/web/src/features/save-state/conflict-notice.tsx"],
-        "prefixes": [
-          "apps/web/src/features/databases/database-conflict-",
-          "apps/web/src/features/sync/",
-          "packages/domain/src/databases/merge",
-          "packages/domain/src/sync/",
-          "packages/client-core/src/reconciliation/"
-        ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/protocol-compatibility.spec.ts",
-      "owners": {
-        "exact": [
-          "apps/api/src/plugins/protocol.ts",
-          "apps/api/src/routes/change-stream.ts",
-          "packages/domain/src/sync/protocol-version.ts"
-        ],
-        "prefixes": ["apps/api/src/security/device-"],
         "suffixes": []
       }
     },
@@ -634,6 +632,24 @@
           "apps/web/src/features/save-state/",
           "packages/client-core/src/save-state/",
           "packages/client-core/src/outbox/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/search-offline.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/services/local-content.ts",
+          "apps/web/src/services/local-key-storage.ts",
+          "apps/web/src/services/search.ts",
+          "packages/client-core/src/search/local-search-source.ts",
+          "packages/client-core/src/search/merge-search-results.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/search/",
+          "packages/client-core/src/search/",
+          "packages/domain/src/search/"
         ],
         "suffixes": []
       }
@@ -656,24 +672,6 @@
           "packages/client-core/src/search/",
           "packages/database/src/repositories/database-",
           "packages/domain/src/databases/",
-          "packages/domain/src/search/"
-        ],
-        "suffixes": []
-      }
-    },
-    {
-      "test": "tests/e2e/search-offline.spec.ts",
-      "owners": {
-        "exact": [
-          "apps/web/src/services/local-content.ts",
-          "apps/web/src/services/local-key-storage.ts",
-          "apps/web/src/services/search.ts",
-          "packages/client-core/src/search/local-search-source.ts",
-          "packages/client-core/src/search/merge-search-results.ts"
-        ],
-        "prefixes": [
-          "apps/web/src/features/search/",
-          "packages/client-core/src/search/",
           "packages/domain/src/search/"
         ],
         "suffixes": []
@@ -717,6 +715,32 @@
           "packages/domain/src/security/wrapping-key-",
           "packages/domain/src/security/rotation-",
           "packages/database/src/repositories/security/rotation-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/workspace-shell-visual.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css", "apps/web/src/ui/tokens.css"],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/workspace/",
+          "apps/web/src/ui/primitives/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/workspace-shell.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "prefixes": [
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/workspace/",
+          "packages/client-core/src/navigation/"
         ],
         "suffixes": []
       }

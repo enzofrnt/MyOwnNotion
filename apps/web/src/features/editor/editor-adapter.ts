@@ -217,12 +217,25 @@ function typeCommand(before: EditorBlock, after: EditorBlock): PageCommand | nul
     case "divider":
       return { type: "set-block-type", blockId: after.id as Uuid, blockType: "divider" };
     case "toggle":
+      // A slash-menu or conversion gesture reaches rich blocks as a type
+      // change of the existing block, not as an insert. Dropping it here made
+      // the visible surface diverge from the operational authority until the
+      // next projection assertion rewound the owner's work.
+      return { type: "set-block-type", blockId: after.id as Uuid, blockType: "toggle" };
     case "callout":
+      return {
+        type: "set-block-type",
+        blockId: after.id as Uuid,
+        blockType: "callout",
+        properties: { icon: next.icon, tone: next.tone },
+      };
     case "table":
     case "image":
     case "fileEmbed":
     case "embed":
     case "unknown":
+      // Media and opaque blocks cannot take a text block's content; they only
+      // ever enter through dedicated insertion paths that create their own id.
       return null;
   }
 }
@@ -459,6 +472,13 @@ export function commandsFromBlockNoteChanges(input: {
     const placement = layout.get(change.block.id);
     if (placement?.parentBlockId === null || placement === undefined) {
       throw new TypeError(`la nouvelle ligne ${change.block.id} n’est rattachée à aucun tableau`);
+    }
+    // A row created as part of a brand-new table travels inside that table's
+    // own insert-block subtree. Translating it again as insert-table-row
+    // would target a table the operational state does not hold yet.
+    if (insertedIds.has(placement.parentBlockId)) {
+      for (const blockId of nestedEditorIds(change.block)) handledInternalIds.add(blockId);
+      continue;
     }
     const tableBlock = findEditorBlock(input.document, placement.parentBlockId);
     if (tableBlock?.type !== "table" || !isUuid(change.block.id)) {

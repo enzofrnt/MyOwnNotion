@@ -56,6 +56,72 @@ function table(
 }
 
 describe("BlockNote changes → page commands", () => {
+  it("translates a slash-menu type change into a rich block as one set-block-type", () => {
+    // The `/Encadré` gesture reaches the adapter as an update of the same
+    // block id: dropping it left the visible callout absent from the
+    // operational authority until a projection assertion rewound the work.
+    const before = paragraph(FIRST, "");
+    const after = {
+      id: FIRST,
+      type: "callout",
+      props: { icon: "💡", tone: "yellow" },
+      content: [],
+      children: [],
+    } as EditorBlock;
+
+    expect(
+      commandsFromBlockNoteChanges({
+        changes: [{ type: "update", block: after, prevBlock: before, source: { type: "local" } }],
+        document: [after],
+      }),
+    ).toEqual([
+      {
+        type: "set-block-type",
+        blockId: FIRST,
+        blockType: "callout",
+        properties: { icon: "💡", tone: "yellow" },
+      },
+    ]);
+  });
+
+  it("translates a whole new table as one insert-block, never row-by-row", () => {
+    // BlockNote announces a created table together with its rows and cells.
+    // Re-translating those rows targeted a table the authority did not hold
+    // yet and refused the whole gesture.
+    const newTable = table(
+      [
+        { id: COLUMN_A, width: null },
+        { id: COLUMN_B, width: null },
+      ],
+      [tableRow(ROW_A, [tableCell(CELL_A1, ""), tableCell(CELL_A2, "")])],
+    );
+    const changes = [
+      { type: "insert", block: newTable, prevBlock: undefined, source: { type: "local" } },
+      {
+        type: "insert",
+        block: tableRow(ROW_A, []),
+        prevBlock: undefined,
+        source: { type: "local" },
+      },
+      {
+        type: "insert",
+        block: tableCell(CELL_A1, ""),
+        prevBlock: undefined,
+        source: { type: "local" },
+      },
+      {
+        type: "insert",
+        block: tableCell(CELL_A2, ""),
+        prevBlock: undefined,
+        source: { type: "local" },
+      },
+    ] as EditorBlocksChanged;
+
+    const commands = commandsFromBlockNoteChanges({ changes, document: [newTable] });
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toMatchObject({ type: "insert-block", block: { type: "table" } });
+  });
+
   it("emits the bounded text replacement instead of replacing the block", () => {
     const before = paragraph(FIRST, "alpha");
     const after = paragraph(FIRST, "alpine");
