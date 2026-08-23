@@ -1,15 +1,17 @@
-import { SideMenuExtension } from "@blocknote/core/extensions";
+import { SideMenuExtension, SuggestionMenu } from "@blocknote/core/extensions";
 import {
-  AddBlockButton,
   DragHandleButton,
   DragHandleMenu,
   SideMenu,
   SideMenuController,
   useBlockNoteEditor,
   useComponentsContext,
+  useDictionary,
+  useExtension,
   useExtensionState,
 } from "@blocknote/react";
 import { memo, useCallback } from "react";
+import { AppIcon } from "../../../ui/icons.tsx";
 import {
   deleteSelectedBlocks,
   duplicateSelectedBlocks,
@@ -18,6 +20,45 @@ import {
   transformSelectedBlocks,
 } from "../block-selection.ts";
 import type { EditorInstance } from "../blocknote-schema.ts";
+
+function MyOwnNotionAddBlockButton({ onError }: { readonly onError: (message: string) => void }) {
+  const components = useComponentsContext();
+  const dictionary = useDictionary();
+  const editor = useBlockNoteEditor() as unknown as EditorInstance;
+  const suggestionMenu = useExtension(SuggestionMenu);
+  const block = useExtensionState(SideMenuExtension, {
+    editor,
+    selector: (state) => state?.block,
+  });
+
+  const openAdjacentMenu = useCallback(() => {
+    if (block === undefined) return;
+    try {
+      const isEmpty = Array.isArray(block.content) && block.content.length === 0;
+      if (isEmpty) {
+        editor.setTextCursorPosition(block);
+      } else {
+        const insertedBlock = editor.insertBlocks([{ type: "paragraph" }], block, "after")[0];
+        if (insertedBlock === undefined) throw new Error("Le bloc adjacent n’a pas été créé.");
+        editor.setTextCursorPosition(insertedBlock);
+      }
+      suggestionMenu.openSuggestionMenu("/");
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Le menu d’ajout n’a pas pu être ouvert.");
+    }
+  }, [block, editor, onError, suggestionMenu]);
+
+  if (components === undefined || block === undefined) return null;
+  const Button = components.SideMenu.Button;
+  return (
+    <Button
+      className="bn-button"
+      label={dictionary.side_menu.add_block_label}
+      icon={<AppIcon name="add" size="large" />}
+      onClick={openAdjacentMenu}
+    />
+  );
+}
 
 function MyOwnNotionDragHandleMenu({ onError }: { readonly onError: (message: string) => void }) {
   const components = useComponentsContext();
@@ -106,11 +147,11 @@ export const BlockSideMenu = memo(function BlockSideMenu({
   const renderSideMenu = useCallback(
     () => (
       <SideMenu>
-        <AddBlockButton />
+        <MyOwnNotionAddBlockButton onError={onError} />
         <DragHandleButton dragHandleMenu={renderDragHandleMenu} />
       </SideMenu>
     ),
-    [renderDragHandleMenu],
+    [onError, renderDragHandleMenu],
   );
 
   return <SideMenuController sideMenu={renderSideMenu} />;

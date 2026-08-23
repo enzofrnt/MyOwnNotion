@@ -8,15 +8,22 @@ import {
   compareArchiveContents,
   readBackupManifest,
 } from "@myownnotion/domain";
+import {
+  PAGE_OPERATION_ARCHIVE_VERSION,
+  type PageOperationArchive,
+  readPageOperationArchive,
+} from "./page-operation-archive.ts";
 
 const TAR_BLOCK_BYTES = 512;
 const MANIFEST_PATH = "manifest.json";
 const CANONICAL_EXPORT_PATH = "canonical-export.json";
+const PAGE_OPERATIONS_PATH = "page-operations.json";
 const FILE_PATH = /^files\/([0-9a-f]{64})$/;
 
 export interface DecodedBackupArchive {
   readonly manifest: unknown;
   readonly canonicalExport: string;
+  readonly operationalState: string | null;
   readonly files: ReadonlyMap<string, Buffer>;
 }
 
@@ -107,6 +114,7 @@ async function writeEntry(
 export function encodeBackupArchive(input: {
   readonly manifest: BackupManifest;
   readonly canonicalExport: string;
+  readonly operationalState?: string | null;
   readonly files: ReadonlyMap<string, Buffer>;
 }): Buffer {
   const modifiedAt = new Date(input.manifest.createdAt);
@@ -120,6 +128,11 @@ export function encodeBackupArchive(input: {
   parts.push(
     ...encodeEntry(CANONICAL_EXPORT_PATH, Buffer.from(input.canonicalExport, "utf8"), modifiedAt),
   );
+  if (input.operationalState != null) {
+    parts.push(
+      ...encodeEntry(PAGE_OPERATIONS_PATH, Buffer.from(input.operationalState, "utf8"), modifiedAt),
+    );
+  }
   for (const [digest, bytes] of [...input.files].sort(([left], [right]) =>
     left.localeCompare(right),
   )) {
@@ -144,6 +157,7 @@ export async function writeBackupArchiveFile(input: {
   readonly path: string;
   readonly manifest: BackupManifest;
   readonly canonicalExport: string;
+  readonly operationalState?: string | null;
   readonly readFile: (digest: string) => Promise<Uint8Array | null>;
 }): Promise<void> {
   const modifiedAt = new Date(input.manifest.createdAt);
@@ -165,6 +179,14 @@ export async function writeBackupArchiveFile(input: {
       Buffer.from(input.canonicalExport, "utf8"),
       modifiedAt,
     );
+    if (input.operationalState != null) {
+      await writeEntry(
+        handle,
+        PAGE_OPERATIONS_PATH,
+        Buffer.from(input.operationalState, "utf8"),
+        modifiedAt,
+      );
+    }
     for (const file of [...input.manifest.files].sort((left, right) =>
       left.digest.localeCompare(right.digest),
     )) {
@@ -231,7 +253,12 @@ export function decodeBackupArchive(archive: Buffer): DecodedBackupArchive {
       throw new Error("the backup tar contains a non-regular entry");
     }
     const name = readText(header, 0, 100);
-    if (name !== MANIFEST_PATH && name !== CANONICAL_EXPORT_PATH && !FILE_PATH.test(name)) {
+    if (
+      name !== MANIFEST_PATH &&
+      name !== CANONICAL_EXPORT_PATH &&
+      name !== PAGE_OPERATIONS_PATH &&
+      !FILE_PATH.test(name)
+    ) {
       throw new Error("the backup tar contains an undocumented path");
     }
     if (entries.has(name)) {
@@ -271,6 +298,7 @@ export function decodeBackupArchive(archive: Buffer): DecodedBackupArchive {
   return {
     manifest,
     canonicalExport: canonicalBytes.toString("utf8"),
+    operationalState: entries.get(PAGE_OPERATIONS_PATH)?.toString("utf8") ?? null,
     files,
   };
 }
@@ -355,6 +383,47 @@ export function inspectBackupArchive(archive: Buffer): InspectedBackupArchive {
       return {
         ok: false,
         reason: "The structured database records do not match their recorded digest.",
+      };
+    }
+  }
+  if (manifest.operationalStateDigest === undefined) {
+    if (body.operationalState !== null) {
+      return {
+        ok: false,
+        reason: "This archive contains operational page state that its manifest does not declare.",
+      };
+    }
+  } else {
+    if (body.operationalState === null) {
+      return {
+        ok: false,
+        reason: "This archive is missing the operational page state declared by its manifest.",
+      };
+    }
+    const operationalBytes = Buffer.from(body.operationalState, "utf8");
+    if (sha256(operationalBytes) !== manifest.operationalStateDigest) {
+      return {
+        ok: false,
+        reason: "The operational page state does not match the digest recorded in the manifest.",
+      };
+    }
+    let operational: PageOperationArchive;
+    try {
+      operational = readPageOperationArchive(JSON.parse(body.operationalState));
+    } catch {
+      return { ok: false, reason: "The operational page state is not valid." };
+    }
+    if (
+      manifest.operationalFormatVersion !== PAGE_OPERATION_ARCHIVE_VERSION ||
+      operational.formatVersion !== manifest.operationalFormatVersion ||
+      operational.counts.pages !== manifest.operationalPageCount ||
+      operational.counts.checkpoints !== manifest.operationalCheckpointCount ||
+      operational.counts.updates !== manifest.operationalUpdateCount
+    ) {
+      return {
+        ok: false,
+        reason:
+          "The operational page state does not contain the version and counts its manifest records.",
       };
     }
   }

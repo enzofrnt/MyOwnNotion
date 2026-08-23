@@ -18,7 +18,9 @@ import {
   backupsWithVerification,
   type Database,
   deleteBackup,
+  pageOperationBackupIsRetentionEvidence,
   recordBackup,
+  recordPageOperationBackupCoverage,
   recordVerification,
 } from "@myownnotion/database";
 import { backupsToDelete, DEFAULT_RETENTION_DAYS, type Uuid } from "@myownnotion/domain";
@@ -100,6 +102,12 @@ export async function runBackupCommand(
         stage: "after-transfer",
         outcome: outcome.verifiedAfterTransfer ? "passed" : "failed",
         ...(outcome.verifiedAfterTransfer ? {} : { detail: outcome.detail }),
+      });
+    }
+    if (outcome.verifiedAfterTransfer && (outcome.operationalCoverage?.length ?? 0) > 0) {
+      await recordPageOperationBackupCoverage(tx, {
+        backupId: outcome.backupId as Uuid,
+        checkpoints: outcome.operationalCoverage ?? [],
       });
     }
 
@@ -218,6 +226,9 @@ export async function pruneBackupsCommand(deps: BackupCommandDeps): Promise<Comm
   for (const id of deletable) {
     const backup = all.find((candidate) => candidate.id === id);
     if (backup === undefined) {
+      continue;
+    }
+    if (await pageOperationBackupIsRetentionEvidence(deps.db, backup.id)) {
       continue;
     }
     if (backup.remoteName != null) {

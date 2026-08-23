@@ -41,6 +41,18 @@ export interface BackupManifest {
   readonly databaseCount?: number;
   readonly databaseEntryCount?: number;
   readonly structuredDataDigest?: string;
+  /**
+   * Present once the page body has a causal operational representation.
+   *
+   * These fields are one indivisible claim: accepting only a digest or only
+   * counts would let an archive look complete while omitting the state an
+   * offline device needs to converge after restoration.
+   */
+  readonly operationalFormatVersion?: number;
+  readonly operationalStateDigest?: string;
+  readonly operationalPageCount?: number;
+  readonly operationalCheckpointCount?: number;
+  readonly operationalUpdateCount?: number;
 }
 
 export interface ManifestProblem {
@@ -114,6 +126,43 @@ export function readBackupManifest(
       !DIGEST.test(value["structuredDataDigest"]))
   ) {
     problems.push({ field: "structuredDataDigest", message: "must be a sha256 digest" });
+  }
+  const operationalFields = [
+    "operationalFormatVersion",
+    "operationalStateDigest",
+    "operationalPageCount",
+    "operationalCheckpointCount",
+    "operationalUpdateCount",
+  ] as const;
+  const operationalFieldCount = operationalFields.filter(
+    (field) => value[field] !== undefined,
+  ).length;
+  if (operationalFieldCount !== 0 && operationalFieldCount !== operationalFields.length) {
+    problems.push({
+      field: "operationalState",
+      message: "version, digest and counts must either all be present or all be absent",
+    });
+  }
+  for (const field of [
+    "operationalFormatVersion",
+    "operationalPageCount",
+    "operationalCheckpointCount",
+    "operationalUpdateCount",
+  ] as const) {
+    const candidate = value[field];
+    if (
+      candidate !== undefined &&
+      (typeof candidate !== "number" || !Number.isSafeInteger(candidate) || candidate < 0)
+    ) {
+      problems.push({ field, message: "must be a non-negative integer" });
+    }
+  }
+  if (
+    value["operationalStateDigest"] !== undefined &&
+    (typeof value["operationalStateDigest"] !== "string" ||
+      !DIGEST.test(value["operationalStateDigest"]))
+  ) {
+    problems.push({ field: "operationalStateDigest", message: "must be a sha256 digest" });
   }
   if (
     typeof value["canonicalExportDigest"] !== "string" ||

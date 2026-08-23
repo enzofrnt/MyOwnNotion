@@ -15,6 +15,7 @@ import {
   listRelationships,
   schema,
   sequenceToCursor,
+  type Transaction,
 } from "@myownnotion/database";
 import {
   buildCanonicalExport,
@@ -44,179 +45,178 @@ import {
  * of the same workspace, and two descriptions drift the first time either
  * changes — with the drift surfacing only when somebody restores.
  */
-export async function buildManifest(context: AppContext) {
-  return context.db.transaction(
-    async (tx) => {
-      // A pre-update backup is deliberately produced before pending migrations
-      // run. Feature 009's first such backup therefore sees the feature-007
-      // schema, where neither structured table exists yet. Treat that complete
-      // absence as an empty structured projection; a half-created pair remains
-      // an integrity failure because omitting it could hide canonical data.
-      const structuredSchema = await tx.execute<{
-        databases_exists: boolean;
-        entries_exists: boolean;
-      }>(sql`
+export async function buildManifestInTransaction(context: AppContext, tx: Transaction) {
+  // A pre-update backup is deliberately produced before pending migrations
+  // run. Feature 009's first such backup therefore sees the feature-007
+  // schema, where neither structured table exists yet. Treat that complete
+  // absence as an empty structured projection; a half-created pair remains
+  // an integrity failure because omitting it could hide canonical data.
+  const structuredSchema = await tx.execute<{
+    databases_exists: boolean;
+    entries_exists: boolean;
+  }>(sql`
         SELECT
           to_regclass('public.databases') IS NOT NULL AS databases_exists,
           to_regclass('public.database_entries') IS NOT NULL AS entries_exists
       `);
-      const availability = structuredSchema.rows[0];
-      if (availability?.databases_exists !== availability?.entries_exists) {
-        throw new Error("the structured database schema is only partially installed");
-      }
-      const structuredTablesAvailable = availability?.databases_exists === true;
+  const availability = structuredSchema.rows[0];
+  if (availability?.databases_exists !== availability?.entries_exists) {
+    throw new Error("the structured database schema is only partially installed");
+  }
+  const structuredTablesAvailable = availability?.databases_exists === true;
 
-      const sequence = await currentSequence(tx, context.workspaceId);
-      const active = await listItems(tx, context.workspaceId, { lifecycle: "active" });
-      const trashed = await listItems(tx, context.workspaceId, { lifecycle: "trashed" });
-      const models = await resolveProtectedContent(
-        tx,
-        [...active, ...trashed],
-        context.protectedContent,
-      );
+  const sequence = await currentSequence(tx, context.workspaceId);
+  const active = await listItems(tx, context.workspaceId, { lifecycle: "active" });
+  const trashed = await listItems(tx, context.workspaceId, { lifecycle: "trashed" });
+  const models = await resolveProtectedContent(
+    tx,
+    [...active, ...trashed],
+    context.protectedContent,
+  );
 
-      const fileRows = await tx
-        .select({
-          itemId: schema.logicalFiles.itemId,
-          mediaType: schema.logicalFiles.mediaType,
-          originalName: schema.logicalFiles.originalName,
-          byteLength: schema.logicalFiles.byteLength,
-          sha256: schema.fileContents.sha256,
-        })
-        .from(schema.logicalFiles)
-        .innerJoin(schema.fileContents, eq(schema.logicalFiles.contentId, schema.fileContents.id));
-      const filesByItem = new Map(fileRows.map((row) => [row.itemId, row]));
+  const fileRows = await tx
+    .select({
+      itemId: schema.logicalFiles.itemId,
+      mediaType: schema.logicalFiles.mediaType,
+      originalName: schema.logicalFiles.originalName,
+      byteLength: schema.logicalFiles.byteLength,
+      sha256: schema.fileContents.sha256,
+    })
+    .from(schema.logicalFiles)
+    .innerJoin(schema.fileContents, eq(schema.logicalFiles.contentId, schema.fileContents.id));
+  const filesByItem = new Map(fileRows.map((row) => [row.itemId, row]));
 
-      const revisionRows = await tx.select().from(schema.revisions);
-      const parentRows = await tx.select().from(schema.revisionParents);
-      const parentsByRevision = new Map<string, Uuid[]>();
-      for (const edge of parentRows) {
-        const list = parentsByRevision.get(edge.revisionId) ?? [];
-        list.push(edge.parentRevisionId as Uuid);
-        parentsByRevision.set(edge.revisionId, list);
-      }
-      const revisions: RevisionHeader[] = revisionRows.map((row) => ({
-        id: row.id as Uuid,
-        itemId: row.itemId as Uuid,
-        mutationId: row.mutationId as Uuid,
-        parentRevisionIds: parentsByRevision.get(row.id) ?? [],
-        acceptedAt: row.acceptedAt.toISOString(),
-      }));
+  const revisionRows = await tx.select().from(schema.revisions);
+  const parentRows = await tx.select().from(schema.revisionParents);
+  const parentsByRevision = new Map<string, Uuid[]>();
+  for (const edge of parentRows) {
+    const list = parentsByRevision.get(edge.revisionId) ?? [];
+    list.push(edge.parentRevisionId as Uuid);
+    parentsByRevision.set(edge.revisionId, list);
+  }
+  const revisions: RevisionHeader[] = revisionRows.map((row) => ({
+    id: row.id as Uuid,
+    itemId: row.itemId as Uuid,
+    mutationId: row.mutationId as Uuid,
+    parentRevisionIds: parentsByRevision.get(row.id) ?? [],
+    acceptedAt: row.acceptedAt.toISOString(),
+  }));
 
-      const itemIds = models.map((model) => model.id);
-      const placementRows =
-        itemIds.length === 0
-          ? []
-          : await tx
-              .select()
-              .from(schema.placements)
-              .where(
-                and(
-                  inArray(schema.placements.itemId, itemIds),
-                  isNull(schema.placements.removedAt),
-                ),
-              );
-      const placementsByItem = new Map<string, typeof placementRows>();
-      for (const placement of placementRows) {
-        const list = placementsByItem.get(placement.itemId) ?? [];
-        list.push(placement);
-        placementsByItem.set(placement.itemId, list);
-      }
+  const itemIds = models.map((model) => model.id);
+  const placementRows =
+    itemIds.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(schema.placements)
+          .where(
+            and(inArray(schema.placements.itemId, itemIds), isNull(schema.placements.removedAt)),
+          );
+  const placementsByItem = new Map<string, typeof placementRows>();
+  for (const placement of placementRows) {
+    const list = placementsByItem.get(placement.itemId) ?? [];
+    list.push(placement);
+    placementsByItem.set(placement.itemId, list);
+  }
 
-      const items: ExportedItem[] = models.map((model) => {
-        const file = filesByItem.get(model.id);
-        return {
-          id: model.id,
-          workspaceId: context.workspaceId,
-          kind: model.kind,
-          name: model.name,
-          lifecycle: model.lifecycle,
-          trashedAt: model.trashedAt,
-          purgeAfter: model.purgeAfter,
-          currentRevisionId: model.currentRevisionId,
-          favourite: model.favourite,
-          offlineIntent: model.offlineIntent,
-          pageDocument: model.pageDocument,
-          file:
-            file === undefined
-              ? null
-              : {
-                  mediaType: file.mediaType,
-                  originalName: file.originalName,
-                  byteLength: file.byteLength,
-                  sha256: Buffer.from(file.sha256).toString("hex"),
-                },
-          placements: (placementsByItem.get(model.id) ?? []).map((placement) => ({
-            id: placement.id as Uuid,
-            workspaceId: placement.workspaceId as Uuid,
-            itemId: placement.itemId as Uuid,
-            // Not the item's kind: the exported item already carries that, and
-            // duplicating it here is what tied a placement to a value that
-            // changes when a page becomes a folder.
-            itemIsFile: placement.itemIsFile,
-            kind: placement.kind as "hierarchy" | "attachment",
-            parentItemId: (placement.parentItemId as Uuid | null) ?? null,
-            positionKey: placement.positionKey,
-            removedAt: null,
-          })),
-        };
+  const items: ExportedItem[] = models.map((model) => {
+    const file = filesByItem.get(model.id);
+    return {
+      id: model.id,
+      workspaceId: context.workspaceId,
+      kind: model.kind,
+      name: model.name,
+      lifecycle: model.lifecycle,
+      trashedAt: model.trashedAt,
+      purgeAfter: model.purgeAfter,
+      currentRevisionId: model.currentRevisionId,
+      favourite: model.favourite,
+      offlineIntent: model.offlineIntent,
+      pageDocument: model.pageDocument,
+      file:
+        file === undefined
+          ? null
+          : {
+              mediaType: file.mediaType,
+              originalName: file.originalName,
+              byteLength: file.byteLength,
+              sha256: Buffer.from(file.sha256).toString("hex"),
+            },
+      placements: (placementsByItem.get(model.id) ?? []).map((placement) => ({
+        id: placement.id as Uuid,
+        workspaceId: placement.workspaceId as Uuid,
+        itemId: placement.itemId as Uuid,
+        // Not the item's kind: the exported item already carries that, and
+        // duplicating it here is what tied a placement to a value that
+        // changes when a page becomes a folder.
+        itemIsFile: placement.itemIsFile,
+        kind: placement.kind as "hierarchy" | "attachment",
+        parentItemId: (placement.parentItemId as Uuid | null) ?? null,
+        positionKey: placement.positionKey,
+        removedAt: null,
+      })),
+    };
+  });
+
+  const relationships = await Promise.all(
+    (await listRelationships(tx, context.workspaceId)).map(async (relationship) => ({
+      id: relationship.id,
+      workspaceId: context.workspaceId,
+      sourceItemId: relationship.sourceItemId,
+      targetItemId: relationship.targetItemId,
+      relationType: relationship.relationType,
+      metadata:
+        context.protectedContent === undefined
+          ? relationship.metadata
+          : ((await context.protectedContent.readRelationshipMetadata<
+              Readonly<Record<string, unknown>>
+            >(tx, relationship.id)) ?? relationship.metadata),
+      createdRevisionId: relationship.createdRevisionId,
+      removedRevisionId: relationship.removedRevisionId,
+    })),
+  );
+
+  const databaseRecords = structuredTablesAvailable
+    ? await listDatabaseRecords(tx, context.workspaceId)
+    : [];
+  const databases = [];
+  const databaseEntries = [];
+  for (const record of databaseRecords) {
+    const definition = await resolveDatabaseDefinition(tx, record, context.protectedContent);
+    databases.push({
+      databaseId: record.databaseId,
+      definitionVersion: record.definitionVersion,
+      definition,
+    });
+    const entries = await listDatabaseEntryRecords(tx, record.databaseId);
+    for (const entry of entries) {
+      const values = await resolveDatabaseEntryValues(tx, entry, context.protectedContent);
+      databaseEntries.push({
+        entryId: entry.entryId,
+        databaseId: entry.databaseId,
+        valueVersion: entry.valueVersion,
+        addedRevisionId: entry.addedRevisionId,
+        values,
       });
+    }
+  }
 
-      const relationships = await Promise.all(
-        (await listRelationships(tx, context.workspaceId)).map(async (relationship) => ({
-          id: relationship.id,
-          workspaceId: context.workspaceId,
-          sourceItemId: relationship.sourceItemId,
-          targetItemId: relationship.targetItemId,
-          relationType: relationship.relationType,
-          metadata:
-            context.protectedContent === undefined
-              ? relationship.metadata
-              : ((await context.protectedContent.readRelationshipMetadata<
-                  Readonly<Record<string, unknown>>
-                >(tx, relationship.id)) ?? relationship.metadata),
-          createdRevisionId: relationship.createdRevisionId,
-          removedRevisionId: relationship.removedRevisionId,
-        })),
-      );
+  return buildCanonicalExport({
+    workspaceId: context.workspaceId,
+    schemaVersion: context.schemaVersion,
+    exportedAt: new Date().toISOString(),
+    changeCursor: sequenceToCursor(sequence),
+    items,
+    databases,
+    databaseEntries,
+    relationships,
+    revisions,
+  });
+}
 
-      const databaseRecords = structuredTablesAvailable
-        ? await listDatabaseRecords(tx, context.workspaceId)
-        : [];
-      const databases = [];
-      const databaseEntries = [];
-      for (const record of databaseRecords) {
-        const definition = await resolveDatabaseDefinition(tx, record, context.protectedContent);
-        databases.push({
-          databaseId: record.databaseId,
-          definitionVersion: record.definitionVersion,
-          definition,
-        });
-        const entries = await listDatabaseEntryRecords(tx, record.databaseId);
-        for (const entry of entries) {
-          const values = await resolveDatabaseEntryValues(tx, entry, context.protectedContent);
-          databaseEntries.push({
-            entryId: entry.entryId,
-            databaseId: entry.databaseId,
-            valueVersion: entry.valueVersion,
-            addedRevisionId: entry.addedRevisionId,
-            values,
-          });
-        }
-      }
-
-      return buildCanonicalExport({
-        workspaceId: context.workspaceId,
-        schemaVersion: context.schemaVersion,
-        exportedAt: new Date().toISOString(),
-        changeCursor: sequenceToCursor(sequence),
-        items,
-        databases,
-        databaseEntries,
-        relationships,
-        revisions,
-      });
-    },
+export async function buildManifest(context: AppContext) {
+  return context.db.transaction(
+    async (tx) => await buildManifestInTransaction(context, tx),
     // PostgreSQL's default READ COMMITTED gives each statement a fresh view.
     // This export makes several queries, so only REPEATABLE READ makes the
     // recorded cursor, items, placements, relationships and revisions describe

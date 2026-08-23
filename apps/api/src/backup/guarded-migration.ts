@@ -15,11 +15,13 @@ import {
 import { type Uuid, validateCanonicalExport } from "@myownnotion/domain";
 import { runBackupCommand } from "../admin/commands/backup-commands.ts";
 import type { AppContext } from "../context.ts";
+import { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import { buildManifest } from "../routes/export.ts";
 import { createProtectedContentRuntime } from "../security/protected-content-runtime.ts";
 import { sealBackupArchiveFile } from "./archive-crypto.ts";
 import { BackupService } from "./backup-service.ts";
 import type { BackupDestination } from "./destinations/destination.ts";
+import { PageOperationArchiveService } from "./page-operation-archive.ts";
 import { decideUpdate } from "./update-guard.ts";
 
 /** The migration that adds the columns the guard itself needs to read. */
@@ -85,6 +87,10 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
       workspaceId: workspace.id,
       deploymentKey: () => Buffer.from(input.deploymentKey()),
     });
+    const pageOperationArchive = new PageOperationArchiveService({
+      workspaceId: workspace.id,
+      crypto: new PageOperationCrypto(protectedRuntime.records),
+    });
     const context: AppContext = {
       db: database.db,
       workspaceId: workspace.id,
@@ -92,6 +98,7 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
       contentStore,
       partialUploads: new PartialUploadStore(input.blobRoot),
       protectedContent: protectedRuntime.content,
+      pageOperationArchive,
     };
 
     const backupForUpdate = async (

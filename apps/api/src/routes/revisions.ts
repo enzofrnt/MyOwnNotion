@@ -8,16 +8,32 @@ import {
   MutationResultSchema,
   RestoreRevisionSchema,
   RevisionSchema,
+  SecurityProblemSchema,
 } from "@myownnotion/contracts";
-import { getRevision, loadParentEdges, readRevisionAttribution } from "@myownnotion/database";
+import {
+  getRevision,
+  loadParentEdges,
+  readPageOperationState,
+  readRevisionAttribution,
+} from "@myownnotion/database";
 import { classifyLineage, describeChangeNature, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
-import { sendProblem } from "../plugins/errors.ts";
-import { handleMutation } from "../plugins/mutations.ts";
+import {
+  type PageHistoryService,
+  PageHistoryServiceError,
+} from "../page-state/page-history-service.ts";
+import { sendProblem, sendSecurityProblem } from "../plugins/errors.ts";
+import { handleMutation, mutationIdFrom } from "../plugins/mutations.ts";
+import { requirePageOperationProtocol } from "../plugins/protocol.ts";
+import { requestContext } from "../security/request-context.ts";
 
-export function registerRevisionRoutes(app: FastifyInstance, context: AppContext): void {
+export function registerRevisionRoutes(
+  app: FastifyInstance,
+  context: AppContext,
+  deps: { readonly history?: PageHistoryService | undefined } = {},
+): void {
   app.get(
     "/v1/revisions/:revisionId",
     {
@@ -107,12 +123,59 @@ export function registerRevisionRoutes(app: FastifyInstance, context: AppContext
       schema: {
         params: Type.Object({ revisionId: Type.String({ format: "uuid" }) }),
         body: RestoreRevisionSchema,
-        response: { 200: MutationResultSchema },
+        response: { 200: MutationResultSchema, 401: SecurityProblemSchema },
       },
     },
     async (request, reply) => {
       const { revisionId } = request.params as { revisionId: string };
       const body = request.body as { currentRevisionId: string };
+      if (deps.history !== undefined) {
+        const source = await context.db.transaction(async (tx) =>
+          getRevision(tx, revisionId as Uuid),
+        );
+        const state =
+          source === null
+            ? null
+            : await readPageOperationState(context.db, context.workspaceId, source.itemId);
+        if (state?.status === "active") {
+          requirePageOperationProtocol(request);
+          const mutationId = mutationIdFrom(request);
+          if (mutationId === null) {
+            return sendProblem(reply, {
+              code: "validation.invalid-identifier",
+              title: "Idempotency-Key must be a UUID",
+            });
+          }
+          const principal = requestContext(request).principal;
+          if (principal.kind !== "owner") {
+            return sendSecurityProblem(reply, {
+              code: "authentication_required",
+              correlationId: requestContext(request).correlationId,
+            });
+          }
+          try {
+            return reply.status(200).send(
+              await deps.history.restoreRevision({
+                revisionId: revisionId as Uuid,
+                expectedCurrentRevisionId: body.currentRevisionId as Uuid,
+                mutationId,
+                deviceId: principal.deviceId as Uuid,
+              }),
+            );
+          } catch (error) {
+            if (error instanceof PageHistoryServiceError) {
+              return sendProblem(reply, {
+                code: error.code,
+                title: error.message,
+                ...(error.competingRevisionIds.length === 0
+                  ? {}
+                  : { competingRevisionIds: error.competingRevisionIds }),
+              });
+            }
+            throw error;
+          }
+        }
+      }
       return handleMutation({
         db: context.db,
         workspaceId: context.workspaceId,

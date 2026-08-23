@@ -108,6 +108,7 @@ interface OpenedCandidate {
   readonly row: PageOperationCheckpointRow;
   readonly checkpoint: OperationalPageCheckpoint;
   readonly frontier: ProtectedOperationalFrontier;
+  readonly operationalDigest: string;
 }
 
 export class PageCheckpointService {
@@ -274,6 +275,7 @@ export class PageCheckpointService {
         pageId,
         checkpointId,
         expectedCurrentCheckpointId: state.currentCheckpointId as Uuid,
+        operationalDigest: opened.operationalDigest,
         now,
       });
       const compacted = await compactPageOperationPayloads(tx, {
@@ -320,7 +322,7 @@ export class PageCheckpointService {
     if (projection.canonicalDigest !== row.canonicalDigest) {
       throw new Error("page checkpoint candidate failed canonical verification");
     }
-    return { row, checkpoint, frontier };
+    return { row, checkpoint, frontier, operationalDigest: projection.operationalDigest };
   }
 
   #retentionContext(row: PageOperationCheckpointRow): PageCheckpointRetentionContext {

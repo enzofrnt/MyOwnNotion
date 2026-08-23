@@ -24,7 +24,7 @@
 
 import { randomUUID } from "node:crypto";
 import { type BackupManifest, backupCompatibility, type Uuid } from "@myownnotion/domain";
-import { decodeBackupArchive, inspectBackupArchive } from "./archive-format.ts";
+import { inspectBackupArchive } from "./archive-format.ts";
 
 export type PreflightStep =
   | "key-access"
@@ -155,6 +155,8 @@ export async function preflight(input: PreflightInput): Promise<PreflightOutcome
 }
 
 export interface RestoreTarget {
+  /** Starts mutation only after every archive-level verification has passed. */
+  readonly begin?: () => Promise<void>;
   /** Writes one item and its placements. */
   readonly writeItem: (item: unknown) => Promise<void>;
   readonly writeRelationship: (relationship: unknown) => Promise<void>;
@@ -162,6 +164,13 @@ export interface RestoreTarget {
   readonly writeDatabase?: (database: unknown) => Promise<void>;
   readonly writeDatabaseEntry?: (entry: unknown) => Promise<void>;
   readonly writeFile: (digest: string, bytes: Buffer) => Promise<void>;
+  /** Verifies causal state against the canonical projection before any write. */
+  readonly verifyPageOperations?: (
+    operationalState: unknown,
+    canonicalExport: unknown,
+  ) => Promise<void>;
+  /** Restores the already verified causal state once referenced rows exist. */
+  readonly writePageOperations?: (operationalState: unknown) => Promise<void>;
   /** Flushes writes that require every item and revision to exist first. */
   readonly finish?: () => Promise<void>;
 }
@@ -182,7 +191,9 @@ export interface RestoreResult {
  * that stops short of it.
  */
 export async function applyArchive(archive: Buffer, target: RestoreTarget): Promise<RestoreResult> {
-  const body = decodeBackupArchive(archive);
+  const inspected = inspectBackupArchive(archive);
+  if (!inspected.ok) throw new Error(inspected.reason);
+  const body = inspected.body;
   const exported = JSON.parse(body.canonicalExport) as {
     items: unknown[];
     relationships: unknown[];
@@ -192,6 +203,17 @@ export async function applyArchive(archive: Buffer, target: RestoreTarget): Prom
   };
   const databases = exported.databases ?? [];
   const databaseEntries = exported.databaseEntries ?? [];
+  let operationalState: unknown = null;
+  if (body.operationalState !== null) {
+    if (target.verifyPageOperations === undefined || target.writePageOperations === undefined) {
+      throw new Error("the restore target cannot restore operational page state");
+    }
+    operationalState = JSON.parse(body.operationalState);
+    // This is intentionally before file ingestion and before the first row:
+    // a canonical/causal mismatch must leave no restore artefact behind.
+    await target.verifyPageOperations(operationalState, exported);
+  }
+  await target.begin?.();
 
   // Files before items: an item that names a file the store does not hold is a
   // broken reference the moment it is written, and the window between the two
@@ -223,6 +245,9 @@ export async function applyArchive(archive: Buffer, target: RestoreTarget): Prom
     await target.writeRelationship(relationship);
   }
   await target.finish?.();
+  if (operationalState !== null) {
+    await target.writePageOperations?.(operationalState);
+  }
 
   return {
     restoredItemCount: exported.items.length,

@@ -12,6 +12,7 @@ import { and, asc, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import {
   authorizedDevices,
+  backupVerifications,
   pageAmbiguities,
   pageDeviceFrontiers,
   pageLegacyBranchConversions,
@@ -366,6 +367,93 @@ export async function readPageOperationCheckpoint(
   return rows[0] ?? null;
 }
 
+/** Records that the exact immutable checkpoint was present in a verified backup. */
+export async function recordPageOperationBackupCoverage(
+  tx: Transaction,
+  input: {
+    readonly backupId: Uuid;
+    readonly checkpoints: readonly {
+      readonly checkpointId: Uuid;
+      readonly snapshotDigest: string;
+      readonly canonicalDigest: string;
+    }[];
+  },
+): Promise<number> {
+  const availability = await tx.execute<{ available: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+        FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'page_operation_checkpoints'
+         AND column_name = 'verified_backup_id'
+    ) AS available
+  `);
+  if (availability.rows[0]?.available !== true) return 0;
+
+  let covered = 0;
+  for (const checkpoint of input.checkpoints) {
+    const rows = await tx
+      .update(pageOperationCheckpoints)
+      .set({ verifiedBackupId: input.backupId })
+      .where(
+        and(
+          eq(pageOperationCheckpoints.id, checkpoint.checkpointId),
+          eq(pageOperationCheckpoints.snapshotDigest, checkpoint.snapshotDigest),
+          eq(pageOperationCheckpoints.canonicalDigest, checkpoint.canonicalDigest),
+        ),
+      )
+      .returning({ id: pageOperationCheckpoints.id });
+    covered += rows.length;
+  }
+  return covered;
+}
+
+/** Retention must not remove the only archive still vouching for a checkpoint. */
+export async function pageOperationBackupIsRetentionEvidence(
+  executor: Executor,
+  backupId: Uuid,
+): Promise<boolean> {
+  const availability = await executor.execute<{ available: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+        FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'page_operation_checkpoints'
+         AND column_name = 'verified_backup_id'
+    ) AS available
+  `);
+  if (availability.rows[0]?.available !== true) return false;
+  const rows = await executor
+    .select({ id: pageOperationCheckpoints.id })
+    .from(pageOperationCheckpoints)
+    .where(eq(pageOperationCheckpoints.verifiedBackupId, backupId))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** True only when destination read-back passed for the backup naming this checkpoint. */
+export async function pageOperationCheckpointHasVerifiedBackup(
+  tx: Transaction,
+  checkpointId: Uuid,
+): Promise<boolean> {
+  const rows = await tx
+    .select({ id: backupVerifications.id })
+    .from(pageOperationCheckpoints)
+    .innerJoin(
+      backupVerifications,
+      eq(backupVerifications.backupId, pageOperationCheckpoints.verifiedBackupId),
+    )
+    .where(
+      and(
+        eq(pageOperationCheckpoints.id, checkpointId),
+        eq(backupVerifications.stage, "after-transfer"),
+        eq(backupVerifications.outcome, "passed"),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function readPageOperationCheckpointAtSequence(
   executor: Executor,
   input: {
@@ -426,6 +514,7 @@ export async function promotePageOperationCheckpoint(
     readonly pageId: Uuid;
     readonly checkpointId: Uuid;
     readonly expectedCurrentCheckpointId: Uuid;
+    readonly operationalDigest: string;
     readonly now: Date;
   },
 ): Promise<PageOperationStateRow> {
@@ -438,7 +527,11 @@ export async function promotePageOperationCheckpoint(
   }
   const rows = await tx
     .update(pageOperationStates)
-    .set({ currentCheckpointId: input.checkpointId, updatedAt: input.now })
+    .set({
+      currentCheckpointId: input.checkpointId,
+      operationalDigest: input.operationalDigest,
+      updatedAt: input.now,
+    })
     .where(
       and(
         eq(pageOperationStates.workspaceId, input.workspaceId),

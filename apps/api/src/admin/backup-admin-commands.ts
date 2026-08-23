@@ -6,6 +6,7 @@ import type { Uuid } from "@myownnotion/domain";
 import type { BackupService } from "../backup/backup-service.ts";
 import type { BackupDestination } from "../backup/destinations/destination.ts";
 import type { RestoreScope } from "../backup/restore-service.ts";
+import type { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { CommandResult } from "./command-output.ts";
 import { CommandUsageError, type ParsedCommand, requireOption } from "./command-parser.ts";
@@ -26,6 +27,8 @@ export interface BackupAdminContext {
   readonly destination: BackupDestination;
   readonly contentStore: ContentStore;
   readonly protectedContent: ProtectedContent;
+  readonly pageOperationCrypto?: PageOperationCrypto;
+  readonly deploymentKey?: () => Buffer;
   readonly open: (ciphertext: Buffer) => Promise<Buffer>;
   readonly schemaVersion: number;
   readonly recordFormatVersion: number;
@@ -90,7 +93,11 @@ export async function runBackupAdminCommand(
       return await verifyBackupCommand(backupDeps, selector(command));
     case "restore test":
       return await restoreTestCommand(
-        { ...restoreDeps, databaseUrl: context.databaseUrl },
+        {
+          ...restoreDeps,
+          databaseUrl: context.databaseUrl,
+          ...(context.deploymentKey === undefined ? {} : { deploymentKey: context.deploymentKey }),
+        },
         selector(command),
       );
     case "restore apply":
@@ -99,6 +106,9 @@ export async function runBackupAdminCommand(
           ...restoreDeps,
           contentStore: context.contentStore,
           protectedContent: context.protectedContent,
+          ...(context.pageOperationCrypto === undefined
+            ? {}
+            : { pageOperationCrypto: context.pageOperationCrypto }),
           safetyBackup: async () => {
             const result = await runBackupCommand(backupDeps, "manual");
             const backupId = result.data?.["backupId"];

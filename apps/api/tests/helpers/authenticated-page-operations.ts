@@ -8,6 +8,7 @@ import { sql } from "drizzle-orm";
 import type { PageCheckpointRetentionPolicy } from "../../src/page-state/checkpoint-service.ts";
 import { hashPassword } from "../../src/security/password-service.ts";
 import { loadSecurityConfig } from "../../src/security/security-config.ts";
+import { digestSessionSecret } from "../../src/security/session-service.ts";
 import {
   type ApiHarness,
   createApiHarness,
@@ -24,6 +25,10 @@ export interface AuthenticatedPageOperationHarness {
   readonly api: ApiHarness;
   reset(): Promise<void>;
   authenticate(): Promise<Record<string, string>>;
+  authenticateAsDevice(input: {
+    readonly deviceId: Uuid;
+    readonly name?: string;
+  }): Promise<Record<string, string>>;
   createLegacyPage(name?: string): Promise<{
     readonly itemId: Uuid;
     readonly revisionId: Uuid;
@@ -39,7 +44,10 @@ function cookieFrom(response: { headers: Record<string, unknown> }): string {
 }
 
 export async function createAuthenticatedPageOperationHarness(
-  options: { readonly checkpointRetention?: PageCheckpointRetentionPolicy } = {},
+  options: {
+    readonly checkpointRetention?: PageCheckpointRetentionPolicy;
+    readonly now?: () => Date;
+  } = {},
 ): Promise<AuthenticatedPageOperationHarness> {
   const keyDirectory = mkdtempSync(path.join(os.tmpdir(), "mon-operation-service-key-"));
   const keyFile = path.join(keyDirectory, "deployment-key");
@@ -57,6 +65,7 @@ export async function createAuthenticatedPageOperationHarness(
     ...(options.checkpointRetention === undefined
       ? {}
       : { pageCheckpointRetention: options.checkpointRetention }),
+    ...(options.now === undefined ? {} : { now: options.now }),
   });
 
   const reset = async () => {
@@ -98,22 +107,39 @@ export async function createAuthenticatedPageOperationHarness(
     `);
   };
 
+  const authenticate = async (): Promise<Record<string, string>> => {
+    const response = await api.built.app.inject({
+      method: "POST",
+      url: "/v1/auth/login/password",
+      headers: currentProtocolHeaders(),
+      payload: { password: PASSWORD },
+    });
+    if (response.statusCode !== 200) throw new Error(`login failed: ${response.body}`);
+    return {
+      ...currentProtocolHeaders(),
+      cookie: `mn_dev_session=${cookieFrom(response)}`,
+      "x-csrf-token": response.json().csrfToken as string,
+    };
+  };
+
   return {
     api,
     reset,
-    authenticate: async () => {
-      const response = await api.built.app.inject({
-        method: "POST",
-        url: "/v1/auth/login/password",
-        headers: currentProtocolHeaders(),
-        payload: { password: PASSWORD },
-      });
-      if (response.statusCode !== 200) throw new Error(`login failed: ${response.body}`);
-      return {
-        ...currentProtocolHeaders(),
-        cookie: `mn_dev_session=${cookieFrom(response)}`,
-        "x-csrf-token": response.json().csrfToken as string,
-      };
+    authenticate,
+    authenticateAsDevice: async ({ deviceId, name = "Second device" }) => {
+      await api.built.database.db.execute(sql`
+        INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
+        VALUES (${deviceId}::uuid, ${OWNER_ID}::uuid, ${`operation-device-${deviceId}`}, ${name}, 'active')
+      `);
+      const headers = await authenticate();
+      const secret = /^mn_dev_session=(.+)$/.exec(headers["cookie"] ?? "")?.[1];
+      if (secret === undefined) throw new Error("the authenticated session cookie is missing");
+      await api.built.database.db.execute(sql`
+        UPDATE sessions
+           SET device_id = ${deviceId}::uuid
+         WHERE session_secret_hash = ${digestSessionSecret(secret)}
+      `);
+      return headers;
     },
     createLegacyPage: async (name = "Operational page") => {
       const page = await createItemViaApi(api, { kind: "page", name });
