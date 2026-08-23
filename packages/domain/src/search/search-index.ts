@@ -120,6 +120,11 @@ export class WorkspaceSearchIndex {
       tokenize: tokenizeSearchText,
       processTerm: (term) => term,
       logger: () => undefined,
+      // This index remains writable while requests can search it. MiniSearch's
+      // default vacuum is batched and resumes on a timer, so a search may prune
+      // the iterator's next node while that maintenance is paused. Remove old
+      // documents eagerly below instead of starting background maintenance.
+      autoVacuum: false,
       searchOptions: {
         combineWith: "AND",
         prefix: true,
@@ -156,7 +161,8 @@ export class WorkspaceSearchIndex {
     if (previous === undefined) {
       this.#index.add(indexedDocument(document));
     } else {
-      this.#index.replace(indexedDocument(document));
+      this.#index.remove(indexedDocument(previous));
+      this.#index.add(indexedDocument(document));
     }
     this.#documents.set(document.itemId, document);
     this.#versions.set(document.itemId, document.sourceVersion);
@@ -172,7 +178,7 @@ export class WorkspaceSearchIndex {
 
     const previous = this.#documents.get(itemId);
     if (previous !== undefined) {
-      this.#index.discard(itemId);
+      this.#index.remove(indexedDocument(previous));
       this.#documents.delete(itemId);
     }
     this.#versions.set(itemId, sourceVersion);
