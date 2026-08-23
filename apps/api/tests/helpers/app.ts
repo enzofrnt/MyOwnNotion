@@ -37,6 +37,7 @@ export interface ApiHarnessOptions {
    * protocol-gate suite, where each request intentionally controls the header.
    */
   readonly clientProtocol?: number | "manual";
+  readonly pageCheckpointRetention?: BuildAppOptions["pageCheckpointRetention"];
 }
 
 export async function createApiHarness(options: ApiHarnessOptions = {}): Promise<ApiHarness> {
@@ -48,6 +49,9 @@ export async function createApiHarness(options: ApiHarnessOptions = {}): Promise
     logger: options.logger ?? false,
     ...(options.security === undefined ? {} : { security: options.security }),
     ...(options.now === undefined ? {} : { now: options.now }),
+    ...(options.pageCheckpointRetention === undefined
+      ? {}
+      : { pageCheckpointRetention: options.pageCheckpointRetention }),
   });
   if (options.clientProtocol !== "manual") {
     const clientProtocol = String(options.clientProtocol ?? PROTOCOL_VERSION);

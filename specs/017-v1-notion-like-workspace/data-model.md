@@ -228,16 +228,23 @@ Une ligne par lot accepté ou refus terminal.
 | `page_id`, `workspace_id` | index `(page_id, page_sequence)` |
 | `page_sequence` | ordre serveur d'acceptation, pas ordre causal |
 | `authored_by_device_id` | FK appareil, conservée dans l'historique |
-| `base_frontier_envelope_id` | base causale chiffrée |
-| `result_frontier_envelope_id` | frontier après import |
-| `update_envelope_id` | octets chiffrés via la hiérarchie existante |
+| `base_frontier_envelope_id` | base causale chiffrée ; null après compaction sûre |
+| `result_frontier_envelope_id` | frontier après import, toujours conservée |
+| `update_envelope_id` | octets chiffrés ; null après compaction sûre |
 | `update_digest` | unique avec `id` |
 | `status` | `accepted`, `rejected` |
 | `failure_code` | null ou problème stable |
 | `accepted_at` | temps serveur |
+| `compacted_at` | null, ou date de retrait des deux payloads devenus redondants |
 
 `page_sequence` sert à paginer et sauvegarder ; la convergence dépend des
 version vectors internes, jamais de cette séquence.
+
+La compaction ne supprime jamais la ligne d'update. `id`, digest, appareil,
+séquence d'origine et frontier résultante forment un reçu d'idempotence
+immuable : une requête rejouée après perte de réponse obtient encore exactement
+la séquence et la frontier déjà acceptées. Seuls la base causale et les octets
+volumineux couverts par le checkpoint sont retirés.
 
 ### `page_operation_checkpoints`
 
@@ -254,8 +261,10 @@ version vectors internes, jamais de cette séquence.
 | `state` | `candidate`, `verified`, `superseded`, `retained` |
 | `created_at`, `verified_at` | temps serveur |
 
-Un checkpoint candidat n'est jamais utilisé pour compacter. La vérification
-recharge les octets, reproduit la projection et compare les digests.
+Un checkpoint candidat de compaction est un shallow snapshot à la frontier
+courante. Il n'est jamais utilisé pour compacter. La vérification recharge les
+octets scellés, reproduit la projection et compare les digests avant de le
+faire passer à `verified`.
 
 ### `page_device_frontiers`
 
@@ -428,6 +437,11 @@ si :
 
 Une révocation retire l'appareil de l'ensemble après commit de l'audit. Un TTL,
 la dernière activité ou la date du checkpoint ne suffisent jamais seuls.
+
+La promotion de `C` et le retrait des payloads couverts forment une seule
+transaction. Les lignes d'updates et leurs frontiers résultantes restent
+présentes comme reçus d'idempotence ; un client qui redemande des octets déjà
+compactés doit repartir du checkpoint courant.
 
 ## 11. Sauvegarde et restauration
 

@@ -1,4 +1,5 @@
 import { generateUuidV7 } from "@myownnotion/domain";
+import { decodeImportBlobMeta } from "loro-crdt";
 import { describe, expect, it } from "vitest";
 import {
   compareVersionVectorBytes,
@@ -82,6 +83,76 @@ describe("updates, version vectors and checkpoints", () => {
     expect(compareVersionVectorBytes(checkpoint.versionVector, first.versionVectorBytes())).toBe(
       "equal",
     );
+  });
+
+  it("opens a shallow checkpoint and accepts updates based on its retained frontier", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [{ type: "paragraph", id: blockId, content: [{ text: "Before" }] }],
+      },
+    });
+    page.transact([{ type: "replace-text", blockId, from: 6, to: 6, text: " checkpoint" }]);
+
+    const checkpoint = await page.compactedCheckpoint();
+    expect(decodeImportBlobMeta(checkpoint.bytes, true).mode).toBe("shallow-snapshot");
+
+    const restored = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    // The author intentionally keeps the original full-history document. A
+    // shallow checkpoint is only useful if updates created after its frontier
+    // remain importable without forcing every live client to reopen it first.
+    const later = page.transact([
+      { type: "replace-text", blockId, from: 17, to: 17, text: " works" },
+    ]);
+
+    expect(restored.importUpdate(later.updateBytes).pending).toBe(false);
+    expect(restored.snapshot()).toEqual(page.snapshot());
+    expect(versionVectorBytesEqual(restored.versionVectorBytes(), page.versionVectorBytes())).toBe(
+      true,
+    );
+  });
+
+  it("rejects checkpoint identity and causal metadata drift", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "paragraph",
+            id: blockId,
+            content: [{ text: "Verified checkpoint" }],
+          },
+        ],
+      },
+    });
+    const baseCheckpoint = await page.checkpoint();
+    page.transact([{ type: "replace-text", blockId, from: 19, to: 19, text: " state" }]);
+    const checkpoint = await page.checkpoint();
+
+    await expect(
+      OperationalPageDocument.fromCheckpoint({
+        pageId: generateUuidV7(),
+        checkpoint,
+      }),
+    ).rejects.toThrow(/metadata/u);
+
+    await expect(
+      OperationalPageDocument.fromCheckpoint({
+        pageId,
+        checkpoint: { ...checkpoint, versionVector: baseCheckpoint.versionVector },
+      }),
+    ).rejects.toThrow(/version vector/iu);
+
+    await expect(
+      OperationalPageDocument.fromCheckpoint({
+        pageId,
+        checkpoint: { ...checkpoint, frontiers: baseCheckpoint.frontiers },
+      }),
+    ).rejects.toThrow(/frontier/iu);
   });
 
   it("opens the transport fields returned by the synchronization API", async () => {

@@ -650,6 +650,21 @@ export function HierarchyExplorer({
       const database = selectedDatabase;
       if (database === null) return;
       setEntryReturnFocusId(entryId);
+      const projectedEntry = databaseEntries.find((entry) => entry.entryId === entryId);
+      if (projectedEntry !== undefined) {
+        // A visible row is already enough authority to open its local-first
+        // surface. Do not put an IndexedDB read between a tap and navigation:
+        // WebKit can otherwise leave the control focused while the UI appears
+        // to ignore the gesture during a concurrent synchronization refresh.
+        // Keep the projection as a fallback for server-backed rows that have
+        // not reached the local database yet.
+        remotelyOpenedEntry.current = {
+          entry: projectedEntry,
+          definition: database.definition as unknown as DatabaseDefinition,
+        };
+        setSelectedId(entryId);
+        return;
+      }
       void (async () => {
         if ((await service.getDatabaseEntry(entryId)) === null) {
           const remote = await service.api.getDatabaseEntry(database.databaseId as Uuid, entryId);
@@ -663,7 +678,7 @@ export function HierarchyExplorer({
         setSelectedId(entryId);
       })();
     },
-    [selectedDatabase, service],
+    [databaseEntries, selectedDatabase, service],
   );
   const clearEntryReturnFocus = useCallback(() => setEntryReturnFocusId(null), []);
 

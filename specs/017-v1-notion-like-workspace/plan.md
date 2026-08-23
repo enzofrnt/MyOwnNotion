@@ -79,9 +79,7 @@ plusieurs onglets ; aucune perte silencieuse ; tous les contenus et journaux
 opérationnels chiffrés au repos ; modèle canonique indépendant de l'éditeur ;
 pas de remplacement complet sur le chemin de frappe ; migration paresseuse et
 retour arrière ; aucune expiration causée uniquement par une longue absence ;
-WCAG 2.2 AA ; français initial ; aucun compte, licence ou service tiers requis ;
-aucun serveur Draw.io, les fichiers `.drawio` restant opaques jusqu'à une
-éventuelle feature interne postérieure aux fondations V1
+WCAG 2.2 AA ; français initial ; aucun compte, licence ou service tiers requis
 
 **Scale/Scope**: 100 000 pages, 1 000 000 blocs, pages interactives de 500 blocs,
 10 appareils autorisés, suites de 10 000 changements distants et plusieurs

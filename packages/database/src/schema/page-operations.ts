@@ -105,19 +105,18 @@ export function definePageOperationSchema(deps: PageOperationSchemaDependencies)
       authoredByDeviceId: uuid("authored_by_device_id")
         .notNull()
         .references(() => deps.deviceId),
-      baseFrontierEnvelopeId: uuid("base_frontier_envelope_id")
-        .notNull()
-        .references(() => deps.protectedEnvelopeId),
+      baseFrontierEnvelopeId: uuid("base_frontier_envelope_id").references(
+        () => deps.protectedEnvelopeId,
+      ),
       resultFrontierEnvelopeId: uuid("result_frontier_envelope_id")
         .notNull()
         .references(() => deps.protectedEnvelopeId),
-      updateEnvelopeId: uuid("update_envelope_id")
-        .notNull()
-        .references(() => deps.protectedEnvelopeId),
+      updateEnvelopeId: uuid("update_envelope_id").references(() => deps.protectedEnvelopeId),
       updateDigest: text("update_digest").notNull(),
       status: text("status").notNull(),
       failureCode: text("failure_code"),
       acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+      compactedAt: timestamp("compacted_at", { withTimezone: true }),
     },
     (table) => [
       foreignKey({
@@ -136,6 +135,14 @@ export function definePageOperationSchema(deps: PageOperationSchemaDependencies)
       check(
         "page_operation_updates_status_check",
         sql`${table.status} IN ('accepted', 'rejected')`,
+      ),
+      check(
+        "page_operation_updates_compaction_check",
+        sql`(
+          (${table.compactedAt} IS NULL AND ${table.baseFrontierEnvelopeId} IS NOT NULL AND ${table.updateEnvelopeId} IS NOT NULL)
+          OR
+          (${table.compactedAt} IS NOT NULL AND ${table.status} = 'accepted' AND ${table.baseFrontierEnvelopeId} IS NULL AND ${table.updateEnvelopeId} IS NULL)
+        )`,
       ),
     ],
   );

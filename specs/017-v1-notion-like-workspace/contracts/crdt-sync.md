@@ -420,6 +420,22 @@ Les index dérivés comme la recherche peuvent reconstruire leur projection apr�
 ce commit, mais ils ne font pas partie de l'accusé canonique et ne peuvent
 bloquer ni le démarrage du workspace ni la synchronisation durable.
 
+### 8.1 Checkpoints et reçus après compaction
+
+Un shallow checkpoint reste candidat tant que ses octets scellés n'ont pas été
+rouverts et reprojetés vers le digest canonique déclaré. Sa promotion et le
+retrait des payloads couverts sont atomiques et restent interdits tant qu'une
+frontier d'appareil non révoqué, une ambiguïté, l'historique, une sauvegarde
+vérifiée, une rotation ou une restauration ne donne pas une preuve favorable.
+L'âge d'une update ou d'un appareil n'est jamais une preuve.
+
+Après promotion, le serveur conserve pour chaque update compactée son
+`updateId`, son digest, son appareil, sa `pageSequence` d'origine et sa frontier
+résultante. Ce reçu immuable permet de répondre idempotemment à une nouvelle
+tentative dont la première réponse s'est perdue. Les octets et la base causale
+peuvent être absents ; un client qui ne domine pas encore cette frontier reçoit
+`page-operations.dependencies-missing` et recharge le checkpoint courant.
+
 ## 9. Ambiguïtés
 
 ~~~ts

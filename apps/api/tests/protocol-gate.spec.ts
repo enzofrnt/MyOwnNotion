@@ -33,7 +33,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await harness.close();
+  await harness?.close();
 });
 
 /** The minimum a request needs to be judged by version. */

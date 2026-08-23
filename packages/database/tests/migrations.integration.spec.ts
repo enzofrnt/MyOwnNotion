@@ -25,6 +25,7 @@ describe("reviewed SQL migrations", () => {
     expect(applied).toContain("0001_initial");
     expect(applied).toContain("0007_databases");
     expect(applied).toContain("0008_page_operations");
+    expect(applied).toContain("0009_page_operation_compaction");
   });
 
   it("is idempotent: reapplying applies nothing", async () => {
@@ -121,43 +122,70 @@ describe("reviewed SQL migrations", () => {
     try {
       const { rows } = await client.query<{
         migration_recorded: boolean;
+        compaction_migration_recorded: boolean;
         state_exists: boolean;
         updates_exists: boolean;
         checkpoints_exists: boolean;
         frontiers_exists: boolean;
         ambiguities_exists: boolean;
         conversions_exists: boolean;
+        base_frontier_nullable: boolean;
+        update_payload_nullable: boolean;
+        compacted_at_exists: boolean;
       }>(
         `SELECT
            EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0008_page_operations')
              AS migration_recorded,
+           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0009_page_operation_compaction')
+             AS compaction_migration_recorded,
            to_regclass('public.page_operation_states') IS NOT NULL AS state_exists,
            to_regclass('public.page_operation_updates') IS NOT NULL AS updates_exists,
            to_regclass('public.page_operation_checkpoints') IS NOT NULL AS checkpoints_exists,
            to_regclass('public.page_device_frontiers') IS NOT NULL AS frontiers_exists,
            to_regclass('public.page_ambiguities') IS NOT NULL AS ambiguities_exists,
-           to_regclass('public.page_legacy_branch_conversions') IS NOT NULL AS conversions_exists`,
+           to_regclass('public.page_legacy_branch_conversions') IS NOT NULL AS conversions_exists,
+           EXISTS (
+             SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'page_operation_updates'
+                AND column_name = 'base_frontier_envelope_id' AND is_nullable = 'YES'
+           ) AS base_frontier_nullable,
+           EXISTS (
+             SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'page_operation_updates'
+                AND column_name = 'update_envelope_id' AND is_nullable = 'YES'
+           ) AS update_payload_nullable,
+           EXISTS (
+             SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'page_operation_updates'
+                AND column_name = 'compacted_at'
+           ) AS compacted_at_exists`,
       );
       expect(rows[0]).toEqual({
         migration_recorded: true,
+        compaction_migration_recorded: true,
         state_exists: true,
         updates_exists: true,
         checkpoints_exists: true,
         frontiers_exists: true,
         ambiguities_exists: true,
         conversions_exists: true,
+        base_frontier_nullable: true,
+        update_payload_nullable: true,
+        compacted_at_exists: true,
       });
 
       const constraints = await client.query<{ conname: string }>(
         `SELECT conname FROM pg_constraint
           WHERE conname IN (
             'page_operation_updates_sequence_unique',
+            'page_operation_updates_compaction_check',
             'page_ambiguities_logical_unique'
           )
           ORDER BY conname`,
       );
       expect(constraints.rows.map(({ conname }) => conname)).toEqual([
         "page_ambiguities_logical_unique",
+        "page_operation_updates_compaction_check",
         "page_operation_updates_sequence_unique",
       ]);
       const triggers = await client.query<{ tgname: string }>(
@@ -233,7 +261,10 @@ describe("reviewed SQL migrations", () => {
       );
       await client.query("COMMIT");
 
-      expect(await applyMigrations(legacy.connectionString)).toEqual(["0008_page_operations"]);
+      expect(await applyMigrations(legacy.connectionString)).toEqual([
+        "0008_page_operations",
+        "0009_page_operation_compaction",
+      ]);
       const { rows } = await client.query<{
         format_version: number;
         body: unknown;

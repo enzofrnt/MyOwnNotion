@@ -5,8 +5,9 @@ import {
   extractSearchableDocumentText,
   readDocumentBody,
 } from "@myownnotion/domain";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
+import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { BoardView } from "./board-view.tsx";
 import { CalendarView } from "./calendar-view.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
@@ -69,12 +70,15 @@ export function DatabasePage({
 }) {
   const [editingProperty, setEditingProperty] = useState(false);
   const [propertyDraft, setPropertyDraft] = useState<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
+  const propertyDraftRef = useRef<DatabasePropertyDraft>(EMPTY_PROPERTY_DRAFT);
   const [propertyError, setPropertyError] = useState<string | null>(null);
   const [savingProperty, setSavingProperty] = useState(false);
+  const propertySubmissionInFlight = useRef(false);
   const [pendingDefinitionMutations, setPendingDefinitionMutations] = useState(0);
   const [entryTitle, setEntryTitle] = useState("");
   const [entryError, setEntryError] = useState<string | null>(null);
   const [savingEntry, setSavingEntry] = useState(false);
+  const entrySubmissionInFlight = useRef(false);
   const [pendingDefinition, setPendingDefinition] = useState<DatabaseDefinition | null>(null);
   const [impact, setImpact] = useState<DefinitionImpact | null>(null);
   const [loadedPage, setLoadedPage] = useState<DatabaseViewPage | null>(null);
@@ -273,7 +277,13 @@ export function DatabasePage({
   };
 
   const addProperty = (): void => {
-    const result = validatePropertyDraft(propertyDraft);
+    if (propertySubmissionInFlight.current) return;
+    // A controlled input's DOM event can be followed immediately by submit,
+    // before React has committed the corresponding render. Keep the event's
+    // value synchronously so a fast tap can never save an older draft (most
+    // visibly, a select/status property with all of its options missing).
+    const submittedDraft = propertyDraftRef.current;
+    const result = validatePropertyDraft(submittedDraft);
     if (!result.ok) {
       setPropertyError(result.error);
       return;
@@ -293,20 +303,23 @@ export function DatabasePage({
         ],
       })),
     };
-    const submittedDraft = propertyDraft;
     // Commit the form state at submission time. A previous asynchronous save
     // must never close a newer editor that the owner has already opened.
+    propertyDraftRef.current = EMPTY_PROPERTY_DRAFT;
+    propertySubmissionInFlight.current = true;
     setPropertyDraft(EMPTY_PROPERTY_DRAFT);
     setPropertyError(null);
     setEditingProperty(false);
     setSavingProperty(true);
     void replaceDefinition(candidate)
       .catch(() => {
+        propertyDraftRef.current = submittedDraft;
         setPropertyDraft(submittedDraft);
         setPropertyError(DATABASE_COPY.page.propertySaveFailed);
         setEditingProperty(true);
       })
       .finally(() => {
+        propertySubmissionInFlight.current = false;
         setSavingProperty(false);
       });
   };
@@ -350,13 +363,17 @@ export function DatabasePage({
     await replaceDefinition(candidate);
   };
 
-  const createEntry = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault();
+  const submitEntry = async (): Promise<void> => {
+    // Pointer activation and the form submit can both reach this function. The
+    // ref closes that gap synchronously, before React has rendered `disabled`,
+    // so one physical gesture can never create two entries.
+    if (entrySubmissionInFlight.current) return;
     const title = entryTitle.trim();
     if (title.length === 0) {
       setEntryError(DATABASE_COPY.page.titleRequired);
       return;
     }
+    entrySubmissionInFlight.current = true;
     setEntryError(null);
     // Clear and lock the controlled field before the asynchronous write. If
     // the clear waited until the write completed, that older render could
@@ -369,8 +386,13 @@ export function DatabasePage({
       setEntryTitle(title);
       setEntryError(DATABASE_COPY.page.entryCreateFailed);
     } finally {
+      entrySubmissionInFlight.current = false;
       setSavingEntry(false);
     }
+  };
+  const createEntry = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    void submitEntry();
   };
 
   return (
@@ -395,6 +417,7 @@ export function DatabasePage({
           draft={propertyDraft}
           error={propertyError}
           onChange={(draft) => {
+            propertyDraftRef.current = draft;
             setPropertyDraft(draft);
             setPropertyError(null);
           }}
@@ -512,9 +535,13 @@ export function DatabasePage({
             disabled={savingEntry}
             onChange={(event) => setEntryTitle(event.target.value)}
           />
-          <button type="submit" disabled={savingEntry}>
+          <StableActionButton
+            type="submit"
+            disabled={savingEntry}
+            onActivate={() => void submitEntry()}
+          >
             {DATABASE_COPY.page.newEntry}
-          </button>
+          </StableActionButton>
         </div>
         {entryError !== null ? <p role="alert">{entryError}</p> : null}
       </form>

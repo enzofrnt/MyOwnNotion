@@ -7,10 +7,11 @@
  * writes remains in the caller's PostgreSQL transaction.
  */
 
-import type { Uuid } from "@myownnotion/domain";
-import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import type { DeviceState, Uuid } from "@myownnotion/domain";
+import { and, asc, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import {
+  authorizedDevices,
   pageAmbiguities,
   pageDeviceFrontiers,
   pageLegacyBranchConversions,
@@ -365,6 +366,109 @@ export async function readPageOperationCheckpoint(
   return rows[0] ?? null;
 }
 
+export async function readPageOperationCheckpointAtSequence(
+  executor: Executor,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly pageId: Uuid;
+    readonly throughPageSequence: number;
+  },
+): Promise<PageOperationCheckpointRow | null> {
+  const rows = await executor
+    .select()
+    .from(pageOperationCheckpoints)
+    .where(
+      and(
+        eq(pageOperationCheckpoints.workspaceId, input.workspaceId),
+        eq(pageOperationCheckpoints.pageId, input.pageId),
+        eq(pageOperationCheckpoints.throughPageSequence, input.throughPageSequence),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function verifyPageOperationCheckpoint(
+  tx: Transaction,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly pageId: Uuid;
+    readonly checkpointId: Uuid;
+    readonly verifiedAt: Date;
+  },
+): Promise<PageOperationCheckpointRow> {
+  const rows = await tx
+    .update(pageOperationCheckpoints)
+    .set({ state: "verified", verifiedAt: input.verifiedAt })
+    .where(
+      and(
+        eq(pageOperationCheckpoints.workspaceId, input.workspaceId),
+        eq(pageOperationCheckpoints.pageId, input.pageId),
+        eq(pageOperationCheckpoints.id, input.checkpointId),
+        eq(pageOperationCheckpoints.state, "candidate"),
+      ),
+    )
+    .returning();
+  const verified = rows[0];
+  if (verified !== undefined) return verified;
+  const existing = await readPageOperationCheckpoint(tx, input);
+  if (existing !== null && ["verified", "retained"].includes(existing.state)) return existing;
+  throw new PageOperationRepositoryError(
+    "state-transition-refused",
+    "page operation checkpoint could not be verified",
+  );
+}
+
+export async function promotePageOperationCheckpoint(
+  tx: Transaction,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly pageId: Uuid;
+    readonly checkpointId: Uuid;
+    readonly expectedCurrentCheckpointId: Uuid;
+    readonly now: Date;
+  },
+): Promise<PageOperationStateRow> {
+  const candidate = await readPageOperationCheckpoint(tx, input);
+  if (candidate === null || !["verified", "retained"].includes(candidate.state)) {
+    throw new PageOperationRepositoryError(
+      "state-transition-refused",
+      "only a verified page operation checkpoint can be promoted",
+    );
+  }
+  const rows = await tx
+    .update(pageOperationStates)
+    .set({ currentCheckpointId: input.checkpointId, updatedAt: input.now })
+    .where(
+      and(
+        eq(pageOperationStates.workspaceId, input.workspaceId),
+        eq(pageOperationStates.pageId, input.pageId),
+        eq(pageOperationStates.status, "active"),
+        eq(pageOperationStates.currentCheckpointId, input.expectedCurrentCheckpointId),
+      ),
+    )
+    .returning();
+  const state = rows[0];
+  if (state === undefined) {
+    throw new PageOperationRepositoryError(
+      "state-advanced-concurrently",
+      "the current page operation checkpoint changed before promotion",
+    );
+  }
+  if (input.expectedCurrentCheckpointId !== input.checkpointId) {
+    await tx
+      .update(pageOperationCheckpoints)
+      .set({ state: "superseded" })
+      .where(
+        and(
+          eq(pageOperationCheckpoints.id, input.expectedCurrentCheckpointId),
+          eq(pageOperationCheckpoints.state, "verified"),
+        ),
+      );
+  }
+  return state;
+}
+
 export interface AppendAcceptedPageOperationUpdateInput {
   readonly updateId: Uuid;
   readonly pageId: Uuid;
@@ -693,6 +797,166 @@ export async function confirmPageDeviceFrontier(
     );
   }
   return updated;
+}
+
+export interface PageDeviceFrontierWithAuthorization {
+  readonly frontier: PageDeviceFrontierRow;
+  readonly authorizationState: DeviceState;
+}
+
+/**
+ * Returns every device that has ever durably confirmed this page together
+ * with its current authorization state. The copied state on the frontier row
+ * is diagnostic only; compaction always trusts the authoritative device row.
+ */
+export async function listPageDeviceFrontiersWithAuthorization(
+  executor: Executor,
+  input: { readonly workspaceId: Uuid; readonly pageId: Uuid },
+): Promise<PageDeviceFrontierWithAuthorization[]> {
+  const rows = await executor
+    .select({ frontier: pageDeviceFrontiers, authorizationState: authorizedDevices.state })
+    .from(pageDeviceFrontiers)
+    .innerJoin(authorizedDevices, eq(authorizedDevices.id, pageDeviceFrontiers.deviceId))
+    .where(
+      and(
+        eq(pageDeviceFrontiers.workspaceId, input.workspaceId),
+        eq(pageDeviceFrontiers.pageId, input.pageId),
+      ),
+    )
+    .orderBy(asc(pageDeviceFrontiers.deviceId));
+  return rows.map((row) => ({
+    frontier: row.frontier,
+    authorizationState: row.authorizationState as DeviceState,
+  }));
+}
+
+export async function markPageDeviceFrontierRevoked(
+  tx: Transaction,
+  input: { readonly pageId: Uuid; readonly deviceId: Uuid },
+): Promise<PageDeviceFrontierRow> {
+  const rows = await tx
+    .select()
+    .from(pageDeviceFrontiers)
+    .where(
+      and(
+        eq(pageDeviceFrontiers.pageId, input.pageId),
+        eq(pageDeviceFrontiers.deviceId, input.deviceId),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  const existing = rows[0];
+  if (existing === undefined) {
+    throw new PageOperationRepositoryError(
+      "state-not-found",
+      "page device frontier does not exist",
+    );
+  }
+  if (existing.deviceState === "revoked") return existing;
+  const updatedRows = await tx
+    .update(pageDeviceFrontiers)
+    .set({
+      deviceState: "revoked",
+      recordVersion: existing.recordVersion + 1,
+    })
+    .where(
+      and(
+        eq(pageDeviceFrontiers.pageId, input.pageId),
+        eq(pageDeviceFrontiers.deviceId, input.deviceId),
+        eq(pageDeviceFrontiers.recordVersion, existing.recordVersion),
+      ),
+    )
+    .returning();
+  const updated = updatedRows[0];
+  if (updated === undefined) {
+    throw new PageOperationRepositoryError(
+      "state-advanced-concurrently",
+      "page device frontier changed while revocation was copied",
+    );
+  }
+  return updated;
+}
+
+export async function hasPageAmbiguityDependencyThrough(
+  executor: Executor,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly pageId: Uuid;
+    readonly throughPageSequence: number;
+  },
+): Promise<boolean> {
+  const rows = await executor
+    .select({ id: pageAmbiguities.id })
+    .from(pageAmbiguities)
+    .innerJoin(
+      pageOperationUpdates,
+      sql`${pageOperationUpdates.id} = ANY(${pageAmbiguities.sourceUpdateIds})`,
+    )
+    .where(
+      and(
+        eq(pageAmbiguities.workspaceId, input.workspaceId),
+        eq(pageAmbiguities.pageId, input.pageId),
+        lte(pageOperationUpdates.pageSequence, input.throughPageSequence),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+export interface CompactPageOperationPayloadsResult {
+  readonly compactedUpdates: number;
+  readonly removedEnvelopeIds: readonly Uuid[];
+}
+
+/**
+ * Removes only payloads made redundant by a promoted shallow checkpoint.
+ * Result frontiers and immutable row metadata remain as idempotence receipts.
+ */
+export async function compactPageOperationPayloads(
+  tx: Transaction,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly pageId: Uuid;
+    readonly throughPageSequence: number;
+    readonly compactedAt: Date;
+  },
+): Promise<CompactPageOperationPayloadsResult> {
+  const rows = await tx
+    .select({
+      id: pageOperationUpdates.id,
+      baseFrontierEnvelopeId: pageOperationUpdates.baseFrontierEnvelopeId,
+      updateEnvelopeId: pageOperationUpdates.updateEnvelopeId,
+    })
+    .from(pageOperationUpdates)
+    .where(
+      and(
+        eq(pageOperationUpdates.workspaceId, input.workspaceId),
+        eq(pageOperationUpdates.pageId, input.pageId),
+        eq(pageOperationUpdates.status, "accepted"),
+        lte(pageOperationUpdates.pageSequence, input.throughPageSequence),
+        isNull(pageOperationUpdates.compactedAt),
+      ),
+    )
+    .orderBy(asc(pageOperationUpdates.pageSequence));
+  if (rows.length === 0) return { compactedUpdates: 0, removedEnvelopeIds: [] };
+
+  const removedEnvelopeIds = rows.flatMap(({ baseFrontierEnvelopeId, updateEnvelopeId }) => {
+    if (baseFrontierEnvelopeId === null || updateEnvelopeId === null) {
+      throw new Error("an uncompacted page update has incomplete protected payloads");
+    }
+    return [baseFrontierEnvelopeId as Uuid, updateEnvelopeId as Uuid];
+  });
+  await tx
+    .update(pageOperationUpdates)
+    .set({ baseFrontierEnvelopeId: null, updateEnvelopeId: null, compactedAt: input.compactedAt })
+    .where(
+      inArray(
+        pageOperationUpdates.id,
+        rows.map(({ id }) => id),
+      ),
+    );
+  await tx.delete(protectedEnvelopes).where(inArray(protectedEnvelopes.id, removedEnvelopeIds));
+  return { compactedUpdates: rows.length, removedEnvelopeIds };
 }
 
 export async function lockLegacyBranchConversion(

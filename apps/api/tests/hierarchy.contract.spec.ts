@@ -20,7 +20,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await harness.close();
+  await harness?.close();
 });
 
 describe("health", () => {

@@ -36,6 +36,32 @@ export async function createOperationalCheckpoint(
   };
 }
 
+/**
+ * Exports the current state while garbage-collecting history before its causal
+ * frontier.
+ *
+ * A shallow checkpoint is safe to promote only after every still-authorized
+ * device has durably confirmed a version vector that dominates this frontier.
+ * That product-level decision intentionally lives in the server checkpoint
+ * service; this pure helper only creates and self-describes the candidate.
+ */
+export async function createCompactedOperationalCheckpoint(
+  pageId: Uuid,
+  doc: LoroDoc,
+): Promise<OperationalPageCheckpoint> {
+  doc.commit();
+  const bytes = doc.export({ mode: "shallow-snapshot", frontiers: doc.oplogFrontiers() });
+  return {
+    operationalFormat: OPERATIONAL_FORMAT,
+    operationalVersion: OPERATIONAL_FORMAT_VERSION,
+    pageId,
+    bytes,
+    digest: await sha256Hex(bytes),
+    versionVector: doc.oplogVersion().encode(),
+    frontiers: encodeOperationalFrontiers(doc.frontiers()),
+  };
+}
+
 export async function openOperationalCheckpoint(
   expectedPageId: Uuid,
   checkpoint: OperationalPageCheckpoint,

@@ -5,6 +5,7 @@ import {
   generateUuidV7,
 } from "@myownnotion/domain";
 import type { FormEvent } from "react";
+import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 export type EditablePropertyType = Exclude<DatabasePropertyType, "title">;
@@ -191,9 +192,9 @@ export function PropertyEditor({
 
       {error !== null ? <p role="alert">{error}</p> : null}
       <div className="field-row">
-        <button type="submit" disabled={submitting}>
+        <StableActionButton type="submit" disabled={submitting} onActivate={onSubmit}>
           {submitting ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.property.save}
-        </button>
+        </StableActionButton>
         <button type="button" className="link" onClick={onCancel} disabled={submitting}>
           {DATABASE_COPY.common.cancel}
         </button>

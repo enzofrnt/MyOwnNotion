@@ -90,13 +90,6 @@ responsabilité explicite de ces comportements dans son propre périmètre.
   seule une révocation explicite permet de cesser de retenir sa frontière de
   synchronisation.
 
-### Session 2026-08-22
-
-- Q: La stack V1 doit-elle embarquer un serveur Draw.io ? → R: Non. Les fichiers
-  `.drawio` restent des pièces jointes téléchargeables. Toute future édition de
-  diagrammes vient après les fondations V1, s'exécute directement dans
-  MyOwnNotion et n'ajoute ni conteneur Draw.io ni embed public.
-
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Entrer dans un espace de travail focalisé (Priority: P1)
