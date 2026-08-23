@@ -148,6 +148,23 @@ const platforms = baseImages.platforms.join(",");
 const results: Array<{ target: string; dockerfile: string; platforms: string[]; digest: string }> =
   [];
 
+function buildArguments(target: Target): string[] {
+  const args: string[] = [];
+  for (const [argument, baseName] of Object.entries(target.baseArgs)) {
+    const base = baseImages.bases[baseName];
+    if (base === undefined) {
+      throw new Error(
+        `${target.dockerfile} needs base \`${baseName}\`, which docker/base-images.json does not declare`,
+      );
+    }
+    args.push("--build-arg", `${argument}=${base.ref}@${base.digest}`);
+  }
+  for (const [argument, value] of Object.entries(target.buildArgs ?? {})) {
+    args.push("--build-arg", `${argument}=${value}`);
+  }
+  return args;
+}
+
 for (const target of targets) {
   const metadataFile = path.join(repoRoot, `.image-build-${target.name}.json`);
   const args = [
@@ -162,20 +179,7 @@ for (const target of targets) {
     "--provenance=true",
     "--sbom=true",
   ];
-  for (const [argument, baseName] of Object.entries(target.baseArgs)) {
-    const base = baseImages.bases[baseName];
-    if (base === undefined) {
-      console.error(
-        `Image build gate failed: ${target.dockerfile} needs base \`${baseName}\`, ` +
-          "which docker/base-images.json does not declare.",
-      );
-      process.exit(1);
-    }
-    args.push("--build-arg", `${argument}=${base.ref}@${base.digest}`);
-  }
-  for (const [argument, value] of Object.entries(target.buildArgs ?? {})) {
-    args.push("--build-arg", `${argument}=${value}`);
-  }
+  args.push(...buildArguments(target));
   // No `--push` and no `--load`: the gate builds and discards.
   args.push(".");
 
@@ -203,6 +207,60 @@ for (const target of targets) {
   });
 }
 
+const nativePlatform =
+  process.arch === "arm64" ? "linux/arm64" : process.arch === "x64" ? "linux/amd64" : undefined;
+if (nativePlatform === undefined) {
+  console.error(`Image runtime smoke does not support host architecture ${process.arch}.`);
+  process.exit(1);
+}
+
+const apiTarget = targets.find((target) => target.name === "api");
+if (apiTarget === undefined) {
+  console.error("Image runtime smoke cannot find the API image target.");
+  process.exit(1);
+}
+
+// A multi-platform build proves that every manifest can be assembled, but it
+// cannot be loaded into the local daemon and executed. Build the native API a
+// second time from the warm BuildKit cache, then exercise the exact packaged
+// entrypoints. This caught a Loro CommonJS/Wasm bundle that built cleanly for
+// both architectures while every fresh deployment failed before migrations.
+const smokeImage = `myownnotion-api:runtime-smoke-${process.pid}`;
+try {
+  run("docker", [
+    "buildx",
+    "build",
+    "--platform",
+    nativePlatform,
+    "--file",
+    apiTarget.dockerfile,
+    "--load",
+    "--tag",
+    smokeImage,
+    "--provenance=false",
+    ...buildArguments(apiTarget),
+    ".",
+  ]);
+  const smokeOutput = run(path.join(repoRoot, "scripts", "ci", "smoke-api-image.sh"), [
+    smokeImage,
+  ]).trim();
+  console.info(smokeOutput);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Image runtime smoke failed: ${message}`);
+  process.exitCode = 1;
+} finally {
+  try {
+    run("docker", ["image", "rm", smokeImage]);
+  } catch {
+    console.warn(`Could not remove disposable image tag ${smokeImage}.`);
+  }
+}
+
+if (process.exitCode === 1) {
+  process.exit(1);
+}
+
 writeFileSync(
   artifactPath,
   `${JSON.stringify(
@@ -217,6 +275,12 @@ writeFileSync(
         ]),
       ),
       images: results,
+      runtimeSmoke: {
+        status: "pass",
+        platform: nativePlatform,
+        image: "api",
+        probes: ["loro-runtime", "migration-entrypoint", "server-entrypoint"],
+      },
     },
     null,
     2,

@@ -619,7 +619,7 @@ fails when any complete or selective entry point is missing from
 | `security:static` | local, PR, main | Any high-confidence finding or an analyzer failure blocks | `static-security.sarif` |
 | `security:licenses` | local, PR, main | Any denied or unresolvable license blocks | `license-policy.json` |
 | `build` `compose:check` | local, PR, main | Build failure or a Compose boundary violation blocks | — |
-| `images:build` | local, PR, main | Unpinned base digest or a build failure blocks; builds on every candidate and pushes nothing | `image-build.json` |
+| `images:build` | local, PR, main | Unpinned base digest, a build failure, a missing packaged Loro runtime, or an unloadable API/migration entrypoint blocks; builds every platform, then executes a native image smoke without publishing | `image-build.json` |
 | pinned Trivy container scan | conditional local evidence, PR, main | Any high/critical vulnerability with a fix, or an unavailable required scan, blocks | `container-scan.sarif` |
 | `release:gate` | tag | Missing, stale, foreign-commit, or artifact-less gate evidence blocks publication | — |
 

@@ -622,6 +622,11 @@ jobs:
           tags: myownnotion-api:scan
           cache-from: type=gha,scope=api-${{ needs.impact.outputs.cache_scope }}
           cache-to: type=gha,mode=max,scope=api-${{ needs.impact.outputs.cache_scope }},ignore-error=true
+      - name: Exercise the packaged API runtime
+        # A successful Docker build does not prove that Node can load the
+        # resulting entrypoints. Keep this on the already-loaded scan image so
+        # the runtime check costs no additional runner or image build.
+        run: scripts/ci/smoke-api-image.sh myownnotion-api:scan
       # Two scans, and the split is the whole point of this job being useful.
       #
       # The first run of it found 169 HIGH/CRITICAL vulnerabilities in the
