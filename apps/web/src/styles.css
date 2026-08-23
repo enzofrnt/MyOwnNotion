@@ -1536,11 +1536,10 @@ textarea {
   border-radius: var(--ui-radius-md);
 }
 
-/* Generic monospace overflow floors, declared here rather than in the
-   narrow-viewport section so every later compound selector that ends in
-   `pre` or `code` sits above them instead of below. */
-pre,
-code {
+/* A true preformatted block may scroll horizontally. Inline `code` must not
+   become its own scroll region: identifiers already wrap below, and Firefox
+   otherwise exposes a tiny keyboard-inaccessible scroller for some UUIDs. */
+pre {
   overflow-x: auto;
   max-width: 100%;
 }
@@ -1550,6 +1549,7 @@ code {
    which already breaks words. */
 code,
 .save-state {
+  max-width: 100%;
   overflow-wrap: anywhere;
 }
 

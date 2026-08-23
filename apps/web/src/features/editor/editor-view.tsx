@@ -42,6 +42,11 @@ type LoadState =
     }
   | { readonly kind: "unavailable"; readonly reason: string };
 
+// Session-backed surfaces read their initial authority from the session. Keep
+// the compatibility placeholder stable so a status-only parent render cannot
+// needlessly rerender BlockNote and replace a floating control mid-gesture.
+const SESSION_DOCUMENT_PLACEHOLDER = emptyDocument();
+
 export function EditorView({
   service,
   itemId,
@@ -63,6 +68,7 @@ export function EditorView({
   readonly onCaptureScrollAnchor?: (itemId: Uuid, anchor: PageScrollAnchor) => void;
 }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [editorSettled, setEditorSettled] = useState(true);
   const restorePending = useRef(initialScrollAnchor);
   const [ambiguities, setAmbiguities] = useState<readonly PageAmbiguityRecord[]>([]);
 
@@ -146,6 +152,7 @@ export function EditorView({
   useEffect(() => {
     let cancelled = false;
     setState({ kind: "loading" });
+    setEditorSettled(true);
     let refreshAmbiguities = () => {};
     void service
       .openOperationalPage(itemId)
@@ -247,15 +254,16 @@ export function EditorView({
           happen, because the authority itself changed. */}
       <EditorSurface
         key={`${itemId}:${state.mode}`}
-        document={emptyDocument()}
+        document={SESSION_DOCUMENT_PLACEHOLDER}
         editable={editingAllowed}
         handleRef={surface}
         currentItemId={itemId}
         items={items}
         onOpenPage={onOpenPage}
+        onSettlementChange={setEditorSettled}
         session={state.session}
       />
-      <EditorSyncStatus session={state.session} />
+      <EditorSyncStatus session={state.session} editorSettled={editorSettled} />
     </section>
   );
 }

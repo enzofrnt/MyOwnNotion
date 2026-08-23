@@ -54,7 +54,14 @@ export function editorSyncLabel(sync: PageSyncState): string {
 
 export type EditorDurableSession = PageEditingSession | LegacyPageEditingSession;
 
-export function EditorSyncStatus({ session }: { readonly session: EditorDurableSession }) {
+export function EditorSyncStatus({
+  session,
+  editorSettled = true,
+}: {
+  readonly session: EditorDurableSession;
+  /** False while visible browser input has not reached durable page storage yet. */
+  readonly editorSettled?: boolean;
+}) {
   const [sync, setSync] = useState<PageSyncState>(session.sync);
   const remoteAdoptionErrorType =
     "remoteAdoptionErrorType" in session ? session.remoteAdoptionErrorType : null;
@@ -68,14 +75,25 @@ export function EditorSyncStatus({ session }: { readonly session: EditorDurableS
     [session],
   );
 
+  // BlockNote publishes its change after the browser has already painted the
+  // input. During that short hand-off the session can still report its
+  // previous durable frontier. Never let that stale state acknowledge the new
+  // visible text: the editor settlement boundary must be crossed as well.
+  const editorCommitPending = !editorSettled && sync.synchronizationKind !== "blocked";
+  const displayedKind = editorCommitPending ? "local-saving" : sync.kind;
+  const displayedSynchronizationKind = editorCommitPending
+    ? "local-saving"
+    : sync.synchronizationKind;
+  const displayedLocallyDurable = !editorCommitPending && sync.locallyDurable;
+
   return (
     <div className="editor-sync-status">
       <p
         className="save-state"
         data-testid="editor-sync-status"
-        data-state={sync.kind}
-        data-sync={sync.synchronizationKind}
-        data-durable={sync.locallyDurable ? "true" : "false"}
+        data-state={displayedKind}
+        data-sync={displayedSynchronizationKind}
+        data-durable={displayedLocallyDurable ? "true" : "false"}
         data-pending-count={sync.pendingCount}
         data-attention-count={sync.attentionCount}
         data-adoption-error={remoteAdoptionErrorType ?? undefined}
@@ -83,7 +101,9 @@ export function EditorSyncStatus({ session }: { readonly session: EditorDurableS
         role="status"
         aria-live="polite"
       >
-        <strong data-testid="editor-sync-label">{editorSyncLabel(sync)}</strong>
+        <strong data-testid="editor-sync-label">
+          {editorCommitPending ? "Enregistrement…" : editorSyncLabel(sync)}
+        </strong>
         {sync.blockedReason !== undefined ? (
           <span data-testid="editor-sync-blocked-reason">
             {" "}

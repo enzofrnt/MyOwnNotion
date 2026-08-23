@@ -10,7 +10,14 @@
  */
 
 import { expect, test } from "./fixtures.ts";
-import { createRootItem, openWorkspace, selectItem, uniqueName } from "./helpers.ts";
+import {
+  createRootItem,
+  editorChangeSequence,
+  openWorkspace,
+  selectItem,
+  uniqueName,
+  waitForEditorSettled,
+} from "./helpers.ts";
 
 test.describe("autosave under abrupt exit", () => {
   test("a hard reload right after typing keeps every acknowledged character", async ({ page }) => {
@@ -20,18 +27,16 @@ test.describe("autosave under abrupt exit", () => {
     await selectItem(page, name);
     const editor = page.getByTestId("block-editor").locator(".ProseMirror");
     await expect(editor).toBeVisible({ timeout: 30_000 });
+    const beforeSequence = await editorChangeSequence(page);
     await editor.click();
     await editor.pressSequentially("premier jet durable");
 
-    // No wait for « synchronized », no save gesture: the local commit is the
-    // durability boundary, and it has been crossed for each typed batch.
+    // No wait for « synchronized » and no save gesture. The status may only
+    // acknowledge this exact browser burst after its local commit is durable.
+    await waitForEditorSettled(page, { afterSequence: beforeSequence });
     const status = page.getByTestId("editor-sync-status");
     if (await status.count()) {
       await expect(status).toHaveAttribute("data-durable", "true", { timeout: 15_000 });
-      // The session resolved its Dexie transaction; the browser still holds
-      // the tail of its IndexedDB write-back. An immediate reload races that
-      // flush — an OS-crash class event, not an application boundary.
-      await page.waitForTimeout(400);
     }
     await page.reload();
 
@@ -49,8 +54,10 @@ test.describe("autosave under abrupt exit", () => {
     await selectItem(page, name);
     const editor = page.getByTestId("block-editor").locator(".ProseMirror");
     await expect(editor).toBeVisible({ timeout: 30_000 });
+    const beforeSequence = await editorChangeSequence(page);
     await editor.click();
     await editor.pressSequentially("écrit puis fermé brutalement");
+    await waitForEditorSettled(page, { afterSequence: beforeSequence });
     const status = page.getByTestId("editor-sync-status");
     if (await status.count()) {
       await expect(status).toHaveAttribute("data-durable", "true", { timeout: 15_000 });

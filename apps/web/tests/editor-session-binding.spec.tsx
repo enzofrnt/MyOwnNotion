@@ -190,6 +190,17 @@ describe("editor sync status rendering", () => {
     expect(html).toContain("Synchronisé");
   });
 
+  it("does not acknowledge visible input before the editor pipeline settles", () => {
+    const { session } = fakeSession(syncState({ kind: "synced" }));
+    const html = renderToStaticMarkup(
+      createElement(EditorSyncStatus, { session, editorSettled: false }),
+    );
+    expect(html).toContain('data-state="local-saving"');
+    expect(html).toContain('data-durable="false"');
+    expect(html).toContain("Enregistrement…");
+    expect(html).not.toContain(">Synchronisé<");
+  });
+
   it("offers exactly one recovery action when a commit is blocked", () => {
     const blocked = syncState({
       kind: "blocked",

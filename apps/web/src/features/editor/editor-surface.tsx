@@ -1,5 +1,6 @@
 import type { ProjectedItem } from "@myownnotion/client-core";
 import type { BlockDocument, Uuid } from "@myownnotion/domain";
+import { memo } from "react";
 import { PageEditor, type PageEditorHandle } from "./page-editor.tsx";
 
 export type EditorSurfaceHandle = PageEditorHandle;
@@ -12,13 +13,14 @@ export type EditorSurfaceHandle = PageEditorHandle;
  * compatibility path keeps the legacy save bridge alive for pages that cannot
  * open a session yet.
  */
-export function EditorSurface({
+export const EditorSurface = memo(function EditorSurface({
   document,
   editable,
   handleRef,
   currentItemId,
   items,
   onOpenPage,
+  onSettlementChange,
   session,
 }: {
   readonly document: BlockDocument;
@@ -27,6 +29,7 @@ export function EditorSurface({
   readonly currentItemId: string;
   readonly items: readonly ProjectedItem[];
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
+  readonly onSettlementChange?: ((settled: boolean) => void) | undefined;
   readonly session?: import("./editor-sync-status.tsx").EditorDurableSession | undefined;
 }) {
   return (
@@ -37,7 +40,8 @@ export function EditorSurface({
       handleRef={handleRef}
       items={items}
       onOpenPage={onOpenPage}
+      onSettlementChange={onSettlementChange}
       session={session}
     />
   );
-}
+});

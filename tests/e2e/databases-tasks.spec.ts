@@ -2,12 +2,14 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
+  editorApplyCount,
   openWorkspace,
   saveDocument,
   saveEntryProperties,
   typeIntoEditor,
   uniqueName,
   waitForDatabaseDefinitionSaved,
+  waitForEditorSettled,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -97,12 +99,17 @@ test("tracks one task page through roles, notes, relations, search and an indepe
     .filter({ hasText: editorialNote })
     .last();
   await editorialBlock.click({ button: "right" });
+  const beforeTaskConversion = await editorApplyCount(page);
   await page.getByRole("menuitem", { name: "Liste de tâches" }).click();
+  await waitForEditorSettled(page, { afterApplyCount: beforeTaskConversion });
   const documentCheckbox = page.getByTestId("block-editor").locator('input[type="checkbox"]');
   await expect(
     page.getByTestId("block-editor").locator('[data-content-type="checkListItem"]'),
   ).toBeVisible();
-  await documentCheckbox.check();
+  const beforeCheck = await editorApplyCount(page);
+  await documentCheckbox.click();
+  await waitForEditorSettled(page, { afterApplyCount: beforeCheck });
+  await expect(documentCheckbox).toBeChecked();
   await saveDocument(page);
   await waitForSynchronized(page);
 

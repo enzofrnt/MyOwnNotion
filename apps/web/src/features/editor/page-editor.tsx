@@ -58,6 +58,7 @@ export function PageEditor({
   handleRef,
   items,
   onOpenPage,
+  onSettlementChange,
   session,
 }: {
   readonly pageId: Uuid;
@@ -66,6 +67,8 @@ export function PageEditor({
   readonly handleRef: React.RefObject<PageEditorHandle | null>;
   readonly items: readonly ProjectedItem[];
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
+  /** Reports whether every browser gesture has crossed the durable engine boundary. */
+  readonly onSettlementChange?: ((settled: boolean) => void) | undefined;
   /** Present when the page is backed by a durable editing session (FR-052). */
   readonly session?: import("./editor-sync-status.tsx").EditorDurableSession | undefined;
 }) {
@@ -188,17 +191,21 @@ export function PageEditor({
     if (beginsBurst) editorActivitySequence.current += 1;
     lastEditorActivityAt.current = Date.now();
     editorSettled.current = false;
-    if (beginsBurst) writeEditorSettlementState();
-  }, [writeEditorSettlementState]);
+    if (beginsBurst) {
+      writeEditorSettlementState();
+      onSettlementChange?.(false);
+    }
+  }, [onSettlementChange, writeEditorSettlementState]);
 
   const markEditorSettled = useCallback(() => {
     if (inFlight.current > 0) return;
     editorSettled.current = true;
     writeEditorSettlementState();
+    onSettlementChange?.(true);
     // Undo/redo availability is presentation state. Updating it once per
     // settled burst avoids re-rendering a 500-block surface for every key.
     setHistoryVersion((version) => version + 1);
-  }, [writeEditorSettlementState]);
+  }, [onSettlementChange, writeEditorSettlementState]);
 
   const applyPendingRemoteProjection = useCallback(() => {
     if (!remoteProjectionPending.current) return;
