@@ -72,6 +72,7 @@ export interface LoadedOperationalPage {
   readonly document: OperationalPageDocument;
   readonly state: PageOperationStateRow;
   readonly checkpoint: OperationalPageCheckpoint;
+  readonly checkpointThroughPageSequence: number;
 }
 
 export class PageOperationService {
@@ -159,6 +160,13 @@ export class PageOperationService {
           409,
         );
       }
+      if (rows.some(({ updateEnvelopeId }) => updateEnvelopeId === null)) {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "The operational update log was compacted beyond its active checkpoint.",
+          409,
+        );
+      }
       const updateBytesByEnvelope = await this.#deps.crypto.openBytesMany(
         tx,
         "update",
@@ -215,7 +223,12 @@ export class PageOperationService {
         409,
       );
     }
-    return { document, state, checkpoint };
+    return {
+      document,
+      state,
+      checkpoint,
+      checkpointThroughPageSequence: checkpointRow.throughPageSequence,
+    };
   }
 
   /** Shared locked loader for migration and later server-side maintenance. */
@@ -510,8 +523,8 @@ export class PageOperationService {
       const ambiguitySummaries = await this.#detectAmbiguities(tx, {
         pageId: input.pageId,
         checkpoint: loaded.checkpoint,
+        checkpointThroughPageSequence: loaded.checkpointThroughPageSequence,
         persistedVersionVector,
-        state: loaded.state,
       });
 
       const candidates = await listPageOperationUpdatesAfter(tx, {
@@ -528,10 +541,25 @@ export class PageOperationService {
         tx,
         candidateRows.map(({ resultFrontierEnvelopeId }) => resultFrontierEnvelopeId as Uuid),
       );
+      const rowsRequiringBytes = candidateRows.filter((row) => {
+        if (responseUpdateIds.has(row.id)) return false;
+        const result = candidateFrontiers.get(row.resultFrontierEnvelopeId as Uuid);
+        return (
+          result !== undefined &&
+          !versionVectorDominates(persistedVersionVector, result.versionVector)
+        );
+      });
+      if (rowsRequiringBytes.some(({ updateEnvelopeId }) => updateEnvelopeId === null)) {
+        throw new PageOperationServiceError(
+          "page-operations.dependencies-missing",
+          "The requested operational history was compacted; reload the current checkpoint.",
+          409,
+        );
+      }
       const candidateBytes = await this.#deps.crypto.openBytesMany(
         tx,
         "update",
-        candidateRows.map(({ updateEnvelopeId }) => updateEnvelopeId as Uuid),
+        rowsRequiringBytes.map(({ updateEnvelopeId }) => updateEnvelopeId as Uuid),
       );
       for (const row of candidateRows) {
         if (responseUpdateIds.has(row.id)) {
@@ -782,16 +810,28 @@ export class PageOperationService {
     input: {
       readonly pageId: Uuid;
       readonly checkpoint: OperationalPageCheckpoint;
+      readonly checkpointThroughPageSequence: number;
       readonly persistedVersionVector: Uint8Array;
-      readonly state: PageOperationStateRow;
     },
   ): Promise<ActivePageSyncResponseDto["ambiguities"]> {
     const rows = await listPageOperationUpdatesAfter(tx, {
       workspaceId: this.#deps.workspaceId,
       pageId: input.pageId,
-      after: Math.max(0, input.state.lastUpdateSequence - 100),
+      after: input.checkpointThroughPageSequence,
       limit: 10_000,
     });
+    if (
+      rows.some(
+        ({ baseFrontierEnvelopeId, updateEnvelopeId }) =>
+          baseFrontierEnvelopeId === null || updateEnvelopeId === null,
+      )
+    ) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The ambiguity window was compacted beyond its active checkpoint.",
+        409,
+      );
+    }
     const bases = new Map<string, Uint8Array>();
     const results = new Map<string, Uint8Array>();
     const frontiers = await this.#deps.crypto.openFrontiers(

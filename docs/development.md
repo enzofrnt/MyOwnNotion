@@ -412,7 +412,16 @@ Suites that need PostgreSQL prefer, in order:
 
 1. `TEST_DATABASE_URL` — an already running disposable PostgreSQL. Each
    acquisition creates a uniquely named database and drops it afterwards.
-2. Testcontainers, which starts `postgres:18` per suite.
+2. Testcontainers, which starts one `postgres:18` server per Vitest project.
+
+The database, API-contract, workspace-contract, and performance projects share
+their server only as infrastructure. Every suite still creates and drops a
+randomly named database, so files remain isolated. Database files, API files,
+and independent Vitest projects can therefore all run in parallel using the
+worker capacity available on the host. Keeping the server at project scope
+avoids repeatedly creating containers and publishing random host ports during
+the complete gate; that container churn is both slower and vulnerable to
+Docker port-binding delays under load.
 
 On WSL, enable Docker Desktop's WSL integration, or point
 `TEST_DATABASE_URL` at a reachable instance:

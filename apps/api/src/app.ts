@@ -28,6 +28,10 @@ import {
   type DatabaseQueryService,
 } from "./databases/database-query-service.ts";
 import { CanonicalMaterializer } from "./page-state/canonical-materializer.ts";
+import {
+  type PageCheckpointRetentionPolicy,
+  PageCheckpointService,
+} from "./page-state/checkpoint-service.ts";
 import { LegacyBranchService } from "./page-state/legacy-branch-service.ts";
 import { PageActivationService } from "./page-state/page-activation-service.ts";
 import { PageAmbiguityService } from "./page-state/page-ambiguity-service.ts";
@@ -106,6 +110,14 @@ export interface BuildAppOptions {
    * which is exactly what happened the first time this was written.
    */
   readonly refuseWithoutSecurity?: boolean;
+  /**
+   * Internal retention evidence used by checkpoint maintenance.
+   *
+   * Production deliberately defaults to deny: payload compaction cannot run
+   * until backup and visible-history retention provide real implementations.
+   * Tests inject explicit evidence to exercise the lifecycle in isolation.
+   */
+  readonly pageCheckpointRetention?: PageCheckpointRetentionPolicy;
 }
 
 export interface BuiltApp {
@@ -120,6 +132,8 @@ export interface BuiltApp {
    * from here.
    */
   readonly keyHierarchy?: KeyHierarchy | undefined;
+  /** Internal checkpoint maintenance surface; present with the security layer. */
+  readonly pageCheckpoints?: PageCheckpointService | undefined;
   close(): Promise<void>;
 }
 
@@ -213,6 +227,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   let devices: DeviceService | undefined;
   let search: SearchService | undefined;
   let structuredQueries: DatabaseQueryService | undefined;
+  let pageCheckpoints: PageCheckpointService | undefined;
 
   const context: AppContext = {
     db: database.db,
@@ -555,6 +570,15 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       search,
       now,
     });
+    pageCheckpoints = new PageCheckpointService({
+      db: database.db,
+      workspaceId: workspace.id,
+      crypto: pageOperationCrypto,
+      operations: pageOperations,
+      rotationPolicies,
+      retention: options.pageCheckpointRetention,
+      now,
+    });
     const pageAmbiguities = new PageAmbiguityService({
       db: database.db,
       workspaceId: workspace.id,
@@ -670,6 +694,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     context,
     database,
     keyHierarchy,
+    pageCheckpoints,
     close: async () => {
       await app.close();
       await database.close();
