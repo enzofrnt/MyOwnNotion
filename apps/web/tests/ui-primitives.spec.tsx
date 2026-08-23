@@ -126,4 +126,22 @@ describe("shared UI primitive contracts", () => {
     expect(css).toContain("--ui-color-focus");
     expect(css).toContain("--ui-focus-ring");
   });
+
+  it("keeps destructive action text legible throughout its hover transition", () => {
+    const css = readFileSync(
+      new URL("../src/ui/primitives/primitives.css", import.meta.url),
+      "utf8",
+    );
+    const normal = css.match(/\.ui-button\[data-variant="danger"\] \{[^}]+\}/u)?.[0];
+    const hover = css.match(
+      /\.ui-button\[data-variant="danger"\]:hover:not\(:disabled\) \{[^}]+\}/u,
+    )?.[0];
+
+    // Animating both foreground and background between different contrast
+    // pairs creates an unreadable midpoint even when both endpoints pass.
+    expect(normal).toContain("color: var(--ui-color-text-inverse)");
+    expect(normal).toContain("background: var(--ui-color-danger)");
+    expect(hover).toContain("color: var(--ui-color-text-inverse)");
+    expect(hover).toContain("background: var(--ui-color-danger-hover)");
+  });
 });
