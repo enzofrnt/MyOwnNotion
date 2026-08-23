@@ -40,6 +40,7 @@ describe("pointer-stable actions", () => {
 
     expect(pointer.defaultPrevented).toBe(true);
     expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onActivate).toHaveBeenCalledWith(button);
   });
 
   it("keeps semantic keyboard and assistive clicks working", () => {
@@ -53,6 +54,7 @@ describe("pointer-stable actions", () => {
     });
 
     expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onActivate).toHaveBeenCalledWith(container.querySelector("button"));
   });
 
   it("owns submit-button clicks without also invoking the native form submit", () => {

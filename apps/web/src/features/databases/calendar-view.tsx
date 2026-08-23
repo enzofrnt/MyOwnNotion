@@ -6,6 +6,7 @@ import type {
 } from "@myownnotion/domain";
 import { useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY, DATABASE_LOCALE } from "./database-copy.ts";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
 
@@ -248,14 +249,14 @@ export function CalendarView({
         draggedEntryId.current = null;
       }}
     >
-      <button
+      <StableActionButton
         type="button"
         className="link database-card__title"
         data-entry-trigger={row.entryId}
-        onClick={(event) => onOpenEntry(row.entryId as Uuid, event.currentTarget)}
+        onActivate={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
       >
         {row.title}
-      </button>
+      </StableActionButton>
       <input
         type="date"
         aria-label={DATABASE_COPY.calendar.schedule(row.title)}
