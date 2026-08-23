@@ -20,6 +20,12 @@ export function searchQueryProblem(query: string): string | null {
   return countUnicodeCharacters(query) > MAX_SEARCH_QUERY_LENGTH ? QUERY_TOO_LONG_MESSAGE : null;
 }
 
+/** Reads the query that is visibly present when the owner submits the form. */
+export function searchQueryFromFormData(data: FormData, fallback: string): string {
+  const value = data.get("query");
+  return typeof value === "string" ? value : fallback;
+}
+
 export function deriveSearchViewState(
   query: string,
   phase: SearchPhase,
@@ -189,9 +195,18 @@ export function SearchDialog({
     }
   };
 
-  const submit = async (event: FormEvent): Promise<void> => {
+  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    await runSearch(query, kinds, branchRootItemId);
+    // The input stays uncontrolled so a concurrent workspace projection cannot
+    // repaint an older React value over text the owner just entered. Read the
+    // submitted DOM value atomically for the same reason: it may be newer than
+    // this render's state on a constrained browser.
+    const submittedQuery = searchQueryFromFormData(
+      new FormData(event.currentTarget),
+      input.current?.value ?? query,
+    );
+    setQuery(submittedQuery);
+    await runSearch(submittedQuery, kinds, branchRootItemId);
   };
 
   const results = page?.results ?? [];
@@ -225,8 +240,9 @@ export function SearchDialog({
           <input
             ref={input}
             id="workspace-search-query"
+            name="query"
             type="text"
-            value={query}
+            defaultValue=""
             aria-describedby={problem === "query-too-long" ? "workspace-search-problem" : undefined}
             aria-invalid={problem === "query-too-long"}
             autoComplete="off"
@@ -262,23 +278,29 @@ export function SearchDialog({
           onKindsChange={(nextKinds) => {
             setKinds(nextKinds);
             setSelectedItemId(null);
-            if (/\S/u.test(query)) {
-              void runSearch(query, nextKinds, branchRootItemId);
+            const currentQuery = input.current?.value ?? query;
+            setQuery(currentQuery);
+            if (/\S/u.test(currentQuery)) {
+              void runSearch(currentQuery, nextKinds, branchRootItemId);
             }
           }}
           onBranchChange={(nextBranchRootItemId) => {
             setBranchRootItemId(nextBranchRootItemId);
             setSelectedItemId(null);
-            if (/\S/u.test(query)) {
-              void runSearch(query, kinds, nextBranchRootItemId);
+            const currentQuery = input.current?.value ?? query;
+            setQuery(currentQuery);
+            if (/\S/u.test(currentQuery)) {
+              void runSearch(currentQuery, kinds, nextBranchRootItemId);
             }
           }}
           onReset={() => {
             setKinds(ALL_SEARCH_KINDS);
             setBranchRootItemId(null);
             setSelectedItemId(null);
-            if (/\S/u.test(query)) {
-              void runSearch(query, ALL_SEARCH_KINDS, null);
+            const currentQuery = input.current?.value ?? query;
+            setQuery(currentQuery);
+            if (/\S/u.test(currentQuery)) {
+              void runSearch(currentQuery, ALL_SEARCH_KINDS, null);
             }
           }}
         />

@@ -261,7 +261,14 @@ test.describe("the contextual BlockNote controls", () => {
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.press("Delete");
     await editor.pressSequentially("Texte à relier");
+    // The synthetic typing above deliberately runs much faster than a person
+    // can type. Let its local commits become durable before starting the
+    // separate selection gesture, so a late projection cannot collapse it.
+    await saveDocument(page);
     await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+    await expect
+      .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
+      .toContain("relier");
 
     const toolbar = page.locator(".bn-formatting-toolbar");
     await expect(toolbar).toBeVisible();

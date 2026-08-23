@@ -34,7 +34,11 @@ async function openSearch(page: Page) {
 
 async function searchFor(page: Page, query: string) {
   const dialog = await openSearch(page);
-  await dialog.getByLabel("Query").fill(query);
+  const input = dialog.getByLabel("Query");
+  await input.fill(query);
+  // A workspace projection may render in the same task as the input event.
+  // The uncontrolled query must retain the visible text before submission.
+  await expect(input).toHaveValue(query);
   await dialog.getByRole("button", { name: "Search", exact: true }).click();
   return dialog;
 }

@@ -650,6 +650,20 @@ export function HierarchyExplorer({
       const database = selectedDatabase;
       if (database === null) return;
       setEntryReturnFocusId(entryId);
+      const visibleEntry = databaseEntries.find((entry) => entry.entryId === entryId);
+      if (visibleEntry !== undefined) {
+        const definition = database.definition as unknown as DatabaseDefinition;
+        // The row the owner clicked is already a durable local projection. Open
+        // it synchronously instead of blocking navigation on another IndexedDB
+        // read, which can wait behind synchronization on a constrained device.
+        // The structured-selection effect still refreshes it in the background.
+        remotelyOpenedEntry.current = { entry: visibleEntry, definition };
+        setSelectedEntry(visibleEntry);
+        setEntryDefinition(definition);
+        structuredSelectionItemId.current = entryId;
+        setSelectedId(entryId);
+        return;
+      }
       void (async () => {
         if ((await service.getDatabaseEntry(entryId)) === null) {
           const remote = await service.api.getDatabaseEntry(database.databaseId as Uuid, entryId);
@@ -663,7 +677,7 @@ export function HierarchyExplorer({
         setSelectedId(entryId);
       })();
     },
-    [selectedDatabase, service],
+    [databaseEntries, selectedDatabase, service],
   );
   const clearEntryReturnFocus = useCallback(() => setEntryReturnFocusId(null), []);
 
