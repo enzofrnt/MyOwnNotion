@@ -272,8 +272,12 @@ export function DatabasePage({
     onOpenEntry(entryId, trigger);
   };
 
-  const addProperty = (): void => {
-    const result = validatePropertyDraft(propertyDraft);
+  const addProperty = (submittedDraft: DatabasePropertyDraft): void => {
+    // Preserve exactly what the form submitted when validation fails. The
+    // final input event can be newer than this component's last committed
+    // render on a constrained browser.
+    setPropertyDraft(submittedDraft);
+    const result = validatePropertyDraft(submittedDraft);
     if (!result.ok) {
       setPropertyError(result.error);
       return;
@@ -293,7 +297,7 @@ export function DatabasePage({
         ],
       })),
     };
-    const submittedDraft = propertyDraft;
+    const acceptedDraft = submittedDraft;
     // Commit the form state at submission time. A previous asynchronous save
     // must never close a newer editor that the owner has already opened.
     setPropertyDraft(EMPTY_PROPERTY_DRAFT);
@@ -302,7 +306,7 @@ export function DatabasePage({
     setSavingProperty(true);
     void replaceDefinition(candidate)
       .catch(() => {
-        setPropertyDraft(submittedDraft);
+        setPropertyDraft(acceptedDraft);
         setPropertyError(DATABASE_COPY.page.propertySaveFailed);
         setEditingProperty(true);
       })

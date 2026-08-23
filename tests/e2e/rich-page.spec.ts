@@ -16,7 +16,7 @@
 
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
-import { createRootItem, openWorkspace, selectItem, uniqueName } from "./helpers.ts";
+import { createRootItem, openWorkspace, saveDocument, selectItem, uniqueName } from "./helpers.ts";
 
 interface StoredPageDocument {
   readonly pageDocument?: { readonly body?: { readonly blocks?: unknown[] } };
@@ -48,7 +48,15 @@ test.describe("rich page composition", () => {
     // Bold as a mark on a plain paragraph, selected from the keyboard like the
     // minimal-editor journey does.
     await editor.pressSequentially("Mot important");
+    // The DOM input event precedes the operational editor's local commit. If a
+    // projection lands between typing and selection it can restore a caret and
+    // suppress the floating toolbar, especially on a constrained mobile run.
+    // Cross the durability boundary before starting this distinct gesture.
+    await saveDocument(page);
     await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+    await expect
+      .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
+      .toContain("important");
     const toolbar = page.locator(".bn-formatting-toolbar");
     await expect(toolbar).toBeVisible();
     await toolbar.getByRole("button", { name: "Gras" }).click();
