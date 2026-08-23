@@ -26,6 +26,7 @@ describe("reviewed SQL migrations", () => {
     expect(applied).toContain("0007_databases");
     expect(applied).toContain("0008_page_operations");
     expect(applied).toContain("0009_page_operation_compaction");
+    expect(applied).toContain("0010_page_operation_backups");
   });
 
   it("is idempotent: reapplying applies nothing", async () => {
@@ -123,6 +124,7 @@ describe("reviewed SQL migrations", () => {
       const { rows } = await client.query<{
         migration_recorded: boolean;
         compaction_migration_recorded: boolean;
+        backup_migration_recorded: boolean;
         state_exists: boolean;
         updates_exists: boolean;
         checkpoints_exists: boolean;
@@ -132,12 +134,15 @@ describe("reviewed SQL migrations", () => {
         base_frontier_nullable: boolean;
         update_payload_nullable: boolean;
         compacted_at_exists: boolean;
+        verified_backup_id_exists: boolean;
       }>(
         `SELECT
            EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0008_page_operations')
              AS migration_recorded,
            EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0009_page_operation_compaction')
              AS compaction_migration_recorded,
+           EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0010_page_operation_backups')
+             AS backup_migration_recorded,
            to_regclass('public.page_operation_states') IS NOT NULL AS state_exists,
            to_regclass('public.page_operation_updates') IS NOT NULL AS updates_exists,
            to_regclass('public.page_operation_checkpoints') IS NOT NULL AS checkpoints_exists,
@@ -158,11 +163,17 @@ describe("reviewed SQL migrations", () => {
              SELECT 1 FROM information_schema.columns
               WHERE table_schema = 'public' AND table_name = 'page_operation_updates'
                 AND column_name = 'compacted_at'
-           ) AS compacted_at_exists`,
+           ) AS compacted_at_exists,
+           EXISTS (
+             SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'public' AND table_name = 'page_operation_checkpoints'
+                AND column_name = 'verified_backup_id'
+           ) AS verified_backup_id_exists`,
       );
       expect(rows[0]).toEqual({
         migration_recorded: true,
         compaction_migration_recorded: true,
+        backup_migration_recorded: true,
         state_exists: true,
         updates_exists: true,
         checkpoints_exists: true,
@@ -172,6 +183,7 @@ describe("reviewed SQL migrations", () => {
         base_frontier_nullable: true,
         update_payload_nullable: true,
         compacted_at_exists: true,
+        verified_backup_id_exists: true,
       });
 
       const constraints = await client.query<{ conname: string }>(
@@ -264,6 +276,7 @@ describe("reviewed SQL migrations", () => {
       expect(await applyMigrations(legacy.connectionString)).toEqual([
         "0008_page_operations",
         "0009_page_operation_compaction",
+        "0010_page_operation_backups",
       ]);
       const { rows } = await client.query<{
         format_version: number;

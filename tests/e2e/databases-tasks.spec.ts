@@ -102,7 +102,12 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   await expect(
     page.getByTestId("block-editor").locator('[data-content-type="checkListItem"]'),
   ).toBeVisible();
-  await documentCheckbox.check();
+  // BlockNote replaces the checklist NodeView as part of the change handler.
+  // WebKit mobile therefore detaches the input that Playwright's `check()`
+  // immediately re-reads, even though the user gesture reached the editor.
+  // Assert against the freshly rendered control instead of that stale node.
+  await documentCheckbox.click();
+  await expect(documentCheckbox).toBeChecked();
   await saveDocument(page);
   await waitForSynchronized(page);
 

@@ -621,6 +621,7 @@ export const {
   itemId: items.id,
   itemWorkspaceId: items.workspaceId,
   revisionId: revisions.id,
+  backupId: backups.id,
   deviceId: authorizedDevices.id,
   protectedEnvelopeId: protectedEnvelopes.id,
 });

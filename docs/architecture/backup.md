@@ -7,11 +7,23 @@ added by digest beside that representation. The whole archive is sealed before
 the destination receives it, so no readable manifest or content name is stored
 at the provider.
 
+Operational pages add a second payload, not a second source of truth:
+`page-operations.json` contains the Loro checkpoints, retained update log,
+device frontiers and ambiguities required for causal convergence, while the
+canonical export remains their readable deterministic projection. Both are
+captured in one repeatable-read transaction and the backup is refused if
+replaying the operational state does not reproduce the canonical digest.
+
 Verification happens twice for different reasons. The first check reads the
 staged sealed object back from disk. The second reads the transferred object
 through the destination boundary. Only the second proves that the durable copy
 is the one that was sent, and only a passing second check counts for retention,
 the 26-hour warning, restoration or an update.
+
+That same destination read-back is the only event allowed to mark an exact
+operational checkpoint as backed up. Compaction requires this durable evidence,
+the visible-history boundary and every still-authorized device frontier; age or
+absence alone never authorizes deletion.
 
 ## Why a rehearsal writes
 
@@ -21,6 +33,10 @@ therefore creates a disposable PostgreSQL database and a disposable blob root,
 applies the reviewed migrations, restores every row and file with the same
 writer used by a destructive restore, and drops both afterwards. The live
 database is never selected as the target, which makes isolation structural.
+For operational pages the rehearsal also rebuilds their encrypted causal state,
+projects it, and checks that an archived device identity can be represented;
+the destructive path retains the real authorization inventory so a device that
+was offline during restoration can still send its newer branch.
 
 The owner-facing backup screen keeps two facts separate: when a backup last
 verified at its destination, and when a restoration was last rehearsed. The

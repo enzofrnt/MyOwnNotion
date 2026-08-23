@@ -25,6 +25,7 @@ import {
   recordChange,
   runMutation,
   schema,
+  supersedeRevision,
   type Transaction,
 } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
@@ -40,9 +41,11 @@ import {
 } from "@myownnotion/page-state";
 import { and, eq } from "drizzle-orm";
 import type { SearchService } from "../search/search-service.ts";
+import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 import type { CanonicalMaterializer } from "./canonical-materializer.ts";
+import type { PageHistoryService } from "./page-history-service.ts";
 import type { PageOperationCrypto } from "./page-operation-crypto.ts";
 import { PageOperationServiceError } from "./page-operation-errors.ts";
 import { semanticRecordFromProjectionDiff } from "./semantic-detection.ts";
@@ -52,7 +55,9 @@ export interface PageOperationServiceDeps {
   readonly workspaceId: Uuid;
   readonly crypto: PageOperationCrypto;
   readonly materializer: CanonicalMaterializer;
+  readonly protectedContent: ProtectedContent;
   readonly rotationPolicies: RotationPolicyService;
+  readonly history?: Pick<PageHistoryService, "consolidateIfDue"> | undefined;
   readonly search?: SearchService | undefined;
   readonly now?: () => Date;
 }
@@ -240,6 +245,7 @@ export class PageOperationService {
     let committedSequence: number | undefined;
     const response = await runMutation(this.#deps.db, async (tx) => {
       await this.#deps.rotationPolicies.assertWritesAllowed(tx);
+      await this.#deps.history?.consolidateIfDue(tx, input.pageId);
       const loaded = await this.#load(tx, input.pageId);
       let state = loaded.state;
       const document = loaded.document;
@@ -603,6 +609,19 @@ export class PageOperationService {
         });
         throughPageSequence = row.pageSequence;
       }
+      const consolidated = await this.#deps.history?.consolidateIfDue(tx, input.pageId, {
+        force: input.request.revisionBoundary === "editor-closed",
+      });
+      if (consolidated !== null && consolidated !== undefined) {
+        state = await lockPageOperationState(tx, this.#deps.workspaceId, input.pageId);
+        const lastAccepted = accepted.at(-1);
+        if (lastAccepted !== undefined) {
+          accepted[accepted.length - 1] = {
+            ...lastAccepted,
+            consolidatedRevisionId: consolidated.revisionId,
+          };
+        }
+      }
       if (accepted.length > 0) {
         if (state.lastRevisionId === null) {
           throw new PageOperationServiceError(
@@ -691,10 +710,11 @@ export class PageOperationService {
       readonly pageId: Uuid;
       readonly deviceId: Uuid;
       readonly mutationId: Uuid;
+      readonly commandType?: "page-operations.updated" | "revision.restore";
       readonly commands: readonly import("@myownnotion/page-state").PageCommand[];
     },
     tx: Transaction,
-  ): Promise<{ revisionId: Uuid }> {
+  ): Promise<{ revisionId: Uuid; committedSequence: number }> {
     const loaded = await this.#load(tx, input.pageId);
     const document = loaded.document;
     // The resolution applies on top of the current merged state; its causal
@@ -746,16 +766,22 @@ export class PageOperationService {
       acceptedAt: this.#deps.now(),
     });
 
+    const acceptedAt = this.#deps.now();
     const revisionId = generateUuidV7();
+    const snapshot = await buildItemSnapshot(tx, input.pageId);
     await insertRevision(tx, {
       id: revisionId,
       itemId: input.pageId,
       mutationId: input.mutationId,
       parentRevisionIds:
         loaded.state.lastRevisionId === null ? [] : [loaded.state.lastRevisionId as Uuid],
-      snapshot: await buildItemSnapshot(tx, input.pageId),
-      acceptedAt: this.#deps.now(),
+      snapshot,
+      acceptedAt,
     });
+    await this.#deps.protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot });
+    if (loaded.state.lastRevisionId !== null) {
+      await supersedeRevision(tx, loaded.state.lastRevisionId as Uuid, acceptedAt);
+    }
     await tx
       .update(schema.pageOperationStates)
       .set({
@@ -763,7 +789,7 @@ export class PageOperationService {
         revisionWindowStartedAt: null,
         revisionWindowLastUpdateAt: null,
         revisionWindowFrontierEnvelopeId: null,
-        updatedAt: this.#deps.now(),
+        updatedAt: acceptedAt,
       })
       .where(
         and(
@@ -773,26 +799,25 @@ export class PageOperationService {
       );
     await tx
       .update(schema.items)
-      .set({ currentRevisionId: revisionId, updatedAt: this.#deps.now() })
+      .set({ currentRevisionId: revisionId, updatedAt: acceptedAt })
       .where(eq(schema.items.id, input.pageId));
 
-    const acceptedAt = this.#deps.now();
     await tx.insert(schema.mutations).values({
       id: input.mutationId,
       workspaceId: this.#deps.workspaceId,
-      commandType: "page-operations.updated",
+      commandType: input.commandType ?? "page-operations.updated",
       status: "accepted",
       submittedAt: acceptedAt,
       acceptedAt,
       resultRevisionIds: [revisionId],
     });
-    await recordChange(tx, {
+    const committedSequence = await recordChange(tx, {
       workspaceId: this.#deps.workspaceId,
       mutationId: input.mutationId,
       revisionIds: [revisionId],
       changedItemIds: [input.pageId],
     });
-    return { revisionId };
+    return { revisionId, committedSequence };
   }
 
   /**

@@ -31,9 +31,14 @@ import {
   canonicalStructuredDataString,
 } from "@myownnotion/domain";
 import type { AppContext } from "../context.ts";
-import { buildManifest } from "../routes/export.ts";
+import { buildManifestInTransaction } from "../routes/export.ts";
 import { writeBackupArchiveFile } from "./archive-format.ts";
 import type { BackupDestination } from "./destinations/destination.ts";
+import {
+  PAGE_OPERATION_ARCHIVE_VERSION,
+  type PageOperationBackupCoverage,
+  pageOperationArchiveString,
+} from "./page-operation-archive.ts";
 
 /** The record format the sealed content inside an archive is written with. */
 export const BACKUP_RECORD_FORMAT_VERSION = 1;
@@ -63,6 +68,8 @@ export interface BackupOutcome {
   /** True once `put` completed, independently of destination read-back. */
   readonly transferred: boolean;
   readonly verifiedAfterTransfer: boolean;
+  /** Exact checkpoints carried by this archive; recorded only after remote read-back passes. */
+  readonly operationalCoverage?: readonly PageOperationBackupCoverage[];
   /** Safe reason for whichever verification failed, if one did. */
   readonly detail?: string;
 }
@@ -113,10 +120,32 @@ export class BackupService {
     manifest: BackupManifest;
     digest: string;
     byteLength: number;
+    operationalCoverage: readonly PageOperationBackupCoverage[];
   }> {
-    const exported = await buildManifest(this.options.context);
+    const snapshot = await this.options.context.db.transaction(
+      async (tx) => {
+        const exported = await buildManifestInTransaction(this.options.context, tx);
+        const operational =
+          this.options.context.pageOperationArchive === undefined
+            ? null
+            : await this.options.context.pageOperationArchive.export(tx);
+        return { exported, operational };
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
+    const { exported } = snapshot;
     const canonical = canonicalExportString(exported);
     const canonicalBytes = Buffer.from(canonical, "utf8");
+    const operationalState =
+      snapshot.operational === null
+        ? null
+        : pageOperationArchiveString(snapshot.operational.archive);
+    if (snapshot.operational !== null && this.options.context.pageOperationArchive !== undefined) {
+      await this.options.context.pageOperationArchive.verify(
+        snapshot.operational.archive,
+        exported,
+      );
+    }
 
     // File bytes come from the content store, addressed by digest — the same
     // addressing the store already uses, so a file cannot be silently
@@ -151,6 +180,15 @@ export class BackupService {
       databaseCount: exported.databases.length,
       databaseEntryCount: exported.databaseEntries.length,
       structuredDataDigest: digestOf(Buffer.from(canonicalStructuredDataString(exported), "utf8")),
+      ...(snapshot.operational === null || operationalState === null
+        ? {}
+        : {
+            operationalFormatVersion: PAGE_OPERATION_ARCHIVE_VERSION,
+            operationalStateDigest: digestOf(Buffer.from(operationalState, "utf8")),
+            operationalPageCount: snapshot.operational.archive.counts.pages,
+            operationalCheckpointCount: snapshot.operational.archive.counts.checkpoints,
+            operationalUpdateCount: snapshot.operational.archive.counts.updates,
+          }),
     };
 
     const staging = path.join(os.tmpdir(), "myownnotion-backup");
@@ -162,6 +200,7 @@ export class BackupService {
         path: plaintextPath,
         manifest,
         canonicalExport: canonical,
+        operationalState,
         readFile: async (digest) =>
           await this.options.context.contentStore.read(digest.slice("sha256:".length)),
       });
@@ -173,6 +212,7 @@ export class BackupService {
         manifest,
         digest,
         byteLength: stored.size,
+        operationalCoverage: snapshot.operational?.coverage ?? [],
       };
     } catch (error) {
       // `run` cannot enter its `finally` until this method returns. Clean both
@@ -248,6 +288,7 @@ export class BackupService {
           verifiedAfterCreation: false,
           transferred: false,
           verifiedAfterTransfer: false,
+          operationalCoverage: built.operationalCoverage,
           detail: "the archive on disk does not match the digest it was written with",
         };
       }
@@ -275,6 +316,7 @@ export class BackupService {
           verifiedAfterCreation: true,
           transferred: false,
           verifiedAfterTransfer: false,
+          operationalCoverage: built.operationalCoverage,
           detail: "the destination could not store the locally verified backup",
         };
       }
@@ -299,6 +341,7 @@ export class BackupService {
           verifiedAfterCreation: true,
           transferred: true,
           verifiedAfterTransfer: false,
+          operationalCoverage: built.operationalCoverage,
           detail: "the transferred backup could not be read back from the destination",
         };
       }
@@ -316,6 +359,7 @@ export class BackupService {
         verifiedAfterCreation: true,
         transferred: true,
         verifiedAfterTransfer,
+        operationalCoverage: built.operationalCoverage,
         ...(verifiedAfterTransfer
           ? {}
           : { detail: "what the destination returned does not match what was sent" }),

@@ -6,6 +6,7 @@ import {
   createDatabaseRestoreTarget,
 } from "../../backup/database-restore-target.ts";
 import { applyArchive, type RestoreScope } from "../../backup/restore-service.ts";
+import type { PageOperationCrypto } from "../../page-state/page-operation-crypto.ts";
 import type { ProtectedContent } from "../../security/protected-content.ts";
 import type { CommandResult } from "../command-output.ts";
 import { type RestoreRunnerDeps, runRestore } from "./restore-runner.ts";
@@ -13,6 +14,7 @@ import { type RestoreRunnerDeps, runRestore } from "./restore-runner.ts";
 export interface RestoreApplyDeps extends RestoreRunnerDeps {
   readonly contentStore: ContentStore;
   readonly protectedContent?: ProtectedContent;
+  readonly pageOperationCrypto?: PageOperationCrypto;
   readonly safetyBackup: () => Promise<string | null>;
 }
 
@@ -51,16 +53,19 @@ export async function restoreApplyCommand(
     },
     apply: async (archive) =>
       deps.db.transaction(async (tx) => {
-        await clearWorkspaceForRestore(tx, deps.workspaceId);
         return await applyArchive(
           archive,
           createDatabaseRestoreTarget({
             tx,
             workspaceId: deps.workspaceId,
             contentStore: deps.contentStore,
+            prepare: async () => await clearWorkspaceForRestore(tx, deps.workspaceId),
             ...(deps.protectedContent === undefined
               ? {}
               : { protectedContent: deps.protectedContent }),
+            ...(deps.pageOperationCrypto === undefined
+              ? {}
+              : { pageOperationCrypto: deps.pageOperationCrypto }),
           }),
         );
       }),

@@ -8,6 +8,8 @@ import { APPLICATION_VERSION } from "../application-version.ts";
 import { openBackupArchive, sealBackupArchiveFile } from "../backup/archive-crypto.ts";
 import { createBackupDestination, loadBackupConfig } from "../backup/backup-config.ts";
 import { BACKUP_RECORD_FORMAT_VERSION, BackupService } from "../backup/backup-service.ts";
+import { PageOperationArchiveService } from "../backup/page-operation-archive.ts";
+import { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import { loadDeploymentKey } from "../security/deployment-key.ts";
 import { createProtectedContentRuntime } from "../security/protected-content-runtime.ts";
 import { runBackupAdminCommand } from "./backup-admin-commands.ts";
@@ -86,6 +88,11 @@ export async function runAdminCli(
       workspaceId: workspace.id,
       deploymentKey,
     });
+    const pageOperationCrypto = new PageOperationCrypto(protectedRuntime.records);
+    const pageOperationArchive = new PageOperationArchiveService({
+      workspaceId: workspace.id,
+      crypto: pageOperationCrypto,
+    });
     const context = {
       db: database.db,
       workspaceId: workspace.id,
@@ -93,13 +100,14 @@ export async function runAdminCli(
       contentStore,
       partialUploads: new PartialUploadStore(blobRoot),
       protectedContent: protectedRuntime.content,
+      pageOperationArchive,
     };
     const key = () => {
       const value = deploymentKey();
       if (value === null) {
-        return loadDeploymentKey(process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"]).bytes;
+        return Buffer.from(loadDeploymentKey(process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"]).bytes);
       }
-      return value;
+      return Buffer.from(value);
     };
     const service = new BackupService({
       context,
@@ -117,6 +125,8 @@ export async function runAdminCli(
       destination,
       contentStore,
       protectedContent: protectedRuntime.content,
+      pageOperationCrypto,
+      deploymentKey: key,
       open: async (ciphertext) => openBackupArchive(key(), ciphertext),
       schemaVersion: workspace.schemaVersion,
       recordFormatVersion: BACKUP_RECORD_FORMAT_VERSION,
