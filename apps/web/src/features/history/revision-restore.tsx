@@ -88,7 +88,10 @@ export function RevisionRestore({
       item.currentRevisionId,
     );
     if (!result.ok) {
-      if (result.problem.code === "mutation.conflict") {
+      if (
+        result.problem.code === "mutation.conflict" ||
+        result.problem.code === "revision.stale-base"
+      ) {
         setMessageState("conflict");
         setMessage(
           "The current head changed since this restore was prepared — reload and retry explicitly",

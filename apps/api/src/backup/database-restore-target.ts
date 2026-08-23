@@ -25,7 +25,9 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { eq, sql } from "drizzle-orm";
+import type { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
+import { PageOperationArchiveService, readPageOperationArchive } from "./page-operation-archive.ts";
 import type { RestoreTarget } from "./restore-service.ts";
 
 interface ExportedRelationship {
@@ -52,6 +54,9 @@ export interface DatabaseRestoreTargetOptions {
   readonly workspaceId: Uuid;
   readonly contentStore: ContentStore;
   readonly protectedContent?: ProtectedContent;
+  readonly pageOperationCrypto?: PageOperationCrypto;
+  /** Destructive targets clear their old state only after archive verification. */
+  readonly prepare?: () => Promise<void>;
 }
 
 /** Removes the state the archive replaces, inside the restore transaction. */
@@ -63,6 +68,17 @@ export async function clearWorkspaceForRestore(tx: Transaction, workspaceId: Uui
   // that the archive restores would therefore resurrect stale content after a
   // successful restore. Protected chunks are equally tied to the state being
   // replaced, even though their storage bytes are reclaimed separately.
+  // Operational rows name protected envelopes and must disappear first. The
+  // authorization inventory intentionally remains: an absent authorized
+  // device must still be able to submit its offline branch after restoration.
+  await tx.execute(
+    sql`DELETE FROM page_legacy_branch_conversions WHERE workspace_id = ${workspaceId}`,
+  );
+  await tx.execute(sql`DELETE FROM page_ambiguities WHERE workspace_id = ${workspaceId}`);
+  await tx.execute(sql`DELETE FROM page_device_frontiers WHERE workspace_id = ${workspaceId}`);
+  await tx.execute(sql`DELETE FROM page_operation_updates WHERE workspace_id = ${workspaceId}`);
+  await tx.execute(sql`DELETE FROM page_operation_checkpoints WHERE workspace_id = ${workspaceId}`);
+  await tx.execute(sql`DELETE FROM page_operation_states WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM protected_blob_chunks WHERE workspace_id = ${workspaceId}`);
   await tx.execute(sql`DELETE FROM protected_envelopes WHERE workspace_id = ${workspaceId}`);
   // Pending transfers and generated exports describe the old workspace and
@@ -105,8 +121,30 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
   const itemsById = new Map<Uuid, ExportedItem>();
   const restoredDatabases = new Map<Uuid, ExportedDatabase>();
   const restoredEntries = new Map<Uuid, ExportedDatabaseEntry>();
+  const pageOperationArchive =
+    options.pageOperationCrypto === undefined
+      ? null
+      : new PageOperationArchiveService({
+          workspaceId: options.workspaceId,
+          crypto: options.pageOperationCrypto,
+        });
 
   return {
+    ...(options.prepare === undefined ? {} : { begin: options.prepare }),
+    verifyPageOperations: async (raw, canonicalExport) => {
+      if (pageOperationArchive === null) {
+        throw new Error("the restore target cannot verify operational page state");
+      }
+      await pageOperationArchive.verify(readPageOperationArchive(raw), canonicalExport);
+    },
+
+    writePageOperations: async (raw) => {
+      if (pageOperationArchive === null) {
+        throw new Error("the restore target cannot write operational page state");
+      }
+      await pageOperationArchive.restore(options.tx, raw);
+    },
+
     writeFile: async (digest, bytes) => {
       const stored = await options.contentStore.ingest(bytes, async () => null);
       if (`sha256:${Buffer.from(stored.sha256).toString("hex")}` !== digest) {

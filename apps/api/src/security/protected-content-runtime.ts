@@ -15,7 +15,11 @@ export function createProtectedContentRuntime(input: {
   readonly deploymentKey: () => Buffer | null;
   readonly now?: () => Date;
   readonly reportIntegrityFailure?: (failure: IntegrityFailure) => Promise<void>;
-}): { readonly keys: KeyHierarchy; readonly content: ProtectedContent } {
+}): {
+  readonly keys: KeyHierarchy;
+  readonly records: ProtectedRecordService;
+  readonly content: ProtectedContent;
+} {
   const installationId = input.installationId ?? INSTALLATION_ID;
   const now = input.now ?? (() => new Date());
   const keys = new KeyHierarchy({
@@ -35,5 +39,5 @@ export function createProtectedContentRuntime(input: {
       ? {}
       : { reportIntegrityFailure: input.reportIntegrityFailure }),
   });
-  return { keys, content: new ProtectedContent({ records }) };
+  return { keys, records, content: new ProtectedContent({ records }) };
 }

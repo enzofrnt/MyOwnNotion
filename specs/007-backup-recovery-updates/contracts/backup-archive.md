@@ -9,6 +9,7 @@ without this application. Implements FR-001 to FR-004, FR-007 and FR-008.
 myownnotion-backup-<iso8601>-<short-id>.tar
 ├── manifest.json          # the envelope: versions, cursor, digests
 ├── canonical-export.json  # feature 001's export manifest, verbatim
+├── page-operations.json   # causal page state, present on operational archives
 └── files/
     └── <sha256>           # content-addressed, exactly as the content store holds them
 ```
@@ -33,11 +34,29 @@ pages embedding the same image cost one copy.
   "schemaVersion": 1,
   "recordFormatVersion": 1,
   "canonicalExportDigest": "sha256:…",
+  "operationalFormatVersion": 1,
+  "operationalStateDigest": "sha256:…",
+  "operationalPageCount": 42,
+  "operationalCheckpointCount": 57,
+  "operationalUpdateCount": 310,
   "files": [{ "digest": "sha256:…", "byteLength": 12345 }],
   "itemCount": 128,
   "fileCount": 17
 }
 ```
+
+The five `operational*` fields are either all present or all absent. When they
+are present, `page-operations.json` carries each page state, the current and
+retained checkpoints, update receipts and uncompacted payloads, device
+frontiers, durable ambiguities, and legacy-conversion receipts. It contains no
+key: operational bytes are portable inside the tar, and the tar itself remains
+sealed before transfer.
+
+The operational representation is the causal authority for active page bodies;
+`canonical-export.json` remains its deterministic, documented projection. Both
+are captured in the same repeatable-read transaction. Verification reconstructs
+every active operational page and refuses the archive unless its projection and
+digest equal the canonical export.
 
 **Every version needed to read it back is in here**, because a reader that has to
 consult the application to learn what the archive is has not been given a
@@ -70,6 +89,11 @@ Two checks, and they are not the same check run twice:
 The second must re-read through the destination boundary. Re-hashing the local
 file would prove the local file is fine — which the first check already
 established — and would report a corrupted upload as a success.
+
+A checkpoint counts as compaction evidence only after the destination read-back
+passes and the exact checkpoint ID plus snapshot/canonical digests are recorded.
+Retention cannot delete a backup while a checkpoint still names it as its
+evidence. A later verified backup may replace that reference.
 
 A verification records a stage, an outcome and a safe reason. It never records a
 path, a credential, or anything from inside the archive.

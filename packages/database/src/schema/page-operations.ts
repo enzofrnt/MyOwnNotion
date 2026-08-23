@@ -29,6 +29,7 @@ export interface PageOperationSchemaDependencies {
   readonly itemId: AnyPgColumn;
   readonly itemWorkspaceId: AnyPgColumn;
   readonly revisionId: AnyPgColumn;
+  readonly backupId: AnyPgColumn;
   readonly deviceId: AnyPgColumn;
   readonly protectedEnvelopeId: AnyPgColumn;
 }
@@ -163,6 +164,7 @@ export function definePageOperationSchema(deps: PageOperationSchemaDependencies)
       snapshotDigest: text("snapshot_digest").notNull(),
       canonicalDigest: text("canonical_digest").notNull(),
       revisionId: uuid("revision_id").references(() => deps.revisionId),
+      verifiedBackupId: uuid("verified_backup_id").references(() => deps.backupId),
       state: text("state").notNull().default("candidate"),
       createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
       verifiedAt: timestamp("verified_at", { withTimezone: true }),
@@ -183,6 +185,7 @@ export function definePageOperationSchema(deps: PageOperationSchemaDependencies)
         table.state,
         table.throughPageSequence,
       ),
+      index("page_operation_checkpoints_backup_idx").on(table.verifiedBackupId),
       check("page_operation_checkpoints_sequence_check", sql`${table.throughPageSequence} >= 0`),
       check(
         "page_operation_checkpoints_state_check",

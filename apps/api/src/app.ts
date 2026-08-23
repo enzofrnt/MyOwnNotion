@@ -22,6 +22,7 @@ import { restoreTestCommand } from "./admin/commands/restore-test.ts";
 import { openBackupArchive } from "./backup/archive-crypto.ts";
 import { createBackupDestination, loadBackupConfig } from "./backup/backup-config.ts";
 import { BACKUP_RECORD_FORMAT_VERSION } from "./backup/backup-service.ts";
+import { PageOperationArchiveService } from "./backup/page-operation-archive.ts";
 import type { AppContext } from "./context.ts";
 import {
   createDatabaseQueryService,
@@ -35,6 +36,7 @@ import {
 import { LegacyBranchService } from "./page-state/legacy-branch-service.ts";
 import { PageActivationService } from "./page-state/page-activation-service.ts";
 import { PageAmbiguityService } from "./page-state/page-ambiguity-service.ts";
+import { PageHistoryService } from "./page-state/page-history-service.ts";
 import { PageOperationCrypto } from "./page-state/page-operation-crypto.ts";
 import { PageOperationService } from "./page-state/page-operation-service.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
@@ -134,6 +136,12 @@ export interface BuiltApp {
   readonly keyHierarchy?: KeyHierarchy | undefined;
   /** Internal checkpoint maintenance surface; present with the security layer. */
   readonly pageCheckpoints?: PageCheckpointService | undefined;
+  /** Consolidated history maintenance; present with operational page sync. */
+  readonly pageHistory?: PageHistoryService | undefined;
+  /** Operational envelope boundary exposed for verified restore tooling. */
+  readonly pageOperationCrypto?: PageOperationCrypto | undefined;
+  /** Portable verified causal-state archive used by backup and restore. */
+  readonly pageOperationArchive?: PageOperationArchiveService | undefined;
   close(): Promise<void>;
 }
 
@@ -228,6 +236,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   let search: SearchService | undefined;
   let structuredQueries: DatabaseQueryService | undefined;
   let pageCheckpoints: PageCheckpointService | undefined;
+  let pageHistory: PageHistoryService | undefined;
+  let pageOperationCrypto: PageOperationCrypto | undefined;
+  let pageOperationArchive: PageOperationArchiveService | undefined;
 
   const context: AppContext = {
     db: database.db,
@@ -251,6 +262,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     },
     get structuredQueries() {
       return structuredQueries;
+    },
+    get pageOperationArchive() {
+      return pageOperationArchive;
     },
   };
 
@@ -551,7 +565,11 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       require: requireOwner,
     });
 
-    const pageOperationCrypto = new PageOperationCrypto(protectedRecords);
+    pageOperationCrypto = new PageOperationCrypto(protectedRecords);
+    pageOperationArchive = new PageOperationArchiveService({
+      workspaceId: workspace.id,
+      crypto: pageOperationCrypto,
+    });
     const canonicalMaterializer = new CanonicalMaterializer(protectedContent);
     const pageActivation = new PageActivationService({
       db: database.db,
@@ -561,12 +579,24 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       rotationPolicies,
       now,
     });
-    const pageOperations = new PageOperationService({
+    let pageOperations: PageOperationService;
+    pageHistory = new PageHistoryService({
+      db: database.db,
+      workspaceId: workspace.id,
+      protectedContent,
+      rotationPolicies,
+      operations: () => pageOperations,
+      search,
+      now,
+    });
+    pageOperations = new PageOperationService({
       db: database.db,
       workspaceId: workspace.id,
       crypto: pageOperationCrypto,
       materializer: canonicalMaterializer,
+      protectedContent,
       rotationPolicies,
+      history: pageHistory,
       search,
       now,
     });
@@ -576,7 +606,12 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       crypto: pageOperationCrypto,
       operations: pageOperations,
       rotationPolicies,
-      retention: options.pageCheckpointRetention,
+      retention: options.pageCheckpointRetention ?? {
+        checkpointIsInVerifiedBackup: async (tx, retentionContext) =>
+          (await pageOperationArchive?.checkpointIsInVerifiedBackup(tx, retentionContext)) ?? false,
+        historyAllowsCompaction: async (tx, retentionContext) =>
+          (await pageHistory?.historyAllowsCompaction(tx, retentionContext)) ?? false,
+      },
       now,
     });
     const pageAmbiguities = new PageAmbiguityService({
@@ -663,6 +698,28 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       },
     });
   }
+  if (pageHistory !== undefined) {
+    let consolidationRunning = false;
+    const historyTimer = setInterval(() => {
+      if (consolidationRunning) return;
+      consolidationRunning = true;
+      void pageHistory
+        ?.consolidateDue()
+        .catch((error: unknown) => {
+          app.log.error(
+            { errorName: error instanceof Error ? error.name : "unknown" },
+            "page history consolidation failed",
+          );
+        })
+        .finally(() => {
+          consolidationRunning = false;
+        });
+    }, 15_000);
+    historyTimer.unref();
+    app.addHook("onClose", async () => {
+      clearInterval(historyTimer);
+    });
+  }
   structuredQueries = createDatabaseQueryService({
     db: database.db,
     workspaceId: workspace.id,
@@ -682,7 +739,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   registerFileRoutes(app, context);
   registerUploadRoutes(app, context);
   registerRelationshipRoutes(app, context);
-  registerRevisionRoutes(app, context);
+  registerRevisionRoutes(app, context, { history: pageHistory });
   registerChangeRoutes(app, context);
   registerChangeStreamRoutes(app, context);
   registerSnapshotRoutes(app, context);
@@ -695,6 +752,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     database,
     keyHierarchy,
     pageCheckpoints,
+    pageHistory,
+    pageOperationCrypto,
+    pageOperationArchive,
     close: async () => {
       await app.close();
       await database.close();

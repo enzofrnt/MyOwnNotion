@@ -5,6 +5,7 @@
 import type { ContentStore, PartialUploadStore } from "@myownnotion/blob-store";
 import type { Database } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
+import type { PageOperationArchiveService } from "./backup/page-operation-archive.ts";
 import type { DatabaseQueryService } from "./databases/database-query-service.ts";
 import type { SearchService } from "./search/search-service.ts";
 import type { DeviceService } from "./security/device-service.ts";
@@ -46,4 +47,6 @@ export interface AppContext {
   readonly search?: SearchService | undefined;
   /** Reconstructible private projection used by every saved database view. */
   readonly structuredQueries?: DatabaseQueryService | undefined;
+  /** Verified portable form of the causal page state used by backup/restore. */
+  readonly pageOperationArchive?: PageOperationArchiveService | undefined;
 }
