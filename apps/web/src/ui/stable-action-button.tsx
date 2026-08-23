@@ -2,7 +2,7 @@ import { type ButtonHTMLAttributes, type MouseEvent, type PointerEvent, useRef }
 
 interface StableActionButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick" | "onPointerDown"> {
-  readonly onActivate: () => void;
+  readonly onActivate: (trigger: HTMLButtonElement) => void;
 }
 
 /**
@@ -23,7 +23,7 @@ export function StableActionButton({ onActivate, ...buttonProps }: StableActionB
     if (!event.isPrimary || event.button !== 0 || event.currentTarget.disabled) return;
     lastPointerActivation.current = event.timeStamp;
     event.preventDefault();
-    action.current();
+    action.current(event.currentTarget);
   };
   const activateFromClick = (event: MouseEvent<HTMLButtonElement>): void => {
     // When this component owns a submit action, it also owns the semantic
@@ -33,7 +33,7 @@ export function StableActionButton({ onActivate, ...buttonProps }: StableActionB
     if (event.currentTarget.type === "submit") event.preventDefault();
     const followsPointer =
       event.detail > 0 && event.timeStamp - lastPointerActivation.current < 1_000;
-    if (!followsPointer) action.current();
+    if (!followsPointer) action.current(event.currentTarget);
   };
 
   return (

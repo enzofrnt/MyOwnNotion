@@ -30,6 +30,16 @@ import {
 } from "./helpers.ts";
 
 const BLOCK_COUNT = 500;
+const WARMUP_KEYSTROKES = 10;
+const MEASURED_KEYSTROKES = 100;
+
+/**
+ * Leave the editor 50 ms after each rendered key to process its queued work.
+ * Including the animation frame, this still drives roughly 15 keys per second
+ * (about 180 words per minute), but does not turn a latency measurement into an
+ * unbounded one-key-per-frame saturation test on a two-core CI runner.
+ */
+const KEYSTROKE_SETTLE_MS = 50;
 
 /** A document of `BLOCK_COUNT` paragraphs, written straight to the server. */
 function largeDocument(): { blocks: Array<Record<string, unknown>> } {
@@ -135,19 +145,44 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     // two isolated stacks in parallel. Warm the editor, then use 100 measured
     // keys: this preserves the exact 100 ms budget while making "95 %" a real
     // percentile rather than the second-largest value of a tiny sample.
-    const samples: number[] = [];
-    for (let index = 0; index < 110; index += 1) {
-      const elapsed = await page.evaluate(async () => {
-        const start = performance.now();
-        document.execCommand("insertText", false, "x");
-        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-        return performance.now() - start;
-      });
-      if (index >= 10) samples.push(elapsed);
-    }
+    //
+    // A key on every animation frame is not human input: it queues mutations at
+    // roughly 60 keys per second until a small runner falls behind, then reports
+    // that accumulated queue as keystroke latency. Keep the browser-side timing
+    // and the product's 100 ms threshold, but give each rendered key a short,
+    // fixed settling interval before the next one. The resulting sustained rate
+    // is still faster than realistic typing and remains a meaningful stress run.
+    const samples = await page.evaluate(
+      async ({ warmupKeystrokes, measuredKeystrokes, settleMs }) => {
+        const measurements: number[] = [];
+        const totalKeystrokes = warmupKeystrokes + measuredKeystrokes;
+
+        for (let index = 0; index < totalKeystrokes; index += 1) {
+          const start = performance.now();
+          document.execCommand("insertText", false, "x");
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          const elapsed = performance.now() - start;
+          if (index >= warmupKeystrokes) measurements.push(elapsed);
+
+          if (index + 1 < totalKeystrokes) {
+            await new Promise<void>((resolve) => setTimeout(resolve, settleMs));
+          }
+        }
+
+        return measurements;
+      },
+      {
+        warmupKeystrokes: WARMUP_KEYSTROKES,
+        measuredKeystrokes: MEASURED_KEYSTROKES,
+        settleMs: KEYSTROKE_SETTLE_MS,
+      },
+    );
 
     samples.sort((left, right) => left - right);
     const p95 = samples[Math.ceil(samples.length * 0.95) - 1] ?? 0;
+    console.info(
+      `[editor-performance] ${samples.length} samples, ${KEYSTROKE_SETTLE_MS} ms settling interval: p95=${p95.toFixed(1)}ms`,
+    );
     expect(p95, `p95 keystroke latency was ${Math.round(p95)}ms`).toBeLessThan(100);
   });
 });

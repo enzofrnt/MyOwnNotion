@@ -1,6 +1,7 @@
 import type { DatabaseProperty, DatabaseView, Uuid } from "@myownnotion/domain";
 import { useLayoutEffect, useRef } from "react";
 import type { DatabaseViewPage } from "../../services/databases.ts";
+import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
 
@@ -55,14 +56,14 @@ export function ListView({
         >
           {page.rows.map((row) => (
             <li key={row.entryId} className="database-list__entry">
-              <button
+              <StableActionButton
                 type="button"
                 className="link database-list__title"
                 data-entry-trigger={row.entryId}
-                onClick={(event) => onOpenEntry(row.entryId as Uuid, event.currentTarget)}
+                onActivate={(trigger) => onOpenEntry(row.entryId as Uuid, trigger)}
               >
                 {row.title}
-              </button>
+              </StableActionButton>
               {secondary.length === 0 ? null : (
                 <dl>
                   {secondary.map((property) => (

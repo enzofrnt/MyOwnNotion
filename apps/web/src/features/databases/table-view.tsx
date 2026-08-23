@@ -26,6 +26,7 @@ import {
   useState,
 } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
 import {
@@ -202,17 +203,17 @@ export function TableView({
             size: presentation?.width ?? (property.type === "title" ? 260 : 180),
             cell: (info) =>
               property.type === "title" ? (
-                <button
+                <StableActionButton
                   type="button"
                   className="link database-cell-title"
                   data-entry-trigger={info.row.original.entryId}
                   tabIndex={-1}
-                  onClick={(event) =>
-                    openEntry.current(info.row.original.entryId as Uuid, event.currentTarget)
+                  onActivate={(trigger) =>
+                    openEntry.current(info.row.original.entryId as Uuid, trigger)
                   }
                 >
                   {String(info.getValue())}
-                </button>
+                </StableActionButton>
               ) : (
                 <span>{String(info.getValue())}</span>
               ),
@@ -560,16 +561,16 @@ export function TableView({
                                 >
                                   {DATABASE_COPY.table.cancelEdit}
                                 </button>
-                                <button
+                                <StableActionButton
                                   type="button"
                                   className="link"
                                   data-entry-trigger={row.original.entryId}
-                                  onClick={(event) =>
-                                    onOpenEntry(row.original.entryId as Uuid, event.currentTarget)
+                                  onActivate={(trigger) =>
+                                    onOpenEntry(row.original.entryId as Uuid, trigger)
                                   }
                                 >
                                   {DATABASE_COPY.table.openEntry}
-                                </button>
+                                </StableActionButton>
                               </div>
                             </div>
                           ) : (
