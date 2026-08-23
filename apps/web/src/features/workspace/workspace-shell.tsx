@@ -41,7 +41,11 @@ export function WorkspaceShell({
       </ResponsiveSidebar>
       <div className="workspace-stage">
         {header}
-        <main id="workspace-main" className="workspace-main" tabIndex={-1}>
+        {/* This element owns vertical scrolling once a page grows. Keeping it
+            in the normal tab order lets keyboard users focus it and scroll;
+            the skip link still lands on the same stable target. */}
+        {/* biome-ignore lint/a11y/noNoninteractiveTabindex: WCAG requires this scroll container to be keyboard-focusable. */}
+        <main id="workspace-main" className="workspace-main" tabIndex={0}>
           <div className="workspace-reading-column">{children}</div>
         </main>
       </div>

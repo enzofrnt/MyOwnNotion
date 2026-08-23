@@ -1,6 +1,7 @@
 /**
  * Responsive relationship-diagnostic journeys (T064, US3).
  */
+import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
@@ -11,6 +12,20 @@ import {
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
+
+/**
+ * Keep scrolling while late editor layout settles. WebKit can finish sizing
+ * the editor after the first scroll and push a lower panel out of view again.
+ */
+async function expectReachable(locator: Locator): Promise<void> {
+  await expect(async () => {
+    await locator.scrollIntoViewIfNeeded();
+    await expect(locator).toBeInViewport({ timeout: 1_000 });
+  }).toPass({
+    intervals: [100, 250, 500],
+    timeout: 15_000,
+  });
+}
 
 test.describe("stable identity and relationships (US3)", () => {
   test("relates two items; the relation survives rename and reports trash diagnostics", async ({
@@ -32,22 +47,18 @@ test.describe("stable identity and relationships (US3)", () => {
     await selectItem(page, source);
     const details = page.getByTestId("item-details");
     await expect(details).toBeVisible();
-    await details.scrollIntoViewIfNeeded();
-    await expect(details).toBeInViewport();
+    await expectReachable(details);
 
     const targetField = page.getByTestId("relation-target");
-    await targetField.scrollIntoViewIfNeeded();
-    await expect(targetField).toBeInViewport();
+    await expectReachable(targetField);
     await targetField.fill(targetId ?? "");
 
     const createButton = page.getByTestId("create-relation");
-    await createButton.scrollIntoViewIfNeeded();
-    await expect(createButton).toBeInViewport();
+    await expectReachable(createButton);
     await createButton.click();
 
     const list = page.getByTestId("relationship-list");
-    await list.scrollIntoViewIfNeeded();
-    await expect(list).toBeInViewport();
+    await expectReachable(list);
     await expect(list).toContainText(targetId ?? "");
     await expect(page.getByTestId("relation-availability")).toContainText("active");
 

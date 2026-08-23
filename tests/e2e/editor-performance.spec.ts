@@ -44,7 +44,14 @@ function largeDocument(): { blocks: Array<Record<string, unknown>> } {
 }
 
 test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
-  test("opens and becomes editable within 2 seconds (SC-007)", async ({ page, request }) => {
+  test("opens and becomes editable within 2 seconds (SC-007)", async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium-desktop",
+      "Performance budgets use one controlled reference engine; every project still owns behavior.",
+    );
     await openWorkspace(page);
     const name = uniqueName("LargeDoc");
     await createRootItem(page, "page", name);
@@ -83,7 +90,14 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     expect(elapsed, `opening took ${elapsed}ms`).toBeLessThan(2_000);
   });
 
-  test("keeps typing responsive at the 95th percentile (SC-007)", async ({ page, request }) => {
+  test("keeps typing responsive at the 95th percentile (SC-007)", async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium-desktop",
+      "Performance budgets use one controlled reference engine; every project still owns behavior.",
+    );
     await openWorkspace(page);
     const name = uniqueName("TypingDoc");
     await createRootItem(page, "page", name);

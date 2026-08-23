@@ -28,7 +28,6 @@ import {
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   editorApplyCount,
-  editorChangeSequence,
   openWorkspace,
   saveDocument,
   selectItem,
@@ -134,9 +133,12 @@ async function applyEditorHistory(page: Page, action: "undo" | "redo"): Promise<
   const control = page.getByTestId(action);
   await control.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await expect(control).toBeEnabled();
-  const beforeSequence = await editorChangeSequence(page);
   await control.click();
-  await waitForEditorSettled(page, { afterSequence: beforeSequence });
+  // The sequence identifies settled activity bursts, not every action. An SSE
+  // projection can begin a burst between the precondition above and this click,
+  // so a successful history action may intentionally settle without incrementing
+  // it again. The assertions after each call prove the actual undo/redo result.
+  await waitForEditorSettled(page);
 }
 
 test.describe("writing with Markdown-style shortcuts", () => {
