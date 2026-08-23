@@ -66,7 +66,7 @@ leave no trace outside a commit message. All three were fixed here.
 | SC-002 nine of ten can state whether their last edit was saved | **pending** | Needs the ten-participant protocol. |
 | SC-003 every core journey by keyboard alone | **partial** | See FR-017. |
 | SC-004 no critical or serious accessibility violations | pass | `accessibility.spec.ts` with `@axe-core/playwright` on workspace, editor and the conversion dialog |
-| SC-005 keystroke to visible under 100 ms at p95, 500 blocks | pass | `editor-performance.spec.ts`, measured in the browser over 30 keystrokes |
+| SC-005 keystroke to visible under 100 ms at p95, 500 blocks | pass | `editor-performance.spec.ts`, measured in the browser over 100 keystrokes after 10 warm-up keystrokes, at a sustained rate of about 15 keystrokes per second |
 | SC-006 500-block document editable within 2 seconds | pass | `editor-performance.spec.ts`, timed from selection to content on screen |
 | SC-007 no participant loses content | **pending** | Part of the SC-002 protocol. |
 | SC-008 320 pixels across four engines | **partial** | Asserted on chromium and webkit, desktop and mobile. Firefox is CI's to cover; its binary does not launch on the development machine. |

@@ -147,9 +147,15 @@ pnpm test:e2e -- editor-performance
 ```
 
 Against a generated 500-block document: keystroke to visible output under
-100 ms at p95, and open-to-editable under 2 seconds. Run on an unloaded
-machine; these are the two criteria most likely to fail spuriously under a
-parallel build, and a failure should be reproduced before it is believed.
+100 ms at p95, and open-to-editable under 2 seconds. The typing journey first
+warms the editor with 10 keystrokes, then measures 100 keystrokes with 50 ms of
+settling time after each rendered key. Including the animation frame, that is
+about 15 keystrokes per second: faster than sustained human typing, without
+mistaking an unbounded one-key-per-frame queue for interaction latency.
+
+Run this benchmark on an otherwise unloaded reference machine. These are the
+two criteria most likely to fail spuriously under a parallel build, and a
+failure should be reproduced in isolation before it is believed.
 
 ## What is deliberately not verified here
 
