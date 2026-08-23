@@ -274,7 +274,7 @@ obtiennent projection/historique identiques ; delete/edit reste récupérable.
 - [x] T122 [P] [US5] Écrire les tests API sync/checkpoint/activate/ambiguity/protocol dans `apps/api/tests/page-operations.contract.spec.ts`
 - [x] T123 [P] [US5] Écrire les tests serveur de projection, liens, fichiers et transaction atomique dans `apps/api/tests/page-operation-service.integration.spec.ts`
 - [x] T124 [P] [US5] Écrire les tests de deux branches legacy v2 concurrentes dans `apps/api/tests/page-operation-migration.integration.spec.ts`
-- [ ] T125 [P] [US5] Écrire les tests de frontier, révocation et compaction dans `apps/api/tests/page-operation-compaction.integration.spec.ts`
+- [x] T125 [P] [US5] Écrire les tests de frontier, révocation et compaction dans `apps/api/tests/page-operation-compaction.integration.spec.ts`
 - [ ] T126 [P] [US5] Écrire les tests backup/restore/appareil absent et consolidation 30 s/5 min/bornes dans `apps/api/tests/page-operation-backup.integration.spec.ts` et `apps/api/tests/page-history-consolidation.integration.spec.ts`
 - [x] T127 [P] [US5] Écrire les tests client de batching, retries, catch-up et fichiers pending dans `packages/client-core/tests/page-reconciler.property.spec.ts`
 - [ ] T128 [P] [US5] Écrire le journey à deux appareils réellement offline dans `tests/e2e/page-multi-device-convergence.spec.ts`
@@ -297,7 +297,7 @@ obtiennent projection/historique identiques ; delete/edit reste récupérable.
 - [x] T139 [US5] Implémenter service transactionnel import→ambiguïtés→projection→révision→change feed dans `apps/api/src/page-state/page-operation-service.ts`
 - [x] T140 [US5] Implémenter activation lazy atomique et protection de `page.document.replace` dans `apps/api/src/page-state/page-activation-service.ts` et `apps/api/src/routes/page-documents.ts`
 - [x] T141 [US5] Implémenter conversion idempotente `LegacyOfflineBranch` dans `apps/api/src/page-state/legacy-branch-service.ts`
-- [ ] T142 [US5] Implémenter checkpoint candidat/vérifié, frontier et compaction bornée par appareils dans `apps/api/src/page-state/checkpoint-service.ts`
+- [x] T142 [US5] Implémenter checkpoint candidat/vérifié, frontier et compaction bornée par appareils dans `apps/api/src/page-state/checkpoint-service.ts`
 - [x] T143 [US5] Implémenter création/détail/résolution des ambiguïtés sans altérer les sources dans `apps/api/src/page-state/page-ambiguity-service.ts`
 - [x] T144 [US5] Exposer sync, activate et ambiguity routes avec guards existants dans `apps/api/src/routes/page-operations.ts` et `apps/api/src/app.ts`
 - [x] T145 [US5] Ajouter `page-operations.updated` au change feed et au signal SSE dans `packages/domain/src/sync/change-nature.ts`, `apps/api/src/routes/changes.ts` et `apps/api/src/routes/change-stream.ts`

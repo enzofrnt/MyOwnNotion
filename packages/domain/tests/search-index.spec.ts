@@ -44,6 +44,37 @@ function query(raw: string) {
 }
 
 describe("WorkspaceSearchIndex", () => {
+  it("keeps a large writable index consistent beyond the engine vacuum threshold", async () => {
+    const index = new WorkspaceSearchIndex();
+    const largeBody = Array.from({ length: 1_100 }, (_, position) => `term-${position}`).join(" ");
+
+    for (let sourceVersion = 1; sourceVersion <= 20; sourceVersion += 1) {
+      index.upsert(
+        document(
+          itemIds.exact,
+          "Retired marker",
+          `${largeBody} generation-${sourceVersion}`,
+          sourceVersion,
+        ),
+      );
+    }
+    index.upsert(document(itemIds.exact, "Current marker", largeBody, 21));
+
+    // Searching a discarded term cleans its posting list synchronously. That
+    // must remain safe even after enough replacements to trigger maintenance.
+    expect(index.search(query("retired marker"))).toHaveLength(0);
+
+    // MiniSearch's batched vacuum resumes on a timer. Give any background work
+    // time to complete before exercising the same index again.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(index.search(query("current marker"))).toMatchObject([{ itemId: itemIds.exact }]);
+    expect(index.upsert(document(itemIds.body, "Still writable", "after maintenance", 31))).toBe(
+      "inserted",
+    );
+    expect(index.search(query("still writable"))).toMatchObject([{ itemId: itemIds.body }]);
+  });
+
   it("ranks exact and prefix titles before title terms, filenames and body matches", () => {
     const index = new WorkspaceSearchIndex();
     index.upsert(document(itemIds.body, "Notes", "architecture résiliente", 1));

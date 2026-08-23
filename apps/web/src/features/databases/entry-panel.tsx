@@ -6,7 +6,8 @@ import type {
   RelationTargets,
   Uuid,
 } from "@myownnotion/domain";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
+import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import {
   type RelationOption,
@@ -96,10 +97,12 @@ export function EntryPanel({
   );
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
+  const saveInFlight = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveConfirmation, setSaveConfirmation] = useState<string | null>(null);
 
   const save = async (): Promise<void> => {
+    if (saveInFlight.current) return;
     const nextValues: Record<string, NonRelationPropertyValue> = {};
     const nextRelations: Record<string, readonly Uuid[]> = {};
     const nextErrors: Record<string, string> = {};
@@ -118,6 +121,7 @@ export function EntryPanel({
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
+    saveInFlight.current = true;
     setSaveError(null);
     setSaveConfirmation(null);
     setSaving(true);
@@ -130,6 +134,7 @@ export function EntryPanel({
     } catch {
       setSaveError(DATABASE_COPY.entry.saveFailed);
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
     }
   };
@@ -228,9 +233,9 @@ export function EntryPanel({
             )}
           </>
         )}
-        <button type="button" onClick={() => void save()} disabled={saving}>
+        <StableActionButton type="button" onActivate={() => void save()} disabled={saving}>
           {saving ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.entry.save}
-        </button>
+        </StableActionButton>
         {saveConfirmation === null ? null : (
           <p role="status" data-testid="entry-properties-saved">
             {saveConfirmation}

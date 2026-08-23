@@ -38,6 +38,7 @@ import {
 } from "./block-tree.ts";
 import { type CanonicalProjectionResult, projectCanonicalPage } from "./canonical-projection.ts";
 import {
+  createCompactedOperationalCheckpoint,
   createOperationalCheckpoint,
   type OperationalPageCheckpoint,
   openOperationalCheckpoint,
@@ -749,6 +750,17 @@ export class OperationalPageDocument {
     assertMetadata(this.#doc, this.#pageId);
     assertOperationalBlockTree(this.#doc);
     return createOperationalCheckpoint(this.#pageId, this.#doc);
+  }
+
+  /**
+   * Produces a shallow candidate suitable for frontier-gated server
+   * compaction. Creating these bytes alone never authorizes their promotion;
+   * the server checkpoint service owns that decision.
+   */
+  compactedCheckpoint(): Promise<OperationalPageCheckpoint> {
+    assertMetadata(this.#doc, this.#pageId);
+    assertOperationalBlockTree(this.#doc);
+    return createCompactedOperationalCheckpoint(this.#pageId, this.#doc);
   }
 
   createRelativeTextPosition(blockId: Uuid, index: number, side: Side = 0): Uint8Array {

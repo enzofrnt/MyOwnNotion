@@ -5,6 +5,7 @@ import path from "node:path";
 import { createInstallation } from "@myownnotion/database";
 import { documentDigestV3, type Uuid } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
+import type { PageCheckpointRetentionPolicy } from "../../src/page-state/checkpoint-service.ts";
 import { hashPassword } from "../../src/security/password-service.ts";
 import { loadSecurityConfig } from "../../src/security/security-config.ts";
 import {
@@ -37,7 +38,9 @@ function cookieFrom(response: { headers: Record<string, unknown> }): string {
   return /mn_dev_session=([^;]*)/.exec(String(value ?? ""))?.[1] ?? "";
 }
 
-export async function createAuthenticatedPageOperationHarness(): Promise<AuthenticatedPageOperationHarness> {
+export async function createAuthenticatedPageOperationHarness(
+  options: { readonly checkpointRetention?: PageCheckpointRetentionPolicy } = {},
+): Promise<AuthenticatedPageOperationHarness> {
   const keyDirectory = mkdtempSync(path.join(os.tmpdir(), "mon-operation-service-key-"));
   const keyFile = path.join(keyDirectory, "deployment-key");
   writeFileSync(keyFile, randomBytes(32).toString("base64"), {
@@ -51,11 +54,15 @@ export async function createAuthenticatedPageOperationHarness(): Promise<Authent
       MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
     }),
+    ...(options.checkpointRetention === undefined
+      ? {}
+      : { pageCheckpointRetention: options.checkpointRetention }),
   });
 
   const reset = async () => {
     await api.built.database.db.execute(sql`
-      TRUNCATE page_legacy_branch_conversions, page_ambiguities, page_device_frontiers,
+      TRUNCATE restoration_attempts, backup_verifications, backups,
+        page_legacy_branch_conversions, page_ambiguities, page_device_frontiers,
         page_operation_updates, page_operation_checkpoints, page_operation_states,
         security_audit_events, security_rate_limits, recovery_kits, recovery_epochs,
         data_key_generations, sessions, authorized_devices, pending_bootstrap_credentials,

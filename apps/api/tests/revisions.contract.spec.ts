@@ -21,7 +21,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await harness.close();
+  await harness?.close();
 });
 
 async function editPage(itemId: Uuid, baseRevisionId: Uuid, text: string): Promise<Uuid> {

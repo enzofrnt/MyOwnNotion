@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { AppIcon } from "../../../ui/icons.tsx";
+import { StableActionButton } from "../../../ui/stable-action-button.tsx";
 import type { EditorInstance } from "../blocknote-schema.ts";
 
 /** Wraps one text selection without flattening any of its existing styles. */
@@ -160,16 +161,16 @@ export function PageLinkPickerContent({
           <p className="muted">Aucune page correspondante</p>
         ) : (
           candidates.map((item) => (
-            <button
+            <StableActionButton
               key={item.id}
               type="button"
               role="option"
               aria-selected="false"
-              onClick={() => insert(item)}
+              onActivate={() => insert(item)}
             >
               <AppIcon name={item.kind === "folder" ? "folder" : "fileText"} />
               <span>{item.name}</span>
-            </button>
+            </StableActionButton>
           ))
         )}
       </div>

@@ -4,7 +4,8 @@ import {
   type DatabasePropertyType,
   generateUuidV7,
 } from "@myownnotion/domain";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
+import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 export type EditablePropertyType = Exclude<DatabasePropertyType, "title">;
@@ -165,9 +166,16 @@ export function PropertyEditor({
     setVisibleDraft(next);
     onChange(next);
   };
+  const formRef = useRef<HTMLFormElement>(null);
+  const submitVisibleDraft = (): void => {
+    const form = formRef.current;
+    onSubmit(
+      form === null ? visibleDraft : propertyDraftFromFormData(new FormData(form), visibleDraft),
+    );
+  };
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    onSubmit(propertyDraftFromFormData(new FormData(event.currentTarget), visibleDraft));
+    submitVisibleDraft();
   };
 
   const usesOptions =
@@ -176,7 +184,12 @@ export function PropertyEditor({
     visibleDraft.type === "multi-select";
 
   return (
-    <form className="property-editor" aria-label={DATABASE_COPY.property.editor} onSubmit={submit}>
+    <form
+      ref={formRef}
+      className="property-editor"
+      aria-label={DATABASE_COPY.property.editor}
+      onSubmit={submit}
+    >
       <div className="field-row">
         <label htmlFor="property-name">{DATABASE_COPY.property.name}</label>
         <input
@@ -255,9 +268,9 @@ export function PropertyEditor({
 
       {error !== null ? <p role="alert">{error}</p> : null}
       <div className="field-row">
-        <button type="submit" disabled={submitting}>
+        <StableActionButton type="submit" disabled={submitting} onActivate={submitVisibleDraft}>
           {submitting ? DATABASE_COPY.common.savingLocally : DATABASE_COPY.property.save}
-        </button>
+        </StableActionButton>
         <button type="button" className="link" onClick={onCancel} disabled={submitting}>
           {DATABASE_COPY.common.cancel}
         </button>
