@@ -605,14 +605,12 @@ export class LegacyPageEditingSession {
         if (this.#successor === null) {
           const outcome = await requestConversion();
           if (outcome === "converted") {
-            // Not awaited: the upgrade resumes from durable state
-            // concurrently with the queue, and any gesture that still reaches
-            // the converted branch is caught by the concurrency net and
-            // replayed on the successor. Awaiting it here would let the
-            // durable-page listener's own queued upgrade block this task.
-            this.#upgradeToActiveSession().catch((error) => {
-              this.#onBackgroundError?.(error);
-            });
+            // The durable-page listener queues its own adoption behind this
+            // task and does not await that queue, so starting the shared
+            // upgrade directly cannot deadlock. Keeping this task pending
+            // until the successor exists ensures every later gesture runs on
+            // the active document instead of a branch already converted.
+            await this.#upgradeToActiveSession();
           }
         }
       } catch (error) {

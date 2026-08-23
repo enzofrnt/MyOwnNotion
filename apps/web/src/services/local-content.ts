@@ -497,6 +497,17 @@ export class LocalContentService {
         };
       }
     }
+    const retainedLegacyBranch = await this.pageOperationLog.getLegacyBranch(itemId);
+    if (retainedLegacyBranch !== null && retainedLegacyBranch.status !== "converted") {
+      // Pulling another device's active checkpoint must not orphan edits that
+      // this device made while the page was still legacy. Reopen the retained
+      // branch first; its serial queue owns conversion and then hands the same
+      // mounted editor over to the active state in place.
+      return await this.#openLegacyBranchSession(
+        itemId,
+        retainedLegacyBranch.branch.baseDocumentV2,
+      );
+    }
     if (state === null) {
       let item = await this.repository.getItem(itemId);
       if (item === null || item.kind !== "page") {
@@ -659,7 +670,7 @@ export class LocalContentService {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
       },
       requestConversion: async () => {
-        const outcome = await reconciler.synchronize();
+        const outcome = await reconciler.convertLegacyBranch();
         return outcome.kind === "synced" ? "converted" : "unavailable";
       },
     });

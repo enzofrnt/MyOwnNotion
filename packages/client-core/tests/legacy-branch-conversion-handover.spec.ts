@@ -49,6 +49,7 @@ afterEach(async () => {
 class FakePageServer {
   readonly #pages = new Map<Uuid, OperationalPageDocument>();
   #sequence = 0;
+  syncCalls = 0;
 
   transport(): PageSyncTransport {
     return {
@@ -100,6 +101,7 @@ class FakePageServer {
     pageId: Uuid,
     request: PageSyncRequestDto,
   ): Promise<{ ok: true; value: ActivePageSyncResponseDto }> {
+    this.syncCalls += 1;
     if (request.mode !== "active") throw new Error("unexpected sync mode");
     const page = this.#pages.get(pageId);
     if (page === undefined) throw new Error("active sync before conversion");
@@ -160,7 +162,7 @@ function wiring(
       void reconciler.synchronize();
     },
     requestConversion: async () => {
-      const outcome = await reconciler.synchronize();
+      const outcome = await reconciler.convertLegacyBranch();
       return outcome.kind === "synced" ? "converted" : "unavailable";
     },
   });
@@ -196,6 +198,7 @@ describe("legacy branch to active session handover", () => {
     expect(session.read().blocks[0]).toMatchObject({ content: [{ text: "bonjour" }] });
     const serverBlocks = await server.canonicalBlocks(pageId);
     expect(serverBlocks[0]).toMatchObject({ content: [{ text: "bonjour" }] });
+    expect(server.syncCalls).toBeGreaterThanOrEqual(1);
     const record: LegacyOfflineBranchRecord | null = await log.getLegacyBranch(pageId);
     expect(record?.status).toBe("converted");
   });
