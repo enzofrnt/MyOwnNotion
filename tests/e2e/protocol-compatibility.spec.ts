@@ -5,6 +5,7 @@
  * likely to be honest in the code and useless on the screen. So each one asserts
  * the *sentence the owner reads*, not only the status code underneath it.
  */
+import { MINIMUM_WRITE_VERSION, PROTOCOL_VERSION } from "@myownnotion/domain";
 import { expect, test } from "./fixtures.ts";
 import { openSecondDevice, openWorkspace, uniqueName } from "./helpers.ts";
 import { revokeDevice } from "./reset-installation.ts";
@@ -21,7 +22,7 @@ test.describe("an out-of-date client (FR-018 to FR-020)", () => {
       const response = await fetch("/v1/items");
       return response.headers.get("x-myownnotion-protocol");
     });
-    expect(announced).toBe("2");
+    expect(announced).toBe(String(PROTOCOL_VERSION));
 
     // A protocol-1 client can still read but cannot create content whose
     // structured state it does not understand.
@@ -44,7 +45,7 @@ test.describe("an out-of-date client (FR-018 to FR-020)", () => {
       return { status: response.status, title: body.title };
     });
     expect(refusal.status).toBe(426);
-    expect(refusal.title).toMatch(/can read.*version 2/is);
+    expect(refusal.title).toMatch(new RegExp(`can read.*version ${MINIMUM_WRITE_VERSION}`, "is"));
 
     const readable = await page.evaluate(async () => {
       const response = await fetch("/v1/items", {

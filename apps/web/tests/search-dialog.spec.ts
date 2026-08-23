@@ -8,6 +8,7 @@ import {
   mergeProgressiveSearchPage,
   moveSearchSelection,
   searchAnnouncement,
+  searchQueryFromFormData,
   searchQueryProblem,
 } from "../src/features/search/search-dialog.tsx";
 import { SearchFilters } from "../src/features/search/search-filters.tsx";
@@ -70,6 +71,13 @@ describe("search dialog states", () => {
     expect(searchQueryProblem("🧠".repeat(513))).toBe(
       "Search queries are limited to 512 Unicode characters.",
     );
+  });
+
+  it("submits the visible query even when React still holds the previous value", () => {
+    const data = new FormData();
+    data.set("query", "current visible query");
+
+    expect(searchQueryFromFormData(data, "stale query")).toBe("current visible query");
   });
 
   it("recognises the documented cross-platform keyboard shortcut", () => {
@@ -187,6 +195,6 @@ describe("search dialog states", () => {
     expect(url).not.toContain("sentinel");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({ query: "sentinel private", limit: 20 });
-    expect(new Headers(init.headers).get("x-myownnotion-client-protocol")).toBe("2");
+    expect(new Headers(init.headers).get("x-myownnotion-client-protocol")).toBe("3");
   });
 });

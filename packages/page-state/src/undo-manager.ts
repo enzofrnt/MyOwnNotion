@@ -1,5 +1,6 @@
 import type { CanonicalBlockV3, JsonObject, JsonValue, Uuid } from "@myownnotion/domain";
 import { BLOCK_FIELD_ORDER_V3, canonicalDocumentJsonV3 } from "@myownnotion/domain";
+import type { TransformableBlockType } from "./block-tree.ts";
 import type {
   OperationalPageDocument,
   PageCommand,
@@ -129,25 +130,46 @@ function inverseFor(command: PageCommand, change: PageSemanticChange | undefined
       return { ...command, value: before };
     }
     case "set-block-type": {
+      // The forward command only accepts transformable kinds, so the previous
+      // type is transformable too; media and opaque blocks can never appear
+      // here and are not special-cased.
       const before = semanticChange(change, "block-type-set").blockBefore;
-      if (
-        before.type === "unknown" ||
-        before.type === "table" ||
-        before.type === "image" ||
-        before.type === "fileEmbed" ||
-        before.type === "embed"
-      ) {
-        throw new PageUndoError(`${before.type} cannot be restored with set-block-type`);
-      }
+      const blockType = before.type as TransformableBlockType;
       const properties = propertiesFor(before);
       return properties === undefined
-        ? { type: "set-block-type", blockId: command.blockId, blockType: before.type }
-        : {
-            type: "set-block-type",
-            blockId: command.blockId,
-            blockType: before.type,
-            properties,
-          };
+        ? { type: "set-block-type", blockId: command.blockId, blockType }
+        : { type: "set-block-type", blockId: command.blockId, blockType, properties };
+    }
+    case "insert-table-row": {
+      semanticChange(change, "table-row-inserted");
+      return { type: "delete-table-row", tableId: command.tableId, rowId: command.row.id };
+    }
+    case "delete-table-row": {
+      const deleted = semanticChange(change, "table-row-deleted");
+      return {
+        type: "insert-table-row",
+        tableId: command.tableId,
+        row: deleted.row,
+        beforeRowId: deleted.beforeRowId,
+      };
+    }
+    case "insert-table-column": {
+      semanticChange(change, "table-column-inserted");
+      return {
+        type: "delete-table-column",
+        tableId: command.tableId,
+        columnId: command.column.id,
+      };
+    }
+    case "delete-table-column": {
+      const deleted = semanticChange(change, "table-column-deleted");
+      return {
+        type: "insert-table-column",
+        tableId: command.tableId,
+        column: deleted.column,
+        cells: deleted.cells,
+        beforeColumnId: deleted.beforeColumnId,
+      };
     }
   }
 }
@@ -163,7 +185,16 @@ function buildInverse(
 }
 
 function commandBlockId(command: PageCommand): Uuid {
-  return command.type === "insert-block" ? command.block.id : command.blockId;
+  if (command.type === "insert-block") return command.block.id;
+  if (
+    command.type === "insert-table-row" ||
+    command.type === "delete-table-row" ||
+    command.type === "insert-table-column" ||
+    command.type === "delete-table-column"
+  ) {
+    return command.tableId;
+  }
+  return command.blockId;
 }
 
 function historyGuards(
@@ -187,6 +218,10 @@ function historyGuards(
       case "set-mark":
       case "set-block-property":
       case "set-block-type":
+      case "insert-table-row":
+      case "delete-table-row":
+      case "insert-table-column":
+      case "delete-table-column":
         requirement.content = true;
         break;
     }

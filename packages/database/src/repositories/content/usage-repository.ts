@@ -12,7 +12,14 @@
  * wrong in the direction that loses content.
  */
 
-import { embeddedFiles, type FileUsage, readDocumentBody, type Uuid } from "@myownnotion/domain";
+import {
+  type BlockDocumentV3,
+  embeddedFiles,
+  embeddedFilesV3,
+  type FileUsage,
+  readDocumentBody,
+  type Uuid,
+} from "@myownnotion/domain";
 import { and, eq } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { fileUsages, items, logicalFiles } from "../../schema/index.ts";
@@ -69,6 +76,32 @@ export async function rebuildEmbedUsages(
     // malformed document could carry.
     await tx.insert(fileUsages).values(rows).onConflictDoNothing();
   }
+}
+
+/** Rebuilds embed usages from an already validated canonical v3 projection. */
+export async function rebuildEmbedUsagesV3(
+  tx: Transaction,
+  pageItemId: Uuid,
+  document: BlockDocumentV3,
+): Promise<void> {
+  await tx
+    .delete(fileUsages)
+    .where(and(eq(fileUsages.usedByItemId, pageItemId), eq(fileUsages.usageKind, "embed")));
+  const found = embeddedFilesV3(document);
+  if (found.length === 0) return;
+  const known = await knownFileIds(
+    tx,
+    found.map(({ fileItemId }) => fileItemId),
+  );
+  const rows = found
+    .filter(({ fileItemId }) => known.has(fileItemId))
+    .map(({ fileItemId, blockId }) => ({
+      fileItemId,
+      usedByItemId: pageItemId,
+      usageKind: "embed" as const,
+      blockId,
+    }));
+  if (rows.length > 0) await tx.insert(fileUsages).values(rows).onConflictDoNothing();
 }
 
 /** Records a placement as a usage, for attachments and hierarchy placements. */

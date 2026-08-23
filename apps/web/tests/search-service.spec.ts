@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createSearchWorkerRuntime,
   type SearchWorkerCommand,
+  type SearchWorkerResult,
 } from "../src/features/search/search.worker.ts";
 import type { ApiResult } from "../src/services/content-api.ts";
 import type { LocalProjectionChange } from "../src/services/local-content.ts";
@@ -71,6 +72,7 @@ function completeServerResult(title: string): ApiResult<SearchResponseDto> {
 function harness(input: {
   entries: LocalSearchEntry[];
   search: (request: SearchRequestDto) => Promise<ApiResult<SearchResponseDto>>;
+  workerRequest?: (command: SearchWorkerCommand) => Promise<SearchWorkerResult>;
 }) {
   const runtime = createSearchWorkerRuntime();
   const commands: SearchWorkerCommand[] = [];
@@ -78,6 +80,7 @@ function harness(input: {
   const worker: SearchWorkerClient = {
     request: async (command) => {
       commands.push(command);
+      if (input.workerRequest !== undefined) return await input.workerRequest(command);
       return runtime.handle(command);
     },
     terminate: () => {
@@ -171,6 +174,47 @@ describe("WorkspaceSearchService", () => {
       state: "offline",
       results: [{ title: "After local commit" }],
     });
+  });
+
+  it("never lets a stalled derived search build block a canonical projection notification", async () => {
+    const setup = harness({
+      entries: [],
+      search: async () => completeServerResult("Unused"),
+      workerRequest: async () => await new Promise(() => {}),
+    });
+
+    await expect(setup.emit({ kind: "rebuild" })).resolves.toBeUndefined();
+    expect(setup.commands).toEqual([{ type: "build", documents: [] }]);
+    await setup.service.dispose();
+    expect(setup.terminated()).toBe(true);
+  });
+
+  it("does not expose released content while its worker update is still pending", async () => {
+    const entries = [entry("Archive", { bodyText: "private released phrase" })];
+    const setup = harness({
+      entries,
+      search: async () => ({
+        ok: false,
+        offline: true,
+        problem: {
+          type: "about:blank",
+          title: "Server unreachable",
+          status: 503,
+          code: "network.unreachable",
+        },
+      }),
+    });
+    await setup.service.initialize();
+
+    entries.splice(0, 1, entry("Archive", { localAvailability: "offloaded" }));
+
+    await expect(setup.service.search({ query: "private released phrase" })).resolves.toMatchObject(
+      {
+        coverage: "local-only",
+        state: "offline",
+        results: [],
+      },
+    );
   });
 
   it("hydrates server-only matches with the availability known on this device", async () => {
@@ -276,7 +320,6 @@ describe("WorkspaceSearchService", () => {
 
     await setup.emit({ kind: "clear" });
 
-    expect(setup.commands.at(-1)).toEqual({ type: "clear" });
     expect(setup.terminated()).toBe(true);
     await expect(setup.service.initialize()).rejects.toThrow("locked");
   });

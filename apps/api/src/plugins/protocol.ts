@@ -20,6 +20,7 @@
 
 import {
   describeProtocolRefusal,
+  PAGE_OPERATION_PROTOCOL_WINDOW,
   PROTOCOL_VERSION,
   type ProtocolWindow,
   parseClientVersion,
@@ -99,6 +100,11 @@ export function requireWriteProtocol(request: FastifyRequest, window?: ProtocolW
     reason,
     access.kind === "read-only",
   );
+}
+
+/** Requires the capability version without raising the general write minimum. */
+export function requirePageOperationProtocol(request: FastifyRequest): void {
+  requireWriteProtocol(request, PAGE_OPERATION_PROTOCOL_WINDOW);
 }
 
 /**

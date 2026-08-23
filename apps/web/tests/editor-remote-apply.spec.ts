@@ -35,6 +35,7 @@ function fakeEditor(
     document: structuredClone(initial) as EditorBlock[],
     activeBlockId,
     localEchoes: 0,
+    cursorMoves: 0,
   };
   const touch = (): void => {
     if (origin.acceptLocalChanges) state.localEchoes += 1;
@@ -49,6 +50,7 @@ function fakeEditor(
     getTextCursorPosition: () => ({ block: lookup(state.activeBlockId) }),
     setTextCursorPosition: (id: string) => {
       state.activeBlockId = id as Uuid;
+      state.cursorMoves += 1;
     },
     transact: (callback: () => unknown) => callback(),
     removeBlocks: (ids: readonly string[]) => {
@@ -93,6 +95,15 @@ function fakeEditor(
 }
 
 describe("targeted remote application", () => {
+  it("treats omitted leaf children as an empty collection", () => {
+    const { children: _currentChildren, ...currentLeaf } = paragraph(FIRST, "before");
+    const { children: _nextChildren, ...nextLeaf } = paragraph(FIRST, "after");
+
+    expect(
+      planRemoteEditorChanges([currentLeaf as EditorBlock], [nextLeaf as EditorBlock]),
+    ).toEqual([{ type: "update", block: nextLeaf }]);
+  });
+
   it("plans a move and a text update without rebuilding unrelated blocks", () => {
     const first = paragraph(FIRST, "first");
     const second = paragraph(SECOND, "second");
@@ -146,5 +157,45 @@ describe("targeted remote application", () => {
       activeBlockId: THIRD,
       placement: "start",
     });
+  });
+
+  it("leaves an identical projection — and the caret within it — completely untouched", () => {
+    const origin = new EditorOriginGuard();
+    const first = paragraph(FIRST, "first");
+    const second = paragraph(SECOND, "second");
+    const { editor, state } = fakeEditor([first, second], SECOND, origin);
+
+    // A handover or echoed merge replays exactly what is visible. Reasserting
+    // even the cursor would collapse an open range selection and dismiss
+    // selection-driven UI mid-gesture.
+    const result = applyRemoteEditorProjection({ editor, origin, next: [first, second] });
+
+    expect(result.targetedChanges).toEqual([]);
+    expect(result.repairedProjection).toBe(false);
+    expect(result.restoredSelection).toBeNull();
+    expect(state.cursorMoves).toBe(0);
+    expect(state.localEchoes).toBe(0);
+    expect(state.activeBlockId).toBe(SECOND);
+  });
+
+  it("ignores editor-only representation differences when canonical content is unchanged", () => {
+    const origin = new EditorOriginGuard();
+    const durable = paragraph(FIRST, "typing stays focused");
+    const visible = {
+      ...durable,
+      props: { ...durable.props, transientEditorDecoration: "active" },
+    } as EditorBlock;
+    const { editor, state } = fakeEditor([visible], FIRST, origin);
+
+    // Raw BlockNote props differ, so the targeted planner would propose an
+    // update. The canonical projection deliberately ignores that editor-only
+    // decoration; an acknowledgement/handover must therefore be a DOM no-op.
+    expect(planRemoteEditorChanges([visible], [durable])).toHaveLength(1);
+    const result = applyRemoteEditorProjection({ editor, origin, next: [durable] });
+
+    expect(result.targetedChanges).toEqual([]);
+    expect(result.repairedProjection).toBe(false);
+    expect(state.cursorMoves).toBe(0);
+    expect(state.document).toEqual([visible]);
   });
 });

@@ -110,3 +110,20 @@ describe("canonical structured values", () => {
     expect(unwrap(normalizeRelationTargets(one, undefined))).toBeUndefined();
   });
 });
+
+describe("decimal normalisation edge cases", () => {
+  it("rejects empty, oversized and non-numeric input", () => {
+    expect(normalizeDecimal("").ok).toBe(false);
+    expect(normalizeDecimal("x".repeat(513)).ok).toBe(false);
+    expect(normalizeDecimal("abc").ok).toBe(false);
+  });
+
+  it("canonicalises leading plus and negative zero", () => {
+    const plus = normalizeDecimal("+42.50");
+    expect(plus.ok).toBe(true);
+    if (plus.ok) expect(plus.value).toBe("42.5");
+    const negZero = normalizeDecimal("-0");
+    expect(negZero.ok).toBe(true);
+    if (negZero.ok) expect(negZero.value).toBe("0");
+  });
+});

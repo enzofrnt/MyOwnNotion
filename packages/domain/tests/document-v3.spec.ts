@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type BlockDocumentV3,
   canonicalDocumentJsonV3,
+  childrenOfV3,
   documentDigestV3,
   embeddedFilesV3,
   exportMarkdownV3,
@@ -30,6 +31,25 @@ function expectInvalid(body: unknown, expectedPath: string) {
 }
 
 describe("the canonical v3 parser", () => {
+  it("treats an omitted container child list as empty", () => {
+    const child = { type: "divider" as const, id: generateUuidV7() };
+    expect(
+      childrenOfV3({
+        type: "toggle",
+        id: generateUuidV7(),
+        content: [],
+      }),
+    ).toEqual([]);
+    expect(
+      childrenOfV3({
+        type: "toggle",
+        id: generateUuidV7(),
+        content: [],
+        children: [child],
+      }),
+    ).toEqual([child]);
+  });
+
   it("accepts the V1 block catalogue, including stable table identities", () => {
     const columnId = generateUuidV7();
     const document = expectValid({
@@ -84,6 +104,25 @@ describe("the canonical v3 parser", () => {
     });
 
     expect(document.blocks).toHaveLength(7);
+  });
+
+  it("parses an already-wrapped unknown block to itself and keeps its digest stable", async () => {
+    // The conversion handshake digests the local document on the device and
+    // re-digests the supplied envelope on the server. The device sends the
+    // canonical in-memory blocks — wrappers included — so a second parse that
+    // nested a fresh wrapper inside the first would change the canonical
+    // bytes and reject an honest branch with digest-mismatch forever.
+    const stored = { type: "kanbanBoard", id: generateUuidV7(), columns: 2, nested: { v: [1] } };
+    const firstPass = expectValid({ blocks: [stored] });
+    const wireBody = {
+      blocks: JSON.parse(JSON.stringify(firstPass.blocks)) as unknown[],
+    };
+    const secondPass = expectValid(wireBody);
+    expect(secondPass).toEqual(firstPass);
+    expect(canonicalDocumentJsonV3(secondPass)).toBe(canonicalDocumentJsonV3(firstPass));
+    expect(await documentDigestV3(wireBody as BlockDocumentV3)).toBe(
+      await documentDigestV3(firstPass),
+    );
   });
 
   it("refuses ambiguous marks instead of choosing one silently", () => {
@@ -585,8 +624,6 @@ describe("the canonical v3 parser", () => {
       ["vimeo", "https://player.vimeo.com/video/123"],
       ["figma", "https://www.figma.com/file/123"],
       ["github", "https://github.com/enzofrnt/MyOwnNotion"],
-      ["drawio", "https://app.diagrams.net/"],
-      ["drawio", "https://embed.draw.io/"],
     ] as const;
 
     expectValid({

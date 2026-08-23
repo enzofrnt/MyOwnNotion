@@ -18,6 +18,7 @@
     "@myownnotion/contracts": "workspace:*",
     "@myownnotion/database": "workspace:*",
     "@myownnotion/domain": "workspace:*",
+    "@myownnotion/page-state": "workspace:*",
     "@simplewebauthn/server": "^13.3.2",
     "@sinclair/typebox": "^0.34.41",
     "drizzle-orm": "^0.45.2",

@@ -16,7 +16,7 @@ import {
 } from "@myownnotion/domain";
 import { and, asc, desc, eq, gt } from "drizzle-orm";
 import type { Transaction } from "../client.ts";
-import { changes } from "../schema/index.ts";
+import { changes, mutations } from "../schema/index.ts";
 
 export function cursorToSequence(cursor: ChangeCursor | string): number | null {
   if (cursor === INITIAL_CHANGE_CURSOR) {
@@ -68,8 +68,15 @@ export async function listChangesAfter(
   limit: number,
 ): Promise<ChangePage> {
   const rows = await tx
-    .select()
+    .select({
+      sequence: changes.sequence,
+      mutationId: changes.mutationId,
+      revisionIds: changes.revisionIds,
+      changedItemIds: changes.changedItemIds,
+      nature: mutations.commandType,
+    })
     .from(changes)
+    .innerJoin(mutations, eq(mutations.id, changes.mutationId))
     .where(and(eq(changes.workspaceId, workspaceId), gt(changes.sequence, afterSequence)))
     .orderBy(asc(changes.sequence))
     .limit(limit + 1);
@@ -81,6 +88,7 @@ export async function listChangesAfter(
       mutationId: row.mutationId as Uuid,
       revisionIds: row.revisionIds as Uuid[],
       changedItemIds: row.changedItemIds as Uuid[],
+      nature: row.nature,
     })),
     nextCursor:
       last === undefined ? sequenceToCursor(afterSequence) : sequenceToCursor(last.sequence),

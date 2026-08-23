@@ -430,14 +430,7 @@ export interface FileEmbedBlockV3 extends KnownBlockV3Base {
   readonly caption: string | null;
 }
 
-export const EMBED_PROVIDERS = [
-  "bookmark",
-  "youtube",
-  "vimeo",
-  "figma",
-  "github",
-  "drawio",
-] as const;
+export const EMBED_PROVIDERS = ["bookmark", "youtube", "vimeo", "figma", "github"] as const;
 
 export type EmbedProvider = (typeof EMBED_PROVIDERS)[number];
 

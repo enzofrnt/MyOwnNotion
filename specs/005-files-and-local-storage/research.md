@@ -1,9 +1,10 @@
 # Research: Files and Local Storage
 
-Six decisions, each recorded with what it rules out. Two of them — resumable
-transfer and the Draw.io editor — would be expensive to reverse once content
-depends on them, and one of those two is a privacy decision rather than a
-technical preference.
+Six decisions, each recorded with what it rules out. Resumable transfer is a
+durable protocol choice. Diagram editing is deliberately not one yet: the
+earlier container-based decision was reversed before V1 so an optional editor
+cannot complicate the application's essential deployment and synchronization
+foundations.
 
 ## Decision 1 — Resumable upload protocol: tus over a hand-rolled scheme
 
@@ -39,48 +40,40 @@ received, completed, expired — which the data model has to hold. Expiry is
 mandatory, not optional: an abandoned upload otherwise occupies storage no
 screen accounts for.
 
-## Decision 2 — Draw.io: self-hosted, never the public embed
+## Decision 2 — Diagram editing: deferred, internal, and never a service
 
-**Decision**: Serve the Draw.io editor from this installation, bundled with the
-application. Do **not** embed `embed.diagrams.net` or any third-party host.
+**Decision**: Feature 005 stores and downloads `.drawio` files as ordinary
+opaque attachments. It does not preview or edit them. The Compose stack has no
+Draw.io service, and the document model has no Draw.io remote-embed provider.
 
-**Rationale**: This is the decision that would have been a data leak. The
-obvious integration — an iframe pointing at `embed.diagrams.net` exchanging
-`postMessage` — sends the owner's diagram content to a third party on every
-edit. The constitution's fourth principle says private content stays private
-unless the owner deliberately shares it, and a diagram of one's own
-infrastructure is exactly the sort of thing an owner would never knowingly post
-to a public service.
+If diagram editing is specified after the V1 editor and synchronization
+foundations, its runtime must execute inside MyOwnNotion and use the same local
+durability, synchronization, history and backup paths as other content.
 
-It also breaks the product's own premise twice over: the application is
-self-hosted, and it is expected to work offline. A remote editor fails both.
+**Rationale**: A public `diagrams.net` iframe sends private diagram content to a
+third party and fails offline. A separate self-hosted container avoids that leak
+but still turns an optional future editing surface into another deployed
+application with its own origin, startup, health, updates and failure modes.
+That is the wrong trade while the core editor and multi-device convergence are
+still being established.
+
+The project is pre-V1, so the earlier container decision is removed rather than
+kept as compatibility debt. A `.drawio` file remains safe and recoverable: it
+can be uploaded, synchronized and downloaded without pretending an editor
+exists.
 
 **Alternatives considered**:
 
-- *Public embed at `embed.diagrams.net`.* Rejected on privacy, and separately
-  on offline behaviour. The convenience is real and the cost is unacceptable.
-- *Reimplement diagram editing.* Rejected by the same product canvas line that
-  asks to prefer a mature engine: a diagram editor is a multi-year product.
-- *Preview only, no editing, for now.* A defensible reduction if bundling
-  proves heavy, and the fallback if it does — the preview path is independent
-  of the editing path, so this remains available without redesign.
+- *Public embed at `embed.diagrams.net`.* Rejected on privacy and offline
+  behaviour.
+- *Separate self-hosted Draw.io container.* Previously selected, now rejected
+  because it expands the essential stack for a deferred feature.
+- *Internal engine now.* Deferred so synchronization and the primary editor
+  remain the development priority.
 
-**How it is served**: as a container in this installation's own Compose stack,
-behind the same reverse proxy, rather than as assets vendored into the
-repository. Both are self-hosted and neither reaches a third party; the
-container wins on two practical grounds. The Draw.io web application is tens of
-megabytes of build output, and committing it would put a vendored third-party
-bundle into every clone and every diff for the life of the project. Compose is
-also already the deployment story: the product ships images and pins them, so
-one more pinned image is a smaller change than a new class of committed
-artefact.
-
-The cost is that the editor must be pinned like any other image and updated
-deliberately, which is the same discipline the other services already carry.
-
-**Consequence**: the editor is served from this installation, which is also
-what makes the sandboxing in decision 3 enforceable — a third-party origin
-could not be sandboxed without breaking the editor it is meant to contain.
+**Consequence**: future compatibility may import/export the Draw.io file format,
+but no current runtime, environment variable, container or remote provider is
+reserved for it.
 
 ## Decision 3 — Preview isolation: sandboxed iframe on a separate origin-like context
 
@@ -189,7 +182,7 @@ stays in the local projection.
 | Question | Answer |
 | --- | --- |
 | Which resumable protocol | tus 1.0, server-side |
-| Where Draw.io runs | Bundled and served by this installation |
+| Where diagram editing runs | Deferred; future engine inside MyOwnNotion, never a separate service |
 | How previews are isolated | Sandboxed iframe, `nosniff`, `Content-Disposition: attachment` |
 | How usages are known | Derived index over placements and document embeds |
 | How local space is measured | `navigator.storage.estimate()`, policy in application code |

@@ -7,6 +7,7 @@ import {
   LocalPageStateStore,
   MemorySecureStorage,
   openLocalDatabase,
+  PageEditingSession,
 } from "@myownnotion/client-core";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { OperationalPageDocument } from "@myownnotion/page-state";
@@ -194,5 +195,104 @@ describe("atomic operational page commit", () => {
       }),
     ).rejects.toThrow("version vectors differ");
     expect(await counts()).toEqual({ states: 0, updates: 0 });
+  });
+
+  it.each([
+    "before-encryption",
+    "after-encryption",
+    "after-update-write",
+    "after-state-write",
+  ] as const)(
+    "recovers the previous complete edit when a later commit fails at %s",
+    async (phase) => {
+      const { pageId, blockId, page, transaction } = editedPage();
+      const firstStore = new LocalPageStateStore(log);
+      await firstStore.commitLocalTransaction({
+        page,
+        transaction,
+        updateId: generateUuidV7(),
+        enqueueOrder: 1,
+      });
+      const firstState = await log.getState(pageId);
+      if (firstState?.checkpoint === null || firstState?.checkpoint === undefined) {
+        throw new Error("expected a durable first checkpoint");
+      }
+      const secondPage = await OperationalPageDocument.fromCheckpoint({
+        pageId,
+        checkpoint: firstState.checkpoint,
+      });
+      const secondTransaction = secondPage.transact([
+        { type: "replace-text", blockId, from: 9, to: 9, text: " later" },
+      ]);
+      const failingStore = new LocalPageStateStore(log, {
+        at(currentPhase) {
+          if (currentPhase === phase) throw new Error(`injected:${phase}`);
+        },
+      });
+
+      await expect(
+        failingStore.commitLocalTransaction({
+          page: secondPage,
+          transaction: secondTransaction,
+          updateId: generateUuidV7(),
+          enqueueOrder: 2,
+        }),
+      ).rejects.toThrow(`injected:${phase}`);
+
+      expect(await counts()).toEqual({ states: 1, updates: 1 });
+      expect((await log.getState(pageId))?.recordVersion).toBe(firstState.recordVersion);
+      const resumed = await PageEditingSession.resume({
+        pageId,
+        log,
+        store: new LocalPageStateStore(log),
+      });
+      expect(resumed?.read().blocks[0]).toMatchObject({
+        content: [{ text: "A durable" }],
+      });
+    },
+  );
+
+  it("recovers the complete later edit when interruption happens after commit", async () => {
+    const { pageId, blockId, page, transaction } = editedPage();
+    await new LocalPageStateStore(log).commitLocalTransaction({
+      page,
+      transaction,
+      updateId: generateUuidV7(),
+      enqueueOrder: 1,
+    });
+    const firstState = await log.getState(pageId);
+    if (firstState?.checkpoint === null || firstState?.checkpoint === undefined) {
+      throw new Error("expected a durable first checkpoint");
+    }
+    const secondPage = await OperationalPageDocument.fromCheckpoint({
+      pageId,
+      checkpoint: firstState.checkpoint,
+    });
+    const secondTransaction = secondPage.transact([
+      { type: "replace-text", blockId, from: 9, to: 9, text: " later" },
+    ]);
+
+    await expect(
+      new LocalPageStateStore(log, {
+        at(phase) {
+          if (phase === "after-commit") throw new Error("interrupted after commit");
+        },
+      }).commitLocalTransaction({
+        page: secondPage,
+        transaction: secondTransaction,
+        updateId: generateUuidV7(),
+        enqueueOrder: 2,
+      }),
+    ).rejects.toThrow("interrupted after commit");
+
+    expect(await counts()).toEqual({ states: 1, updates: 2 });
+    const resumed = await PageEditingSession.resume({
+      pageId,
+      log,
+      store: new LocalPageStateStore(log),
+    });
+    expect(resumed?.read().blocks[0]).toMatchObject({
+      content: [{ text: "A durable later" }],
+    });
   });
 });

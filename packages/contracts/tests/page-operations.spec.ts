@@ -81,6 +81,9 @@ function checkpointResponse(overrides: Record<string, unknown> = {}) {
 
 describe("protocol-v3 page sync requests", () => {
   it("accepts active, empty and bounded legacy-branch requests", () => {
+    const tableId = generateUuidV7();
+    const rowId = generateUuidV7();
+    const columnId = generateUuidV7();
     expect(parsePageSyncRequest(activeRequest()).mode).toBe("active");
     expect(
       parsePageSyncRequest({
@@ -112,7 +115,40 @@ describe("protocol-v3 page sync requests", () => {
           {
             transactionId: generateUuidV7(),
             sequence: 1,
-            commands: [{ type: "delete-block", blockId: generateUuidV7() }],
+            commands: [
+              { type: "delete-block", blockId: generateUuidV7() },
+              {
+                type: "set-type-or-property",
+                blockId: generateUuidV7(),
+                key: "type",
+                before: "paragraph",
+                after: "heading",
+                properties: { level: 2 },
+              },
+              {
+                type: "insert-table-row",
+                tableId,
+                row: {
+                  id: rowId,
+                  cells: [{ id: generateUuidV7(), content: [{ text: "A1" }] }],
+                },
+                beforeRowId: null,
+              },
+              { type: "delete-table-row", tableId, rowId },
+              {
+                type: "insert-table-column",
+                tableId,
+                column: { id: columnId, width: 180 },
+                cells: [
+                  {
+                    rowId,
+                    cell: { id: generateUuidV7(), content: [{ text: "B1" }] },
+                  },
+                ],
+                beforeColumnId: null,
+              },
+              { type: "delete-table-column", tableId, columnId },
+            ],
           },
         ],
         createdAt: instant,
@@ -203,6 +239,7 @@ describe("protocol-v3 page sync responses", () => {
         repeated: [],
         remoteUpdates: [remoteUpdate()],
         serverVersionVector: bytes(8),
+        throughPageSequence: 5,
         latestPageSequence: 5,
         hasMore: false,
         canonical: {
@@ -251,6 +288,7 @@ describe("protocol-v3 page sync responses", () => {
         repeated: [],
         remoteUpdates,
         serverVersionVector: bytes(8),
+        throughPageSequence: 64,
         latestPageSequence: 64,
         hasMore: false,
         canonical: {
@@ -295,7 +333,7 @@ describe("activation, ambiguity resolution and stable problems", () => {
 
   it("pins the protocol and the documented stable problem vocabulary", () => {
     expect(PAGE_OPERATION_PROTOCOL_VERSION).toBe(3);
-    expect(PAGE_OPERATION_PROBLEM_CODES).toHaveLength(10);
+    expect(PAGE_OPERATION_PROBLEM_CODES).toHaveLength(11);
     for (const code of PAGE_OPERATION_PROBLEM_CODES) {
       expect(parsePageOperationProblem({ code, message: "Action requise" }).code).toBe(code);
     }

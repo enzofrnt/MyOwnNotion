@@ -117,6 +117,27 @@ const CanonicalMarkV3Schema = Type.Object(
   { additionalProperties: true },
 );
 
+const CanonicalTableCellV3Schema = Type.Object(
+  { id: PageOperationUuidSchema },
+  { additionalProperties: true },
+);
+
+const CanonicalTableRowV3Schema = Type.Object(
+  {
+    id: PageOperationUuidSchema,
+    cells: Type.Array(CanonicalTableCellV3Schema, { maxItems: 10_000 }),
+  },
+  { additionalProperties: false },
+);
+
+const CanonicalTableColumnV3Schema = Type.Object(
+  {
+    id: PageOperationUuidSchema,
+    width: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
 export const LegacySemanticCommandSchema = Type.Union([
   Type.Object(
     {
@@ -134,10 +155,6 @@ export const LegacySemanticCommandSchema = Type.Union([
       parentBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
       beforeBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
     },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    { type: Type.Literal("delete-block"), blockId: PageOperationUuidSchema },
     { additionalProperties: false },
   ),
   Type.Object(
@@ -170,7 +187,60 @@ export const LegacySemanticCommandSchema = Type.Union([
       key: Type.String({ minLength: 1, maxLength: 128 }),
       before: Type.Unknown(),
       after: Type.Unknown(),
+      properties: Type.Optional(Type.Object({}, { additionalProperties: true })),
     },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("insert-table-row"),
+      tableId: PageOperationUuidSchema,
+      row: CanonicalTableRowV3Schema,
+      beforeRowId: Type.Union([PageOperationUuidSchema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("delete-table-row"),
+      tableId: PageOperationUuidSchema,
+      rowId: PageOperationUuidSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("insert-table-column"),
+      tableId: PageOperationUuidSchema,
+      column: CanonicalTableColumnV3Schema,
+      cells: Type.Array(
+        Type.Object(
+          {
+            rowId: PageOperationUuidSchema,
+            cell: CanonicalTableCellV3Schema,
+          },
+          { additionalProperties: false },
+        ),
+        { maxItems: 10_000 },
+      ),
+      beforeColumnId: Type.Union([PageOperationUuidSchema, Type.Null()]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      type: Type.Literal("delete-table-column"),
+      tableId: PageOperationUuidSchema,
+      columnId: PageOperationUuidSchema,
+    },
+    { additionalProperties: false },
+  ),
+  // Keep the minimal block command last. Fastify's Ajv removes additional
+  // properties while evaluating unions; placed earlier, this shape would
+  // strip a replace-text command down to {type, blockId} before its own branch
+  // could validate it.
+  Type.Object(
+    { type: Type.Literal("delete-block"), blockId: PageOperationUuidSchema },
     { additionalProperties: false },
   ),
 ]);
@@ -298,6 +368,7 @@ export const ActivePageSyncResponseSchema = Type.Object(
     repeated: Type.Array(RepeatedPageUpdateSchema, { maxItems: MAX_PAGE_UPDATES_PER_SYNC }),
     remoteUpdates: Type.Array(RemotePageUpdateSchema, { maxItems: MAX_PAGE_UPDATES_PER_SYNC }),
     serverVersionVector: VersionVectorSchema,
+    throughPageSequence: SequenceSchema,
     latestPageSequence: SequenceSchema,
     hasMore: Type.Boolean(),
     canonical: CanonicalPageSummarySchema,
@@ -359,14 +430,27 @@ export const ActivatePageRequestSchema = Type.Object(
 );
 export type ActivatePageRequestDto = Static<typeof ActivatePageRequestSchema>;
 
+// Every variant declares all four body properties. Fastify's AJV runs with
+// removeAdditional, which strips "additional" properties while trialing a
+// union variant — a payload aimed at restore-change would lose
+// parentBlockId/beforeBlockId during the failed confirm-delete trial and then
+// fail that very variant for missing them. Declaring the full property set
+// per variant (with per-variant required lists) keeps trials harmless.
+const ResolveShared = {
+  requestId: PageOperationUuidSchema,
+  parentBlockId: Type.Optional(Type.Union([PageOperationUuidSchema, Type.Null()])),
+  beforeBlockId: Type.Optional(Type.Union([PageOperationUuidSchema, Type.Null()])),
+  result: Type.Optional(CanonicalBlockSubtreeV3Schema),
+} as const;
+
 export const ResolvePageAmbiguityRequestSchema = Type.Union([
   Type.Object(
-    { requestId: PageOperationUuidSchema, decision: Type.Literal("confirm-delete") },
+    { ...ResolveShared, decision: Type.Literal("confirm-delete") },
     { additionalProperties: false },
   ),
   Type.Object(
     {
-      requestId: PageOperationUuidSchema,
+      ...ResolveShared,
       decision: Type.Literal("restore-change"),
       parentBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
       beforeBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
@@ -375,7 +459,7 @@ export const ResolvePageAmbiguityRequestSchema = Type.Union([
   ),
   Type.Object(
     {
-      requestId: PageOperationUuidSchema,
+      ...ResolveShared,
       decision: Type.Literal("custom"),
       result: CanonicalBlockSubtreeV3Schema,
       parentBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
@@ -388,6 +472,7 @@ export type ResolvePageAmbiguityRequestDto = Static<typeof ResolvePageAmbiguityR
 
 export const PAGE_OPERATION_PROBLEM_CODES = [
   "page-operations.protocol-read-only",
+  "page-operations.not-active",
   "page-operations.activation-stale",
   "page-operations.update-id-reused",
   "page-operations.digest-mismatch",
@@ -544,6 +629,9 @@ export function parsePageSyncResponse(value: unknown): PageSyncResponseDto {
     if (parsed.accepted.length + parsed.repeated.length > MAX_PAGE_UPDATES_PER_SYNC) {
       throw new PageOperationContractError("accepted page update count");
     }
+    if (parsed.throughPageSequence > parsed.latestPageSequence) {
+      throw new PageOperationContractError("active page sequence");
+    }
     assertUnique(
       [...parsed.accepted, ...parsed.repeated, ...parsed.remoteUpdates].map(
         ({ updateId }) => updateId,
@@ -558,7 +646,7 @@ export function parsePageSyncResponse(value: unknown): PageSyncResponseDto {
     assertOrderedPageSequences(
       parsed.remoteUpdates,
       0,
-      parsed.latestPageSequence,
+      parsed.throughPageSequence,
       "remote page update sequence",
     );
     let total = 0;

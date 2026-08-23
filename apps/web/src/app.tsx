@@ -140,6 +140,7 @@ export function App(props: AppProps = {}) {
     setView("workspace");
     setGate("login");
   }, []);
+  const pageOperationCsrfToken = useCallback(() => api.csrfTokenForSameOriginWrite(), [api]);
 
   if (gate === "checking") {
     return (
@@ -172,6 +173,7 @@ export function App(props: AppProps = {}) {
       <div className="app-shell app-shell--workspace">
         <HierarchyExplorer
           backupStale={workspaceBackupStale}
+          pageOperationCsrfToken={pageOperationCsrfToken}
           onOpenBackups={() => setView("backups")}
           onOpenSettings={() => setView("security")}
         />

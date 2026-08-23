@@ -443,8 +443,9 @@ working internal link to `Reference`.
 
 - Databases, typed properties, saved views, filters, sorting, and grouping
   (canvas section 14) — separate specification.
-- File attachments, previews, Draw.io, and local storage quotas (sections
-  15–18) — feature 005.
+- File attachments, previews, and local storage quotas (sections 15–18) —
+  feature 005. Draw.io editing is deferred beyond the V1 foundations and, if
+  later specified, runs inside MyOwnNotion rather than in another service.
 - Real-time transport, multi-device catch-up, and visual conflict resolution
   beyond making a conflict visible (sections 19–20) — feature 006.
 - Search (section 21) — feature 008.

@@ -123,6 +123,10 @@
   white-space: normal;
 }
 
+.workspace-status__compact {
+  display: none;
+}
+
 .workspace-page-header__identity {
   min-width: 0;
 }
@@ -227,7 +231,38 @@
 
   .workspace-page-header__status > div {
     display: grid;
+    grid-template-rows: repeat(2, 1.75rem);
     justify-content: stretch;
+    gap: 0;
+  }
+
+  .workspace-page-header__status p {
+    width: 100%;
+    min-height: 1.75rem;
+    margin: 0;
+    overflow: hidden;
+    line-height: 1.75rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace-page-header__status .status-banner {
+    padding-block: 0;
+  }
+
+  .workspace-page-header__status .workspace-status__full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .workspace-page-header__status .workspace-status__compact {
+    display: inline;
   }
 
   .workspace-page-header__actions {

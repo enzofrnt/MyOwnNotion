@@ -11,7 +11,7 @@
 import type { Uuid } from "@myownnotion/domain";
 import {
   OPERATIONAL_FORMAT_VERSION,
-  type OperationalPageDocument,
+  OperationalPageDocument,
   operationalFrontiersEqual,
   type PageTransactionResult,
   sha256Hex,
@@ -23,6 +23,7 @@ import type {
   PageOperationStateRecord,
   PageOperationUpdateRecord,
 } from "./encrypted-update-log.ts";
+import { withPageStateWrite } from "./page-write-coordinator.ts";
 
 export type LocalPageCommitPhase =
   | "before-encryption"
@@ -70,20 +71,28 @@ export class DuplicatePageUpdateIdError extends Error {
 function assertTransactionMatchesPage(
   transaction: PageTransactionResult,
   pageVersionVector: Uint8Array,
+  pageFrontiers: Uint8Array,
   checkpointVersionVector: Uint8Array,
   checkpointFrontiers: Uint8Array,
   projectionFrontiers: Uint8Array,
+  requireExactTransactionResult: boolean,
 ): void {
   if (!transaction.changed || transaction.updateBytes.byteLength === 0) {
     throw new TypeError("an unchanged page transaction has no durable update to commit");
   }
-  if (!versionVectorBytesEqual(transaction.resultVersionVector, pageVersionVector)) {
+  if (
+    requireExactTransactionResult &&
+    !versionVectorBytesEqual(transaction.resultVersionVector, pageVersionVector)
+  ) {
     throw new TypeError("page transaction and in-memory version vectors differ");
   }
-  if (!versionVectorDominates(transaction.resultVersionVector, checkpointVersionVector)) {
+  if (!versionVectorDominates(pageVersionVector, transaction.resultVersionVector)) {
+    throw new TypeError("durable page state does not include the local transaction");
+  }
+  if (!versionVectorDominates(pageVersionVector, checkpointVersionVector)) {
     throw new TypeError("page transaction does not descend from its checkpoint");
   }
-  if (!operationalFrontiersEqual(transaction.resultFrontiers, projectionFrontiers)) {
+  if (!operationalFrontiersEqual(pageFrontiers, projectionFrontiers)) {
     throw new TypeError("page transaction and projection frontiers differ");
   }
   if (
@@ -113,6 +122,16 @@ export class LocalPageStateStore {
   async commitLocalTransaction(
     input: CommitLocalPageTransactionInput,
   ): Promise<CommittedLocalPageTransaction> {
+    return await withPageStateWrite(
+      this.#log.db,
+      input.page.pageId,
+      async () => await this.#commitLocalTransaction(input),
+    );
+  }
+
+  async #commitLocalTransaction(
+    input: CommitLocalPageTransactionInput,
+  ): Promise<CommittedLocalPageTransaction> {
     if (input.page.pageId === undefined) {
       throw new TypeError("an operational page id is required");
     }
@@ -124,21 +143,57 @@ export class LocalPageStateStore {
     const expectedStateRecordVersion = previous?.recordVersion ?? 0;
     this.#hooks.at?.("before-encryption");
 
+    // The session serialises local gestures, so the common case starts from
+    // the exact frontier already committed in the state row. Its in-memory
+    // page is then the proof document for this transaction; rebuilding the
+    // same 500-block checkpoint and replaying the whole pending journal on
+    // every key only delays paint. A different frontier still takes the full
+    // reconstruction path so a write made by another tab is merged (or
+    // rejected as causally incomplete) before the atomic record-version gate.
+    const startsAtDurableFrontier =
+      previous === null ||
+      versionVectorBytesEqual(previous.versionVector, input.transaction.baseVersionVector);
+    let durablePage = input.page;
+    if (
+      !startsAtDurableFrontier &&
+      previous?.checkpoint !== null &&
+      previous?.checkpoint !== undefined
+    ) {
+      durablePage = await OperationalPageDocument.fromCheckpoint({
+        pageId: input.page.pageId,
+        checkpoint: previous.checkpoint,
+      });
+      for (const update of await this.#log.listUpdates(input.page.pageId)) {
+        if (durablePage.importUpdate(update.updateBytes).pending) {
+          throw new ConcurrentLocalPageStateError();
+        }
+      }
+      if (!versionVectorBytesEqual(durablePage.versionVectorBytes(), previous.versionVector)) {
+        throw new ConcurrentLocalPageStateError();
+      }
+      if (durablePage.importUpdate(input.transaction.updateBytes).pending) {
+        throw new ConcurrentLocalPageStateError();
+      }
+    }
+
     const checkpointPromise =
       input.forceCheckpoint === true || previous?.checkpoint == null
-        ? input.page.checkpoint()
+        ? durablePage.checkpoint()
         : Promise.resolve(previous.checkpoint);
     const [checkpoint, projection, updateDigest] = await Promise.all([
       checkpointPromise,
-      input.page.project(),
+      durablePage.project(),
       sha256Hex(input.transaction.updateBytes),
     ]);
+    const durableVersionVector = durablePage.versionVectorBytes();
     assertTransactionMatchesPage(
       input.transaction,
-      input.page.versionVectorBytes(),
+      durableVersionVector,
+      projection.operationalFrontier,
       checkpoint.versionVector,
       checkpoint.frontiers,
       projection.operationalFrontier,
+      startsAtDurableFrontier,
     );
 
     const createdAt = input.createdAt ?? new Date().toISOString();
@@ -154,8 +209,8 @@ export class LocalPageStateStore {
       recordVersion: expectedStateRecordVersion + 1,
       checkpoint,
       projection,
-      versionVector: input.transaction.resultVersionVector,
-      frontiers: input.transaction.resultFrontiers,
+      versionVector: durableVersionVector,
+      frontiers: projection.operationalFrontier,
       serverVersionVector:
         input.serverVersionVector === undefined
           ? (previous?.serverVersionVector ?? null)

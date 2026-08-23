@@ -4,7 +4,7 @@ import {
   type DatabasePropertyType,
   generateUuidV7,
 } from "@myownnotion/domain";
-import type { FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 import { DATABASE_COPY } from "./database-copy.ts";
 
 export type EditablePropertyType = Exclude<DatabasePropertyType, "title">;
@@ -96,6 +96,52 @@ const EDITABLE_PROPERTY_TYPES = DATABASE_PROPERTY_TYPES.filter(
   (type): type is EditablePropertyType => type !== "title",
 );
 
+function stringFormValue(data: FormData, name: string, fallback: string): string {
+  const value = data.get(name);
+  return typeof value === "string" ? value : fallback;
+}
+
+/**
+ * Captures one coherent property draft from the controls the owner submitted.
+ *
+ * React may not have committed the final controlled-input render before a
+ * second browser event arrives. Reading the submitted form prevents that last
+ * visible edit from being replaced by the previous render's draft.
+ */
+export function propertyDraftFromFormData(
+  data: FormData,
+  fallback: DatabasePropertyDraft,
+): DatabasePropertyDraft {
+  const rawType = stringFormValue(data, "property-type", fallback.type);
+  const type = EDITABLE_PROPERTY_TYPES.includes(rawType as EditablePropertyType)
+    ? (rawType as EditablePropertyType)
+    : fallback.type;
+  const common = {
+    name: stringFormValue(data, "property-name", fallback.name),
+    type,
+  };
+
+  if (type === "status" || type === "select" || type === "multi-select") {
+    return {
+      ...common,
+      optionsText: stringFormValue(data, "property-options", fallback.optionsText ?? ""),
+    };
+  }
+  if (type === "date") {
+    const dateMode = stringFormValue(data, "property-date-mode", fallback.dateMode ?? "date");
+    return { ...common, dateMode: dateMode === "instant" ? "instant" : "date" };
+  }
+  if (type === "relation") {
+    const cardinality = stringFormValue(
+      data,
+      "property-relation-cardinality",
+      fallback.relationCardinality ?? "many",
+    );
+    return { ...common, relationCardinality: cardinality === "one" ? "one" : "many" };
+  }
+  return common;
+}
+
 export function PropertyEditor({
   draft,
   error,
@@ -107,17 +153,27 @@ export function PropertyEditor({
   readonly draft: DatabasePropertyDraft;
   readonly error: string | null;
   readonly onChange: (draft: DatabasePropertyDraft) => void;
-  readonly onSubmit: () => void;
+  readonly onSubmit: (draft: DatabasePropertyDraft) => void;
   readonly onCancel: () => void;
   readonly submitting?: boolean;
 }) {
+  // This draft belongs to the mounted form, not to synchronization-driven
+  // parent renders. Keeping it locally prevents an older database projection
+  // from repainting a value the owner has already entered before submit.
+  const [visibleDraft, setVisibleDraft] = useState(draft);
+  const changeDraft = (next: DatabasePropertyDraft): void => {
+    setVisibleDraft(next);
+    onChange(next);
+  };
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    onSubmit();
+    onSubmit(propertyDraftFromFormData(new FormData(event.currentTarget), visibleDraft));
   };
 
   const usesOptions =
-    draft.type === "status" || draft.type === "select" || draft.type === "multi-select";
+    visibleDraft.type === "status" ||
+    visibleDraft.type === "select" ||
+    visibleDraft.type === "multi-select";
 
   return (
     <form className="property-editor" aria-label={DATABASE_COPY.property.editor} onSubmit={submit}>
@@ -125,16 +181,18 @@ export function PropertyEditor({
         <label htmlFor="property-name">{DATABASE_COPY.property.name}</label>
         <input
           id="property-name"
-          value={draft.name}
+          name="property-name"
+          value={visibleDraft.name}
           autoComplete="off"
-          onChange={(event) => onChange({ ...draft, name: event.target.value })}
+          onChange={(event) => changeDraft({ ...visibleDraft, name: event.target.value })}
         />
         <label htmlFor="property-type">{DATABASE_COPY.property.type}</label>
         <select
           id="property-type"
-          value={draft.type}
+          name="property-type"
+          value={visibleDraft.type}
           onChange={(event) =>
-            onChange({ ...draft, type: event.target.value as EditablePropertyType })
+            changeDraft({ ...visibleDraft, type: event.target.value as EditablePropertyType })
           }
         >
           {EDITABLE_PROPERTY_TYPES.map((type) => (
@@ -149,20 +207,25 @@ export function PropertyEditor({
         <label className="database-field">
           {DATABASE_COPY.property.optionsSeparated}
           <input
-            value={draft.optionsText ?? ""}
+            name="property-options"
+            value={visibleDraft.optionsText ?? ""}
             placeholder={DATABASE_COPY.property.optionPlaceholder}
-            onChange={(event) => onChange({ ...draft, optionsText: event.target.value })}
+            onChange={(event) => changeDraft({ ...visibleDraft, optionsText: event.target.value })}
           />
         </label>
       ) : null}
 
-      {draft.type === "date" ? (
+      {visibleDraft.type === "date" ? (
         <label className="database-field">
           {DATABASE_COPY.property.dateMode}
           <select
-            value={draft.dateMode ?? "date"}
+            name="property-date-mode"
+            value={visibleDraft.dateMode ?? "date"}
             onChange={(event) =>
-              onChange({ ...draft, dateMode: event.target.value as "date" | "instant" })
+              changeDraft({
+                ...visibleDraft,
+                dateMode: event.target.value as "date" | "instant",
+              })
             }
           >
             <option value="date">{DATABASE_COPY.property.calendarDate}</option>
@@ -171,14 +234,15 @@ export function PropertyEditor({
         </label>
       ) : null}
 
-      {draft.type === "relation" ? (
+      {visibleDraft.type === "relation" ? (
         <label className="database-field">
           {DATABASE_COPY.property.relationCardinality}
           <select
-            value={draft.relationCardinality ?? "many"}
+            name="property-relation-cardinality"
+            value={visibleDraft.relationCardinality ?? "many"}
             onChange={(event) =>
-              onChange({
-                ...draft,
+              changeDraft({
+                ...visibleDraft,
                 relationCardinality: event.target.value as "one" | "many",
               })
             }

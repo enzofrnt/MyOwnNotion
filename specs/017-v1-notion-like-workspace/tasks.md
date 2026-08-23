@@ -195,11 +195,11 @@ rouvrir hors ligne, l'exporter et vérifier références, sécurité et inconnus
 
 ### Tests for User Story 3
 
-- [ ] T085 [P] [US3] Étendre les propriétés de round-trip à tous les blocs v3 dans `apps/web/tests/blocknote-v3-round-trip.property.spec.ts`
-- [ ] T086 [P] [US3] Écrire les tests domain d'export et extraction v3 dans `packages/domain/tests/document-v3-export.property.spec.ts`
-- [ ] T087 [P] [US3] Écrire les tests de sécurité URL/embed/paste dans `apps/web/tests/editor-content-security.spec.ts`
-- [ ] T088 [P] [US3] Écrire le journey de page riche et export dans `tests/e2e/rich-page.spec.ts`
-- [ ] T089 [P] [US3] Écrire le journey fichiers/images hors ligne avec toutes les communications tierces bloquées dans `tests/e2e/editor-offline-media.spec.ts`
+- [x] T085 [P] [US3] Étendre les propriétés de round-trip à tous les blocs v3 dans `apps/web/tests/blocknote-v3-round-trip.property.spec.ts`
+- [x] T086 [P] [US3] Écrire les tests domain d'export et extraction v3 dans `packages/domain/tests/document-v3-export.property.spec.ts`
+- [x] T087 [P] [US3] Écrire les tests de sécurité URL/embed/paste dans `apps/web/tests/editor-content-security.spec.ts`
+- [x] T088 [P] [US3] Écrire le journey de page riche et export dans `tests/e2e/rich-page.spec.ts`
+- [x] T089 [P] [US3] Écrire le journey fichiers/images hors ligne avec toutes les communications tierces bloquées dans `tests/e2e/editor-offline-media.spec.ts`
 
 ### Implementation for User Story 3
 
@@ -208,16 +208,16 @@ rouvrir hors ligne, l'exporter et vérifier références, sécurité et inconnus
 - [ ] T092 [P] [US3] Implémenter code, langue et copie sûre dans `apps/web/src/features/editor/custom-blocks/code-block.tsx`
 - [ ] T093 [P] [US3] Implémenter image et fileEmbed liés aux items 005 dans `apps/web/src/features/editor/custom-blocks/image.tsx` et `apps/web/src/features/editor/custom-blocks/file-embed.tsx`
 - [ ] T094 [P] [US3] Implémenter embed allowlist, consentement et sandbox dans `apps/web/src/features/editor/custom-blocks/embed.tsx`
-- [ ] T095 [US3] Brancher dépôt/collage de fichiers sur la file durable existante dans `apps/web/src/features/editor/editor-files.ts` et `apps/web/src/features/files/upload.ts`
-- [ ] T096 [US3] Implémenter souligné, couleurs et surlignage selon tokens dans `apps/web/src/features/editor/blocknote-schema.ts` et `apps/web/src/features/editor/editor-menus/formatting-toolbar.tsx`
-- [ ] T097 [US3] Assainir collage riche avec fallback texte sans réduction silencieuse dans `apps/web/src/features/editor/paste-sanitizer.ts`
-- [ ] T098 [US3] Afficher états actif/supprimé/indisponible/inconnu des page-links dans `apps/web/src/features/editor/page-link.ts` et `apps/web/src/features/editor/editor-menus/page-link-picker.tsx`
-- [ ] T099 [US3] Étendre Markdown, export canonique, recherche et usages de fichiers aux types v3 dans `packages/domain/src/document/export-markdown.ts`, `packages/domain/src/export/canonical-export.ts` et `packages/domain/src/search/document-text.ts`
-- [ ] T100 [US3] Ajouter validation et projection des tables/médias/embeds au modèle opérationnel dans `packages/page-state/src/canonical-projection.ts`
-- [ ] T101 [US3] Garantir transformations de type sans perte, avec confirmation si nécessaire, dans `packages/page-state/src/document.ts` et `apps/web/src/features/editor/editor-menus/block-side-menu.tsx`
-- [ ] T102 [US3] Relier disponibilité locale et transfert séparé des octets au statut des blocs dans `apps/web/src/features/editor/editor-file-state.tsx`
-- [ ] T103 [US3] Ajouter copie française des blocs, erreurs et exports dans `apps/web/src/ui/copy/fr.ts`
-- [ ] T104 [US3] Enregistrer les journeys riche/média dans `ci/test-impact.json`
+- [x] T095 [US3] Brancher dépôt/collage de fichiers sur la file durable existante dans `apps/web/src/features/editor/editor-files.ts` et `apps/web/src/features/files/upload.ts`
+- [x] T096 [US3] Implémenter souligné, couleurs et surlignage selon tokens dans `apps/web/src/features/editor/blocknote-schema.ts` et `apps/web/src/features/editor/editor-menus/formatting-toolbar.tsx`
+- [x] T097 [US3] Assainir collage riche avec fallback texte sans réduction silencieuse dans `apps/web/src/features/editor/paste-sanitizer.ts`
+- [x] T098 [US3] Afficher états actif/supprimé/indisponible/inconnu des page-links dans `apps/web/src/features/editor/page-link.ts` et `apps/web/src/features/editor/editor-menus/page-link-picker.tsx`
+- [x] T099 [US3] Étendre Markdown, export canonique, recherche et usages de fichiers aux types v3 dans `packages/domain/src/document/export-markdown.ts`, `packages/domain/src/export/canonical-export.ts` et `packages/domain/src/search/document-text.ts`
+- [x] T100 [US3] Ajouter validation et projection des tables/médias/embeds au modèle opérationnel dans `packages/page-state/src/canonical-projection.ts`
+- [x] T101 [US3] Garantir transformations de type sans perte, avec confirmation si nécessaire, dans `packages/page-state/src/document.ts` et `apps/web/src/features/editor/editor-menus/block-side-menu.tsx`
+- [x] T102 [US3] Relier disponibilité locale et transfert séparé des octets au statut des blocs dans `apps/web/src/features/editor/editor-file-state.tsx`
+- [x] T103 [US3] Ajouter copie française des blocs, erreurs et exports dans `apps/web/src/ui/copy/fr.ts`
+- [x] T104 [US3] Enregistrer les journeys riche/média dans `ci/test-impact.json`
 
 **Checkpoint**: US3 couvre la page riche V1, mais le chemin réseau v3 complet
 reste à fermer dans US5.
@@ -234,24 +234,24 @@ chaque frontière puis retrouver transaction, curseur, scroll et statut exacts.
 
 ### Tests for User Story 4
 
-- [ ] T105 [P] [US4] Écrire les tests de session editor→commit local→statut dans `packages/client-core/tests/page-editing-session.spec.ts`
-- [ ] T106 [P] [US4] Étendre la fault injection de reprise à toutes les frontières dans `packages/client-core/tests/page-operation-atomicity.spec.ts`
-- [ ] T107 [P] [US4] Écrire les tests de scroll par ancre et fallback dans `apps/web/tests/page-scroll-restoration.spec.tsx`
-- [ ] T108 [P] [US4] Écrire les tests quota/clé/protocole et buffer récupérable dans `apps/web/tests/editor-local-failure.spec.tsx`
-- [ ] T109 [P] [US4] Écrire les journeys crash/reload, offline et scroll dans `tests/e2e/page-autosave-recovery.spec.ts` et `tests/e2e/page-scroll-restoration.spec.ts`
+- [x] T105 [P] [US4] Écrire les tests de session editor→commit local→statut dans `packages/client-core/tests/page-editing-session.spec.ts`
+- [x] T106 [P] [US4] Étendre la fault injection de reprise à toutes les frontières dans `packages/client-core/tests/page-operation-atomicity.spec.ts`
+- [x] T107 [P] [US4] Écrire les tests de scroll par ancre et fallback dans `apps/web/tests/page-scroll-restoration.spec.tsx`
+- [x] T108 [P] [US4] Écrire les tests quota/clé/protocole et buffer récupérable dans `apps/web/tests/editor-local-failure.spec.tsx`
+- [x] T109 [P] [US4] Écrire les journeys crash/reload, offline et scroll dans `tests/e2e/page-autosave-recovery.spec.ts` et `tests/e2e/page-scroll-restoration.spec.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T110 [US4] Implémenter `PageEditingSession` et le commit local avant acquittement UI dans `packages/client-core/src/page-sync/page-editing-session.ts`
-- [ ] T111 [US4] Dériver `local-saving/local-saved/pending/syncing/synced/offline/blocked/attention` dans `packages/client-core/src/page-sync/page-sync-state.ts`
-- [ ] T112 [US4] Remplacer le bouton save par autosauvegarde et statut commun dans `apps/web/src/features/editor/editor-sync-status.tsx` et `apps/web/src/features/save-state/save-state-indicator.tsx`
-- [ ] T113 [US4] Implémenter buffer de secours, copie et blocage des gestes destructifs après échec local dans `apps/web/src/features/editor/local-commit-recovery.tsx`
-- [ ] T114 [US4] Reprendre updates `sending`, branches legacy et uploads au boot/online dans `packages/client-core/src/page-sync/page-reconciler.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
-- [ ] T115 [US4] Persister ancre de bloc, offset et fallback pixel dans `packages/client-core/src/navigation/presentation-state.ts`
-- [ ] T116 [US4] Capturer/restaurer sélection et scroll sans saut tardif dans `apps/web/src/features/editor/editor-view-state.ts`
-- [ ] T117 [US4] Intégrer états offline, clés, quota et ambiguïtés à la copie utilisateur dans `apps/web/src/features/save-state/blocked-notice.tsx` et `apps/web/src/ui/copy/fr.ts`
-- [ ] T118 [US4] Supprimer le bouton de sauvegarde du parcours normal seulement après activation de la session dans `apps/web/src/features/editor/editor-surface.tsx`
-- [ ] T119 [US4] Enregistrer les journeys autosave/scroll dans `ci/test-impact.json`
+- [x] T110 [US4] Implémenter `PageEditingSession` et le commit local avant acquittement UI dans `packages/client-core/src/page-sync/page-editing-session.ts`
+- [x] T111 [US4] Dériver `local-saving/local-saved/pending/syncing/synced/offline/blocked/attention` dans `packages/client-core/src/page-sync/page-sync-state.ts`
+- [x] T112 [US4] Remplacer le bouton save par autosauvegarde et statut commun dans `apps/web/src/features/editor/editor-sync-status.tsx` et `apps/web/src/features/save-state/save-state-indicator.tsx`
+- [x] T113 [US4] Implémenter buffer de secours, copie et blocage des gestes destructifs après échec local dans `apps/web/src/features/editor/local-commit-recovery.tsx`
+- [x] T114 [US4] Reprendre updates `sending`, branches legacy et uploads au boot/online dans `packages/client-core/src/page-sync/page-reconciler.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
+- [x] T115 [US4] Persister ancre de bloc, offset et fallback pixel dans `packages/client-core/src/navigation/presentation-state.ts`
+- [x] T116 [US4] Capturer/restaurer sélection et scroll sans saut tardif dans `apps/web/src/features/editor/editor-view-state.ts`
+- [x] T117 [US4] Intégrer états offline, clés, quota et ambiguïtés à la copie utilisateur dans `apps/web/src/features/save-state/blocked-notice.tsx` et `apps/web/src/ui/copy/fr.ts`
+- [x] T118 [US4] Supprimer le bouton de sauvegarde du parcours normal seulement après activation de la session dans `apps/web/src/features/editor/editor-surface.tsx`
+- [x] T119 [US4] Enregistrer les journeys autosave/scroll dans `ci/test-impact.json`
 
 **Checkpoint**: Toute frappe confirmée est durable localement et la position de
 travail survit aux interruptions, même avant synchronisation serveur.
@@ -269,50 +269,50 @@ obtiennent projection/historique identiques ; delete/edit reste récupérable.
 
 ### Tests for User Story 5
 
-- [ ] T120 [P] [US5] Écrire les tests SQL de contraintes, verrou, idempotence et rollback dans `packages/database/tests/page-operations.integration.spec.ts`
-- [ ] T121 [P] [US5] Étendre les tests de migration vide et fixture forward à `0008_page_operations.sql` dans `packages/database/tests/migrations.integration.spec.ts`
-- [ ] T122 [P] [US5] Écrire les tests API sync/checkpoint/activate/ambiguity/protocol dans `apps/api/tests/page-operations.contract.spec.ts`
-- [ ] T123 [P] [US5] Écrire les tests serveur de projection, liens, fichiers et transaction atomique dans `apps/api/tests/page-operation-service.integration.spec.ts`
-- [ ] T124 [P] [US5] Écrire les tests de deux branches legacy v2 concurrentes dans `apps/api/tests/page-operation-migration.integration.spec.ts`
+- [x] T120 [P] [US5] Écrire les tests SQL de contraintes, verrou, idempotence et rollback dans `packages/database/tests/page-operations.integration.spec.ts`
+- [x] T121 [P] [US5] Étendre les tests de migration vide et fixture forward à `0008_page_operations.sql` dans `packages/database/tests/migrations.integration.spec.ts`
+- [x] T122 [P] [US5] Écrire les tests API sync/checkpoint/activate/ambiguity/protocol dans `apps/api/tests/page-operations.contract.spec.ts`
+- [x] T123 [P] [US5] Écrire les tests serveur de projection, liens, fichiers et transaction atomique dans `apps/api/tests/page-operation-service.integration.spec.ts`
+- [x] T124 [P] [US5] Écrire les tests de deux branches legacy v2 concurrentes dans `apps/api/tests/page-operation-migration.integration.spec.ts`
 - [ ] T125 [P] [US5] Écrire les tests de frontier, révocation et compaction dans `apps/api/tests/page-operation-compaction.integration.spec.ts`
 - [ ] T126 [P] [US5] Écrire les tests backup/restore/appareil absent et consolidation 30 s/5 min/bornes dans `apps/api/tests/page-operation-backup.integration.spec.ts` et `apps/api/tests/page-history-consolidation.integration.spec.ts`
-- [ ] T127 [P] [US5] Écrire les tests client de batching, retries, catch-up et fichiers pending dans `packages/client-core/tests/page-reconciler.property.spec.ts`
+- [x] T127 [P] [US5] Écrire les tests client de batching, retries, catch-up et fichiers pending dans `packages/client-core/tests/page-reconciler.property.spec.ts`
 - [ ] T128 [P] [US5] Écrire le journey à deux appareils réellement offline dans `tests/e2e/page-multi-device-convergence.spec.ts`
 - [ ] T129 [P] [US5] Écrire le journey ambiguïté delete/edit, restart et résolution dans `tests/e2e/page-ambiguity.spec.ts`
 - [ ] T130 [P] [US5] Écrire le journey migration d'une mutation v2 en attente dans `tests/e2e/page-protocol-migration.spec.ts`
 
 ### Storage and protocol implementation
 
-- [ ] T131 [US5] Créer tables, contraintes, triggers et index dans `packages/database/migrations/0008_page_operations.sql`
-- [ ] T132 [US5] Déclarer schéma Drizzle page states/updates/checkpoints/frontiers/ambiguities dans `packages/database/src/schema/page-operations.ts` et `packages/database/src/schema/index.ts`
-- [ ] T133 [US5] Implémenter repository verrouillé et transactions idempotentes dans `packages/database/src/repositories/page-operation-repository.ts` et `packages/database/src/index.ts`
-- [ ] T134 [US5] Passer le protocole annoncé à 3 avec fenêtre générale compatible et gate éditorial v3 dans `packages/domain/src/sync/protocol-version.ts` et `apps/api/src/plugins/protocol.ts`
-- [ ] T135 [US5] Ajouter les endpoints v3 et problèmes au contrat OpenAPI maintenu dans `specs/001-content-foundations/contracts/content-api.openapi.yaml`
-- [ ] T136 [US5] Brancher parseurs de contrats et limites d'octets dans `packages/contracts/src/page-operations.ts`
+- [x] T131 [US5] Créer tables, contraintes, triggers et index dans `packages/database/migrations/0008_page_operations.sql`
+- [x] T132 [US5] Déclarer schéma Drizzle page states/updates/checkpoints/frontiers/ambiguities dans `packages/database/src/schema/page-operations.ts` et `packages/database/src/schema/index.ts`
+- [x] T133 [US5] Implémenter repository verrouillé et transactions idempotentes dans `packages/database/src/repositories/page-operation-repository.ts` et `packages/database/src/index.ts`
+- [x] T134 [US5] Passer le protocole annoncé à 3 avec fenêtre générale compatible et gate éditorial v3 dans `packages/domain/src/sync/protocol-version.ts` et `apps/api/src/plugins/protocol.ts`
+- [x] T135 [US5] Ajouter les endpoints v3 et problèmes au contrat OpenAPI maintenu dans `specs/001-content-foundations/contracts/content-api.openapi.yaml`
+- [x] T136 [US5] Brancher parseurs de contrats et limites d'octets dans `packages/contracts/src/page-operations.ts`
 
 ### Server implementation
 
-- [ ] T137 [US5] Implémenter ouverture/scellement des updates, vectors, checkpoints et ambiguïtés dans `apps/api/src/page-state/page-operation-crypto.ts`
-- [ ] T138 [US5] Implémenter matérialisation, validation, digests, liens, usages et recherche dans `apps/api/src/page-state/canonical-materializer.ts`
-- [ ] T139 [US5] Implémenter service transactionnel import→ambiguïtés→projection→révision→change feed dans `apps/api/src/page-state/page-operation-service.ts`
-- [ ] T140 [US5] Implémenter activation lazy atomique et protection de `page.document.replace` dans `apps/api/src/page-state/page-activation-service.ts` et `apps/api/src/routes/page-documents.ts`
-- [ ] T141 [US5] Implémenter conversion idempotente `LegacyOfflineBranch` dans `apps/api/src/page-state/legacy-branch-service.ts`
+- [x] T137 [US5] Implémenter ouverture/scellement des updates, vectors, checkpoints et ambiguïtés dans `apps/api/src/page-state/page-operation-crypto.ts`
+- [x] T138 [US5] Implémenter matérialisation, validation, digests, liens, usages et recherche dans `apps/api/src/page-state/canonical-materializer.ts`
+- [x] T139 [US5] Implémenter service transactionnel import→ambiguïtés→projection→révision→change feed dans `apps/api/src/page-state/page-operation-service.ts`
+- [x] T140 [US5] Implémenter activation lazy atomique et protection de `page.document.replace` dans `apps/api/src/page-state/page-activation-service.ts` et `apps/api/src/routes/page-documents.ts`
+- [x] T141 [US5] Implémenter conversion idempotente `LegacyOfflineBranch` dans `apps/api/src/page-state/legacy-branch-service.ts`
 - [ ] T142 [US5] Implémenter checkpoint candidat/vérifié, frontier et compaction bornée par appareils dans `apps/api/src/page-state/checkpoint-service.ts`
-- [ ] T143 [US5] Implémenter création/détail/résolution des ambiguïtés sans altérer les sources dans `apps/api/src/page-state/page-ambiguity-service.ts`
-- [ ] T144 [US5] Exposer sync, activate et ambiguity routes avec guards existants dans `apps/api/src/routes/page-operations.ts` et `apps/api/src/app.ts`
-- [ ] T145 [US5] Ajouter `page-operations.updated` au change feed et au signal SSE dans `packages/domain/src/sync/change-nature.ts`, `apps/api/src/routes/changes.ts` et `apps/api/src/routes/change-stream.ts`
+- [x] T143 [US5] Implémenter création/détail/résolution des ambiguïtés sans altérer les sources dans `apps/api/src/page-state/page-ambiguity-service.ts`
+- [x] T144 [US5] Exposer sync, activate et ambiguity routes avec guards existants dans `apps/api/src/routes/page-operations.ts` et `apps/api/src/app.ts`
+- [x] T145 [US5] Ajouter `page-operations.updated` au change feed et au signal SSE dans `packages/domain/src/sync/change-nature.ts`, `apps/api/src/routes/changes.ts` et `apps/api/src/routes/change-stream.ts`
 - [ ] T146 [US5] Consolider après 30 s idle, 5 min max et bornes, exposer le retard de projection et restaurer par opérations dans `apps/api/src/page-state/page-history-service.ts` et `apps/api/src/routes/revisions.ts`
 - [ ] T147 [US5] Étendre archives, verify et restore aux états opérationnels dans `apps/api/src/backup/archive-format.ts`, `apps/api/src/backup/backup-service.ts` et `apps/api/src/backup/restore-service.ts`
 
 ### Client and product integration
 
-- [ ] T148 [US5] Implémenter échanges de vectors, batching et réponses idempotentes dans `apps/web/src/services/page-operations-api.ts` et `packages/client-core/src/page-sync/page-reconciler.ts`
-- [ ] T149 [US5] Brancher catch-up sur change feed/SSE et reconnexion dans `apps/web/src/features/sync/use-change-stream.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
+- [x] T148 [US5] Implémenter échanges de vectors, batching et réponses idempotentes dans `apps/web/src/services/page-operations-api.ts` et `packages/client-core/src/page-sync/page-reconciler.ts`
+- [x] T149 [US5] Brancher catch-up sur change feed/SSE et reconnexion dans `apps/web/src/features/sync/use-change-stream.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
 - [ ] T150 [US5] Convertir les mutations v2 locales en branche sémantique et persister le checkpoint actif atomiquement dans `packages/client-core/src/page-sync/migration.ts`
-- [ ] T151 [US5] Intégrer statut documentaire+octets de fichiers sans doublon dans `packages/client-core/src/page-sync/page-sync-state.ts` et `apps/web/src/features/editor/editor-file-state.tsx`
-- [ ] T152 [US5] Construire badge, liste et détail d'ambiguïté récupérable dans `apps/web/src/features/sync/page-ambiguity-notice.tsx` et `apps/web/src/features/sync/page-ambiguity-resolution.tsx`
-- [ ] T153 [US5] Mettre à jour l'éditeur ouvert par deltas distants et préserver focus/scroll dans `apps/web/src/features/editor/editor-remote-apply.ts`
-- [ ] T154 [US5] Vérifier deux onglets et deux appareils via le même chemin de durabilité dans `packages/client-core/src/page-sync/tab-channel.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
+- [x] T151 [US5] Intégrer statut documentaire+octets de fichiers sans doublon dans `packages/client-core/src/page-sync/page-sync-state.ts` et `apps/web/src/features/editor/editor-file-state.tsx`
+- [x] T152 [US5] Construire badge, liste et détail d'ambiguïté récupérable dans `apps/web/src/features/sync/page-ambiguity-notice.tsx` et `apps/web/src/features/sync/page-ambiguity-resolution.tsx`
+- [x] T153 [US5] Mettre à jour l'éditeur ouvert par deltas distants et préserver focus/scroll dans `apps/web/src/features/editor/editor-remote-apply.ts`
+- [x] T154 [US5] Vérifier deux onglets et deux appareils via le même chemin de durabilité dans `packages/client-core/src/page-sync/tab-channel.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
 - [ ] T155 [US5] Enregistrer les trois nouveaux journeys et propriétaires page-state dans `ci/test-impact.json`
 - [ ] T156 [US5] Valider les scénarios de `quickstart.md` et consigner les résultats de la story dans `specs/017-v1-notion-like-workspace/validation.md`
 
@@ -417,6 +417,12 @@ retirer les chemins temporaires.
 - [ ] T205 Préparer puis exécuter l'essai SC-001/SC-002 avec dix participants et consigner temps, succès et compréhension de la sauvegarde dans `specs/017-v1-notion-like-workspace/usability-validation.md`
 - [ ] T206 Exécuter `pnpm checks:local` sur le commit final et consigner le gate exact dans `specs/017-v1-notion-like-workspace/validation.md`
 - [ ] T207 Converger spec, plan, tasks, code et preuves puis marquer uniquement les exigences réellement satisfaites dans `specs/017-v1-notion-like-workspace/tasks.md` et `specs/017-v1-notion-like-workspace/validation.md`
+- [X] T208 Retirer le service Draw.io et ses variables de `compose.yaml` et `.env.example`
+- [X] T209 Supprimer l'iframe Draw.io et le fournisseur d'embed externe du code et du contrat canonique v3
+- [X] T210 Garantir par contrat Compose et journey que `.drawio` reste téléchargeable sans service ni requête tierce
+- [X] T211 Reporter explicitement toute édition de diagrammes interne après les fondations V1 dans le canevas, la roadmap et les artifacts 005/017
+- [X] T212 Persister atomiquement les lots d'updates avec projection unique, séquences contiguës et lectures/scellements groupés
+- [X] T213 Empêcher les services dérivés et la permission de stockage persistant de bloquer le démarrage, puis valider Firefox avec cinq stacks parallèles
 
 ---
 
@@ -541,3 +547,6 @@ pas la V1 annoncée** : US3, US5, US7 et US6 restent obligatoires.
   base ou la matrice Playwright complète respectent les limites documentées.
 - Aucune fonctionnalité XL, présence multi-utilisateur, IA ou service hébergé
   ne peut entrer par opportunisme dans cette feature.
+- Aucun serveur Draw.io ne fait partie de la stack. Les `.drawio` restent des
+  fichiers opaques ; une éventuelle édition interne est postérieure aux
+  fondations V1.

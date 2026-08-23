@@ -279,6 +279,7 @@ As the owner, I can rely on each accepted change having ordered lineage so that 
 - Real-time transport, rich-text automatic merge, and complete user-facing conflict-resolution workflows beyond durable catch-up and conflict capture.
 - User-facing conflict-resolution screens.
 - Local cache quotas and eviction.
-- File preview and Draw.io editing.
+- File preview; Draw.io editing remains a future post-foundations capability
+  implemented inside MyOwnNotion, not a deployment service.
 - Backup scheduling, Google Drive transfer, restoration, update orchestration, and rollback.
 - Databases, tasks, graph visualization, whiteboards, public sharing, annotations, and MCP behaviors beyond preserving model compatibility.

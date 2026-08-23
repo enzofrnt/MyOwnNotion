@@ -31,6 +31,62 @@ export interface RelationshipExecution {
   readonly sourceItemId: Uuid;
 }
 
+/**
+ * Reconciles the internal page-link projection without creating a competing
+ * document writer. Operational page state remains authoritative; these rows
+ * are a query index tied to the nearest retained revision.
+ */
+export async function reconcileOperationalPageLinks(
+  tx: Transaction,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly sourceItemId: Uuid;
+    readonly revisionId: Uuid;
+    readonly targetItemIds: readonly Uuid[];
+  },
+): Promise<{ readonly unavailableTargetIds: readonly Uuid[] }> {
+  const existing = await tx
+    .select()
+    .from(relationships)
+    .where(
+      and(
+        eq(relationships.sourceItemId, input.sourceItemId),
+        eq(relationships.relationType, INTERNAL_PAGE_LINK_RELATION_TYPE),
+        isNull(relationships.removedRevisionId),
+      ),
+    );
+  const desired = new Set(input.targetItemIds);
+  for (const relationship of existing) {
+    const targetItemId = relationship.targetItemId as Uuid;
+    if (!desired.has(targetItemId)) {
+      await tx
+        .update(relationships)
+        .set({ removedRevisionId: input.revisionId })
+        .where(eq(relationships.id, relationship.id));
+    }
+    desired.delete(targetItemId);
+  }
+
+  const unavailableTargetIds: Uuid[] = [];
+  for (const targetItemId of desired) {
+    const target = await getItem(tx, targetItemId);
+    if (target === null) {
+      unavailableTargetIds.push(targetItemId);
+      continue;
+    }
+    await tx.insert(relationships).values({
+      id: generateUuidV7(),
+      workspaceId: input.workspaceId,
+      sourceItemId: input.sourceItemId,
+      targetItemId,
+      relationType: INTERNAL_PAGE_LINK_RELATION_TYPE,
+      metadata: {},
+      createdRevisionId: input.revisionId,
+    });
+  }
+  return { unavailableTargetIds };
+}
+
 export async function executeCreateRelationship(
   tx: Transaction,
   input: {

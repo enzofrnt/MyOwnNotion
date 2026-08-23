@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-16
 
-**Status**: Draft
+**Status**: Implemented; diagram-editing scope corrected 2026-08-22
 
 **Input**: User description: "Files and local storage: the complete file and attachment experience… Scope is product-canvas sections 15 to 18. Depends on features 001 to 004, all delivered."
 
@@ -35,11 +35,13 @@ that is easy to state and easy to break:
 The product remains strictly single-owner: one installation, one owner, one
 canonical workspace, several devices.
 
-**Out of scope**: whiteboards (feature 011) and graph views (feature 010) are
-named here only as places a file can be referenced from; their own experiences
-belong to their features. Multi-device synchronization mechanics belong to
-feature 006 — this feature specifies what an owner is *told* about sync state,
-not how the reconciliation runs.
+**Out of scope**: whiteboards (feature 011), graph views (feature 010), and
+Draw.io preview/editing are named here only as future contexts or opaque file
+formats. A future diagram editor belongs after the V1 editor and synchronization
+foundations and must run inside MyOwnNotion, never as a separate Draw.io service
+or public embed. Multi-device synchronization mechanics belong to feature 006 —
+this feature specifies what an owner is *told* about sync state, not how the
+reconciliation runs.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -96,11 +98,11 @@ confirmation names both usages.
    **Then** it goes to the trash under the same recovery window as other
    items.
 
-### User Story 3 - Previewing and editing safely (Priority: P2)
+### User Story 3 - Previewing safely (Priority: P2)
 
-The owner opens a PDF, an image, an SVG, and a Draw.io diagram without leaving
-the application, and edits the diagram. A format the application cannot preview
-still states what it is and offers a way out.
+The owner opens a PDF, an image, and an SVG without leaving the application. A
+format the application cannot preview still states what it is and offers a way
+out.
 
 **Why this priority**: Previewing is what makes attachments useful rather than
 merely stored, but it comes after the file is safely stored and referenced.
@@ -111,11 +113,11 @@ type, and size and offers download.
 
 **Acceptance Scenarios**:
 
-1. **Given** a PDF, an SVG, a PNG, and a Draw.io file, **When** the owner
-   opens each, **Then** each is previewed in the application.
-2. **Given** a Draw.io file, **When** the owner edits and saves it, **Then**
-   the change follows the ordinary save path and its state is reported like
-   any other content.
+1. **Given** a PDF, an SVG, and a PNG file, **When** the owner opens each,
+   **Then** each is previewed in the application.
+2. **Given** a Draw.io file, **When** the owner opens it, **Then** it is treated
+   as an unsupported ordinary file with a download action, and no external
+   editor is loaded.
 3. **Given** a file of an unrecognised type, **When** the owner opens it,
    **Then** the application states its name, type, and size and offers to
    download or open it externally.
@@ -163,6 +165,8 @@ offloaded and how it is presented.
 - Storage is exhausted at the operating-system level rather than by the
   configured limit.
 - A preview fails to render a file that claims a supported type.
+- A `.drawio` file remains downloadable without starting another service or
+  contacting a Draw.io host.
 
 ## Requirements *(mandatory)*
 
@@ -195,10 +199,10 @@ offloaded and how it is presented.
 
 **Preview and editing**
 
-- **FR-010**: The application MUST preview PDF, SVG, PNG, JPEG, GIF, WebP, and
-  Draw.io files.
-- **FR-011**: Draw.io files MUST be editable, and the edit MUST follow the same
-  save and revision path as other content.
+- **FR-010**: The application MUST preview PDF, SVG, PNG, JPEG, GIF, and WebP
+  files.
+- **FR-011**: A Draw.io file MUST remain an ordinary downloadable file and MUST
+  NOT load an external editor or require a separate Draw.io service.
 - **FR-012**: A file that cannot be previewed MUST state at least its name,
   type, and size, and offer a download or external-open action.
 - **FR-013**: Previews MUST be isolated so that file content cannot read or act
@@ -276,8 +280,8 @@ offloaded and how it is presented.
 - **The maximum file size is bounded by the deployment.** The configurable
   limit is valid only within what the reverse proxy, browser, storage, and
   transfer protocol genuinely support; the product does not promise more.
-- **Draw.io editing integrates a mature engine** rather than reimplementing
-  one, subject to that engine respecting the application's visual identity,
-  permissions, offline behaviour, and save model.
+- **Draw.io editing is deferred beyond the V1 foundations.** If specified later,
+  its engine runs inside MyOwnNotion and follows the ordinary offline,
+  synchronization, permission, and save model; it is not a deployment service.
 - **Offloading is automatic but never silent.** The owner can always see what
   was offloaded and why the limit was reached.

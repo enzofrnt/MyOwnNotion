@@ -1,4 +1,5 @@
 import {
+  type Block,
   type BlockDocument,
   canonicalDocumentJsonV3,
   generateUuidV7,
@@ -6,6 +7,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
+import type { PageCommand } from "../src/document.ts";
 import {
   appendLegacySemanticTransaction,
   convertLegacyOfflineBranch,
@@ -13,6 +15,7 @@ import {
   type LegacyOfflineBranch,
   LegacyOfflineBranchError,
   type LegacySemanticCommand,
+  legacySemanticCommandsFromTransaction,
   OperationalPageDocument,
   planPageAmbiguityResolution,
   verifyLegacyOfflineBranch,
@@ -42,6 +45,180 @@ async function branchWith(input: {
 }
 
 describe("legacy offline branches", () => {
+  it("derives a replayable journal from one local operational transaction", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const baseDocument = legacyParagraph(blockId, "Alpha");
+    const branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument,
+      createdAt: "2026-08-20T12:00:00.000Z",
+    });
+    const page = OperationalPageDocument.create({ pageId, document: branch.baseDocument });
+    const beforeDocument = page.snapshot();
+    const transaction = page.transact([
+      { type: "replace-text", blockId, from: 5, to: 5, text: " locale" },
+      {
+        type: "set-mark",
+        blockId,
+        from: 0,
+        to: 5,
+        mark: { type: "bold" },
+        enabled: true,
+      },
+      { type: "set-block-type", blockId, blockType: "heading", properties: { level: 2 } },
+    ]);
+    const commands = legacySemanticCommandsFromTransaction({
+      pageId,
+      beforeDocument,
+      transaction,
+    });
+    const edited = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 1,
+      commands,
+    });
+
+    expect(commands.map(({ type }) => type)).toEqual([
+      "replace-text",
+      "set-mark",
+      "set-type-or-property",
+    ]);
+    expect(edited.baseDocumentV2).toEqual(baseDocument);
+    expect(canonicalDocumentJsonV3(edited.localDocument)).toBe(
+      canonicalDocumentJsonV3(page.snapshot()),
+    );
+    await expect(verifyLegacyOfflineBranch(edited)).resolves.toMatchObject({
+      digest: edited.localDocumentDigest,
+    });
+  });
+
+  it("journals table structure created during the first offline editing session", async () => {
+    const pageId = generateUuidV7();
+    const paragraphId = generateUuidV7();
+    const baseDocument = legacyParagraph(paragraphId, "Avant le tableau");
+    let branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument,
+      createdAt: "2026-08-20T12:00:00.000Z",
+    });
+    const page = OperationalPageDocument.create({ pageId, document: branch.baseDocument });
+    const tableId = generateUuidV7();
+    const firstColumnId = generateUuidV7();
+    const firstRowId = generateUuidV7();
+    const firstCellId = generateUuidV7();
+    const beforeInsert = page.snapshot();
+    const insertTable = page.transact([
+      {
+        type: "insert-block",
+        block: {
+          type: "table",
+          id: tableId,
+          columns: [{ id: firstColumnId, width: null }],
+          rows: [
+            {
+              id: firstRowId,
+              cells: [{ id: firstCellId, content: [{ text: "A1" }] }],
+            },
+          ],
+        },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 1,
+      commands: legacySemanticCommandsFromTransaction({
+        pageId,
+        beforeDocument: beforeInsert,
+        transaction: insertTable,
+      }),
+    });
+
+    const secondRowId = generateUuidV7();
+    const secondRowFirstCellId = generateUuidV7();
+    const secondColumnId = generateUuidV7();
+    const firstRowSecondCellId = generateUuidV7();
+    const secondRowSecondCellId = generateUuidV7();
+    const beforeExpansion = page.snapshot();
+    const expansion = page.transact([
+      {
+        type: "insert-table-row",
+        tableId,
+        row: {
+          id: secondRowId,
+          cells: [{ id: secondRowFirstCellId, content: [{ text: "A2" }] }],
+        },
+        beforeRowId: null,
+      },
+      {
+        type: "insert-table-column",
+        tableId,
+        column: { id: secondColumnId, width: 180 },
+        cells: [
+          {
+            rowId: firstRowId,
+            cell: { id: firstRowSecondCellId, content: [{ text: "B1" }] },
+          },
+          {
+            rowId: secondRowId,
+            cell: { id: secondRowSecondCellId, content: [{ text: "B2" }] },
+          },
+        ],
+        beforeColumnId: null,
+      },
+    ]);
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 2,
+      commands: legacySemanticCommandsFromTransaction({
+        pageId,
+        beforeDocument: beforeExpansion,
+        transaction: expansion,
+      }),
+    });
+
+    const beforeReduction = page.snapshot();
+    const reduction = page.transact([
+      { type: "delete-table-column", tableId, columnId: firstColumnId },
+      { type: "delete-table-row", tableId, rowId: firstRowId },
+    ]);
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 3,
+      commands: legacySemanticCommandsFromTransaction({
+        pageId,
+        beforeDocument: beforeReduction,
+        transaction: reduction,
+      }),
+    });
+
+    const activePage = OperationalPageDocument.create({
+      pageId,
+      document: migrateDocumentV2ToV3(baseDocument),
+    });
+    const conversion = await convertLegacyOfflineBranch({ branch, activePage });
+    expect(conversion.ambiguities).toEqual([]);
+    expect(conversion.commands.map(({ type }) => type)).toEqual([
+      "insert-block",
+      "insert-table-row",
+      "insert-table-column",
+      "delete-table-column",
+      "delete-table-row",
+    ]);
+    expect(canonicalDocumentJsonV3(branch.localDocument)).toBe(
+      canonicalDocumentJsonV3(page.snapshot()),
+    );
+    expect(canonicalDocumentJsonV3((await activePage.project()).document)).toBe(
+      canonicalDocumentJsonV3(page.snapshot()),
+    );
+  });
+
   it("replays the semantic journal and rejects a local projection that is not its result", async () => {
     const pageId = generateUuidV7();
     const blockId = generateUuidV7();
@@ -346,6 +523,12 @@ describe("legacy offline branches", () => {
     await expect(
       verifyLegacyOfflineBranch({ ...fresh, baseCanonicalDigest: "tampered" }),
     ).rejects.toThrow(/base document digest/u);
+    await expect(
+      verifyLegacyOfflineBranch({
+        ...fresh,
+        baseDocumentV2: legacyParagraph(blockId, "autre base"),
+      }),
+    ).rejects.toThrow(/v2 base/u);
     expect(one.semanticTransactions).toHaveLength(1);
     const firstTransaction = one.semanticTransactions[0];
     if (firstTransaction === undefined) {
@@ -644,5 +827,99 @@ describe("legacy offline branches", () => {
     await expect(convertLegacyOfflineBranch({ branch, activePage })).rejects.toThrow(
       /does not match/u,
     );
+  });
+});
+
+describe("journal coverage for move and property commands", () => {
+  it("journals a move-block operation with its placement proof", async () => {
+    const pageId = generateUuidV7();
+    const firstId = generateUuidV7();
+    const secondId = generateUuidV7();
+    const baseDocument: BlockDocument = {
+      blocks: [
+        { type: "paragraph", id: firstId, content: [{ text: "premier" }] },
+        { type: "paragraph", id: secondId, content: [{ text: "second" }] },
+      ],
+    };
+    const branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument,
+      createdAt: "2026-08-20T12:00:00.000Z",
+    });
+    const page = OperationalPageDocument.create({ pageId, document: branch.baseDocument });
+    const beforeDocument = page.snapshot();
+    const transaction = page.transact([
+      { type: "move-block", blockId: firstId, parentBlockId: null, beforeBlockId: null },
+    ]);
+    const commands = legacySemanticCommandsFromTransaction({
+      pageId,
+      beforeDocument,
+      transaction,
+    });
+    expect(commands[0]?.type).toBe("move-block");
+
+    const edited = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 1,
+      commands,
+    });
+    await expect(verifyLegacyOfflineBranch(edited)).resolves.toMatchObject({
+      digest: edited.localDocumentDigest,
+    });
+  });
+
+  it("journals checkbox, code and heading property extraction for typed inversions", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const cases: Array<{ start: Block; command: PageCommand }> = [
+      {
+        start: { type: "heading" as const, id: blockId, content: [{ text: "t" }], level: 2 },
+        command: { type: "set-block-type" as const, blockId, blockType: "paragraph" as const },
+      },
+      {
+        start: {
+          type: "checkbox" as const,
+          id: blockId,
+          content: [{ text: "t" }],
+          checked: true,
+        },
+        command: { type: "set-block-type" as const, blockId, blockType: "paragraph" as const },
+      },
+      {
+        start: { type: "code" as const, id: blockId, text: "x", language: "ts" },
+        command: { type: "set-block-type" as const, blockId, blockType: "paragraph" as const },
+      },
+    ];
+
+    for (const { start, command } of cases) {
+      const baseDocument: BlockDocument = { blocks: [start] };
+      const branch = await createLegacyOfflineBranch({
+        branchId: generateUuidV7(),
+        pageId,
+        baseRevisionId: generateUuidV7(),
+        baseDocument,
+        createdAt: "2026-08-20T12:00:00.000Z",
+      });
+      const page = OperationalPageDocument.create({ pageId, document: branch.baseDocument });
+      const beforeDocument = page.snapshot();
+      const transaction = page.transact([command]);
+      const commands = legacySemanticCommandsFromTransaction({
+        pageId,
+        beforeDocument,
+        transaction,
+      });
+      expect(commands.length).toBeGreaterThan(0);
+
+      const edited = await appendLegacySemanticTransaction(branch, {
+        transactionId: generateUuidV7(),
+        sequence: 1,
+        commands,
+      });
+      await expect(verifyLegacyOfflineBranch(edited)).resolves.toMatchObject({
+        digest: edited.localDocumentDigest,
+      });
+    }
   });
 });

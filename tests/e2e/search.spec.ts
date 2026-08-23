@@ -34,7 +34,11 @@ async function openSearch(page: Page) {
 
 async function searchFor(page: Page, query: string) {
   const dialog = await openSearch(page);
-  await dialog.getByLabel("Query").fill(query);
+  const input = dialog.getByLabel("Query");
+  await input.fill(query);
+  // A workspace projection may render in the same task as the input event.
+  // The uncontrolled query must retain the visible text before submission.
+  await expect(input).toHaveValue(query);
   await dialog.getByRole("button", { name: "Search", exact: true }).click();
   return dialog;
 }
@@ -59,7 +63,7 @@ test.describe("workspace search (US1)", () => {
 
     await selectItem(page, bodyPage);
     await typeIntoEditor(page, bodyPhrase);
-    await saveDocument(page);
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await page.getByTestId("attachment-upload").setInputFiles({
@@ -316,7 +320,7 @@ test.describe("workspace search freshness (US4)", () => {
 
     await selectItem(page, oldName);
     await typeIntoEditor(page, bodyPhrase);
-    await saveDocument(page);
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     let dialog = await searchFor(page, bodyPhrase);

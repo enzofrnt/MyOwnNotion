@@ -3,10 +3,11 @@
  */
 import { expect, test } from "./fixtures.ts";
 import {
-  apiOrigin,
-  CURRENT_PROTOCOL_HEADERS,
   createRootItem,
+  openSecondDevice,
   openWorkspace,
+  renameItem,
+  saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -27,8 +28,7 @@ test.describe("revision history (US5)", () => {
 
     // Edit the document to supersede the original revision.
     await typeIntoEditor(page, "version 2");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible();
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
     await selectItem(page, pageName);
 
@@ -46,7 +46,8 @@ test.describe("revision history (US5)", () => {
 
   test("a stale head yields an explicit conflict instead of silent overwrite", async ({
     page,
-    request,
+    browser,
+    baseURL,
   }) => {
     // The stream is cut before anything else, because this journey is about a
     // head that is stale *in the interface*. With live synchronization a
@@ -62,12 +63,11 @@ test.describe("revision history (US5)", () => {
     await waitForSynchronized(page);
 
     await selectItem(page, pageName);
-    const itemId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
     const originalHead = await page.getByTestId("current-head").textContent();
 
     // Edit once so the original head is restorable history.
     await typeIntoEditor(page, "v2");
-    await page.getByTestId("save-document").click();
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
     await selectItem(page, pageName);
 
@@ -76,26 +76,24 @@ test.describe("revision history (US5)", () => {
     await page.getByTestId("preview-revision").click();
     await expect(page.getByTestId("revision-preview")).toBeVisible();
 
-    // Another device advances the head between preview and restore.
-    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
-    const currentBody = (await current.json()) as { currentRevisionId: string };
-    const competing = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": crypto.randomUUID() },
-      data: {
-        baseRevisionId: currentBody.currentRevisionId,
-        document: {
-          format: "myownnotion.document+json",
-          formatVersion: 1,
-          body: { text: "competing edit" },
-        },
-      },
-    });
-    expect(competing.status()).toBe(200);
+    // A real second device advances the canonical revision head between
+    // preview and restore. Operational body edits are intentionally
+    // consolidated separately, so a rename is the supported mutation that
+    // proves this stale-head guard without depending on unfinished history
+    // consolidation work.
+    const second = await openSecondDevice(browser, baseURL);
+    try {
+      await openWorkspace(second.page);
+      await renameItem(second.page, pageName, uniqueName("RenamedElsewhere"));
+      await waitForSynchronized(second.page);
 
-    // Restore now conflicts explicitly (the UI's head is stale).
-    await page.getByTestId("restore-revision").click();
-    await expect(page.getByTestId("restore-feedback")).toContainText("current head changed", {
-      timeout: 15_000,
-    });
+      // Restore now conflicts explicitly (the first UI's head is stale).
+      await page.getByTestId("restore-revision").click();
+      await expect(page.getByTestId("restore-feedback")).toContainText("current head changed", {
+        timeout: 15_000,
+      });
+    } finally {
+      await second.context.close();
+    }
   });
 });

@@ -13,16 +13,21 @@ import {
   mayHaveChildrenV3,
   normaliseDocumentV3,
   serialiseDocumentV3,
+  type TableCellV3,
   type TableColumnV3,
+  type TableRowV3,
   type Uuid,
   validateDocumentV3,
 } from "@myownnotion/domain";
 import type { LoroDoc, LoroMap, LoroText, LoroTree, LoroTreeNode } from "loro-crdt";
+import { LoroList } from "loro-crdt";
 import { initialiseRichText, projectRichText } from "./rich-text.ts";
 
 const BLOCK_TREE_ROOT = "blocks";
 const PROPS_KEY = "props";
 const CONTENT_KEY = "content";
+const TABLE_COLUMNS_KEY = "tableColumns";
+const TABLE_CELL_COLUMN_ID_KEY = "columnId";
 const EXTRA_PROPERTY_PREFIX = "extra:";
 const NODE_SCHEMA_VERSION = 1;
 
@@ -209,11 +214,11 @@ function initialiseKnownBlockPayload(
       setKnownProperty(props, "tone", block.tone);
       break;
     case "table":
-      setKnownProperty(
-        props,
-        "columns",
-        block.columns.map(({ id, width }) => ({ id, width })),
-      );
+      for (const [index, column] of block.columns.entries()) {
+        node.data
+          .ensureMergeableList(TABLE_COLUMNS_KEY)
+          .insert(index, { id: column.id, width: column.width });
+      }
       break;
     case "image":
       setKnownProperty(props, "fileItemId", block.fileItemId);
@@ -255,9 +260,10 @@ function createCanonicalNode(
     for (const row of block.rows) {
       const rowNode = node.createNode();
       setNodeHeader(rowNode, row.id, "tableRow");
-      for (const cell of row.cells) {
+      for (const [cellIndex, cell] of row.cells.entries()) {
         const cellNode = rowNode.createNode();
         setNodeHeader(cellNode, cell.id, "tableCell");
+        cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, block.columns[cellIndex]?.id ?? "");
         initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
         for (const child of cell.children ?? []) {
           createCanonicalNode(tree, cellNode, undefined, child);
@@ -348,8 +354,7 @@ function materialiseCanonicalChildren(node: LoroTreeNode): CanonicalBlockV3[] {
   return result;
 }
 
-function tableColumns(props: LoroMap, path: string): readonly TableColumnV3[] {
-  const value = requiredProperty(props, "columns", path);
+function parseTableColumns(value: unknown, path: string): readonly TableColumnV3[] {
   if (!Array.isArray(value)) {
     throw new BlockTreeOperationError(`${path}.columns must be an array`);
   }
@@ -364,15 +369,65 @@ function tableColumns(props: LoroMap, path: string): readonly TableColumnV3[] {
   });
 }
 
-function materialiseTableRows(node: LoroTreeNode): JsonValue[] {
+function tableColumns(node: LoroTreeNode, path: string): readonly TableColumnV3[] {
+  const current = node.data.get(TABLE_COLUMNS_KEY);
+  if (current instanceof LoroList) {
+    return parseTableColumns(current.toArray(), path);
+  }
+  // Transitional read support for checkpoints produced by the initial 017
+  // foundation, before columns became a mergeable sequence.
+  const props = node.data.ensureMergeableMap(PROPS_KEY);
+  return parseTableColumns(requiredProperty(props, "columns", path), path);
+}
+
+function mutableTableColumns(node: LoroTreeNode, path: string): LoroList<JsonValue> {
+  const current = node.data.get(TABLE_COLUMNS_KEY);
+  if (current instanceof LoroList) return current as LoroList<JsonValue>;
+  const legacy = tableColumns(node, path);
+  const list = node.data.ensureMergeableList(TABLE_COLUMNS_KEY) as LoroList<JsonValue>;
+  for (const [index, column] of legacy.entries()) {
+    list.insert(index, { id: column.id, width: column.width });
+  }
+  node.data.ensureMergeableMap(PROPS_KEY).delete("columns");
+  return list;
+}
+
+function materialiseTableRows(node: LoroTreeNode, columns: readonly TableColumnV3[]): JsonValue[] {
   return (node.children() ?? []).map((rowNode, rowIndex) => {
     if (nodeType(rowNode) !== "tableRow") {
       throw new BlockTreeOperationError(`table row ${rowIndex} is not a tableRow node`);
     }
-    const cells = (rowNode.children() ?? []).map((cellNode, cellIndex) => {
+    const cellNodes = rowNode.children() ?? [];
+    const byColumn = new Map<Uuid, LoroTreeNode>();
+    const positional: LoroTreeNode[] = [];
+    for (const [cellIndex, cellNode] of cellNodes.entries()) {
       if (nodeType(cellNode) !== "tableCell") {
         throw new BlockTreeOperationError(
           `table row ${nodeIdentity(rowNode)} child ${cellIndex} is not a tableCell node`,
+        );
+      }
+      const columnId = cellNode.data.get(TABLE_CELL_COLUMN_ID_KEY);
+      if (typeof columnId === "string" && columnId !== "") {
+        if (byColumn.has(columnId as Uuid)) {
+          throw new BlockTreeOperationError(
+            `table row ${nodeIdentity(rowNode)} duplicates column ${columnId}`,
+          );
+        }
+        byColumn.set(columnId as Uuid, cellNode);
+      } else {
+        positional[cellIndex] = cellNode;
+      }
+    }
+    if (cellNodes.length !== columns.length) {
+      throw new BlockTreeOperationError(
+        `table row ${nodeIdentity(rowNode)} has ${cellNodes.length} cells for ${columns.length} columns`,
+      );
+    }
+    const cells = columns.map((column, cellIndex) => {
+      const cellNode = byColumn.get(column.id) ?? positional[cellIndex];
+      if (cellNode === undefined) {
+        throw new BlockTreeOperationError(
+          `table row ${nodeIdentity(rowNode)} has no cell for column ${column.id}`,
         );
       }
       const content = projectRichText(cellNode.data.ensureMergeableText(CONTENT_KEY));
@@ -469,15 +524,17 @@ function materialiseCanonicalNode(node: LoroTreeNode): CanonicalBlockV3 {
         children,
       );
       break;
-    case "table":
+    case "table": {
+      const columns = tableColumns(node, `block ${id}`);
       candidate = {
         type,
         id,
-        columns: tableColumns(props, `block ${id}`) as unknown as JsonValue,
-        rows: materialiseTableRows(node),
+        columns: columns as unknown as JsonValue,
+        rows: materialiseTableRows(node, columns),
         ...extra,
       };
       break;
+    }
     case "image":
       if (children.length > 0) throw new BlockTreeOperationError(`image ${id} has children`);
       candidate = {
@@ -639,6 +696,170 @@ export function deleteOperationalBlock(doc: LoroDoc, blockId: Uuid): void {
   tree.delete(node.id);
 }
 
+function operationalTableNode(doc: LoroDoc, tableId: Uuid): LoroTreeNode {
+  const node = findOperationalNode(getOperationalBlockTree(doc), tableId);
+  if (nodeType(node) !== "table") {
+    throw new BlockTreeOperationError(`${tableId} is not a table`);
+  }
+  return node;
+}
+
+function operationalTableRows(tableNode: LoroTreeNode): LoroTreeNode[] {
+  const rows = tableNode.children() ?? [];
+  for (const row of rows) {
+    if (nodeType(row) !== "tableRow") {
+      throw new BlockTreeOperationError(
+        `table ${nodeIdentity(tableNode)} contains non-row ${nodeIdentity(row)}`,
+      );
+    }
+  }
+  return rows;
+}
+
+function assertNewIdentities(doc: LoroDoc, identities: readonly Uuid[]): void {
+  const seen = new Set<Uuid>();
+  const tree = getOperationalBlockTree(doc);
+  for (const identity of identities) {
+    if (seen.has(identity) || findNodesByIdentity(tree, identity).length > 0) {
+      throw new BlockTreeOperationError(`block identity ${identity} already exists`);
+    }
+    seen.add(identity);
+  }
+}
+
+function rowIdentities(row: TableRowV3): Uuid[] {
+  return [
+    row.id,
+    ...row.cells.flatMap((cell) => [
+      cell.id,
+      ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
+    ]),
+  ];
+}
+
+export function insertOperationalTableRow(
+  doc: LoroDoc,
+  tableId: Uuid,
+  row: TableRowV3,
+  beforeRowId: Uuid | null,
+): void {
+  const tree = getOperationalBlockTree(doc);
+  const tableNode = operationalTableNode(doc, tableId);
+  const columns = tableColumns(tableNode, `block ${tableId}`);
+  if (row.cells.length !== columns.length) {
+    throw new BlockTreeOperationError(
+      `table row ${row.id} has ${row.cells.length} cells for ${columns.length} columns`,
+    );
+  }
+  assertNewIdentities(doc, rowIdentities(row));
+  let index: number | undefined;
+  if (beforeRowId !== null) {
+    const before = findOperationalNode(tree, beforeRowId);
+    if (nodeType(before) !== "tableRow" || before.parent()?.id !== tableNode.id) {
+      throw new BlockTreeOperationError(`row ${beforeRowId} is not in table ${tableId}`);
+    }
+    index = before.index();
+  }
+  const rowNode = tableNode.createNode(index);
+  setNodeHeader(rowNode, row.id, "tableRow");
+  for (const [cellIndex, cell] of row.cells.entries()) {
+    const cellNode = rowNode.createNode(cellIndex);
+    setNodeHeader(cellNode, cell.id, "tableCell");
+    cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, columns[cellIndex]?.id ?? "");
+    initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
+    for (const child of cell.children ?? []) createCanonicalNode(tree, cellNode, undefined, child);
+  }
+  assertUniqueOperationalIdentities(tree);
+}
+
+export function deleteOperationalTableRow(doc: LoroDoc, tableId: Uuid, rowId: Uuid): void {
+  const tree = getOperationalBlockTree(doc);
+  const tableNode = operationalTableNode(doc, tableId);
+  const rows = operationalTableRows(tableNode);
+  if (rows.length <= 1) throw new BlockTreeOperationError("a table must keep at least one row");
+  const row = findOperationalNode(tree, rowId);
+  if (nodeType(row) !== "tableRow" || row.parent()?.id !== tableNode.id) {
+    throw new BlockTreeOperationError(`row ${rowId} is not in table ${tableId}`);
+  }
+  tree.delete(row.id);
+}
+
+export interface OperationalTableColumnCell {
+  readonly rowId: Uuid;
+  readonly cell: TableCellV3;
+}
+
+export function insertOperationalTableColumn(
+  doc: LoroDoc,
+  tableId: Uuid,
+  column: TableColumnV3,
+  cells: readonly OperationalTableColumnCell[],
+  beforeColumnId: Uuid | null,
+): void {
+  const tree = getOperationalBlockTree(doc);
+  const tableNode = operationalTableNode(doc, tableId);
+  const columns = tableColumns(tableNode, `block ${tableId}`);
+  if (columns.some(({ id }) => id === column.id)) {
+    throw new BlockTreeOperationError(`table column ${column.id} already exists`);
+  }
+  const rows = operationalTableRows(tableNode);
+  const cellsByRow = new Map(cells.map((entry) => [entry.rowId, entry.cell]));
+  if (cellsByRow.size !== rows.length || cells.length !== rows.length) {
+    throw new BlockTreeOperationError("a new table column needs exactly one cell per row");
+  }
+  const identities = cells.flatMap(({ cell }) => [
+    cell.id,
+    ...(collectDocumentIdsV3({ blocks: cell.children ?? [] }) as Uuid[]),
+  ]);
+  assertNewIdentities(doc, identities);
+
+  const index =
+    beforeColumnId === null ? columns.length : columns.findIndex(({ id }) => id === beforeColumnId);
+  if (index < 0) {
+    throw new BlockTreeOperationError(`column ${beforeColumnId} is not in table ${tableId}`);
+  }
+  mutableTableColumns(tableNode, `block ${tableId}`).insert(index, {
+    id: column.id,
+    width: column.width,
+  });
+  for (const rowNode of rows) {
+    const rowId = nodeIdentity(rowNode);
+    const cell = cellsByRow.get(rowId);
+    if (cell === undefined) {
+      throw new BlockTreeOperationError(`new column has no cell for row ${rowId}`);
+    }
+    const cellNode = rowNode.createNode(index);
+    setNodeHeader(cellNode, cell.id, "tableCell");
+    cellNode.data.set(TABLE_CELL_COLUMN_ID_KEY, column.id);
+    initialiseRichText(cellNode.data.ensureMergeableText(CONTENT_KEY), cell.content);
+    for (const child of cell.children ?? []) createCanonicalNode(tree, cellNode, undefined, child);
+  }
+  assertUniqueOperationalIdentities(tree);
+}
+
+export function deleteOperationalTableColumn(doc: LoroDoc, tableId: Uuid, columnId: Uuid): void {
+  const tree = getOperationalBlockTree(doc);
+  const tableNode = operationalTableNode(doc, tableId);
+  const columns = tableColumns(tableNode, `block ${tableId}`);
+  if (columns.length <= 1) {
+    throw new BlockTreeOperationError("a table must keep at least one column");
+  }
+  const index = columns.findIndex(({ id }) => id === columnId);
+  if (index < 0) throw new BlockTreeOperationError(`column ${columnId} is not in table ${tableId}`);
+  mutableTableColumns(tableNode, `block ${tableId}`).delete(index, 1);
+  for (const rowNode of operationalTableRows(tableNode)) {
+    const cells = rowNode.children() ?? [];
+    const target =
+      cells.find((cell) => cell.data.get(TABLE_CELL_COLUMN_ID_KEY) === columnId) ?? cells[index];
+    if (target === undefined || nodeType(target) !== "tableCell") {
+      throw new BlockTreeOperationError(
+        `row ${nodeIdentity(rowNode)} has no cell for column ${columnId}`,
+      );
+    }
+    tree.delete(target.id);
+  }
+}
+
 export function operationalBlockSnapshot(doc: LoroDoc, blockId: Uuid): CanonicalBlockV3 {
   let node = findOperationalNode(getOperationalBlockTree(doc), blockId);
   while (nodeType(node) === "tableRow" || nodeType(node) === "tableCell") {
@@ -649,6 +870,25 @@ export function operationalBlockSnapshot(doc: LoroDoc, blockId: Uuid): Canonical
     node = parent;
   }
   return materialiseCanonicalNode(node);
+}
+
+/** Resolves an internal table row/cell identity to its canonical table owner. */
+export function operationalCanonicalBlockId(doc: LoroDoc, blockId: Uuid): Uuid | null {
+  const matches = findNodesByIdentity(getOperationalBlockTree(doc), blockId);
+  if (matches.length === 0) return null;
+  if (matches.length > 1) {
+    throw new BlockTreeOperationError(`block identity ${blockId} is duplicated`);
+  }
+  let node = matches[0];
+  if (node === undefined) return null;
+  while (nodeType(node) === "tableRow" || nodeType(node) === "tableCell") {
+    const parent = node.parent();
+    if (parent === undefined) {
+      throw new BlockTreeOperationError(`internal identity ${blockId} has no canonical ancestor`);
+    }
+    node = parent;
+  }
+  return nodeIdentity(node);
 }
 
 /** Validates one changed canonical subtree without projecting the whole page. */
@@ -694,7 +934,15 @@ export function operationalBlockState(doc: LoroDoc, blockId: Uuid): OperationalB
   };
 }
 
-const IMMUTABLE_PROPERTY_KEYS = new Set(["type", "id", "content", "children", "text", "rows"]);
+const IMMUTABLE_PROPERTY_KEYS = new Set([
+  "type",
+  "id",
+  "content",
+  "children",
+  "text",
+  "columns",
+  "rows",
+]);
 
 export function operationalBlockProperty(
   doc: LoroDoc,

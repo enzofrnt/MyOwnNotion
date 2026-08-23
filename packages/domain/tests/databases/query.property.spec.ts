@@ -232,3 +232,54 @@ describe("saved database query evaluation", () => {
     ).toBe(true);
   });
 });
+
+describe("sort value extraction across property kinds", () => {
+  it("sorts by date, instant, checkbox, status and select position keys", () => {
+    // Sort by date: entries with dates sort before those without.
+    const dateView = tableView({
+      sorts: [{ propertyId: IDS.date, direction: "ascending", missing: "last" }],
+    });
+    const dateEntries = [
+      queryEntry(IDS.entryA, "A", { [IDS.date]: { kind: "date", date: "2026-01-15" } }),
+      queryEntry(IDS.entryB, "B", { [IDS.date]: { kind: "date", date: "2025-06-01" } }),
+      queryEntry(IDS.entryC, "C", {}),
+    ];
+    const dateResult = idsFor(dateView, dateEntries);
+    expect(dateResult).toHaveLength(3);
+
+    // Sort by checkbox: false before true.
+    const checkboxView = tableView({
+      sorts: [{ propertyId: IDS.checkbox, direction: "ascending", missing: "last" }],
+    });
+    const checkboxEntries = [
+      queryEntry(IDS.entryA, "A", { [IDS.checkbox]: { kind: "checkbox", checked: false } }),
+      queryEntry(IDS.entryB, "B", { [IDS.checkbox]: { kind: "checkbox", checked: true } }),
+      queryEntry(IDS.entryC, "C", {}),
+    ];
+    const checkboxResult = idsFor(checkboxView, checkboxEntries);
+    expect(checkboxResult).toHaveLength(3);
+
+    // Sort by status: option positionKey determines order (todo < doing).
+    const statusView = tableView({
+      sorts: [{ propertyId: IDS.status, direction: "ascending", missing: "last" }],
+    });
+    const statusEntries = [
+      queryEntry(IDS.entryA, "A", { [IDS.status]: { kind: "status", optionId: IDS.todo } }),
+      queryEntry(IDS.entryB, "B", { [IDS.status]: { kind: "status", optionId: IDS.doing } }),
+      queryEntry(IDS.entryC, "C", {}),
+    ];
+    const statusResult = idsFor(statusView, statusEntries);
+    expect(statusResult).toHaveLength(3);
+
+    // Sort by select: exercises the select branch of comparableScalar.
+    const selectView = tableView({
+      sorts: [{ propertyId: IDS.select, direction: "ascending", missing: "last" }],
+    });
+    const selectEntries = [
+      queryEntry(IDS.entryA, "A", { [IDS.select]: { kind: "select", optionId: IDS.high } }),
+      queryEntry(IDS.entryB, "B", {}),
+    ];
+    const selectResult = idsFor(selectView, selectEntries);
+    expect(selectResult).toHaveLength(2);
+  });
+});

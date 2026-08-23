@@ -50,6 +50,10 @@ interface IndexedBlock {
   readonly order: number;
 }
 
+function childBlocks(block: EditorBlock): readonly EditorBlock[] {
+  return Array.isArray(block.children) ? (block.children as EditorBlock[]) : [];
+}
+
 function indexBlocks(blocks: readonly EditorBlock[]): Map<string, IndexedBlock> {
   const index = new Map<string, IndexedBlock>();
   let order = 0;
@@ -63,7 +67,7 @@ function indexBlocks(blocks: readonly EditorBlock[]): Map<string, IndexedBlock> 
         order,
       });
       order += 1;
-      visit(block.children as EditorBlock[], block.id as Uuid);
+      visit(childBlocks(block), block.id as Uuid);
     }
   };
   visit(blocks, null);
@@ -206,7 +210,7 @@ function flattenedIds(blocks: readonly EditorBlock[]): Uuid[] {
   const visit = (entries: readonly EditorBlock[]): void => {
     for (const block of entries) {
       result.push(block.id as Uuid);
-      visit(block.children as EditorBlock[]);
+      visit(childBlocks(block));
     }
   };
   visit(blocks);
@@ -264,7 +268,7 @@ function insertAtPlacement(
   if (parentBlockId !== null) {
     const parent = editor.getBlock(parentBlockId) as EditorBlock | undefined;
     if (parent === undefined) throw new Error(`remote parent ${parentBlockId} is unavailable`);
-    const lastChild = (parent.children as EditorBlock[]).at(-1);
+    const lastChild = childBlocks(parent).at(-1);
     if (lastChild !== undefined) {
       editor.insertBlocks([partial], lastChild.id, "after");
       return;
@@ -328,6 +332,16 @@ export function applyRemoteEditorProjection(input: {
   readonly next: readonly EditorBlock[];
 }): RemoteEditorApplyResult {
   const previous = input.editor.document as EditorBlock[];
+
+  // A canonically identical projection must not touch the surface at all. The
+  // editor may carry transient/default props or a different inline-node
+  // segmentation that the durable document intentionally ignores. Treating
+  // those representation details as a remote edit can move focus in the
+  // middle of typing even though no user-authored content changed.
+  if (visibleProjection(previous) === visibleProjection(input.next)) {
+    return { targetedChanges: [], repairedProjection: false, restoredSelection: null };
+  }
+
   let selection: StableEditorSelection | null = null;
   try {
     selection = {

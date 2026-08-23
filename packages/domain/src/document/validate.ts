@@ -201,10 +201,30 @@ function parseBlock(value: JsonValue, path: string, problems: ValidationProblem[
  * The `raw` reference is the same object the caller's `JSON.parse` produced. It
  * is not copied, rewritten, or key-sorted, which is what lets serialisation
  * emit the original bytes rather than an equivalent-looking reconstruction.
+ *
+ * Parsing is idempotent: a block that already carries the canonical unknown
+ * wrapper (an envelope round-tripped through a client that had parsed it
+ * before) unwraps to itself instead of nesting a wrapper inside itself. A
+ * nested wrapper would change the canonical bytes — serialisation emits the
+ * `raw` payload alone — and silently break every digest computed over the
+ * document.
  */
 function parseUnknownBlock(value: JsonObject, declaredType: string): UnknownBlock {
   const storedId = value["id"];
   const usable = typeof storedId === "string" && isUuid(storedId);
+  if (declaredType === "unknown") {
+    const innerDeclaredType = value["declaredType"];
+    const innerRaw = value["raw"];
+    if (typeof innerDeclaredType === "string" && isJsonObject(innerRaw)) {
+      return {
+        type: "unknown",
+        id: usable ? (storedId as Uuid) : generateUuidV7(),
+        declaredType: innerDeclaredType,
+        raw: innerRaw,
+        syntheticId: !usable,
+      };
+    }
+  }
   return {
     type: "unknown",
     id: usable ? (storedId as Uuid) : generateUuidV7(),
@@ -764,8 +784,6 @@ function isSafeEmbedUrlV3(provider: EmbedProvider, sourceUrl: string): boolean {
       return hostAllowed("figma.com");
     case "github":
       return hostAllowed("github.com");
-    case "drawio":
-      return hostAllowed("diagrams.net") || hostAllowed("draw.io");
   }
 }
 

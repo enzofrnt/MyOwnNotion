@@ -323,12 +323,6 @@ select {
   border-top: 1px solid var(--border);
 }
 
-.entry-task-property > .muted {
-  margin: 0 0 0.25rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
 .database-schema ul {
   display: grid;
   gap: 0.4rem;
@@ -989,6 +983,15 @@ select {
   font-size: 0.8rem;
 }
 
+/* Declared after `.muted` so the pair never descends in specificity: the
+   compound selector must keep winning the shared font-size without relying
+   on source position against the utility it refines. */
+.entry-task-property > .muted {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 /* Links, which had no style at all until feature 005 added the first one.
    An unstyled anchor takes the browser's default dark blue, which on this dark
    surface fails the contrast threshold outright — caught by the axe audit over
@@ -1533,8 +1536,40 @@ textarea {
   border-radius: var(--ui-radius-md);
 }
 
-.page-editor .bn-block-content[data-content-type="codeBlock"] pre,
-.editor-surface pre {
+/* A true preformatted block may scroll horizontally. Inline `code` must not
+   become its own scroll region: identifiers already wrap below, and Firefox
+   otherwise exposes a tiny keyboard-inaccessible scroller for some UUIDs. */
+pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Long unbroken strings — a URL, an identifier — break rather than push.
+   `.tree-name` needs no entry: it only ever appears inside `.tree-row`,
+   which already breaks words. */
+code,
+.save-state {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.editor-code-block pre {
+  margin: 0;
+  padding: var(--ui-space-3) var(--ui-space-4) var(--ui-space-4);
+  border: 0;
+}
+
+/* Each version stays legible without becoming the whole screen. */
+.conflict-columns pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.editor-surface pre,
+.page-editor .bn-block-content[data-content-type="codeBlock"] pre {
   max-width: 100%;
   overflow-x: auto;
   font-family: var(--ui-font-mono);
@@ -1609,6 +1644,30 @@ textarea {
   height: var(--ui-target-compact);
   padding: 0;
   color: var(--ui-color-text-muted);
+}
+
+.page-editor a.page-link {
+  padding-inline: 0.12em;
+  color: var(--ui-color-info);
+  background: var(--ui-color-info-soft);
+  border-radius: var(--ui-radius-xs);
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.page-editor a.page-link-deleted,
+.page-editor a.page-link-unknown {
+  color: var(--ui-color-danger);
+  background: var(--ui-color-danger-soft);
+  text-decoration-style: wavy;
+}
+
+.page-editor a.page-link-unavailable {
+  color: var(--ui-color-warning);
+  background: var(--ui-color-warning-soft);
+  text-decoration-style: dashed;
 }
 
 .page-editor .editor-page-link-picker {
@@ -1697,6 +1756,269 @@ textarea {
 .editor-unknown-block > button:focus-visible {
   outline: 2px solid var(--ui-color-focus);
   outline-offset: 2px;
+}
+
+/* Rich V3 blocks keep the same quiet, content-first hierarchy as the rest of
+   the editor. Controls appear as part of the block instead of as a second app
+   chrome, and wide content owns its own horizontal scroll on narrow screens. */
+.editor-callout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--ui-space-3);
+  margin-block: var(--ui-space-1);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  background: var(--ui-color-surface-sunken);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-callout[data-tone="gray"] {
+  background: var(--ui-content-gray-soft);
+}
+
+.editor-callout[data-tone="brown"] {
+  background: var(--ui-content-brown-soft);
+}
+
+.editor-callout[data-tone="orange"] {
+  background: var(--ui-content-orange-soft);
+}
+
+.editor-callout[data-tone="yellow"] {
+  background: var(--ui-content-yellow-soft);
+}
+
+.editor-callout[data-tone="green"] {
+  background: var(--ui-content-green-soft);
+}
+
+.editor-callout[data-tone="blue"] {
+  background: var(--ui-content-blue-soft);
+}
+
+.editor-callout[data-tone="purple"] {
+  background: var(--ui-content-purple-soft);
+}
+
+.editor-callout[data-tone="pink"] {
+  background: var(--ui-content-pink-soft);
+}
+
+.editor-callout[data-tone="red"] {
+  background: var(--ui-content-red-soft);
+}
+
+.editor-callout-icon {
+  line-height: var(--ui-leading-relaxed);
+  user-select: none;
+}
+
+.editor-callout-content {
+  min-width: 0;
+}
+
+.editor-code-block {
+  margin-block: var(--ui-space-2);
+  overflow: hidden;
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-code-toolbar {
+  display: flex;
+  min-height: var(--ui-target-compact);
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-space-1);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  border-bottom: 1px solid var(--ui-color-border);
+}
+
+.editor-code-toolbar select,
+.editor-code-toolbar button,
+.editor-table-toolbar button {
+  min-height: var(--ui-target-compact);
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  font: inherit;
+  font-size: var(--ui-text-xs);
+}
+
+.editor-code-toolbar select:hover,
+.editor-code-toolbar button:hover,
+.editor-table-toolbar button:hover:not(:disabled) {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.editor-code-toolbar :focus-visible,
+.editor-table-toolbar button:focus-visible,
+.editor-image-block input:focus-visible,
+.editor-file-block input:focus-visible,
+.editor-embed-block :focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
+}
+
+.page-editor .bn-block:has(> .bn-block-content[data-content-type="table"]) {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  scrollbar-width: thin;
+}
+
+.editor-table-toolbar {
+  position: sticky;
+  left: 0;
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  min-height: var(--ui-target-compact);
+  align-items: center;
+  gap: var(--ui-space-1);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-surface-sunken);
+  border-bottom: 1px solid var(--ui-color-border);
+  font-size: var(--ui-text-xs);
+  white-space: nowrap;
+}
+
+.editor-table-toolbar > span {
+  margin-right: auto;
+  padding-inline: var(--ui-space-1);
+}
+
+.editor-table-toolbar button:disabled {
+  color: var(--ui-color-text-disabled);
+}
+
+.page-editor .bn-block:has(> .bn-block-content[data-content-type="tableRow"]) > .bn-block-group {
+  display: grid;
+  grid-auto-columns: minmax(10rem, 1fr);
+  grid-auto-flow: column;
+  width: max-content;
+  min-width: 100%;
+  padding-inline-start: 0;
+}
+
+.editor-table-row-marker {
+  display: none;
+}
+
+.editor-table-cell {
+  min-width: 10rem;
+  min-height: var(--ui-target);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-right: 1px solid var(--ui-color-border);
+  border-bottom: 1px solid var(--ui-color-border);
+}
+
+.editor-table-cell:focus-within {
+  background: var(--ui-color-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ui-color-focus);
+}
+
+.editor-image-block,
+.editor-file-block,
+.editor-embed-block {
+  width: 100%;
+  margin-block: var(--ui-space-2);
+}
+
+.editor-image-block {
+  display: grid;
+  justify-items: center;
+  gap: var(--ui-space-2);
+}
+
+.editor-image-placeholder {
+  display: grid;
+  width: min(100%, 42rem);
+  min-height: 12rem;
+  place-content: center;
+  justify-items: center;
+  gap: var(--ui-space-2);
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-image-block label,
+.editor-image-block input,
+.editor-file-block label,
+.editor-file-block input {
+  width: 100%;
+}
+
+.editor-image-block input,
+.editor-file-block input {
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  text-align: center;
+}
+
+.editor-file-block {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-file-icon {
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-xl);
+}
+
+.editor-file-block input {
+  text-align: left;
+}
+
+.editor-embed-block {
+  display: grid;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3);
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-embed-block > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+}
+
+.editor-embed-block iframe {
+  width: 100%;
+  min-height: 22rem;
+  background: var(--ui-color-surface);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+}
+
+.editor-embed-block button {
+  width: fit-content;
+  min-height: var(--ui-target);
+  padding-inline: var(--ui-space-3);
+  color: var(--ui-color-text-inverse);
+  background: var(--ui-color-accent);
+  border: 0;
+  border-radius: var(--ui-radius-sm);
 }
 
 .block-controls {
@@ -1839,20 +2161,9 @@ input[type="file"] {
   overflow-x: clip;
 }
 
-pre,
-code,
-.editor-surface pre {
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-/* Long unbroken strings — a URL, an identifier — break rather than push. */
-code,
-.tree-name,
-.save-state,
-.connection-status code {
-  overflow-wrap: anywhere;
-}
+/* The `pre`/`code` overflow floors that serve this section live beside the
+   editor's code-block rules (which they must not out-rank), earlier in this
+   file. */
 
 .connection-status {
   margin-bottom: 1rem;
@@ -2005,15 +2316,6 @@ code,
   padding: 0.5rem;
   vertical-align: top;
   text-align: left;
-}
-
-.conflict-columns pre {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  /* Each version stays legible without becoming the whole screen. */
-  max-height: 12rem;
-  overflow-y: auto;
 }
 
 .conflict-columns fieldset {

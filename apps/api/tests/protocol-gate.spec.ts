@@ -9,12 +9,18 @@
  * untested and first exercise it on the day it starts refusing real devices.
  */
 
-import { generateUuidV7, PROTOCOL_VERSION } from "@myownnotion/domain";
+import {
+  generateUuidV7,
+  MINIMUM_WRITE_VERSION,
+  PAGE_OPERATION_PROTOCOL_VERSION,
+  PROTOCOL_VERSION,
+} from "@myownnotion/domain";
 import type { FastifyRequest } from "fastify";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CLIENT_PROTOCOL_HEADER,
   ProtocolTooOldError,
+  requirePageOperationProtocol,
   requireReadProtocol,
   requireWriteProtocol,
 } from "../src/plugins/protocol.ts";
@@ -92,7 +98,25 @@ describe("what the server announces", () => {
       },
     });
     expect(response.statusCode).toBe(426);
-    expect(response.headers["x-myownnotion-required-protocol"]).toBe(String(PROTOCOL_VERSION));
+    expect(response.headers["x-myownnotion-required-protocol"]).toBe(String(MINIMUM_WRITE_VERSION));
+  });
+});
+
+describe("the editorial capability boundary", () => {
+  it("keeps protocol 2 general writes but refuses operational page writes", () => {
+    expect(() => requireWriteProtocol(requestAnnouncing("2"))).not.toThrow();
+
+    let thrown: unknown;
+    try {
+      requirePageOperationProtocol(requestAnnouncing("2"));
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(ProtocolTooOldError);
+    expect(thrown).toMatchObject({
+      requiredVersion: PAGE_OPERATION_PROTOCOL_VERSION,
+      readable: true,
+    });
   });
 });
 

@@ -27,9 +27,12 @@ import {
   apiOrigin,
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
+  editorApplyCount,
   openWorkspace,
+  saveDocument,
   selectItem,
   uniqueName,
+  waitForEditorSettled,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -97,18 +100,45 @@ async function selectLastTwoBlocks(page: Page, editor: Locator): Promise<void> {
   const later = inlineContent(blocks.nth(count - 1));
   await earlier.scrollIntoViewIfNeeded();
   await later.scrollIntoViewIfNeeded();
-  const earlierBox = await earlier.boundingBox();
-  const laterBox = await later.boundingBox();
-  if (earlierBox === null || laterBox === null)
-    throw new Error("Les deux blocs doivent être visibles.");
-
-  await page.mouse.move(laterBox.x + laterBox.width - 2, laterBox.y + laterBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(earlierBox.x + 2, earlierBox.y + earlierBox.height / 2, { steps: 8 });
-  await page.mouse.up();
+  await editor.evaluate((root) => {
+    const visibleBlocks = root.querySelectorAll(
+      ":scope > .bn-block-group > .bn-block-outer[data-id]",
+    );
+    const first = visibleBlocks.item(visibleBlocks.length - 2).querySelector(".bn-inline-content");
+    const last = visibleBlocks.item(visibleBlocks.length - 1).querySelector(".bn-inline-content");
+    if (!(first instanceof HTMLElement) || !(last instanceof HTMLElement)) {
+      throw new Error("Les deux blocs doivent être visibles.");
+    }
+    (root as HTMLElement).focus();
+    const range = document.createRange();
+    range.setStart(first, 0);
+    range.setEnd(last, last.childNodes.length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
     .toContain("second");
+}
+
+async function applyEditorHistory(page: Page, action: "undo" | "redo"): Promise<void> {
+  await waitForEditorSettled(page);
+  // A selected range owns BlockNote's transient formatting toolbar. Finish
+  // that interaction before starting the independent history action, then put
+  // the target in the unobscured middle of a narrow viewport: WebKit otherwise
+  // aligns it underneath the sticky page header while trying to click it.
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".bn-formatting-toolbar")).toBeHidden();
+  const control = page.getByTestId(action);
+  await control.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect(control).toBeEnabled();
+  await control.click();
+  // The sequence identifies settled activity bursts, not every action. An SSE
+  // projection can begin a burst between the precondition above and this click,
+  // so a successful history action may intentionally settle without incrementing
+  // it again. The assertions after each call prove the actual undo/redo result.
+  await waitForEditorSettled(page);
 }
 
 test.describe("writing with Markdown-style shortcuts", () => {
@@ -180,6 +210,7 @@ test.describe("the contextual BlockNote controls", () => {
     await dividerMenu.getByRole("option", { name: /^Diviseur/u }).click();
     await expect(dividerMenu).toBeHidden();
     await expect(editor.locator("hr")).toBeVisible();
+    await waitForEditorSettled(page);
 
     // One click on the contextual plus opens the adjacent insertion point and
     // its localized choices. An existing empty trailing block is reused.
@@ -204,11 +235,17 @@ test.describe("the contextual BlockNote controls", () => {
 
     // The handle itself exposes the same durable actions without requiring a
     // secondary click or a global toolbar.
+    await saveDocument(page, { until: "synced" });
     await contextualBlock.hover();
     await page.getByRole("button", { name: "Ouvrir le menu du bloc" }).click();
-    await page.getByRole("menuitem", { name: "Dupliquer" }).click();
+    // Opening a menu can overlap the tail of an SSE echo. The burst sequence
+    // deliberately does not increment twice inside that same quiet window, so
+    // the authoritative apply count is the specific witness for duplication.
+    const beforeDuplicate = await editorApplyCount(page);
+    await page.getByTestId("side-menu-duplicate").click();
+    await waitForEditorSettled(page, { afterApplyCount: beforeDuplicate });
     await expect(editor.getByText("À transformer", { exact: true })).toHaveCount(2);
-    await page.getByTestId("undo").click();
+    await applyEditorHistory(page, "undo");
     await expect(editor.getByText("À transformer", { exact: true })).toHaveCount(1);
   });
 
@@ -224,7 +261,14 @@ test.describe("the contextual BlockNote controls", () => {
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.press("Delete");
     await editor.pressSequentially("Texte à relier");
+    // The synthetic typing above deliberately runs much faster than a person
+    // can type. Let its local commits become durable before starting the
+    // separate selection gesture, so a late projection cannot collapse it.
+    await saveDocument(page);
     await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+    await expect
+      .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""))
+      .toContain("relier");
 
     const toolbar = page.locator(".bn-formatting-toolbar");
     await expect(toolbar).toBeVisible();
@@ -236,21 +280,22 @@ test.describe("the contextual BlockNote controls", () => {
     await toolbar.getByRole("button", { name: "Lien vers une page" }).click();
     const picker = page.locator(".editor-page-link-picker");
     await expect(picker).toBeVisible();
+    await picker.getByLabel("Lien vers une page").fill(targetName);
     await picker.getByRole("option", { name: targetName }).click();
-    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toContainText("relier");
+    await expect(editor.locator('a[href^="#page="]')).toContainText("relier");
 
     // Formatting and page-link creation are two independent local gestures.
     // Undo removes only the latest one, then the preceding style; redo restores
     // both without touching unrelated content.
-    await page.getByTestId("undo").click();
-    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toHaveCount(0);
+    await applyEditorHistory(page, "undo");
+    await expect(editor.locator('a[href^="#page="]')).toHaveCount(0);
     await expect(editor.locator("strong")).toContainText("relier");
-    await page.getByTestId("undo").click();
+    await applyEditorHistory(page, "undo");
     await expect(editor.locator("strong")).toHaveCount(0);
-    await page.getByTestId("redo").click();
-    await page.getByTestId("redo").click();
+    await applyEditorHistory(page, "redo");
+    await applyEditorHistory(page, "redo");
     await expect(editor.locator("strong")).toContainText("relier");
-    await expect(editor.locator(`a[href^="myownnotion:page:"]`)).toContainText("relier");
+    await expect(editor.locator('a[href^="#page="]')).toContainText("relier");
   });
 });
 
@@ -267,11 +312,11 @@ test.describe("operational undo", () => {
     await page.getByTestId("context-transform-heading").click();
     await expect(editor.locator("h1")).toContainText("avant");
 
-    await page.getByTestId("undo").click();
+    await applyEditorHistory(page, "undo");
     await expect(editor.locator("h1")).toHaveCount(0);
     await expect(editor.locator("p")).toContainText("avant");
 
-    await page.getByTestId("redo").click();
+    await applyEditorHistory(page, "redo");
     await expect(editor.locator("h1")).toContainText("avant");
   });
 
@@ -284,6 +329,7 @@ test.describe("operational undo", () => {
     await typeParagraphs(editor, ["premier", "second", "troisième"]);
     await expect(rootBlocks(editor)).toHaveCount(3);
     await expect(page.getByTestId("editor-error")).toHaveCount(0);
+    await saveDocument(page);
 
     // A native range spanning two blocks is the same group the drag handle
     // uses. Move it through the keyboard-equivalent DnD path.
@@ -335,8 +381,7 @@ test.describe("the document survives", () => {
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.press("Delete");
     await surface(page).pressSequentially("# Kept");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await page.reload();
@@ -353,12 +398,16 @@ test.describe("the document survives", () => {
 
 test.describe("a block this client does not recognise", () => {
   test("is shown as unrenderable and kept unchanged through an edit", async ({ page, request }) => {
-    // FR-006 and SC-009, end to end. Seeded through the API with a block type
-    // no client version knows, then edited and saved from the editor: the
-    // unknown block must come back byte for byte.
+    // FR-030 and FR-070, end to end. Seeded through the API with a block type
+    // no client version knows — before the first open, so the seed cannot race
+    // the editor — then edited from the editor: the unknown block must come
+    // back byte for byte through conversion, synchronization and canonical
+    // materialization.
     const name = uniqueName("UnknownBlockPage");
-    const itemId = await openPage(page, name);
-
+    await openWorkspace(page);
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    const itemId = (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
 
@@ -381,12 +430,12 @@ test.describe("a block this client does not recognise", () => {
     });
     expect(seeded.ok(), await seeded.text()).toBe(true);
 
+    // The document was written straight to the server, so the client has to
+    // pull it before the editor can render it. Without this the test races
+    // the reconciler: it passed on a fast machine, failed on a loaded CI
+    // runner, and reported itself flaky rather than wrong.
     await page.reload();
     await openWorkspace(page);
-    // The document was written straight to the server, so the client has to
-    // pull it before the editor can render it. Without this the test races the
-    // reconciler: it passed on a fast machine, failed on a loaded CI runner,
-    // and reported itself flaky rather than wrong.
     await waitForSynchronized(page);
     await selectItem(page, name);
 
@@ -396,13 +445,11 @@ test.describe("a block this client does not recognise", () => {
     await expect(placeholder).toBeVisible({ timeout: 30_000 });
     await expect(placeholder).toContainText("kanbanBoard");
 
-    // Now edit around it and save.
+    // Now edit beside it; autosave makes the edit durable and synchronized.
     await placeholder.click({ button: "right" });
     await page.getByTestId("context-insert-after").click();
     await surface(page).pressSequentially("a paragraph beside it");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
-    await waitForSynchronized(page);
+    await saveDocument(page, { until: "synced" });
 
     const after = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const body = (await after.json()) as {
@@ -414,23 +461,35 @@ test.describe("a block this client does not recognise", () => {
 });
 
 test.describe("a page written before the block editor existed", () => {
-  test("opens read-only and is not rewritten until the owner converts it", async ({
+  test("opens editable with its content intact and migrates only on first use", async ({
     page,
     request,
   }) => {
-    // A read is not a write. A client that rewrote an owner's stored document
-    // on open would be doing something they did not ask for and cannot audit.
+    // A read is not a rewrite. Opening a never-activated page migrates nothing
+    // (plan §6): the owner's text arrives intact, no revision is created by
+    // looking, and the stored document protocol keeps accepting plain writes.
+    // History moves when they write, not when they read (FR-064).
     const name = uniqueName("LegacyPage");
-    const itemId = await openPage(page, name);
-
+    await openWorkspace(page);
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    const itemId = (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
-    const legacyBody = { text: "written by an older client", count: 3 };
+    const seededBody = {
+      blocks: [
+        {
+          type: "paragraph",
+          id: "01924f8e-7c1a-7000-8000-0000000000aa",
+          content: [{ type: "text", text: "written by an older client" }],
+        },
+      ],
+    };
     const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {
         baseRevisionId: head,
-        document: { format: "myownnotion.document+json", formatVersion: 1, body: legacyBody },
+        document: { format: "myownnotion.document+json", formatVersion: 2, body: seededBody },
       },
     });
     expect(seeded.ok(), await seeded.text()).toBe(true);
@@ -438,25 +497,62 @@ test.describe("a page written before the block editor existed", () => {
 
     await page.reload();
     await openWorkspace(page);
-    // The document was written straight to the server, so the client has to
-    // pull it before the editor can render it. Without this the test races the
-    // reconciler: it passed on a fast machine, failed on a loaded CI runner,
-    // and reported itself flaky rather than wrong.
     await waitForSynchronized(page);
     await selectItem(page, name);
 
-    await expect(page.getByTestId("legacy-document-notice")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("legacy-document-body")).toContainText("older client");
+    // The existing text survives and is immediately editable.
+    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(surface(page)).toContainText("written by an older client", { timeout: 30_000 });
 
-    // Nothing was written merely by looking at it: the head has not moved.
+    // Nothing was written merely by looking at it: the head has not moved and
+    // the stored document protocol still accepts a plain v2 write.
     const afterOpen = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const afterHead = ((await afterOpen.json()) as { currentRevisionId: string }).currentRevisionId;
     if (seededHead !== undefined) {
       expect(afterHead).toBe(seededHead);
     }
+    const stillPlain = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
+      data: {
+        baseRevisionId: afterHead,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: {
+            blocks: [
+              ...seededBody.blocks,
+              {
+                type: "paragraph",
+                id: "01924f8e-7c1a-7000-8000-0000000000ab",
+                content: [{ type: "text", text: "appended without activating" }],
+              },
+            ],
+          },
+        },
+      },
+    });
+    expect(stillPlain.ok(), await stillPlain.text()).toBe(true);
+    await page.reload();
+    await openWorkspace(page);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    await expect(surface(page)).toContainText("appended without activating", { timeout: 30_000 });
 
-    // Converting is the owner's action, and it keeps the original content.
-    await page.getByTestId("convert-legacy-document").click();
-    await expect(page.getByTestId("block-editor")).toBeVisible();
+    // The first real edit goes through the operational path and keeps what
+    // was already there.
+    const editor = surface(page);
+    // Clicking the retained paragraph focuses the surface — after a reload,
+    // mobile browsers do not hand focus to the editor on selection alone.
+    await blockContent(rootBlocks(editor).last()).click();
+    const continued = await appendParagraph(editor);
+    await typeIntoBlock(editor, continued, "continued today after activation");
+    await saveDocument(page, { until: "synced" });
+    await expect(surface(page)).toContainText("appended without activating");
+    await expect(surface(page)).toContainText("continued today after activation");
+
+    const afterEdit = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
+    const editedHead = ((await afterEdit.json()) as { currentRevisionId: string })
+      .currentRevisionId;
+    expect(editedHead).not.toBe(afterHead);
   });
 });

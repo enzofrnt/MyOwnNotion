@@ -16,6 +16,7 @@ import {
   openItemActions,
   openWorkspace,
   openWorkspaceDiagnostics,
+  saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -142,8 +143,7 @@ test.describe("what this device says it is holding", () => {
     await context.setOffline(true);
     try {
       await typeIntoEditor(page, "written while offline and never sent");
-      await page.getByTestId("save-document").click();
-      await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+      await saveDocument(page);
 
       // Squeeze the device: 1 GB is the smallest offered, and the eviction pass
       // runs against whatever it measures.

@@ -121,6 +121,19 @@ describe("an unknown block type", () => {
     const document = expectOk(validateDocument(body(stored)));
     expect(serialiseDocument(document)).toEqual({ blocks: [stored] });
   });
+
+  it("parses an already-wrapped unknown block to itself, not a nested wrapper", () => {
+    // A client that parsed a document once puts the canonical in-memory
+    // wrapper back on the wire. The next parse — the server re-reading a
+    // supplied envelope, or this device re-reading its own write — must land
+    // on the same block again. Nesting a wrapper inside itself would change
+    // the canonical bytes and silently break every digest over the document.
+    const stored = { type: "kanbanBoard", id: generateUuidV7(), columns: 3, nested: { a: [1] } };
+    const firstPass = expectOk(validateDocument(body(stored)));
+    const wireBody = { blocks: JSON.parse(JSON.stringify(firstPass.blocks)) as unknown[] };
+    const secondPass = expectOk(validateDocument(wireBody));
+    expect(secondPass).toEqual(firstPass);
+  });
 });
 
 describe("a malformed known block", () => {

@@ -22,6 +22,15 @@ const LABELS: Record<string, string> = {
   "quota-failure": "Not saved — local storage is unavailable or full; the last change was rejected",
 };
 
+const COMPACT_LABELS: Record<string, string> = {
+  offline: "Saved offline",
+  pending: "Saved locally",
+  syncing: "Synchronizing…",
+  synced: "Synchronized",
+  conflict: "Conflict to resolve",
+  "quota-failure": "Not saved",
+};
+
 export function SyncStatus({ service }: { readonly service: LocalContentService }) {
   const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot);
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
@@ -41,6 +50,14 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
     });
   }, []);
 
+  const pendingDetail = snapshot.pendingCount > 0 ? ` (${snapshot.pendingCount} pending)` : "";
+  const conflictDetail =
+    snapshot.conflictCount > 0 ? ` (${snapshot.conflictCount} unresolved conflicts)` : "";
+  const storageDetail =
+    snapshot.storagePersisted === false ? " — durable storage was not granted" : "";
+  const detailedLabel = `${LABELS[snapshot.syncState] ?? snapshot.syncState}${pendingDetail}${conflictDetail}${storageDetail}`;
+  const compactLabel = `${COMPACT_LABELS[snapshot.syncState] ?? snapshot.syncState}${pendingDetail}${conflictDetail}${snapshot.storagePersisted === false ? " · temporary storage" : ""}`;
+
   return (
     <div>
       <p
@@ -49,11 +66,12 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
         data-testid="sync-status"
         role="status"
         aria-live="polite"
+        title={detailedLabel}
       >
-        {LABELS[snapshot.syncState] ?? snapshot.syncState}
-        {snapshot.pendingCount > 0 ? ` (${snapshot.pendingCount} pending)` : ""}
-        {snapshot.conflictCount > 0 ? ` (${snapshot.conflictCount} unresolved conflicts)` : ""}
-        {snapshot.storagePersisted === false ? " — durable storage was not granted" : ""}
+        <span className="workspace-status__full">{detailedLabel}</span>
+        <span className="workspace-status__compact" aria-hidden="true">
+          {compactLabel}
+        </span>
       </p>
       <ConnectionState status={stream} />
       {quotaWarning !== null ? (

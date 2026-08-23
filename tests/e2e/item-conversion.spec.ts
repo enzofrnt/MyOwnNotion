@@ -24,6 +24,7 @@ import {
   expectNoHorizontalOverflow,
   openWorkspace,
   readTreeOrder,
+  saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -98,8 +99,7 @@ test.describe("turning a folder into a page", () => {
     await selectItem(page, folder);
 
     await typeIntoEditor(page, "now it has words");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await page.reload();
@@ -138,8 +138,7 @@ test.describe("turning a page into a folder", () => {
     await waitForSynchronized(page);
     await selectItem(page, written);
     await typeIntoEditor(page, "something worth keeping");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await activateConversion(page, written);
@@ -165,8 +164,7 @@ test.describe("turning a page into a folder", () => {
     await waitForSynchronized(page);
     await selectItem(page, kept);
     await typeIntoEditor(page, "still here afterwards");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await activateConversion(page, kept);
@@ -190,8 +188,7 @@ test.describe("turning a page into a folder", () => {
 
     await selectItem(page, parent);
     await typeIntoEditor(page, "about to be deleted");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await activateConversion(page, parent);
@@ -226,8 +223,7 @@ test.describe("the confirmation as a dialog", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
     await typeIntoEditor(page, "content that triggers the dialog");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await activateConversion(page, name);
@@ -245,8 +241,7 @@ test.describe("the confirmation as a dialog", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
     await typeIntoEditor(page, "content that triggers the dialog");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await activateConversion(page, name);
@@ -265,8 +260,7 @@ test.describe("at a narrow viewport", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
     await typeIntoEditor(page, "content that triggers the dialog");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await activateConversion(page, name);

@@ -168,6 +168,9 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
         if (stopped) {
           return;
         }
+        // Operational pages reconcile through their own exchanges; the
+        // workspace pass cannot pull their encrypted deltas.
+        serviceRef.current?.synchronizeOpenPages();
         // The state *now*, not the value that pass resolved with. Passes are
         // coalesced: a caller arriving while one is running joins it and receives
         // the state of the pass it joined, which can predate the announcement that

@@ -901,3 +901,100 @@ describe("passkey enrollment", () => {
     expect((stored as unknown as { rows: unknown[] }).rows).toHaveLength(0);
   });
 });
+
+describe("session lifecycle and password change coverage", () => {
+  it("signs the current session out and refuses its cookie afterwards", async () => {
+    await seedOwner();
+    const auth = await authenticate();
+    const signedOut = await inject({
+      method: "DELETE",
+      url: "/v1/auth/session",
+      headers: authHeaders(auth),
+    });
+    expect(signedOut.statusCode).toBe(204);
+    const afterwards = await inject({
+      method: "GET",
+      url: "/v1/auth/session",
+      headers: { cookie: `${COOKIE}=${auth.cookie}` },
+    });
+    expect(afterwards.statusCode).toBe(401);
+  });
+
+  it("refuses sign-out without CSRF and revokes every other session at once", async () => {
+    await seedOwner();
+    const actor = await authenticate();
+    const other = await authenticate();
+
+    const noCsrf = await inject({
+      method: "POST",
+      url: "/v1/auth/sessions/revoke-all",
+      headers: { cookie: `${COOKIE}=${actor.cookie}` },
+    });
+    expect(noCsrf.statusCode).toBe(403);
+
+    const revoked = await inject({
+      method: "POST",
+      url: "/v1/auth/sessions/revoke-all",
+      headers: authHeaders(actor),
+    });
+    expect(revoked.statusCode).toBe(204);
+
+    // The acting session survives; every other session is gone.
+    const stillAlive = await inject({
+      method: "GET",
+      url: "/v1/auth/session",
+      headers: { cookie: `${COOKIE}=${actor.cookie}` },
+    });
+    expect(stillAlive.statusCode).toBe(200);
+    const othersGone = await inject({
+      method: "GET",
+      url: "/v1/auth/session",
+      headers: { cookie: `${COOKIE}=${other.cookie}` },
+    });
+    expect(othersGone.statusCode).toBe(401);
+  });
+
+  it("changes the password with recent authentication and retires the old one", async () => {
+    await seedOwner({ withPassword: true });
+    const auth = await authenticate();
+
+    const weak = await inject({
+      method: "PUT",
+      url: "/v1/auth/password",
+      headers: authHeaders(auth),
+      payload: { newPassword: "court" },
+    });
+    expect(weak.statusCode).toBe(400);
+
+    const changed = await inject({
+      method: "PUT",
+      url: "/v1/auth/password",
+      headers: authHeaders(auth),
+      payload: { newPassword: "une phrase de passe solide" },
+    });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json()).toMatchObject({ configured: true, state: "active" });
+
+    const oldLogin = await login(PASSWORD);
+    expect(oldLogin.statusCode).toBe(401);
+    const newLogin = await login("une phrase de passe solide");
+    expect(newLogin.statusCode, newLogin.body).toBe(200);
+  });
+
+  it("refuses a password change without recent authentication", async () => {
+    await seedOwner({ withPassword: true });
+    const auth = await authenticate();
+    // Age the session past the recent-authentication window.
+    await harness.built.database.db.execute(sql`
+      UPDATE sessions SET recent_auth_at = now() - interval '1 day'
+      WHERE id = (SELECT id FROM sessions LIMIT 1)
+    `);
+    const stale = await inject({
+      method: "PUT",
+      url: "/v1/auth/password",
+      headers: authHeaders(auth),
+      payload: { newPassword: "une phrase de passe solide" },
+    });
+    expect([401, 403, 428]).toContain(stale.statusCode);
+  });
+});

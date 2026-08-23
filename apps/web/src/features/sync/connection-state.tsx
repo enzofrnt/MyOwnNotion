@@ -25,6 +25,14 @@ const LABELS: Record<ChangeStreamStatus["state"], string> = {
   "needs-update": "This device needs an update before it can synchronize again.",
 };
 
+const COMPACT_LABELS: Record<ChangeStreamStatus["state"], string> = {
+  connecting: "Connecting live updates…",
+  live: "Live updates",
+  local: "Live updates paused",
+  revoked: "Device access revoked",
+  "needs-update": "Device update required",
+};
+
 /** The two states that will not clear on their own. */
 function isRefusal(state: ChangeStreamStatus["state"]): boolean {
   return state === "revoked" || state === "needs-update";
@@ -32,6 +40,7 @@ function isRefusal(state: ChangeStreamStatus["state"]): boolean {
 
 export function ConnectionState({ status }: { readonly status: ChangeStreamStatus }) {
   const refused = isRefusal(status.state);
+  const detailedLabel = `${LABELS[status.state]}${refused && status.refusal !== null ? ` ${status.refusal}` : ""}`;
   return (
     <p
       className={refused ? "status-banner" : "muted"}
@@ -42,11 +51,12 @@ export function ConnectionState({ status }: { readonly status: ChangeStreamStatu
       // announce a routine proxy timeout in the same voice as a withdrawn
       // device, and an owner would learn to ignore both.
       role={refused ? "alert" : "status"}
+      title={detailedLabel}
     >
-      {LABELS[status.state]}
-      {/* The server's own sentence, when it gave one. It names the version to
-          update to, which no message written here could know. */}
-      {refused && status.refusal !== null ? ` ${status.refusal}` : ""}
+      <span className="workspace-status__full">{detailedLabel}</span>
+      <span className="workspace-status__compact" aria-hidden="true">
+        {COMPACT_LABELS[status.state]}
+      </span>
     </p>
   );
 }

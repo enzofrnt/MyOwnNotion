@@ -13,6 +13,7 @@ import { DatabasePage } from "../src/features/databases/database-page.tsx";
 import { EntryPanel } from "../src/features/databases/entry-panel.tsx";
 import {
   PropertyEditor,
+  propertyDraftFromFormData,
   validatePropertyDraft,
 } from "../src/features/databases/property-editor.tsx";
 import { ValueEditor, validateValueDraft } from "../src/features/databases/value-editor.tsx";
@@ -105,6 +106,17 @@ describe("database editor surfaces (T022)", () => {
     );
     expect(markup).toContain('value="   "');
     expect(markup).toContain('role="alert"');
+  });
+
+  it("submits the current option text even before the controlled draft rerenders", () => {
+    const data = new FormData();
+    data.set("property-name", "Status");
+    data.set("property-type", "status");
+    data.set("property-options", "To do, Done");
+
+    expect(
+      propertyDraftFromFormData(data, { name: "Status", type: "status", optionsText: "" }),
+    ).toEqual({ name: "Status", type: "status", optionsText: "To do, Done" });
   });
 
   it("renders the schema and fixed actions without turning the database into a new item kind", () => {

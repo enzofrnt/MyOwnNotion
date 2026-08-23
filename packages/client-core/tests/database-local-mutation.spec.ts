@@ -303,3 +303,204 @@ describe("atomic structured local mutation (T021)", () => {
     expect(await db.outbox.count()).toBe(0);
   });
 });
+
+describe("database entry value validation", () => {
+  it("rejects values for properties that do not exist or are title/relation", async () => {
+    const create = createPayload();
+    expect((await apply("database.create", create)).ok).toBe(true);
+    const current = await databases.getDatabase(create.id);
+    if (current === null) throw new Error("database missing");
+    const entryId = generateUuidV7();
+
+    // A property id that was never defined.
+    const unknownProperty = await apply("database.entry.create", {
+      databaseId: create.id,
+      id: entryId,
+      title: "Entry",
+      placement: { id: generateUuidV7(), parentItemId: create.id, positionKey: "a" },
+      values: { [generateUuidV7()]: { kind: "text", value: "x" } },
+      relationTargets: {},
+    });
+    expect(unknownProperty.ok).toBe(false);
+
+    // The title property cannot receive structured values.
+    const titlePropertyId = current.definition.properties.find(
+      (property) => property.type === "title",
+    )?.id;
+    if (titlePropertyId === undefined) throw new Error("no title property");
+    const onTitle = await apply("database.entry.values.replace", {
+      databaseId: create.id,
+      entryId,
+      baseRevisionId: generateUuidV7(),
+      values: { [titlePropertyId]: { kind: "text", value: "x" } },
+      relationTargets: {},
+    });
+    expect(onTitle.ok).toBe(false);
+  });
+
+  it("rejects relation targets on a non-relation property and unavailable endpoints", async () => {
+    const create = createPayload();
+    expect((await apply("database.create", create)).ok).toBe(true);
+    const current = await databases.getDatabase(create.id);
+    if (current === null) throw new Error("database missing");
+    const textPropertyId = generateUuidV7();
+    const relationPropertyId = generateUuidV7();
+    const definition = expandedDefinition(current.definition, textPropertyId, relationPropertyId);
+    expect(
+      (
+        await apply("database.definition.replace", {
+          databaseId: create.id,
+          baseRevisionId: (await items.getItem(create.id))?.currentRevisionId ?? generateUuidV7(),
+          definition,
+        })
+      ).ok,
+    ).toBe(true);
+
+    const entryId = generateUuidV7();
+    expect(
+      (
+        await apply("database.entry.create", {
+          databaseId: create.id,
+          id: entryId,
+          title: "Entry",
+          placement: { id: generateUuidV7(), parentItemId: create.id, positionKey: "a" },
+          values: { [textPropertyId]: { kind: "text", value: "ok" } },
+          relationTargets: { [relationPropertyId]: [] },
+        })
+      ).ok,
+    ).toBe(true);
+
+    // Relation targets on a text property are refused.
+    const onText = await apply("database.entry.values.replace", {
+      databaseId: create.id,
+      entryId,
+      baseRevisionId: (await items.getItem(entryId))?.currentRevisionId ?? generateUuidV7(),
+      values: {},
+      relationTargets: { [textPropertyId]: [generateUuidV7()] },
+    });
+    expect(onText.ok).toBe(false);
+
+    // Relation targets pointing at a purged item are refused.
+    const purgedId = generateUuidV7();
+    const onPurged = await apply("database.entry.values.replace", {
+      databaseId: create.id,
+      entryId,
+      baseRevisionId: (await items.getItem(entryId))?.currentRevisionId ?? generateUuidV7(),
+      values: {},
+      relationTargets: { [relationPropertyId]: [purgedId] },
+    });
+    expect(onPurged.ok).toBe(false);
+  });
+});
+
+describe("database definition and value validation errors", () => {
+  it("rejects a definition replace whose base revision is stale", async () => {
+    const create = createPayload();
+    expect((await apply("database.create", create)).ok).toBe(true);
+    const current = await databases.getDatabase(create.id);
+    if (current === null) throw new Error("database missing");
+    const textPropertyId = generateUuidV7();
+    const relationPropertyId = generateUuidV7();
+    const definition = expandedDefinition(current.definition, textPropertyId, relationPropertyId);
+    // Use a wrong base revision so the stale-base guard fires.
+    const stale = await apply("database.definition.replace", {
+      databaseId: create.id,
+      baseRevisionId: generateUuidV7(),
+      definition,
+    });
+    expect(stale.ok).toBe(false);
+  });
+
+  it("rejects entry values whose normalisation fails", async () => {
+    const create = createPayload();
+    expect((await apply("database.create", create)).ok).toBe(true);
+    const current = await databases.getDatabase(create.id);
+    if (current === null) throw new Error("database missing");
+    const textPropertyId = generateUuidV7();
+    const numberPropertyId = generateUuidV7();
+    const relationPropertyId = generateUuidV7();
+    const definition: typeof current.definition = {
+      ...current.definition,
+      properties: [
+        ...current.definition.properties,
+        {
+          id: textPropertyId,
+          name: "Text",
+          type: "text",
+          positionKey: "b",
+          state: "active",
+          config: {},
+        },
+        {
+          id: numberPropertyId,
+          name: "Number",
+          type: "number",
+          positionKey: "c",
+          state: "active",
+          config: {},
+        },
+        {
+          id: relationPropertyId,
+          name: "Rel",
+          type: "relation",
+          positionKey: "d",
+          state: "active",
+          config: { cardinality: "many" },
+        },
+      ],
+      views: current.definition.views.map((view) => ({
+        ...view,
+        properties: [
+          ...view.properties,
+          { propertyId: textPropertyId, visible: true, positionKey: "b" },
+          { propertyId: numberPropertyId, visible: true, positionKey: "c" },
+          { propertyId: relationPropertyId, visible: true, positionKey: "d" },
+        ],
+      })),
+    };
+    expect(
+      (
+        await apply("database.definition.replace", {
+          databaseId: create.id,
+          baseRevisionId: (await items.getItem(create.id))?.currentRevisionId ?? generateUuidV7(),
+          definition,
+        })
+      ).ok,
+    ).toBe(true);
+
+    const entryId = generateUuidV7();
+    // Create the entry first.
+    expect(
+      (
+        await apply("database.entry.create", {
+          databaseId: create.id,
+          id: entryId,
+          title: "Entry",
+          placement: { id: generateUuidV7(), parentItemId: create.id, positionKey: "a" },
+          values: {},
+          relationTargets: {},
+        })
+      ).ok,
+    ).toBe(true);
+
+    // An invalid decimal string fails normalisation.
+    const badDecimal = await apply("database.entry.values.replace", {
+      databaseId: create.id,
+      entryId,
+      baseRevisionId: (await items.getItem(entryId))?.currentRevisionId ?? generateUuidV7(),
+      values: { [numberPropertyId]: { kind: "number", value: "not-a-number" } },
+      relationTargets: {},
+    });
+    expect(badDecimal.ok).toBe(false);
+
+    // An absent optional value triggers the "absent" error path.
+    const absentValue = await apply("database.entry.values.replace", {
+      databaseId: create.id,
+      entryId,
+      baseRevisionId: (await items.getItem(entryId))?.currentRevisionId ?? generateUuidV7(),
+      values: { [textPropertyId]: { kind: "text", value: "" } },
+      relationTargets: {},
+    });
+    expect(absentValue.ok).toBe(true);
+  });
+});

@@ -27,6 +27,12 @@ import {
   createDatabaseQueryService,
   type DatabaseQueryService,
 } from "./databases/database-query-service.ts";
+import { CanonicalMaterializer } from "./page-state/canonical-materializer.ts";
+import { LegacyBranchService } from "./page-state/legacy-branch-service.ts";
+import { PageActivationService } from "./page-state/page-activation-service.ts";
+import { PageAmbiguityService } from "./page-state/page-ambiguity-service.ts";
+import { PageOperationCrypto } from "./page-state/page-operation-crypto.ts";
+import { PageOperationService } from "./page-state/page-operation-service.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
 import { registerProtocolAnnouncement } from "./plugins/protocol.ts";
@@ -44,6 +50,7 @@ import { registerInstallationRoutes } from "./routes/installation.ts";
 import { registerItemRoutes } from "./routes/items.ts";
 import { registerMutationBatchRoutes } from "./routes/mutation-batch.ts";
 import { registerPageDocumentRoutes } from "./routes/page-documents.ts";
+import { registerPageOperationRoutes } from "./routes/page-operations.ts";
 import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
@@ -339,46 +346,45 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     // route can seal its payload without knowing anything about key
     // generations. Absent when security is not configured, which is what keeps
     // the feature-001 harness behaving exactly as it did.
-    protectedContent = new ProtectedContent({
-      records: new ProtectedRecordService({
-        db: database.db,
-        keys: keyHierarchy,
-        installationId: INSTALLATION_ID,
-        workspaceId: workspace.id,
-        now,
-        // A refused envelope is the one integrity signal an operator cannot
-        // reconstruct afterwards: the request is answered with an opaque
-        // refusal and nothing is left behind. `AuditService.record` swallows
-        // its own failures, so recording can never turn the refusal into a
-        // different error.
-        reportIntegrityFailure: async (failure) => {
-          await audit.record(
-            {
-              installationId: INSTALLATION_ID,
-              workspaceId: workspace.id,
-              // No request is in scope here — this is reached from inside a
-              // repository read — so the event carries its own correlation id
-              // rather than borrowing one it cannot verify.
-              correlationId: randomUUID(),
-              actorClass: "system",
+    const protectedRecords = new ProtectedRecordService({
+      db: database.db,
+      keys: keyHierarchy,
+      installationId: INSTALLATION_ID,
+      workspaceId: workspace.id,
+      now,
+      // A refused envelope is the one integrity signal an operator cannot
+      // reconstruct afterwards: the request is answered with an opaque
+      // refusal and nothing is left behind. `AuditService.record` swallows
+      // its own failures, so recording can never turn the refusal into a
+      // different error.
+      reportIntegrityFailure: async (failure) => {
+        await audit.record(
+          {
+            installationId: INSTALLATION_ID,
+            workspaceId: workspace.id,
+            // No request is in scope here — this is reached from inside a
+            // repository read — so the event carries its own correlation id
+            // rather than borrowing one it cannot verify.
+            correlationId: randomUUID(),
+            actorClass: "system",
+          },
+          {
+            eventType: "integrity.envelope-rejected",
+            outcome: "failure",
+            objectKind: failure.entityType,
+            objectId: failure.entityId,
+            // Reason, generation and version only. No ciphertext, no key,
+            // no opened bytes — the audit trail must stay safe to read.
+            metadata: {
+              reason: failure.reason,
+              keyGeneration: failure.keyGeneration,
+              recordVersion: failure.recordVersion,
             },
-            {
-              eventType: "integrity.envelope-rejected",
-              outcome: "failure",
-              objectKind: failure.entityType,
-              objectId: failure.entityId,
-              // Reason, generation and version only. No ciphertext, no key,
-              // no opened bytes — the audit trail must stay safe to read.
-              metadata: {
-                reason: failure.reason,
-                keyGeneration: failure.keyGeneration,
-                recordVersion: failure.recordVersion,
-              },
-            },
-          );
-        },
-      }),
+          },
+        );
+      },
     });
+    protectedContent = new ProtectedContent({ records: protectedRecords });
 
     search = createDatabaseSearchService({
       db: database.db,
@@ -528,6 +534,54 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       audit,
       installationId: INSTALLATION_ID,
       require: requireOwner,
+    });
+
+    const pageOperationCrypto = new PageOperationCrypto(protectedRecords);
+    const canonicalMaterializer = new CanonicalMaterializer(protectedContent);
+    const pageActivation = new PageActivationService({
+      db: database.db,
+      workspaceId: workspace.id,
+      crypto: pageOperationCrypto,
+      protectedContent,
+      rotationPolicies,
+      now,
+    });
+    const pageOperations = new PageOperationService({
+      db: database.db,
+      workspaceId: workspace.id,
+      crypto: pageOperationCrypto,
+      materializer: canonicalMaterializer,
+      rotationPolicies,
+      search,
+      now,
+    });
+    const pageAmbiguities = new PageAmbiguityService({
+      db: database.db,
+      workspaceId: workspace.id,
+      crypto: pageOperationCrypto,
+      operations: pageOperations,
+      materializer: canonicalMaterializer,
+      rotationPolicies,
+      now,
+    });
+    registerPageOperationRoutes(app, {
+      db: database.db,
+      require: requireOwner,
+      activation: pageActivation,
+      operations: pageOperations,
+      ambiguities: pageAmbiguities,
+      legacy: new LegacyBranchService({
+        db: database.db,
+        workspaceId: workspace.id,
+        crypto: pageOperationCrypto,
+        protectedContent,
+        materializer: canonicalMaterializer,
+        activation: pageActivation,
+        operations: pageOperations,
+        rotationPolicies,
+        search,
+        now,
+      }),
     });
 
     const bootstrap = new BootstrapService({

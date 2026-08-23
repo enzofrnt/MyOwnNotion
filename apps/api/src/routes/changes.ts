@@ -67,33 +67,48 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
           context.protectedContent,
         );
         const itemsById = new Map(items.map((item) => [item.id, item]));
-        const databaseRecords = (
-          await Promise.all(itemIds.map((itemId) => readDatabaseRecord(tx, itemId)))
-        ).filter(
-          (record): record is NonNullable<typeof record> =>
-            record !== null && itemsById.get(record.databaseId)?.lifecycle !== "purged",
-        );
-        const entryRecords = (
-          await Promise.all(itemIds.map((itemId) => readDatabaseEntryRecord(tx, itemId)))
-        ).filter(
-          (record): record is NonNullable<typeof record> =>
-            record !== null && itemsById.get(record.entryId)?.lifecycle !== "purged",
-        );
-        const relationshipRows = (
-          await Promise.all(
-            itemIds.map((itemId) => listRelationships(tx, context.workspaceId, itemId)),
-          )
-        ).flat();
+        // `tx` owns one pg client. Queries on it must be awaited in order;
+        // Promise.all only queues work on that same connection and pg 9 rejects
+        // the overlapping client.query calls.
+        const databaseRecords = [];
+        const entryRecords = [];
+        const relationshipRows = [];
+        for (const itemId of itemIds) {
+          const databaseRecord = await readDatabaseRecord(tx, itemId);
+          if (
+            databaseRecord !== null &&
+            itemsById.get(databaseRecord.databaseId)?.lifecycle !== "purged"
+          ) {
+            databaseRecords.push(databaseRecord);
+          }
+
+          const entryRecord = await readDatabaseEntryRecord(tx, itemId);
+          if (entryRecord !== null && itemsById.get(entryRecord.entryId)?.lifecycle !== "purged") {
+            entryRecords.push(entryRecord);
+          }
+
+          relationshipRows.push(...(await listRelationships(tx, context.workspaceId, itemId)));
+        }
         const uniqueRelationships = [
           ...new Map(
             relationshipRows.map((relationship) => [relationship.id, relationship]),
           ).values(),
         ];
-        const [relationships, databases, databaseEntries] = await Promise.all([
-          resolveProtectedRelationships(tx, uniqueRelationships, context.protectedContent),
-          resolveDatabaseProjections(tx, databaseRecords, context.protectedContent),
-          resolveDatabaseEntryProjections(tx, entryRecords, context.protectedContent),
-        ]);
+        const relationships = await resolveProtectedRelationships(
+          tx,
+          uniqueRelationships,
+          context.protectedContent,
+        );
+        const databases = await resolveDatabaseProjections(
+          tx,
+          databaseRecords,
+          context.protectedContent,
+        );
+        const databaseEntries = await resolveDatabaseEntryProjections(
+          tx,
+          entryRecords,
+          context.protectedContent,
+        );
         return {
           changes: changes.changes.map((change) => {
             const changedIds = new Set(change.changedItemIds);
@@ -101,6 +116,7 @@ export function registerChangeRoutes(app: FastifyInstance, context: AppContext):
               sequence: change.sequence,
               mutationId: change.mutationId,
               revisionIds: change.revisionIds,
+              nature: change.nature,
               changedItems: change.changedItemIds
                 .map((id) => itemsById.get(id))
                 .filter((item) => item !== undefined),

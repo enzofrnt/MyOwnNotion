@@ -14,6 +14,8 @@ import {
   LEGACY_PROTOCOL_VERSION,
   MINIMUM_READ_VERSION,
   MINIMUM_WRITE_VERSION,
+  PAGE_OPERATION_PROTOCOL_VERSION,
+  PAGE_OPERATION_PROTOCOL_WINDOW,
   PROTOCOL_VERSION,
   parseClientVersion,
   protocolAccessFor,
@@ -38,10 +40,23 @@ describe("the compatibility window", () => {
   });
 
   it("keeps the preceding stable protocol readable but not writable", () => {
-    expect(PROTOCOL_VERSION).toBe(2);
+    expect(PROTOCOL_VERSION).toBe(3);
     expect(MINIMUM_WRITE_VERSION).toBe(2);
     expect(MINIMUM_READ_VERSION).toBe(1);
     expect(protocolAccessFor(1)).toEqual({ kind: "read-only", requiredVersion: 2 });
+  });
+
+  it("keeps protocol 2 fully compatible for non-editorial writes", () => {
+    expect(protocolAccessFor(2)).toEqual({ kind: "full" });
+  });
+
+  it("requires protocol 3 only at the page-operation capability boundary", () => {
+    expect(PAGE_OPERATION_PROTOCOL_VERSION).toBe(3);
+    expect(protocolAccessFor(2, PAGE_OPERATION_PROTOCOL_WINDOW)).toEqual({
+      kind: "read-only",
+      requiredVersion: 3,
+    });
+    expect(protocolAccessFor(3, PAGE_OPERATION_PROTOCOL_WINDOW)).toEqual({ kind: "full" });
   });
 });
 

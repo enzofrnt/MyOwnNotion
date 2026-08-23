@@ -1,7 +1,12 @@
 # Local Codex workspace artifacts
 .codex/
+.opencode/
 work/
 outputs/
+
+# Throwaway debugging probes and manual backup downloads
+.debug-probe/
+.debug-backups/
 
 # Keep only the versioned Spec Kit skills in agent folders
 .agents/*

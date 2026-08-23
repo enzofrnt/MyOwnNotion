@@ -9,12 +9,12 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
-  apiOrigin,
-  CURRENT_PROTOCOL_HEADERS,
   createRootItem,
   ensureNavigationRowVisible,
+  openSecondDevice,
   openWorkspace,
   openWorkspaceDiagnostics,
+  saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -71,50 +71,53 @@ test.describe("offline continuity (US6)", () => {
     await ensureNavigationRowVisible(page, offlineItem);
   });
 
-  test("a competing server revision produces a durable conflict record", async ({
+  test("a legacy offline branch joins the operational page without replacing either edit", async ({
     page,
-    request,
+    browser,
+    baseURL,
   }) => {
-    await openWorkspace(page);
-    const pageName = uniqueName("ConflictPage");
-    await createRootItem(page, "page", pageName);
-    await waitForSynchronized(page);
+    const second = await openSecondDevice(browser, baseURL);
+    try {
+      await openWorkspace(page);
+      const pageName = uniqueName("LegacyBranch");
+      await createRootItem(page, "page", pageName);
+      await waitForSynchronized(page);
 
-    // Select the page and note its identity.
-    await selectItem(page, pageName);
-    const itemId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
-    await expect(page.getByTestId("block-editor")).toBeVisible();
+      // Offline before the first editor open deliberately creates the migration
+      // branch. Its complete local snapshot is input to a one-way conversion,
+      // never a replacement request against the newer server head.
+      await goOffline(page);
+      await selectItem(page, pageName);
+      await typeIntoEditor(page, "words written on the offline device");
+      await saveDocument(page);
 
-    // Go offline and edit the document locally.
-    await goOffline(page);
-    await typeIntoEditor(page, "offline edit");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible();
+      // A genuinely separate device activates the operational protocol and
+      // advances the same page while the first one remains disconnected.
+      await openWorkspace(second.page);
+      await selectItem(second.page, pageName);
+      await typeIntoEditor(second.page, "words written on the online device");
+      await saveDocument(second.page, { until: "synced" });
 
-    // Meanwhile the server accepts a competing revision (another device).
-    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
-    const currentBody = (await current.json()) as { currentRevisionId: string };
-    const competing = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": crypto.randomUUID() },
-      data: {
-        baseRevisionId: currentBody.currentRevisionId,
-        document: {
-          format: "myownnotion.document+json",
-          formatVersion: 1,
-          body: { text: "server edit" },
-        },
-      },
-    });
-    expect(competing.status()).toBe(200);
+      await goOnline(page);
+      await page.reload();
+      await openWorkspace(page);
+      await selectItem(page, pageName);
+      await saveDocument(page, { until: "synced" });
+      await expect(page.getByTestId("block-editor")).toContainText("offline device", {
+        timeout: 30_000,
+      });
+      await expect(page.getByTestId("block-editor")).toContainText("online device");
+      await expect(page.getByTestId("conflict-notice")).toHaveCount(0);
 
-    // Reconnect: the local mutation conflicts and is captured durably.
-    await page.unroute("**/v1/**");
-    await page.reload();
-    await openWorkspace(page);
-    await openWorkspaceDiagnostics(page);
-    await expect(page.getByTestId("conflict-records")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "conflict");
-    // The conflict names the competing revision explicitly.
-    await expect(page.getByTestId("conflict-records")).toContainText("competing revision");
+      await second.page.reload();
+      await openWorkspace(second.page);
+      await selectItem(second.page, pageName);
+      await expect(second.page.getByTestId("block-editor")).toContainText("offline device", {
+        timeout: 30_000,
+      });
+      await expect(second.page.getByTestId("block-editor")).toContainText("online device");
+    } finally {
+      await second.context.close();
+    }
   });
 });

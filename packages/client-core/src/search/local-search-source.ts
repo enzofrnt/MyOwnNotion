@@ -1,5 +1,7 @@
 import {
+  type BlockDocumentV3,
   extractSearchableDocumentText,
+  extractSearchableDocumentTextV3,
   extractSearchablePropertyText,
   readDocumentBody,
   type SearchDocument,
@@ -9,6 +11,7 @@ import {
 } from "@myownnotion/domain";
 import type { LocalDatabaseRepository } from "../databases/local-database-repository.ts";
 import type { LocalRepository, ProjectedItem } from "../local-store/local-repository.ts";
+import type { EncryptedPageOperationLog } from "../page-sync/encrypted-update-log.ts";
 
 export type LocalSearchSyncState = "synchronized" | "pending" | "conflict";
 
@@ -47,10 +50,17 @@ function currentPath(item: ProjectedItem, active: ReadonlyMap<Uuid, ProjectedIte
   return path;
 }
 
-function bodyTextOf(item: ProjectedItem): string {
+interface OperationalSearchState {
+  readonly document: BlockDocumentV3 | null;
+  readonly pending: boolean;
+  readonly conflict: boolean;
+}
+
+function bodyTextOf(item: ProjectedItem, operationalDocument: BlockDocumentV3 | null): string {
   if (item.kind !== "page" || item.localAvailability !== "present" || item.pageDocument === null) {
-    return "";
+    return operationalDocument === null ? "" : extractSearchableDocumentTextV3(operationalDocument);
   }
+  if (operationalDocument !== null) return extractSearchableDocumentTextV3(operationalDocument);
   const read = readDocumentBody(item.pageDocument.body);
   if (read.kind !== "blocks") {
     return "";
@@ -64,10 +74,78 @@ function bodyTextOf(item: ProjectedItem): string {
 export class LocalSearchSource {
   readonly #repository: LocalRepository;
   readonly #databases: LocalDatabaseRepository | undefined;
+  readonly #pageOperations: EncryptedPageOperationLog | undefined;
 
-  constructor(repository: LocalRepository, databases?: LocalDatabaseRepository) {
+  constructor(
+    repository: LocalRepository,
+    databases?: LocalDatabaseRepository,
+    pageOperations?: EncryptedPageOperationLog,
+  ) {
     this.#repository = repository;
     this.#databases = databases;
+    this.#pageOperations = pageOperations;
+  }
+
+  /**
+   * Reads the editable authority used by an open page, not its older workspace
+   * projection. A page can hold locally durable operational updates (or an
+   * unconverted offline branch) while `items.sealedPageBody` still describes
+   * the last consolidated revision. Searching that older row would make the
+   * owner's newest words disappear precisely while offline.
+   */
+  async #operationalState(
+    items: readonly ProjectedItem[],
+  ): Promise<ReadonlyMap<Uuid, OperationalSearchState>> {
+    const operations = this.#pageOperations;
+    if (operations === undefined) return new Map();
+
+    const pageIds = items
+      .filter(
+        (item): item is ProjectedItem & { readonly kind: "page" } =>
+          item.kind === "page" && item.localAvailability === "present",
+      )
+      .map(({ id }) => id);
+    const [updateRows, ambiguityRows, entries] = await Promise.all([
+      operations.db.pageOperationUpdates.toArray(),
+      operations.db.pageAmbiguities.where("status").equals("open").toArray(),
+      Promise.all(
+        pageIds.map(async (pageId) => {
+          const [state, branch] = await Promise.all([
+            operations.getState(pageId),
+            operations.getLegacyBranch(pageId),
+          ]);
+          const branchUserEdits =
+            branch !== null &&
+            branch.status !== "converted" &&
+            branch.branch.semanticTransactions.length >
+              (branch.branch.bootstrapTransactionId === undefined ? 0 : 1);
+          return {
+            pageId,
+            document:
+              state?.projection?.document ??
+              (branch !== null && branch.status !== "converted"
+                ? branch.branch.localDocument
+                : null),
+            branchUserEdits,
+          };
+        }),
+      ),
+    ]);
+    const pendingPageIds = new Set(
+      updateRows.filter(({ status }) => status !== "accepted").map(({ pageId }) => pageId),
+    );
+    const conflictPageIds = new Set(ambiguityRows.map(({ pageId }) => pageId));
+
+    return new Map(
+      entries.map(({ pageId, document, branchUserEdits }) => [
+        pageId,
+        {
+          document,
+          pending: branchUserEdits || pendingPageIds.has(pageId),
+          conflict: conflictPageIds.has(pageId),
+        },
+      ]),
+    );
   }
 
   async #propertyText(
@@ -109,11 +187,12 @@ export class LocalSearchSource {
   async list(sourceVersion: number): Promise<LocalSearchEntry[]> {
     const items = await this.#repository.listItems("active");
     const active = new Map(items.map((item) => [item.id, item]));
-    const [headers, outbox, conflicts, propertyText] = await Promise.all([
+    const [headers, outbox, conflicts, propertyText, operational] = await Promise.all([
       this.#repository.db.revisionHeaders.where("local").equals(1).toArray(),
       this.#repository.db.outbox.toArray(),
       this.#repository.db.conflicts.toArray(),
       this.#propertyText(active),
+      this.#operationalState(items),
     ]);
     const itemByRevision = new Map(headers.map((header) => [header.id, header.itemId]));
     const pendingItemIds = new Set(
@@ -135,11 +214,13 @@ export class LocalSearchSource {
 
     return items
       .map((item): LocalSearchEntry => {
-        const syncState = conflictItemIds.has(item.id)
-          ? "conflict"
-          : pendingItemIds.has(item.id)
-            ? "pending"
-            : "synchronized";
+        const operation = operational.get(item.id);
+        const syncState =
+          conflictItemIds.has(item.id) || operation?.conflict === true
+            ? "conflict"
+            : pendingItemIds.has(item.id) || operation?.pending === true
+              ? "pending"
+              : "synchronized";
         return {
           document: {
             itemId: item.id,
@@ -147,7 +228,7 @@ export class LocalSearchSource {
             sourceVersion,
             kind: item.kind,
             title: item.name,
-            bodyText: bodyTextOf(item),
+            bodyText: bodyTextOf(item, operation?.document ?? null),
             properties: propertyText.get(item.id) ?? [],
             conflict: syncState === "conflict",
           },

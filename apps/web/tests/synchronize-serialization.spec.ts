@@ -18,7 +18,7 @@
  *   2. work enqueued while a pass is running is still drained afterwards.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ContentApi } from "../src/services/content-api.ts";
 import { LocalContentService } from "../src/services/local-content.ts";
 
@@ -78,6 +78,19 @@ afterEach(async () => {
 });
 
 describe("synchronize serialization", () => {
+  it("recovers interrupted page sends exactly once at the boot boundary", async () => {
+    const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
+    service = new LocalContentService(makeApi(recorder), `initialize-${Date.now()}`);
+    const recover = vi
+      .spyOn(service.pageOperationLog, "recoverInterruptedSending")
+      .mockResolvedValue(0);
+
+    await Promise.all([service.initialize(), service.initialize(), service.initialize()]);
+
+    expect(recover).toHaveBeenCalledTimes(1);
+    expect(recorder.passes).toBe(1);
+  });
+
   it("runs one pass when several callers arrive at once", async () => {
     const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
     const gate = deferred<void>();

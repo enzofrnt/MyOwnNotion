@@ -33,7 +33,7 @@ describe("canonical v3 ↔ BlockNote projection", () => {
     );
   });
 
-  it("keeps an unsupported block visible and lossless instead of reducing it to a paragraph", () => {
+  it("projects a fileEmbed natively and losslessly once the editor supports it", () => {
     const source = {
       blocks: [
         {
@@ -49,8 +49,31 @@ describe("canonical v3 ↔ BlockNote projection", () => {
 
     expect(visible[0]).toMatchObject({
       id: source.blocks[0].id,
+      type: "fileEmbed",
+      props: { fileItemId: source.blocks[0].fileItemId, caption: "Archive" },
+    });
+    expect(canonical(blockNoteDocumentToCanonical(visible))).toBe(canonical(source));
+  });
+
+  it("keeps an unsupported block visible and lossless instead of reducing it to a paragraph", () => {
+    const source = {
+      blocks: [
+        {
+          type: "unknown" as const,
+          id: "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056" as const,
+          declaredType: "hologram",
+          raw: { type: "hologram", depth: 3 } as const,
+          syntheticId: false,
+        },
+      ],
+    };
+
+    const visible = canonicalDocumentToBlockNote(source);
+
+    expect(visible[0]).toMatchObject({
+      id: source.blocks[0].id,
       type: "unknown",
-      props: { declaredType: "fileEmbed" },
+      props: { declaredType: "hologram" },
     });
     expect(canonical(blockNoteDocumentToCanonical(visible))).toBe(canonical(source));
   });

@@ -9,9 +9,14 @@
 
 import {
   DEFAULT_SIDEBAR_WIDTH,
+  normalizeWorkspacePresentationState,
+  type PageScrollAnchor,
   type ProjectedItem,
   readNavigationState,
+  rememberScrollAnchor,
+  scrollAnchorFor,
   updateWorkspacePresentationState,
+  type WorkspacePresentationState,
 } from "@myownnotion/client-core";
 import type {
   DatabaseDto,
@@ -68,6 +73,7 @@ import { ItemDetails } from "./item-details.tsx";
 import { MutationStatus } from "./mutation-status.tsx";
 
 type LoadState = "loading" | "ready";
+type LoadPhase = "initializing" | "reading-local" | "seeding" | "navigation" | "refreshing";
 
 interface TreeNode {
   readonly item: ProjectedItem;
@@ -184,22 +190,44 @@ function searchBranchOptions(
 
 export function HierarchyExplorer({
   backupStale,
+  pageOperationCsrfToken,
   onOpenBackups,
   onOpenSettings,
 }: {
   readonly backupStale: boolean;
+  readonly pageOperationCsrfToken: () => string | null;
   readonly onOpenBackups: () => void;
   /** Settings live outside the workspace, so the shortcut asks rather than routes. */
   readonly onOpenSettings: () => void;
 }) {
-  const service = useMemo(() => localContent(), []);
+  const service = useMemo(() => {
+    const content = localContent();
+    content.configurePageOperationAuthorization(pageOperationCsrfToken);
+    return content;
+  }, [pageOperationCsrfToken]);
   const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [loadPhase, setLoadPhase] = useState<LoadPhase>("initializing");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  /** Device-local scroll anchors, kept beside the rest of the ergonomics. */
+  const presentationRef = useRef<WorkspacePresentationState | null>(null);
+  const onCaptureScrollAnchor = useCallback(
+    (itemId: Uuid, anchor: PageScrollAnchor) => {
+      // The ref is updated synchronously: returning to the page can render
+      // before the Dexie commit resolves, and a stale ref would open the page
+      // at the top as if the owner had never been there.
+      const base = presentationRef.current ?? normalizeWorkspacePresentationState(undefined);
+      presentationRef.current = rememberScrollAnchor(base, itemId, anchor);
+      void updateWorkspacePresentationState(service.db, (current) =>
+        rememberScrollAnchor(current, itemId, anchor),
+      );
+    },
+    [service],
+  );
   const refreshGeneration = useRef(0);
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
   const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
@@ -313,14 +341,18 @@ export function HierarchyExplorer({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      setLoadPhase("initializing");
       await service.initialize();
       // First boot on this device: seed the projection when reachable.
+      setLoadPhase("reading-local");
       if ((await service.listActiveItems()).length === 0) {
+        setLoadPhase("seeding");
         await service.seedFromServer();
       }
       // Which branches were open is device ergonomics, not content: it lives
       // in the local projection and never syncs. Restoring it is what makes
       // returning to the workspace feel like returning (FR-014).
+      setLoadPhase("navigation");
       const navigation = await readNavigationState(service.db);
       if (cancelled) {
         return;
@@ -328,7 +360,9 @@ export function HierarchyExplorer({
       setExpanded(new Set(navigation.expandedItemIds));
       setSidebarOpen(navigation.sidebarOpen);
       setSidebarWidth(navigation.sidebarWidth);
+      presentationRef.current = navigation;
       setNavigationLoaded(true);
+      setLoadPhase("refreshing");
       const activeItems = await refresh();
       if (!cancelled) {
         setSelectedId(
@@ -616,6 +650,20 @@ export function HierarchyExplorer({
       const database = selectedDatabase;
       if (database === null) return;
       setEntryReturnFocusId(entryId);
+      const visibleEntry = databaseEntries.find((entry) => entry.entryId === entryId);
+      if (visibleEntry !== undefined) {
+        const definition = database.definition as unknown as DatabaseDefinition;
+        // The row the owner clicked is already a durable local projection. Open
+        // it synchronously instead of blocking navigation on another IndexedDB
+        // read, which can wait behind synchronization on a constrained device.
+        // The structured-selection effect still refreshes it in the background.
+        remotelyOpenedEntry.current = { entry: visibleEntry, definition };
+        setSelectedEntry(visibleEntry);
+        setEntryDefinition(definition);
+        structuredSelectionItemId.current = entryId;
+        setSelectedId(entryId);
+        return;
+      }
       void (async () => {
         if ((await service.getDatabaseEntry(entryId)) === null) {
           const remote = await service.api.getDatabaseEntry(database.databaseId as Uuid, entryId);
@@ -629,7 +677,7 @@ export function HierarchyExplorer({
         setSelectedId(entryId);
       })();
     },
-    [selectedDatabase, service],
+    [databaseEntries, selectedDatabase, service],
   );
   const clearEntryReturnFocus = useCallback(() => setEntryReturnFocusId(null), []);
 
@@ -1237,7 +1285,7 @@ export function HierarchyExplorer({
       ) : null}
 
       {loadState === "loading" ? (
-        <WorkspaceState kind="loading" />
+        <WorkspaceState kind="loading" phase={loadPhase} />
       ) : selectedItem === null ? (
         <WorkspaceState
           kind="empty"
@@ -1501,9 +1549,14 @@ export function HierarchyExplorer({
               <EditorView
                 service={service}
                 itemId={selectedItem.id}
-                itemRevisionId={selectedItem.currentRevisionId}
                 items={items}
                 onOpenPage={openPageLink}
+                initialScrollAnchor={
+                  presentationRef.current === null
+                    ? null
+                    : scrollAnchorFor(presentationRef.current, selectedItem.id)
+                }
+                onCaptureScrollAnchor={onCaptureScrollAnchor}
               />
               <AttachmentPanel
                 pageId={selectedItem.id}
@@ -1516,10 +1569,16 @@ export function HierarchyExplorer({
       ) : selectedItem !== null && selectedItem.kind === "page" ? (
         <>
           <EditorView
+            key={`page-${selectedItem.id}`}
             service={service}
             itemId={selectedItem.id}
-            itemRevisionId={selectedItem.currentRevisionId}
             items={items}
+            initialScrollAnchor={
+              presentationRef.current === null
+                ? null
+                : scrollAnchorFor(presentationRef.current, selectedItem.id)
+            }
+            onCaptureScrollAnchor={onCaptureScrollAnchor}
             onOpenPage={openPageLink}
           />
           <AttachmentPanel

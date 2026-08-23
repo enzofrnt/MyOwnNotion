@@ -1,6 +1,6 @@
 # Validation: Files and Local Storage
 
-**Feature**: [spec.md](./spec.md) | **Date**: 2026-08-17
+**Feature**: [spec.md](./spec.md) | **Date**: 2026-08-22
 
 Evidence per requirement. A row says `pass` only when something automated
 asserts it. Requirements belonging to user stories that are not built yet say
@@ -20,8 +20,8 @@ rather than as a claim.
 | FR-007 synchronized only after server verification | pass | Completion hashes the accumulated bytes, deduplicates against existing content, and sets `verified_at` inside the transaction that creates the file. The download route refuses unverified content, and the client ends a transfer in `verifying` rather than claiming it is stored |
 | FR-008 administrator-configurable maximum, 2 GB default | pass | `maxFileBytes()` reads `MYOWNNOTION_MAX_FILE_BYTES`, defaults to 2 GB, and falls back to the default rather than to zero or infinity when misconfigured |
 | FR-009 a refusal states the limit without losing the draft | pass | The 413 carries `limitBytes` and `declaredBytes`, and is declared in the response schema so Fastify cannot serialise it away. Refused before a single byte is accepted, so nothing touches the draft |
-| FR-010 previews PDF, SVG, PNG, JPEG, GIF, WebP, Draw.io | pass | `file-preview.tsx` renders all of them through one sandboxed frame; `file-preview.spec.ts` opens an image and an unsupported type |
-| FR-011 Draw.io editable through the ordinary save path | **partial** | The editor is served by this installation (Compose service, pinned), `assertLocalEditor` refuses every third-party host (14 unit tests), and a journey asserts that no request reaches diagrams.net while a diagram is opened. What no test drives is an actual edit-and-save round trip, because that needs the editor container running in the test environment |
+| FR-010 previews PDF, SVG, PNG, JPEG, GIF, WebP | pass | `file-preview.tsx` renders them through one sandboxed frame; `file-preview.spec.ts` opens an image and an unsupported type |
+| FR-011 Draw.io remains downloadable without external editor or service | pass | `file-preview.spec.ts` uploads a `.drawio` file, asserts the unsupported-file download path, and records any request to public Draw.io hosts; the Compose contract permits only the application, migration job and PostgreSQL services |
 | FR-012 an unpreviewable file states name, type, size, download | pass | `UnsupportedFile`; asserted in `file-preview.spec.ts` |
 | FR-013 previews isolated, downloads inert | pass | Three headers asserted in `files.contract.spec.ts`; the sandbox asserted by the negative — a hostile SVG reaching for `window.parent.document` exfiltrates nothing |
 | FR-014 encrypted local set, 5 GB default, adjustable, unlimited | pass | `budget.ts` with `budget.spec.ts`; unlimited is `null`, not a sentinel. The set was already encrypted by feature 002 |
@@ -99,12 +99,9 @@ promised and write down what is not. SC-007 is therefore marked partial.
 
 ## What is not built
 
-All 56 tasks are done. Three requirements remain **partial**, and each says why
+All 60 tasks are done. Two criteria remain **partial**, and each says why
 in its row rather than being ticked:
 
-- **FR-011**: a diagram edit-and-save round trip needs the editor container
-  running in the test environment. The privacy invariant that made this decision
-  worth taking — that nothing reaches diagrams.net — *is* asserted.
 - **SC-004**: resumption is proved; two gigabytes is not moved, because the
   size-dependent behaviour is the chunking and smaller files exercise it
   identically.

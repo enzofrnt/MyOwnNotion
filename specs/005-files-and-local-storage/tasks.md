@@ -16,7 +16,7 @@ by inspection.
 ## Phase 1: Setup
 
 - [X] T001 Add the tus server dependency and pin it, then record it in `docs/development.md` alongside the existing toolchain table
-- [X] T002 [P] Vendor the Draw.io editor assets under `apps/web/public/drawio/` with the upstream version recorded in a `VERSION` file beside them
+- [X] T002 [P] Historical Draw.io asset task, superseded and removed by T057–T060
 - [X] T003 [P] Add `MYOWNNOTION_MAX_FILE_BYTES` to `.env.example` with the 2 GB default and a note that the real bound is what the proxy and storage carry
 
 ---
@@ -103,9 +103,9 @@ unrecognised one; each previews or states name, type and size with a download.
 - [X] T027 [US3] `apps/web/src/features/files/file-preview.tsx` — a sandboxed frame fed opaque bytes, with no same-origin access (FR-013)
 - [X] T028 [P] [US3] Preview PDF, SVG, PNG, JPEG, GIF and WebP through that one frame in `apps/web/src/features/files/file-preview.tsx` (FR-010)
 - [X] T029 [P] [US3] `apps/web/src/features/files/unsupported-file.tsx` — name, type, size and a download or external-open action (FR-012)
-- [X] T030 [US3] `apps/web/src/features/files/drawio-editor.tsx` — the vendored engine, served from this origin, never `diagrams.net`
-- [X] T031 [US3] Save a Draw.io edit through the ordinary save path in `apps/web/src/features/files/drawio-editor.tsx` so its state is reported like any other content (FR-011)
-- [X] T032 [P] [US3] Playwright journey in `tests/e2e/file-preview.spec.ts` asserting no request leaves this origin while editing a diagram — a request to `diagrams.net` fails the test
+- [X] T030 [US3] Historical external Draw.io editor task, superseded and removed by T057–T060
+- [X] T031 [US3] Historical Draw.io save-path task, superseded and removed by T057–T060
+- [X] T032 [P] [US3] Assert a `.drawio` attachment remains downloadable without contacting a Draw.io host in `tests/e2e/file-preview.spec.ts` (FR-011)
 
 **Checkpoint**: files are useful, and previewing one is not a risk.
 
@@ -160,10 +160,19 @@ and it is the largest single piece.
 
 ## Phase 8: Polish
 
-- [X] T053 [P] `docs/architecture/file-handling.md` — why previews are sandboxed, why Draw.io is self-hosted, and what admits content to eviction
+- [X] T053 [P] `docs/architecture/file-handling.md` — why previews are sandboxed, why diagram editing adds no external service, and what admits content to eviction
 - [X] T054 [P] Accessibility pass over the attachment list, the preview frame, the deletion dialogue and the storage panel; add them to `tests/e2e/accessibility.spec.ts`
 - [X] T055 [P] Narrow-viewport pass at 320 px for the same four surfaces, asserted in `tests/e2e/narrow-viewport.spec.ts`
 - [X] T056 Write `specs/005-files-and-local-storage/validation.md` with evidence per requirement, marking anything unfinished as unfinished rather than ticking it
+
+---
+
+## Phase 9: Scope correction — diagram editing deferred
+
+- [X] T057 Remove the Draw.io service and configuration from `compose.yaml` and `.env.example`
+- [X] T058 Remove the iframe editor and Draw.io embed provider from the application and canonical v3 contract
+- [X] T059 Keep `.drawio` attachments safe and downloadable through the unsupported-file path, with no third-party request
+- [X] T060 Update the product canvas, roadmap, feature artifacts and architecture documentation so any future diagram editor is internal and post-foundations
 
 ---
 

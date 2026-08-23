@@ -36,26 +36,23 @@ Le parcours l'affirme par la négative : un SVG qui tente de lire
 `window.parent.document` et d'exfiltrer ce qu'il trouve est téléversé,
 prévisualisé, et rien n'arrive.
 
-## 2. L'éditeur de diagrammes est servi par cette installation
+## 2. L'édition de diagrammes n'ajoute aucun service à la stack
 
-L'intégration Draw.io évidente est une iframe vers `embed.diagrams.net`. Elle
-fonctionne parfaitement — et **envoie le diagramme du propriétaire à un tiers à
-chaque édition**. Un schéma de sa propre infrastructure est exactement ce qu'un
-propriétaire ne publierait jamais sciemment sur un service public, et le produit
-est auto-hébergé précisément pour qu'il n'ait pas à le faire.
+Un fichier `.drawio` est actuellement une pièce jointe opaque : MyOwnNotion le
+stocke, le synchronise et permet de le télécharger, mais ne prétend ni le
+prévisualiser ni l'éditer.
 
-L'éditeur tourne donc dans la pile Compose de l'installation, avec une image
-épinglée comme les autres.
+Les deux raccourcis ont été refusés. Une iframe vers `embed.diagrams.net`
+enverrait le diagramme du propriétaire à un tiers et cesserait de fonctionner
+hors ligne. Un conteneur Draw.io auto-hébergé éviterait cette fuite, mais
+ajouterait une seconde application, un port, un cycle de mise à jour et une
+surface de panne à la stack essentielle alors que cette capacité est différée.
 
-`assertLocalEditor` refuse `diagrams.net`, `draw.io` et `jgraph.com` au lieu de
-faire confiance à la configuration. C'est la seule mauvaise configuration qui ne
-dégrade rien : elle exfiltre. Elle échoue donc bruyamment, nomme l'hôte fautif,
-et refuse aussi une origine malformée — « impossible à vérifier » ne doit pas se
-résoudre en « autorisé » quand ce qu'on vérifie est une fuite de données.
-
-La comparaison porte sur les hôtes et les suffixes, jamais sur des
-sous-chaînes : `sneaky.diagrams.net` est refusé, et le
-`diagrams.net.internal.example.org` de quelqu'un ne l'est pas.
+La stack ne contient donc aucun serveur Draw.io et l'application n'accepte pas
+Draw.io comme fournisseur d'embed. Si l'édition de diagrammes est spécifiée
+après les fondations d'édition et de synchronisation, son moteur s'exécutera
+directement dans MyOwnNotion et utilisera les mêmes chemins de durabilité,
+synchronisation, historique et sauvegarde que les autres contenus.
 
 ## 3. C'est la récupérabilité qui admet un contenu à l'éviction
 

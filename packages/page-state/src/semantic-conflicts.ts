@@ -145,6 +145,10 @@ function blockAfter(change: PageSemanticChange): CanonicalBlockV3 | undefined {
     case "mark-set":
     case "block-property-set":
     case "block-type-set":
+    case "table-row-inserted":
+    case "table-row-deleted":
+    case "table-column-inserted":
+    case "table-column-deleted":
     case "schema-changed":
       return change.blockAfter;
     case "block-deleted":

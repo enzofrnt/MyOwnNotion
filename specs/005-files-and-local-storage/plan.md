@@ -13,18 +13,17 @@ supply on its own — knowing where a file is used, surviving an interrupted
 transfer, and telling the truth about what this device is actually holding.
 
 Two decisions carry more weight than the rest and are settled in
-[research.md](./research.md): Draw.io is served by this installation rather than
-embedded from a third party, because the obvious integration would send the
-owner's diagrams to `diagrams.net`; and previews run in a sandbox, because SVG
-and PDF can carry script and a file is bytes the owner got from somewhere else.
+[research.md](./research.md): previews run in a sandbox because SVG and PDF can
+carry script, and diagram editing is deferred until it can run inside
+MyOwnNotion. Neither a public Draw.io embed nor a separate Draw.io service is a
+permitted shortcut.
 
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x, Node 24 LTS
 
 **Primary Dependencies**: existing — Fastify, Drizzle, React 19, Tiptap 3,
-Dexie. Added — a tus-compatible server implementation, and the Draw.io editor
-bundled as a static asset.
+Dexie. Added — a tus-compatible server implementation.
 
 **Storage**: PostgreSQL 18 for metadata; the existing filesystem blob store for
 content; IndexedDB via Dexie for the local projection.
@@ -55,18 +54,18 @@ items and files up to 2 GB each.
 | I. User ownership and local resilience | pass | Offline intent, eviction that never touches unsynchronized work, offloaded content always recoverable. |
 | II. One spec, any agent | pass | Spec, plan, research, data model, contracts and quickstart all under this directory. |
 | III. Incremental, verifiable delivery | pass | Four user stories, independently testable; P1 pair delivers a usable file experience without previews. |
-| IV. Privacy and security by default | pass | The decisive one: Draw.io self-hosted rather than embedded, previews sandboxed, downloads served inert, local set encrypted. |
-| V. Simple, modular architecture | pass | No new service. tus is a protocol implemented on the existing API; the usage index is a table beside existing ones. |
+| IV. Privacy and security by default | pass | No diagram leaves the application for an editor; previews are sandboxed, downloads inert, local set encrypted. |
+| V. Simple, modular architecture | pass | No diagram service. tus is a protocol implemented on the existing API; the usage index is a table beside existing ones. |
 | VI. Accessible and predictable experience | pass | Availability states named rather than implied; nothing reads as "missing"; refusals state the limit and the reason. |
-| VII. Reproducible toolchains | pass | TypeScript only; Draw.io assets pinned and vendored; no new package manager. |
+| VII. Reproducible toolchains | pass | TypeScript only; no editor container or vendored diagram engine; no new package manager. |
 | VIII. Canonical product direction | pass | Realises canvas sections 15 to 18 without absorbing features 010 and 011. |
 
 No violations, so [Complexity Tracking](#complexity-tracking) stays empty.
 
 One constraint deserves restating because it shaped a decision rather than
 merely being satisfied: *private content stays private unless deliberately
-shared*. That is what rules out the public Draw.io embed, which would otherwise
-be the cheapest possible implementation of FR-011.
+shared*. That rules out the public Draw.io embed, while the deployment boundary
+rules out solving the problem with an unrelated editor service in Compose.
 
 ## Project Structure
 
@@ -110,7 +109,6 @@ apps/api/src/routes/
 apps/web/src/features/files/
 ├── attachment-list.tsx  # the nine fields of FR-002
 ├── file-preview.tsx     # the sandbox
-├── drawio-editor.tsx    # bundled engine
 ├── delete-file.tsx      # usages before confirmation
 └── storage-panel.tsx    # budget, breakdown, what was offloaded
 ```
@@ -123,11 +121,11 @@ their unsynchronized work and that is not something to discover in a journey.
 ## Phase 0 — Research
 
 Complete: [research.md](./research.md). Six decisions, each with what it rules
-out. Resumable transfer uses tus 1.0 rather than a private scheme; Draw.io is
-self-hosted; previews are sandboxed and downloads inert; usages are derived by
-indexing rather than hand-maintained; local space is measured with
-`navigator.storage` but every eviction is an application decision; offline
-intent is content, stored with the item.
+out. Resumable transfer uses tus 1.0 rather than a private scheme; diagram
+editing is deferred and may not add an external service; previews are sandboxed
+and downloads inert; usages are derived by indexing rather than hand-maintained;
+local space is measured with `navigator.storage` but every eviction is an
+application decision; offline intent is content, stored with the item.
 
 ## Phase 1 — Design
 

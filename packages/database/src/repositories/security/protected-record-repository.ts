@@ -75,6 +75,8 @@ function toStored(row: EnvelopeRow): StoredEnvelope {
 }
 
 export interface WriteEnvelopeInput extends ProtectedRecordKey {
+  /** Stable row identity when another table needs to reference this envelope. */
+  readonly id?: string;
   readonly installationId: string;
   readonly envelope: EncryptedEnvelope;
   readonly now: Date;
@@ -96,11 +98,11 @@ export interface WriteEnvelopeInput extends ProtectedRecordKey {
 export async function writeProtectedRecord(
   executor: Executor,
   input: WriteEnvelopeInput,
-): Promise<void> {
-  await executor
+): Promise<string> {
+  const rows = await executor
     .insert(protectedEnvelopes)
     .values({
-      id: crypto.randomUUID(),
+      id: input.id ?? crypto.randomUUID(),
       installationId: input.installationId,
       workspaceId: input.workspaceId,
       entityType: input.entityType,
@@ -135,7 +137,54 @@ export async function writeProtectedRecord(
         aadDigest: input.envelope.aadDigest,
         updatedAt: input.now,
       },
-    });
+    })
+    .returning({ id: protectedEnvelopes.id });
+  const row = rows[0];
+  if (row === undefined) throw new Error("protected envelope was not written");
+  return row.id;
+}
+
+/**
+ * Inserts immutable protected records in one statement.
+ *
+ * Operational updates mint fresh envelope identities and never rewrite them.
+ * Keeping that property explicit lets an offline catch-up persist hundreds of
+ * encrypted fragments without turning one atomic request into hundreds of SQL
+ * round trips. Any identity collision is an integrity error and fails the
+ * caller's transaction instead of silently replacing ciphertext.
+ */
+export async function insertProtectedRecords(
+  executor: Executor,
+  inputs: readonly (WriteEnvelopeInput & { readonly id: string })[],
+): Promise<readonly string[]> {
+  if (inputs.length === 0) return [];
+  const rows = await executor
+    .insert(protectedEnvelopes)
+    .values(
+      inputs.map((input) => ({
+        id: input.id,
+        installationId: input.installationId,
+        workspaceId: input.workspaceId,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        keyGeneration: input.envelope.keyGeneration,
+        recordVersion: input.envelope.recordVersion,
+        format: input.envelope.format,
+        algorithm: input.envelope.algorithm,
+        salt: input.envelope.salt,
+        nonce: input.envelope.nonce,
+        ciphertext: input.envelope.ciphertext,
+        tag: input.envelope.tag,
+        aadDigest: input.envelope.aadDigest,
+        createdAt: input.now,
+        updatedAt: input.now,
+      })),
+    )
+    .returning({ id: protectedEnvelopes.id });
+  if (rows.length !== inputs.length) {
+    throw new Error("not every protected envelope was inserted");
+  }
+  return rows.map(({ id }) => id);
 }
 
 /**

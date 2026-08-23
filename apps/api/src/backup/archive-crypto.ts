@@ -53,7 +53,10 @@ export async function sealBackupArchiveFile(
     await handle.write(tag, 0, tag.byteLength, NONCE_BYTES);
     await handle.sync();
   } catch (error) {
-    await handle.close();
+    // The failing stream may already have closed the descriptor, and a close
+    // error must not swallow the reason sealing failed — or stop the removal
+    // that keeps a half-sealed file from wearing tonight's name.
+    await handle.close().catch(() => undefined);
     await rm(sealedPath, { force: true });
     throw error;
   }

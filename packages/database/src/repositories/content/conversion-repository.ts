@@ -28,6 +28,7 @@ import type { Transaction } from "../../client.ts";
 import { items, pageDocuments, relationships } from "../../schema/index.ts";
 import { protectedEnvelopes } from "../../schema/security/index.ts";
 import { getItem } from "../hierarchy-repository.ts";
+import { retirePageOperationState } from "../page-operation-repository.ts";
 
 /** The entity type feature 002 seals a page body under. */
 const PAGE_BODY_ENTITY_TYPE = "page.body";
@@ -120,6 +121,14 @@ export async function executeConvertItem(
   }
 
   const revisionId = generateUuidV7();
+  const retiresPage = plan.value.item.kind === "page" && plan.value.targetKind === "folder";
+
+  // The operation log is a second representation of the page body. It must be
+  // retired under its serialization lock before the item kind changes, even
+  // when the canonical body is empty and no confirmation was necessary.
+  if (retiresPage) {
+    await retirePageOperationState(tx, plan.value.item.workspaceId, plan.value.item.id);
+  }
 
   await tx
     .update(items)
@@ -130,7 +139,7 @@ export async function executeConvertItem(
     })
     .where(eq(items.id, plan.value.item.id));
 
-  if (plan.value.destroysContent) {
+  if (retiresPage) {
     await tx.delete(pageDocuments).where(eq(pageDocuments.pageId, plan.value.item.id));
     // Same transaction, deliberately: an envelope left behind is destroyed
     // content the owner cannot see, audit, or delete.

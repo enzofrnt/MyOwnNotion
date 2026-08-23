@@ -14,6 +14,7 @@ import {
   openItemActions,
   openWorkspace,
   openWorkspaceDiagnostics,
+  saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
@@ -180,8 +181,7 @@ test.describe("automated accessibility audit", () => {
     await waitForSynchronized(page);
     await selectItem(page, name);
     await typeIntoEditor(page, "content that triggers the dialog");
-    await page.getByTestId("save-document").click();
-    await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 30_000 });
+    await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
 
     await convertItem(page, name);

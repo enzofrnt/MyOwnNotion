@@ -2,6 +2,7 @@ import type {
   BlockDocument,
   BlockDocumentV3,
   CanonicalBlockV3,
+  EmbedProvider,
   Inline,
   InlineV3,
   JsonObject,
@@ -12,6 +13,7 @@ import type {
 import {
   COLOR_TOKENS,
   childrenOfV3,
+  EMBED_PROVIDERS,
   generateUuidV7,
   normaliseDocument,
   normaliseDocumentV3,
@@ -20,14 +22,19 @@ import {
   validateDocumentV3,
 } from "@myownnotion/domain";
 import type { EditorBlock, EditorPartialBlock } from "./blocknote-schema.ts";
-
-const PAGE_LINK_PREFIX = "myownnotion:page:";
+import {
+  parseEditorTableColumns,
+  serialiseEditorTableColumns,
+  TABLE_COLUMNS_PROP,
+} from "./custom-blocks/table.tsx";
+import { pageLinkTargetFromHref } from "./page-link-href.ts";
 
 type VisibleBlock = EditorBlock | EditorPartialBlock;
 type VisibleInline = {
   readonly type?: string;
   readonly text?: string;
   readonly styles?: Record<string, unknown>;
+  readonly props?: Record<string, unknown>;
   readonly href?: string;
   readonly content?: readonly VisibleInline[];
 };
@@ -77,8 +84,8 @@ function inlineToBlockNote(content: readonly InlineV3[]): unknown[] {
       result.push({ type: "link", href: link.href, content: [text] });
     } else if (link?.type === "pageLink") {
       result.push({
-        type: "link",
-        href: `${PAGE_LINK_PREFIX}${link.targetItemId}`,
+        type: "pageLink",
+        props: { targetItemId: link.targetItemId },
         content: [text],
       });
     } else {
@@ -106,7 +113,25 @@ function opaqueBlock(block: CanonicalBlockV3): EditorPartialBlock {
   });
 }
 
+function hasUnknownMark(content: readonly InlineV3[]): boolean {
+  return content.some((inline) => inline.marks?.some((mark) => mark.type === "unknown") === true);
+}
+
+/** Known future fields/marks are readable but not safely editable by this client. */
+function requiresOpaqueProjection(block: CanonicalBlockV3): boolean {
+  if (block.type === "unknown") return true;
+  if (block.rawExtraProperties !== undefined && Object.keys(block.rawExtraProperties).length > 0) {
+    return true;
+  }
+  if ("content" in block && hasUnknownMark(block.content)) return true;
+  if (block.type === "table") {
+    return block.rows.some((row) => row.cells.some((cell) => hasUnknownMark(cell.content)));
+  }
+  return false;
+}
+
 function blockToBlockNote(block: CanonicalBlockV3): EditorPartialBlock {
+  if (requiresOpaqueProjection(block)) return opaqueBlock(block);
   const children = childrenOfV3(block).map(blockToBlockNote);
   const withChildren = children.length === 0 ? {} : { children };
   switch (block.type) {
@@ -161,13 +186,71 @@ function blockToBlockNote(block: CanonicalBlockV3): EditorPartialBlock {
       });
     case "divider":
       return partialBlock({ id: block.id, type: "divider" });
-    case "unknown":
     case "toggle":
+      return partialBlock({
+        id: block.id,
+        type: "toggleListItem",
+        content: inlineToBlockNote(block.content),
+        ...withChildren,
+      });
     case "callout":
+      return partialBlock({
+        id: block.id,
+        type: "callout",
+        props: { icon: block.icon ?? "", tone: block.tone },
+        content: inlineToBlockNote(block.content),
+        ...withChildren,
+      });
     case "table":
+      return partialBlock({
+        id: block.id,
+        type: "table",
+        props: { [TABLE_COLUMNS_PROP]: serialiseEditorTableColumns(block.columns) },
+        children: block.rows.map((row) =>
+          partialBlock({
+            id: row.id,
+            type: "tableRow",
+            children: row.cells.map((cell) =>
+              partialBlock({
+                id: cell.id,
+                type: "tableCell",
+                content: inlineToBlockNote(cell.content),
+                ...(cell.children === undefined
+                  ? {}
+                  : { children: cell.children.map(blockToBlockNote) }),
+              }),
+            ),
+          }),
+        ),
+      });
     case "image":
+      return partialBlock({
+        id: block.id,
+        type: "image",
+        props: {
+          fileItemId: block.fileItemId,
+          caption: block.caption ?? "",
+          altText: block.altText ?? "",
+          displayWidth: block.displayWidth ?? 0,
+        },
+      });
     case "fileEmbed":
+      return partialBlock({
+        id: block.id,
+        type: "fileEmbed",
+        props: { fileItemId: block.fileItemId, caption: block.caption ?? "" },
+      });
     case "embed":
+      return partialBlock({
+        id: block.id,
+        type: "embed",
+        props: {
+          provider: block.provider,
+          sourceUrl: block.sourceUrl,
+          caption: block.caption ?? "",
+        },
+      });
+    case "unknown":
       return opaqueBlock(block);
   }
 }
@@ -193,14 +276,14 @@ function marksFromStyles(styles: Record<string, unknown> | undefined): MarkV3[] 
   if (styles?.["code"] === true) result.push({ type: "code" });
   for (const type of ["textColor", "backgroundColor"] as const) {
     const color = styles?.[type];
-    if (typeof color === "string" && COLOR_TOKENS.includes(color as never) && color !== "default") {
+    if (typeof color === "string" && COLOR_TOKENS.includes(color as never)) {
       result.push({ type, color: color as (typeof COLOR_TOKENS)[number] });
     }
   }
   return result;
 }
 
-function inlineFromBlockNote(content: unknown): readonly InlineV3[] {
+export function blockNoteInlineToCanonical(content: unknown): readonly InlineV3[] {
   if (typeof content === "string") {
     return content === "" ? [] : [{ text: content }];
   }
@@ -217,15 +300,36 @@ function inlineFromBlockNote(content: unknown): readonly InlineV3[] {
     }
     if (entry.type === "link") {
       const href = "href" in entry && typeof entry.href === "string" ? entry.href : "";
-      const linkMark: MarkV3 = href.startsWith(PAGE_LINK_PREFIX)
-        ? { type: "pageLink", targetItemId: href.slice(PAGE_LINK_PREFIX.length) as Uuid }
-        : { type: "link", href };
+      const pageTarget = pageLinkTargetFromHref(href);
+      const linkMark: MarkV3 =
+        pageTarget === null
+          ? { type: "link", href }
+          : { type: "pageLink", targetItemId: pageTarget };
       const linkedContent = "content" in entry && Array.isArray(entry.content) ? entry.content : [];
       for (const child of linkedContent) {
         if (child === null || typeof child !== "object" || !("text" in child)) continue;
         const text = typeof child.text === "string" ? child.text : "";
         const styles = "styles" in child ? (child.styles as Record<string, unknown>) : undefined;
         const marks = [...marksFromStyles(styles), linkMark];
+        if (text !== "") result.push({ text, marks });
+      }
+      continue;
+    }
+    if (entry.type === "pageLink") {
+      const rawTarget = entry.props?.["targetItemId"];
+      const pageTarget = pageLinkTargetFromHref(
+        typeof rawTarget === "string" ? `#page=${rawTarget}` : null,
+      );
+      if (pageTarget === null) continue;
+      const linkedContent = "content" in entry && Array.isArray(entry.content) ? entry.content : [];
+      for (const child of linkedContent) {
+        if (child === null || typeof child !== "object" || !("text" in child)) continue;
+        const text = typeof child.text === "string" ? child.text : "";
+        const styles = "styles" in child ? (child.styles as Record<string, unknown>) : undefined;
+        const marks: MarkV3[] = [
+          ...marksFromStyles(styles),
+          { type: "pageLink", targetItemId: pageTarget },
+        ];
         if (text !== "") result.push({ text, marks });
       }
     }
@@ -269,11 +373,60 @@ function opaqueFromBlockNote(block: VisibleBlock): CanonicalBlockV3 {
   };
 }
 
+function unknownVisibleBlock(
+  block: VisibleBlock,
+  declaredType = String(block.type),
+): CanonicalBlockV3 {
+  const id = typeof block.id === "string" ? (block.id as Uuid) : generateUuidV7();
+  return {
+    type: "unknown",
+    id,
+    declaredType,
+    raw: {
+      type: declaredType,
+      id,
+      editorProps: JSON.parse(JSON.stringify(propsOf(block))) as JsonObject,
+    },
+    syntheticId: false,
+  };
+}
+
+function tableFromBlockNote(block: VisibleBlock): CanonicalBlockV3 {
+  const columns = parseEditorTableColumns(propsOf(block)[TABLE_COLUMNS_PROP]);
+  if (columns === null) return unknownVisibleBlock(block, "table");
+  const rowBlocks = childrenOfVisible(block);
+  if (rowBlocks.length < 1 || rowBlocks.some((row) => row.type !== "tableRow")) {
+    return unknownVisibleBlock(block, "table");
+  }
+  const rows = [];
+  for (const row of rowBlocks) {
+    const cellBlocks = childrenOfVisible(row);
+    if (
+      cellBlocks.length !== columns.length ||
+      cellBlocks.some((cell) => cell.type !== "tableCell")
+    ) {
+      return unknownVisibleBlock(block, "table");
+    }
+    rows.push({
+      id: row.id as Uuid,
+      cells: cellBlocks.map((cell) => {
+        const children = childrenOfVisible(cell).map(blockNoteBlockToCanonical);
+        return {
+          id: cell.id as Uuid,
+          content: blockNoteInlineToCanonical("content" in cell ? cell.content : undefined),
+          ...(children.length === 0 ? {} : { children }),
+        };
+      }),
+    });
+  }
+  return { type: "table", id: block.id as Uuid, columns, rows };
+}
+
 export function blockNoteBlockToCanonical(block: VisibleBlock): CanonicalBlockV3 {
   const id = block.id as Uuid;
   const children = childrenOfVisible(block).map(blockNoteBlockToCanonical);
   const withChildren = children.length === 0 ? {} : { children };
-  const content = inlineFromBlockNote("content" in block ? block.content : undefined);
+  const content = blockNoteInlineToCanonical("content" in block ? block.content : undefined);
   switch (block.type) {
     case "paragraph":
       return { type: "paragraph", id, content };
@@ -311,16 +464,71 @@ export function blockNoteBlockToCanonical(block: VisibleBlock): CanonicalBlockV3
     }
     case "divider":
       return { type: "divider", id };
+    case "toggleListItem":
+      return { type: "toggle", id, content, ...withChildren };
+    case "callout": {
+      const icon = propsOf(block)["icon"];
+      const tone = propsOf(block)["tone"];
+      return {
+        type: "callout",
+        id,
+        content,
+        icon: typeof icon === "string" && icon !== "" ? icon : null,
+        tone:
+          typeof tone === "string" && COLOR_TOKENS.includes(tone as never)
+            ? (tone as (typeof COLOR_TOKENS)[number])
+            : "default",
+        ...withChildren,
+      };
+    }
+    case "table":
+      return tableFromBlockNote(block);
+    case "image": {
+      const props = propsOf(block);
+      const displayWidth = props["displayWidth"];
+      return {
+        type: "image",
+        id,
+        fileItemId: String(props["fileItemId"] ?? "") as Uuid,
+        caption:
+          typeof props["caption"] === "string" && props["caption"] !== "" ? props["caption"] : null,
+        altText:
+          typeof props["altText"] === "string" && props["altText"] !== "" ? props["altText"] : null,
+        displayWidth: typeof displayWidth === "number" && displayWidth > 0 ? displayWidth : null,
+      };
+    }
+    case "fileEmbed": {
+      const props = propsOf(block);
+      return {
+        type: "fileEmbed",
+        id,
+        fileItemId: String(props["fileItemId"] ?? "") as Uuid,
+        caption:
+          typeof props["caption"] === "string" && props["caption"] !== "" ? props["caption"] : null,
+      };
+    }
+    case "embed": {
+      const props = propsOf(block);
+      const provider = props["provider"];
+      if (typeof provider !== "string" || !EMBED_PROVIDERS.includes(provider as EmbedProvider)) {
+        return unknownVisibleBlock(block, "embed");
+      }
+      return {
+        type: "embed",
+        id,
+        provider: provider as EmbedProvider,
+        sourceUrl: String(props["sourceUrl"] ?? ""),
+        caption:
+          typeof props["caption"] === "string" && props["caption"] !== "" ? props["caption"] : null,
+      };
+    }
     case "unknown":
       return opaqueFromBlockNote(block);
+    case "tableRow":
+    case "tableCell":
+      return unknownVisibleBlock(block);
     default:
-      return {
-        type: "unknown",
-        id,
-        declaredType: String(block.type),
-        raw: { type: String(block.type), id },
-        syntheticId: false,
-      };
+      return unknownVisibleBlock(block);
   }
 }
 
