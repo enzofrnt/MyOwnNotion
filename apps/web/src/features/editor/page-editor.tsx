@@ -255,7 +255,7 @@ export function PageEditor({
   );
 
   const applyLocalChanges = useCallback(
-    (changes: EditorBlocksChanged) => {
+    async (changes: EditorBlocksChanged): Promise<void> => {
       if (changes.length === 0) return;
       editorLocalChangeCount.current += 1;
       if (!origin.acceptLocalChanges) {
@@ -293,33 +293,31 @@ export function PageEditor({
       editorApplyCount.current += 1;
       writeEditorSettlementState();
       inFlight.current += 1;
-      void engine
-        .apply(commands)
-        .then(() => {
-          inFlight.current -= 1;
-          scheduleProjectionSettlement();
-        })
-        .catch((error: unknown) => {
-          inFlight.current -= 1;
-          editorApplyFailureCount.current += 1;
-          lastEditorApplyErrorType.current =
-            error instanceof Error ? error.name : "UnknownEditorApplyError";
-          writeEditorSettlementState();
-          if (
-            session !== undefined &&
-            (session.sync.synchronizationKind === "blocked" || session.recoveryBuffer !== null)
-          ) {
-            markEditorSettled();
-            return;
-          }
-          recoverVisibleProjection();
-          setEditorError(
-            error instanceof Error
-              ? `Cette modification n’a pas été appliquée : ${error.message}`
-              : "Cette modification n’a pas été appliquée.",
-          );
-          scheduleProjectionSettlement();
-        });
+      try {
+        await engine.apply(commands);
+        inFlight.current -= 1;
+        scheduleProjectionSettlement();
+      } catch (error: unknown) {
+        inFlight.current -= 1;
+        editorApplyFailureCount.current += 1;
+        lastEditorApplyErrorType.current =
+          error instanceof Error ? error.name : "UnknownEditorApplyError";
+        writeEditorSettlementState();
+        if (
+          session !== undefined &&
+          (session.sync.synchronizationKind === "blocked" || session.recoveryBuffer !== null)
+        ) {
+          markEditorSettled();
+          return;
+        }
+        recoverVisibleProjection();
+        setEditorError(
+          error instanceof Error
+            ? `Cette modification n’a pas été appliquée : ${error.message}`
+            : "Cette modification n’a pas été appliquée.",
+        );
+        scheduleProjectionSettlement();
+      }
     },
     [
       editor,

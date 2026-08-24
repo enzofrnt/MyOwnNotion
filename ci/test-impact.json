@@ -622,6 +622,7 @@
         ],
         "prefixes": [
           "apps/api/src/page-state/",
+          "apps/web/src/features/editor/",
           "packages/client-core/src/outbox/",
           "packages/client-core/src/page-sync/",
           "packages/database/src/repositories/page-operation-",

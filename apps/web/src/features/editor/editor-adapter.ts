@@ -550,9 +550,22 @@ export function commandsFromBlockNoteChanges(input: {
     if (change.type !== "update" || !isUuid(change.block.id)) continue;
     if (change.block.type === "table" || change.block.type === "tableRow") continue;
     const changedType = typeCommand(change.prevBlock, change.block);
-    if (changedType !== null) commands.push(changedType);
     const replacement = minimalTextReplacement(textOf(change.prevBlock), textOf(change.block));
-    if (replacement !== null) {
+    // A divider cannot temporarily retain text in the operational model. The
+    // slash menu can expose `/div` and its final type change in one coalesced
+    // browser batch, so remove the query before changing the block type.
+    // Other text-capable transforms keep their type-first ordering.
+    const clearsTextForDivider =
+      changedType?.type === "set-block-type" && changedType.blockType === "divider";
+    if (clearsTextForDivider && replacement !== null) {
+      commands.push({
+        type: "replace-text",
+        blockId: change.block.id,
+        ...replacement,
+      });
+    }
+    if (changedType !== null) commands.push(changedType);
+    if (!clearsTextForDivider && replacement !== null) {
       commands.push({
         type: "replace-text",
         blockId: change.block.id,
@@ -582,13 +595,58 @@ export function commandsFromBlockNoteChanges(input: {
   return commands;
 }
 
-/** Coalesces composition updates so one IME confirmation becomes one page transaction. */
+type EditorChangePublisher = (changes: EditorBlocksChanged) => void | Promise<void>;
+
+/**
+ * Keeps only the first and final projection of consecutive updates to one
+ * block. Structural changes remain in order: collapsing across an insert,
+ * move or delete would erase a distinct owner gesture.
+ */
+function coalesceEditorUpdates(changes: EditorBlocksChanged): EditorBlocksChanged {
+  const coalesced: EditorBlocksChanged = [];
+  const openUpdateByBlock = new Map<string, number>();
+  for (const change of changes) {
+    if (change.type !== "update") {
+      // Any tree mutation is an ordering boundary for every open update. A
+      // later update may depend on the newly inserted/moved/deleted sibling,
+      // even when it targets another block id.
+      openUpdateByBlock.clear();
+      coalesced.push(change);
+      continue;
+    }
+    const existingIndex = openUpdateByBlock.get(change.block.id);
+    if (existingIndex === undefined) {
+      openUpdateByBlock.set(change.block.id, coalesced.length);
+      coalesced.push(change);
+      continue;
+    }
+    const existing = coalesced[existingIndex];
+    if (existing?.type !== "update") {
+      throw new Error("editor update coalescing lost its structural boundary");
+    }
+    coalesced[existingIndex] = { ...change, prevBlock: existing.prevBlock };
+  }
+  return coalesced;
+}
+
+/**
+ * Applies back-pressure at the BlockNote/durability seam.
+ *
+ * The first visible change starts its local commit immediately. Changes that
+ * arrive while that commit is in flight are reduced to their earliest and
+ * latest block projections, then become one following transaction. This keeps
+ * the no-delay durability boundary while preventing a fast browser from
+ * queuing one encrypted IndexedDB transaction per character behind a cold
+ * store. IME input uses the same pending batch and is published only after the
+ * composition ends.
+ */
 export class EditorChangeBatcher {
-  readonly #publish: (changes: EditorBlocksChanged) => void;
+  readonly #publish: EditorChangePublisher;
   #composing = false;
+  #publishing = false;
   #pending: EditorBlocksChanged = [];
 
-  constructor(publish: (changes: EditorBlocksChanged) => void) {
+  constructor(publish: EditorChangePublisher) {
     this.#publish = publish;
   }
 
@@ -597,27 +655,30 @@ export class EditorChangeBatcher {
   }
 
   push(changes: EditorBlocksChanged): void {
-    if (!this.#composing) {
-      this.#publish(changes);
-      return;
-    }
     this.#pending = [...this.#pending, ...changes];
+    void this.#drain();
   }
 
   endComposition(): void {
     this.#composing = false;
-    if (this.#pending.length === 0) return;
-    const latestByBlock = new Map<string, EditorBlocksChanged[number]>();
-    for (const change of this.#pending) {
-      const first = latestByBlock.get(change.block.id);
-      latestByBlock.set(
-        change.block.id,
-        first?.type === "update" && change.type === "update"
-          ? { ...change, prevBlock: first.prevBlock }
-          : change,
-      );
+    void this.#drain();
+  }
+
+  async #drain(): Promise<void> {
+    if (this.#publishing || this.#composing) return;
+    this.#publishing = true;
+    try {
+      while (!this.#composing && this.#pending.length > 0) {
+        const pending = this.#pending;
+        this.#pending = [];
+        await this.#publish(coalesceEditorUpdates(pending));
+      }
+    } finally {
+      this.#publishing = false;
+      // A push can occur after the loop observes an empty queue but before its
+      // awaited continuation clears `publishing`. Recheck once so that narrow
+      // event-loop window cannot strand visible input in memory.
+      if (!this.#composing && this.#pending.length > 0) void this.#drain();
     }
-    this.#pending = [];
-    this.#publish([...latestByBlock.values()] as EditorBlocksChanged);
   }
 }

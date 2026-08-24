@@ -60,6 +60,26 @@ reconstruites avec toutes leurs mises à jour causales. Une édition saisie en
 plusieurs updates n'est plus réduite à son premier caractère lors d'un conflit
 delete/edit.
 
+Le gate PR complet a ensuite révélé une saturation propre à Firefox après les
+45 journeys : une courte saisie pouvait produire 67 changements BlockNote et
+autant de commits chiffrés en série, laissant l'éditeur sur « Enregistrement… »
+plus de 20 secondes sans erreur ni perte. La frontière éditeur applique
+désormais une back-pressure : le premier changement part immédiatement, puis
+les projections textuelles arrivées pendant ce commit sont réduites à leur état
+initial et final dans la transaction durable suivante. Après correction, cinq
+répétitions sur chacun des cinq profils — 25 exécutions — passent en parallèle
+en 50 secondes, contre 81 secondes pour seulement trois répétitions avant
+correction.
+
+Le même gate a exposé un second cas de charge sur Chromium mobile : le menu
+slash créait bien le séparateur, mais le regroupement pouvait présenter au
+moteur l'effacement de `/div` et le changement de type dans le mauvais ordre.
+Comme un séparateur ne peut jamais porter de texte, la transaction était
+refusée puis la projection visible revenait à `/div`. L'adaptateur efface
+désormais la requête avant la transformation et conserve toute mutation de
+l'arbre comme frontière de regroupement. Le journey complet des cinq types de
+blocs passe ensuite cinq fois sur chacun des cinq profils en parallèle (25/25).
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
