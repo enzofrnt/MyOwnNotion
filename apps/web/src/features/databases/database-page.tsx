@@ -75,7 +75,8 @@ export function DatabasePage({
   const [savingProperty, setSavingProperty] = useState(false);
   const propertySubmissionInFlight = useRef(false);
   const [pendingDefinitionMutations, setPendingDefinitionMutations] = useState(0);
-  const [entryTitle, setEntryTitle] = useState("");
+  const entryTitleRef = useRef("");
+  const entryInputRef = useRef<HTMLInputElement>(null);
   const [entryError, setEntryError] = useState<string | null>(null);
   const [savingEntry, setSavingEntry] = useState(false);
   const entrySubmissionInFlight = useRef(false);
@@ -369,22 +370,30 @@ export function DatabasePage({
     // ref closes that gap synchronously, before React has rendered `disabled`,
     // so one physical gesture can never create two entries.
     if (entrySubmissionInFlight.current) return;
-    const title = entryTitle.trim();
+    // The DOM owns this short-lived draft. A synchronization projection can
+    // rerender this page between the browser's input event and React's state
+    // commit on constrained WebKit runners; reading the mounted field keeps
+    // exactly what the owner can still see instead of an older render value.
+    const submittedTitle = entryInputRef.current?.value ?? entryTitleRef.current;
+    entryTitleRef.current = submittedTitle;
+    const title = submittedTitle.trim();
     if (title.length === 0) {
       setEntryError(DATABASE_COPY.page.titleRequired);
       return;
     }
     entrySubmissionInFlight.current = true;
     setEntryError(null);
-    // Clear and lock the controlled field before the asynchronous write. If
+    // Clear and lock the visible field before the asynchronous write. If
     // the clear waited until the write completed, that older render could
     // erase the next title a user had already started typing under load.
-    setEntryTitle("");
+    entryTitleRef.current = "";
+    if (entryInputRef.current !== null) entryInputRef.current.value = "";
     setSavingEntry(true);
     try {
       await onCreateEntry(title);
     } catch {
-      setEntryTitle(title);
+      entryTitleRef.current = submittedTitle;
+      if (entryInputRef.current !== null) entryInputRef.current.value = submittedTitle;
       setEntryError(DATABASE_COPY.page.entryCreateFailed);
     } finally {
       entrySubmissionInFlight.current = false;
@@ -530,11 +539,15 @@ export function DatabasePage({
         <label htmlFor={`new-entry-${database.databaseId}`}>{DATABASE_COPY.page.newEntry}</label>
         <div className="field-row">
           <input
+            ref={entryInputRef}
             id={`new-entry-${database.databaseId}`}
-            value={entryTitle}
+            defaultValue=""
             placeholder={DATABASE_COPY.page.untitledPage}
             disabled={savingEntry}
-            onChange={(event) => setEntryTitle(event.target.value)}
+            onChange={(event) => {
+              entryTitleRef.current = event.currentTarget.value;
+              setEntryError(null);
+            }}
           />
           <StableActionButton
             type="submit"

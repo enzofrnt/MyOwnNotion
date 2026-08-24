@@ -140,4 +140,53 @@ describe("database page interaction durability", () => {
       options: [{ label: "To do" }, { label: "Done" }],
     });
   });
+
+  it("keeps a new entry title through a concurrent projection render", async () => {
+    const onCreateEntry = vi.fn().mockResolvedValue(undefined);
+    const initialDatabase = database();
+    const renderPage = (value: DatabaseDto) => (
+      <DatabasePage
+        database={value}
+        entries={[]}
+        onReplaceDefinition={vi.fn()}
+        onCreateEntry={onCreateEntry}
+        onOpenEntry={vi.fn()}
+      />
+    );
+    act(() => root.render(renderPage(initialDatabase)));
+
+    const title = container.querySelector<HTMLInputElement>(".database-entry-create input");
+    const submit = container.querySelector<HTMLButtonElement>(
+      '.database-entry-create button[type="submit"]',
+    );
+    expect(title).not.toBeNull();
+    expect(submit).not.toBeNull();
+    if (title === null || submit === null) return;
+
+    // Model WebKit painting the final input just before a synchronization
+    // projection rerenders the parent. React has not observed an input event,
+    // so a controlled field would repaint the old empty value here.
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+      title,
+      "Offline roadmap",
+    );
+    act(() =>
+      root.render(
+        renderPage({
+          ...initialDatabase,
+          definitionRevisionId: generateUuidV7(),
+        }),
+      ),
+    );
+    expect(title.value).toBe("Offline roadmap");
+
+    await act(async () => {
+      submit.click();
+      await Promise.resolve();
+    });
+
+    expect(onCreateEntry).toHaveBeenCalledOnce();
+    expect(onCreateEntry).toHaveBeenCalledWith("Offline roadmap");
+    expect(title.value).toBe("");
+  });
 });
