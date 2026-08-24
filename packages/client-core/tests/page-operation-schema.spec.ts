@@ -17,12 +17,20 @@ const v6Stores = {
   databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
 } as const;
 
+const v7Stores = {
+  ...v6Stores,
+  pageOperationStates: "pageId, status, localAvailability, lastAccessedAt",
+  pageOperationUpdates: "updateId, pageId, status, enqueueOrder, [pageId+status]",
+  pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
+  legacyOfflineBranches: "pageId, branchId, status",
+} as const;
+
 afterEach(async () => {
   for (const name of databasesToDelete) await Dexie.delete(name);
   databasesToDelete.clear();
 });
 
-describe("page-operation local schema v7", () => {
+describe("page-operation local schema v8", () => {
   it("upgrades v6 without changing historical projection rows", async () => {
     const name = `page-operations-v6-${generateUuidV7()}`;
     databasesToDelete.add(name);
@@ -101,6 +109,36 @@ describe("page-operation local schema v7", () => {
     upgraded.close();
   });
 
+  it("adds the status-first queue index without rewriting encrypted v7 updates", async () => {
+    const name = `page-operations-v7-${generateUuidV7()}`;
+    databasesToDelete.add(name);
+    const legacy = new Dexie(name);
+    legacy.version(7).stores(v7Stores);
+    const pageId = generateUuidV7();
+    const updateId = generateUuidV7();
+    const retained = {
+      updateId,
+      pageId,
+      status: "pending",
+      enqueueOrder: 42,
+      createdAt: "2026-08-24T12:00:00.000Z",
+      recordVersion: 3,
+      sealedUpdate: { opaque: "ciphertext-must-not-be-opened-by-the-schema-upgrade" },
+    };
+    await legacy.table("pageOperationUpdates").put(retained);
+    legacy.close();
+
+    const upgraded = openLocalDatabase(name);
+    await upgraded.open();
+
+    expect(upgraded.verno).toBe(LOCAL_SCHEMA_VERSION);
+    expect(await upgraded.pageOperationUpdates.get(updateId)).toEqual(retained);
+    expect(
+      upgraded.pageOperationUpdates.schema.indexes.map(({ name: indexName }) => indexName),
+    ).toContain("[status+pageId]");
+    upgraded.close();
+  });
+
   it("indexes only routing metadata for operational records", async () => {
     const name = `page-operations-indexes-${generateUuidV7()}`;
     databasesToDelete.add(name);
@@ -109,7 +147,13 @@ describe("page-operation local schema v7", () => {
 
     expect(db.pageOperationStates.schema.primKey.name).toBe("pageId");
     expect(db.pageOperationUpdates.schema.indexes.map(({ name: indexName }) => indexName)).toEqual(
-      expect.arrayContaining(["pageId", "status", "enqueueOrder", "[pageId+status]"]),
+      expect.arrayContaining([
+        "pageId",
+        "status",
+        "enqueueOrder",
+        "[pageId+status]",
+        "[status+pageId]",
+      ]),
     );
     expect(db.pageAmbiguities.schema.indexes.map(({ name: indexName }) => indexName)).toEqual(
       expect.arrayContaining(["pageId", "status", "[pageId+status]"]),

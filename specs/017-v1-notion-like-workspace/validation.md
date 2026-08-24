@@ -25,6 +25,9 @@ Les scénarios centraux du quickstart sont verts :
   complet ultérieur est refusé ;
 - le statut « synchronisé » n'est atteint qu'après confirmation de la frontier
   serveur et adoption de l'état durable par la session ouverte.
+- une page active modifiée hors ligne reste découvrable après fermeture du
+  navigateur ; au redémarrage sur une autre page, sa file chiffrée est drainée
+  sans rouvrir l'éditeur et le statut global reste honnête jusqu'à l'acquittement.
 
 ## Commandes et résultats
 
@@ -41,6 +44,9 @@ Les scénarios centraux du quickstart sont verts :
 | Mutation v2 en attente | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-protocol-migration.spec.ts` | 5 profils passés |
 | Brouillon structuré sous projection concurrente | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts --repeat-each=5` | 25/25 exécutions passées, cinq par profil |
 | Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 23 tests passés, dont 10 rejeux de rollover et 1 000 suites ; seed par défaut `170191` |
+| Routage local des pages fermées | `pnpm exec vitest run --project client-core packages/client-core/tests/page-operation-schema.spec.ts packages/client-core/tests/page-operation-encryption.spec.ts` | 2 fichiers, 9 tests passés ; migration v7 vers v8, contenu chiffré préservé, identités dédupliquées sans ouverture des enveloppes |
+| Ordonnancement au démarrage | `pnpm exec vitest run --project web apps/web/tests/synchronize-serialization.spec.ts` | 1 fichier, 8 tests passés ; reprise sans éditeur, statut global honnête et plafond de 4 échanges de pages |
+| Redémarrage sur une autre page | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts --grep "a restarted device drains a closed page without reopening it"` | 5 profils passés ; fermeture hors ligne, nouveau contexte navigateur, aucune réouverture du document modifié |
 | Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
 | Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
 | Contrats API et workspace après correction du cycle de vie | `pnpm test:contract` | 93 fichiers, 1 147 tests passés ; longue absence en 153,34 s, aucun rejet différé |
@@ -174,6 +180,33 @@ cas paramétrés distincts. Le volume de 5 120 updates et toutes les assertions
 restent identiques, chaque échantillon garde le timeout standard et un échec
 désigne directement le rejeu concerné.
 
+Le scénario de reprise d'une page fermée a enfin trouvé une incompatibilité
+WebKit dans la première implémentation de l'index local : le curseur IndexedDB
+`nextunique` sur la plage composée `[status+pageId]` échouait avec
+`UnknownError: Unable to open cursor`, laissant le workspace en chargement.
+L'index reste la frontière de routage, mais ses clés ordinaires sont maintenant
+parcourues puis dédupliquées en mémoire ; aucune enveloppe chiffrée n'est ouverte.
+La migration v7 vers v8 préserve les octets existants et le parcours complet
+passe ensuite sur Chromium et WebKit desktop/mobile ainsi que Firefox.
+
+Le gate complet suivant a rendu visible une seconde moitié du même invariant :
+une page modifiée hors ligne puis quittée avant la reconnexion conservait une
+`LegacyOfflineBranch`, mais seul l'éditeur désormais démonté savait demander sa
+conversion. Le statut global honnête restait donc à `1 pending`. Les branches
+legacy éditables sont maintenant découvertes par leur index sans ouvrir leur
+contenu ; une session montée garde l'exclusivité de sa file de gestes, tandis
+qu'une branche sans éditeur est convertie en arrière-plan après sa dépendance
+workspace. Les notifications locales dérivent leur état des files durables et
+ne peuvent plus écraser tardivement un acquittement par un faux `pending`.
+
+Les mêmes traces ont révélé qu'une conversion page vers dossier laissait le
+journal opérationnel local interroger une autorité que le serveur avait déjà
+retirée. La conversion optimiste supprime désormais état, updates, ambiguïtés et
+branche dans la transaction qui crée la mutation ; une requête déjà partie est
+refusée en 409 documenté plutôt qu'en 500. Les 46 tests client/web ciblés, les
+4 tests d'intégration du service et les trois journeys fautifs passent, puis la
+matrice navigateur ciblée passe sur les cinq profils (5/5) avec deux workers.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
@@ -181,7 +214,7 @@ Cette validation ne clôt pas les tâches suivantes :
 - T190 : budgets dédiés de débit, catch-up, compaction et mémoire sur le runner
   de performance ;
 - les blocs riches et fichiers restant à terminer en US3 ;
-- la finition visuelle et les surfaces restantes en US6/US7.
+- la frontière visuelle T222, la finition et les surfaces restantes en US6/US7.
 
 La tranche prouve donc le parcours de synchronisation implémenté aujourd'hui ;
 elle ne prétend pas encore que toute la V1 est terminée.

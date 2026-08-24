@@ -290,7 +290,11 @@ Après chaque transaction :
 4. Un ordonnanceur groupe les lots réseau pendant une courte fenêtre, sans
    supprimer leurs identités ni retarder la durabilité.
 5. La reprise au démarrage remet tout lot `sending` en `pending`, comme
-   l'outbox actuelle, puis échange les frontières avec le serveur.
+   l'outbox actuelle, découvre les identités de pages par un index de routage
+   sans ouvrir leurs contenus chiffrés, puis échange leurs frontières avec une
+   concurrence bornée. Ce drainage ne dépend pas du montage d'un éditeur : une
+   page fermée reprend au lancement, au retour du réseau et après un signal de
+   changement.
 
 `BroadcastChannel` accélère les onglets, mais chaque destinataire importe et
 persiste la mise à jour avant de l'afficher comme durable. Un onglet qui ne peut
@@ -376,17 +380,30 @@ checkpoint actif retourné remplace la branche uniquement après commit Dexie.
 Une seconde branche legacy concurrente suit exactement la même conversion et
 ne peut jamais remplacer la page complète.
 
-La session d'édition est l'unique autorité qui déclenche cette conversion, à
-une frontière de sa file sérielle. Les signaux généraux de reconnexion, SSE ou
-rafraîchissement peuvent synchroniser les pages déjà actives, mais ne
-convertissent jamais directement une branche encore éditable. Si une demande
-de conversion rejoint une réconciliation déjà en vol, le reconciler exécute
-une passe dédiée après celle-ci. Une fois le checkpoint durable reçu, la même
-tâche attend la reprise de la session active avant de libérer les gestes
-suivants. Si l'appareil avait déjà récupéré un checkpoint actif créé ailleurs,
-la branche locale reste prioritaire à l'ouverture puis une passe active suit
-obligatoirement sa conversion pour importer le résultat fusionné ;
-« synchronisé » reste impossible si une commande locale a échoué.
+Tant qu'un éditeur legacy est monté, sa session est l'unique autorité qui
+déclenche cette conversion, à une frontière de sa file sérielle. Les signaux
+généraux de reconnexion, SSE ou rafraîchissement peuvent synchroniser les pages
+déjà actives, mais ne convertissent jamais directement une branche qui accepte
+encore des gestes. Une fois l'éditeur fermé, la branche durable devient au
+contraire son propre jeton de reprise : le service la découvre par son index de
+statut et peut la convertir sans remonter la page, après avoir drainé toute
+création ou écriture v2 dont dépend sa révision de base. Cette reprise sans
+session s'exécute avec la même concurrence bornée que les autres pages.
+
+Si une demande de conversion rejoint une réconciliation déjà en vol, le
+reconciler exécute une passe dédiée après celle-ci. Une fois le checkpoint
+durable reçu, une session encore montée attend sa propre reprise active avant
+de libérer les gestes suivants. Si l'appareil avait déjà récupéré un checkpoint
+actif créé ailleurs, la branche locale reste prioritaire à l'ouverture puis une
+passe active suit obligatoirement sa conversion pour importer le résultat
+fusionné ; « synchronisé » reste impossible si une commande locale a échoué.
+
+Une conversion confirmée de page vers dossier retire dans une même transaction
+locale la projection éditoriale, les updates, ambiguïtés, checkpoints et
+branches, comme le serveur retire son autorité opérationnelle sous verrou avant
+de changer le type. Une requête d'un appareil devenue tardive reçoit alors un
+refus de protocole explicite ; elle ne peut ni ressusciter le contenu détruit ni
+faire boucler le client sur une erreur serveur générique.
 
 Le serveur annonce le protocole 3 dans `X-MyOwnNotion-Protocol` et le client
 l'envoie dans `X-MyOwnNotion-Client-Protocol`. La fenêtre générale peut encore
@@ -483,11 +500,20 @@ barres consomment les mêmes tokens que le shell. dnd-kit porte l'arbre de
 navigation et son capteur clavier ; BlockNote garde son DnD interne derrière
 l'adaptateur.
 
+Le routeur de présentation sépare deux familles de surfaces. Le workspace
+affiche uniquement le contenu et les vues de connaissance, avec une navigation
+et des états compacts. Les réglages et opérations — sécurité, appareils,
+stockage, sauvegardes, diagnostics et gestion administrative — sont montés dans
+des destinations dédiées. Ils partagent les mêmes primitives mais ne sont pas
+des enfants visuels du document courant. La navigation vers ces destinations
+capture page active, sélection et ancre de lecture afin que le retour rétablisse
+le contexte sans remonter en haut du document.
+
 La migration avance par couches : tokens/primitives, shell, navigation,
-éditeur, surfaces asynchrones communes, puis chaque feature visible. Les
-anciens sélecteurs CSS sont supprimés seulement après couverture visuelle des
-deux thèmes, largeurs et zooms ; aucune deuxième bibliothèque de composants
-générale n'est introduite.
+éditeur, séparation workspace/configuration, surfaces asynchrones communes,
+puis chaque feature visible. Les anciens sélecteurs CSS sont supprimés
+seulement après couverture visuelle des deux thèmes, largeurs et zooms ; aucune
+deuxième bibliothèque de composants générale n'est introduite.
 
 ### 10. Validation et ordre de livraison
 

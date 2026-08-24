@@ -212,7 +212,7 @@ export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow,
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 7;
+export const LOCAL_SCHEMA_VERSION = 8;
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -424,7 +424,7 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
   // Version 7 introduces the convergent page journal. It adds stores only: no
   // historical projection row is rewritten or discarded, which lets an
   // installation upgrade while legacy offline work is still waiting.
-  db.version(LOCAL_SCHEMA_VERSION).stores({
+  db.version(7).stores({
     items: "id, kind, lifecycle, localAvailability",
     placements: "id, itemId, parentKey, [parentKey+kind]",
     relationships: "id, sourceItemId, targetItemId",
@@ -436,6 +436,28 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
     databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
     pageOperationStates: "pageId, status, localAvailability, lastAccessedAt",
     pageOperationUpdates: "updateId, pageId, status, enqueueOrder, [pageId+status]",
+    pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
+    legacyOfflineBranches: "pageId, branchId, status",
+  });
+  // Version 8 adds the inverse queue-routing index. Boot and reconnection must
+  // discover page IDs that own pending operational updates without reading the
+  // encrypted update envelopes themselves: after a long offline period those
+  // envelopes can contain thousands of changes and many megabytes of private
+  // content. Adding an index rewrites only IndexedDB routing metadata; it does
+  // not open, migrate or replace a single sealed update.
+  db.version(LOCAL_SCHEMA_VERSION).stores({
+    items: "id, kind, lifecycle, localAvailability",
+    placements: "id, itemId, parentKey, [parentKey+kind]",
+    relationships: "id, sourceItemId, targetItemId",
+    revisionHeaders: "id, itemId, local",
+    outbox: "mutationId, status, enqueueOrder",
+    conflicts: "mutationId, capturedAt",
+    meta: "key",
+    databases: "itemId",
+    databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
+    pageOperationStates: "pageId, status, localAvailability, lastAccessedAt",
+    pageOperationUpdates:
+      "updateId, pageId, status, enqueueOrder, [pageId+status], [status+pageId]",
     pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
     legacyOfflineBranches: "pageId, branchId, status",
   });

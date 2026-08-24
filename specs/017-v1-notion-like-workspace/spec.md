@@ -52,6 +52,12 @@ livrée : installation initiale, connexion, workspace, barre latérale, pages,
 d'interaction mesurable et une qualité cohérente ; cela ne signifie ni copie
 pixel par pixel, ni parité avec toutes les fonctions de Notion.
 
+La cohérence ne signifie pas réunir toutes ces fonctions sur la page courante.
+Le workspace principal est réservé aux contenus et vues de connaissance ; les
+réglages, sauvegardes, appareils, stockage, sécurité et diagnostics détaillés
+ouvrent des surfaces dédiées. Seuls des états compacts et actionnables peuvent
+rester dans le chrome du contenu.
+
 Cette feature absorbe les deux écarts connus de la 003 : restauration de la
 position dans un document et déplacement clavier vers le parent sur WebKit.
 Elle ne rouvre pas l'historique des tâches terminées de la 003 ; elle prend la
@@ -90,6 +96,15 @@ responsabilité explicite de ces comportements dans son propre périmètre.
   seule une révocation explicite permet de cesser de retenir sa frontière de
   synchronisation.
 
+### Session 2026-08-24
+
+- Q: Le workspace principal peut-il afficher sous la page les panneaux de
+  stockage, révisions, corbeille, sécurité, sauvegardes ou diagnostics ? → R:
+  Non. Comme dans Notion ou Obsidian, cette surface est consacrée aux pages,
+  dossiers, contenus et vues de connaissance. Les fonctions de configuration
+  ou d'exploitation ouvrent une surface dédiée ; seul un statut compact utile
+  à l'action immédiate reste près du contenu et mène vers son détail.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Entrer dans un espace de travail focalisé (Priority: P1)
@@ -125,6 +140,11 @@ une page sur ordinateur puis sur un écran de 320 pixels.
 5. **Given** une page ouverte, **When** son titre ou son emplacement change,
    **Then** l'en-tête, le fil de navigation et la barre latérale reflètent la
    même identité sans rechargement ni perte de focus.
+6. **Given** une page ou un dossier ouvert, **When** le propriétaire parcourt
+   le contenu principal, **Then** aucun panneau de stockage, sécurité,
+   sauvegarde, appareil, file de mutations ou diagnostic détaillé n'est rendu
+   sous ce contenu ; son accès dédié restaure la même page et la même position
+   au retour.
 
 ---
 
@@ -280,6 +300,10 @@ reconnecter dans les deux ordres et comparer l'état final et l'historique.
    chevauchent, **Then** la bascule attend toutes les opérations locales déjà
    acceptées, reprend sur l'état actif avant d'accepter les suivantes et ne
    peut ni réinstaller un instantané antérieur ni annoncer un faux succès.
+8. **Given** des opérations durables en attente sur une page qui n'est plus
+   ouverte, **When** l'application redémarre ou retrouve le réseau sur une autre
+   page, **Then** elle découvre et transmet automatiquement cette file sans
+   obliger le propriétaire à retrouver ou rouvrir le document concerné.
 
 ---
 
@@ -411,6 +435,13 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **FR-007**: Recherche, favoris, éléments récents, réglages, sauvegardes et état
   de synchronisation MUST rester accessibles depuis la navigation sans
   concurrencer visuellement la hiérarchie principale.
+- **FR-072**: Le contenu principal du workspace MUST être réservé aux pages,
+  dossiers et vues de connaissance livrées. Réglages, sécurité, appareils,
+  stockage, sauvegardes, corbeille administrative et diagnostics détaillés MUST
+  ouvrir des surfaces dédiées et ne MUST pas être empilés sous le document
+  courant. Un indicateur compact de synchronisation, conflit ou alerte peut
+  rester dans le chrome s'il mène à la surface pertinente et si le retour
+  restaure le contexte de lecture.
 - **FR-008**: Une page ouverte MUST présenter un titre éditable en place, son
   chemin et ses actions de page sans exposer ses identifiants techniques dans
   le parcours courant.
@@ -569,6 +600,12 @@ en charge, une fois sans pointeur puis une fois au toucher.
   MUST attendre à la fois l'acceptation de l'opération documentaire et la
   présence vérifiée des octets du fichier sur le serveur ; la reconnexion ne
   MUST créer ni référence orpheline ni fichier dupliqué.
+- **FR-073**: Le lancement de l'application, le retour du réseau et un signal de
+  changements MUST découvrir puis reprendre les files éditoriales durables de
+  toutes les pages concernées, y compris celles qui ne sont pas ouvertes. Cette
+  reprise MUST être bornée en concurrence, ne MUST pas dépendre d'un geste dans
+  l'éditeur et MUST conserver un état global honnête tant qu'une file reste
+  locale.
 
 #### Cohesive product experience
 

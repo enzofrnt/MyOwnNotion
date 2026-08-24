@@ -104,6 +104,10 @@ export async function applyLocalMutation(
           db.meta,
           db.databases,
           db.databaseEntries,
+          db.pageOperationStates,
+          db.pageOperationUpdates,
+          db.pageAmbiguities,
+          db.legacyOfflineBranches,
         ],
         async () => {
           const existing = await db.outbox.get(input.mutationId);

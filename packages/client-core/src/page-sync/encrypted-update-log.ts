@@ -24,6 +24,7 @@ import {
   versionVectorBytesEqual,
   versionVectorDominates,
 } from "@myownnotion/page-state";
+import { Dexie } from "dexie";
 import type {
   LocalDatabase,
   LocalPageAmbiguityStatus,
@@ -800,6 +801,72 @@ export class EncryptedPageOperationLog {
       opened.push(await this.codec.openUpdate(row));
     }
     return opened;
+  }
+
+  /**
+   * Lists only routing identities for pages that own updates in the requested
+   * states. The status-first compound index is intentional: using `toArray()`
+   * on the status index would load every sealed update envelope merely to learn
+   * its page ID, which makes an offline backlog's encrypted bytes part of the
+   * application boot path.
+   */
+  async listPageIdsWithUpdates(
+    statuses: readonly PageOperationUpdateStatus[] = ["pending", "sending"],
+  ): Promise<Uuid[]> {
+    const pageIds = new Set<Uuid>();
+    for (const status of new Set(statuses)) {
+      const keys = await this.db.pageOperationUpdates
+        .where("[status+pageId]")
+        .between([status, Dexie.minKey], [status, Dexie.maxKey], true, true)
+        // Do not use `uniqueKeys()` here. It opens a `nextunique` IndexedDB
+        // cursor, which current WebKit rejects for this compound range with
+        // `UnknownError: Unable to open cursor`. Plain key iteration is
+        // portable and still reads index metadata only; the Set below removes
+        // repeated page IDs without opening encrypted update envelopes.
+        .keys();
+      for (const key of keys) {
+        const parts = key as readonly unknown[];
+        if (!Array.isArray(key) || parts[0] !== status || typeof parts[1] !== "string") {
+          throw new TypeError("invalid page-operation queue routing key");
+        }
+        pageIds.add(parts[1] as Uuid);
+      }
+    }
+    return [...pageIds].sort();
+  }
+
+  async countUpdates(statuses: readonly PageOperationUpdateStatus[]): Promise<number> {
+    const uniqueStatuses = [...new Set(statuses)];
+    const counts = await Promise.all(
+      uniqueStatuses.map(
+        async (status) => await this.db.pageOperationUpdates.where("status").equals(status).count(),
+      ),
+    );
+    return counts.reduce((total, count) => total + count, 0);
+  }
+
+  /**
+   * Finds durable pre-activation branches without opening their ciphertext.
+   *
+   * A branch can outlive its editor: the owner may edit offline, navigate to
+   * another page and only then reconnect. Routing by the clear status index
+   * lets boot/reconnection resume that work without requiring the original
+   * editor component (or its in-memory session) to still exist.
+   */
+  async listPageIdsWithLegacyBranches(
+    statuses: readonly SealedLegacyOfflineBranchRow["status"][] = ["editing", "sending"],
+  ): Promise<Uuid[]> {
+    const pageIds = new Set<Uuid>();
+    for (const status of new Set(statuses)) {
+      const keys = await this.db.legacyOfflineBranches.where("status").equals(status).primaryKeys();
+      for (const key of keys) {
+        if (typeof key !== "string") {
+          throw new TypeError("invalid legacy page branch routing key");
+        }
+        pageIds.add(key as Uuid);
+      }
+    }
+    return [...pageIds].sort();
   }
 
   async putAmbiguity(record: PageAmbiguityRecord): Promise<void> {

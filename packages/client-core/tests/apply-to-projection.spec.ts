@@ -874,6 +874,75 @@ describe("item.convert page-link projection", () => {
       ),
     ).toHaveLength(0);
   });
+
+  it("retires every local operational representation in the conversion transaction", async () => {
+    const source = await createItem("page", "Operational source", null);
+    const sealedItem = await db.items.get(source.itemId);
+    expect(sealedItem).toBeDefined();
+    const envelope = sealedItem?.sealedName;
+    if (envelope === undefined) throw new Error("the test page has no sealed envelope");
+    const updateId = generateUuidV7();
+    const ambiguityId = generateUuidV7();
+    await db.pageOperationStates.put({
+      pageId: source.itemId,
+      status: "active",
+      operationalVersion: 1,
+      canonicalFormatVersion: 3,
+      latestServerPageSequence: 0,
+      localAvailability: "present",
+      lastAccessedAt: FIXED_NOW.toISOString(),
+      recordVersion: 1,
+      sealedState: envelope,
+    });
+    await db.pageOperationUpdates.put({
+      updateId,
+      pageId: source.itemId,
+      status: "pending",
+      enqueueOrder: 1,
+      createdAt: FIXED_NOW.toISOString(),
+      recordVersion: 1,
+      sealedBody: envelope,
+    });
+    await db.pageAmbiguities.put({
+      ambiguityId,
+      pageId: source.itemId,
+      kind: "schema",
+      status: "open",
+      openedAt: FIXED_NOW.toISOString(),
+      recordVersion: 1,
+      sealedDetails: envelope,
+    });
+    await db.legacyOfflineBranches.put({
+      pageId: source.itemId,
+      branchId: generateUuidV7(),
+      status: "editing",
+      createdAt: FIXED_NOW.toISOString(),
+      recordVersion: 1,
+      sealedBranch: envelope,
+    });
+
+    const converted = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.convert",
+        payload: {
+          itemId: source.itemId,
+          targetKind: "folder",
+          confirmedDestruction: true,
+        },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+
+    expect(converted.ok).toBe(true);
+    expect(await db.pageOperationStates.get(source.itemId)).toBeUndefined();
+    expect(await db.pageOperationUpdates.where("pageId").equals(source.itemId).count()).toBe(0);
+    expect(await db.pageAmbiguities.where("pageId").equals(source.itemId).count()).toBe(0);
+    expect(await db.legacyOfflineBranches.get(source.itemId)).toBeUndefined();
+  });
 });
 
 describe("commands with no offline semantics", () => {

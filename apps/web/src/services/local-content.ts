@@ -25,6 +25,7 @@ import {
   Outbox,
   openLocalDatabase,
   PageEditingSession,
+  type PageReconcileOutcome,
   PageReconciler,
   type ProjectedItem,
   type ReconcileTransport,
@@ -68,6 +69,11 @@ import { requestPersistentStorage } from "./storage-manager.ts";
  * locally and merely awaiting the server (FR-043).
  */
 export type SyncState = "offline" | "pending" | "syncing" | "synced" | "conflict" | "quota-failure";
+
+// A reconnect after a long absence may discover many edited pages. Four
+// independent exchanges keep progress moving without turning one browser tab
+// into an unbounded burst against a small self-hosted server.
+const PAGE_OPERATION_SYNC_CONCURRENCY = 4;
 
 export interface LocalContentSnapshot {
   readonly syncState: SyncState;
@@ -124,6 +130,8 @@ export class LocalContentService {
   readonly #keys: LocalKeyManager;
   readonly #codec: LocalRecordCodec;
   readonly #pageReconcilers = new Map<Uuid, PageReconciler>();
+  /** Mounted legacy editors own their conversion queue until they close. */
+  readonly #legacyPageSessionLeases = new Map<Uuid, number>();
   readonly #openingPages = new Map<
     Uuid,
     Promise<SharedOpenedOperationalPage | OpenOperationalPageResult>
@@ -181,6 +189,10 @@ export class LocalContentService {
         // outbox, so it needs its own projection notification.
         onDurablePage: async () => {
           await this.#emitProjection({ kind: "upsert", itemIds: [pageId] });
+          // The page exchange just installed a server-confirmed frontier. The
+          // aggregate notifier will keep this as `pending` when any other
+          // workspace or page queue still owns local work.
+          await this.#notify("synced");
         },
       });
       this.#pageReconcilers.set(pageId, reconciler);
@@ -225,8 +237,17 @@ export class LocalContentService {
     if (state !== undefined) {
       this.#syncState = state;
     }
-    this.#pendingCount = (await this.outbox.pending()).length;
-    this.#conflictCount = (await this.outbox.conflicts()).length;
+    const [workspacePending, workspaceConflicts, pageUpdates, legacyBranches] = await Promise.all([
+      this.outbox.pending(),
+      this.outbox.conflicts(),
+      this.pageOperationLog.countUpdates(["pending", "sending", "blocked"]),
+      this.db.legacyOfflineBranches.where("status").anyOf("editing", "sending", "blocked").count(),
+    ]);
+    this.#pendingCount = workspacePending.length + pageUpdates + legacyBranches;
+    this.#conflictCount = workspaceConflicts.length;
+    if (this.#pendingCount > 0 && this.#syncState === "synced") {
+      this.#syncState = "pending";
+    }
     if (
       this.#conflictCount > 0 &&
       this.#syncState !== "offline" &&
@@ -320,6 +341,7 @@ export class LocalContentService {
         // every page pass resets another page's genuinely in-flight updates.
         await this.pageOperationLog.recoverInterruptedSending();
         await this.synchronize();
+        await this.synchronizeOperationalPages();
         // Persistence is an eviction hint, not a content-readiness gate. Some
         // Firefox profiles leave this browser permission unsettled; update the
         // diagnostic when it answers without keeping the workspace behind it.
@@ -346,27 +368,133 @@ export class LocalContentService {
   }
 
   /**
-   * Pings every open page's reconciler (T149).
+   * Drains operational page queues independently from mounted editors.
    *
-   * A `page-operations.updated` announcement means some page changed; the
-   * workspace pass refreshes items, but only the page's own exchange pulls
-   * the remote deltas an open editor must adopt. A ping that finds nothing
-   * new is one cheap frontier confirmation.
+   * Open pages are included so a change-feed announcement imports their
+   * remote deltas. More importantly, the status-first local index discovers
+   * pages with durable pending work after a reload: their reconciler map is
+   * empty at that point, and requiring the owner to reopen each document would
+   * turn crash recovery into a manual synchronization protocol (FR-073).
    */
-  async synchronizeOpenPages(): Promise<boolean> {
-    const outcomes = await Promise.all(
-      [...this.#pageReconcilers.values()].map(async (reconciler) => {
-        try {
-          return (await reconciler.synchronize()).kind;
-        } catch {
-          return "pending" as const;
-        }
-      }),
+  async synchronizeOperationalPages(): Promise<boolean> {
+    await this.#unlock();
+    const [queuedPageIds, legacyPageIds] = await Promise.all([
+      this.pageOperationLog.listPageIdsWithUpdates(),
+      this.pageOperationLog.listPageIdsWithLegacyBranches(),
+    ]);
+    const legacyPages = new Set(legacyPageIds);
+    const pageIds = [
+      ...new Set<Uuid>([...this.#pageReconcilers.keys(), ...queuedPageIds, ...legacyPageIds]),
+    ].sort();
+    if (pageIds.length === 0) {
+      await this.#notify();
+      return true;
+    }
+
+    await this.#notify("syncing");
+    let settled = true;
+    let offline = false;
+    for (let offset = 0; offset < pageIds.length; offset += PAGE_OPERATION_SYNC_CONCURRENCY) {
+      const batch = pageIds.slice(offset, offset + PAGE_OPERATION_SYNC_CONCURRENCY);
+      const outcomes = await Promise.all(
+        batch.map(async (pageId) => {
+          try {
+            const reconciler = this.pageReconciler(pageId);
+            if (legacyPages.has(pageId)) {
+              const branch = await this.pageOperationLog.getLegacyBranch(pageId);
+              if (branch !== null && branch.status !== "converted") {
+                // A mounted legacy editor serializes conversion with gestures.
+                // Once it closes there are no gestures left to race, so the
+                // durable branch itself becomes the resume token and the
+                // service may convert it headlessly on boot/reconnection.
+                if ((this.#legacyPageSessionLeases.get(pageId) ?? 0) > 0) {
+                  return "delegated" as const;
+                }
+                return (await this.#convertLegacyBranchAfterWorkspace(pageId, reconciler)).kind;
+              }
+            }
+            return (await reconciler.synchronize()).kind;
+          } catch {
+            return "pending" as const;
+          }
+        }),
+      );
+      if (outcomes.some((outcome) => outcome === "offline")) {
+        offline = true;
+        settled = false;
+        // One offline batch is enough evidence. Do not fan the same unavailable
+        // transport out over every remaining page on this reconnect attempt.
+        break;
+      }
+      if (
+        outcomes.some(
+          (outcome) => outcome !== "synced" && outcome !== "blocked" && outcome !== "delegated",
+        )
+      ) {
+        settled = false;
+      }
+    }
+
+    const [stillQueued, stillLegacyPages] = await Promise.all([
+      this.pageOperationLog.countUpdates(["pending", "sending"]),
+      this.pageOperationLog.listPageIdsWithLegacyBranches(),
+    ]);
+    const durableWorkRemaining = stillQueued + stillLegacyPages.length;
+    await this.#notify(
+      offline ? "offline" : settled && durableWorkRemaining === 0 ? "synced" : "pending",
     );
-    // `blocked` needs an owner's decision or a code fix, not a hot retry.
-    // `offline` and `pending` can both be transient transport failures and
-    // must keep the bounded change-stream retry alive.
-    return outcomes.every((outcome) => outcome === "synced" || outcome === "blocked");
+    return !offline && settled && durableWorkRemaining === 0;
+  }
+
+  /**
+   * Crosses the v2 workspace journal before converting a v3 semantic branch.
+   *
+   * Newly created pages and upgraded whole-document edits can still have a
+   * workspace mutation in flight. The semantic branch is based on the result
+   * of that mutation, so it may cross the protocol boundary only after the
+   * relevant row has either been accepted or retained visibly as a conflict.
+   * The same barrier serves a mounted editor and a closed-page resume pass.
+   */
+  async #convertLegacyBranchAfterWorkspace(
+    pageId: Uuid,
+    reconciler: PageReconciler,
+  ): Promise<PageReconcileOutcome> {
+    const belongsToPage = (row: {
+      readonly commandType: string;
+      readonly payload: Record<string, unknown>;
+    }): boolean =>
+      (row.commandType === "page.document.replace" && row.payload["itemId"] === pageId) ||
+      (row.commandType === "item.create" && row.payload["id"] === pageId);
+    let [workspaceRows, workspaceConflicts] = await Promise.all([
+      this.outbox.all(),
+      this.outbox.conflicts(),
+    ]);
+    if (workspaceRows.some(belongsToPage)) {
+      const workspaceState = await this.synchronize();
+      if (workspaceState === "offline" || workspaceState === "quota-failure") {
+        return {
+          kind: workspaceState === "offline" ? "offline" : "pending",
+          exchanges: 0,
+          latestPageSequence: 0,
+          fileRequirements: [],
+          problemCode: `workspace.${workspaceState}`,
+        };
+      }
+      [workspaceRows, workspaceConflicts] = await Promise.all([
+        this.outbox.all(),
+        this.outbox.conflicts(),
+      ]);
+    }
+    if (workspaceRows.some(belongsToPage) || workspaceConflicts.some(belongsToPage)) {
+      return {
+        kind: "pending",
+        exchanges: 0,
+        latestPageSequence: 0,
+        fileRequirements: [],
+        problemCode: "page-operations.workspace-base-pending",
+      };
+    }
+    return await reconciler.convertLegacyBranch();
   }
 
   /**
@@ -469,6 +597,12 @@ export class LocalContentService {
     reconciler: PageReconciler,
     mode: "active" | "legacy-branch",
   ): Extract<OpenOperationalPageResult, { ok: true }> {
+    if (mode === "legacy-branch") {
+      this.#legacyPageSessionLeases.set(
+        session.pageId,
+        (this.#legacyPageSessionLeases.get(session.pageId) ?? 0) + 1,
+      );
+    }
     const unsubscribe = reconciler.subscribeDurablePage(async (durableState) => {
       if (durableState.status !== "active") return;
       // Both session kinds upgrade in place: an active session merges remote
@@ -479,7 +613,22 @@ export class LocalContentService {
     // A legacy branch manages its own conversion at queue drain points; an
     // out-of-band synchronize here could convert behind the session's back.
     if (mode === "active") void reconciler.synchronize();
-    return { ok: true, mode, session, reconciler, close: unsubscribe };
+    let closed = false;
+    return {
+      ok: true,
+      mode,
+      session,
+      reconciler,
+      close: () => {
+        if (closed) return;
+        closed = true;
+        unsubscribe();
+        if (mode !== "legacy-branch") return;
+        const leases = this.#legacyPageSessionLeases.get(session.pageId) ?? 0;
+        if (leases <= 1) this.#legacyPageSessionLeases.delete(session.pageId);
+        else this.#legacyPageSessionLeases.set(session.pageId, leases - 1);
+      },
+    };
   }
 
   async #openOperationalPageOnce(
@@ -602,6 +751,10 @@ export class LocalContentService {
       online,
       publishDurableUpdate: () => {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
+        // Derive pending from the durable queues. This callback is deliberately
+        // fire-and-forget; forcing the state before its IndexedDB reads finish
+        // can otherwise overwrite a newer server-confirmed `synced` state.
+        void this.#notify();
         void reconciler.synchronize();
       },
     });
@@ -683,10 +836,12 @@ export class LocalContentService {
       online,
       publishDurableUpdate: () => {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
+        void this.#notify();
         void reconciler.synchronize();
       },
       publishDurableBranch: () => {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
+        void this.#notify();
       },
       requestConversion: async () => {
         // A browser upgraded with a historical whole-document write already
@@ -705,23 +860,7 @@ export class LocalContentService {
         // is requested while the exact page replacement is still pending,
         // sending, blocked, or retained as a conflict; acknowledgement removes
         // it and installs its local -> canonical revision alias atomically.
-        const workspaceState = await this.synchronize();
-        if (workspaceState === "offline" || workspaceState === "quota-failure") {
-          return "unavailable";
-        }
-        const [workspaceRows, workspaceConflicts] = await Promise.all([
-          this.outbox.all(),
-          this.outbox.conflicts(),
-        ]);
-        const belongsToPage = (row: {
-          readonly commandType: string;
-          readonly payload: Record<string, unknown>;
-        }): boolean =>
-          row.commandType === "page.document.replace" && row.payload["itemId"] === itemId;
-        if (workspaceRows.some(belongsToPage) || workspaceConflicts.some(belongsToPage)) {
-          return "unavailable";
-        }
-        const outcome = await reconciler.convertLegacyBranch();
+        const outcome = await this.#convertLegacyBranchAfterWorkspace(itemId, reconciler);
         return outcome.kind === "synced" ? "converted" : "unavailable";
       },
     });
@@ -856,6 +995,17 @@ export class LocalContentService {
     ];
     if (itemIds.length > 0) {
       await this.#emitProjection({ kind: "upsert", itemIds });
+    }
+    if (
+      commandType === "item.convert" &&
+      payload["targetKind"] === "folder" &&
+      typeof payload["itemId"] === "string"
+    ) {
+      // The projection transaction retired every local page-operation row.
+      // Stop routing background pulls through the now-invalid page authority;
+      // any already-held editor reference will observe the same missing state
+      // and cannot recreate the destroyed journal.
+      this.#pageReconcilers.delete(payload["itemId"] as Uuid);
     }
     await this.#notify("pending");
     void this.synchronize();

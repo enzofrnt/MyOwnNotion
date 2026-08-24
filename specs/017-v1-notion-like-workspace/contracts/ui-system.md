@@ -94,7 +94,7 @@ seule.
 │ arbre pages & bases                           │ titre                │
 │ favoris / corbeille                           │ propriétés           │
 │                                               │ éditeur              │
-│ compte / sync / thème                         │                      │
+│ réglages / état sync compact                  │                      │
 └───────────────────────────────────────────────┴──────────────────────┘
 ~~~
 
@@ -111,6 +111,20 @@ seule.
 L'arbre conserve sélection, focus et branches ouvertes. Le DnD montre parent,
 position et action refusée ; l'équivalent clavier permet déplacer avant/après
 ou dans une page.
+
+### 5.1 Frontière du workspace
+
+La colonne principale ne rend que le contenu ou une vue de connaissance :
+page, dossier, recherche, base déjà livrée et, plus tard, graphe. Elle ne rend
+jamais à la suite du document les panneaux de stockage, appareils, sécurité,
+sauvegardes, corbeille administrative, révisions techniques, outbox ou
+diagnostics.
+
+Ces fonctions ouvrent une destination dédiée depuis la sidebar ou une action
+contextuelle. Le header peut conserver un état court tel que « Hors ligne »,
+« Enregistré sur cet appareil », « Synchronisation… », « Synchronisé » ou
+« Action requise ». Ouvrir son détail quitte la surface de contenu ; revenir
+restaure item actif, focus utile, sélection et ancre de scroll.
 
 ## 6. Responsive
 
@@ -198,9 +212,10 @@ La migration suit cet ordre :
 1. tokens et primitives ;
 2. shell, navigation et statuts ;
 3. éditeur et menus ;
-4. recherche, fichiers, bases, import/export, paramètres, sécurité, sauvegarde
+4. séparation du workspace et des destinations de configuration ;
+5. recherche, fichiers, bases, import/export, paramètres, sécurité, sauvegarde
    et restauration ;
-5. suppression des styles historiques devenus sans consommateur.
+6. suppression des styles historiques devenus sans consommateur.
 
 Chaque surface migrée possède des références Playwright en clair/sombre pour
 desktop et mobile, plus les contrôles fonctionnels. Les captures ne remplacent
@@ -219,6 +234,8 @@ en masse sans expliquer le changement n'est pas une validation.
 - menus BlockNote visuellement intégrés au shell ;
 - états offline, local, pending, syncing, synced, attention et blocked sont
   distincts et compréhensibles ;
+- aucun panneau de configuration ou diagnostic détaillé n'est rendu sous le
+  document courant ; les destinations dédiées restaurent le contexte au retour ;
 - les parcours principaux passent Chromium, Firefox et WebKit ;
 - aucune fonction essentielle n'est accessible uniquement par drag, hover ou
   couleur.

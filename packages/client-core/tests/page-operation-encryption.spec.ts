@@ -173,6 +173,7 @@ describe("encrypted operational page records", () => {
     expect(raw).not.toContain("private roadmap");
     expect((await log.listOpenAmbiguities(pageId))[0]?.details).toEqual(details);
     expect((await log.getLegacyBranch(pageId))?.branch).toEqual(branch);
+    expect(await log.listPageIdsWithLegacyBranches()).toEqual([pageId]);
   });
 
   it("recovers interrupted sending rows and prunes accepted updates only after inclusion", async () => {
@@ -209,5 +210,63 @@ describe("encrypted operational page records", () => {
     await log.advanceServerFrontier(pageId, transaction.resultVersionVector, 1);
     expect(await log.pruneAcceptedIncluded(pageId)).toEqual([updateId]);
     expect(await db.pageOperationUpdates.get(updateId)).toBeUndefined();
+  });
+
+  it("discovers queued page identities without opening or duplicating their envelopes", async () => {
+    const pendingPageId = generateUuidV7();
+    const pendingBlockId = generateUuidV7();
+    const pendingPage = pageWithPrivateParagraph(pendingPageId, pendingBlockId, "Pending");
+    const pendingStore = new LocalPageStateStore(log);
+    for (let index = 0; index < 2; index += 1) {
+      const transaction = pendingPage.transact([
+        {
+          type: "replace-text",
+          blockId: pendingBlockId,
+          from: index + 7,
+          to: index + 7,
+          text: String(index),
+        },
+      ]);
+      await pendingStore.commitLocalTransaction({
+        page: pendingPage,
+        transaction,
+        updateId: generateUuidV7(),
+        enqueueOrder: index + 1,
+      });
+    }
+
+    const sendingPageId = generateUuidV7();
+    const sendingBlockId = generateUuidV7();
+    const sendingPage = pageWithPrivateParagraph(sendingPageId, sendingBlockId, "Sending");
+    const sendingTransaction = sendingPage.transact([
+      { type: "replace-text", blockId: sendingBlockId, from: 7, to: 7, text: "!" },
+    ]);
+    const sendingUpdateId = generateUuidV7();
+    await pendingStore.commitLocalTransaction({
+      page: sendingPage,
+      transaction: sendingTransaction,
+      updateId: sendingUpdateId,
+      enqueueOrder: 1,
+    });
+    await log.transitionUpdate(sendingUpdateId, "sending");
+
+    const blockedPageId = generateUuidV7();
+    const blockedBlockId = generateUuidV7();
+    const blockedPage = pageWithPrivateParagraph(blockedPageId, blockedBlockId, "Blocked");
+    const blockedTransaction = blockedPage.transact([
+      { type: "replace-text", blockId: blockedBlockId, from: 7, to: 7, text: "!" },
+    ]);
+    const blockedUpdateId = generateUuidV7();
+    await pendingStore.commitLocalTransaction({
+      page: blockedPage,
+      transaction: blockedTransaction,
+      updateId: blockedUpdateId,
+      enqueueOrder: 1,
+    });
+    await log.transitionUpdate(blockedUpdateId, "blocked");
+
+    expect(await log.listPageIdsWithUpdates()).toEqual([pendingPageId, sendingPageId].sort());
+    expect(await log.listPageIdsWithUpdates(["blocked"])).toEqual([blockedPageId]);
+    expect(await log.countUpdates(["pending", "sending"])).toBe(3);
   });
 });

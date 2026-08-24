@@ -885,6 +885,18 @@ export async function applyCommandToProjection(
             .filter((relationship) => relationship.relationType === "page:link")
             .map((relationship) => relationship.id),
         );
+        // The operational journal is a second local representation of the
+        // page body. Once the owner confirms that this page becomes a folder,
+        // retaining that journal would both keep destroyed content on disk
+        // and let a stale reconciler continue submitting page operations to a
+        // server that has retired the page authority. Keep the optimistic
+        // projection, its outbox command and every operational store in the
+        // same IndexedDB transaction so a crash observes either the page and
+        // its complete journal, or the folder and no hidden page authority.
+        await db.pageOperationUpdates.where("pageId").equals(command.itemId).delete();
+        await db.pageAmbiguities.where("pageId").equals(command.itemId).delete();
+        await db.pageOperationStates.delete(command.itemId);
+        await db.legacyOfflineBranches.delete(command.itemId);
       }
       return [revisionId];
     }
