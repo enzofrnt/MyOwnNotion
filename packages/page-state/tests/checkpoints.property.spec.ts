@@ -165,6 +165,46 @@ describe("updates, version vectors and checkpoints", () => {
     );
   });
 
+  it("keeps a full replay checkpoint stable after the 512-update rollover interval", async () => {
+    for (let sample = 0; sample < 10; sample += 1) {
+      const pageId = generateUuidV7();
+      const blockId = generateUuidV7();
+      const origin = OperationalPageDocument.create({ pageId, document: { blocks: [] } });
+      const base = await origin.checkpoint();
+      const author = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint: base });
+      const replay = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint: base });
+      const first = author.transact([
+        {
+          type: "insert-block",
+          block: { type: "paragraph", id: blockId, content: [{ text: "0" }] },
+          parentBlockId: null,
+          beforeBlockId: null,
+        },
+      ]);
+      expect(replay.importUpdate(first.updateBytes).pending).toBe(false);
+      for (let index = 1; index < 512; index += 1) {
+        const transaction = author.transact([
+          {
+            type: "replace-text",
+            blockId,
+            from: 0,
+            to: 1,
+            text: String(index % 2),
+          },
+        ]);
+        expect(replay.importUpdate(transaction.updateBytes).pending).toBe(false);
+      }
+
+      const [checkpoint, projection] = await Promise.all([replay.checkpoint(), replay.project()]);
+      const reopened = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+      const reopenedProjection = await reopened.project();
+
+      expect(checkpoint.digest).toMatch(/^[0-9a-f]{64}$/u);
+      expect(reopenedProjection.canonicalDigest).toBe(projection.canonicalDigest);
+      expect(reopenedProjection.operationalDigest).toBe(projection.operationalDigest);
+    }
+  });
+
   it("keeps a full replay checkpoint able to merge a branch authored before it", async () => {
     const pageId = generateUuidV7();
     const onlineBlockId = generateUuidV7();

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   detectPageAmbiguities,
   OperationalPageDocument,
+  type PageAmbiguity,
   planPageAmbiguityResolution,
   type SemanticUpdateRecord,
   semanticUpdateFromTransaction,
@@ -218,5 +219,267 @@ describe("semantic ambiguities", () => {
     const ambiguities = detectPageAmbiguities([leftRecord, rightRecord, leftRecord, rightRecord]);
     expect(ambiguities).toHaveLength(1);
     expect(ambiguities[0]?.kind).toBe("schema");
+  });
+
+  it("rejects one update identity reused for a different causal result", async () => {
+    const replicas = await nestedReplicas();
+    const left = replicas.left.transact([
+      { type: "replace-text", blockId: replicas.childId, from: 6, to: 6, text: " gauche" },
+    ]);
+    const right = replicas.right.transact([
+      { type: "replace-text", blockId: replicas.childId, from: 6, to: 6, text: " droite" },
+    ]);
+    const reusedUpdateId = generateUuidV7();
+
+    expect(() =>
+      detectPageAmbiguities([
+        semanticUpdateFromTransaction(reusedUpdateId, left),
+        semanticUpdateFromTransaction(reusedUpdateId, right),
+      ]),
+    ).toThrow(/identity.*reused/iu);
+  });
+
+  it("ignores equivalent transforms and a deletion unrelated to a concurrent edit", async () => {
+    const pageId = generateUuidV7();
+    const headingId = generateUuidV7();
+    const neighbourId = generateUuidV7();
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          { type: "heading", id: headingId, level: 1, content: [{ text: "Titre" }] },
+          paragraph(neighbourId, "Voisin"),
+        ],
+      },
+    });
+    const checkpoint = await origin.checkpoint();
+    const replica = () => OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+
+    const [sameTypeLeft, sameTypeRight] = await Promise.all([replica(), replica()]);
+    const sameTypeUpdates = [
+      sameTypeLeft.transact([{ type: "set-block-type", blockId: headingId, blockType: "quote" }]),
+      sameTypeRight.transact([{ type: "set-block-type", blockId: headingId, blockType: "quote" }]),
+    ];
+    expect(
+      detectPageAmbiguities(
+        sameTypeUpdates.map((result) => semanticUpdateFromTransaction(generateUuidV7(), result)),
+      ),
+    ).toEqual([]);
+
+    const [samePropertyLeft, samePropertyRight] = await Promise.all([replica(), replica()]);
+    const samePropertyUpdates = [
+      samePropertyLeft.transact([
+        { type: "set-block-property", blockId: headingId, key: "level", value: 2 },
+      ]),
+      samePropertyRight.transact([
+        { type: "set-block-property", blockId: headingId, key: "level", value: 2 },
+      ]),
+    ];
+    expect(
+      detectPageAmbiguities(
+        samePropertyUpdates.map((result) =>
+          semanticUpdateFromTransaction(generateUuidV7(), result),
+        ),
+      ),
+    ).toEqual([]);
+
+    const [sameSchemaLeft, sameSchemaRight] = await Promise.all([replica(), replica()]);
+    const sameSchemaRecords = [
+      sameSchemaLeft.transact([
+        { type: "replace-text", blockId: neighbourId, from: 6, to: 6, text: " A" },
+      ]),
+      sameSchemaRight.transact([
+        { type: "replace-text", blockId: neighbourId, from: 6, to: 6, text: " B" },
+      ]),
+    ].map(
+      (result): SemanticUpdateRecord => ({
+        ...semanticUpdateFromTransaction(generateUuidV7(), result),
+        semanticChanges: [
+          {
+            type: "schema-changed",
+            blockId: neighbourId,
+            beforeSchemaVersion: 1,
+            afterSchemaVersion: 2,
+            blockAfter: paragraph(neighbourId, "Voisin"),
+          },
+        ],
+      }),
+    );
+    expect(detectPageAmbiguities(sameSchemaRecords)).toEqual([]);
+
+    const [deleteReplica, editReplica] = await Promise.all([replica(), replica()]);
+    const unrelated = detectPageAmbiguities([
+      semanticUpdateFromTransaction(
+        generateUuidV7(),
+        deleteReplica.transact([{ type: "delete-block", blockId: headingId }]),
+      ),
+      semanticUpdateFromTransaction(
+        generateUuidV7(),
+        editReplica.transact([
+          { type: "replace-text", blockId: neighbourId, from: 6, to: 6, text: " modifié" },
+        ]),
+      ),
+    ]);
+    expect(unrelated).toEqual([]);
+  });
+
+  it("recovers an insertion made inside a concurrently deleted parent", async () => {
+    const replicas = await nestedReplicas();
+    const insertedParentId = generateUuidV7();
+    const insertedChildId = generateUuidV7();
+    const deletion = replicas.left.transact([{ type: "delete-block", blockId: replicas.parentId }]);
+    const insertion = replicas.right.transact([
+      {
+        type: "insert-block",
+        block: {
+          type: "toggle",
+          id: insertedParentId,
+          content: [{ text: "Ajout hors ligne" }],
+          children: [],
+        },
+        parentBlockId: replicas.parentId,
+        beforeBlockId: replicas.childId,
+      },
+      {
+        type: "insert-block",
+        block: paragraph(insertedChildId, "Enfant ajouté hors ligne"),
+        parentBlockId: insertedParentId,
+        beforeBlockId: null,
+      },
+    ]);
+    const ids = [generateUuidV7(), generateUuidV7()].sort() as [Uuid, Uuid];
+    const ambiguities = detectPageAmbiguities([
+      semanticUpdateFromTransaction(ids[1], deletion),
+      semanticUpdateFromTransaction(ids[0], insertion),
+    ]);
+
+    expect(ambiguities).toHaveLength(1);
+    const recovered = ambiguities[0]?.recoverableSubtree;
+    expect(recovered?.type).toBe("toggle");
+    expect(
+      recovered && "children" in recovered ? recovered.children?.map(({ id }) => id) : [],
+    ).toEqual([insertedParentId, replicas.childId]);
+    const nested =
+      recovered && "children" in recovered
+        ? recovered.children?.find(({ id }) => id === insertedParentId)
+        : undefined;
+    expect(nested && "children" in nested ? nested.children?.map(({ id }) => id) : []).toEqual([
+      insertedChildId,
+    ]);
+  });
+
+  it("rebuilds an edited descendant through table cells and guards resolution choices", async () => {
+    const pageId = generateUuidV7();
+    const tableId = generateUuidV7();
+    const emptyCellId = generateUuidV7();
+    const insertedCellChildId = generateUuidV7();
+    const childId = generateUuidV7();
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "table",
+            id: tableId,
+            columns: [
+              { id: generateUuidV7(), width: null },
+              { id: generateUuidV7(), width: null },
+            ],
+            rows: [
+              {
+                id: generateUuidV7(),
+                cells: [
+                  { id: emptyCellId, content: [{ text: "Simple" }] },
+                  {
+                    id: generateUuidV7(),
+                    content: [{ text: "Avec enfant" }],
+                    children: [paragraph(childId, "Enfant")],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const checkpoint = await origin.checkpoint();
+    const deleting = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const editing = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const ambiguity = detectPageAmbiguities([
+      semanticUpdateFromTransaction(
+        generateUuidV7(),
+        deleting.transact([{ type: "delete-block", blockId: tableId }]),
+      ),
+      semanticUpdateFromTransaction(
+        generateUuidV7(),
+        editing.transact([
+          {
+            type: "insert-block",
+            block: paragraph(insertedCellChildId, "Ajout cellule"),
+            parentBlockId: emptyCellId,
+            beforeBlockId: null,
+          },
+          { type: "replace-text", blockId: childId, from: 6, to: 6, text: " restauré" },
+        ]),
+      ),
+    ])[0];
+    expect(ambiguity?.recoverableSubtree?.type).toBe("table");
+    expect(JSON.stringify(ambiguity?.recoverableSubtree)).toContain("Enfant restauré");
+    expect(JSON.stringify(ambiguity?.recoverableSubtree)).toContain("Ajout cellule");
+
+    const blockId = generateUuidV7();
+    const sourceIds = [generateUuidV7(), generateUuidV7()].sort() as [Uuid, Uuid];
+    const transform: PageAmbiguity = {
+      logicalKey: "type-transform:test",
+      kind: "type-transform",
+      status: "open",
+      blockIds: [blockId],
+      sourceUpdateIds: sourceIds,
+      recoverableSubtree: paragraph(blockId, "Alternative"),
+    };
+    expect(() => planPageAmbiguityResolution(transform, { decision: "confirm-delete" })).toThrow(
+      /deletion ambiguity/iu,
+    );
+    expect(() =>
+      planPageAmbiguityResolution(
+        {
+          logicalKey: transform.logicalKey,
+          kind: transform.kind,
+          status: transform.status,
+          blockIds: transform.blockIds,
+          sourceUpdateIds: transform.sourceUpdateIds,
+        },
+        { decision: "restore-change", parentBlockId: null, beforeBlockId: null },
+      ),
+    ).toThrow(/not recoverable/iu);
+    expect(
+      planPageAmbiguityResolution(transform, {
+        decision: "custom",
+        result: paragraph(blockId, "Choix"),
+        parentBlockId: null,
+        beforeBlockId: null,
+      }).commands.map(({ type }) => type),
+    ).toEqual(["delete-block", "insert-block"]);
+
+    const deletion: PageAmbiguity = {
+      logicalKey: "delete-move:test",
+      kind: "delete-move",
+      status: "open",
+      blockIds: [blockId],
+      sourceUpdateIds: sourceIds,
+      deletedSubtree: paragraph(blockId, "Supprimé"),
+      recoverableSubtree: paragraph(blockId, "Déplacé"),
+    };
+    expect(planPageAmbiguityResolution(deletion, { decision: "confirm-delete" }).commands).toEqual(
+      [],
+    );
+    expect(
+      planPageAmbiguityResolution(deletion, {
+        decision: "custom",
+        result: paragraph(blockId, "Restauré"),
+        parentBlockId: null,
+        beforeBlockId: null,
+      }).commands.map(({ type }) => type),
+    ).toEqual(["insert-block"]);
   });
 });

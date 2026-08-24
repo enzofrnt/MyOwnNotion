@@ -1,7 +1,9 @@
 import {
   type CanonicalBlockV3,
   childrenOfV3,
+  collectDocumentIdsV3,
   type JsonValue,
+  mayHaveChildrenV3,
   type Uuid,
 } from "@myownnotion/domain";
 import type { PageCommand, PageSemanticChange, PageTransactionResult } from "./document.ts";
@@ -202,15 +204,89 @@ function replaceDescendant(
   return mapChildren(subtree, (child) => replaceDescendant(child, replacement));
 }
 
+function insertBefore(
+  children: readonly CanonicalBlockV3[],
+  insertion: CanonicalBlockV3,
+  beforeBlockId: Uuid | null,
+): CanonicalBlockV3[] {
+  const index =
+    beforeBlockId === null ? children.length : children.findIndex(({ id }) => id === beforeBlockId);
+  if (index < 0) {
+    throw new SemanticConflictError(
+      `recoverable insertion ${insertion.id} has an unknown sibling ${beforeBlockId}`,
+    );
+  }
+  return [...children.slice(0, index), insertion, ...children.slice(index)];
+}
+
+function insertDescendant(
+  subtree: CanonicalBlockV3,
+  insertion: CanonicalBlockV3,
+  parentBlockId: Uuid,
+  beforeBlockId: Uuid | null,
+): CanonicalBlockV3 {
+  let inserted = false;
+  const visit = (block: CanonicalBlockV3): CanonicalBlockV3 => {
+    if (block.type === "table") {
+      return {
+        ...block,
+        rows: block.rows.map((row) => ({
+          ...row,
+          cells: row.cells.map((cell) => {
+            if (cell.id === parentBlockId) {
+              inserted = true;
+              return {
+                ...cell,
+                children: insertBefore(cell.children ?? [], insertion, beforeBlockId),
+              };
+            }
+            return cell.children === undefined
+              ? cell
+              : { ...cell, children: cell.children.map(visit) };
+          }),
+        })),
+      };
+    }
+    if (block.id === parentBlockId) {
+      if (block.type === "unknown" || !mayHaveChildrenV3(block.type)) {
+        throw new SemanticConflictError(`block ${parentBlockId} cannot recover child insertions`);
+      }
+      inserted = true;
+      return {
+        ...block,
+        children: insertBefore(childrenOfV3(block), insertion, beforeBlockId),
+      } as CanonicalBlockV3;
+    }
+    return mapChildren(block, visit);
+  };
+
+  const recovered = visit(subtree);
+  if (!inserted) {
+    throw new SemanticConflictError(
+      `recoverable insertion ${insertion.id} has an unknown parent ${parentBlockId}`,
+    );
+  }
+  return recovered;
+}
+
 function deletionAmbiguity(
   deletionUpdate: SemanticUpdateRecord,
   deletion: Extract<PageSemanticChange, { type: "block-deleted" }>,
   changeUpdate: SemanticUpdateRecord,
 ): PageAmbiguity | undefined {
   const deletedIds = new Set(deletion.affectedBlockIds);
-  const relevant = changeUpdate.semanticChanges.filter((change) =>
-    changeTouchesDeletedSubtree(change, deletedIds),
-  );
+  const recoverableIds = new Set(deletedIds);
+  const relevant: PageSemanticChange[] = [];
+  for (const change of changeUpdate.semanticChanges) {
+    if (!changeTouchesDeletedSubtree(change, recoverableIds)) continue;
+    relevant.push(change);
+    const after = blockAfter(change);
+    if (after !== undefined) {
+      for (const id of collectDocumentIdsV3({ blocks: [after] }) as Uuid[]) {
+        recoverableIds.add(id);
+      }
+    }
+  }
   if (relevant.length === 0) return undefined;
 
   const move = relevant.find(
@@ -221,6 +297,15 @@ function deletionAmbiguity(
   let recoverableSubtree = move?.blockAfter ?? deletion.blockBefore;
   if (move === undefined) {
     for (const change of relevant) {
+      if (change.type === "block-inserted" && change.placementAfter.parentBlockId !== null) {
+        recoverableSubtree = insertDescendant(
+          recoverableSubtree,
+          change.blockAfter,
+          change.placementAfter.parentBlockId,
+          change.placementAfter.beforeBlockId,
+        );
+        continue;
+      }
       const replacement = blockAfter(change);
       if (replacement !== undefined) {
         recoverableSubtree = replaceDescendant(recoverableSubtree, replacement);

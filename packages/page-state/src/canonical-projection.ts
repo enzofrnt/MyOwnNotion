@@ -7,7 +7,7 @@ import {
 } from "@myownnotion/domain";
 import type { LoroDoc } from "loro-crdt";
 import { materialiseOperationalDocument } from "./block-tree.ts";
-import { encodeOperationalFrontiers, sha256Hex } from "./update-envelope.ts";
+import { encodeOperationalFrontiers, operationalVersionDigest } from "./update-envelope.ts";
 
 export interface ProjectionWarning {
   readonly code: "unknown-block" | "unknown-mark";
@@ -32,12 +32,12 @@ export async function projectCanonicalPage(
 ): Promise<CanonicalProjectionResult> {
   doc.commit();
   const document = materialiseOperationalDocument(doc);
-  const snapshot = doc.export({ mode: "snapshot" });
+  const versionVector = doc.oplogVersion().encode();
   const fileUsageIds = [...new Set(embeddedFilesV3(document).map(({ fileItemId }) => fileItemId))];
   return {
     pageId,
     operationalFrontier: encodeOperationalFrontiers(doc.frontiers()),
-    operationalDigest: await sha256Hex(snapshot),
+    operationalDigest: await operationalVersionDigest(pageId, versionVector),
     document,
     canonicalDigest: await documentDigestV3(document),
     pageLinkTargets: pageLinkTargetsV3(document),

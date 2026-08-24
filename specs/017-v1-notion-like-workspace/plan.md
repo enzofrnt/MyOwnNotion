@@ -317,6 +317,14 @@ Tout se produit dans une transaction PostgreSQL logique. Une validation,
 intégrité ou matérialisation échouée n'avance ni frontière ni projection et
 retourne un refus durable, jamais un état partiel.
 
+Les checkpoints utilisent deux preuves volontairement distinctes. Le digest de
+snapshot garantit l'intégrité des octets scellés. Le digest opérationnel est le
+hash canonique de l'identité de page et de sa version vector ; il identifie le
+même ensemble causal après un rejeu, indépendamment de l'ordre choisi par Loro
+pour encoder une snapshot. À chaque rollover, le serveur rouvre les octets
+protégés et compare projection canonique, version vector et digest causal avant
+de promouvoir le checkpoint.
+
 Le SSE reste un signal de position. Les clients récupèrent les updates par HTTP
 et version vector ; aucun WebSocket, WebRTC ou fournisseur hébergé n'est requis.
 
@@ -449,7 +457,11 @@ Une suppression concurrente garde le nœud supprimé et son `LoroText` dans
 l'historique opérationnel. Le conflit matérialisé référence les frontières et
 les blocs concernés. Résoudre confirme la suppression ou recrée un nœud vivant
 portant le même UUID canonique, le contenu choisi et un placement explicite ;
-les checkpoints sources restent dans la rétention de l'historique.
+les checkpoints sources restent dans la rétention de l'historique. Une
+insertion concurrente sous le bloc supprimé fait partie de la branche
+récupérable : ses descendants successifs, leur ordre et les enfants de cellules
+de tableau sont reconstruits dans l'ordre des opérations, pas réduits au seul
+sous-arbre qui existait avant la suppression.
 
 Les archives ajoutent états opérationnels, updates retenues, checkpoints,
 frontières, ambiguïtés et projections. La restauration vérifie leur

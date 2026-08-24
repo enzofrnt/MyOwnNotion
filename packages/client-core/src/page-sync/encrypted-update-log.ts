@@ -734,13 +734,6 @@ function assertStateConsistency(record: PageOperationStateRecord): void {
     if (!operationalFrontiersEqual(record.projection.operationalFrontier, record.frontiers)) {
       throw new TypeError("page state and canonical projection frontiers differ");
     }
-    if (
-      record.checkpoint !== null &&
-      versionVectorBytesEqual(record.checkpoint.versionVector, record.versionVector) &&
-      record.projection.operationalDigest !== record.checkpoint.digest
-    ) {
-      throw new TypeError("checkpoint and canonical projection operational digests differ");
-    }
   }
 }
 

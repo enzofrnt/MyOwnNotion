@@ -130,6 +130,13 @@ interface CanonicalProjectionResult {
 }
 ~~~
 
+`operationalDigest` identifie l'ensemble causal des opérations de la page : il
+est calculé à partir de l'identité de page et de la version vector canonisée.
+Deux rejeux contenant exactement les mêmes opérations produisent donc le même
+digest, même si Loro sérialise leurs snapshots dans un ordre d'octets différent.
+Ce digest logique ne remplace jamais le `snapshot_digest`, qui contrôle
+l'intégrité des octets précis d'un checkpoint.
+
 Invariants :
 
 1. parcours depth-first suivant l'ordre du `LoroTree` ;
@@ -189,7 +196,7 @@ Une ligne par page.
 | `operational_version` | commence à 1 |
 | `current_checkpoint_id` | checkpoint vérifié |
 | `current_frontier_envelope_id` | version vector/frontier chiffrée |
-| `operational_digest` | digest du checkpoint + updates |
+| `operational_digest` | digest causal canonique de l'identité de page et de sa version vector |
 | `canonical_digest` | digest de `page_documents` à la même frontière |
 | `canonical_format_version` | 2 pour legacy, 3 après migration |
 | `last_update_sequence` | séquence de page monotone |
@@ -276,6 +283,13 @@ d'intégrité :
   il est indépendant des checkpoints de replay et ne peut être promu ni utilisé
   pour compacter avant vérification et satisfaction de toutes les frontiers de
   devices, sauvegardes, révisions et ambiguïtés.
+
+Le `snapshot_digest` vérifie toujours le payload chiffré rouvert depuis le
+stockage. Après ouverture, projection canonique et digest causal sont recalculés
+pour prouver que le checkpoint représente aussi le même contenu et le même
+ensemble d'opérations. Le hash brut d'une snapshot n'est jamais utilisé comme
+identité logique : son encodage peut varier avec l'ordre d'import sans que
+l'état CRDT varie.
 
 La contrainte unique `(page_id, through_page_sequence)` garantit une seule
 preuve scellée par frontière. Le checkpoint de replay est toujours créé avant
@@ -420,6 +434,7 @@ dominés par sa `baseVersionVector`.
 | move | move | auto-convergence déterministe |
 | insert bloc X | insert bloc Y | auto-convergence déterministe |
 | delete | texte/mark du bloc ou descendant | ambiguïté `delete-edit` |
+| delete | insertion sous le bloc ou un descendant | ambiguïté `delete-edit`, sous-arbre inséré récupérable |
 | delete | move du bloc ou descendant | ambiguïté `delete-move` |
 | type A | type B différent | ambiguïté `type-transform` |
 | propriété scalar A | même propriété scalar B différente | ambiguïté `property-transform` si le type ne définit pas de merge |
@@ -427,7 +442,10 @@ dominés par sa `baseVersionVector`.
 
 Le CRDT peut posséder un état visible déterministe avant résolution ; les
 données alternatives restent néanmoins conservées et l'interface signale
-l'ambiguïté.
+l'ambiguïté. La branche récupérable rejoue ses changements sémantiques dans
+l'ordre : une insertion de parent suivie d'une insertion d'enfant ne peut pas
+perdre ce second enfant, y compris lorsque le parent canonique est une cellule
+de tableau.
 
 ## 9. Résolution et résurrection
 

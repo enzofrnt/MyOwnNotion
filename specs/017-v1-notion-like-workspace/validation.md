@@ -30,7 +30,7 @@ Les scénarios centraux du quickstart sont verts :
 
 | Couche | Commande | Résultat |
 | --- | --- | --- |
-| Modèle opérationnel | `pnpm exec vitest run --project page-state` | 8 fichiers, 81 tests passés |
+| Modèle opérationnel | `pnpm exec vitest run --project page-state` | 9 fichiers, 90 tests passés |
 | Stockage et session locale | `pnpm exec vitest run --project client-core` | 29 fichiers, 270 tests passés |
 | Adaptateur et intégration web | `pnpm exec vitest run --project web` | 42 fichiers, 249 tests passés |
 | API, migration, backup, rétention | `pnpm exec vitest run --project api-contract apps/api/tests/page-operation*.spec.ts apps/api/tests/page-history-consolidation.integration.spec.ts` | 8 fichiers, 53 tests passés |
@@ -39,10 +39,11 @@ Les scénarios centraux du quickstart sont verts :
 | Deux appareils hors ligne | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts` | 5 profils passés |
 | Delete/edit récupérable | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-ambiguity.spec.ts` | 5 profils passés |
 | Mutation v2 en attente | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-protocol-migration.spec.ts` | 5 profils passés |
-| Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 13 tests passés, dont 1 000 suites ; seed par défaut `170191` |
-| Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 160,17 s |
+| Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 14 tests passés, dont 1 000 suites ; seed par défaut `170191` |
+| Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
 | Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
 | Typage | `pnpm typecheck` | 9 projets passés |
+| Couverture complète | `pnpm test:coverage` | 263 fichiers, 2 885 tests passés, 85,19 % de branches |
 
 Les cinq profils navigateur sont Chromium desktop/mobile, WebKit
 desktop/mobile et Firefox desktop. Chaque profil utilise sa propre base, son
@@ -115,8 +116,28 @@ les deux acquittements et rejoue ensuite l'identité locale comme `repeated` san
 duplication. Ce volume a aussi révélé que PostgreSQL vérifiait les deux clés
 étrangères vers les enveloppes par des scans complets, faute d'index automatique
 sur les colonnes référençantes. La migration 0011 ajoute ces deux index : le même
-scénario passe désormais en 160,17 secondes, et la compaction ne se dégrade plus
+scénario passe désormais en 150,55 secondes, et la compaction ne se dégrade plus
 quadratiquement avec la longueur de l'oplog.
+
+La première CI de cette tranche a mesuré 84,99 % de branches sous Linux contre
+85,00 % sous macOS. Les scénarios ajoutés pour créer une marge réelle ont alors
+exposé une perte fonctionnelle : une insertion sous un parent supprimé était
+bien classée `delete-edit`, mais le sous-arbre récupérable restait celui d'avant
+l'insertion. La reconstruction rejoue désormais les insertions concernées dans
+l'ordre, suit les parents eux-mêmes insérés et traverse les cellules de tableau.
+Les tests couvrent aussi les transformations équivalentes, la réutilisation
+invalide d'une identité d'update et les décisions de résolution refusées.
+
+Cette même validation renforcée a reproduit un refus intermittent au premier
+rollover de 512 updates : deux snapshots Loro issus du même ensemble causal
+pouvaient avoir des octets différents selon l'ordre d'import, et leur hash brut
+était comparé comme une identité opérationnelle. Le serveur rejetait alors un
+checkpoint pourtant valide avec `page-operations.projection-invalid`. Le hash
+des octets reste la preuve d'intégrité du checkpoint ; l'identité opérationnelle
+est désormais dérivée de l'identité de page et de la version vector canonisée.
+Dix rejeux indépendants de 512 updates verrouillent la stabilité après
+réouverture, tandis que le scénario des 10 001 updates couvre le rollover réel
+dans PostgreSQL.
 
 ## Limites encore ouvertes
 

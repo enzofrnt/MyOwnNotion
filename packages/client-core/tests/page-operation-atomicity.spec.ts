@@ -10,7 +10,7 @@ import {
   PageEditingSession,
 } from "@myownnotion/client-core";
 import { generateUuidV7 } from "@myownnotion/domain";
-import { OperationalPageDocument } from "@myownnotion/page-state";
+import { OperationalPageDocument, operationalVersionDigest } from "@myownnotion/page-state";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let db: LocalDatabase;
@@ -109,7 +109,9 @@ describe("atomic operational page commit", () => {
     expect(committed.state.checkpoint?.versionVector).toEqual(transaction.resultVersionVector);
     expect(committed.state.checkpoint?.frontiers).toEqual(transaction.resultFrontiers);
     expect(committed.state.projection?.operationalFrontier).toEqual(transaction.resultFrontiers);
-    expect(committed.state.projection?.operationalDigest).toBe(committed.state.checkpoint?.digest);
+    await expect(operationalVersionDigest(pageId, transaction.resultVersionVector)).resolves.toBe(
+      committed.state.projection?.operationalDigest,
+    );
     expect((await log.getState(pageId))?.projection).toEqual(committed.state.projection);
     expect(await log.listUpdates(pageId, ["pending"])).toEqual([committed.update]);
   });

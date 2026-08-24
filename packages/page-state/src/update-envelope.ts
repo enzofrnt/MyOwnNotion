@@ -1,3 +1,4 @@
+import type { Uuid } from "@myownnotion/domain";
 import {
   decodeFrontiers,
   decodeImportBlobMeta,
@@ -66,6 +67,21 @@ export function operationalFrontiersEqual(left: Uint8Array, right: Uint8Array): 
 export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", arrayBufferBytes(bytes));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Stable identity for one page's causal operation set, independent of snapshot encoding order. */
+export async function operationalVersionDigest(
+  pageId: Uuid,
+  versionVectorBytes: Uint8Array,
+): Promise<string> {
+  const versionVector = [...versionVectorFromBytes(versionVectorBytes).toJSON()]
+    .map(([peer, counter]) => [String(peer), counter] as const)
+    .sort(([left], [right]) => (left < right ? -1 : 1));
+  return await sha256Hex(
+    new TextEncoder().encode(
+      JSON.stringify([OPERATIONAL_FORMAT, OPERATIONAL_FORMAT_VERSION, pageId, versionVector]),
+    ),
+  );
 }
 
 export interface IncrementalPageUpdate {

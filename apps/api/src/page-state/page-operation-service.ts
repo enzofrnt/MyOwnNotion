@@ -289,10 +289,7 @@ export class PageOperationService {
       input.document.checkpoint(),
       input.document.project(),
     ]);
-    if (
-      projection.canonicalDigest !== input.state.canonicalDigest ||
-      projection.operationalDigest !== input.state.operationalDigest
-    ) {
+    if (projection.canonicalDigest !== input.state.canonicalDigest) {
       throw new PageOperationServiceError(
         "page-operations.projection-invalid",
         "The replay checkpoint does not reproduce the current operational page.",
