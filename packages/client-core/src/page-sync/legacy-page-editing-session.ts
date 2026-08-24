@@ -226,6 +226,25 @@ export class LegacyPageEditingSession {
   static async open(
     options: OpenLegacyPageEditingSessionOptions,
   ): Promise<LegacyPageEditingSession> {
+    const session = await LegacyPageEditingSession.tryOpen(options);
+    if (session === null) {
+      throw new TypeError("a converted legacy branch must be opened as an active page");
+    }
+    return session;
+  }
+
+  /**
+   * Opens the branch only while it is still editable.
+   *
+   * A conversion can commit between the caller's routing read and this final
+   * branch read. That is an expected handover boundary, not corrupt local
+   * state: application callers can resume the active checkpoint when this
+   * method returns null. `open` keeps the strict throwing contract used by
+   * lower-level callers and tests.
+   */
+  static async tryOpen(
+    options: OpenLegacyPageEditingSessionOptions,
+  ): Promise<LegacyPageEditingSession | null> {
     const existing = await options.log.getLegacyBranch(options.pageId);
     const branch =
       existing?.branch ??
@@ -237,7 +256,7 @@ export class LegacyPageEditingSession {
         createdAt: (options.now ?? (() => new Date()))().toISOString(),
       }));
     if (branch.status === "converted") {
-      throw new TypeError("a converted legacy branch must be opened as an active page");
+      return null;
     }
     const page = OperationalPageDocument.create({
       pageId: options.pageId,

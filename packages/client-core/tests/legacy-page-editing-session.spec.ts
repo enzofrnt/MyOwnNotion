@@ -330,6 +330,27 @@ describe("LegacyPageEditingSession", () => {
     expect(requestConversion).not.toHaveBeenCalled();
   });
 
+  it("lets application routing hand a converted branch over to the active session", async () => {
+    const input = fixture();
+    const store = new LegacyPageStateStore(log);
+    const first = await LegacyPageEditingSession.open({ ...input, log, store });
+    await first.transact({
+      type: "replace-text",
+      blockId: input.blockId,
+      from: 6,
+      to: 6,
+      text: " converted",
+    });
+    const branch = (await log.getLegacyBranch(input.pageId))?.branch;
+    if (branch === undefined) throw new Error("expected a durable branch");
+    await installConvertedCheckpoint(log, input.pageId, branch.localDocument);
+
+    await expect(LegacyPageEditingSession.tryOpen({ ...input, log, store })).resolves.toBeNull();
+    await expect(LegacyPageEditingSession.open({ ...input, log, store })).rejects.toThrow(
+      "a converted legacy branch must be opened as an active page",
+    );
+  });
+
   it("keeps a gesture typed during conversion and finishes on the active session", async () => {
     const input = fixture();
     const gate = deferred<"converted" | "unavailable">();
