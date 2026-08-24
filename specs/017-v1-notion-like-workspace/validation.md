@@ -39,6 +39,7 @@ Les scénarios centraux du quickstart sont verts :
 | Deux appareils hors ligne | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts` | 5 profils passés |
 | Delete/edit récupérable | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-ambiguity.spec.ts` | 5 profils passés |
 | Mutation v2 en attente | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-protocol-migration.spec.ts` | 5 profils passés |
+| Brouillon structuré sous projection concurrente | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts --repeat-each=5` | 25/25 exécutions passées, cinq par profil |
 | Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 14 tests passés, dont 1 000 suites ; seed par défaut `170191` |
 | Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
 | Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
@@ -151,6 +152,17 @@ régression prend un verrou exclusif réel sur `rotation_policies`, observe la
 lecture bloquée via `pg_locks` et prouve que `buildApp` reste en attente jusqu'à
 sa libération. La suite exacte qui avait échoué passe ensuite ses 1 147 tests
 sans rejet différé.
+
+Le gate navigateur complet a ensuite exposé la même perte déterministe sur les
+deux profils WebKit. Pendant la saisie des options d'une propriété structurée,
+une projection de synchronisation pouvait rerendre le parent après que le
+navigateur avait peint `To do, Done`, mais avant le commit d'état React. Le
+champ contrôlé repeignait alors le brouillon précédent vide et la propriété
+était réellement créée sans options. Les contrôles de ce formulaire sont
+désormais des brouillons DOM autonomes pendant leur montage, un ref conserve le
+dernier état reçu et `FormData` reste la valeur autoritaire à la soumission. Le
+test unitaire force précisément le rerender dans cette fenêtre ; le parcours
+complet passe ensuite cinq fois sur chacun des cinq profils, soit 25/25.
 
 ## Limites encore ouvertes
 
