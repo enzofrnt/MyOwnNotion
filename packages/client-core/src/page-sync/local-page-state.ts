@@ -163,10 +163,9 @@ export class LocalPageStateStore {
         pageId: input.page.pageId,
         checkpoint: previous.checkpoint,
       });
-      for (const update of await this.#log.listUpdates(input.page.pageId)) {
-        if (durablePage.importUpdate(update.updateBytes).pending) {
-          throw new ConcurrentLocalPageStateError();
-        }
+      const durableUpdates = await this.#log.listUpdates(input.page.pageId);
+      if (durablePage.importUpdates(durableUpdates.map(({ updateBytes }) => updateBytes)).pending) {
+        throw new ConcurrentLocalPageStateError();
       }
       if (!versionVectorBytesEqual(durablePage.versionVectorBytes(), previous.versionVector)) {
         throw new ConcurrentLocalPageStateError();

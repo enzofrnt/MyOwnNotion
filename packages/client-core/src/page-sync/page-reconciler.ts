@@ -181,13 +181,8 @@ async function reconstructPage(
     pageId,
     checkpoint: state.checkpoint,
   });
-  for (const update of updates) {
-    const imported = page.importUpdate(update.updateBytes);
-    if (imported.pending) {
-      throw new InvalidPageSyncResponseError(
-        "the encrypted local page log has missing dependencies",
-      );
-    }
+  if (page.importUpdates(updates.map(({ updateBytes }) => updateBytes)).pending) {
+    throw new InvalidPageSyncResponseError("the encrypted local page log has missing dependencies");
   }
   if (!versionVectorDominates(page.versionVectorBytes(), state.versionVector)) {
     throw new InvalidPageSyncResponseError(
@@ -758,19 +753,24 @@ export class PageReconciler {
     }
 
     const page = await reconstructPage(this.#pageId, state, updates);
-    for (const remote of response.remoteUpdates) {
-      const bytes = decodePageOperationBytes(remote.updateBytes);
-      if ((await sha256Hex(bytes)) !== remote.updateDigest) {
+    const remotePayloads = response.remoteUpdates.map((remote) => ({
+      remote,
+      bytes: decodePageOperationBytes(remote.updateBytes),
+    }));
+    const remoteDigests = await Promise.all(
+      remotePayloads.map(async ({ bytes }) => await sha256Hex(bytes)),
+    );
+    for (const [index, { remote }] of remotePayloads.entries()) {
+      if (remoteDigests[index] !== remote.updateDigest) {
         throw new InvalidPageSyncResponseError("a remote page update failed its digest check");
       }
       const local = updateById.get(remote.updateId as Uuid);
       if (local !== undefined && local.updateDigest !== remote.updateDigest) {
         throw new InvalidPageSyncResponseError("a remote page update reused a local identity");
       }
-      const imported = page.importUpdate(bytes);
-      if (imported.pending) {
-        throw new InvalidPageSyncResponseError("a remote page update has missing dependencies");
-      }
+    }
+    if (page.importUpdates(remotePayloads.map(({ bytes }) => bytes)).pending) {
+      throw new InvalidPageSyncResponseError("a remote page update has missing dependencies");
     }
     if (!versionVectorDominates(page.versionVectorBytes(), serverVersionVector)) {
       throw new InvalidPageSyncResponseError("the response omitted part of its announced frontier");

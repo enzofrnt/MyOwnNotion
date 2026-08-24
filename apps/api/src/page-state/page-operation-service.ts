@@ -3,7 +3,11 @@
  * (T139, US5).
  */
 
-import type { ActivePageSyncRequestDto, ActivePageSyncResponseDto } from "@myownnotion/contracts";
+import {
+  type ActivePageSyncRequestDto,
+  type ActivePageSyncResponseDto,
+  MAX_PAGE_UPDATES_PER_SYNC,
+} from "@myownnotion/contracts";
 import {
   appendAcceptedPageOperationUpdate,
   appendAcceptedPageOperationUpdates,
@@ -24,6 +28,7 @@ import {
   readPageDeviceFrontier,
   readPageOperationCheckpoint,
   readPageOperationCheckpointAtSequence,
+  readPageOperationUpdateAtSequence,
   readPageOperationUpdates,
   recordChange,
   runMutation,
@@ -370,6 +375,83 @@ export class PageOperationService {
     };
   }
 
+  /**
+   * Returns the largest page cursor this request's durable causal frontier can
+   * prove. Result frontiers are cumulative and monotone. The numeric cursor is
+   * used only as a search hint: the causal frontier may prove newly accepted
+   * local updates beyond it, while a stale or corrupt cursor may point beyond
+   * the first unseen update. Common requests need at most three indexed
+   * lookups; inconsistent states fall back to a logarithmic search instead of
+   * skipping updates or rescanning the complete operation log.
+   */
+  async #confirmedRequestPrefix(
+    tx: Transaction,
+    input: {
+      readonly pageId: Uuid;
+      readonly lastUpdateSequence: number;
+      readonly knownServerPageSequence: number;
+      readonly persistedVersionVector: Uint8Array;
+    },
+  ): Promise<number> {
+    if (input.lastUpdateSequence <= 0) return 0;
+    const requestedSequence = Math.min(input.knownServerPageSequence, input.lastUpdateSequence);
+
+    const dominanceBySequence = new Map<number, boolean>();
+    const dominatesSequence = async (pageSequence: number): Promise<boolean> => {
+      if (pageSequence === 0) return true;
+      const known = dominanceBySequence.get(pageSequence);
+      if (known !== undefined) return known;
+      const row = await readPageOperationUpdateAtSequence(tx, {
+        workspaceId: this.#deps.workspaceId,
+        pageId: input.pageId,
+        pageSequence,
+      });
+      if (row === null) {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "The operational update log has a missing sequence receipt.",
+          409,
+        );
+      }
+      const frontier = await this.#deps.crypto.openFrontier(
+        tx,
+        row.resultFrontierEnvelopeId as Uuid,
+      );
+      const dominated = versionVectorDominates(
+        input.persistedVersionVector,
+        frontier.versionVector,
+      );
+      dominanceBySequence.set(pageSequence, dominated);
+      return dominated;
+    };
+
+    if (requestedSequence > 0 && !(await dominatesSequence(requestedSequence))) {
+      let lower = 0;
+      let upper = requestedSequence - 1;
+      while (lower < upper) {
+        const middle = Math.ceil((lower + upper) / 2);
+        if (await dominatesSequence(middle)) lower = middle;
+        else upper = middle - 1;
+      }
+      return lower;
+    }
+    if (requestedSequence === input.lastUpdateSequence) return requestedSequence;
+
+    const sequenceAfterCursor = requestedSequence + 1;
+    if (!(await dominatesSequence(sequenceAfterCursor))) return requestedSequence;
+    if (sequenceAfterCursor === input.lastUpdateSequence) return sequenceAfterCursor;
+    if (await dominatesSequence(input.lastUpdateSequence)) return input.lastUpdateSequence;
+
+    let lower = sequenceAfterCursor;
+    let upper = input.lastUpdateSequence - 1;
+    while (lower < upper) {
+      const middle = Math.ceil((lower + upper) / 2);
+      if (await dominatesSequence(middle)) lower = middle;
+      else upper = middle - 1;
+    }
+    return lower;
+  }
+
   /** Shared locked loader for migration and later server-side maintenance. */
   async sync(input: {
     readonly pageId: Uuid;
@@ -607,6 +689,12 @@ export class PageOperationService {
           409,
         );
       }
+      const requestConfirmedPageSequence = await this.#confirmedRequestPrefix(tx, {
+        pageId: input.pageId,
+        lastUpdateSequence: state.lastUpdateSequence,
+        knownServerPageSequence: input.request.knownServerPageSequence,
+        persistedVersionVector,
+      });
       const existingDeviceFrontier = await readPageDeviceFrontier(tx, {
         pageId: input.pageId,
         deviceId: input.deviceId,
@@ -626,50 +714,10 @@ export class PageOperationService {
         );
       }
       if (mayAdvanceDeviceFrontier) {
-        // Stored result frontiers are monotone: every later accepted server
-        // state contains every earlier one. Resume at the device's already
-        // confirmed prefix and stop at the first frontier it does not dominate.
-        // Replaying from zero on every 64-update catch-up page turned a 10k
-        // return into an unnecessary quadratic scan.
-        let confirmedPageSequence = existingDeviceFrontier?.confirmedPageSequence ?? 0;
-        let after = confirmedPageSequence;
-        let reachedFirstMissingFrontier = false;
-        while (after < state.lastUpdateSequence && !reachedFirstMissingFrontier) {
-          const rows = await listPageOperationUpdatesAfter(tx, {
-            workspaceId: this.#deps.workspaceId,
-            pageId: input.pageId,
-            after,
-            limit: 256,
-          });
-          if (rows.length === 0) {
-            throw new PageOperationServiceError(
-              "page-operations.projection-invalid",
-              "The operational update log is incomplete.",
-              409,
-            );
-          }
-          const resultFrontiers = await this.#deps.crypto.openFrontiers(
-            tx,
-            rows.map(({ resultFrontierEnvelopeId }) => resultFrontierEnvelopeId as Uuid),
-          );
-          for (const row of rows) {
-            const result = resultFrontiers.get(row.resultFrontierEnvelopeId as Uuid);
-            if (result === undefined) {
-              throw new PageOperationServiceError(
-                "page-operations.projection-invalid",
-                "An operational update has no retained frontier.",
-                409,
-              );
-            }
-            if (versionVectorDominates(persistedVersionVector, result.versionVector)) {
-              confirmedPageSequence = row.pageSequence;
-              after = row.pageSequence;
-              continue;
-            }
-            reachedFirstMissingFrontier = true;
-            break;
-          }
-        }
+        const confirmedPageSequence = Math.max(
+          existingDeviceFrontier?.confirmedPageSequence ?? 0,
+          requestConfirmedPageSequence,
+        );
         const frontierDigest = await sha256Hex(persistedVersionVector);
         if (
           existingDeviceFrontier === null ||
@@ -708,13 +756,13 @@ export class PageOperationService {
       const candidates = await listPageOperationUpdatesAfter(tx, {
         workspaceId: this.#deps.workspaceId,
         pageId: input.pageId,
-        after: input.request.knownServerPageSequence,
-        limit: 65,
+        after: requestConfirmedPageSequence,
+        limit: MAX_PAGE_UPDATES_PER_SYNC + 1,
       });
       const remoteUpdates: ActivePageSyncResponseDto["remoteUpdates"] = [];
       let remoteBytes = 0;
-      let throughPageSequence = input.request.knownServerPageSequence;
-      const candidateRows = candidates.slice(0, 64);
+      let throughPageSequence = requestConfirmedPageSequence;
+      const candidateRows = candidates.slice(0, MAX_PAGE_UPDATES_PER_SYNC);
       const candidateFrontiers = await this.#deps.crypto.openFrontiers(
         tx,
         candidateRows.map(({ resultFrontierEnvelopeId }) => resultFrontierEnvelopeId as Uuid),
