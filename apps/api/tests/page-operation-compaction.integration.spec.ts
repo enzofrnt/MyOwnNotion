@@ -490,6 +490,25 @@ describe("frontier-bounded compaction", () => {
       (revokedFrontier as unknown as { rows: Array<{ device_state: string }> }).rows[0]
         ?.device_state,
     ).toBe("revoked");
+
+    const staleCatchUp = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "active",
+        requestId: generateUuidV7(),
+        operationalVersion: 1,
+        persistedVersionVector: Buffer.from(transaction.baseVersionVector).toString("base64url"),
+        knownServerPageSequence: 0,
+        updates: [],
+        maxRemoteBytes: 1024 * 1024,
+      },
+    });
+    expect(staleCatchUp.statusCode, staleCatchUp.body).toBe(409);
+    expect(staleCatchUp.json()).toMatchObject({
+      code: "page-operations.dependencies-missing",
+    });
   });
 
   it("blocks a device whose sequence is current but causal frontier is behind", async () => {

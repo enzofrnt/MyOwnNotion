@@ -130,6 +130,13 @@ interface CanonicalProjectionResult {
 }
 ~~~
 
+`operationalDigest` identifie l'ensemble causal des opérations de la page : il
+est calculé à partir de l'identité de page et de la version vector canonisée.
+Deux rejeux contenant exactement les mêmes opérations produisent donc le même
+digest, même si Loro sérialise leurs snapshots dans un ordre d'octets différent.
+Ce digest logique ne remplace jamais le `snapshot_digest`, qui contrôle
+l'intégrité des octets précis d'un checkpoint.
+
 Invariants :
 
 1. parcours depth-first suivant l'ordre du `LoroTree` ;
@@ -189,7 +196,7 @@ Une ligne par page.
 | `operational_version` | commence à 1 |
 | `current_checkpoint_id` | checkpoint vérifié |
 | `current_frontier_envelope_id` | version vector/frontier chiffrée |
-| `operational_digest` | digest du checkpoint + updates |
+| `operational_digest` | digest causal canonique de l'identité de page et de sa version vector |
 | `canonical_digest` | digest de `page_documents` à la même frontière |
 | `canonical_format_version` | 2 pour legacy, 3 après migration |
 | `last_update_sequence` | séquence de page monotone |
@@ -240,6 +247,11 @@ Une ligne par lot accepté ou refus terminal.
 `page_sequence` sert à paginer et sauvegarder ; la convergence dépend des
 version vectors internes, jamais de cette séquence.
 
+`base_frontier_envelope_id` et `update_envelope_id` possèdent chacun un index de
+support de clé étrangère. PostgreSQL ne les crée pas automatiquement ; sans ces
+index, retirer les enveloppes couvertes vérifierait chaque référence par un scan
+complet de l'oplog et rendrait la compaction quadratique.
+
 La compaction ne supprime jamais la ligne d'update. `id`, digest, appareil,
 séquence d'origine et frontier résultante forment un reçu d'idempotence
 immuable : une requête rejouée après perte de réponse obtient encore exactement
@@ -261,10 +273,28 @@ volumineux couverts par le checkpoint sont retirés.
 | `state` | `candidate`, `verified`, `superseded`, `retained` |
 | `created_at`, `verified_at` | temps serveur |
 
-Un checkpoint candidat de compaction est un shallow snapshot à la frontier
-courante. Il n'est jamais utilisé pour compacter. La vérification recharge les
-octets scellés, reproduit la projection et compare les digests avant de le
-faire passer à `verified`.
+Deux encodages Loro utilisent cette même entité et les mêmes contrôles
+d'intégrité :
+
+- la snapshot complète de replay conserve tout l'historique causal ; elle est
+  créée tous les 512 updates au plus, vérifiée après scellement puis promue pour
+  borner le prochain chargement, sans retirer les payloads de l'oplog ;
+- le candidat de compaction est une shallow snapshot à la frontier courante ;
+  il est indépendant des checkpoints de replay et ne peut être promu ni utilisé
+  pour compacter avant vérification et satisfaction de toutes les frontiers de
+  devices, sauvegardes, révisions et ambiguïtés.
+
+Le `snapshot_digest` vérifie toujours le payload chiffré rouvert depuis le
+stockage. Après ouverture, projection canonique et digest causal sont recalculés
+pour prouver que le checkpoint représente aussi le même contenu et le même
+ensemble d'opérations. Le hash brut d'une snapshot n'est jamais utilisé comme
+identité logique : son encodage peut varier avec l'ordre d'import sans que
+l'état CRDT varie.
+
+La contrainte unique `(page_id, through_page_sequence)` garantit une seule
+preuve scellée par frontière. Le checkpoint de replay est toujours créé avant
+l'acceptation d'un nouveau lot, de sorte qu'une future shallow candidate de
+compaction se situe à une frontière strictement ultérieure.
 
 ### `page_device_frontiers`
 
@@ -274,12 +304,16 @@ Clé `(page_id, device_id)`.
 | --- | --- |
 | `frontier_envelope_id` | version vector complète connue, chiffrée |
 | `frontier_digest` | intégrité/égalité sans journaliser les octets |
+| `confirmed_page_sequence` | préfixe serveur contigu dominé par la frontier |
 | `last_confirmed_at` | dernière confirmation serveur |
 | `device_state` | `authorized` ou `revoked` copié pour décision de compaction |
 
 Une frontier ne recule jamais pour le même appareil. Une annonce incomparable
 indique que le device possède des opérations locales ; elle est importée avant
-d'avancer la frontier confirmée.
+d'avancer la frontier confirmée. `confirmed_page_sequence` est le préfixe
+contigu maximal dont la frontier résultante est dominée. Comme ces résultats
+serveur sont monotones, sa vérification reprend au préfixe existant et s'arrête
+au premier manque au lieu de rescanner toute la page.
 
 La ligne est créée lorsqu'un appareil a persisté puis confirmé son premier état
 opérationnel de cette page. Un appareil autorisé qui n'a jamais possédé cette
@@ -400,6 +434,7 @@ dominés par sa `baseVersionVector`.
 | move | move | auto-convergence déterministe |
 | insert bloc X | insert bloc Y | auto-convergence déterministe |
 | delete | texte/mark du bloc ou descendant | ambiguïté `delete-edit` |
+| delete | insertion sous le bloc ou un descendant | ambiguïté `delete-edit`, sous-arbre inséré récupérable |
 | delete | move du bloc ou descendant | ambiguïté `delete-move` |
 | type A | type B différent | ambiguïté `type-transform` |
 | propriété scalar A | même propriété scalar B différente | ambiguïté `property-transform` si le type ne définit pas de merge |
@@ -407,7 +442,10 @@ dominés par sa `baseVersionVector`.
 
 Le CRDT peut posséder un état visible déterministe avant résolution ; les
 données alternatives restent néanmoins conservées et l'interface signale
-l'ambiguïté.
+l'ambiguïté. La branche récupérable rejoue ses changements sémantiques dans
+l'ordre : une insertion de parent suivie d'une insertion d'enfant ne peut pas
+perdre ce second enfant, y compris lorsque le parent canonique est une cellule
+de tableau.
 
 ## 9. Résolution et résurrection
 

@@ -30,7 +30,7 @@ Les scénarios centraux du quickstart sont verts :
 
 | Couche | Commande | Résultat |
 | --- | --- | --- |
-| Modèle opérationnel | `pnpm exec vitest run --project page-state` | 8 fichiers, 81 tests passés |
+| Modèle opérationnel | `pnpm exec vitest run --project page-state` | 9 fichiers, 90 tests passés |
 | Stockage et session locale | `pnpm exec vitest run --project client-core` | 29 fichiers, 270 tests passés |
 | Adaptateur et intégration web | `pnpm exec vitest run --project web` | 42 fichiers, 249 tests passés |
 | API, migration, backup, rétention | `pnpm exec vitest run --project api-contract apps/api/tests/page-operation*.spec.ts apps/api/tests/page-history-consolidation.integration.spec.ts` | 8 fichiers, 53 tests passés |
@@ -39,6 +39,13 @@ Les scénarios centraux du quickstart sont verts :
 | Deux appareils hors ligne | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts` | 5 profils passés |
 | Delete/edit récupérable | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-ambiguity.spec.ts` | 5 profils passés |
 | Mutation v2 en attente | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-protocol-migration.spec.ts` | 5 profils passés |
+| Brouillon structuré sous projection concurrente | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts --repeat-each=5` | 25/25 exécutions passées, cinq par profil |
+| Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 23 tests passés, dont 10 rejeux de rollover et 1 000 suites ; seed par défaut `170191` |
+| Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
+| Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
+| Contrats API et workspace après correction du cycle de vie | `pnpm test:contract` | 93 fichiers, 1 147 tests passés ; longue absence en 153,34 s, aucun rejet différé |
+| Typage | `pnpm typecheck` | 9 projets passés |
+| Couverture complète | `CI=1 pnpm test:coverage` | 263 fichiers, 2 895 tests passés, 90,21 % de lignes et 85,19 % de branches |
 
 Les cinq profils navigateur sont Chromium desktop/mobile, WebKit
 desktop/mobile et Firefox desktop. Chaque profil utilise sa propre base, son
@@ -97,14 +104,82 @@ les écritures déjà visibles avant de s'exécuter. La suite complète de l'éd
 passe sur les cinq profils, puis le même stress passe 25 fois sur chacun d'eux,
 soit 125/125 exécutions sans flake.
 
+La preuve de longue absence a exposé trois défauts que les petits scénarios ne
+montraient pas. La fenêtre sémantique s'arrêtait à 10 000 lignes et pouvait donc
+omettre précisément l'update de retour numéro 10 001. Chaque page de catch-up
+rescannait ensuite toutes les frontiers depuis zéro, donnant un coût
+quadratique. Enfin, la frontier résultante stockée après acceptation contient
+l'état serveur déjà fusionné ; l'utiliser seule faisait renvoyer à la tablette
+sa propre update concurrente. La fenêtre est désormais entièrement paginée,
+les checkpoints complets bornent le replay sans supprimer l'historique, la
+confirmation reprend au préfixe monotone connu et la frontier d'auteur évite
+l'écho. Le scénario complet converge, compacte 10 001 payloads seulement après
+les deux acquittements et rejoue ensuite l'identité locale comme `repeated` sans
+duplication. Ce volume a aussi révélé que PostgreSQL vérifiait les deux clés
+étrangères vers les enveloppes par des scans complets, faute d'index automatique
+sur les colonnes référençantes. La migration 0011 ajoute ces deux index : le même
+scénario passe désormais en 150,55 secondes, et la compaction ne se dégrade plus
+quadratiquement avec la longueur de l'oplog.
+
+La première CI de cette tranche a mesuré 84,99 % de branches sous Linux contre
+85,00 % sous macOS. Les scénarios ajoutés pour créer une marge réelle ont alors
+exposé une perte fonctionnelle : une insertion sous un parent supprimé était
+bien classée `delete-edit`, mais le sous-arbre récupérable restait celui d'avant
+l'insertion. La reconstruction rejoue désormais les insertions concernées dans
+l'ordre, suit les parents eux-mêmes insérés et traverse les cellules de tableau.
+Les tests couvrent aussi les transformations équivalentes, la réutilisation
+invalide d'une identité d'update et les décisions de résolution refusées.
+
+Cette même validation renforcée a reproduit un refus intermittent au premier
+rollover de 512 updates : deux snapshots Loro issus du même ensemble causal
+pouvaient avoir des octets différents selon l'ordre d'import, et leur hash brut
+était comparé comme une identité opérationnelle. Le serveur rejetait alors un
+checkpoint pourtant valide avec `page-operations.projection-invalid`. Le hash
+des octets reste la preuve d'intégrité du checkpoint ; l'identité opérationnelle
+est désormais dérivée de l'identité de page et de la version vector canonisée.
+Dix rejeux indépendants de 512 updates verrouillent la stabilité après
+réouverture, tandis que le scénario des 10 001 updates couvre le rollover réel
+dans PostgreSQL.
+
+La CI contractuelle lente a enfin révélé une requête de sécurité sans
+propriétaire de cycle de vie. La première évaluation des politiques de rotation
+était lancée sans être attendue ; le test de démarrage pouvait donc fermer son
+pool PostgreSQL pendant que cette lecture restait en vol, puis Vitest signalait
+le rejet plusieurs minutes plus tard pendant la preuve des 10 001 updates.
+L'application attend désormais cette évaluation avant d'être déclarée prête et
+le hook de fermeture Fastify arrête l'intervalle avant la base. Le test de
+régression prend un verrou exclusif réel sur `rotation_policies`, observe la
+lecture bloquée via `pg_locks` et prouve que `buildApp` reste en attente jusqu'à
+sa libération. La suite exacte qui avait échoué passe ensuite ses 1 147 tests
+sans rejet différé.
+
+Le gate navigateur complet a ensuite exposé la même perte déterministe sur les
+deux profils WebKit. Pendant la saisie des options d'une propriété structurée,
+une projection de synchronisation pouvait rerendre le parent après que le
+navigateur avait peint `To do, Done`, mais avant le commit d'état React. Le
+champ contrôlé repeignait alors le brouillon précédent vide et la propriété
+était réellement créée sans options. Les contrôles de ce formulaire sont
+désormais des brouillons DOM autonomes pendant leur montage, un ref conserve le
+dernier état reçu et `FormData` reste la valeur autoritaire à la soumission. Le
+test unitaire force précisément le rerender dans cette fenêtre ; le parcours
+complet passe ensuite cinq fois sur chacun des cinq profils, soit 25/25.
+
+Le run PR suivant a validé tous les contrats fonctionnels mais a révélé une
+frontière de test inadaptée aux petits runners : les dix rejeux indépendants du
+rollover de 512 updates partageaient le timeout Vitest générique de cinq
+secondes. Sous couverture et en concurrence avec les autres jobs, le dixième
+rejeu n'avait plus le temps de terminer, alors que les 2 885 autres tests et le
+scénario des 10 001 updates étaient passés. Les dix rejeux sont désormais dix
+cas paramétrés distincts. Le volume de 5 120 updates et toutes les assertions
+restent identiques, chaque échantillon garde le timeout standard et un échec
+désigne directement le rejeu concerné.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
 
-- T191 : propriété de convergence sur davantage d'entrelacements et d'ordres
-  aléatoires ;
-- T192 : appareil absent 90 jours, au moins 10 000 updates, compaction,
-  révocation et retour ultérieur ;
+- T190 : budgets dédiés de débit, catch-up, compaction et mémoire sur le runner
+  de performance ;
 - les blocs riches et fichiers restant à terminer en US3 ;
 - la finition visuelle et les surfaces restantes en US6/US7.
 

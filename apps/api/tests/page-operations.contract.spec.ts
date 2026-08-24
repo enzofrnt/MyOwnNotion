@@ -488,7 +488,15 @@ describe("activation and checkpoint catch-up", () => {
       hasMore: false,
     });
 
-    const replica = await harness.built.app.inject({
+    const catchUpReplica = await OperationalPageDocument.fromSnapshotTransport({
+      pageId: page.itemId,
+      snapshotBytes: Buffer.from(checkpoint.checkpointBytes, "base64url"),
+      snapshotDigest: checkpoint.checkpointDigest,
+      versionVector: Buffer.from(checkpoint.versionVector, "base64url"),
+    });
+    const firstUpdate = updates[0];
+    if (firstUpdate === undefined) throw new Error("the offline update batch is empty");
+    const firstPage = await harness.built.app.inject({
       method: "POST",
       url: `/v1/page-operations/${page.itemId}/sync`,
       headers,
@@ -499,16 +507,40 @@ describe("activation and checkpoint catch-up", () => {
         persistedVersionVector: checkpoint.versionVector,
         knownServerPageSequence: 0,
         updates: [],
+        maxRemoteBytes: Buffer.from(firstUpdate.updateBytes, "base64url").byteLength,
+      },
+    });
+    expect(firstPage.statusCode, firstPage.body).toBe(200);
+    expect(firstPage.json()).toMatchObject({
+      throughPageSequence: 1,
+      hasMore: true,
+      remoteUpdates: [{ updateId: firstUpdate.updateId, pageSequence: 1 }],
+    });
+    catchUpReplica.importUpdate(Buffer.from(firstUpdate.updateBytes, "base64url"));
+
+    const remainingPage = await harness.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/sync`,
+      headers,
+      payload: {
+        mode: "active",
+        requestId: generateUuidV7(),
+        operationalVersion: 1,
+        persistedVersionVector: Buffer.from(catchUpReplica.versionVectorBytes()).toString(
+          "base64url",
+        ),
+        knownServerPageSequence: 1,
+        updates: [],
         maxRemoteBytes: 1024 * 1024,
       },
     });
-    expect(replica.statusCode, replica.body).toBe(200);
-    expect(replica.json().remoteUpdates).toHaveLength(updates.length);
+    expect(remainingPage.statusCode, remainingPage.body).toBe(200);
+    expect(remainingPage.json().remoteUpdates).toHaveLength(updates.length - 1);
     expect(
-      replica
+      remainingPage
         .json()
         .remoteUpdates.map(({ pageSequence }: { pageSequence: number }) => pageSequence),
-    ).toEqual(updates.map((_, index) => index + 1));
+    ).toEqual(updates.slice(1).map((_, index) => index + 2));
 
     const item = await harness.built.app.inject({
       method: "GET",

@@ -317,6 +317,14 @@ Tout se produit dans une transaction PostgreSQL logique. Une validation,
 intégrité ou matérialisation échouée n'avance ni frontière ni projection et
 retourne un refus durable, jamais un état partiel.
 
+Les checkpoints utilisent deux preuves volontairement distinctes. Le digest de
+snapshot garantit l'intégrité des octets scellés. Le digest opérationnel est le
+hash canonique de l'identité de page et de sa version vector ; il identifie le
+même ensemble causal après un rejeu, indépendamment de l'ordre choisi par Loro
+pour encoder une snapshot. À chaque rollover, le serveur rouvre les octets
+protégés et compare projection canonique, version vector et digest causal avant
+de promouvoir le checkpoint.
+
 Le SSE reste un signal de position. Les clients récupèrent les updates par HTTP
 et version vector ; aucun WebSocket, WebRTC ou fournisseur hébergé n'est requis.
 
@@ -395,6 +403,26 @@ des opérations v3, sauf restauration explicite de la sauvegarde préalable.
 ### 7. Checkpoints, longue absence et révocation
 
 Chaque page conserve un update log append-only et des checkpoints chiffrés.
+Deux usages restent strictement séparés :
+
+- un checkpoint de replay **complet**, créé et vérifié automatiquement lorsque
+  la queue depuis le checkpoint courant atteint 512 updates, accélère le
+  chargement serveur sans retirer aucun octet de l'update log ; son historique
+  Loro complet accepte donc encore une branche créée avant ce checkpoint ;
+- un candidat de compaction **shallow** n'est créé qu'à la frontière courante et
+  ne devient la nouvelle base qu'après les gardes ci-dessous.
+
+Le serveur importe les updates de replay par lots causalement validés. Les
+fenêtres de détection d'ambiguïtés et de rattrapage sont paginées : aucun plafond
+de 10 000 lignes ne peut rendre invisible la première update d'un appareil qui
+revient. La frontier confirmée d'un appareil avance depuis son dernier préfixe
+connu et s'arrête au premier résultat serveur qu'elle ne domine pas ; elle ne
+rescane jamais tout l'historique à chaque page de rattrapage. Pour décider si
+une update doit être renvoyée, le serveur compare aussi sa frontier telle
+qu'elle a été **écrite par son auteur**, et pas seulement la frontier serveur
+fusionnée après acceptation, afin de ne pas renvoyer sa propre branche à
+l'appareil qui revient.
+
 Un checkpoint n'autorise l'effacement d'opérations que lorsque :
 
 - sa projection canonique et son digest sont vérifiés ;
@@ -429,7 +457,11 @@ Une suppression concurrente garde le nœud supprimé et son `LoroText` dans
 l'historique opérationnel. Le conflit matérialisé référence les frontières et
 les blocs concernés. Résoudre confirme la suppression ou recrée un nœud vivant
 portant le même UUID canonique, le contenu choisi et un placement explicite ;
-les checkpoints sources restent dans la rétention de l'historique.
+les checkpoints sources restent dans la rétention de l'historique. Une
+insertion concurrente sous le bloc supprimé fait partie de la branche
+récupérable : ses descendants successifs, leur ordre et les enfants de cellules
+de tableau sont reconstruits dans l'ordre des opérations, pas réduits au seul
+sous-arbre qui existait avant la suppression.
 
 Les archives ajoutent états opérationnels, updates retenues, checkpoints,
 frontières, ambiguïtés et projections. La restauration vérifie leur

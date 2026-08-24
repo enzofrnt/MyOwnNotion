@@ -127,6 +127,8 @@ export function definePageOperationSchema(deps: PageOperationSchemaDependencies)
       }),
       unique("page_operation_updates_sequence_unique").on(table.pageId, table.pageSequence),
       index("page_operation_updates_page_sequence_idx").on(table.pageId, table.pageSequence),
+      index("page_operation_updates_base_frontier_envelope_idx").on(table.baseFrontierEnvelopeId),
+      index("page_operation_updates_update_envelope_idx").on(table.updateEnvelopeId),
       index("page_operation_updates_workspace_device_idx").on(
         table.workspaceId,
         table.authoredByDeviceId,

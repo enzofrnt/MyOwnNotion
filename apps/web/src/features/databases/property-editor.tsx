@@ -159,10 +159,17 @@ export function PropertyEditor({
   readonly submitting?: boolean;
 }) {
   // This draft belongs to the mounted form, not to synchronization-driven
-  // parent renders. Keeping it locally prevents an older database projection
-  // from repainting a value the owner has already entered before submit.
+  // parent renders. The controls are intentionally uncontrolled: WebKit can
+  // paint an input event, receive a concurrent projection render, and only
+  // then let React commit the corresponding state update. A controlled value
+  // repaints the older draft in that gap and silently erases what is visibly in
+  // the field. The ref gives event handlers one current draft while FormData
+  // remains authoritative at submission.
   const [visibleDraft, setVisibleDraft] = useState(draft);
-  const changeDraft = (next: DatabasePropertyDraft): void => {
+  const visibleDraftRef = useRef(draft);
+  const changeDraft = (update: (current: DatabasePropertyDraft) => DatabasePropertyDraft): void => {
+    const next = update(visibleDraftRef.current);
+    visibleDraftRef.current = next;
     setVisibleDraft(next);
     onChange(next);
   };
@@ -170,7 +177,9 @@ export function PropertyEditor({
   const submitVisibleDraft = (): void => {
     const form = formRef.current;
     onSubmit(
-      form === null ? visibleDraft : propertyDraftFromFormData(new FormData(form), visibleDraft),
+      form === null
+        ? visibleDraftRef.current
+        : propertyDraftFromFormData(new FormData(form), visibleDraftRef.current),
     );
   };
   const submit = (event: FormEvent<HTMLFormElement>): void => {
@@ -195,17 +204,20 @@ export function PropertyEditor({
         <input
           id="property-name"
           name="property-name"
-          value={visibleDraft.name}
+          defaultValue={visibleDraft.name}
           autoComplete="off"
-          onChange={(event) => changeDraft({ ...visibleDraft, name: event.target.value })}
+          onChange={(event) => changeDraft((current) => ({ ...current, name: event.target.value }))}
         />
         <label htmlFor="property-type">{DATABASE_COPY.property.type}</label>
         <select
           id="property-type"
           name="property-type"
-          value={visibleDraft.type}
+          defaultValue={visibleDraft.type}
           onChange={(event) =>
-            changeDraft({ ...visibleDraft, type: event.target.value as EditablePropertyType })
+            changeDraft((current) => ({
+              ...current,
+              type: event.target.value as EditablePropertyType,
+            }))
           }
         >
           {EDITABLE_PROPERTY_TYPES.map((type) => (
@@ -221,9 +233,11 @@ export function PropertyEditor({
           {DATABASE_COPY.property.optionsSeparated}
           <input
             name="property-options"
-            value={visibleDraft.optionsText ?? ""}
+            defaultValue={visibleDraft.optionsText ?? ""}
             placeholder={DATABASE_COPY.property.optionPlaceholder}
-            onChange={(event) => changeDraft({ ...visibleDraft, optionsText: event.target.value })}
+            onChange={(event) =>
+              changeDraft((current) => ({ ...current, optionsText: event.target.value }))
+            }
           />
         </label>
       ) : null}
@@ -233,12 +247,12 @@ export function PropertyEditor({
           {DATABASE_COPY.property.dateMode}
           <select
             name="property-date-mode"
-            value={visibleDraft.dateMode ?? "date"}
+            defaultValue={visibleDraft.dateMode ?? "date"}
             onChange={(event) =>
-              changeDraft({
-                ...visibleDraft,
+              changeDraft((current) => ({
+                ...current,
                 dateMode: event.target.value as "date" | "instant",
-              })
+              }))
             }
           >
             <option value="date">{DATABASE_COPY.property.calendarDate}</option>
@@ -252,12 +266,12 @@ export function PropertyEditor({
           {DATABASE_COPY.property.relationCardinality}
           <select
             name="property-relation-cardinality"
-            value={visibleDraft.relationCardinality ?? "many"}
+            defaultValue={visibleDraft.relationCardinality ?? "many"}
             onChange={(event) =>
-              changeDraft({
-                ...visibleDraft,
+              changeDraft((current) => ({
+                ...current,
                 relationCardinality: event.target.value as "one" | "many",
-              })
+              }))
             }
           >
             <option value="one">{DATABASE_COPY.property.onePage}</option>

@@ -11,6 +11,7 @@ import {
   confirmPageDeviceFrontier,
   type Database,
   insertPageAmbiguity,
+  insertPageOperationCheckpoint,
   insertRevision,
   listOpenPageAmbiguities,
   listPageOperationUpdatesAfter,
@@ -18,15 +19,18 @@ import {
   PageOperationRepositoryError,
   type PageOperationStateRow,
   type PageOperationUpdateRow,
+  promotePageOperationCheckpoint,
   readPageAmbiguityByLogicalKey,
   readPageDeviceFrontier,
   readPageOperationCheckpoint,
+  readPageOperationCheckpointAtSequence,
   readPageOperationUpdates,
   recordChange,
   runMutation,
   schema,
   supersedeRevision,
   type Transaction,
+  verifyPageOperationCheckpoint,
 } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import {
@@ -40,7 +44,7 @@ import {
   versionVectorBytesEqual,
   versionVectorDominates,
 } from "@myownnotion/page-state";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { SearchService } from "../search/search-service.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
@@ -50,6 +54,9 @@ import type { PageHistoryService } from "./page-history-service.ts";
 import type { PageOperationCrypto } from "./page-operation-crypto.ts";
 import { PageOperationServiceError } from "./page-operation-errors.ts";
 import { semanticRecordFromProjectionDiff } from "./semantic-detection.ts";
+
+/** Maximum replay tail before the next accepted batch rolls a full checkpoint. */
+export const PAGE_OPERATION_REPLAY_CHECKPOINT_INTERVAL = 512;
 
 export interface PageOperationServiceDeps {
   readonly db: Database;
@@ -178,7 +185,7 @@ export class PageOperationService {
         "update",
         rows.map(({ updateEnvelopeId }) => updateEnvelopeId as Uuid),
       );
-      for (const row of rows) {
+      const orderedBytes = rows.map((row) => {
         const bytes = updateBytesByEnvelope.get(row.updateEnvelopeId as Uuid);
         if (bytes === undefined) {
           throw new PageOperationServiceError(
@@ -187,15 +194,24 @@ export class PageOperationService {
             409,
           );
         }
-        if ((await sha256Hex(bytes)) !== row.updateDigest || document.importUpdate(bytes).pending) {
-          throw new PageOperationServiceError(
-            "page-operations.projection-invalid",
-            "The operational update log failed verification.",
-            409,
-          );
-        }
-        after = row.pageSequence;
+        return bytes;
+      });
+      const digests = await Promise.all(orderedBytes.map(async (bytes) => await sha256Hex(bytes)));
+      if (rows.some((row, index) => digests[index] !== row.updateDigest)) {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "The operational update log failed verification.",
+          409,
+        );
       }
+      if (document.importUpdates(orderedBytes).pending) {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "The operational update log failed verification.",
+          409,
+        );
+      }
+      after = rows.at(-1)?.pageSequence ?? after;
     }
 
     const projection = await document.project();
@@ -237,6 +253,123 @@ export class PageOperationService {
     };
   }
 
+  /**
+   * Rolls a full-history replay checkpoint before accepting the next batch.
+   *
+   * Unlike a shallow compaction candidate, this snapshot retains every old
+   * operation and can therefore still import a branch authored by a device
+   * that has been offline since an earlier checkpoint. No update payload is
+   * removed here; device-frontier-gated compaction remains a separate action.
+   */
+  async #rollReplayCheckpoint(
+    tx: Transaction,
+    input: LoadedOperationalPage,
+  ): Promise<LoadedOperationalPage> {
+    if (
+      input.state.lastUpdateSequence - input.checkpointThroughPageSequence <
+      PAGE_OPERATION_REPLAY_CHECKPOINT_INTERVAL
+    ) {
+      return input;
+    }
+    const existing = await readPageOperationCheckpointAtSequence(tx, {
+      workspaceId: this.#deps.workspaceId,
+      pageId: input.document.pageId,
+      throughPageSequence: input.state.lastUpdateSequence,
+    });
+    if (existing !== null) return input;
+    if (input.state.currentCheckpointId === null || input.state.operationalDigest === null) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The operational page cannot roll an incomplete replay checkpoint.",
+        409,
+      );
+    }
+
+    const [checkpoint, projection] = await Promise.all([
+      input.document.checkpoint(),
+      input.document.project(),
+    ]);
+    if (projection.canonicalDigest !== input.state.canonicalDigest) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The replay checkpoint does not reproduce the current operational page.",
+        409,
+      );
+    }
+    const snapshotEnvelopeId = await this.#deps.crypto.sealBytes(
+      tx,
+      "checkpoint",
+      checkpoint.bytes,
+    );
+    const frontierEnvelopeId = await this.#deps.crypto.sealFrontier(tx, {
+      versionVector: checkpoint.versionVector,
+      frontiers: checkpoint.frontiers,
+    });
+    const checkpointId = generateUuidV7();
+    await insertPageOperationCheckpoint(tx, {
+      checkpointId,
+      pageId: input.document.pageId,
+      workspaceId: this.#deps.workspaceId,
+      throughPageSequence: input.state.lastUpdateSequence,
+      frontierEnvelopeId,
+      snapshotEnvelopeId,
+      snapshotDigest: checkpoint.digest,
+      canonicalDigest: projection.canonicalDigest,
+      revisionId:
+        input.state.revisionWindowStartedAt === null
+          ? (input.state.lastRevisionId as Uuid | null)
+          : null,
+      state: "candidate",
+      now: this.#deps.now(),
+    });
+
+    // Verify the protected bytes after persistence, not merely the in-memory
+    // source, before making this checkpoint the replay base.
+    const storedBytes = await this.#deps.crypto.openBytes(tx, "checkpoint", snapshotEnvelopeId);
+    const storedFrontier = await this.#deps.crypto.openFrontier(tx, frontierEnvelopeId);
+    const storedCheckpoint: OperationalPageCheckpoint = {
+      ...checkpoint,
+      bytes: storedBytes,
+      versionVector: storedFrontier.versionVector,
+      frontiers: storedFrontier.frontiers,
+    };
+    const reopened = await OperationalPageDocument.fromCheckpoint({
+      pageId: input.document.pageId,
+      checkpoint: storedCheckpoint,
+    });
+    const reopenedProjection = await reopened.project();
+    if (
+      reopenedProjection.canonicalDigest !== projection.canonicalDigest ||
+      reopenedProjection.operationalDigest !== projection.operationalDigest
+    ) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The protected replay checkpoint failed verification.",
+        409,
+      );
+    }
+    await verifyPageOperationCheckpoint(tx, {
+      workspaceId: this.#deps.workspaceId,
+      pageId: input.document.pageId,
+      checkpointId,
+      verifiedAt: this.#deps.now(),
+    });
+    const state = await promotePageOperationCheckpoint(tx, {
+      workspaceId: this.#deps.workspaceId,
+      pageId: input.document.pageId,
+      checkpointId,
+      expectedCurrentCheckpointId: input.state.currentCheckpointId as Uuid,
+      operationalDigest: projection.operationalDigest,
+      now: this.#deps.now(),
+    });
+    return {
+      document: input.document,
+      state,
+      checkpoint: storedCheckpoint,
+      checkpointThroughPageSequence: input.state.lastUpdateSequence,
+    };
+  }
+
   /** Shared locked loader for migration and later server-side maintenance. */
   async sync(input: {
     readonly pageId: Uuid;
@@ -247,7 +380,7 @@ export class PageOperationService {
     const response = await runMutation(this.#deps.db, async (tx) => {
       await this.#deps.rotationPolicies.assertWritesAllowed(tx);
       await this.#deps.history?.consolidateIfDue(tx, input.pageId);
-      const loaded = await this.#load(tx, input.pageId);
+      let loaded = await this.#load(tx, input.pageId);
       let state = loaded.state;
       const document = loaded.document;
       const accepted: ActivePageSyncResponseDto["accepted"] = [];
@@ -291,6 +424,10 @@ export class PageOperationService {
           );
         }
         repeatedUpdates.push({ candidate, existing });
+      }
+      if (newUpdates.length > 0) {
+        loaded = await this.#rollReplayCheckpoint(tx, loaded);
+        state = loaded.state;
       }
       const repeatedFrontiers = await this.#deps.crypto.openFrontiers(
         tx,
@@ -473,16 +610,28 @@ export class PageOperationService {
         );
       }
       if (mayAdvanceDeviceFrontier) {
-        let confirmedPageSequence = 0;
-        let after = 0;
-        while (after < state.lastUpdateSequence) {
+        // Stored result frontiers are monotone: every later accepted server
+        // state contains every earlier one. Resume at the device's already
+        // confirmed prefix and stop at the first frontier it does not dominate.
+        // Replaying from zero on every 64-update catch-up page turned a 10k
+        // return into an unnecessary quadratic scan.
+        let confirmedPageSequence = existingDeviceFrontier?.confirmedPageSequence ?? 0;
+        let after = confirmedPageSequence;
+        let reachedFirstMissingFrontier = false;
+        while (after < state.lastUpdateSequence && !reachedFirstMissingFrontier) {
           const rows = await listPageOperationUpdatesAfter(tx, {
             workspaceId: this.#deps.workspaceId,
             pageId: input.pageId,
             after,
             limit: 256,
           });
-          if (rows.length === 0) break;
+          if (rows.length === 0) {
+            throw new PageOperationServiceError(
+              "page-operations.projection-invalid",
+              "The operational update log is incomplete.",
+              409,
+            );
+          }
           const resultFrontiers = await this.#deps.crypto.openFrontiers(
             tx,
             rows.map(({ resultFrontierEnvelopeId }) => resultFrontierEnvelopeId as Uuid),
@@ -498,8 +647,11 @@ export class PageOperationService {
             }
             if (versionVectorDominates(persistedVersionVector, result.versionVector)) {
               confirmedPageSequence = row.pageSequence;
+              after = row.pageSequence;
+              continue;
             }
-            after = row.pageSequence;
+            reachedFirstMissingFrontier = true;
+            break;
           }
         }
         const frontierDigest = await sha256Hex(persistedVersionVector);
@@ -527,12 +679,15 @@ export class PageOperationService {
       // every stored update its persisted frontier does not dominate is
       // concurrent with or newer than the client's work, so exactly those get
       // their semantic delta reconstructed and compared pairwise (FR-058).
-      const ambiguitySummaries = await this.#detectAmbiguities(tx, {
-        pageId: input.pageId,
-        checkpoint: loaded.checkpoint,
-        checkpointThroughPageSequence: loaded.checkpointThroughPageSequence,
-        persistedVersionVector,
-      });
+      const mustDetectNewAmbiguity =
+        accepted.length > 0 &&
+        !versionVectorDominates(persistedVersionVector, document.versionVectorBytes());
+      const ambiguitySummaries = mustDetectNewAmbiguity
+        ? await this.#detectAmbiguities(tx, {
+            pageId: input.pageId,
+            persistedVersionVector,
+          })
+        : await this.#openAmbiguities(tx, input.pageId);
 
       const candidates = await listPageOperationUpdatesAfter(tx, {
         workspaceId: this.#deps.workspaceId,
@@ -556,7 +711,12 @@ export class PageOperationService {
           !versionVectorDominates(persistedVersionVector, result.versionVector)
         );
       });
-      if (rowsRequiringBytes.some(({ updateEnvelopeId }) => updateEnvelopeId === null)) {
+      if (
+        rowsRequiringBytes.some(
+          ({ baseFrontierEnvelopeId, updateEnvelopeId }) =>
+            baseFrontierEnvelopeId === null || updateEnvelopeId === null,
+        )
+      ) {
         throw new PageOperationServiceError(
           "page-operations.dependencies-missing",
           "The requested operational history was compacted; reload the current checkpoint.",
@@ -567,6 +727,10 @@ export class PageOperationService {
         tx,
         "update",
         rowsRequiringBytes.map(({ updateEnvelopeId }) => updateEnvelopeId as Uuid),
+      );
+      const candidateBases = await this.#deps.crypto.openFrontiers(
+        tx,
+        rowsRequiringBytes.map(({ baseFrontierEnvelopeId }) => baseFrontierEnvelopeId as Uuid),
       );
       for (const row of candidateRows) {
         if (responseUpdateIds.has(row.id)) {
@@ -586,12 +750,34 @@ export class PageOperationService {
           continue;
         }
         const bytes = candidateBytes.get(row.updateEnvelopeId as Uuid);
-        if (bytes === undefined) {
+        const base = candidateBases.get(row.baseFrontierEnvelopeId as Uuid);
+        if (bytes === undefined || base === undefined) {
           throw new PageOperationServiceError(
             "page-operations.projection-invalid",
-            "An operational update has no retained bytes.",
+            "An operational update has incomplete retained content.",
             409,
           );
+        }
+        let authoredResultVersionVector: Uint8Array;
+        try {
+          authoredResultVersionVector = incrementalUpdateResultVersionVector(
+            bytes,
+            base.versionVector,
+          );
+        } catch {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "An operational update has invalid retained causal metadata.",
+            409,
+          );
+        }
+        // The retained result frontier is the merged server state after
+        // acceptance. A returning replica may already contain this authored
+        // update but not the concurrent remote branch, so testing only that
+        // merged frontier would echo the replica's own update back to it.
+        if (versionVectorDominates(persistedVersionVector, authoredResultVersionVector)) {
+          throughPageSequence = row.pageSequence;
+          continue;
         }
         if (
           remoteUpdates.length > 0 &&
@@ -826,17 +1012,74 @@ export class PageOperationService {
     tx: Transaction,
     input: {
       readonly pageId: Uuid;
-      readonly checkpoint: OperationalPageCheckpoint;
-      readonly checkpointThroughPageSequence: number;
       readonly persistedVersionVector: Uint8Array;
     },
   ): Promise<ActivePageSyncResponseDto["ambiguities"]> {
-    const rows = await listPageOperationUpdatesAfter(tx, {
+    // Replay checkpoints may move forward while an authorized device still
+    // owns an older branch. Semantic comparison therefore starts at the
+    // checkpoint immediately before the first retained update, not at the
+    // faster current replay checkpoint. After safe compaction those payloads
+    // disappear and the promoted shallow checkpoint becomes this base.
+    const firstRetainedRows = await tx
+      .select({ pageSequence: schema.pageOperationUpdates.pageSequence })
+      .from(schema.pageOperationUpdates)
+      .where(
+        and(
+          eq(schema.pageOperationUpdates.workspaceId, this.#deps.workspaceId),
+          eq(schema.pageOperationUpdates.pageId, input.pageId),
+          isNotNull(schema.pageOperationUpdates.updateEnvelopeId),
+        ),
+      )
+      .orderBy(asc(schema.pageOperationUpdates.pageSequence))
+      .limit(1);
+    const firstRetainedSequence = firstRetainedRows[0]?.pageSequence;
+    if (firstRetainedSequence === undefined) {
+      return await this.#openAmbiguities(tx, input.pageId);
+    }
+    const checkpointRow = await readPageOperationCheckpointAtSequence(tx, {
       workspaceId: this.#deps.workspaceId,
       pageId: input.pageId,
-      after: input.checkpointThroughPageSequence,
-      limit: 10_000,
+      throughPageSequence: firstRetainedSequence - 1,
     });
+    if (checkpointRow === null) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The retained ambiguity window has no causal checkpoint.",
+        409,
+      );
+    }
+    const checkpointBytes = await this.#deps.crypto.openBytes(
+      tx,
+      "checkpoint",
+      checkpointRow.snapshotEnvelopeId as Uuid,
+    );
+    const checkpointFrontier = await this.#deps.crypto.openFrontier(
+      tx,
+      checkpointRow.frontierEnvelopeId as Uuid,
+    );
+    const checkpoint: OperationalPageCheckpoint = {
+      operationalFormat: "myownnotion.page-operations+loro",
+      operationalVersion: 1,
+      pageId: input.pageId,
+      bytes: checkpointBytes,
+      digest: checkpointRow.snapshotDigest,
+      versionVector: checkpointFrontier.versionVector,
+      frontiers: checkpointFrontier.frontiers,
+    };
+    const rows: PageOperationUpdateRow[] = [];
+    let after = checkpointRow.throughPageSequence;
+    for (;;) {
+      const batch = await listPageOperationUpdatesAfter(tx, {
+        workspaceId: this.#deps.workspaceId,
+        pageId: input.pageId,
+        after,
+        limit: 512,
+      });
+      if (batch.length === 0) break;
+      rows.push(...batch);
+      after = batch.at(-1)?.pageSequence ?? after;
+      if (batch.length < 512) break;
+    }
     if (
       rows.some(
         ({ baseFrontierEnvelopeId, updateEnvelopeId }) =>
@@ -947,16 +1190,14 @@ export class PageOperationService {
         const commonIds = new Set(commonCandidates.map(({ row }) => row.id));
         const common = await OperationalPageDocument.fromCheckpoint({
           pageId: input.pageId,
-          checkpoint: input.checkpoint,
+          checkpoint,
         });
-        for (const candidate of commonCandidates) {
-          if (common.importUpdate(candidate.bytes).pending) {
-            throw new PageOperationServiceError(
-              "page-operations.projection-invalid",
-              "A retained common update has missing causal dependencies.",
-              409,
-            );
-          }
+        if (common.importUpdates(commonCandidates.map(({ bytes }) => bytes)).pending) {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "A retained common update has missing causal dependencies.",
+            409,
+          );
         }
         const commonCheckpoint = await common.checkpoint();
         const commonVersionVector = common.versionVectorBytes();
@@ -971,23 +1212,22 @@ export class PageOperationService {
             pageId: input.pageId,
             checkpoint: commonCheckpoint,
           });
-          for (const candidate of candidates) {
-            if (commonIds.has(candidate.row.id)) continue;
-            if (
-              !versionVectorDominates(
-                tip.authoredResultVersionVector,
-                candidate.authoredResultVersionVector,
-              )
-            ) {
-              continue;
-            }
-            if (branch.importUpdate(candidate.bytes).pending) {
-              throw new PageOperationServiceError(
-                "page-operations.projection-invalid",
-                "A retained branch update has missing causal dependencies.",
-                409,
-              );
-            }
+          const branchUpdates = candidates
+            .filter(
+              (candidate) =>
+                !commonIds.has(candidate.row.id) &&
+                versionVectorDominates(
+                  tip.authoredResultVersionVector,
+                  candidate.authoredResultVersionVector,
+                ),
+            )
+            .map(({ bytes }) => bytes);
+          if (branch.importUpdates(branchUpdates).pending) {
+            throw new PageOperationServiceError(
+              "page-operations.projection-invalid",
+              "A retained branch update has missing causal dependencies.",
+              409,
+            );
           }
           if (
             !versionVectorBytesEqual(branch.versionVectorBytes(), tip.authoredResultVersionVector)
@@ -1034,9 +1274,16 @@ export class PageOperationService {
       }
     }
 
+    return await this.#openAmbiguities(tx, input.pageId);
+  }
+
+  async #openAmbiguities(
+    tx: Transaction,
+    pageId: Uuid,
+  ): Promise<ActivePageSyncResponseDto["ambiguities"]> {
     const open = await listOpenPageAmbiguities(tx, {
       workspaceId: this.#deps.workspaceId,
-      pageId: input.pageId,
+      pageId,
     });
     const details = await this.#deps.crypto.openBytesMany(
       tx,
@@ -1054,7 +1301,7 @@ export class PageOperationService {
       }
       return {
         ambiguityId: row.id as Uuid,
-        pageId: input.pageId,
+        pageId,
         kind: row.kind as ActivePageSyncResponseDto["ambiguities"][number]["kind"],
         blockIds: blockIdsFromAmbiguityDetails(bytes, row.logicalKey),
         openedAt: row.openedAt.toISOString(),

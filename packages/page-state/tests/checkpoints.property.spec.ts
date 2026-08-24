@@ -8,6 +8,8 @@ import {
   versionVectorBytesEqual,
 } from "../src/index.ts";
 
+const ROLLOVER_SAMPLES = Array.from({ length: 10 }, (_, sample) => sample + 1);
+
 describe("updates, version vectors and checkpoints", () => {
   it("imports the same update idempotently", async () => {
     const pageId = generateUuidV7();
@@ -47,6 +49,57 @@ describe("updates, version vectors and checkpoints", () => {
     expect(receiver.importUpdate(second.updateBytes).pending).toBe(true);
     expect(receiver.importUpdate(first.updateBytes).pending).toBe(false);
     expect((await receiver.project()).document).toEqual((await author.project()).document);
+  });
+
+  it("imports a reversed causal batch atomically and resolves its pending dependencies", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: { blocks: [{ type: "paragraph", id: blockId, content: [{ text: "A" }] }] },
+    });
+    const checkpoint = await origin.checkpoint();
+    const author = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const receiver = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const first = author.transact([{ type: "replace-text", blockId, from: 1, to: 1, text: "B" }]);
+    const second = author.transact([{ type: "replace-text", blockId, from: 2, to: 2, text: "C" }]);
+
+    const imported = receiver.importUpdates([second.updateBytes, first.updateBytes]);
+
+    expect(imported).toMatchObject({ changed: true, pending: false });
+    expect(receiver.snapshot()).toEqual(author.snapshot());
+    expect(
+      versionVectorBytesEqual(receiver.versionVectorBytes(), author.versionVectorBytes()),
+    ).toBe(true);
+    expect(receiver.importUpdates([])).toMatchObject({ changed: false, pending: false });
+    expect(receiver.importUpdates([first.updateBytes, second.updateBytes])).toMatchObject({
+      changed: false,
+      pending: false,
+    });
+  });
+
+  it("reports a causal batch as pending until its missing base is imported", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: { blocks: [{ type: "paragraph", id: blockId, content: [{ text: "A" }] }] },
+    });
+    const checkpoint = await origin.checkpoint();
+    const author = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const receiver = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const first = author.transact([{ type: "replace-text", blockId, from: 1, to: 1, text: "B" }]);
+    const second = author.transact([{ type: "replace-text", blockId, from: 2, to: 2, text: "C" }]);
+
+    expect(receiver.importUpdates([second.updateBytes])).toMatchObject({
+      changed: false,
+      pending: true,
+    });
+    expect(receiver.importUpdates([first.updateBytes])).toMatchObject({
+      changed: true,
+      pending: false,
+    });
+    expect(receiver.snapshot()).toEqual(author.snapshot());
   });
 
   it("verifies the causal base declared around an incremental update", async () => {
@@ -111,6 +164,94 @@ describe("updates, version vectors and checkpoints", () => {
     expect(restored.snapshot()).toEqual(page.snapshot());
     expect(versionVectorBytesEqual(restored.versionVectorBytes(), page.versionVectorBytes())).toBe(
       true,
+    );
+  });
+
+  it.each(ROLLOVER_SAMPLES)(
+    "keeps full replay checkpoint sample %i stable after the 512-update rollover interval",
+    async () => {
+      const pageId = generateUuidV7();
+      const blockId = generateUuidV7();
+      const origin = OperationalPageDocument.create({ pageId, document: { blocks: [] } });
+      const base = await origin.checkpoint();
+      const author = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint: base });
+      const replay = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint: base });
+      const first = author.transact([
+        {
+          type: "insert-block",
+          block: { type: "paragraph", id: blockId, content: [{ text: "0" }] },
+          parentBlockId: null,
+          beforeBlockId: null,
+        },
+      ]);
+      expect(replay.importUpdate(first.updateBytes).pending).toBe(false);
+      for (let index = 1; index < 512; index += 1) {
+        const transaction = author.transact([
+          {
+            type: "replace-text",
+            blockId,
+            from: 0,
+            to: 1,
+            text: String(index % 2),
+          },
+        ]);
+        expect(replay.importUpdate(transaction.updateBytes).pending).toBe(false);
+      }
+
+      const [checkpoint, projection] = await Promise.all([replay.checkpoint(), replay.project()]);
+      const reopened = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+      const reopenedProjection = await reopened.project();
+
+      expect(checkpoint.digest).toMatch(/^[0-9a-f]{64}$/u);
+      expect(reopenedProjection.canonicalDigest).toBe(projection.canonicalDigest);
+      expect(reopenedProjection.operationalDigest).toBe(projection.operationalDigest);
+    },
+  );
+
+  it("keeps a full replay checkpoint able to merge a branch authored before it", async () => {
+    const pageId = generateUuidV7();
+    const onlineBlockId = generateUuidV7();
+    const offlineBlockId = generateUuidV7();
+    const origin = OperationalPageDocument.create({ pageId, document: { blocks: [] } });
+    const base = await origin.checkpoint();
+    const online = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint: base });
+    const offline = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint: base });
+    const offlineUpdate = offline.transact([
+      {
+        type: "insert-block",
+        block: { type: "paragraph", id: offlineBlockId, content: [{ text: "offline" }] },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    online.transact([
+      {
+        type: "insert-block",
+        block: { type: "paragraph", id: onlineBlockId, content: [{ text: "online" }] },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+
+    const [fullCheckpoint, shallowCheckpoint] = await Promise.all([
+      online.checkpoint(),
+      online.compactedCheckpoint(),
+    ]);
+    const fullReplay = await OperationalPageDocument.fromCheckpoint({
+      pageId,
+      checkpoint: fullCheckpoint,
+    });
+    const shallowReplay = await OperationalPageDocument.fromCheckpoint({
+      pageId,
+      checkpoint: shallowCheckpoint,
+    });
+
+    expect(fullReplay.importUpdate(offlineUpdate.updateBytes).pending).toBe(false);
+    expect(new Set(fullReplay.snapshot().blocks.map(({ id }) => id))).toEqual(
+      new Set([onlineBlockId, offlineBlockId]),
+    );
+    expect(() => shallowReplay.importUpdate(offlineUpdate.updateBytes)).toThrow(
+      /shallow history/iu,
     );
   });
 

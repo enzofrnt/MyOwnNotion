@@ -27,6 +27,7 @@ describe("reviewed SQL migrations", () => {
     expect(applied).toContain("0008_page_operations");
     expect(applied).toContain("0009_page_operation_compaction");
     expect(applied).toContain("0010_page_operation_backups");
+    expect(applied).toContain("0011_page_operation_compaction_indexes");
   });
 
   it("is idempotent: reapplying applies nothing", async () => {
@@ -124,6 +125,7 @@ describe("reviewed SQL migrations", () => {
       const { rows } = await client.query<{
         migration_recorded: boolean;
         compaction_migration_recorded: boolean;
+        compaction_indexes_migration_recorded: boolean;
         backup_migration_recorded: boolean;
         state_exists: boolean;
         updates_exists: boolean;
@@ -143,6 +145,10 @@ describe("reviewed SQL migrations", () => {
              AS compaction_migration_recorded,
            EXISTS (SELECT 1 FROM schema_migrations WHERE version = '0010_page_operation_backups')
              AS backup_migration_recorded,
+           EXISTS (
+             SELECT 1 FROM schema_migrations
+              WHERE version = '0011_page_operation_compaction_indexes'
+           ) AS compaction_indexes_migration_recorded,
            to_regclass('public.page_operation_states') IS NOT NULL AS state_exists,
            to_regclass('public.page_operation_updates') IS NOT NULL AS updates_exists,
            to_regclass('public.page_operation_checkpoints') IS NOT NULL AS checkpoints_exists,
@@ -173,6 +179,7 @@ describe("reviewed SQL migrations", () => {
       expect(rows[0]).toEqual({
         migration_recorded: true,
         compaction_migration_recorded: true,
+        compaction_indexes_migration_recorded: true,
         backup_migration_recorded: true,
         state_exists: true,
         updates_exists: true,
@@ -199,6 +206,19 @@ describe("reviewed SQL migrations", () => {
         "page_ambiguities_logical_unique",
         "page_operation_updates_compaction_check",
         "page_operation_updates_sequence_unique",
+      ]);
+      const indexes = await client.query<{ indexname: string }>(
+        `SELECT indexname FROM pg_indexes
+          WHERE schemaname = 'public'
+            AND indexname IN (
+              'page_operation_updates_base_frontier_envelope_idx',
+              'page_operation_updates_update_envelope_idx'
+            )
+          ORDER BY indexname`,
+      );
+      expect(indexes.rows.map(({ indexname }) => indexname)).toEqual([
+        "page_operation_updates_base_frontier_envelope_idx",
+        "page_operation_updates_update_envelope_idx",
       ]);
       const triggers = await client.query<{ tgname: string }>(
         `SELECT tgname FROM pg_trigger
@@ -277,6 +297,7 @@ describe("reviewed SQL migrations", () => {
         "0008_page_operations",
         "0009_page_operation_compaction",
         "0010_page_operation_backups",
+        "0011_page_operation_compaction_indexes",
       ]);
       const { rows } = await client.query<{
         format_version: number;

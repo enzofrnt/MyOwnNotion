@@ -724,6 +724,27 @@ export class OperationalPageDocument {
     };
   }
 
+  /** Imports one durable transport batch without paying one WASM boundary per update. */
+  importUpdates(updateBytes: readonly Uint8Array[]): PageImportResult {
+    this.#doc.commit();
+    const before = this.#doc.oplogVersion().encode();
+    if (updateBytes.length === 0) {
+      return {
+        changed: false,
+        pending: false,
+        versionVector: cloneBytes(before),
+      };
+    }
+    const status = this.#doc.importBatch(updateBytes.map(cloneBytes));
+    assertMetadata(this.#doc, this.#pageId);
+    const versionVector = cloneBytes(this.#doc.oplogVersion().encode());
+    return {
+      changed: !versionVectorBytesEqual(before, versionVector),
+      pending: status.pending !== null && status.pending.size > 0,
+      versionVector,
+    };
+  }
+
   project(): Promise<CanonicalProjectionResult> {
     return projectCanonicalPage(this.#pageId, this.#doc);
   }

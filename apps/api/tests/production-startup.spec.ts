@@ -21,6 +21,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
+import pg from "pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.ts";
 
@@ -44,6 +45,24 @@ afterEach(() => {
   delete process.env["MYOWNNOTION_PUBLIC_ORIGIN"];
   delete process.env["MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE"];
 });
+
+async function waitForBlockedRotationRead(client: pg.Client): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const result = await client.query<{ blocked: boolean }>(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM pg_locks waiting
+        JOIN pg_class relation ON relation.oid = waiting.relation
+        WHERE relation.relname = 'rotation_policies'
+          AND waiting.granted = false
+      ) AS blocked
+    `);
+    if (result.rows[0]?.blocked === true) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("the startup rotation-policy read never reached the database lock");
+}
 
 describe("when a refused configuration must stop the process", () => {
   it("refuses the shipped Compose defaults", async () => {
@@ -86,6 +105,47 @@ describe("when a refused configuration must stop the process", () => {
     const response = await built.app.inject({ method: "GET", url: "/v1/installation/status" });
     expect(response.statusCode).toBe(200);
     await built.close();
+  });
+
+  it("finishes startup security work before reporting the app ready", async () => {
+    // Keep the rotation-policy read waiting in PostgreSQL. `buildApp` must stay
+    // pending until that startup evaluation completes; otherwise `close()` can
+    // end the pool underneath a detached query and produce a much later
+    // unhandled rejection in an unrelated test.
+    process.env["MYOWNNOTION_PUBLIC_ORIGIN"] = "https://notes.example.test";
+    const blocker = new pg.Client({ connectionString: postgres.connectionString });
+    await blocker.connect();
+    await blocker.query("BEGIN");
+    await blocker.query("LOCK TABLE rotation_policies IN ACCESS EXCLUSIVE MODE");
+
+    let settled = false;
+    const building = buildApp({
+      databaseUrl: postgres.connectionString,
+      blobRoot,
+      logger: false,
+      refuseWithoutSecurity: true,
+    }).then((value) => {
+      settled = true;
+      return value;
+    });
+
+    let remainedPending = false;
+    let observationError: unknown;
+    try {
+      await waitForBlockedRotationRead(blocker);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      remainedPending = !settled;
+    } catch (error) {
+      observationError = error;
+    } finally {
+      await blocker.query("ROLLBACK");
+      await blocker.end();
+    }
+
+    const built = await building;
+    await built.close();
+    if (observationError !== undefined) throw observationError;
+    expect(remainedPending).toBe(true);
   });
 });
 
