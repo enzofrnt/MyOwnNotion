@@ -558,6 +558,7 @@ export async function waitForEditorSettled(
   await expect(page.getByTestId("block-editor")).toHaveAttribute("data-editor-settled", "true", {
     timeout: 20_000,
   });
+  await expect(page.getByTestId("block-editor")).toHaveAttribute("data-editor-apply-failures", "0");
 }
 
 export async function typeIntoEditor(page: Page, text: string): Promise<void> {

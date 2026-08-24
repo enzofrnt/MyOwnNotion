@@ -584,7 +584,7 @@ describe("PageReconciler", () => {
     ).resolves.toMatchObject({ kind: "synced", exchanges: 0 });
   });
 
-  it("converts a branch as soon as a real user transaction joins the bootstrap", async () => {
+  it("leaves conversion to the editing queue once a real transaction joins the bootstrap", async () => {
     const pageId = generateUuidV7();
     const localBaseRevisionId = generateUuidV7();
     const canonicalBaseRevisionId = generateUuidV7();
@@ -667,11 +667,24 @@ describe("PageReconciler", () => {
       },
     };
 
-    // The conversion attempt itself is the assertion; the transport refusal
-    // surfaces as an ordinary offline outcome, not a crash.
-    await expect(
-      new PageReconciler({ pageId, log, transport }).synchronize(),
-    ).resolves.toMatchObject({ kind: "offline" });
+    // A background workspace pass must not race the editor and replace a
+    // branch that is still accepting gestures.
+    const reconciler = new PageReconciler({ pageId, log, transport });
+    await expect(reconciler.synchronize()).resolves.toMatchObject({
+      kind: "pending",
+      problemCode: "page-operations.legacy-conversion-deferred",
+    });
+    expect(conversionRequests).toBe(0);
+
+    // The editing session's queue-bound request is the only conversion
+    // authority. If it arrives during a background pass, coalescing preserves
+    // that stronger request and executes a dedicated conversion pass next.
+    const background = reconciler.synchronize();
+    const conversion = reconciler.convertLegacyBranch();
+    await expect(Promise.all([background, conversion])).resolves.toEqual([
+      expect.objectContaining({ kind: "offline" }),
+      expect.objectContaining({ kind: "offline" }),
+    ]);
     expect(conversionRequests).toBe(1);
   });
 });

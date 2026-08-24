@@ -226,6 +226,25 @@ export class LegacyPageEditingSession {
   static async open(
     options: OpenLegacyPageEditingSessionOptions,
   ): Promise<LegacyPageEditingSession> {
+    const session = await LegacyPageEditingSession.tryOpen(options);
+    if (session === null) {
+      throw new TypeError("a converted legacy branch must be opened as an active page");
+    }
+    return session;
+  }
+
+  /**
+   * Opens the branch only while it is still editable.
+   *
+   * A conversion can commit between the caller's routing read and this final
+   * branch read. That is an expected handover boundary, not corrupt local
+   * state: application callers can resume the active checkpoint when this
+   * method returns null. `open` keeps the strict throwing contract used by
+   * lower-level callers and tests.
+   */
+  static async tryOpen(
+    options: OpenLegacyPageEditingSessionOptions,
+  ): Promise<LegacyPageEditingSession | null> {
     const existing = await options.log.getLegacyBranch(options.pageId);
     const branch =
       existing?.branch ??
@@ -237,7 +256,7 @@ export class LegacyPageEditingSession {
         createdAt: (options.now ?? (() => new Date()))().toISOString(),
       }));
     if (branch.status === "converted") {
-      throw new TypeError("a converted legacy branch must be opened as an active page");
+      return null;
     }
     const page = OperationalPageDocument.create({
       pageId: options.pageId,
@@ -605,14 +624,12 @@ export class LegacyPageEditingSession {
         if (this.#successor === null) {
           const outcome = await requestConversion();
           if (outcome === "converted") {
-            // Not awaited: the upgrade resumes from durable state
-            // concurrently with the queue, and any gesture that still reaches
-            // the converted branch is caught by the concurrency net and
-            // replayed on the successor. Awaiting it here would let the
-            // durable-page listener's own queued upgrade block this task.
-            this.#upgradeToActiveSession().catch((error) => {
-              this.#onBackgroundError?.(error);
-            });
+            // The durable-page listener queues its own adoption behind this
+            // task and does not await that queue, so starting the shared
+            // upgrade directly cannot deadlock. Keeping this task pending
+            // until the successor exists ensures every later gesture runs on
+            // the active document instead of a branch already converted.
+            await this.#upgradeToActiveSession();
           }
         }
       } catch (error) {

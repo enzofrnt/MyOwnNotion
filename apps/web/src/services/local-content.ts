@@ -497,6 +497,17 @@ export class LocalContentService {
         };
       }
     }
+    const retainedLegacyBranch = await this.pageOperationLog.getLegacyBranch(itemId);
+    if (retainedLegacyBranch !== null && retainedLegacyBranch.status !== "converted") {
+      // Pulling another device's active checkpoint must not orphan edits that
+      // this device made while the page was still legacy. Reopen the retained
+      // branch first; its serial queue owns conversion and then hands the same
+      // mounted editor over to the active state in place.
+      return await this.#openLegacyBranchSession(
+        itemId,
+        retainedLegacyBranch.branch.baseDocumentV2,
+      );
+    }
     if (state === null) {
       let item = await this.repository.getItem(itemId);
       if (item === null || item.kind !== "page") {
@@ -560,6 +571,21 @@ export class LocalContentService {
       return await this.#openLegacyBranchSession(itemId, stored.body);
     }
 
+    return await this.#openActivePageSession(itemId, online);
+  }
+
+  /**
+   * Resumes the durable operational owner after activation or branch
+   * conversion. The state is deliberately re-read here: conversion can finish
+   * between the routing reads in `#openOperationalPageOnce` and the final
+   * editor open, especially while a background synchronization pass is
+   * running on a slow device.
+   */
+  async #openActivePageSession(
+    itemId: Uuid,
+    online: boolean,
+  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> {
+    const state = await this.pageOperationLog.getState(itemId);
     const reconciler = this.pageReconciler(itemId);
     const session = await PageEditingSession.resume({
       pageId: itemId,
@@ -571,7 +597,7 @@ export class LocalContentService {
         void reconciler.synchronize();
       },
     });
-    if (session === null) {
+    if (state === null || session === null) {
       return {
         ok: false,
         offline: false,
@@ -632,17 +658,13 @@ export class LocalContentService {
         message: "This page cannot be opened without reducing its content.",
       };
     }
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
     const existing = await this.pageOperationLog.getLegacyBranch(itemId);
     if (existing?.branch.status === "converted") {
-      return {
-        ok: false,
-        offline: false,
-        code: "page-operations.local-state-missing",
-        message: "The converted page state has not arrived on this device yet.",
-      };
+      return await this.#openActivePageSession(itemId, online);
     }
     const reconciler = this.pageReconciler(itemId);
-    const session = await LegacyPageEditingSession.open({
+    const session = await LegacyPageEditingSession.tryOpen({
       pageId: itemId,
       baseRevisionId: item.currentRevisionId,
       baseDocument,
@@ -650,7 +672,7 @@ export class LocalContentService {
       store: new LegacyPageStateStore(this.pageOperationLog),
       // Backing for the in-place upgrade once the branch converts.
       activeStore: new LocalPageStateStore(this.pageOperationLog),
-      online: typeof navigator === "undefined" ? true : navigator.onLine,
+      online,
       publishDurableUpdate: () => {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
         void reconciler.synchronize();
@@ -659,10 +681,16 @@ export class LocalContentService {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
       },
       requestConversion: async () => {
-        const outcome = await reconciler.synchronize();
+        const outcome = await reconciler.convertLegacyBranch();
         return outcome.kind === "synced" ? "converted" : "unavailable";
       },
     });
+    if (session === null) {
+      // A reconciler converted the branch after the routing read above. The
+      // accepted checkpoint is now the durable owner, so continue opening it
+      // instead of surfacing a transient protocol error to the editor.
+      return await this.#openActivePageSession(itemId, online);
+    }
     return { ok: true, mode: "legacy-branch", session, reconciler };
   }
 

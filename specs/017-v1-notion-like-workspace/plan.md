@@ -368,6 +368,18 @@ checkpoint actif retourné remplace la branche uniquement après commit Dexie.
 Une seconde branche legacy concurrente suit exactement la même conversion et
 ne peut jamais remplacer la page complète.
 
+La session d'édition est l'unique autorité qui déclenche cette conversion, à
+une frontière de sa file sérielle. Les signaux généraux de reconnexion, SSE ou
+rafraîchissement peuvent synchroniser les pages déjà actives, mais ne
+convertissent jamais directement une branche encore éditable. Si une demande
+de conversion rejoint une réconciliation déjà en vol, le reconciler exécute
+une passe dédiée après celle-ci. Une fois le checkpoint durable reçu, la même
+tâche attend la reprise de la session active avant de libérer les gestes
+suivants. Si l'appareil avait déjà récupéré un checkpoint actif créé ailleurs,
+la branche locale reste prioritaire à l'ouverture puis une passe active suit
+obligatoirement sa conversion pour importer le résultat fusionné ;
+« synchronisé » reste impossible si une commande locale a échoué.
+
 Le serveur annonce le protocole 3 dans `X-MyOwnNotion-Protocol` et le client
 l'envoie dans `X-MyOwnNotion-Client-Protocol`. La fenêtre générale peut encore
 laisser un client v2 exécuter les commandes inchangées ; les routes

@@ -275,6 +275,11 @@ reconnecter dans les deux ordres et comparer l'état final et l'historique.
    appareils connectés, **When** une mise à jour distante arrive, **Then** elle
    s'intègre sans remplacer le brouillon local, déplacer l'édition sur un autre
    bloc ni annoncer trop tôt un état synchronisé.
+7. **Given** une page historique encore en cours d'édition locale, **When** une
+   synchronisation générale et sa première bascule opérationnelle se
+   chevauchent, **Then** la bascule attend toutes les opérations locales déjà
+   acceptées, reprend sur l'état actif avant d'accepter les suivantes et ne
+   peut ni réinstaller un instantané antérieur ni annoncer un faux succès.
 
 ---
 
@@ -530,8 +535,11 @@ en charge, une fois sans pointeur puis une fois au toucher.
   remplacement complet en écriture concurrente.
 - **FR-064**: Un document historique MUST rester lisible sans réécriture sur
   ouverture. Son passage au modèle opérationnel MUST être paresseux, atomique,
-  reprenable et vérifié au premier besoin d'écriture compatible. Cette exigence
-  spécialise FR-031 pour la transition opérationnelle v3.
+  reprenable et vérifié au premier besoin d'écriture compatible. La bascule
+  MUST appartenir à la frontière sérialisée de la session d'édition : une
+  synchronisation générale peut la demander mais ne MUST pas convertir en
+  parallèle une branche qui accepte encore des opérations locales. Cette
+  exigence spécialise FR-031 pour la transition opérationnelle v3.
 - **FR-065**: Une mutation historique de remplacement complet encore en attente
   au moment de la migration MUST être soit confirmée avant la bascule, soit
   convertie une fois en opérations à partir de sa base causale ; elle ne MUST

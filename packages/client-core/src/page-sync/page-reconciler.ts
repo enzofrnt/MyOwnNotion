@@ -275,6 +275,7 @@ export class PageReconciler {
   >();
   #inFlight: Promise<PageReconcileOutcome> | null = null;
   #anotherPassRequested = false;
+  #legacyBranchConversionRequested = false;
 
   constructor(options: PageReconcilerOptions) {
     this.#pageId = options.pageId;
@@ -290,6 +291,21 @@ export class PageReconciler {
   }
 
   synchronize(): Promise<PageReconcileOutcome> {
+    return this.#requestSynchronization(false);
+  }
+
+  /**
+   * Converts a pre-activation branch only when its editing session has reached
+   * a serial queue boundary. Background pulls must never call this method:
+   * converting an in-flight branch can install a checkpoint that predates
+   * already acknowledged local gestures.
+   */
+  convertLegacyBranch(): Promise<PageReconcileOutcome> {
+    return this.#requestSynchronization(true);
+  }
+
+  #requestSynchronization(convertLegacyBranch: boolean): Promise<PageReconcileOutcome> {
+    if (convertLegacyBranch) this.#legacyBranchConversionRequested = true;
     if (this.#inFlight !== null) {
       this.#anotherPassRequested = true;
       return this.#inFlight;
@@ -327,9 +343,11 @@ export class PageReconciler {
     let outcome: PageReconcileOutcome;
     do {
       this.#anotherPassRequested = false;
-      outcome = await this.#run();
+      const convertLegacyBranch = this.#legacyBranchConversionRequested;
+      this.#legacyBranchConversionRequested = false;
+      outcome = await this.#run(convertLegacyBranch);
     } while (
-      this.#anotherPassRequested &&
+      (this.#anotherPassRequested || this.#legacyBranchConversionRequested) &&
       outcome.kind !== "offline" &&
       outcome.kind !== "blocked"
     );
@@ -424,7 +442,7 @@ export class PageReconciler {
     };
   }
 
-  async #run(): Promise<PageReconcileOutcome> {
+  async #run(convertLegacyBranch: boolean): Promise<PageReconcileOutcome> {
     let exchanges = 0;
     let latestRequirements: readonly PageFileRequirement[] = [];
 
@@ -441,7 +459,30 @@ export class PageReconciler {
               branch.branch.bootstrapTransactionId
           : branch.branch.semanticTransactions.length === 0;
       if (!bootstrapOnly) {
-        return await this.#convertBranch(branch);
+        if (convertLegacyBranch) {
+          const outcome = await this.#convertBranch(branch);
+          if (outcome.kind === "synced") {
+            // A device may already have installed an active checkpoint from
+            // another replica before opening its retained offline branch. In
+            // that case conversion commits on the server, but the existing
+            // local checkpoint is intentionally not replaced. One active pass
+            // must therefore pull the conversion update before this shared
+            // promise can claim that the device itself has converged.
+            this.#anotherPassRequested = true;
+          }
+          return outcome;
+        }
+        // Ordinary workspace reconciliation is allowed to pull active pages,
+        // but only the legacy editing session owns this one-time handover.
+        // Returning pending keeps the durable journal visible without racing
+        // the editor queue or silently replacing it with an older checkpoint.
+        return {
+          kind: "pending",
+          exchanges: 0,
+          latestPageSequence: 0,
+          fileRequirements: [],
+          problemCode: "page-operations.legacy-conversion-deferred",
+        };
       }
       const state = await this.#log.getState(this.#pageId);
       if (state === null || state.status !== "active") {

@@ -100,6 +100,18 @@ describe("the five security jobs", () => {
     const errorOnMissing = [...ci.matchAll(/if-no-files-found: error/g)];
     expect(errorOnMissing.length).toBeGreaterThanOrEqual(SECURITY_ARTIFACTS.length);
   });
+
+  it("executes the packaged API entrypoints before accepting its container scan", () => {
+    const block =
+      /\n {2}container-vulnerability-scan:\n([\s\S]*?)\n {2}license-policy:\n/.exec(ci)?.[1] ?? "";
+    const build = block.indexOf("Build the API image for scanning");
+    const runtime = block.indexOf("scripts/ci/smoke-api-image.sh myownnotion-api:scan");
+    const scan = block.indexOf("Record every finding");
+
+    expect(build).toBeGreaterThanOrEqual(0);
+    expect(runtime).toBeGreaterThan(build);
+    expect(scan).toBeGreaterThan(runtime);
+  });
 });
 
 describe("the aggregate", () => {

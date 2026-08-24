@@ -423,6 +423,7 @@ retirer les chemins temporaires.
 - [X] T211 Reporter explicitement toute édition de diagrammes interne après les fondations V1 dans le canevas, la roadmap et les artifacts 005/017
 - [X] T212 Persister atomiquement les lots d'updates avec projection unique, séquences contiguës et lectures/scellements groupés
 - [X] T213 Empêcher les services dérivés et la permission de stockage persistant de bloquer le démarrage, puis valider Firefox avec cinq stacks parallèles
+- [X] T214 [US4] [US5] Réserver la conversion legacy à la frontière sérielle de la session, rouvrir prioritairement toute branche locale retenue, imposer son rattrapage actif avant le geste suivant et faire échouer le journey dès qu'une commande locale est rejetée dans `packages/client-core/src/page-sync/page-reconciler.ts`, `packages/client-core/src/page-sync/legacy-page-editing-session.ts`, `packages/client-core/tests/page-reconciler.property.spec.ts`, `packages/client-core/tests/legacy-branch-conversion-handover.spec.ts`, `apps/web/src/services/local-content.ts`, `tests/e2e/helpers.ts`, `tests/e2e/page-autosave-recovery.spec.ts` et `tests/e2e/offline-reconciliation.spec.ts`
 
 ---
 

@@ -7,7 +7,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx watch src/server.ts",
-    "build": "esbuild src/server.ts src/migrate.ts src/admin/admin-cli.ts --bundle --platform=node --format=esm --target=node24 --outdir=dist --out-extension:.js=.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "build": "esbuild src/server.ts src/migrate.ts src/admin/admin-cli.ts --bundle --platform=node --format=esm --target=node24 --external:loro-crdt --outdir=dist --out-extension:.js=.mjs --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "start": "node dist/server.mjs",
     "migrate": "node dist/migrate.mjs",
     "admin": "tsx src/admin/admin-cli.ts"
@@ -23,6 +23,7 @@
     "@sinclair/typebox": "^0.34.41",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.7.4",
+    "loro-crdt": "1.14.1",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3"
   },

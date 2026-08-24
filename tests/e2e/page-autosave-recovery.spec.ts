@@ -65,6 +65,7 @@ test.describe("autosave under abrupt exit", () => {
 
     // Closing the page's tab is the abrupt exit; a fresh tab in the same
     // context keeps both the session and the device's sealed storage.
+    await page.close();
     const second = await context.newPage();
     await second.goto("/");
     await second.reload();
@@ -73,6 +74,5 @@ test.describe("autosave under abrupt exit", () => {
     await expect(second.getByTestId("block-editor")).toContainText("écrit puis fermé brutalement", {
       timeout: 30_000,
     });
-    await page.close();
   });
 });
