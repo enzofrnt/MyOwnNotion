@@ -595,7 +595,36 @@ export function commandsFromBlockNoteChanges(input: {
   return commands;
 }
 
-type EditorChangePublisher = (changes: EditorBlocksChanged) => void | Promise<void>;
+type EditorChangePublisher = (
+  changes: EditorBlocksChanged,
+  document: readonly EditorBlock[],
+) => void | Promise<void>;
+
+function descendantIdentityShape(block: EditorBlock): readonly unknown[] {
+  return block.children.map((child) => [
+    child.id,
+    child.type,
+    descendantIdentityShape(child as EditorBlock),
+  ]);
+}
+
+function textCoalescingShape(block: EditorBlock): string {
+  return JSON.stringify({
+    type: block.type,
+    props: block.props,
+    marks: normaliseInlineV3(inlineOf(block)).map(({ marks }) => marks ?? []),
+    descendants: descendantIdentityShape(block),
+  });
+}
+
+function isCoalescibleTextUpdate(change: EditorBlocksChanged[number]): boolean {
+  return (
+    change.type === "update" &&
+    change.source.type === "local" &&
+    textOf(change.prevBlock) !== textOf(change.block) &&
+    textCoalescingShape(change.prevBlock) === textCoalescingShape(change.block)
+  );
+}
 
 /**
  * Keeps only the first and final projection of consecutive updates to one
@@ -606,10 +635,10 @@ function coalesceEditorUpdates(changes: EditorBlocksChanged): EditorBlocksChange
   const coalesced: EditorBlocksChanged = [];
   const openUpdateByBlock = new Map<string, number>();
   for (const change of changes) {
-    if (change.type !== "update") {
-      // Any tree mutation is an ordering boundary for every open update. A
-      // later update may depend on the newly inserted/moved/deleted sibling,
-      // even when it targets another block id.
+    if (change.type !== "update" || !isCoalescibleTextUpdate(change)) {
+      // Tree mutations, paste/drop, formatting, properties and type changes
+      // are owner gestures, not typing noise. They close every text burst so
+      // undo can never remove a semantic action together with a late key.
       openUpdateByBlock.clear();
       coalesced.push(change);
       continue;
@@ -629,56 +658,183 @@ function coalesceEditorUpdates(changes: EditorBlocksChanged): EditorBlocksChange
   return coalesced;
 }
 
+function editorTransactions(changes: EditorBlocksChanged): EditorBlocksChanged[] {
+  const transactions: EditorBlocksChanged[] = [];
+  let current: EditorBlocksChanged = [];
+  for (const change of coalesceEditorUpdates(changes)) {
+    const previous = current.at(-1);
+    const beginsSemanticGestureAfterText =
+      previous !== undefined &&
+      previous.type === "update" &&
+      isCoalescibleTextUpdate(previous) &&
+      change.type === "update" &&
+      !isCoalescibleTextUpdate(change) &&
+      previous.block.id === change.block.id &&
+      textCoalescingShape(previous.block) === textCoalescingShape(change.prevBlock);
+    if (beginsSemanticGestureAfterText) {
+      // BlockNote can publish an input rule after its triggering character,
+      // without a standalone notification for that character. Extend the text
+      // burst to the semantic change's actual before-state so the first
+      // transaction catches the authority up exactly; the second transaction
+      // can then safely translate the type/marks/properties change and owns the
+      // corresponding undo step on its own.
+      if (previous.type === "update" && change.type === "update") {
+        current[current.length - 1] = { ...previous, block: change.prevBlock };
+      }
+      transactions.push(current);
+      current = [];
+    }
+    current.push(change);
+  }
+  if (current.length > 0) transactions.push(current);
+  return transactions;
+}
+
+interface PendingEditorChanges {
+  readonly type: "changes";
+  changes: EditorBlocksChanged;
+  document: readonly EditorBlock[] | null;
+}
+
 /**
  * Applies back-pressure at the BlockNote/durability seam.
  *
  * The first visible change starts its local commit immediately. Changes that
- * arrive while that commit is in flight are reduced to their earliest and
- * latest block projections, then become one following transaction. This keeps
- * the no-delay durability boundary while preventing a fast browser from
- * queuing one encrypted IndexedDB transaction per character behind a cold
- * store. IME input uses the same pending batch and is published only after the
- * composition ends.
+ * arrive while that commit is in flight are reduced only when they are
+ * consecutive local text updates to the same block. Notifications emitted by
+ * one complex BlockNote action remain together, because inserts and moves can
+ * reference siblings created in that same action. A semantic update following
+ * a text burst is split into the next transaction, so a transform never owns
+ * the last delayed key. IME input uses one reserved queue position and is
+ * published only after composition ends.
  */
 export class EditorChangeBatcher {
   readonly #publish: EditorChangePublisher;
   #composing = false;
-  #publishing = false;
-  #pending: EditorBlocksChanged = [];
+  #draining = false;
+  #pending: PendingEditorChanges[] = [];
+  #compositionWork: PendingEditorChanges | null = null;
+  #idleWaiters: Array<() => void> = [];
 
   constructor(publish: EditorChangePublisher) {
     this.#publish = publish;
   }
 
   beginComposition(): void {
+    if (this.#composing) return;
     this.#composing = true;
+    const work: PendingEditorChanges = { type: "changes", changes: [], document: null };
+    this.#compositionWork = work;
+    this.#pending.push(work);
+    void this.#drain();
   }
 
-  push(changes: EditorBlocksChanged): void {
-    this.#pending = [...this.#pending, ...changes];
+  push(changes: EditorBlocksChanged, document: readonly EditorBlock[]): void {
+    if (changes.length === 0) return;
+    if (this.#composing && this.#compositionWork !== null) {
+      this.#compositionWork.changes = [...this.#compositionWork.changes, ...changes];
+      this.#compositionWork.document = [...document];
+      return;
+    }
+    this.#enqueueChanges(changes, document);
     void this.#drain();
   }
 
   endComposition(): void {
+    if (!this.#composing) return;
     this.#composing = false;
+    const composition = this.#compositionWork;
+    this.#compositionWork = null;
+    if (composition !== null) {
+      if (composition.changes.length === 0) {
+        const index = this.#pending.indexOf(composition);
+        if (index >= 0) this.#pending.splice(index, 1);
+      } else {
+        composition.changes = coalesceEditorUpdates(composition.changes);
+      }
+    }
     void this.#drain();
   }
 
+  /**
+   * Runs a history action after BlockNote has emitted the gesture already
+   * visible in its DOM and every resulting local transaction has committed.
+   * One task boundary is intentional: some BlockNote commands notify their
+   * listeners after the menu/keyboard handler that changed the document.
+   */
+  async runAfterPendingChanges<T>(action: () => T | Promise<T>): Promise<T> {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await this.#whenIdle();
+    return action();
+  }
+
+  #enqueueChanges(changes: EditorBlocksChanged, document: readonly EditorBlock[]): void {
+    const previous = this.#pending.at(-1);
+    const previousTail = previous?.changes.at(-1);
+    const incomingHead = changes[0];
+    const canJoinFollowingUpdateGesture =
+      previousTail !== undefined &&
+      previousTail.type === "update" &&
+      isCoalescibleTextUpdate(previousTail) &&
+      incomingHead?.type === "update" &&
+      previousTail.block.id === incomingHead.block.id &&
+      textCoalescingShape(previousTail.block) === textCoalescingShape(incomingHead.prevBlock) &&
+      changes.every((change) => change.type === "update");
+    const canExtendPendingTextBurst =
+      previous !== undefined &&
+      previous !== this.#compositionWork &&
+      previous.changes.every(isCoalescibleTextUpdate) &&
+      (changes.every(isCoalescibleTextUpdate) || canJoinFollowingUpdateGesture);
+    if (canExtendPendingTextBurst) {
+      previous.changes = coalesceEditorUpdates([...previous.changes, ...changes]);
+      previous.document = [...document];
+      return;
+    }
+    this.#pending.push({ type: "changes", changes: [...changes], document: [...document] });
+  }
+
+  #whenIdle(): Promise<void> {
+    if (!this.#draining && !this.#composing && this.#pending.length === 0) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => this.#idleWaiters.push(resolve));
+  }
+
+  #resolveIdleWaiters(): void {
+    if (this.#draining || this.#composing || this.#pending.length > 0) return;
+    const waiters = this.#idleWaiters;
+    this.#idleWaiters = [];
+    for (const resolve of waiters) resolve();
+  }
+
   async #drain(): Promise<void> {
-    if (this.#publishing || this.#composing) return;
-    this.#publishing = true;
+    if (this.#draining) return;
+    this.#draining = true;
     try {
-      while (!this.#composing && this.#pending.length > 0) {
-        const pending = this.#pending;
-        this.#pending = [];
-        await this.#publish(coalesceEditorUpdates(pending));
+      while (this.#pending.length > 0) {
+        const pending = this.#pending[0];
+        if (pending === this.#compositionWork && this.#composing) break;
+        this.#pending.shift();
+        if (pending !== undefined) {
+          if (pending.document === null) {
+            throw new Error("editor change batch lost its document projection");
+          }
+          for (const transaction of editorTransactions(pending.changes)) {
+            await this.#publish(transaction, pending.document);
+          }
+        }
       }
     } finally {
-      this.#publishing = false;
+      this.#draining = false;
       // A push can occur after the loop observes an empty queue but before its
-      // awaited continuation clears `publishing`. Recheck once so that narrow
+      // awaited continuation clears `draining`. Recheck once so that narrow
       // event-loop window cannot strand visible input in memory.
-      if (!this.#composing && this.#pending.length > 0) void this.#drain();
+      const next = this.#pending[0];
+      if (next !== undefined && !(next === this.#compositionWork && this.#composing)) {
+        void this.#drain();
+      } else {
+        this.#resolveIdleWaiters();
+      }
     }
   }
 }

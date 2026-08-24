@@ -255,7 +255,7 @@ export function PageEditor({
   );
 
   const applyLocalChanges = useCallback(
-    async (changes: EditorBlocksChanged): Promise<void> => {
+    async (changes: EditorBlocksChanged, document: readonly EditorBlock[]): Promise<void> => {
       if (changes.length === 0) return;
       editorLocalChangeCount.current += 1;
       if (!origin.acceptLocalChanges) {
@@ -268,14 +268,14 @@ export function PageEditor({
       try {
         commands = commandsFromBlockNoteChanges({
           changes,
-          document: editor.document as EditorBlock[],
+          document,
           tableIdForInternalBlock: (blockId) => engine.canonicalBlockIdForIdentity(blockId),
         });
         if (commands.length === 0) {
           scheduleProjectionSettlement();
           return;
         }
-        const dropRefusal = validateBlockDrop(changes, editor.document as EditorBlock[]);
+        const dropRefusal = validateBlockDrop(changes, document);
         if (dropRefusal !== null) throw new Error(dropRefusal);
       } catch (error) {
         recoverVisibleProjection();
@@ -320,7 +320,6 @@ export function PageEditor({
       }
     },
     [
-      editor,
       engine,
       markEditorActivity,
       markEditorSettled,
@@ -335,8 +334,11 @@ export function PageEditor({
 
   useEffect(
     () =>
-      editor.onChange((_changedEditor, { getChanges }) => {
-        batcher.push(getChanges() as unknown as EditorBlocksChanged);
+      editor.onChange((changedEditor, { getChanges }) => {
+        batcher.push(
+          getChanges() as unknown as EditorBlocksChanged,
+          changedEditor.document as unknown as readonly EditorBlock[],
+        );
       }),
     [batcher, editor],
   );
@@ -372,8 +374,8 @@ export function PageEditor({
     (direction: "undo" | "redo") => {
       markEditorActivity();
       inFlight.current += 1;
-      const apply = direction === "undo" ? engine.undo() : engine.redo();
-      void apply
+      void batcher
+        .runAfterPendingChanges(() => (direction === "undo" ? engine.undo() : engine.redo()))
         .then((result) => {
           inFlight.current -= 1;
           if (result.changed) recoverVisibleProjection();
@@ -398,6 +400,7 @@ export function PageEditor({
         });
     },
     [
+      batcher,
       engine,
       markEditorActivity,
       markEditorSettled,

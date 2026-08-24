@@ -80,6 +80,23 @@ désormais la requête avant la transformation et conserve toute mutation de
 l'arbre comme frontière de regroupement. Le journey complet des cinq types de
 blocs passe ensuite cinq fois sur chacun des cinq profils en parallèle (25/25).
 
+La CI de `main` a enfin trouvé une frontière d'historique encore insuffisante :
+si la dernière frappe attendait derrière un commit local lorsque l'utilisateur
+transformait le paragraphe, la frappe et la transformation pouvaient devenir
+une seule transaction. Annuler le titre supprimait alors aussi un à trois
+caractères (`avant` redevenait par exemple `avan` ou `av`). Le problème a été
+reproduit 25 fois sur chacun des cinq profils : 0/5 profils étaient exempts
+d'échec ou de flake. La file ne regroupe désormais entre notifications que les
+rafales de texte locales compatibles ; insertions, déplacements, duplications,
+formatages et transformations gardent leur propre transaction. Une rafale de
+texte immédiatement suivie d'une transformation est scindée à la frontière
+sémantique, y compris lorsque BlockNote ne publie le caractère déclencheur que
+dans l'état précédent de la transformation. Chaque lot utilise en outre la
+projection du document capturée lors de sa notification, et undo/redo attend
+les écritures déjà visibles avant de s'exécuter. La suite complète de l'éditeur
+passe sur les cinq profils, puis le même stress passe 25 fois sur chacun d'eux,
+soit 125/125 exécutions sans flake.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
