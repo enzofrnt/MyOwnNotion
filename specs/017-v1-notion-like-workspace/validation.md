@@ -42,6 +42,7 @@ Les scénarios centraux du quickstart sont verts :
 | Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 14 tests passés, dont 1 000 suites ; seed par défaut `170191` |
 | Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
 | Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
+| Contrats API et workspace après correction du cycle de vie | `pnpm test:contract` | 93 fichiers, 1 147 tests passés ; longue absence en 153,34 s, aucun rejet différé |
 | Typage | `pnpm typecheck` | 9 projets passés |
 | Couverture complète | `pnpm test:coverage` | 263 fichiers, 2 885 tests passés, 85,19 % de branches |
 
@@ -138,6 +139,18 @@ est désormais dérivée de l'identité de page et de la version vector canonis�
 Dix rejeux indépendants de 512 updates verrouillent la stabilité après
 réouverture, tandis que le scénario des 10 001 updates couvre le rollover réel
 dans PostgreSQL.
+
+La CI contractuelle lente a enfin révélé une requête de sécurité sans
+propriétaire de cycle de vie. La première évaluation des politiques de rotation
+était lancée sans être attendue ; le test de démarrage pouvait donc fermer son
+pool PostgreSQL pendant que cette lecture restait en vol, puis Vitest signalait
+le rejet plusieurs minutes plus tard pendant la preuve des 10 001 updates.
+L'application attend désormais cette évaluation avant d'être déclarée prête et
+le hook de fermeture Fastify arrête l'intervalle avant la base. Le test de
+régression prend un verrou exclusif réel sur `rotation_policies`, observe la
+lecture bloquée via `pg_locks` et prouve que `buildApp` reste en attente jusqu'à
+sa libération. La suite exacte qui avait échoué passe ensuite ses 1 147 tests
+sans rejet différé.
 
 ## Limites encore ouvertes
 

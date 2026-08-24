@@ -492,7 +492,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       now,
       require: requireOwner,
     });
-    void new RotationScheduler({
+    const rotationScheduler = new RotationScheduler({
       policies: rotationPolicies,
       logger: app.log,
       // Audited from the evaluation rather than from the write path: one row
@@ -518,7 +518,18 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
           },
         );
       },
-    }).start();
+    });
+    // Startup is a lifecycle boundary, not fire-and-forget work. Returning the
+    // app while this database read is still in flight lets an immediate close
+    // end the pool underneath it; that surfaced on a slow CI runner as an
+    // unhandled "Cannot use a pool after calling end" rejection minutes later.
+    // Waiting here also matches the scheduler's contract: its first evaluation
+    // happens before the installation is reported ready, then the close hook
+    // owns the interval for the rest of the process lifetime.
+    app.addHook("onClose", async () => {
+      rotationScheduler.stop();
+    });
+    await rotationScheduler.start();
 
     // Recovery-kit replacement. The payload is the workspace root key, taken
     // through the hierarchy's one named export rather than a general accessor,
