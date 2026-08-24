@@ -8,6 +8,8 @@ import {
   versionVectorBytesEqual,
 } from "../src/index.ts";
 
+const ROLLOVER_SAMPLES = Array.from({ length: 10 }, (_, sample) => sample + 1);
+
 describe("updates, version vectors and checkpoints", () => {
   it("imports the same update idempotently", async () => {
     const pageId = generateUuidV7();
@@ -165,8 +167,9 @@ describe("updates, version vectors and checkpoints", () => {
     );
   });
 
-  it("keeps a full replay checkpoint stable after the 512-update rollover interval", async () => {
-    for (let sample = 0; sample < 10; sample += 1) {
+  it.each(ROLLOVER_SAMPLES)(
+    "keeps full replay checkpoint sample %i stable after the 512-update rollover interval",
+    async () => {
       const pageId = generateUuidV7();
       const blockId = generateUuidV7();
       const origin = OperationalPageDocument.create({ pageId, document: { blocks: [] } });
@@ -202,8 +205,8 @@ describe("updates, version vectors and checkpoints", () => {
       expect(checkpoint.digest).toMatch(/^[0-9a-f]{64}$/u);
       expect(reopenedProjection.canonicalDigest).toBe(projection.canonicalDigest);
       expect(reopenedProjection.operationalDigest).toBe(projection.operationalDigest);
-    }
-  });
+    },
+  );
 
   it("keeps a full replay checkpoint able to merge a branch authored before it", async () => {
     const pageId = generateUuidV7();

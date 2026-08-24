@@ -40,12 +40,12 @@ Les scénarios centraux du quickstart sont verts :
 | Delete/edit récupérable | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-ambiguity.spec.ts` | 5 profils passés |
 | Mutation v2 en attente | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-protocol-migration.spec.ts` | 5 profils passés |
 | Brouillon structuré sous projection concurrente | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts --repeat-each=5` | 25/25 exécutions passées, cinq par profil |
-| Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 14 tests passés, dont 1 000 suites ; seed par défaut `170191` |
+| Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 23 tests passés, dont 10 rejeux de rollover et 1 000 suites ; seed par défaut `170191` |
 | Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
 | Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
 | Contrats API et workspace après correction du cycle de vie | `pnpm test:contract` | 93 fichiers, 1 147 tests passés ; longue absence en 153,34 s, aucun rejet différé |
 | Typage | `pnpm typecheck` | 9 projets passés |
-| Couverture complète | `pnpm test:coverage` | 263 fichiers, 2 885 tests passés, 85,19 % de branches |
+| Couverture complète | `CI=1 pnpm test:coverage` | 263 fichiers, 2 895 tests passés, 90,21 % de lignes et 85,19 % de branches |
 
 Les cinq profils navigateur sont Chromium desktop/mobile, WebKit
 desktop/mobile et Firefox desktop. Chaque profil utilise sa propre base, son
@@ -163,6 +163,16 @@ désormais des brouillons DOM autonomes pendant leur montage, un ref conserve le
 dernier état reçu et `FormData` reste la valeur autoritaire à la soumission. Le
 test unitaire force précisément le rerender dans cette fenêtre ; le parcours
 complet passe ensuite cinq fois sur chacun des cinq profils, soit 25/25.
+
+Le run PR suivant a validé tous les contrats fonctionnels mais a révélé une
+frontière de test inadaptée aux petits runners : les dix rejeux indépendants du
+rollover de 512 updates partageaient le timeout Vitest générique de cinq
+secondes. Sous couverture et en concurrence avec les autres jobs, le dixième
+rejeu n'avait plus le temps de terminer, alors que les 2 885 autres tests et le
+scénario des 10 001 updates étaient passés. Les dix rejeux sont désormais dix
+cas paramétrés distincts. Le volume de 5 120 updates et toutes les assertions
+restent identiques, chaque échantillon garde le timeout standard et un échec
+désigne directement le rejeu concerné.
 
 ## Limites encore ouvertes
 
