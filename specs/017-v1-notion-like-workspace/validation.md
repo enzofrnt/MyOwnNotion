@@ -23,6 +23,10 @@ Les scénarios centraux du quickstart sont verts :
   acquittée avant la conversion de sa branche sémantique ; ancienne et nouvelle
   écritures survivent, la bascule locale est atomique et tout remplacement
   complet ultérieur est refusé ;
+- une page ouverte pour la première fois en ligne draine d'abord sa création,
+  active directement la tête canonique vérifiée puis n'émet que des updates
+  opérationnelles ; aucune branche legacy ni requête de remplacement complet
+  n'existe dans ce parcours normal ;
 - le statut « synchronisé » n'est atteint qu'après confirmation de la frontier
   serveur et adoption de l'état durable par la session ouverte.
 - une page active modifiée hors ligne reste découvrable après fermeture du
@@ -41,11 +45,16 @@ Les scénarios centraux du quickstart sont verts :
 | Sélection CI | `pnpm exec vitest run tests/contract/test-impact.spec.ts` | 1 fichier, 32 tests passés |
 | Deux appareils hors ligne | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts` | 5 profils passés |
 | Delete/edit récupérable | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-ambiguity.spec.ts` | 5 profils passés |
-| Mutation v2 en attente | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-protocol-migration.spec.ts` | 5 profils passés |
+| Activation directe et mutation v2 en attente | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-protocol-migration.spec.ts` | 2 scénarios × 5 profils passés ; activation avant frappe, aucun PUT complet, migration v2 conservatrice |
+| Ouverture opérationnelle locale | `pnpm exec vitest run --project web tests/operational-page-opening.spec.ts` | 1 fichier, 7 tests passés ; création en vol, tête stale, épuisement borné sans fausse branche, page absente, perte réseau et vrai hors-ligne |
+| Confirmation de frontier sans boucle | `pnpm exec vitest run --project client-core packages/client-core/tests/page-reconciler.property.spec.ts` | 1 fichier, 14 tests passés ; une seconde confirmation vide ne republie pas la page durable |
+| Conversion d'une page activée intacte | Tests ciblés domaine, client-core et database-integration | 3 fichiers, 60 tests passés ; même règle partagée côté domaine, Dexie et PostgreSQL |
+| Régressions activation et conversion | Matrice ciblée `page-protocol-migration`, `workspace-shell`, `item-conversion`, `page-links` et `block-editor` avec `MYOWNNOTION_E2E_JOBS=5` | 5 scénarios × 5 profils, 25/25 passés en parallèle |
+| Régressions synchronisation croisées | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-autosave-recovery.spec.ts tests/e2e/page-ambiguity.spec.ts tests/e2e/page-multi-device-convergence.spec.ts tests/e2e/live-sync.spec.ts tests/e2e/databases-offline-sync.spec.ts` | 11 scénarios × 5 profils, 55/55 passés en parallèle |
 | Brouillon structuré sous projection concurrente | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts --repeat-each=5` | 25/25 exécutions passées, cinq par profil |
 | Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 23 tests passés, dont 10 rejeux de rollover et 1 000 suites ; seed par défaut `170191` |
 | Routage local des pages fermées | `pnpm exec vitest run --project client-core packages/client-core/tests/page-operation-schema.spec.ts packages/client-core/tests/page-operation-encryption.spec.ts` | 2 fichiers, 9 tests passés ; migration v7 vers v8, contenu chiffré préservé, identités dédupliquées sans ouverture des enveloppes |
-| Ordonnancement au démarrage | `pnpm exec vitest run --project web apps/web/tests/synchronize-serialization.spec.ts` | 1 fichier, 8 tests passés ; reprise sans éditeur, statut global honnête et plafond de 4 échanges de pages |
+| Ordonnancement au démarrage | `pnpm exec vitest run --project web apps/web/tests/synchronize-serialization.spec.ts` | 1 fichier, 10 tests passés ; reprise sans éditeur, attente du drain coalescé, statut global honnête et plafond de 4 échanges de pages |
 | Redémarrage sur une autre page | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts --grep "a restarted device drains a closed page without reopening it"` | 5 profils passés ; fermeture hors ligne, nouveau contexte navigateur, aucune réouverture du document modifié |
 | Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
 | Performance de synchronisation | `pnpm exec vitest run --project performance tests/performance/page-operations.perf.spec.ts` | 10 000 updates puis 1 locale : ingestion 15,27 s, catch-up 15,20 s en 157 échanges, compaction 11,88 s, pic de heap 99,0 MiB |
@@ -54,6 +63,10 @@ Les scénarios centraux du quickstart sont verts :
 | Import client groupé | `pnpm exec vitest run --project client-core packages/client-core/tests/page-reconciler.property.spec.ts packages/client-core/tests/page-editing-session.spec.ts packages/client-core/tests/legacy-page-editing-session.spec.ts` | 3 fichiers, 40 tests passés |
 | Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
 | Contrats API et workspace après correction du cycle de vie | `pnpm test:contract` | 93 fichiers, 1 147 tests passés ; longue absence en 153,34 s, aucun rejet différé |
+| Exclusion activation/remplacement complet | Biome ciblé, `pnpm typecheck`, Vitest `page-operations.integration.spec.ts`, `page-operations.contract.spec.ts` et `page-documents.contract.spec.ts` lancés en parallèle | format/lint passés, 9 projets typés, 7 tests PostgreSQL et 20 contrats API passés ; le refus transactionnel est durable, conserve le corps 426 et les rejeux déjà acceptés restent acceptés en direct comme en batch |
+| Benchmark 500 blocs après amorçage legacy | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/editor-performance.spec.ts` | 5 profils passés en 21 s ; Chromium ouvre les 500 blocs en 3,4 s pour le parcours complet, respecte la fenêtre SC-007 mesurée autour de la sélection et garde un p95 de frappe à 13,9 ms |
+| Confirmation fichier isolée de l'activation de page | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/files.spec.ts --grep "confirming sends the file to the trash" --repeat-each=10` | 50 passages sur 50, dont 10 Firefox conteneurisés, sans retry ; les 5 profils passent en 113 s |
+| Aperçu fichier isolé de l'activation de page | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/accessibility.spec.ts --grep "preview frame is labelled for assistive technology" --repeat-each=10` | 50 passages sur 50, dont 10 WebKit desktop, sans retry ; les 5 profils passent en 111 s |
 | Typage | `pnpm typecheck` | 9 projets passés |
 | Couverture complète | `CI=1 pnpm test:coverage` | 263 fichiers, 2 895 tests passés, 90,21 % de lignes et 85,19 % de branches |
 
@@ -63,6 +76,43 @@ propre serveur et ses propres ports ; les cinq stacks ciblées ont été lancée
 en parallèle.
 
 ## Incidents révélés par les preuves
+
+Le parcours connecté créait encore systématiquement une
+`LegacyOfflineBranch` à la simple ouverture de l'éditeur, même lorsque la tête
+serveur était disponible et qu'aucun autre appareil n'écrivait. La première
+frappe devait donc attendre une conversion conçue pour le hors-ligne et
+ressemblait à une sauvegarde de fichier complet. L'ouverture éditable draine
+maintenant les seules mutations workspace qui définissent le corps, relit la
+tête canonique serveur, vérifie son digest, active atomiquement le checkpoint
+et monte directement la session opérationnelle. Une tête déplacée pendant la
+bascule est relue avec un nombre de tentatives borné ; une vraie perte réseau
+retombe sur la branche sémantique durable sans perdre le droit d'écrire. Le
+journey observe les requêtes et échoue si l'ancienne route PUT réapparaît.
+
+Cette activation a aussi révélé qu'un appel rejoignant une réconciliation en
+cours attendait seulement la passe déjà en vol, alors même qu'il demandait une
+passe coalescée supplémentaire. Le propriétaire initial drainait bien la suite,
+mais la barrière rejointe pouvait relire l'outbox trop tôt et choisir une branche
+legacy inutile. La promesse partagée couvre désormais le drain complet ; un test
+retient séparément les deux passes et interdit au second appelant de résoudre
+avant la libération de la seconde.
+
+Sous la charge des cinq navigateurs, une confirmation strictement vide pouvait
+encore republier la même page durable. Cette publication relançait son propre
+rafraîchissement puis un nouvel échange vide, jusqu'à produire plusieurs centaines
+de requêtes de synchronisation pour une page intacte. Le reconciler compare
+désormais lot, updates reçues, curseur, version vector, digest et ambiguïtés avant
+de notifier. Dans la même fenêtre, une adoption distante ne compte plus comme un
+geste local et ne peut plus empêcher la première saisie réelle d'avancer son
+témoin de durabilité.
+
+L'activation directe a enfin rendu visible une divergence ancienne entre client
+et serveur : l'éditeur insère un paragraphe vide structurel pour monter BlockNote,
+le serveur le considérait vide après le premier correctif, mais la projection
+optimiste le classait encore comme contenu et ouvrait une confirmation destructive.
+Le prédicat vit maintenant dans le domaine partagé. Les tests domaine, Dexie et
+PostgreSQL prouvent qu'un paragraphe strictement vide se convertit sans alerte,
+tandis qu'une propriété inconnue reste protégée comme donnée potentielle.
 
 Le journey de migration a reproduit une course réelle : sur Chromium, la
 conversion pouvait partir avant que l'outbox v2 ait installé l'alias de révision
@@ -222,6 +272,31 @@ Le serveur ne lui fait désormais jamais confiance seul : il retrouve le plus
 grand préfixe causal prouvé par lectures indexées, avec repli logarithmique si
 l'état est incohérent. Le test de régression demande volontairement la séquence
 2 depuis une frontier vide et reçoit bien les updates 1 et 2.
+
+Le job Chromium de la PR a ensuite rendu visible une course entre le benchmark
+des 500 blocs et l'activation opérationnelle. Le scénario ouvrait d'abord la
+page vide, déclenchait son activation, puis injectait le document historique par
+`page.document.replace`. Sur un runner lent, le contrôle HTTP pouvait observer
+une page encore legacy, l'activation pouvait commit, puis la transaction de
+remplacement être rejouée sans repasser par ce contrôle : les deux écritures
+étaient annoncées comme acceptées alors que la projection opérationnelle restait
+vide. L'exclusion appartient désormais à la transaction sérialisable elle-même
+et son refus idempotent est couvert directement au niveau PostgreSQL. Le
+benchmark amorce de son côté le document avant la première ouverture, qui est
+le parcours historique réellement mesuré ; les cinq profils passent ensemble.
+
+La matrice exhaustive locale a enfin exposé une interaction distincte sur le
+parcours de suppression de fichier : après que le témoin global paraissait
+synchronisé, l'activation opérationnelle de la page continuait encore et son
+rafraîchissement pouvait remplacer le bouton de confirmation entre l'appui et
+le relâchement sous Firefox contraint. La trace prouvait qu'aucune requête de
+suppression n'était partie, puis le retry réussissait. Les parcours fichiers
+attendent désormais le témoin éditorial propre à la page avant d'interagir. La
+porte exhaustive suivante a retrouvé la même course sur l'ouverture d'un aperçu
+WebKit, qui a confirmé que la barrière devait être commune à toutes les surfaces
+fichier et non locale au scénario de suppression. Cent répétitions ciblées,
+cinquante par interaction et réparties sur les cinq profils, n'ont produit ni
+échec ni retry.
 
 ## Limites encore ouvertes
 

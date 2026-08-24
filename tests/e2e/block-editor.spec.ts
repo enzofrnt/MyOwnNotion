@@ -134,10 +134,8 @@ async function applyEditorHistory(page: Page, action: "undo" | "redo"): Promise<
   await control.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await expect(control).toBeEnabled();
   await control.click();
-  // The sequence identifies settled activity bursts, not every action. An SSE
-  // projection can begin a burst between the precondition above and this click,
-  // so a successful history action may intentionally settle without incrementing
-  // it again. The assertions after each call prove the actual undo/redo result.
+  // The sequence identifies local activity bursts, not every action. The
+  // assertions after each call prove the actual undo/redo result.
   await waitForEditorSettled(page);
 }
 
@@ -238,7 +236,7 @@ test.describe("the contextual BlockNote controls", () => {
     await saveDocument(page, { until: "synced" });
     await contextualBlock.hover();
     await page.getByRole("button", { name: "Ouvrir le menu du bloc" }).click();
-    // Opening a menu can overlap the tail of an SSE echo. The burst sequence
+    // Opening a menu can overlap the tail of another local burst. The sequence
     // deliberately does not increment twice inside that same quiet window, so
     // the authoritative apply count is the specific witness for duplication.
     const beforeDuplicate = await editorApplyCount(page);
@@ -461,14 +459,14 @@ test.describe("a block this client does not recognise", () => {
 });
 
 test.describe("a page written before the block editor existed", () => {
-  test("opens editable with its content intact and migrates only on first use", async ({
+  test("opens editable with its content intact and activates before the first gesture", async ({
     page,
     request,
   }) => {
-    // A read is not a rewrite. Opening a never-activated page migrates nothing
-    // (plan §6): the owner's text arrives intact, no revision is created by
-    // looking, and the stored document protocol keeps accepting plain writes.
-    // History moves when they write, not when they read (FR-064).
+    // An API read is not a rewrite. The connected editable surface is the
+    // protocol boundary instead: before it mounts, a historical client may
+    // still write v2; once it mounts, the same page is operational and a whole
+    // document replacement can no longer overwrite it (plan §6, FR-064).
     const name = uniqueName("LegacyPage");
     await openWorkspace(page);
     await createRootItem(page, "page", name);
@@ -498,16 +496,11 @@ test.describe("a page written before the block editor existed", () => {
     await page.reload();
     await openWorkspace(page);
     await waitForSynchronized(page);
-    await selectItem(page, name);
 
-    // The existing text survives and is immediately editable.
-    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
-    await expect(surface(page)).toContainText("written by an older client", { timeout: 30_000 });
-
-    // Nothing was written merely by looking at it: the head has not moved and
-    // the stored document protocol still accepts a plain v2 write.
-    const afterOpen = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
-    const afterHead = ((await afterOpen.json()) as { currentRevisionId: string }).currentRevisionId;
+    // Reading the item without opening its editor leaves the old write path
+    // available and does not move the canonical head.
+    const afterRead = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
+    const afterHead = ((await afterRead.json()) as { currentRevisionId: string }).currentRevisionId;
     if (seededHead !== undefined) {
       expect(afterHead).toBe(seededHead);
     }
@@ -532,14 +525,34 @@ test.describe("a page written before the block editor existed", () => {
       },
     });
     expect(stillPlain.ok(), await stillPlain.text()).toBe(true);
-    await page.reload();
-    await openWorkspace(page);
-    await waitForSynchronized(page);
-    await selectItem(page, name);
-    await expect(surface(page)).toContainText("appended without activating", { timeout: 30_000 });
 
-    // The first real edit goes through the operational path and keeps what
-    // was already there.
+    const afterPlainWrite = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
+    const plainHead = ((await afterPlainWrite.json()) as { currentRevisionId: string })
+      .currentRevisionId;
+    await selectItem(page, name);
+
+    // Activation happens before the editor accepts its first gesture and
+    // preserves every historical block.
+    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expect(surface(page)).toContainText("written by an older client", { timeout: 30_000 });
+    await expect(surface(page)).toContainText("appended without activating", { timeout: 30_000 });
+    const blindReplacement = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
+      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
+      data: {
+        baseRevisionId: plainHead,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 2,
+          body: seededBody,
+        },
+      },
+    });
+    expect(blindReplacement.status()).toBe(426);
+    expect((await blindReplacement.json()) as { code: string }).toMatchObject({
+      code: "page-operations.protocol-read-only",
+    });
+
+    // The first real edit already goes through the operational path.
     const editor = surface(page);
     // Clicking the retained paragraph focuses the surface — after a reload,
     // mobile browsers do not hand focus to the editor on selection alone.
@@ -551,8 +564,12 @@ test.describe("a page written before the block editor existed", () => {
     await expect(surface(page)).toContainText("continued today after activation");
 
     const afterEdit = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
-    const editedHead = ((await afterEdit.json()) as { currentRevisionId: string })
-      .currentRevisionId;
-    expect(editedHead).not.toBe(afterHead);
+    const edited = (await afterEdit.json()) as {
+      pageDocument: { body: { blocks: Record<string, unknown>[] } };
+    };
+    const durableBody = JSON.stringify(edited.pageDocument.body);
+    expect(durableBody).toContain("written by an older client");
+    expect(durableBody).toContain("appended without activating");
+    expect(durableBody).toContain("continued today after activation");
   });
 });

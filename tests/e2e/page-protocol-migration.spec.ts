@@ -21,6 +21,7 @@ import {
   saveDocument,
   selectItem,
   uniqueName,
+  waitForEditor,
   waitForEditorSettled,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -131,6 +132,64 @@ async function appendOperationalParagraph(page: Page, text: string): Promise<voi
 }
 
 test.describe("page protocol migration", () => {
+  test("uses operational updates from the first normal online edit", async ({ page }) => {
+    const pageName = uniqueName("DirectOperationalActivation");
+    const typed = `écriture CRDT directe ${pageName}`;
+
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    const itemId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
+    if (itemId === null) throw new Error("the created page has no stable identity");
+
+    const editorialRequests: string[] = [];
+    const recordEditorialRequest = (request: import("@playwright/test").Request) => {
+      const path = new URL(request.url()).pathname;
+      if (
+        path.includes(`/v1/page-operations/${itemId}`) ||
+        path === `/v1/pages/${itemId}/document`
+      ) {
+        editorialRequests.push(`${request.method()} ${path}`);
+      }
+    };
+    page.on("request", recordEditorialRequest);
+    try {
+      await selectItem(page, pageName);
+      await waitForEditor(page);
+      const editor = surface(page);
+      const beforeSequence = await editorChangeSequence(page);
+      await editor.click();
+      await editor.pressSequentially(typed);
+      await waitForEditorSettled(page, { afterSequence: beforeSequence });
+      await saveDocument(page, { until: "synced" });
+
+      expect(editorialRequests).toContain(`POST /v1/page-operations/${itemId}/activate`);
+      expect(editorialRequests).toContain(`POST /v1/page-operations/${itemId}/sync`);
+      expect(editorialRequests).not.toContain(`PUT /v1/pages/${itemId}/document`);
+
+      const localAuthority = await page.evaluate(async (id) => {
+        const modulePath = "/src/services/local-content.ts";
+        const loaded = (await import(/* @vite-ignore */ modulePath)) as {
+          localContent(): {
+            pageOperationLog: {
+              getState(pageId: string): Promise<{ status: string } | null>;
+              getLegacyBranch(pageId: string): Promise<{ status: string } | null>;
+            };
+          };
+        };
+        const service = loaded.localContent();
+        const [state, branch] = await Promise.all([
+          service.pageOperationLog.getState(id),
+          service.pageOperationLog.getLegacyBranch(id),
+        ]);
+        return { state: state?.status ?? null, branch: branch?.status ?? null };
+      }, itemId);
+      expect(localAuthority).toEqual({ state: "active", branch: null });
+      await expect(surface(page)).toContainText(typed);
+    } finally {
+      page.off("request", recordEditorialRequest);
+    }
+  });
+
   test("acknowledges a pending v2 replacement before convergent activation", async ({
     page,
     context,

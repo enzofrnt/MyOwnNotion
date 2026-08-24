@@ -296,6 +296,19 @@ Après chaque transaction :
    page fermée reprend au lancement, au retour du réseau et après un signal de
    changement.
 
+Les demandes de drainage concurrentes partagent une seule promesse couvrant la
+totalité des passes coalescées. Un appel arrivé pendant une passe ne peut donc
+pas reprendre après cette seule passe si son arrivée en a demandé une seconde ;
+les barrières d'activation observent soit une file réellement drainée, soit un
+état durable encore pending/offline.
+
+Une confirmation de frontier strictement vide peut mettre à jour les marqueurs
+internes du reconciler, mais elle ne republie pas la projection. Une notification
+visible n'est émise que si le lot soumis, les updates distantes, le curseur, la
+version vector, le digest canonique ou l'ensemble d'ambiguïtés a matériellement
+changé. Cette frontière empêche une projection identique de se notifier elle-même
+en boucle et de relancer des pulls sans fin.
+
 `BroadcastChannel` accélère les onglets, mais chaque destinataire importe et
 persiste la mise à jour avant de l'afficher comme durable. Un onglet qui ne peut
 pas déchiffrer ou écrire reste bloqué sans accuser réception.
@@ -356,17 +369,20 @@ de page. La version 2 reste lisible et peut continuer les commandes non
 éditoriales compatibles ; une tentative `page.document.replace` d'un client v2
 sur une page migrée est refusée en lecture seule avec un problème explicite.
 
-Une page v2 non migrée reste servie depuis son document canonique. À la première
-édition v3 connectée, lorsque le client n'a aucune modification locale :
+Une page v2 non migrée reste servie depuis son document canonique. À l'ouverture
+de sa surface éditable v3 connectée, lorsque le client n'a aucune branche
+locale à préserver :
 
-1. client et serveur vérifient qu'aucune mutation v2 n'est en vol ;
+1. le client draine toute création, conversion ou mutation v2 du corps en vol ;
 2. toute mutation locale v2 en attente est d'abord confirmée, ou convertie en
    une mise à jour d'amorçage liée à sa révision de base ;
-3. le serveur construit une seule snapshot opérationnelle initiale depuis le
-   document canonique courant ;
+3. le client relit la tête canonique serveur, puis le serveur construit une
+   seule snapshot opérationnelle initiale depuis cette tête ;
 4. snapshot, projection identique, digests et état `active` sont commités
    atomiquement ;
-5. le client reçoit ce snapshot, l'écrit chiffré et commence ses opérations.
+5. le client vérifie et écrit ce snapshot chiffré avant de monter la session
+   qui accepte les gestes. Une course avec la dernière écriture legacy relit
+   la tête et retente de manière bornée.
 
 Un client v3 qui commence à modifier hors ligne depuis une projection v2 ne
 fabrique pas un checkpoint Loro indépendant présenté ensuite comme fusionnable.
@@ -405,6 +421,12 @@ de changer le type. Une requête d'un appareil devenue tardive reçoit alors un
 refus de protocole explicite ; elle ne peut ni ressusciter le contenu détruit ni
 faire boucler le client sur une erreur serveur générique.
 
+Le paragraphe vide que l'éditeur opérationnel amorce pour fournir une identité
+de bloc stable n'est pas du contenu utilisateur et ne rend donc pas la conversion
+destructive. Cette règle est unique dans le domaine partagé et utilisée par la
+projection optimiste comme par la transaction serveur ; toute propriété inconnue
+reste au contraire traitée comme du contenu à préserver.
+
 Le serveur annonce le protocole 3 dans `X-MyOwnNotion-Protocol` et le client
 l'envoie dans `X-MyOwnNotion-Client-Protocol`. La fenêtre générale peut encore
 laisser un client v2 exécuter les commandes inchangées ; les routes
@@ -412,10 +434,13 @@ laisser un client v2 exécuter les commandes inchangées ; les routes
 page avant de lire le body. Ce contrôle par capacité évite de bloquer
 artificiellement les écritures non éditoriales encore compatibles.
 
-Une simple ouverture ne migre rien. La migration interrompue reste `pending` ou
-revient à `legacy`, jamais à moitié active. Le retour arrière applicatif peut
-lire la projection canonique ; il est en lecture seule pour une page ayant reçu
-des opérations v3, sauf restauration explicite de la sauvegarde préalable.
+Une lecture simple ne migre rien. Ouvrir l'éditeur en ligne constitue en revanche
+le premier besoin d'écriture compatible et active directement la page avant le
+premier geste. Si le transport disparaît, la page revient à une branche locale
+durable ; une migration interrompue reste `pending` ou `legacy`, jamais à moitié
+active. Le retour arrière applicatif peut lire la projection canonique ; il est
+en lecture seule pour une page ayant reçu des opérations v3, sauf restauration
+explicite de la sauvegarde préalable.
 
 ### 7. Checkpoints, longue absence et révocation
 

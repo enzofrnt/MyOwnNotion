@@ -65,6 +65,15 @@ incompatibles les commandes d'items, fichiers ou bases qui restent sûres.
 Un client v2 peut lire la projection canonique. Il ne peut pas appeler les
 routes ci-dessous ni envoyer `page.document.replace` sur une page `active`.
 
+La mutation `page.document.replace` relit l'état opérationnel dans la transaction
+PostgreSQL `SERIALIZABLE` qui écrirait le document. Cette transaction est
+l'unique frontière d'autorité : si activation et remplacement complet se
+présentent ensemble, ils ne peuvent pas être acceptés tous les deux et une
+tentative rejouée après un conflit de sérialisation réévalue l'exclusion avant
+toute écriture. La route adapte ce refus au problème 426 ci-dessous seulement
+après la décision transactionnelle ; elle ne préempte jamais le rejeu idempotent
+d'une mutation qui avait déjà été acceptée avant l'activation.
+
 Problème :
 
 ~~~json

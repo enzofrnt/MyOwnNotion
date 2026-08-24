@@ -20,7 +20,7 @@ import {
   sha256Hex,
 } from "@myownnotion/page-state";
 import fc from "fast-check";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let db: LocalDatabase;
 let log: EncryptedPageOperationLog;
@@ -336,6 +336,46 @@ describe("PageReconciler", () => {
 
     await expect(replayed.promise).resolves.toMatchObject({ latestServerPageSequence: 1 });
     unsubscribe();
+  });
+
+  it("does not republish a durable page after an empty frontier confirmation", async () => {
+    const { pageId, blockId, page } = fixture();
+    const committed = await commitEdit(page, blockId, " local", 1);
+    const onDurablePage = vi.fn();
+    const transport: PageSyncTransport = {
+      async sync(_pageId, request) {
+        if (request.mode !== "active") throw new Error("expected active sync");
+        return {
+          ok: true,
+          value: activeResponse(request, pageId, {
+            accepted: request.updates.map((update) => ({
+              updateId: update.updateId,
+              pageSequence: 1,
+              resultVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            })),
+            serverVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            latestPageSequence: 1,
+            canonical: {
+              format: "myownnotion.document+json",
+              formatVersion: 3,
+              digest: committed.state.projection?.canonicalDigest ?? "",
+              lastConsolidatedRevisionId: null,
+              hasUnconsolidatedChanges: true,
+            },
+          }),
+        };
+      },
+      async convertLegacyBranch() {
+        throw new Error("unexpected legacy branch conversion");
+      },
+    };
+    const reconciler = new PageReconciler({ pageId, log, transport, onDurablePage });
+
+    await expect(reconciler.synchronize()).resolves.toMatchObject({ kind: "synced" });
+    expect(onDurablePage).toHaveBeenCalledOnce();
+
+    await expect(reconciler.synchronize()).resolves.toMatchObject({ kind: "synced" });
+    expect(onDurablePage).toHaveBeenCalledOnce();
   });
 
   it("retries a response lost after server acceptance with the same immutable update id", async () => {

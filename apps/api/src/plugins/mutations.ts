@@ -23,7 +23,7 @@ import {
   submitMutation,
   type Transaction,
 } from "@myownnotion/database";
-import { isUuid, type MutationCommand, type Uuid } from "@myownnotion/domain";
+import { isUuid, type MutationCommand, type SafeError, type Uuid } from "@myownnotion/domain";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { DatabaseQueryService } from "../databases/database-query-service.ts";
 import type { SearchService } from "../search/search-service.ts";
@@ -273,6 +273,10 @@ export async function handleMutation(input: {
         readonly primaryItemId?: Uuid;
       }) => Promise<unknown>)
     | undefined;
+  /** Allows a route-specific contract to represent one domain rejection. */
+  readonly problemResponse?:
+    | ((problem: SafeError) => { readonly status: number; readonly body: unknown } | undefined)
+    | undefined;
 }): Promise<FastifyReply> {
   // Before anything is read or written. A client too old to write safely is
   // refused with the version it needs (FR-018), and refusing here rather than
@@ -361,6 +365,16 @@ export async function handleMutation(input: {
     return input.reply
       .status(result.status === "accepted" ? (input.successStatus ?? 200) : 200)
       .send(body);
+  }
+
+  if (result.problem !== undefined && input.problemResponse !== undefined) {
+    const response = input.problemResponse(result.problem);
+    if (response !== undefined) {
+      return input.reply
+        .status(response.status)
+        .header("content-type", "application/problem+json")
+        .send(response.body);
+    }
   }
 
   return sendProblem(

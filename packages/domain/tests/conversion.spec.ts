@@ -18,6 +18,7 @@ import {
   conversionCanDestroy,
   generateUuidV7,
   type ItemKind,
+  pageBodyHoldsEditorialContent,
   planConversion,
 } from "../src/index.ts";
 
@@ -98,6 +99,37 @@ describe("the transition table", () => {
     );
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.code).toBe("conversion.file-not-convertible");
+  });
+});
+
+describe("editorial content detection", () => {
+  it("does not mistake the operational editor's structural paragraph for owner content", () => {
+    expect(
+      pageBodyHoldsEditorialContent({
+        blocks: [
+          {
+            type: "paragraph",
+            id: generateUuidV7(),
+            content: [],
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it("remains conservative when an empty paragraph carries unknown data", () => {
+    expect(
+      pageBodyHoldsEditorialContent({
+        blocks: [
+          {
+            type: "paragraph",
+            id: generateUuidV7(),
+            content: [],
+            futureContent: { value: "preserve me" },
+          },
+        ],
+      }),
+    ).toBe(true);
   });
 });
 

@@ -996,6 +996,19 @@ describe("conversion and definition validation", () => {
           kind: "page",
           name: "With content",
           placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 3,
+            body: {
+              blocks: [
+                {
+                  type: "paragraph",
+                  id: generateUuidV7(),
+                  content: [{ type: "text", text: "Keep this" }],
+                },
+              ],
+            },
+          },
         },
         baseRevisionIds: [],
       },
@@ -1009,12 +1022,62 @@ describe("conversion and definition validation", () => {
       {
         mutationId: generateUuidV7(),
         commandType: "item.convert",
-        payload: { id, targetKind: "folder", confirmedDestruction: false },
+        payload: { itemId: id, targetKind: "folder", confirmedDestruction: false },
         baseRevisionIds: [],
       },
       now,
       codec,
     );
     expect(convert.ok).toBe(false);
+    expect(!convert.ok && convert.error.code).toBe("conversion.confirmation-required");
+  });
+
+  it("converts an operationally activated but untouched page without confirmation", async () => {
+    const id = generateUuidV7();
+    const create = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.create",
+        payload: {
+          id,
+          kind: "page",
+          name: "Untouched",
+          placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 3,
+            body: {
+              blocks: [
+                {
+                  type: "paragraph",
+                  id: generateUuidV7(),
+                  content: [],
+                },
+              ],
+            },
+          },
+        },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+    expect(create.ok).toBe(true);
+
+    const convert = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.convert",
+        payload: { itemId: id, targetKind: "folder", confirmedDestruction: false },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+
+    expect(convert.ok).toBe(true);
+    expect((await readItem(id))?.kind).toBe("folder");
   });
 });

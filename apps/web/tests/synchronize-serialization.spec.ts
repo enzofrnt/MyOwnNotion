@@ -246,6 +246,40 @@ describe("synchronize serialization", () => {
     expect(recorder.peakConcurrency).toBe(1);
   });
 
+  it("keeps every joined caller pending until its requested follow-up pass finishes", async () => {
+    const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
+    const firstGate = deferred<void>();
+    const followUpGate = deferred<void>();
+    const api = makeApi(recorder);
+    vi.spyOn(api, "listChanges").mockImplementation(async () => {
+      recorder.passes += 1;
+      await (recorder.passes === 1 ? firstGate.promise : followUpGate.promise);
+      return {
+        ok: true as const,
+        value: { changes: [], cursor: String(recorder.passes), hasMore: false },
+      };
+    });
+    service = new LocalContentService(api, `joined-drain-${Date.now()}`);
+    await service.db.open();
+
+    const owner = service.synchronize();
+    await vi.waitFor(() => expect(recorder.passes).toBe(1));
+    let joinedResolved = false;
+    const joined = service.synchronize().then((state) => {
+      joinedResolved = true;
+      return state;
+    });
+
+    firstGate.resolve();
+    await vi.waitFor(() => expect(recorder.passes).toBe(2));
+    await Promise.resolve();
+    expect(joinedResolved).toBe(false);
+
+    followUpGate.resolve();
+    await expect(Promise.all([owner, joined])).resolves.toEqual(["synced", "synced"]);
+    expect(joinedResolved).toBe(true);
+  });
+
   it("runs exactly one pass when callers do not overlap", async () => {
     const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
     service = new LocalContentService(makeApi(recorder), `sequential-${Date.now()}`);

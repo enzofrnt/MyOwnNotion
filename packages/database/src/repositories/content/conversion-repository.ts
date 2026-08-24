@@ -22,7 +22,7 @@
  */
 
 import type { ConvertItemCommand, DomainResult, Uuid } from "@myownnotion/domain";
-import { generateUuidV7, planConversion } from "@myownnotion/domain";
+import { generateUuidV7, pageBodyHoldsEditorialContent, planConversion } from "@myownnotion/domain";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Transaction } from "../../client.ts";
 import { items, pageDocuments, relationships } from "../../schema/index.ts";
@@ -32,30 +32,6 @@ import { retirePageOperationState } from "../page-operation-repository.ts";
 
 /** The entity type feature 002 seals a page body under. */
 const PAGE_BODY_ENTITY_TYPE = "page.body";
-
-/**
- * Whether a stored body holds anything an owner would miss.
- *
- * The presence of a row is not the question. Every page gets a document when
- * it is created, with an empty body, so "a row exists" was true of a page made
- * ten seconds ago and never typed in — and warning about destroying that
- * teaches an owner to dismiss the warning that matters. US2 scenario 6 asks
- * for exactly this distinction.
- *
- * Empty means: no blocks, or no keys at all. A legacy body with any key is
- * treated as content, because there is no way to know what it meant.
- */
-function bodyHoldsContent(body: unknown): boolean {
-  if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    return false;
-  }
-  const record = body as Record<string, unknown>;
-  const blocks = record["blocks"];
-  if (Array.isArray(blocks)) {
-    return blocks.length > 0;
-  }
-  return Object.keys(record).length > 0;
-}
 
 export interface ConvertItemResult {
   readonly revisionIds: Uuid[];
@@ -93,7 +69,7 @@ export async function executeConvertItem(
           .from(pageDocuments)
           .where(eq(pageDocuments.pageId, item.id))
           .limit(1);
-  const hasContent = existing.length > 0 && bodyHoldsContent(existing[0]?.body);
+  const hasContent = existing.length > 0 && pageBodyHoldsEditorialContent(existing[0]?.body);
 
   const plan = planConversion(item, input.command, hasContent);
   if (!plan.ok) {

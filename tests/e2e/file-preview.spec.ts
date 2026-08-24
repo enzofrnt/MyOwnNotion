@@ -11,7 +11,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openWorkspace,
-  selectItem,
+  selectSettledPage,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -41,7 +41,7 @@ async function pageWithFile(
   await openWorkspace(page);
   await createRootItem(page, "page", pageName);
   await waitForSynchronized(page);
-  await selectItem(page, pageName);
+  await selectSettledPage(page, pageName);
   await page.getByTestId("attachment-upload").setInputFiles({
     name: fileName,
     mimeType,
@@ -142,7 +142,7 @@ test.describe("deferred diagram support", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
 
     const fileName = `${uniqueName("diagram")}.drawio`;
     await page.getByTestId("attachment-upload").setInputFiles({
