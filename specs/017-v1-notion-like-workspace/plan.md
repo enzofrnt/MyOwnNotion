@@ -395,6 +395,26 @@ des opérations v3, sauf restauration explicite de la sauvegarde préalable.
 ### 7. Checkpoints, longue absence et révocation
 
 Chaque page conserve un update log append-only et des checkpoints chiffrés.
+Deux usages restent strictement séparés :
+
+- un checkpoint de replay **complet**, créé et vérifié automatiquement lorsque
+  la queue depuis le checkpoint courant atteint 512 updates, accélère le
+  chargement serveur sans retirer aucun octet de l'update log ; son historique
+  Loro complet accepte donc encore une branche créée avant ce checkpoint ;
+- un candidat de compaction **shallow** n'est créé qu'à la frontière courante et
+  ne devient la nouvelle base qu'après les gardes ci-dessous.
+
+Le serveur importe les updates de replay par lots causalement validés. Les
+fenêtres de détection d'ambiguïtés et de rattrapage sont paginées : aucun plafond
+de 10 000 lignes ne peut rendre invisible la première update d'un appareil qui
+revient. La frontier confirmée d'un appareil avance depuis son dernier préfixe
+connu et s'arrête au premier résultat serveur qu'elle ne domine pas ; elle ne
+rescane jamais tout l'historique à chaque page de rattrapage. Pour décider si
+une update doit être renvoyée, le serveur compare aussi sa frontier telle
+qu'elle a été **écrite par son auteur**, et pas seulement la frontier serveur
+fusionnée après acceptation, afin de ne pas renvoyer sa propre branche à
+l'appareil qui revient.
+
 Un checkpoint n'autorise l'effacement d'opérations que lorsque :
 
 - sa projection canonique et son digest sont vérifiés ;

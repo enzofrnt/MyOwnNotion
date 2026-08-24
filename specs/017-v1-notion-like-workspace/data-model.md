@@ -261,10 +261,21 @@ volumineux couverts par le checkpoint sont retirés.
 | `state` | `candidate`, `verified`, `superseded`, `retained` |
 | `created_at`, `verified_at` | temps serveur |
 
-Un checkpoint candidat de compaction est un shallow snapshot à la frontier
-courante. Il n'est jamais utilisé pour compacter. La vérification recharge les
-octets scellés, reproduit la projection et compare les digests avant de le
-faire passer à `verified`.
+Deux encodages Loro utilisent cette même entité et les mêmes contrôles
+d'intégrité :
+
+- la snapshot complète de replay conserve tout l'historique causal ; elle est
+  créée tous les 512 updates au plus, vérifiée après scellement puis promue pour
+  borner le prochain chargement, sans retirer les payloads de l'oplog ;
+- le candidat de compaction est une shallow snapshot à la frontier courante ;
+  il est indépendant des checkpoints de replay et ne peut être promu ni utilisé
+  pour compacter avant vérification et satisfaction de toutes les frontiers de
+  devices, sauvegardes, révisions et ambiguïtés.
+
+La contrainte unique `(page_id, through_page_sequence)` garantit une seule
+preuve scellée par frontière. Le checkpoint de replay est toujours créé avant
+l'acceptation d'un nouveau lot, de sorte qu'une future shallow candidate de
+compaction se situe à une frontière strictement ultérieure.
 
 ### `page_device_frontiers`
 
@@ -274,12 +285,16 @@ Clé `(page_id, device_id)`.
 | --- | --- |
 | `frontier_envelope_id` | version vector complète connue, chiffrée |
 | `frontier_digest` | intégrité/égalité sans journaliser les octets |
+| `confirmed_page_sequence` | préfixe serveur contigu dominé par la frontier |
 | `last_confirmed_at` | dernière confirmation serveur |
 | `device_state` | `authorized` ou `revoked` copié pour décision de compaction |
 
 Une frontier ne recule jamais pour le même appareil. Une annonce incomparable
 indique que le device possède des opérations locales ; elle est importée avant
-d'avancer la frontier confirmée.
+d'avancer la frontier confirmée. `confirmed_page_sequence` est le préfixe
+contigu maximal dont la frontier résultante est dominée. Comme ces résultats
+serveur sont monotones, sa vérification reprend au préfixe existant et s'arrête
+au premier manque au lieu de rescanner toute la page.
 
 La ligne est créée lorsqu'un appareil a persisté puis confirmé son premier état
 opérationnel de cette page. Un appareil autorisé qui n'a jamais possédé cette

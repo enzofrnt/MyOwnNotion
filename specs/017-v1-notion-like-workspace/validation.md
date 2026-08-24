@@ -39,6 +39,10 @@ Les scénarios centraux du quickstart sont verts :
 | Deux appareils hors ligne | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts` | 5 profils passés |
 | Delete/edit récupérable | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-ambiguity.spec.ts` | 5 profils passés |
 | Mutation v2 en attente | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-protocol-migration.spec.ts` | 5 profils passés |
+| Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 12 tests passés, dont 1 000 suites ; seed par défaut `170191` |
+| Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 179,91 s |
+| Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
+| Typage | `pnpm typecheck` | 9 projets passés |
 
 Les cinq profils navigateur sont Chromium desktop/mobile, WebKit
 desktop/mobile et Firefox desktop. Chaque profil utilise sa propre base, son
@@ -97,14 +101,25 @@ les écritures déjà visibles avant de s'exécuter. La suite complète de l'éd
 passe sur les cinq profils, puis le même stress passe 25 fois sur chacun d'eux,
 soit 125/125 exécutions sans flake.
 
+La preuve de longue absence a exposé trois défauts que les petits scénarios ne
+montraient pas. La fenêtre sémantique s'arrêtait à 10 000 lignes et pouvait donc
+omettre précisément l'update de retour numéro 10 001. Chaque page de catch-up
+rescannait ensuite toutes les frontiers depuis zéro, donnant un coût
+quadratique. Enfin, la frontier résultante stockée après acceptation contient
+l'état serveur déjà fusionné ; l'utiliser seule faisait renvoyer à la tablette
+sa propre update concurrente. La fenêtre est désormais entièrement paginée,
+les checkpoints complets bornent le replay sans supprimer l'historique, la
+confirmation reprend au préfixe monotone connu et la frontier d'auteur évite
+l'écho. Le scénario complet converge, compacte 10 001 payloads seulement après
+les deux acquittements et rejoue ensuite l'identité locale comme `repeated` sans
+duplication.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
 
-- T191 : propriété de convergence sur davantage d'entrelacements et d'ordres
-  aléatoires ;
-- T192 : appareil absent 90 jours, au moins 10 000 updates, compaction,
-  révocation et retour ultérieur ;
+- T190 : budgets dédiés de débit, catch-up, compaction et mémoire sur le runner
+  de performance ;
 - les blocs riches et fichiers restant à terminer en US3 ;
 - la finition visuelle et les surfaces restantes en US6/US7.
 

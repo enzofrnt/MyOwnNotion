@@ -286,12 +286,36 @@ Un nouvel appareil part du checkpoint actuel. Un appareil révoqué ne peut pas
 revenir avec des opérations anciennes, même si elles sont valides au sens CRDT,
 car l'autorisation est vérifiée avant import.
 
+Les [API JavaScript Loro](https://www.loro.dev/docs/api/js) et leur
+[guide d'encodage](https://loro.dev/docs/tutorial/encoding) distinguent la
+snapshot complète, qui conserve l'historique, de la shallow snapshot, qui
+supprime l'histoire antérieure à sa frontière et ne peut donc pas importer une
+update concurrente ou antérieure à ce départ shallow. En conséquence :
+
+- le serveur crée périodiquement une snapshot complète vérifiée pour borner le
+  coût de replay, sans supprimer les updates ;
+- seule une snapshot shallow créée après convergence de tous les appareils
+  autorisés peut couvrir une compaction ;
+- un appareil absent ne perd jamais sa base causale à cause du seul âge de sa
+  dernière connexion.
+
+Le test 90 jours/10 000 updates a également invalidé deux raccourcis : une
+fenêtre d'ambiguïté limitée à exactement 10 000 lignes omettait la première
+update de retour, et rescanner depuis la séquence zéro à chaque page de 64
+updates rendait le rattrapage quadratique. La décision est donc de paginer toute
+la fenêtre retenue, de faire avancer la frontier confirmée depuis son préfixe
+monotone et de comparer la frontier d'auteur d'une update avant de la renvoyer.
+
 **Alternatives considered**:
 
 - TTL fixe : peut rendre impossible la fusion de travail encore légitime.
 - Garder tout indéfiniment : coût illimité sans contrôle du propriétaire.
 - Snapshot shallow sans suivi des devices : peut supprimer une dépendance
   causale requise par le retour d'un appareil.
+- Uniquement des snapshots shallow périodiques : Loro refuse légitimement la
+  branche ancienne dont les dépendances ont été retirées.
+- Rejouer depuis le genesis à chaque requête : correct mais quadratique pendant
+  un long rattrapage et incompatible avec un petit serveur auto-hébergé.
 
 ## Decision 9 — Migration paresseuse et protocole éditorial v3
 

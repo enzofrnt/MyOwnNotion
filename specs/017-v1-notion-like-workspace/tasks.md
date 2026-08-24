@@ -400,8 +400,8 @@ retirer les chemins temporaires.
 
 - [ ] T189 [P] Ajouter benchmark 500 blocs, frappe, snapshot et update incrémentale dans `tests/performance/page-editor.perf.spec.ts`
 - [ ] T190 [P] Ajouter benchmark 10 000 updates, catch-up, compaction et mémoire dans `tests/performance/page-operations.perf.spec.ts`
-- [ ] T191 [P] Exécuter 1 000 suites de convergence générées et stabiliser seeds/régressions dans `packages/page-state/tests/multi-device-convergence.property.spec.ts`
-- [ ] T192 [P] Simuler 90 jours/10 000 changements et un appareil autorisé absent dans `apps/api/tests/page-operation-long-absence.integration.spec.ts`
+- [X] T191 [P] Exécuter 1 000 suites de convergence générées et stabiliser seeds/régressions dans `packages/page-state/tests/multi-device-convergence.property.spec.ts`
+- [X] T192 [P] Simuler 90 jours/10 000 changements et un appareil autorisé absent dans `apps/api/tests/page-operation-long-absence.integration.spec.ts`
 - [ ] T193 [P] Ajouter les tests inconnus+fichiers à travers export/backup/restore dans `apps/api/tests/page-operation-forward-compatibility.integration.spec.ts`
 - [ ] T194 [P] Ajouter fuzz/limites d'updates, URL, profondeur et JSON dans `packages/contracts/tests/page-operations-fuzz.property.spec.ts` et `packages/page-state/tests/input-limits.property.spec.ts`
 - [ ] T195 Auditer chiffrement, AAD, redaction, révocation et absence de contenu dans logs dans `apps/api/tests/page-operation-security.spec.ts` et `packages/client-core/tests/page-operation-encryption.spec.ts`
@@ -555,3 +555,4 @@ pas la V1 annoncée** : US3, US5, US7 et US6 restent obligatoires.
 ## Phase 11: Convergence
 
 - [x] T215 [US5] Éliminer toute dépendance à `reload()` ou `saveDocument()` pour reprendre une synchronisation de page au boot, au retour online ou après un signal SSE, ne publier l'état « synchronisé » qu'après l'acquittement post-commit serveur et verrouiller ce parcours dans `packages/client-core/src/page-sync/page-reconciler.ts`, `apps/web/src/features/sync/use-change-stream.ts`, `apps/web/src/services/local-content.ts` et `tests/e2e/page-multi-device-convergence.spec.ts` per FR-026, FR-054, FR-059 et US5/AC6
+- [X] T216 [US5] Borner le replay serveur par des checkpoints Loro complets périodiques sans compacter l'historique, importer les lots causalement, paginer la fenêtre d'ambiguïté sans plafond de 10 000, avancer chaque frontière d'appareil depuis son préfixe confirmé et ne pas renvoyer à un appareil une update qu'il possède déjà dans `apps/api/src/page-state/page-operation-service.ts`, `packages/page-state/src/document.ts`, `packages/page-state/tests/checkpoints.property.spec.ts` et `apps/api/tests/page-operation-long-absence.integration.spec.ts` per FR-054, FR-058, FR-059 et SC-019

@@ -49,6 +49,29 @@ describe("updates, version vectors and checkpoints", () => {
     expect((await receiver.project()).document).toEqual((await author.project()).document);
   });
 
+  it("imports a reversed causal batch atomically and resolves its pending dependencies", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: { blocks: [{ type: "paragraph", id: blockId, content: [{ text: "A" }] }] },
+    });
+    const checkpoint = await origin.checkpoint();
+    const author = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const receiver = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const first = author.transact([{ type: "replace-text", blockId, from: 1, to: 1, text: "B" }]);
+    const second = author.transact([{ type: "replace-text", blockId, from: 2, to: 2, text: "C" }]);
+
+    const imported = receiver.importUpdates([second.updateBytes, first.updateBytes]);
+
+    expect(imported).toMatchObject({ changed: true, pending: false });
+    expect(receiver.snapshot()).toEqual(author.snapshot());
+    expect(
+      versionVectorBytesEqual(receiver.versionVectorBytes(), author.versionVectorBytes()),
+    ).toBe(true);
+    expect(receiver.importUpdates([])).toMatchObject({ changed: false, pending: false });
+  });
+
   it("verifies the causal base declared around an incremental update", async () => {
     const pageId = generateUuidV7();
     const blockId = generateUuidV7();
@@ -111,6 +134,53 @@ describe("updates, version vectors and checkpoints", () => {
     expect(restored.snapshot()).toEqual(page.snapshot());
     expect(versionVectorBytesEqual(restored.versionVectorBytes(), page.versionVectorBytes())).toBe(
       true,
+    );
+  });
+
+  it("keeps a full replay checkpoint able to merge a branch authored before it", async () => {
+    const pageId = generateUuidV7();
+    const onlineBlockId = generateUuidV7();
+    const offlineBlockId = generateUuidV7();
+    const origin = OperationalPageDocument.create({ pageId, document: { blocks: [] } });
+    const base = await origin.checkpoint();
+    const online = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint: base });
+    const offline = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint: base });
+    const offlineUpdate = offline.transact([
+      {
+        type: "insert-block",
+        block: { type: "paragraph", id: offlineBlockId, content: [{ text: "offline" }] },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    online.transact([
+      {
+        type: "insert-block",
+        block: { type: "paragraph", id: onlineBlockId, content: [{ text: "online" }] },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+
+    const [fullCheckpoint, shallowCheckpoint] = await Promise.all([
+      online.checkpoint(),
+      online.compactedCheckpoint(),
+    ]);
+    const fullReplay = await OperationalPageDocument.fromCheckpoint({
+      pageId,
+      checkpoint: fullCheckpoint,
+    });
+    const shallowReplay = await OperationalPageDocument.fromCheckpoint({
+      pageId,
+      checkpoint: shallowCheckpoint,
+    });
+
+    expect(fullReplay.importUpdate(offlineUpdate.updateBytes).pending).toBe(false);
+    expect(new Set(fullReplay.snapshot().blocks.map(({ id }) => id))).toEqual(
+      new Set([onlineBlockId, offlineBlockId]),
+    );
+    expect(() => shallowReplay.importUpdate(offlineUpdate.updateBytes)).toThrow(
+      /shallow history/iu,
     );
   });
 

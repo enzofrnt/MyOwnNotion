@@ -29,6 +29,7 @@ export interface AuthenticatedPageOperationHarness {
     readonly deviceId: Uuid;
     readonly name?: string;
   }): Promise<Record<string, string>>;
+  reauthenticateAsDevice(input: { readonly deviceId: Uuid }): Promise<Record<string, string>>;
   createLegacyPage(name?: string): Promise<{
     readonly itemId: Uuid;
     readonly revisionId: Uuid;
@@ -122,6 +123,22 @@ export async function createAuthenticatedPageOperationHarness(
     };
   };
 
+  const reauthenticateAsDevice = async ({
+    deviceId,
+  }: {
+    readonly deviceId: Uuid;
+  }): Promise<Record<string, string>> => {
+    const headers = await authenticate();
+    const secret = /^mn_dev_session=(.+)$/.exec(headers["cookie"] ?? "")?.[1];
+    if (secret === undefined) throw new Error("the authenticated session cookie is missing");
+    await api.built.database.db.execute(sql`
+      UPDATE sessions
+         SET device_id = ${deviceId}::uuid
+       WHERE session_secret_hash = ${digestSessionSecret(secret)}
+    `);
+    return headers;
+  };
+
   return {
     api,
     reset,
@@ -131,16 +148,9 @@ export async function createAuthenticatedPageOperationHarness(
         INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
         VALUES (${deviceId}::uuid, ${OWNER_ID}::uuid, ${`operation-device-${deviceId}`}, ${name}, 'active')
       `);
-      const headers = await authenticate();
-      const secret = /^mn_dev_session=(.+)$/.exec(headers["cookie"] ?? "")?.[1];
-      if (secret === undefined) throw new Error("the authenticated session cookie is missing");
-      await api.built.database.db.execute(sql`
-        UPDATE sessions
-           SET device_id = ${deviceId}::uuid
-         WHERE session_secret_hash = ${digestSessionSecret(secret)}
-      `);
-      return headers;
+      return await reauthenticateAsDevice({ deviceId });
     },
+    reauthenticateAsDevice,
     createLegacyPage: async (name = "Operational page") => {
       const page = await createItemViaApi(api, { kind: "page", name });
       return {
