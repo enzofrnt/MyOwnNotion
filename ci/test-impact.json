@@ -801,6 +801,20 @@
       }
     },
     {
+      "test": "tests/e2e/workspace-settings-boundary.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "prefixes": [
+          "apps/web/src/features/diagnostics/",
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/settings/",
+          "apps/web/src/features/workspace/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/workspace-shell-visual.spec.ts",
       "owners": {
         "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css", "apps/web/src/ui/tokens.css"],

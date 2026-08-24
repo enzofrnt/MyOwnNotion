@@ -12,6 +12,7 @@ import {
   ensureNavigationRowVisible,
   ensureNavigationVisible,
   openItemActions,
+  openSettingsSection,
   openWorkspace,
   openWorkspaceDiagnostics,
   saveDocument,
@@ -201,7 +202,7 @@ test.describe("automated accessibility audit", () => {
     page,
   }) => {
     await openWorkspace(page);
-    await page.getByTestId("open-backups").click();
+    await openSettingsSection(page, "backups");
     await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("restore-rehearsal")).toBeVisible();
 

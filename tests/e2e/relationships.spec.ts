@@ -5,8 +5,10 @@ import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
+  openSettingsSection,
   openWorkspace,
   renameItem,
+  returnToWorkspace,
   selectItem,
   trashItem,
   uniqueName,
@@ -45,6 +47,7 @@ test.describe("stable identity and relationships (US3)", () => {
     // runs on desktop and mobile-sized projects, so a diagnostic that renders
     // but cannot be reached still fails (T101).
     await selectItem(page, source);
+    await openSettingsSection(page, "page-details");
     const details = page.getByTestId("item-details");
     await expect(details).toBeVisible();
     await expectReachable(details);
@@ -69,17 +72,21 @@ test.describe("stable identity and relationships (US3)", () => {
     expect(overflow).toBeLessThanOrEqual(24);
 
     // Rename the target: the relationship still resolves to the same item.
+    await returnToWorkspace(page);
     await renameItem(page, target, uniqueName("Renamed"));
     await waitForSynchronized(page);
     await selectItem(page, source);
+    await openSettingsSection(page, "page-details");
     await expect(page.getByTestId("relationship-list")).toContainText(targetId ?? "");
 
     // Trash the target: the reference stays diagnosable, never redirected.
+    await returnToWorkspace(page);
     const renamedRow = page.locator(`[data-item-id="${targetId}"]`);
     const renamedName = await renamedRow.locator(".tree-name").textContent();
     await trashItem(page, renamedName ?? "");
     await waitForSynchronized(page);
     await selectItem(page, source);
+    await openSettingsSection(page, "page-details");
     await expect(page.getByTestId("relation-availability")).toContainText("trashed", {
       timeout: 15_000,
     });

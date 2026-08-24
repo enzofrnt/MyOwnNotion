@@ -71,7 +71,6 @@ export interface SidebarProps {
   readonly footerStatus?: ReactNode;
   readonly onOpen: (itemId: ProjectedItem["id"]) => void;
   readonly onOpenSettings: () => void;
-  readonly onOpenBackups: () => void;
   readonly onOpenSearch: () => void;
 }
 
@@ -80,7 +79,6 @@ export function Sidebar({
   footerStatus,
   items,
   onOpen,
-  onOpenBackups,
   onOpenSearch,
   onOpenSettings,
   tree,
@@ -139,13 +137,9 @@ export function Sidebar({
 
       <footer className="workspace-navigation__footer">
         {footerStatus}
-        <Button variant="ghost" data-testid="open-backups-sidebar" onClick={onOpenBackups}>
-          <AppIcon name="archive" />
-          Sauvegardes
-        </Button>
         <Button variant="ghost" data-testid="open-settings" onClick={onOpenSettings}>
           <AppIcon name="settings" />
-          Réglages et sécurité
+          Réglages
         </Button>
       </footer>
     </nav>

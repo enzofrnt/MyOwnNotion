@@ -249,15 +249,32 @@ export async function convertItem(page: Page, itemName: string): Promise<void> {
   await page.getByTestId(`convert-${itemName}`).click();
 }
 
-/** Opens the secondary local-state disclosure before asserting its diagnostics. */
-export async function openWorkspaceDiagnostics(page: Page): Promise<void> {
-  await closeMobileNavigation(page);
-  const diagnostics = page.locator("details.workspace-diagnostics");
-  await expect(diagnostics).toBeVisible({ timeout: 15_000 });
-  if ((await diagnostics.getAttribute("open")) === null) {
-    await diagnostics.locator("summary").click();
+type SettingsSection = "security" | "backups" | "local-data" | "trash" | "page-details";
+
+/** Opens an operational destination without treating it as document content. */
+export async function openSettingsSection(page: Page, section: SettingsSection): Promise<void> {
+  if (!(await page.getByTestId("settings-shell").isVisible())) {
+    await closeMobileNavigation(page);
+    await page.getByTestId("toggle-security-settings").click();
+    await expect(page.getByTestId("settings-shell")).toBeVisible({ timeout: 15_000 });
   }
-  await expect(diagnostics).toHaveAttribute("open", "");
+  const destination = page.getByTestId(`settings-nav-${section}`);
+  if ((await destination.getAttribute("aria-current")) !== "page") {
+    await destination.click();
+  }
+  await expect(page.getByTestId(`settings-section-${section}`)).toBeVisible({ timeout: 15_000 });
+}
+
+/** Opens storage and synchronization diagnostics in their dedicated settings destination. */
+export async function openWorkspaceDiagnostics(page: Page): Promise<void> {
+  await openSettingsSection(page, "local-data");
+  await expect(page.getByTestId("diagnostics-panel")).toBeVisible({ timeout: 15_000 });
+}
+
+/** Returns to the retained document workspace after an operational visit. */
+export async function returnToWorkspace(page: Page): Promise<void> {
+  await page.getByTestId("back-to-workspace").click();
+  await expect(page.getByTestId("workspace-surface")).toBeVisible({ timeout: 15_000 });
 }
 
 /** Selects a tree item by clicking its name (never the action buttons). */
@@ -317,13 +334,10 @@ export async function waitForDatabaseDefinitionSaved(page: Page): Promise<void> 
 }
 
 export async function waitForSynchronized(page: Page): Promise<void> {
-  // The queue must drain (no pending/conflict rows) and the state settle. The
-  // diagnostic is deliberately collapsed in the polished workspace, so assert
-  // its state rather than requiring that implementation detail to be visible.
-  await expect(page.getByTestId("mutation-status-empty")).toHaveText(
-    "All local changes are accepted.",
-    { timeout: 20_000 },
-  );
+  // The compact workspace status is derived from the aggregate durable queue:
+  // `synced` is impossible while a workspace mutation, page operation, legacy
+  // branch, or conflict is pending. Detailed queue rows live in settings and
+  // must not be mounted below every document just to provide a test hook.
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
     timeout: 20_000,
   });

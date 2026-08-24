@@ -45,7 +45,7 @@ export type MenuContentProps = Omit<AriakitMenuProps, "className"> & {
 };
 
 export const MenuContent = forwardRef<HTMLDivElement, MenuContentProps>(function MenuContent(
-  { className, gutter = 6, portal = true, ...props },
+  { className, fitViewport = true, gutter = 6, portal = true, wrapperProps, ...props },
   ref,
 ) {
   return (
@@ -53,8 +53,13 @@ export const MenuContent = forwardRef<HTMLDivElement, MenuContentProps>(function
       {...props}
       ref={ref}
       className={classNames("ui-menu", className)}
+      fitViewport={fitViewport}
       gutter={gutter}
       portal={portal}
+      wrapperProps={{
+        ...wrapperProps,
+        className: classNames("ui-menu__positioner", wrapperProps?.className),
+      }}
     />
   );
 });

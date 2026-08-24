@@ -15,7 +15,7 @@ import pg from "pg";
 import { sealBackupArchive } from "../../apps/api/src/backup/archive-crypto.ts";
 import { encodeBackupArchive } from "../../apps/api/src/backup/archive-format.ts";
 import { expect, test } from "./fixtures.ts";
-import { openWorkspace } from "./helpers.ts";
+import { openSettingsSection, openWorkspace } from "./helpers.ts";
 
 function connectionString(): string {
   return (
@@ -100,7 +100,7 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
   await seedVerifiedBackup(new Date());
   await openWorkspace(page);
 
-  await page.getByTestId("open-backups").click();
+  await openSettingsSection(page, "backups");
   await expect(page.getByTestId("backup-last-verified")).toContainText("Last verified backup:");
   await expect(page.getByTestId("backup-stale")).toHaveCount(0);
 
@@ -122,7 +122,7 @@ test("the owner can rehearse the latest backup without touching the live workspa
 }) => {
   await seedVerifiedBackup(new Date());
   await openWorkspace(page);
-  await page.getByTestId("open-backups").click();
+  await openSettingsSection(page, "backups");
 
   await page.getByTestId("run-rehearsal").click();
   await expect(page.getByTestId("rehearsal-result")).toContainText(

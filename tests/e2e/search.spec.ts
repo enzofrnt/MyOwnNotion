@@ -14,8 +14,10 @@ import {
   ensureNavigationVisible,
   moveSelectedItemInto,
   openSecondDevice,
+  openSettingsSection,
   openWorkspace,
   renameItem,
+  returnToWorkspace,
   saveDocument,
   selectItem,
   trashItem,
@@ -373,7 +375,12 @@ test.describe("workspace search freshness (US4)", () => {
     await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
     await dialog.getByRole("button", { name: "Close search" }).click();
 
-    await page.getByRole("button", { name: `Restore ${currentName}` }).click();
+    await openSettingsSection(page, "trash");
+    await page
+      .getByTestId(`trash-item-${currentName}`)
+      .getByRole("button", { name: "Restaurer" })
+      .click();
+    await returnToWorkspace(page);
     await waitForSynchronized(page);
     dialog = await searchFor(page, currentName);
     await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toHaveCount(1);

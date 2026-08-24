@@ -4,12 +4,14 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  closeMobileNavigation,
   createChildItem,
   createRootItem,
   ensureNavigationRowVisible,
   moveSelectedItemInto,
   openWorkspace,
   openWorkspaceDiagnostics,
+  returnToWorkspace,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -66,9 +68,16 @@ test.describe("interrupted mutations (US4)", () => {
     // Try to move the parent into its child: rejected explicitly, tree intact.
     await page.getByTestId(`tree-item-${parent}`).click();
     await moveSelectedItemInto(page, child);
-    await expect(page.getByTestId("problem-banner")).toContainText("containment.cycle-rejected");
-    await expect(page.getByTestId(`tree-item-${parent}`)).toBeVisible();
-    await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible();
+    const problem = page.getByTestId("problem-banner");
+    await expect(problem).toBeVisible();
+    await closeMobileNavigation(page);
+    await problem.getByRole("button", { name: "Voir les détails" }).click();
+    await expect(page.getByTestId("operational-problem-code")).toContainText(
+      "containment.cycle-rejected",
+    );
+    await returnToWorkspace(page);
+    await ensureNavigationRowVisible(page, parent);
+    await ensureNavigationRowVisible(page, child);
     await waitForSynchronized(page);
   });
 });

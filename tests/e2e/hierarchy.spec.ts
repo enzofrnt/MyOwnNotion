@@ -3,14 +3,15 @@
  */
 import { expect, test } from "./fixtures.ts";
 import {
-  closeMobileNavigation,
   createChildItem,
   createRootItem,
   expectTreeOrder,
   moveItemToRoot,
   moveItemUp,
   moveSelectedItemInto,
+  openSettingsSection,
   openWorkspace,
+  returnToWorkspace,
   selectItem,
   trashItem,
   uniqueName,
@@ -41,7 +42,9 @@ test.describe("hierarchy organization (US1)", () => {
     // Attempt to move the page beneath its own descendant: explicit rejection.
     await selectItem(page, pageName);
     await moveSelectedItemInto(page, subFolder);
-    await expect(page.getByTestId("problem-banner")).toContainText("containment.cycle-rejected");
+    // The document surface explains the failure without exposing an internal
+    // code; that code lives in the dedicated diagnostics destination.
+    await expect(page.getByTestId("problem-banner")).toContainText(/rejected/i);
     // The tree is unchanged: the page is still visible at root level.
     await expect(page.getByTestId(`tree-item-${pageName}`)).toBeVisible();
 
@@ -135,11 +138,12 @@ test.describe("hierarchy organization (US1)", () => {
     await createChildItem(page, root, "page", child);
 
     await trashItem(page, root);
+    await openSettingsSection(page, "trash");
     await expect(page.getByTestId(`trash-item-${root}`)).toBeVisible();
     await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(0);
 
-    await closeMobileNavigation(page);
-    await page.getByRole("button", { name: `Restore ${root}` }).click();
+    await page.getByTestId(`trash-item-${root}`).getByRole("button", { name: "Restaurer" }).click();
+    await returnToWorkspace(page);
     // The same 15 seconds `createChildItem` uses, and for the same reason:
     // this waits on a mutation round trip, not on a render. It was left at the
     // 10-second default and flaked in CI once the dual write added a database

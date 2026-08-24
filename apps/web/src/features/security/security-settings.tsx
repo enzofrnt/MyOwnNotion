@@ -117,8 +117,12 @@ export function SecuritySettings(props: SecuritySettingsProps) {
   const activePasskeys = passkeys.filter((passkey) => passkey.state === "active");
 
   return (
-    <main className="security-settings" aria-labelledby="security-heading">
-      <h1 id="security-heading">Security</h1>
+    <section
+      className="security-settings"
+      aria-labelledby="security-heading"
+      data-testid="security-settings"
+    >
+      <h2 id="security-heading">Security</h2>
 
       <p
         className="security-message"
@@ -213,6 +217,6 @@ export function SecuritySettings(props: SecuritySettingsProps) {
           writesAllowed={rotation.writesAllowed}
         />
       )}
-    </main>
+    </section>
   );
 }

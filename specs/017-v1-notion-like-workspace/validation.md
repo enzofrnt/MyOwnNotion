@@ -1,7 +1,7 @@
 # Validation — Feature 017
 
 Dernière mise à jour : 2026-08-24
-Tranche validée : US5, synchronisation éditoriale convergente et migration v2
+Tranches validées : US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222
 
 Ce document consigne les preuves exécutées. Il ne remplace ni les critères de
 `spec.md`, ni les tâches encore ouvertes dans `tasks.md`, ni le gate avant push
@@ -298,12 +298,54 @@ fichier et non locale au scénario de suppression. Cent répétitions ciblées,
 cinquante par interaction et réparties sur les cinq profils, n'ont produit ni
 échec ni retry.
 
+## Résultat de la frontière workspace/réglages
+
+Le workspace ne rend plus sous le document courant les panneaux de stockage,
+outbox, diagnostics, corbeille, identifiants, relations techniques ou
+restauration de révision. La barre de page conserve uniquement un accès aux
+réglages, un statut de synchronisation compact et, lorsqu'une action échoue, un
+message compréhensible avec un lien vers le diagnostic détaillé.
+
+Une destination Réglages indépendante regroupe sécurité et appareils,
+sauvegardes, stockage et synchronisation, corbeille et détails de la page
+courante. Le workspace reste monté mais inerté et masqué pendant la visite : le
+retour restaure la page active, le déclencheur ayant le focus, le scroll global
+et le bloc de lecture visible sans remonter le document ni recréer l'éditeur.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composant et client web | `pnpm exec vitest run --project web` | 43 fichiers, 263 tests passés |
+| Typage web | `pnpm --filter @myownnotion/web typecheck` | passé |
+| Frontière workspace/réglages | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/workspace-settings-boundary.spec.ts` | 5 profils passés ; item, focus, scroll et bloc visible restaurés |
+| Régressions contenu/gestion | matrice ciblée fichiers, hiérarchie, relations, révisions, offline, interruptions et sauvegardes | tous les scénarios passés sur les 5 profils après déplacement des surfaces |
+| Régressions shell | matrice ciblée authentification, appareils, sécurité, connexion, clavier, accessibilité, 320 px et shell | tous les scénarios fonctionnels passés sur les 5 profils |
+| Accès aux surfaces déplacées | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/databases-offline-sync.spec.ts tests/e2e/databases-security.spec.ts tests/e2e/search.spec.ts` | 5 profils passés ; outbox consultée dans Réglages, édition reprise dans le workspace et restauration effectuée dans la corbeille dédiée |
+| Menus bornés par le viewport | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/block-editor.spec.ts tests/e2e/page-ambiguity.spec.ts` | 5 profils passés ; première et dernière actions atteignables sur desktop et mobile |
+| Références visuelles | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/workspace-shell-visual.spec.ts --update-snapshots` | workspace et réglages approuvés en clair/sombre sur Chromium contrôlé ; comportement passé sur les 5 profils |
+
+Le journey est enregistré dans `ci/test-impact.json`. Les helpers historiques
+ouvrent désormais les surfaces d'exploitation via leur destination et le
+statut compact agrégé reste la frontière d'attente de la synchronisation, sans
+remonter une outbox technique sous chaque note.
+
+La matrice complète a révélé que trois journeys historiques cherchaient encore
+l'outbox ou la corbeille sous le document. Ils suivent désormais le même chemin
+que l'utilisateur : ouverture de la destination dédiée, contrôle ou action,
+puis retour au workspace retenu. Elle a aussi exposé un défaut réel des menus
+contextuels hauts : Ariakit bornait son conteneur de positionnement, tandis que
+le défilement était appliqué au contenu interne. Le conteneur borné est
+maintenant la surface défilable ; insertion et suppression restent accessibles
+sur les cinq profils, même lorsqu'aucun côté de l'ancre ne peut accueillir le
+menu entier.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
 
 - les blocs riches et fichiers restant à terminer en US3 ;
-- la frontière visuelle T222, la finition et les surfaces restantes en US6/US7.
+- la finition et les surfaces restantes en US6/US7.
 
 La tranche prouve donc le parcours de synchronisation implémenté aujourd'hui ;
 elle ne prétend pas encore que toute la V1 est terminée.
