@@ -247,3 +247,67 @@ for (const firstToReconnect of ["A", "B"] as const) {
     }
   });
 }
+
+test("a restarted device drains a closed page without reopening it", async ({
+  page,
+  context,
+  browser,
+  baseURL,
+}) => {
+  const second = await openSecondDevice(browser, baseURL);
+  try {
+    const pageName = uniqueName("ClosedPageQueue");
+    const landingName = uniqueName("DifferentLandingPage");
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    await createRootItem(page, "page", landingName);
+    await waitForSynchronized(page);
+    await selectItem(page, pageName);
+    await createSharedStartingPoint(page);
+    await waitForPageSynchronized(page);
+
+    await openWorkspace(second.page);
+    await selectItem(second.page, pageName);
+    await waitForPageSynchronized(second.page);
+    await goOffline({ context: second.context, page: second.page });
+
+    const beforeEdit = await editorChangeSequence(second.page);
+    const shared = inlineContent(blockContaining(second.page, "bloc partagé"));
+    await placeCaret(second.page, shared, "end");
+    await editor(second.page).pressSequentially(" — repris sans rouvrir la page");
+    await waitForEditorSettled(second.page, { afterSequence: beforeEdit });
+    await expect(second.page.getByTestId("editor-sync-status")).toHaveAttribute(
+      "data-durable",
+      "true",
+    );
+
+    // Close the edited document before the process boundary. Persisting a
+    // different active item means the following online boot cannot
+    // accidentally pass by remounting the page and relying on its editor hook.
+    // Reloading while the browser context is offline is deliberately avoided:
+    // Chromium rejects that navigation before the service worker can answer,
+    // which tests the automation transport rather than application recovery.
+    await selectItem(second.page, landingName);
+    await expect(second.page.getByTestId("active-item-title")).toHaveText(landingName);
+    await second.page.close();
+
+    await second.context.setOffline(false);
+    second.page = await second.context.newPage();
+    await openWorkspace(second.page);
+    await expect(second.page.getByTestId("active-item-title")).toHaveText(landingName);
+
+    // Device A keeps the edited page open. Device B must publish its durable
+    // queue from boot discovery alone; no selection, reload or save-shaped
+    // action may be needed on the page that owns the update.
+    await expect(page.getByTestId("block-editor")).toContainText("repris sans rouvrir la page", {
+      timeout: 30_000,
+    });
+    await waitForPageSynchronized(page);
+    await waitForSynchronized(second.page);
+  } finally {
+    await second.context.close();
+    // The fixture context remains online for its own cleanup regardless of
+    // which assertion failed after the second device went offline.
+    await context.setOffline(false);
+  }
+});

@@ -97,6 +97,27 @@ function sync(
 }
 
 describe("operational page materialization", () => {
+  it("refuses a stale active pull after the page becomes a folder without returning 500", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage("Retired operational page");
+    const checkpoint = await activate(page, headers);
+    const converted = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/items/${page.itemId}/convert`,
+      headers: { ...headers, "idempotency-key": generateUuidV7() },
+      payload: { targetKind: "folder" },
+    });
+    expect(converted.statusCode, converted.body).toBe(200);
+
+    const stalePull = await sync(page.itemId, headers, {
+      persistedVersionVector: checkpoint.versionVector,
+      updates: [],
+    });
+
+    expect(stalePull.statusCode, stalePull.body).toBe(409);
+    expect(stalePull.json()).toMatchObject({ code: "page-operations.projection-invalid" });
+  });
+
   it("converges two offline replicas regardless of arrival order", async () => {
     const headers = await harness.authenticate();
     const page = await harness.createLegacyPage();

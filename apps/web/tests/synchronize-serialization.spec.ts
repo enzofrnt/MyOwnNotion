@@ -18,6 +18,7 @@
  *   2. work enqueued while a pass is running is still drained afterwards.
  */
 
+import { generateUuidV7 } from "@myownnotion/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ContentApi } from "../src/services/content-api.ts";
 import { LocalContentService } from "../src/services/local-content.ts";
@@ -89,6 +90,112 @@ describe("synchronize serialization", () => {
 
     expect(recover).toHaveBeenCalledTimes(1);
     expect(recorder.passes).toBe(1);
+  });
+
+  it("resumes a durable page queue on boot without opening that page", async () => {
+    const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
+    service = new LocalContentService(makeApi(recorder), `closed-page-${Date.now()}`);
+    const pageId = generateUuidV7();
+    const synchronizePage = vi.fn().mockResolvedValue({
+      kind: "synced" as const,
+      exchanges: 1,
+      latestPageSequence: 1,
+      fileRequirements: [],
+    });
+    vi.spyOn(service.pageOperationLog, "listPageIdsWithUpdates").mockResolvedValue([pageId]);
+    vi.spyOn(service, "pageReconciler").mockReturnValue({
+      synchronize: synchronizePage,
+    } as unknown as ReturnType<LocalContentService["pageReconciler"]>);
+
+    await service.initialize();
+
+    expect(synchronizePage).toHaveBeenCalledTimes(1);
+  });
+
+  it("converts a durable legacy branch after its editor has closed", async () => {
+    const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
+    service = new LocalContentService(makeApi(recorder), `closed-legacy-${Date.now()}`);
+    const pageId = generateUuidV7();
+    vi.spyOn(service.pageOperationLog, "listPageIdsWithUpdates").mockResolvedValue([]);
+    vi.spyOn(service.pageOperationLog, "listPageIdsWithLegacyBranches")
+      .mockResolvedValueOnce([pageId])
+      .mockResolvedValueOnce([]);
+    vi.spyOn(service.pageOperationLog, "getLegacyBranch").mockResolvedValue({
+      pageId,
+      status: "editing",
+    } as never);
+    const convertLegacyBranch = vi.fn().mockResolvedValue({
+      kind: "synced" as const,
+      exchanges: 1,
+      latestPageSequence: 1,
+      fileRequirements: [],
+    });
+    vi.spyOn(service, "pageReconciler").mockReturnValue({
+      convertLegacyBranch,
+    } as unknown as ReturnType<LocalContentService["pageReconciler"]>);
+
+    await service.initialize();
+
+    expect(convertLegacyBranch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the global status pending while an unopened page queue remains", async () => {
+    const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
+    service = new LocalContentService(makeApi(recorder), `page-status-${Date.now()}`);
+    vi.spyOn(service.pageOperationLog, "listPageIdsWithUpdates").mockResolvedValue([]);
+    vi.spyOn(service.pageOperationLog, "countUpdates").mockResolvedValue(1);
+
+    await service.initialize();
+
+    expect(service.getSnapshot()).toMatchObject({
+      syncState: "pending",
+      pendingCount: 1,
+    });
+  });
+
+  it("bounds a large reconnect backlog to four page exchanges", async () => {
+    const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
+    service = new LocalContentService(makeApi(recorder), `bounded-pages-${Date.now()}`);
+    const pageIds = Array.from({ length: 10 }, () => generateUuidV7());
+    vi.spyOn(service.pageOperationLog, "listPageIdsWithUpdates").mockResolvedValue(pageIds);
+    const releases: Array<() => void> = [];
+    let active = 0;
+    let peak = 0;
+    const synchronizePage = vi.fn(
+      async () =>
+        await new Promise<{
+          kind: "synced";
+          exchanges: number;
+          latestPageSequence: number;
+          fileRequirements: never[];
+        }>((resolve) => {
+          active += 1;
+          peak = Math.max(peak, active);
+          releases.push(() => {
+            active -= 1;
+            resolve({
+              kind: "synced",
+              exchanges: 1,
+              latestPageSequence: 1,
+              fileRequirements: [],
+            });
+          });
+        }),
+    );
+    vi.spyOn(service, "pageReconciler").mockReturnValue({
+      synchronize: synchronizePage,
+    } as unknown as ReturnType<LocalContentService["pageReconciler"]>);
+
+    const synchronization = service.synchronizeOperationalPages();
+    for (const expectedCalls of [4, 8, 10]) {
+      await vi.waitFor(() => expect(synchronizePage).toHaveBeenCalledTimes(expectedCalls));
+      expect(active).toBe(expectedCalls === 10 ? 2 : 4);
+      const batch = releases.splice(0);
+      for (const release of batch) release();
+    }
+    await synchronization;
+
+    expect(peak).toBe(4);
   });
 
   it("runs one pass when several callers arrive at once", async () => {

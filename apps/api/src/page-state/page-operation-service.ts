@@ -379,7 +379,23 @@ export class PageOperationService {
     let committedSequence: number | undefined;
     const response = await runMutation(this.#deps.db, async (tx) => {
       await this.#deps.rotationPolicies.assertWritesAllowed(tx);
-      await this.#deps.history?.consolidateIfDue(tx, input.pageId);
+      try {
+        await this.#deps.history?.consolidateIfDue(tx, input.pageId);
+      } catch (error) {
+        // A confirmed page -> folder conversion retires operational state
+        // under the same row lock used by synchronization. A stale device may
+        // already have prepared its next pull; answer that normal lifecycle
+        // race as a protocol refusal instead of leaking the repository's
+        // state-not-found error through the generic 500 handler.
+        if (error instanceof PageOperationRepositoryError && error.code === "state-not-found") {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "The page no longer has operational state.",
+            409,
+          );
+        }
+        throw error;
+      }
       let loaded = await this.#load(tx, input.pageId);
       let state = loaded.state;
       const document = loaded.document;

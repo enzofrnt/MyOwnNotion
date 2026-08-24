@@ -172,7 +172,7 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
         }
         // Operational pages reconcile through their own exchanges; the
         // workspace pass cannot pull their encrypted deltas.
-        const openPagesSettled = await currentService.synchronizeOpenPages();
+        const operationalPagesSettled = await currentService.synchronizeOperationalPages();
         if (stopped) return;
         // The state *now*, not the value that pass resolved with. Passes are
         // coalesced: a caller arriving while one is running joins it and receives
@@ -186,7 +186,7 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
         // level up: the answer has to come from the current state rather than from
         // the reply to a question asked earlier.
         const state = currentService.getSnapshot().syncState;
-        if (state !== "offline" && openPagesSettled) {
+        if (state !== "offline" && operationalPagesSettled) {
           syncAttempt = 0;
           return;
         }

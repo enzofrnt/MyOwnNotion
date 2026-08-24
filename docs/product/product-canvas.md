@@ -58,6 +58,11 @@ Les spécifications de fonctionnalité détaillées peuvent préciser ce documen
 10. Le dépôt ne fournit ni certificat public ni reverse proxy obligatoire dans la stack applicative officielle.
 11. La V1 comprend une interface de travail cohérente, qualitative et proche de Notion ; une juxtaposition de contrôles techniquement fonctionnels ne suffit pas à satisfaire ce périmètre.
 12. La V1 permet au même propriétaire de modifier hors ligne la même page sur plusieurs appareils puis de converger automatiquement au niveau du texte riche, des blocs stables et de leurs déplacements ; le remplacement d'un document complet n'est pas l'unité normale de synchronisation éditoriale.
+13. La surface principale est un espace de connaissance, pas un tableau de bord
+    d'exploitation : elle est réservée aux pages, dossiers, contenus et vues de
+    connaissance livrées. Réglages, sécurité, appareils, stockage, sauvegardes
+    et diagnostics détaillés vivent dans des surfaces dédiées, accessibles
+    depuis le workspace sans être rendus sous le document courant.
 
 ---
 
@@ -484,6 +489,23 @@ fermé et les branches dépliées sont restaurés sur l'appareil.
 
 La navigation doit préserver le contexte lors d'un retour en arrière, prendre en charge le clavier et afficher des états explicites de chargement, de contenu vide, d'indisponibilité locale et d'erreur.
 
+### 12.1 Frontière entre connaissance et configuration
+
+Le contenu principal du workspace est réservé au travail de connaissance :
+page ou dossier courant, recherche, bases déjà livrées et, lorsqu'ils seront
+disponibles, graphe et autres vues directement dérivées des contenus. Il ne doit
+pas devenir une page d'administration empilant sous le document les détails de
+stockage, files de mutations, identifiants, historique technique, appareils,
+sécurité, sauvegardes ou diagnostics.
+
+Ces fonctions restent accessibles depuis la navigation, mais ouvrent une
+surface dédiée de réglages, d'administration ou de gestion de contenu. Un état
+compact et actionnable peut rester près du contenu lorsqu'il change la décision
+immédiate du propriétaire — hors ligne, enregistrement local, synchronisation,
+conflit, sauvegarde en retard — sans afficher les détails techniques. L'action
+associée mène à la surface secondaire pertinente et le retour restaure la page,
+la sélection et la position de lecture.
+
 ---
 
 ## 13. Éditeur par blocs
@@ -740,6 +762,8 @@ Les fondations doivent permettre :
 - les connexions persistantes ;
 - la reconnexion automatique ;
 - la reprise après interruption ;
+- la reprise au lancement et au retour du réseau de toutes les files
+  éditoriales durables, même si leur page n'est pas rouverte ;
 - le rattrapage après une longue absence ;
 - l'absence d'événement perdu ;
 - la synchronisation des fichiers et relations ;
@@ -1717,6 +1741,10 @@ La V1 doit fournir une interface française cohérente et préparer l'externalis
 
 - Les surfaces V1 utilisent un langage commun pour la typographie, les espacements, les couleurs, les états, les menus, les boutons, les champs, les dialogues et les notifications.
 - Les actions courantes apparaissent dans leur contexte ; les informations techniques et diagnostics secondaires ne concurrencent pas le contenu principal.
+- Le workspace ne rend pas les panneaux de configuration ou d'exploitation à
+  la suite du document courant. Il garde seulement les états compacts utiles à
+  l'action immédiate et ouvre les détails dans une surface dédiée, avec retour
+  au même contexte de lecture.
 - Les parcours de référence du workspace, de l'éditeur, de la recherche, des fichiers, des bases, de la sécurité, des sauvegardes et de l'installation font l'objet d'une revue visuelle en thèmes clair et sombre.
 - À 320 pixels de large et à un zoom de 200 %, les parcours essentiels restent utilisables sans défilement horizontal de la page entière.
 - Un écran ne peut pas être considéré terminé s'il expose encore les structures internes ou les contrôles provisoires à la place d'une hiérarchie compréhensible par le propriétaire.
