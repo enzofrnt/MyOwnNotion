@@ -48,6 +48,10 @@ Les scénarios centraux du quickstart sont verts :
 | Ordonnancement au démarrage | `pnpm exec vitest run --project web apps/web/tests/synchronize-serialization.spec.ts` | 1 fichier, 8 tests passés ; reprise sans éditeur, statut global honnête et plafond de 4 échanges de pages |
 | Redémarrage sur une autre page | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts --grep "a restarted device drains a closed page without reopening it"` | 5 profils passés ; fermeture hors ligne, nouveau contexte navigateur, aucune réouverture du document modifié |
 | Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
+| Performance de synchronisation | `pnpm exec vitest run --project performance tests/performance/page-operations.perf.spec.ts` | 10 000 updates puis 1 locale : ingestion 15,27 s, catch-up 15,20 s en 157 échanges, compaction 11,88 s, pic de heap 99,0 MiB |
+| Suite de performance sous contention | `pnpm test:performance` | 6 fichiers, 15 tests passés ; catch-up 16,48 s et pic de heap 128,7 MiB pendant les autres benchmarks parallèles |
+| Curseur causal et service API | `pnpm exec vitest run --project api-contract apps/api/tests/page-operation-service.integration.spec.ts` | 5 tests passés ; un curseur numérique non prouvé ne peut plus masquer les updates 1 et 2 |
+| Import client groupé | `pnpm exec vitest run --project client-core packages/client-core/tests/page-reconciler.property.spec.ts packages/client-core/tests/page-editing-session.spec.ts packages/client-core/tests/legacy-page-editing-session.spec.ts` | 3 fichiers, 40 tests passés |
 | Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
 | Contrats API et workspace après correction du cycle de vie | `pnpm test:contract` | 93 fichiers, 1 147 tests passés ; longue absence en 153,34 s, aucun rejet différé |
 | Typage | `pnpm typecheck` | 9 projets passés |
@@ -207,12 +211,22 @@ refusée en 409 documenté plutôt qu'en 500. Les 46 tests client/web ciblés, l
 4 tests d'intégration du service et les trois journeys fautifs passent, puis la
 matrice navigateur ciblée passe sur les cinq profils (5/5) avec deux workers.
 
+Le benchmark T190 a enfin séparé trois coûts jusque-là confondus. Une première
+mesure convergeait correctement mais demandait 110,15 secondes au second
+appareil : les digests des 10 000 updates étaient calculés séquentiellement côté
+client. Leur vérification parallèle par lot borné, suivie d'un unique import
+CRDT groupé, ramène le catch-up à 15,20 secondes et le pic de heap à 99,0 MiB.
+Le même profil a révélé qu'un curseur numérique pouvait annoncer une séquence
+absente de la frontier chiffrée et faire sauter des opérations encore inconnues.
+Le serveur ne lui fait désormais jamais confiance seul : il retrouve le plus
+grand préfixe causal prouvé par lectures indexées, avec repli logarithmique si
+l'état est incohérent. Le test de régression demande volontairement la séquence
+2 depuis une frontier vide et reçoit bien les updates 1 et 2.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
 
-- T190 : budgets dédiés de débit, catch-up, compaction et mémoire sur le runner
-  de performance ;
 - les blocs riches et fichiers restant à terminer en US3 ;
 - la frontière visuelle T222, la finition et les surfaces restantes en US6/US7.
 

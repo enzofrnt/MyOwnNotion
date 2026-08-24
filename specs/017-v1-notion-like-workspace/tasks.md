@@ -399,7 +399,7 @@ même langue ; la feature est fonctionnellement complète.
 retirer les chemins temporaires.
 
 - [ ] T189 [P] Ajouter benchmark 500 blocs, frappe, snapshot et update incrémentale dans `tests/performance/page-editor.perf.spec.ts`
-- [ ] T190 [P] Ajouter benchmark 10 000 updates, catch-up, compaction et mémoire dans `tests/performance/page-operations.perf.spec.ts`
+- [X] T190 [P] Ajouter benchmark 10 000 updates, catch-up, compaction et mémoire dans `tests/performance/page-operations.perf.spec.ts`
 - [X] T191 [P] Exécuter 1 000 suites de convergence générées et stabiliser seeds/régressions dans `packages/page-state/tests/multi-device-convergence.property.spec.ts`
 - [X] T192 [P] Simuler 90 jours/10 000 changements et un appareil autorisé absent dans `apps/api/tests/page-operation-long-absence.integration.spec.ts`
 - [ ] T193 [P] Ajouter les tests inconnus+fichiers à travers export/backup/restore dans `apps/api/tests/page-operation-forward-compatibility.integration.spec.ts`

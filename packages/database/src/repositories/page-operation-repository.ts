@@ -792,6 +792,29 @@ export async function listPageOperationUpdatesAfter(
     .limit(input.limit);
 }
 
+/** Reads the immutable receipt at one page-local sequence. */
+export async function readPageOperationUpdateAtSequence(
+  executor: Executor,
+  input: {
+    readonly workspaceId: Uuid;
+    readonly pageId: Uuid;
+    readonly pageSequence: number;
+  },
+): Promise<PageOperationUpdateRow | null> {
+  const rows = await executor
+    .select()
+    .from(pageOperationUpdates)
+    .where(
+      and(
+        eq(pageOperationUpdates.workspaceId, input.workspaceId),
+        eq(pageOperationUpdates.pageId, input.pageId),
+        eq(pageOperationUpdates.pageSequence, input.pageSequence),
+      ),
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function readPageDeviceFrontier(
   executor: Executor,
   input: { readonly pageId: Uuid; readonly deviceId: Uuid },

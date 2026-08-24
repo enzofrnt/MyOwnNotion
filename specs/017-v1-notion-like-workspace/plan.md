@@ -432,13 +432,17 @@ Deux usages restent strictement séparés :
 Le serveur importe les updates de replay par lots causalement validés. Les
 fenêtres de détection d'ambiguïtés et de rattrapage sont paginées : aucun plafond
 de 10 000 lignes ne peut rendre invisible la première update d'un appareil qui
-revient. La frontier confirmée d'un appareil avance depuis son dernier préfixe
-connu et s'arrête au premier résultat serveur qu'elle ne domine pas ; elle ne
-rescane jamais tout l'historique à chaque page de rattrapage. Pour décider si
+revient. Le curseur numérique fourni par le client n'est qu'un indice de
+recherche : le serveur dérive le plus grand préfixe réellement prouvé par la
+frontier durable. Le cas courant vérifie quelques reçus indexés ; un curseur
+incohérent déclenche une recherche logarithmique sur les frontiers cumulatives,
+sans pouvoir sauter une update ni rescanner tout l'historique. Pour décider si
 une update doit être renvoyée, le serveur compare aussi sa frontier telle
 qu'elle a été **écrite par son auteur**, et pas seulement la frontier serveur
 fusionnée après acceptation, afin de ne pas renvoyer sa propre branche à
-l'appareil qui revient.
+l'appareil qui revient. Dans chaque lot réseau borné, le client vérifie les
+digests en parallèle puis importe les updates en une opération CRDT groupée ;
+l'ordre durable et l'échec atomique du lot restent conservés.
 
 Un checkpoint n'autorise l'effacement d'opérations que lorsque :
 

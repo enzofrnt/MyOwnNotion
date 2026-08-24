@@ -231,7 +231,9 @@ export class PageEditingSession {
       pageId: options.pageId,
       checkpoint: operationState.checkpoint,
     });
-    for (const update of updates) page.importUpdate(update.updateBytes);
+    if (page.importUpdates(updates.map(({ updateBytes }) => updateBytes)).pending) {
+      throw new Error("persisted page updates have missing causal dependencies");
+    }
     if (!versionVectorBytesEqual(page.versionVectorBytes(), operationState.versionVector)) {
       throw new Error("persisted page updates do not reconstruct the durable local frontier");
     }
@@ -376,10 +378,8 @@ export class PageEditingSession {
         pageId: this.pageId,
         checkpoint: operationState.checkpoint,
       });
-      for (const update of updates) {
-        if (durable.importUpdate(update.updateBytes).pending) {
-          throw new Error("the durable operational page has missing dependencies");
-        }
+      if (durable.importUpdates(updates.map(({ updateBytes }) => updateBytes)).pending) {
+        throw new Error("the durable operational page has missing dependencies");
       }
       const currentVersion = this.#page.versionVectorBytes();
       if (!versionVectorDominates(durable.versionVectorBytes(), currentVersion)) {
@@ -534,10 +534,9 @@ export class PageEditingSession {
         pageId: this.pageId,
         checkpoint: committed.state.checkpoint,
       });
-      for (const update of await this.#log.listUpdates(this.pageId)) {
-        if (durable.importUpdate(update.updateBytes).pending) {
-          throw new Error("the committed local page has missing causal dependencies");
-        }
+      const durableUpdates = await this.#log.listUpdates(this.pageId);
+      if (durable.importUpdates(durableUpdates.map(({ updateBytes }) => updateBytes)).pending) {
+        throw new Error("the committed local page has missing causal dependencies");
       }
       if (!versionVectorDominates(durable.versionVectorBytes(), this.#page.versionVectorBytes())) {
         throw new Error("the committed local page does not include the visible editor state");

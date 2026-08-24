@@ -118,6 +118,51 @@ describe("operational page materialization", () => {
     expect(stalePull.json()).toMatchObject({ code: "page-operations.projection-invalid" });
   });
 
+  it("does not trust a page cursor that its durable frontier cannot prove", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage("Untrusted page cursor");
+    const checkpoint = await activate(page, headers);
+    const author = await replica(page.itemId, checkpoint);
+    const stale = await replica(page.itemId, checkpoint);
+    const blockId = generateUuidV7();
+    const inserted = author.transact([
+      {
+        type: "insert-block",
+        block: { type: "paragraph", id: blockId, content: [{ text: "A" }] },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    const first = await sync(page.itemId, headers, {
+      persistedVersionVector: inserted.resultVersionVector,
+      updates: [await transportUpdate(inserted)],
+    });
+    expect(first.statusCode, first.body).toBe(200);
+
+    const edited = author.transact([{ type: "replace-text", blockId, from: 0, to: 1, text: "B" }]);
+    const second = await sync(page.itemId, headers, {
+      persistedVersionVector: edited.resultVersionVector,
+      updates: [await transportUpdate(edited)],
+      knownServerPageSequence: 1,
+    });
+    expect(second.statusCode, second.body).toBe(200);
+
+    const catchUp = await sync(page.itemId, headers, {
+      persistedVersionVector: stale.versionVectorBytes(),
+      updates: [],
+      // A stale or corrupt local cursor must not be able to skip updates that
+      // are absent from the encrypted durable frontier sent with the request.
+      knownServerPageSequence: 2,
+    });
+    expect(catchUp.statusCode, catchUp.body).toBe(200);
+    expect(
+      (catchUp.json().remoteUpdates as Array<{ pageSequence: number }>).map(
+        ({ pageSequence }) => pageSequence,
+      ),
+    ).toEqual([1, 2]);
+    expect(catchUp.json()).toMatchObject({ throughPageSequence: 2, hasMore: false });
+  });
+
   it("converges two offline replicas regardless of arrival order", async () => {
     const headers = await harness.authenticate();
     const page = await harness.createLegacyPage();
