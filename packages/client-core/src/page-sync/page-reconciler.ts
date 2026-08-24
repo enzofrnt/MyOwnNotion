@@ -24,6 +24,7 @@ import { type CanonicalBlockV3, generateUuidV7, type Uuid } from "@myownnotion/d
 import {
   OperationalPageDocument,
   sha256Hex,
+  versionVectorBytesEqual,
   versionVectorDominates,
 } from "@myownnotion/page-state";
 import type { SealedPageAmbiguityRow } from "../local-store/schema.ts";
@@ -593,6 +594,10 @@ export class PageReconciler {
           "the page synchronization response identity changed",
         );
       }
+      const previousOpenAmbiguityIds = await this.#log.db.pageAmbiguities
+        .where("[pageId+status]")
+        .equals([this.#pageId, "open"])
+        .primaryKeys();
       const ambiguities = await this.#prepareAmbiguities(response.ambiguities);
       if (!ambiguities.ok) {
         const blocked = !ambiguities.offline;
@@ -648,19 +653,34 @@ export class PageReconciler {
       } catch (error) {
         this.#onBackgroundError?.(error);
       }
-      const listeners = [
-        ...(this.#onDurablePage === undefined ? [] : [this.#onDurablePage]),
-        ...this.#durablePageListeners,
-      ];
-      await Promise.all(
-        listeners.map(async (listener) => {
-          try {
-            await listener(durableState);
-          } catch (error) {
-            this.#onBackgroundError?.(error);
-          }
-        }),
-      );
+      const previousAmbiguityIds = new Set(previousOpenAmbiguityIds);
+      const ambiguitySetChanged =
+        previousAmbiguityIds.size !== ambiguities.openIds.length ||
+        ambiguities.openIds.some((ambiguityId) => !previousAmbiguityIds.has(ambiguityId));
+      const durablePageChanged =
+        batch.length > 0 ||
+        response.remoteUpdates.length > 0 ||
+        response.throughPageSequence !== state.latestServerPageSequence ||
+        state.serverVersionVector === null ||
+        durableState.serverVersionVector === null ||
+        !versionVectorBytesEqual(state.serverVersionVector, durableState.serverVersionVector) ||
+        state.projection?.canonicalDigest !== durableState.projection?.canonicalDigest ||
+        ambiguitySetChanged;
+      if (durablePageChanged) {
+        const listeners = [
+          ...(this.#onDurablePage === undefined ? [] : [this.#onDurablePage]),
+          ...this.#durablePageListeners,
+        ];
+        await Promise.all(
+          listeners.map(async (listener) => {
+            try {
+              await listener(durableState);
+            } catch (error) {
+              this.#onBackgroundError?.(error);
+            }
+          }),
+        );
+      }
 
       const remaining = await this.#log.listUpdates(this.#pageId, ["pending", "sending"]);
       const serverIncludesLocal =

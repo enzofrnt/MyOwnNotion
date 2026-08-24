@@ -47,6 +47,7 @@ import {
   type DatabaseDefinition,
   type DatabaseImpactConfirmation,
   type DefinitionImpact,
+  documentDigestV3,
   type EntryValues,
   generateUuidV7,
   migrateStoredPageDocumentToV3,
@@ -100,6 +101,24 @@ export type OpenOperationalPageResult =
 
 type SharedOpenedOperationalPage = Omit<Extract<OpenOperationalPageResult, { ok: true }>, "close">;
 
+type OnlinePageActivationResult =
+  | { readonly kind: "active" }
+  | { readonly kind: "local-branch" }
+  | {
+      readonly kind: "failed";
+      readonly offline: boolean;
+      readonly code: string;
+      readonly message: string;
+    };
+
+type WorkspacePageJournalState =
+  | { readonly kind: "ready" }
+  | {
+      readonly kind: "pending";
+      readonly offline: boolean;
+      readonly problemCode: string;
+    };
+
 type Listener = () => void;
 export type LocalProjectionChange =
   | { readonly kind: "upsert"; readonly itemIds: readonly Uuid[] }
@@ -122,7 +141,7 @@ export class LocalContentService {
   #storagePersisted: boolean | null = null;
   #listeners = new Set<Listener>();
   #projectionListeners = new Set<ProjectionListener>();
-  /** The reconciliation pass currently running, if any. See `synchronize`. */
+  /** The complete reconciliation drain currently running, if any. See `synchronize`. */
   #inFlightSync: Promise<SyncState> | null = null;
   /** Set when a caller arrives mid-pass; triggers exactly one follow-up pass. */
   #resyncRequested = false;
@@ -447,6 +466,53 @@ export class LocalContentService {
   }
 
   /**
+   * Drains workspace writes that define the page body before v3 takes over.
+   *
+   * A new page and a historical full-document write do not exist in the
+   * operational journal yet. Activating before those rows are accepted would
+   * seed the CRDT from an older server projection and leave two authorities
+   * for the same content. A retained conflict is also a hard boundary: the
+   * local body remains recoverable and must not be hidden by activation.
+   */
+  async #settleWorkspacePageJournal(pageId: Uuid): Promise<WorkspacePageJournalState> {
+    const belongsToPage = (row: {
+      readonly commandType: string;
+      readonly payload: Record<string, unknown>;
+    }): boolean =>
+      (row.commandType === "item.create" && row.payload["id"] === pageId) ||
+      (["page.document.replace", "document.resolve-conflict", "item.convert"].includes(
+        row.commandType,
+      ) &&
+        row.payload["itemId"] === pageId);
+    let [workspaceRows, workspaceConflicts] = await Promise.all([
+      this.outbox.all(),
+      this.outbox.conflicts(),
+    ]);
+    if (workspaceRows.some(belongsToPage)) {
+      const workspaceState = await this.synchronize();
+      if (workspaceState === "offline" || workspaceState === "quota-failure") {
+        return {
+          kind: "pending",
+          offline: workspaceState === "offline",
+          problemCode: `workspace.${workspaceState}`,
+        };
+      }
+      [workspaceRows, workspaceConflicts] = await Promise.all([
+        this.outbox.all(),
+        this.outbox.conflicts(),
+      ]);
+    }
+    if (workspaceRows.some(belongsToPage) || workspaceConflicts.some(belongsToPage)) {
+      return {
+        kind: "pending",
+        offline: false,
+        problemCode: "page-operations.workspace-base-pending",
+      };
+    }
+    return { kind: "ready" };
+  }
+
+  /**
    * Crosses the v2 workspace journal before converting a v3 semantic branch.
    *
    * Newly created pages and upgraded whole-document edits can still have a
@@ -459,39 +525,14 @@ export class LocalContentService {
     pageId: Uuid,
     reconciler: PageReconciler,
   ): Promise<PageReconcileOutcome> {
-    const belongsToPage = (row: {
-      readonly commandType: string;
-      readonly payload: Record<string, unknown>;
-    }): boolean =>
-      (row.commandType === "page.document.replace" && row.payload["itemId"] === pageId) ||
-      (row.commandType === "item.create" && row.payload["id"] === pageId);
-    let [workspaceRows, workspaceConflicts] = await Promise.all([
-      this.outbox.all(),
-      this.outbox.conflicts(),
-    ]);
-    if (workspaceRows.some(belongsToPage)) {
-      const workspaceState = await this.synchronize();
-      if (workspaceState === "offline" || workspaceState === "quota-failure") {
-        return {
-          kind: workspaceState === "offline" ? "offline" : "pending",
-          exchanges: 0,
-          latestPageSequence: 0,
-          fileRequirements: [],
-          problemCode: `workspace.${workspaceState}`,
-        };
-      }
-      [workspaceRows, workspaceConflicts] = await Promise.all([
-        this.outbox.all(),
-        this.outbox.conflicts(),
-      ]);
-    }
-    if (workspaceRows.some(belongsToPage) || workspaceConflicts.some(belongsToPage)) {
+    const journal = await this.#settleWorkspacePageJournal(pageId);
+    if (journal.kind === "pending") {
       return {
-        kind: "pending",
+        kind: journal.offline ? "offline" : "pending",
         exchanges: 0,
         latestPageSequence: 0,
         fileRequirements: [],
-        problemCode: "page-operations.workspace-base-pending",
+        problemCode: journal.problemCode,
       };
     }
     return await reconciler.convertLegacyBranch();
@@ -509,27 +550,34 @@ export class LocalContentService {
    * that had already drained past it and be left `pending` with nobody to
    * resubmit it — the workspace then sits on "1 pending" indefinitely.
    *
-   * While a pass is running, callers join it. A caller that arrives during a
-   * pass also sets `#resyncRequested`, so exactly one follow-up pass runs
-   * afterwards and drains anything enqueued in the meantime. One extra pass is
-   * enough regardless of how many callers arrived, because the follow-up
-   * observes the queue as it stands when it starts.
+   * While a pass is running, callers join the complete drain. A caller that
+   * arrives during a pass also sets `#resyncRequested`, so exactly one
+   * follow-up pass runs afterwards and drains anything enqueued in the
+   * meantime. Every joined caller waits for that follow-up, which matters to
+   * activation barriers that must prove a page creation has reached the server
+   * before seeding operational history. One extra pass is enough regardless of
+   * how many callers arrived, because the follow-up observes the queue as it
+   * stands when it starts.
    */
   async synchronize(): Promise<SyncState> {
     if (this.#inFlightSync !== null) {
       this.#resyncRequested = true;
-      return this.#inFlightSync;
+      return await this.#inFlightSync;
     }
-    const pass = this.#runSynchronize().finally(() => {
-      this.#inFlightSync = null;
+    let shared!: Promise<SyncState>;
+    shared = this.#drainSynchronization().finally(() => {
+      if (this.#inFlightSync === shared) this.#inFlightSync = null;
     });
-    this.#inFlightSync = pass;
+    this.#inFlightSync = shared;
+    return await shared;
+  }
 
-    let state = await pass;
-    while (this.#resyncRequested) {
+  async #drainSynchronization(): Promise<SyncState> {
+    let state: SyncState = "pending";
+    do {
       this.#resyncRequested = false;
-      state = await this.synchronize();
-    }
+      state = await this.#runSynchronize();
+    } while (this.#resyncRequested);
     return state;
   }
 
@@ -640,11 +688,7 @@ export class LocalContentService {
     if (state === null && online) {
       const checkpoint = await this.pageOperationsApi.checkpoint(itemId, generateUuidV7());
       if (checkpoint.ok) {
-        state = await installPageCheckpoint(this.pageOperationLog, checkpoint.value);
-        if (state.projection !== null) {
-          await this.repository.cacheOperationalPageProjection(itemId, state.projection.document);
-        }
-        await this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
+        state = await this.#installOperationalCheckpoint(itemId, checkpoint.value);
       } else if (!checkpoint.offline && checkpoint.problem.code !== "page-operations.not-active") {
         return {
           ok: false,
@@ -721,14 +765,111 @@ export class LocalContentService {
           message: "This page cannot be activated without reducing its content.",
         };
       }
-      // A simple open migrates nothing (plan §6): the page opens on a local
-      // semantic branch over the local projection, online or offline. The
-      // first real edit publishes the branch, and the reconciler converts it
-      // onto shared history on the first online pass (FR-064).
+      if (online) {
+        const activation = await this.#activateOnlinePage(itemId);
+        if (activation.kind === "active") {
+          return await this.#openActivePageSession(itemId, true);
+        }
+        if (activation.kind === "failed") {
+          return {
+            ok: false,
+            offline: activation.offline,
+            code: activation.code,
+            message: activation.message,
+          };
+        }
+      }
+      // A genuinely disconnected page remains fully editable. Its semantic
+      // branch is durable and later converts into the shared CRDT history; it
+      // is no longer the normal online bridge for every historical page.
       return await this.#openLegacyBranchSession(itemId, stored.body);
     }
 
     return await this.#openActivePageSession(itemId, online);
+  }
+
+  async #installOperationalCheckpoint(
+    itemId: Uuid,
+    checkpoint: Parameters<typeof installPageCheckpoint>[1],
+  ) {
+    const state = await installPageCheckpoint(this.pageOperationLog, checkpoint);
+    if (state.projection !== null) {
+      await this.repository.cacheOperationalPageProjection(itemId, state.projection.document);
+    }
+    await this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
+    return state;
+  }
+
+  /**
+   * Activates a connected page from the server's current canonical head.
+   *
+   * The direct item read is intentional. Workspace metadata can be optimistic
+   * while the page body is already canonical, and its local revision id is not
+   * proof of the server head. Activating from that stale id would manufacture
+   * an avoidable compatibility branch. A bounded stale retry covers the one
+   * remaining race: a legacy client changing the canonical page between the
+   * read and the atomic activation transaction.
+   */
+  async #activateOnlinePage(itemId: Uuid): Promise<OnlinePageActivationResult> {
+    const journal = await this.#settleWorkspacePageJournal(itemId);
+    if (journal.kind === "pending") return { kind: "local-branch" };
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const remote = await this.api.getItem(itemId);
+      if (!remote.ok) {
+        if (remote.offline) return { kind: "local-branch" };
+        return {
+          kind: "failed",
+          offline: false,
+          code: remote.problem.code,
+          message: remote.problem.detail ?? remote.problem.title,
+        };
+      }
+      if (remote.value.kind !== "page" || remote.value.pageDocument == null) {
+        return {
+          kind: "failed",
+          offline: false,
+          code: "item.not-found",
+          message: "This item is no longer an editable page.",
+        };
+      }
+      const migrated = migrateStoredPageDocumentToV3(remote.value.pageDocument);
+      if (!migrated.ok) {
+        return {
+          kind: "failed",
+          offline: false,
+          code: "page-operations.projection-invalid",
+          message: "This page cannot be activated without reducing its content.",
+        };
+      }
+      const activation = await this.pageOperationsApi.activate(itemId, {
+        requestId: generateUuidV7(),
+        expectedRevisionId: remote.value.currentRevisionId as Uuid,
+        expectedCanonicalDigest: await documentDigestV3(migrated.document),
+      });
+      if (activation.ok) {
+        await this.#installOperationalCheckpoint(itemId, activation.value);
+        return { kind: "active" };
+      }
+      if (activation.offline) return { kind: "local-branch" };
+      if (activation.problem.code === "page-operations.activation-stale") continue;
+      return {
+        kind: "failed",
+        offline: false,
+        code: activation.problem.code,
+        message: activation.problem.message,
+      };
+    }
+    // The server is reachable, so manufacturing an offline branch here would
+    // recreate the compatibility path this activation removes. Keep the
+    // failure explicit; a later open can retry after the competing writer has
+    // stopped without accepting gestures against a head we could not verify.
+    return {
+      kind: "failed",
+      offline: false,
+      code: "page-operations.activation-stale",
+      message: "The page kept changing while operational synchronization was activated.",
+    };
   }
 
   /**

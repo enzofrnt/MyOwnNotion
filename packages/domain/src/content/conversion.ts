@@ -54,6 +54,43 @@ export function isConvertibleKind(kind: ItemKind): kind is ConvertibleKind {
 }
 
 /**
+ * Whether a stored page body contains anything the owner could lose.
+ *
+ * Both the optimistic client and the authoritative server use this exact
+ * predicate before page -> folder conversion. Keeping the rule here prevents
+ * one side from treating editor scaffolding as content while the other side
+ * accepts it as empty.
+ *
+ * A single plain, empty paragraph is structural: the operational editor needs
+ * one stable block identity before the first keystroke. Unknown keys remain
+ * conservative because they may carry content from a newer document schema.
+ */
+export function pageBodyHoldsEditorialContent(body: unknown): boolean {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return false;
+  }
+  const record = body as Record<string, unknown>;
+  const blocks = record["blocks"];
+  if (!Array.isArray(blocks)) {
+    return Object.keys(record).length > 0;
+  }
+  if (blocks.length !== 1) {
+    return blocks.length > 0;
+  }
+  const [block] = blocks;
+  if (typeof block !== "object" || block === null || Array.isArray(block)) {
+    return true;
+  }
+  const candidate = block as Record<string, unknown>;
+  return !(
+    candidate["type"] === "paragraph" &&
+    Array.isArray(candidate["content"]) &&
+    candidate["content"].length === 0 &&
+    Object.keys(candidate).every((key) => key === "type" || key === "id" || key === "content")
+  );
+}
+
+/**
  * Decides whether a conversion may proceed, and what it must do.
  *
  * `hasContent` is supplied by the caller rather than read from the item,

@@ -156,7 +156,12 @@ export function PageEditor({
   // visual BlockNote round-trip is not an authority check because opaque
   // blocks intentionally have a lossy placeholder representation.
   const inFlight = useRef(0);
+  // Remote projection work and browser input may overlap in the same quiet
+  // window. Keep the local witness independent: a remote import must neither
+  // impersonate a browser gesture nor prevent the first local gesture from
+  // advancing the sequence used by durability assertions.
   const editorActivitySequence = useRef(0);
+  const localActivityInCurrentBurst = useRef(false);
   const editorLocalChangeCount = useRef(0);
   const editorSuppressedChangeCount = useRef(0);
   const editorApplyCount = useRef(0);
@@ -186,20 +191,30 @@ export function PageEditor({
     }
   }, []);
 
-  const markEditorActivity = useCallback(() => {
-    const beginsBurst = editorSettled.current;
-    if (beginsBurst) editorActivitySequence.current += 1;
-    lastEditorActivityAt.current = Date.now();
-    editorSettled.current = false;
-    if (beginsBurst) {
-      writeEditorSettlementState();
-      onSettlementChange?.(false);
-    }
-  }, [onSettlementChange, writeEditorSettlementState]);
+  const markEditorActivity = useCallback(
+    (activity: "local" | "remote" = "local") => {
+      const beginsBusyWindow = editorSettled.current;
+      const beginsLocalBurst = activity === "local" && !localActivityInCurrentBurst.current;
+      if (beginsLocalBurst) {
+        editorActivitySequence.current += 1;
+        localActivityInCurrentBurst.current = true;
+      }
+      lastEditorActivityAt.current = Date.now();
+      editorSettled.current = false;
+      if (beginsBusyWindow || beginsLocalBurst) {
+        writeEditorSettlementState();
+      }
+      if (beginsBusyWindow) {
+        onSettlementChange?.(false);
+      }
+    },
+    [onSettlementChange, writeEditorSettlementState],
+  );
 
   const markEditorSettled = useCallback(() => {
     if (inFlight.current > 0) return;
     editorSettled.current = true;
+    localActivityInCurrentBurst.current = false;
     writeEditorSettlementState();
     onSettlementChange?.(true);
     // Undo/redo availability is presentation state. Updating it once per
@@ -355,7 +370,7 @@ export function PageEditor({
       }) => {
         if (change.origin === "remote") {
           remoteProjectionPending.current = true;
-          markEditorActivity();
+          markEditorActivity("remote");
           scheduleProjectionSettlement();
         }
       },

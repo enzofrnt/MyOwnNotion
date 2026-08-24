@@ -73,7 +73,16 @@ async function createChild(parentItemId: Uuid, positionKey: string): Promise<Uui
   return id;
 }
 
-async function writeDocument(itemId: Uuid): Promise<void> {
+async function writeDocument(
+  itemId: Uuid,
+  blocks: readonly Record<string, unknown>[] = [
+    {
+      type: "paragraph",
+      id: "01924f8e-7c1a-7000-8000-0000000000bb",
+      content: [{ text: "worth keeping" }],
+    },
+  ],
+): Promise<void> {
   const [item] = await context.handle.db
     .select({ currentRevisionId: schema.items.currentRevisionId })
     .from(schema.items)
@@ -89,15 +98,7 @@ async function writeDocument(itemId: Uuid): Promise<void> {
       document: {
         format: "myownnotion.document+json",
         formatVersion: 2,
-        body: {
-          blocks: [
-            {
-              type: "paragraph",
-              id: "01924f8e-7c1a-7000-8000-0000000000bb",
-              content: [{ text: "worth keeping" }],
-            },
-          ],
-        },
+        body: { blocks },
       },
     },
   });
@@ -156,6 +157,20 @@ describe("folder to page", () => {
     // page they made ten seconds ago and never typed in — which teaches them
     // to dismiss the warning that matters (US2 scenario 6).
     const page = await createItem("page", "d");
+    expect((await convert(page, "folder")).result.status).toBe("accepted");
+    expect(await kindOf(page)).toBe("folder");
+  });
+
+  it("treats the operational editor's structural empty paragraph as nothing to lose", async () => {
+    const page = await createItem("page", "e");
+    await writeDocument(page, [
+      {
+        type: "paragraph",
+        id: "01924f8e-7c1a-7000-8000-0000000000bc",
+        content: [],
+      },
+    ]);
+
     expect((await convert(page, "folder")).result.status).toBe("accepted");
     expect(await kindOf(page)).toBe("folder");
   });

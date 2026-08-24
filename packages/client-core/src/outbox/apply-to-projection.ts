@@ -20,6 +20,7 @@ import {
   normalizePropertyValue,
   normalizeRelationTargets,
   type Placement,
+  pageBodyHoldsEditorialContent,
   previewDefinitionImpact,
   type RelationTargets,
   TRASH_RETENTION_MS,
@@ -96,23 +97,6 @@ async function loadView(db: LocalDatabase): Promise<HierarchyView> {
     getActiveChildren: (parentItemId: Uuid | null) =>
       (childrenByParent.get(parentKeyOf(parentItemId)) ?? []).map(toDomainPlacement),
   };
-}
-
-/**
- * Whether a stored body holds anything an owner would miss.
- *
- * Mirrors the server rule deliberately: every page has a document from the
- * moment it is created, so "a document exists" is true of a page never typed
- * in, and warning about that teaches an owner to dismiss the warning that
- * matters.
- */
-function holdsEditorialContent(body: unknown): boolean {
-  if (typeof body !== "object" || body === null || Array.isArray(body)) {
-    return false;
-  }
-  const record = body as Record<string, unknown>;
-  const blocks = record["blocks"];
-  return Array.isArray(blocks) ? blocks.length > 0 : Object.keys(record).length > 0;
 }
 
 async function writeLocalRevision(
@@ -576,7 +560,7 @@ export async function prepareProjectionWrite(
         command.type === "item.convert" &&
         command.targetKind === "folder" &&
         !command.confirmedDestruction &&
-        holdsEditorialContent(opened.pageDocument?.body)
+        pageBodyHoldsEditorialContent(opened.pageDocument?.body)
       ) {
         // Refused before anything is written. Applying it optimistically would
         // show the owner a folder and then take it back when the server

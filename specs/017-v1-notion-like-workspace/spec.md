@@ -104,6 +104,13 @@ responsabilité explicite de ces comportements dans son propre périmètre.
   dossiers, contenus et vues de connaissance. Les fonctions de configuration
   ou d'exploitation ouvrent une surface dédiée ; seul un statut compact utile
   à l'action immédiate reste près du contenu et mène vers son détail.
+- Q: Une page historique ouverte dans l'éditeur alors que le serveur est
+  joignable doit-elle d'abord passer par une branche locale de compatibilité ?
+  → R: Non. Après drainage d'une éventuelle écriture historique déjà durable,
+  l'ouverture éditable active atomiquement l'état opérationnel courant avant
+  d'accepter le premier geste. Une branche sémantique locale n'est créée que
+  si la page possède déjà des gestes hors ligne à préserver ou si le serveur
+  est réellement indisponible.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -564,13 +571,17 @@ en charge, une fois sans pointeur puis une fois au toucher.
   canonique mais pas écrire des mises à jour compatibles MUST rester en lecture
   seule et recevoir une explication, jamais convertir implicitement son
   remplacement complet en écriture concurrente.
-- **FR-064**: Un document historique MUST rester lisible sans réécriture sur
-  ouverture. Son passage au modèle opérationnel MUST être paresseux, atomique,
-  reprenable et vérifié au premier besoin d'écriture compatible. La bascule
-  MUST appartenir à la frontière sérialisée de la session d'édition : une
-  synchronisation générale peut la demander mais ne MUST pas convertir en
-  parallèle une branche qui accepte encore des opérations locales. Cette
-  exigence spécialise FR-031 pour la transition opérationnelle v3.
+- **FR-064**: Un document historique MUST rester lisible sans réécriture dans
+  un parcours de lecture. L'ouverture de sa surface éditable, lorsqu'un serveur
+  est joignable et qu'aucune branche locale n'est à préserver, MUST activer
+  atomiquement et vérifier le modèle opérationnel avant le premier geste ; elle
+  ne MUST pas créer une branche de compatibilité dans le parcours connecté
+  normal. Hors ligne, ou lorsqu'une écriture historique durable doit encore
+  être acquittée, la bascule MUST rester paresseuse, reprenable et appartenir à
+  la frontière sérialisée de la session d'édition : une synchronisation
+  générale peut la demander mais ne MUST pas convertir en parallèle une
+  branche qui accepte encore des opérations locales. Cette exigence spécialise
+  FR-031 pour la transition opérationnelle v3.
 - **FR-065**: Une mutation historique de remplacement complet encore en attente
   au moment de la migration MUST être soit confirmée avant la bascule, soit
   convertie une fois en opérations à partir de sa base causale ; elle ne MUST
