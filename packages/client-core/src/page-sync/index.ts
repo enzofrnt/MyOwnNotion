@@ -2,6 +2,7 @@ export * from "./encrypted-update-log.ts";
 export * from "./legacy-page-editing-session.ts";
 export * from "./legacy-page-state.ts";
 export * from "./local-page-state.ts";
+export * from "./migration.ts";
 export * from "./page-editing-session.ts";
 export * from "./page-reconciler.ts";
 export * from "./page-sync-state.ts";

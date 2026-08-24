@@ -277,9 +277,9 @@ obtiennent projection/historique identiques ; delete/edit reste récupérable.
 - [x] T125 [P] [US5] Écrire les tests de frontier, révocation et compaction dans `apps/api/tests/page-operation-compaction.integration.spec.ts`
 - [x] T126 [P] [US5] Écrire les tests backup/restore/appareil absent et consolidation 30 s/5 min/bornes dans `apps/api/tests/page-operation-backup.integration.spec.ts` et `apps/api/tests/page-history-consolidation.integration.spec.ts`
 - [x] T127 [P] [US5] Écrire les tests client de batching, retries, catch-up et fichiers pending dans `packages/client-core/tests/page-reconciler.property.spec.ts`
-- [ ] T128 [P] [US5] Écrire le journey à deux appareils réellement offline dans `tests/e2e/page-multi-device-convergence.spec.ts`
-- [ ] T129 [P] [US5] Écrire le journey ambiguïté delete/edit, restart et résolution dans `tests/e2e/page-ambiguity.spec.ts`
-- [ ] T130 [P] [US5] Écrire le journey migration d'une mutation v2 en attente dans `tests/e2e/page-protocol-migration.spec.ts`
+- [x] T128 [P] [US5] Écrire le journey à deux appareils réellement offline dans `tests/e2e/page-multi-device-convergence.spec.ts`
+- [x] T129 [P] [US5] Écrire le journey ambiguïté delete/edit, restart et résolution dans `tests/e2e/page-ambiguity.spec.ts`
+- [x] T130 [P] [US5] Écrire le journey migration d'une mutation v2 en attente dans `tests/e2e/page-protocol-migration.spec.ts`
 
 ### Storage and protocol implementation
 
@@ -308,13 +308,13 @@ obtiennent projection/historique identiques ; delete/edit reste récupérable.
 
 - [x] T148 [US5] Implémenter échanges de vectors, batching et réponses idempotentes dans `apps/web/src/services/page-operations-api.ts` et `packages/client-core/src/page-sync/page-reconciler.ts`
 - [x] T149 [US5] Brancher catch-up sur change feed/SSE et reconnexion dans `apps/web/src/features/sync/use-change-stream.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
-- [ ] T150 [US5] Convertir les mutations v2 locales en branche sémantique et persister le checkpoint actif atomiquement dans `packages/client-core/src/page-sync/migration.ts`
+- [x] T150 [US5] Convertir les mutations v2 locales en branche sémantique et persister le checkpoint actif atomiquement dans `packages/client-core/src/page-sync/migration.ts`
 - [x] T151 [US5] Intégrer statut documentaire+octets de fichiers sans doublon dans `packages/client-core/src/page-sync/page-sync-state.ts` et `apps/web/src/features/editor/editor-file-state.tsx`
 - [x] T152 [US5] Construire badge, liste et détail d'ambiguïté récupérable dans `apps/web/src/features/sync/page-ambiguity-notice.tsx` et `apps/web/src/features/sync/page-ambiguity-resolution.tsx`
 - [x] T153 [US5] Mettre à jour l'éditeur ouvert par deltas distants et préserver focus/scroll dans `apps/web/src/features/editor/editor-remote-apply.ts`
 - [x] T154 [US5] Vérifier deux onglets et deux appareils via le même chemin de durabilité dans `packages/client-core/src/page-sync/tab-channel.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
-- [ ] T155 [US5] Enregistrer les trois nouveaux journeys et propriétaires page-state dans `ci/test-impact.json`
-- [ ] T156 [US5] Valider les scénarios de `quickstart.md` et consigner les résultats de la story dans `specs/017-v1-notion-like-workspace/validation.md`
+- [x] T155 [US5] Enregistrer les trois nouveaux journeys et propriétaires page-state dans `ci/test-impact.json`
+- [x] T156 [US5] Valider les scénarios de `quickstart.md` et consigner les résultats de la story dans `specs/017-v1-notion-like-workspace/validation.md`
 
 **Checkpoint**: US5 converge automatiquement après longue déconnexion, ne
 remplace plus la page entière et conserve toute intention réellement ambiguë.
@@ -551,3 +551,7 @@ pas la V1 annoncée** : US3, US5, US7 et US6 restent obligatoires.
 - Aucun serveur Draw.io ne fait partie de la stack. Les `.drawio` restent des
   fichiers opaques ; une éventuelle édition interne est postérieure aux
   fondations V1.
+
+## Phase 11: Convergence
+
+- [x] T215 [US5] Éliminer toute dépendance à `reload()` ou `saveDocument()` pour reprendre une synchronisation de page au boot, au retour online ou après un signal SSE, ne publier l'état « synchronisé » qu'après l'acquittement post-commit serveur et verrouiller ce parcours dans `packages/client-core/src/page-sync/page-reconciler.ts`, `apps/web/src/features/sync/use-change-stream.ts`, `apps/web/src/services/local-content.ts` et `tests/e2e/page-multi-device-convergence.spec.ts` per FR-026, FR-054, FR-059 et US5/AC6

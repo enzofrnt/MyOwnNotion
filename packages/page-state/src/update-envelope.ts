@@ -139,3 +139,34 @@ export function verifyIncrementalUpdateBase(
     }
   }
 }
+
+/**
+ * Reconstructs the author's causal frontier after one incremental blob.
+ *
+ * A server may import that blob into a document which already contains
+ * concurrent remote work. Its resulting document frontier therefore cannot
+ * describe the branch the author actually saw. The blob metadata carries the
+ * exact per-peer operation range, so merging its partial end into the declared
+ * base recovers that original branch frontier without trusting transport data.
+ */
+export function incrementalUpdateResultVersionVector(
+  updateBytes: Uint8Array,
+  declaredBaseBytes: Uint8Array,
+): Uint8Array {
+  let base: VersionVector;
+  let metadata: ReturnType<typeof decodeImportBlobMeta>;
+  try {
+    base = VersionVector.decode(declaredBaseBytes);
+    metadata = decodeImportBlobMeta(updateBytes, true);
+  } catch {
+    throw new TypeError("operational update has an invalid causal base or encoding");
+  }
+  if (metadata.mode !== "update" && metadata.mode !== "outdated-update") {
+    throw new TypeError("operational update payload must be an incremental update");
+  }
+  const result = new Map(base.toJSON());
+  for (const [peer, counter] of metadata.partialEndVersionVector.toJSON()) {
+    result.set(peer, Math.max(result.get(peer) ?? 0, counter));
+  }
+  return arrayBufferBytes(VersionVector.parseJSON(result).encode());
+}

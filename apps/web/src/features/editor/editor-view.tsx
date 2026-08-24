@@ -75,16 +75,27 @@ export function EditorView({
   const resolveAmbiguity = useCallback(
     (ambiguityId: string, decision: "confirm-delete" | "restore-change") => {
       void (async () => {
-        await service.pageOperationsApi.resolveAmbiguity(ambiguityId as Uuid, {
-          requestId: generateUuidV7() as Uuid,
-          decision,
-        });
-        if (state.kind === "ready") void state.reconciler.synchronize();
+        const record = ambiguities.find((candidate) => candidate.ambiguityId === ambiguityId);
+        if (record === undefined) return;
+        const requestId = generateUuidV7() as Uuid;
+        const resolved = await service.pageOperationsApi.resolveAmbiguity(
+          ambiguityId as Uuid,
+          decision === "confirm-delete"
+            ? { requestId, decision }
+            : {
+                requestId,
+                decision,
+                parentBlockId: record.details.recoverablePlacement?.parentBlockId ?? null,
+                beforeBlockId: record.details.recoverablePlacement?.beforeBlockId ?? null,
+              },
+        );
+        if (!resolved.ok) return;
+        if (state.kind === "ready") await state.reconciler.synchronize();
         const records = await service.pageOperationLog.listOpenAmbiguities(itemId);
         setAmbiguities(records);
       })();
     },
-    [service, itemId, state],
+    [service, itemId, state, ambiguities],
   );
 
   // Restored once the surface is ready, then retried briefly: early attempts
@@ -151,6 +162,7 @@ export function EditorView({
 
   useEffect(() => {
     let cancelled = false;
+    let releaseOpened = () => {};
     setState({ kind: "loading" });
     setEditorSettled(true);
     let refreshAmbiguities = () => {};
@@ -168,12 +180,22 @@ export function EditorView({
             });
           };
           refreshAmbiguities();
+          const unsubscribeAmbiguities = opened.session.subscribe((change) => {
+            if (change.origin === "remote") refreshAmbiguities();
+          });
+          let released = false;
+          releaseOpened = () => {
+            if (released) return;
+            released = true;
+            unsubscribeAmbiguities();
+            opened.close();
+          };
           setState({
             kind: "ready",
             mode: opened.mode,
             session: opened.session,
             reconciler: opened.reconciler,
-            close: opened.close,
+            close: releaseOpened,
           });
           return;
         }
@@ -197,6 +219,7 @@ export function EditorView({
       });
     return () => {
       cancelled = true;
+      releaseOpened();
     };
     // The item, and nothing about its revision: another device advancing the
     // revision must never remount this editor under somebody's cursor. A

@@ -190,6 +190,8 @@ export class LegacyPageEditingSession {
   #successor: PageEditingSession | null = null;
   #handoverProjectionPending = false;
   #converting = false;
+  #conversionRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  #conversionRetryAttempt = 0;
   #upgrade: Promise<void> | null = null;
   #online: boolean;
   #localCommit: "idle" | "saving" | "blocked" = "idle";
@@ -380,10 +382,18 @@ export class LegacyPageEditingSession {
   setOnline(online: boolean): void {
     if (this.#online === online) return;
     this.#online = online;
+    if (!online) {
+      if (this.#conversionRetryTimer !== null) {
+        clearTimeout(this.#conversionRetryTimer);
+        this.#conversionRetryTimer = null;
+      }
+      this.#conversionRetryAttempt = 0;
+    }
     if (this.#successor !== null) {
       this.#successor.setOnline(online);
     } else if (online) {
       // Reconnecting flushes offline edits by converting the branch.
+      this.#conversionRetryAttempt = 0;
       this.#scheduleConversion();
     }
     this.#refreshSync("status");
@@ -615,11 +625,19 @@ export class LegacyPageEditingSession {
       return;
     }
     if (!this.#hasUserEdits()) return; // Looking at a page migrates nothing.
+    // A new gesture or an explicit online transition is a stronger signal than
+    // the pending backoff. Convert at this queue boundary now and retire the
+    // delayed attempt, so only one driver can own the branch handover.
+    if (this.#conversionRetryTimer !== null) {
+      clearTimeout(this.#conversionRetryTimer);
+      this.#conversionRetryTimer = null;
+    }
     const requestConversion = this.#requestConversion;
     if (requestConversion === undefined) return;
     this.#converting = true;
     this.#refreshSync("status");
     const task = this.#tail.then(async () => {
+      let retry = false;
       try {
         if (this.#successor === null) {
           const outcome = await requestConversion();
@@ -630,6 +648,16 @@ export class LegacyPageEditingSession {
             // until the successor exists ensures every later gesture runs on
             // the active document instead of a branch already converted.
             await this.#upgradeToActiveSession();
+            this.#conversionRetryAttempt = 0;
+          } else {
+            // The common migration race is intentional and transient: the
+            // semantic branch can be based on an optimistic v2 revision whose
+            // whole-document mutation is still being acknowledged by the
+            // workspace outbox. Once that acknowledgement installs the local
+            // -> canonical revision alias, the exact same idempotent branch can
+            // convert. A failed first exchange must therefore not strand the
+            // page until another keystroke, reload, or online transition.
+            retry = true;
           }
         }
       } catch (error) {
@@ -637,12 +665,38 @@ export class LegacyPageEditingSession {
       } finally {
         this.#converting = false;
         this.#refreshSync("status");
+        if (retry) this.#scheduleConversionRetry();
       }
     });
     this.#tail = task.then(
       () => undefined,
       () => undefined,
     );
+  }
+
+  /**
+   * Retries a transport-unavailable conversion without spinning.
+   *
+   * This remains inside the editing session rather than the general page
+   * reconciler: the timer only asks `#scheduleConversion`, which appends the
+   * attempt to the same serial gesture queue. It can never install a checkpoint
+   * in parallel with a locally acknowledged edit (FR-064).
+   */
+  #scheduleConversionRetry(): void {
+    if (
+      this.#conversionRetryTimer !== null ||
+      !this.#online ||
+      this.#successor !== null ||
+      !this.#hasUserEdits()
+    ) {
+      return;
+    }
+    const delay = Math.min(250 * 2 ** this.#conversionRetryAttempt, 5_000);
+    this.#conversionRetryAttempt += 1;
+    this.#conversionRetryTimer = setTimeout(() => {
+      this.#conversionRetryTimer = null;
+      this.#scheduleConversion();
+    }, delay);
   }
 
   #hasUserEdits(): boolean {

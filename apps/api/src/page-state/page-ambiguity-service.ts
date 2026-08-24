@@ -21,6 +21,7 @@ import {
   SemanticConflictError,
 } from "@myownnotion/page-state";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
+import { announceCommitted } from "../sync/change-notifier.ts";
 import type { CanonicalMaterializer } from "./canonical-materializer.ts";
 import type { PageOperationCrypto } from "./page-operation-crypto.ts";
 import { PageOperationServiceError } from "./page-operation-errors.ts";
@@ -29,10 +30,12 @@ import type { PageOperationService } from "./page-operation-service.ts";
 export interface PageAmbiguityDetail {
   readonly ambiguityId: Uuid;
   readonly pageId: Uuid;
+  readonly logicalKey: string;
   readonly kind: PageAmbiguityRow["kind"];
   readonly status: PageAmbiguityRow["status"];
   readonly openedAt: string;
   readonly blockIds: readonly Uuid[];
+  readonly sourceUpdateIds: readonly [Uuid, Uuid];
   readonly deletedSubtree: CanonicalBlockV3 | null;
   readonly recoverableSubtree: CanonicalBlockV3 | null;
   readonly recoverablePlacement: PageAmbiguity["recoverablePlacement"] | null;
@@ -106,10 +109,12 @@ export class PageAmbiguityService {
       return {
         ambiguityId: row.id as Uuid,
         pageId: row.pageId as Uuid,
+        logicalKey: details.logicalKey,
         kind: row.kind,
         status: row.status,
         openedAt: row.openedAt.toISOString(),
         blockIds: [...details.blockIds],
+        sourceUpdateIds: [...details.sourceUpdateIds],
         deletedSubtree: details.deletedSubtree ?? null,
         recoverableSubtree: details.recoverableSubtree ?? null,
         recoverablePlacement: details.recoverablePlacement ?? null,
@@ -142,7 +147,7 @@ export class PageAmbiguityService {
     };
   }): Promise<{ revisionId: Uuid; status: string }> {
     try {
-      return await runMutation(this.#deps.db, async (tx) => {
+      const resolved = await runMutation(this.#deps.db, async (tx) => {
         const { row, details } = await this.#load(tx, input.ambiguityId);
         if (row.status !== "open") {
           throw new PageOperationServiceError(
@@ -173,7 +178,7 @@ export class PageAmbiguityService {
           }
         })();
         const plan = planPageAmbiguityResolution(details, decision);
-        const { revisionId } = await this.#deps.operations.applyServerCommands(
+        const { revisionId, committedSequence } = await this.#deps.operations.applyServerCommands(
           {
             pageId: row.pageId as Uuid,
             deviceId: input.deviceId,
@@ -189,8 +194,10 @@ export class PageAmbiguityService {
           resolutionRevisionId: revisionId,
           resolvedAt: this.#deps.now(),
         });
-        return { revisionId, status: plan.status };
+        return { revisionId, status: plan.status, committedSequence };
       });
+      announceCommitted(resolved.committedSequence);
+      return { revisionId: resolved.revisionId, status: resolved.status };
     } catch (error) {
       if (error instanceof SemanticConflictError) {
         throw new PageOperationServiceError("page-operations.validation", error.message, 409);

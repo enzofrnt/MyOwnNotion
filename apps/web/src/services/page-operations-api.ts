@@ -1,6 +1,10 @@
 /** Same-origin browser transport for protocol-v3 page operations. */
 
-import type { PageSyncTransport, PageSyncTransportResult } from "@myownnotion/client-core";
+import type {
+  PageAmbiguityTransportResult,
+  PageSyncTransport,
+  PageSyncTransportResult,
+} from "@myownnotion/client-core";
 import {
   type ActivatePageRequestDto,
   CSRF_TOKEN_HEADER,
@@ -10,7 +14,10 @@ import {
   PAGE_OPERATION_PROTOCOL_VERSION,
   type PageCheckpointResponseDto,
   type PageSyncRequestDto,
+  parsePageAmbiguityDetail,
   parsePageSyncResponse,
+  parseResolvePageAmbiguityResponse,
+  type ResolvePageAmbiguityResponseDto,
 } from "@myownnotion/contracts";
 import type { Uuid } from "@myownnotion/domain";
 
@@ -24,6 +31,12 @@ export interface PageOperationsApiOptions {
 export type PageActivationTransportResult =
   | { readonly ok: true; readonly value: PageCheckpointResponseDto }
   | Exclude<PageSyncTransportResult, { readonly ok: true }>;
+
+type PageTransportFailure = Exclude<PageSyncTransportResult, { readonly ok: true }>;
+
+export type PageAmbiguityResolutionTransportResult =
+  | { readonly ok: true; readonly value: ResolvePageAmbiguityResponseDto }
+  | PageTransportFailure;
 
 const NETWORK_PROBLEM = {
   code: "network.unreachable",
@@ -67,7 +80,12 @@ export class PageOperationsApi implements PageSyncTransport {
     this.#fetch = options.fetch ?? fetch.bind(globalThis);
   }
 
-  async #post(path: string, body: unknown): Promise<PageSyncTransportResult> {
+  async #postJson<T>(
+    path: string,
+    body: unknown,
+    parse: (value: unknown) => T,
+    invalidMessage: string,
+  ): Promise<{ readonly ok: true; readonly value: T } | PageTransportFailure> {
     const csrfToken = this.#csrfToken();
     if (csrfToken === null) return { ok: false, offline: false, problem: CSRF_PROBLEM };
     const headers = new Headers({
@@ -96,17 +114,26 @@ export class PageOperationsApi implements PageSyncTransport {
       return { ok: false, offline: false, problem: safeProblem(value, response.status) };
     }
     try {
-      return { ok: true, value: parsePageSyncResponse(value) };
+      return { ok: true, value: parse(value) };
     } catch {
       return {
         ok: false,
         offline: false,
         problem: {
           code: "page-operations.projection-invalid",
-          message: "The synchronization response did not match the negotiated protocol.",
+          message: invalidMessage,
         },
       };
     }
+  }
+
+  async #post(path: string, body: unknown): Promise<PageSyncTransportResult> {
+    return await this.#postJson(
+      path,
+      body,
+      parsePageSyncResponse,
+      "The synchronization response did not match the negotiated protocol.",
+    );
   }
 
   async sync(pageId: Uuid, request: PageSyncRequestDto): Promise<PageSyncTransportResult> {
@@ -154,6 +181,44 @@ export class PageOperationsApi implements PageSyncTransport {
     return await this.#post(`/v1/page-operations/${pageId}/sync`, request);
   }
 
+  async getAmbiguity(ambiguityId: Uuid): Promise<PageAmbiguityTransportResult> {
+    const headers = new Headers({
+      accept: "application/json",
+      "x-myownnotion-client-protocol": String(PAGE_OPERATION_PROTOCOL_VERSION),
+    });
+    let response: Response;
+    try {
+      response = await this.#fetch(`${this.#baseUrl}/v1/page-ambiguities/${ambiguityId}`, {
+        method: "GET",
+        headers,
+        credentials: "same-origin",
+      });
+    } catch {
+      return { ok: false, offline: true, problem: NETWORK_PROBLEM };
+    }
+    let value: unknown;
+    try {
+      value = await response.json();
+    } catch {
+      value = null;
+    }
+    if (!response.ok) {
+      return { ok: false, offline: false, problem: safeProblem(value, response.status) };
+    }
+    try {
+      return { ok: true, value: parsePageAmbiguityDetail(value) };
+    } catch {
+      return {
+        ok: false,
+        offline: false,
+        problem: {
+          code: "page-operations.projection-invalid",
+          message: "The ambiguity detail did not match the negotiated protocol.",
+        },
+      };
+    }
+  }
+
   /**
    * Submits the owner's decision for one ambiguity (T152).
    *
@@ -163,9 +228,21 @@ export class PageOperationsApi implements PageSyncTransport {
    */
   async resolveAmbiguity(
     ambiguityId: Uuid,
-    request: { requestId: Uuid; decision: "confirm-delete" | "restore-change" },
-  ): Promise<PageSyncTransportResult> {
-    return await this.#post(`/v1/page-ambiguities/${ambiguityId}/resolve`, request);
+    request:
+      | { requestId: Uuid; decision: "confirm-delete" }
+      | {
+          requestId: Uuid;
+          decision: "restore-change";
+          parentBlockId: Uuid | null;
+          beforeBlockId: Uuid | null;
+        },
+  ): Promise<PageAmbiguityResolutionTransportResult> {
+    return await this.#postJson(
+      `/v1/page-ambiguities/${ambiguityId}/resolve`,
+      request,
+      parseResolvePageAmbiguityResponse,
+      "The ambiguity resolution response did not match the negotiated protocol.",
+    );
   }
 
   async activate(

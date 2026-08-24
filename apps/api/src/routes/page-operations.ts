@@ -2,6 +2,7 @@
 
 import {
   ActivatePageRequestSchema,
+  PageAmbiguityDetailSchema,
   PageCheckpointResponseSchema,
   PageOperationProblemSchema,
   PageSyncRequestSchema,
@@ -10,6 +11,7 @@ import {
   parsePageSyncRequest,
   parseResolvePageAmbiguityRequest,
   ResolvePageAmbiguityRequestSchema,
+  ResolvePageAmbiguityResponseSchema,
 } from "@myownnotion/contracts";
 import type { Database } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
@@ -163,7 +165,7 @@ export function registerPageOperationRoutes(
 
   app.get(
     "/v1/page-ambiguities/:ambiguityId",
-    { schema: { params: AmbiguityParams } },
+    { schema: { params: AmbiguityParams, response: { 200: PageAmbiguityDetailSchema } } },
     async (request, reply) => {
       requirePageOperationProtocol(request);
       reply.header("cache-control", "no-store");
@@ -186,6 +188,7 @@ export function registerPageOperationRoutes(
       schema: {
         params: AmbiguityParams,
         body: ResolvePageAmbiguityRequestSchema,
+        response: { 200: ResolvePageAmbiguityResponseSchema },
       },
     },
     async (request, reply) => {

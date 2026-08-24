@@ -284,17 +284,19 @@ export const PageSyncRequestSchema = Type.Union([
 ]);
 export type PageSyncRequestDto = Static<typeof PageSyncRequestSchema>;
 
+export const PageAmbiguityKindSchema = Type.Union([
+  Type.Literal("delete-edit"),
+  Type.Literal("delete-move"),
+  Type.Literal("type-transform"),
+  Type.Literal("property-transform"),
+  Type.Literal("schema"),
+]);
+
 export const PageAmbiguitySummarySchema = Type.Object(
   {
     ambiguityId: PageOperationUuidSchema,
     pageId: PageOperationUuidSchema,
-    kind: Type.Union([
-      Type.Literal("delete-edit"),
-      Type.Literal("delete-move"),
-      Type.Literal("type-transform"),
-      Type.Literal("property-transform"),
-      Type.Literal("schema"),
-    ]),
+    kind: PageAmbiguityKindSchema,
     blockIds: Type.Array(PageOperationUuidSchema, { maxItems: 10_000 }),
     openedAt: PageOperationInstantSchema,
     status: Type.Literal("open"),
@@ -302,6 +304,43 @@ export const PageAmbiguitySummarySchema = Type.Object(
   { additionalProperties: false },
 );
 export type PageAmbiguitySummaryDto = Static<typeof PageAmbiguitySummarySchema>;
+
+export const PageAmbiguityDetailSchema = Type.Object(
+  {
+    ambiguityId: PageOperationUuidSchema,
+    pageId: PageOperationUuidSchema,
+    logicalKey: Type.String({ minLength: 1, maxLength: 4096 }),
+    kind: PageAmbiguityKindSchema,
+    status: Type.Union([
+      Type.Literal("open"),
+      Type.Literal("resolved-keep"),
+      Type.Literal("resolved-delete"),
+      Type.Literal("resolved-custom"),
+    ]),
+    openedAt: PageOperationInstantSchema,
+    blockIds: Type.Array(PageOperationUuidSchema, { maxItems: 10_000 }),
+    sourceUpdateIds: Type.Tuple([PageOperationUuidSchema, PageOperationUuidSchema]),
+    deletedSubtree: Type.Union([CanonicalBlockSubtreeV3Schema, Type.Null()]),
+    recoverableSubtree: Type.Union([CanonicalBlockSubtreeV3Schema, Type.Null()]),
+    recoverablePlacement: Type.Union([
+      Type.Object(
+        {
+          parentBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
+          beforeBlockId: Type.Union([PageOperationUuidSchema, Type.Null()]),
+        },
+        { additionalProperties: false },
+      ),
+      Type.Null(),
+    ]),
+    propertyKey: Type.Union([Type.String({ minLength: 1, maxLength: 1024 }), Type.Null()]),
+    alternatives: Type.Union([
+      Type.Tuple([CanonicalBlockSubtreeV3Schema, CanonicalBlockSubtreeV3Schema]),
+      Type.Null(),
+    ]),
+  },
+  { additionalProperties: false },
+);
+export type PageAmbiguityDetailDto = Static<typeof PageAmbiguityDetailSchema>;
 
 export const RemotePageUpdateSchema = Type.Object(
   {
@@ -469,6 +508,19 @@ export const ResolvePageAmbiguityRequestSchema = Type.Union([
   ),
 ]);
 export type ResolvePageAmbiguityRequestDto = Static<typeof ResolvePageAmbiguityRequestSchema>;
+
+export const ResolvePageAmbiguityResponseSchema = Type.Object(
+  {
+    revisionId: PageOperationUuidSchema,
+    status: Type.Union([
+      Type.Literal("resolved-keep"),
+      Type.Literal("resolved-delete"),
+      Type.Literal("resolved-custom"),
+    ]),
+  },
+  { additionalProperties: false },
+);
+export type ResolvePageAmbiguityResponseDto = Static<typeof ResolvePageAmbiguityResponseSchema>;
 
 export const PAGE_OPERATION_PROBLEM_CODES = [
   "page-operations.protocol-read-only",
@@ -704,6 +756,14 @@ export function parseActivatePageRequest(value: unknown): ActivatePageRequestDto
 
 export function parseResolvePageAmbiguityRequest(value: unknown): ResolvePageAmbiguityRequestDto {
   return parseSchema(ResolvePageAmbiguityRequestSchema, value, "resolve page ambiguity request");
+}
+
+export function parsePageAmbiguityDetail(value: unknown): PageAmbiguityDetailDto {
+  return parseSchema(PageAmbiguityDetailSchema, value, "page ambiguity detail");
+}
+
+export function parseResolvePageAmbiguityResponse(value: unknown): ResolvePageAmbiguityResponseDto {
+  return parseSchema(ResolvePageAmbiguityResponseSchema, value, "resolve page ambiguity response");
 }
 
 export function parsePageOperationProblem(value: unknown): PageOperationProblemDto {

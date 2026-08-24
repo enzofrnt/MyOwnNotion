@@ -353,12 +353,20 @@ export class LocalContentService {
    * the remote deltas an open editor must adopt. A ping that finds nothing
    * new is one cheap frontier confirmation.
    */
-  synchronizeOpenPages(): void {
-    for (const reconciler of this.#pageReconcilers.values()) {
-      void reconciler.synchronize().catch(() => {
-        // Offline or blocked: the page state already says so honestly.
-      });
-    }
+  async synchronizeOpenPages(): Promise<boolean> {
+    const outcomes = await Promise.all(
+      [...this.#pageReconcilers.values()].map(async (reconciler) => {
+        try {
+          return (await reconciler.synchronize()).kind;
+        } catch {
+          return "pending" as const;
+        }
+      }),
+    );
+    // `blocked` needs an owner's decision or a code fix, not a hot retry.
+    // `offline` and `pending` can both be transient transport failures and
+    // must keep the bounded change-stream retry alive.
+    return outcomes.every((outcome) => outcome === "synced" || outcome === "blocked");
   }
 
   /**
@@ -681,6 +689,38 @@ export class LocalContentService {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
       },
       requestConversion: async () => {
+        // A browser upgraded with a historical whole-document write already
+        // in its workspace outbox has two durable journals for one logical
+        // editing session: the v2 replacement first, then this semantic
+        // branch. They must cross the protocol boundary in that order. Merely
+        // relying on the window's `online` listeners is a race — the page
+        // listener can activate v3 milliseconds before the workspace listener
+        // submits the replacement, after which the server correctly refuses
+        // the blind write and the branch can never resolve its local revision
+        // alias.
+        //
+        // Keep this barrier inside the session-owned conversion callback. The
+        // session already invokes it only at a serial gesture boundary, so the
+        // workspace drain cannot race a new local editor transaction. A retry
+        // is requested while the exact page replacement is still pending,
+        // sending, blocked, or retained as a conflict; acknowledgement removes
+        // it and installs its local -> canonical revision alias atomically.
+        const workspaceState = await this.synchronize();
+        if (workspaceState === "offline" || workspaceState === "quota-failure") {
+          return "unavailable";
+        }
+        const [workspaceRows, workspaceConflicts] = await Promise.all([
+          this.outbox.all(),
+          this.outbox.conflicts(),
+        ]);
+        const belongsToPage = (row: {
+          readonly commandType: string;
+          readonly payload: Record<string, unknown>;
+        }): boolean =>
+          row.commandType === "page.document.replace" && row.payload["itemId"] === itemId;
+        if (workspaceRows.some(belongsToPage) || workspaceConflicts.some(belongsToPage)) {
+          return "unavailable";
+        }
         const outcome = await reconciler.convertLegacyBranch();
         return outcome.kind === "synced" ? "converted" : "unavailable";
       },
