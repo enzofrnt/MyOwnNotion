@@ -16,6 +16,7 @@ import {
   openWorkspaceDiagnostics,
   saveDocument,
   selectItem,
+  selectSettledPage,
   typeIntoEditor,
   uniqueName,
   waitForDatabaseDefinitionSaved,
@@ -235,7 +236,7 @@ test.describe("the file surfaces (feature 005)", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
     const fileName = `${uniqueName("a11y")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({
       name: fileName,

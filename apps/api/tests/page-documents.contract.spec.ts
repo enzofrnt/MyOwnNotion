@@ -2,7 +2,8 @@
  * Page-document type discrimination tests (T051, US2).
  */
 
-import { generateUuidV7 } from "@myownnotion/domain";
+import { schema } from "@myownnotion/database";
+import { generateUuidV7, PAGE_OPERATION_PROTOCOL_VERSION } from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   type ApiHarness,
@@ -136,6 +137,33 @@ describe("page-document replacement (T058)", () => {
     const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${page.itemId}` });
     const body = item.json() as { pageDocument: { body: { text: string } } };
     expect(body.pageDocument.body.text).toBe("hello");
+  });
+
+  it("replays a transactional operational-page refusal with the route contract", async () => {
+    const page = await createItemViaApi(harness, { kind: "page", name: "Activated race" });
+    const mutationId = generateUuidV7();
+    await harness.built.database.db.insert(schema.mutations).values({
+      id: mutationId,
+      workspaceId: harness.built.context.workspaceId,
+      commandType: "page.document.replace",
+      status: "rejected",
+      failureCode: "page-operations.protocol-read-only",
+    });
+
+    const response = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: { ...idempotencyHeaders(), "idempotency-key": mutationId },
+      payload: { baseRevisionId: page.revisionId, document: document("must not replace") },
+    });
+
+    expect(response.statusCode).toBe(426);
+    expect(response.json()).toEqual({
+      code: "page-operations.protocol-read-only",
+      message: "This page uses convergent synchronization and cannot be replaced as one document.",
+      requiredProtocol: PAGE_OPERATION_PROTOCOL_VERSION,
+      readAllowed: true,
+    });
   });
 
   it("rejects documents on folders (409 item.wrong-kind)", async () => {

@@ -4,6 +4,7 @@ import {
   insertInitializingPageOperationState,
   insertPageOperationCheckpoint,
   lockPageOperationState,
+  readItem,
   readPageOperationState,
   schema,
   submitMutation,
@@ -226,6 +227,46 @@ describe("page operation schema boundaries", () => {
     ).rejects.toThrow();
 
     expect(await readPageOperationState(context.handle.db, context.workspaceId, pageId)).toBeNull();
+  });
+
+  it("rejects legacy full-document writes inside the mutation transaction", async () => {
+    const { pageId } = await activePage();
+    const before = await readItem(context.handle.db, pageId);
+    if (before === null) throw new Error("active test page was not created");
+    const mutationId = generateUuidV7();
+
+    const replace = () =>
+      submitMutation(context.handle.db, {
+        workspaceId: context.workspaceId,
+        mutationId,
+        commandType: "page.document.replace",
+        command: {
+          type: "page.document.replace",
+          itemId: pageId,
+          baseRevisionId: before.currentRevisionId,
+          document: {
+            format: "myownnotion.document+json",
+            formatVersion: 2,
+            body: { blocks: [{ type: "paragraph", id: generateUuidV7(), content: [] }] },
+          },
+        },
+      });
+
+    const first = await replace();
+    expect(first.result).toMatchObject({
+      status: "rejected",
+      problem: { code: "page-operations.protocol-read-only" },
+    });
+    await expect(readItem(context.handle.db, pageId)).resolves.toEqual(before);
+
+    // The refusal is terminal and idempotent just like every other mutation
+    // verdict; replaying it cannot slip around the operational-page guard.
+    const replay = await replace();
+    expect(replay.result).toMatchObject({
+      status: "rejected",
+      problem: { code: "page-operations.protocol-read-only" },
+    });
+    await expect(readItem(context.handle.db, pageId)).resolves.toEqual(before);
   });
 });
 

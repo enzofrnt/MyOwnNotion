@@ -12,9 +12,11 @@ import os from "node:os";
 import path from "node:path";
 import { createInstallation } from "@myownnotion/database";
 import {
+  type BlockDocumentV3,
   documentDigestV3,
   generateUuidV7,
   PAGE_OPERATION_PROTOCOL_VERSION,
+  type Uuid,
 } from "@myownnotion/domain";
 import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
 import { sql } from "drizzle-orm";
@@ -307,6 +309,84 @@ describe("activation and checkpoint catch-up", () => {
     expect(batch.json().results[0]).toMatchObject({
       status: "rejected",
       problem: { code: "page-operations.protocol-read-only" },
+    });
+  });
+
+  it("replays an accepted legacy replacement after the page activates", async () => {
+    const page = await createLegacyPage();
+    const headers = await authenticate();
+    const mutationId = generateUuidV7();
+    const replacementBody: BlockDocumentV3 = {
+      blocks: [
+        {
+          id: generateUuidV7(),
+          type: "paragraph",
+          content: [{ text: "accepted before activation" }],
+        },
+      ],
+    };
+    const payload = {
+      baseRevisionId: page.revisionId,
+      document: {
+        format: "myownnotion.document+json",
+        formatVersion: 2,
+        body: replacementBody,
+      },
+    };
+
+    const accepted = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: { ...headers, "idempotency-key": mutationId },
+      payload,
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+    expect(accepted.json()).toMatchObject({ mutationId, revisionIds: [expect.any(String)] });
+
+    const acceptedRevisionId = accepted.json().revisionIds[0] as Uuid;
+    const activated = await activation(
+      {
+        ...page,
+        revisionId: acceptedRevisionId,
+        canonicalDigest: await documentDigestV3(replacementBody),
+      },
+      headers,
+    );
+    expect(activated.statusCode, activated.body).toBe(200);
+
+    // Losing the first HTTP response must not turn a committed write into a
+    // protocol refusal merely because the page activated before the retry.
+    const directReplay = await harness.built.app.inject({
+      method: "PUT",
+      url: `/v1/pages/${page.itemId}/document`,
+      headers: { ...headers, "idempotency-key": mutationId },
+      payload,
+    });
+    expect(directReplay.statusCode, directReplay.body).toBe(200);
+    expect(directReplay.json()).toMatchObject({
+      mutationId,
+      revisionIds: [acceptedRevisionId],
+    });
+
+    const batchReplay = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/mutations/batch",
+      headers,
+      payload: {
+        mutations: [
+          {
+            mutationId,
+            commandType: "page.document.replace",
+            baseRevisionIds: [page.revisionId],
+            payload: { itemId: page.itemId, ...payload },
+          },
+        ],
+      },
+    });
+    expect(batchReplay.statusCode, batchReplay.body).toBe(200);
+    expect(batchReplay.json().results[0]).toMatchObject({
+      status: "already-accepted",
+      revisionIds: [acceptedRevisionId],
     });
   });
 

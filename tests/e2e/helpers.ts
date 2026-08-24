@@ -695,6 +695,20 @@ export async function saveDocument(
 }
 
 /**
+ * Selects a page after its operational editor has finished activating.
+ *
+ * Use this for journeys that immediately interact with a sibling page surface
+ * such as attachments. Activation refreshes the selected item; on a constrained
+ * browser that refresh can otherwise land between pointer-down and pointer-up,
+ * so the browser completes the gesture against two different layouts and React
+ * receives no click.
+ */
+export async function selectSettledPage(page: Page, name: string): Promise<void> {
+  await selectItem(page, name);
+  await saveDocument(page, { until: "synced" });
+}
+
+/**
  * Where the API this run is talking to actually lives.
  *
  * A journey that needs to act as "another device" goes straight to the API

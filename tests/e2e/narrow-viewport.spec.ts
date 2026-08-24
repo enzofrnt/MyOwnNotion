@@ -21,6 +21,7 @@ import {
   openWorkspace,
   saveDocument,
   selectItem,
+  selectSettledPage,
   typeIntoEditor,
   uniqueName,
   waitForSynchronized,
@@ -183,7 +184,7 @@ test.describe("the file surfaces at 320 pixels", () => {
     const name = uniqueName("NarrowFiles");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
-    await selectItem(page, name);
+    await selectSettledPage(page, name);
 
     const fileName = `${uniqueName("narrow")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({
@@ -204,7 +205,7 @@ test.describe("the file surfaces at 320 pixels", () => {
     const name = uniqueName("NarrowDelete");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
-    await selectItem(page, name);
+    await selectSettledPage(page, name);
 
     const fileName = `${uniqueName("narrowdel")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({

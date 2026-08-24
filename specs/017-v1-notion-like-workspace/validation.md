@@ -63,6 +63,10 @@ Les scénarios centraux du quickstart sont verts :
 | Import client groupé | `pnpm exec vitest run --project client-core packages/client-core/tests/page-reconciler.property.spec.ts packages/client-core/tests/page-editing-session.spec.ts packages/client-core/tests/legacy-page-editing-session.spec.ts` | 3 fichiers, 40 tests passés |
 | Régressions API ciblées | `pnpm exec vitest run --project api-contract tests/page-operation-service.integration.spec.ts tests/page-operation-compaction.integration.spec.ts tests/page-operations.contract.spec.ts` | 3 fichiers, 27 tests passés |
 | Contrats API et workspace après correction du cycle de vie | `pnpm test:contract` | 93 fichiers, 1 147 tests passés ; longue absence en 153,34 s, aucun rejet différé |
+| Exclusion activation/remplacement complet | Biome ciblé, `pnpm typecheck`, Vitest `page-operations.integration.spec.ts`, `page-operations.contract.spec.ts` et `page-documents.contract.spec.ts` lancés en parallèle | format/lint passés, 9 projets typés, 7 tests PostgreSQL et 20 contrats API passés ; le refus transactionnel est durable, conserve le corps 426 et les rejeux déjà acceptés restent acceptés en direct comme en batch |
+| Benchmark 500 blocs après amorçage legacy | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/editor-performance.spec.ts` | 5 profils passés en 21 s ; Chromium ouvre les 500 blocs en 3,4 s pour le parcours complet, respecte la fenêtre SC-007 mesurée autour de la sélection et garde un p95 de frappe à 13,9 ms |
+| Confirmation fichier isolée de l'activation de page | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/files.spec.ts --grep "confirming sends the file to the trash" --repeat-each=10` | 50 passages sur 50, dont 10 Firefox conteneurisés, sans retry ; les 5 profils passent en 113 s |
+| Aperçu fichier isolé de l'activation de page | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/accessibility.spec.ts --grep "preview frame is labelled for assistive technology" --repeat-each=10` | 50 passages sur 50, dont 10 WebKit desktop, sans retry ; les 5 profils passent en 111 s |
 | Typage | `pnpm typecheck` | 9 projets passés |
 | Couverture complète | `CI=1 pnpm test:coverage` | 263 fichiers, 2 895 tests passés, 90,21 % de lignes et 85,19 % de branches |
 
@@ -268,6 +272,31 @@ Le serveur ne lui fait désormais jamais confiance seul : il retrouve le plus
 grand préfixe causal prouvé par lectures indexées, avec repli logarithmique si
 l'état est incohérent. Le test de régression demande volontairement la séquence
 2 depuis une frontier vide et reçoit bien les updates 1 et 2.
+
+Le job Chromium de la PR a ensuite rendu visible une course entre le benchmark
+des 500 blocs et l'activation opérationnelle. Le scénario ouvrait d'abord la
+page vide, déclenchait son activation, puis injectait le document historique par
+`page.document.replace`. Sur un runner lent, le contrôle HTTP pouvait observer
+une page encore legacy, l'activation pouvait commit, puis la transaction de
+remplacement être rejouée sans repasser par ce contrôle : les deux écritures
+étaient annoncées comme acceptées alors que la projection opérationnelle restait
+vide. L'exclusion appartient désormais à la transaction sérialisable elle-même
+et son refus idempotent est couvert directement au niveau PostgreSQL. Le
+benchmark amorce de son côté le document avant la première ouverture, qui est
+le parcours historique réellement mesuré ; les cinq profils passent ensemble.
+
+La matrice exhaustive locale a enfin exposé une interaction distincte sur le
+parcours de suppression de fichier : après que le témoin global paraissait
+synchronisé, l'activation opérationnelle de la page continuait encore et son
+rafraîchissement pouvait remplacer le bouton de confirmation entre l'appui et
+le relâchement sous Firefox contraint. La trace prouvait qu'aucune requête de
+suppression n'était partie, puis le retry réussissait. Les parcours fichiers
+attendent désormais le témoin éditorial propre à la page avant d'interagir. La
+porte exhaustive suivante a retrouvé la même course sur l'ouverture d'un aperçu
+WebKit, qui a confirmé que la barrière devait être commune à toutes les surfaces
+fichier et non locale au scénario de suppression. Cent répétitions ciblées,
+cinquante par interaction et réparties sur les cinq profils, n'ont produit ni
+échec ni retry.
 
 ## Limites encore ouvertes
 

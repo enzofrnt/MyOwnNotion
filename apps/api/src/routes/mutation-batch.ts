@@ -8,7 +8,7 @@
  */
 
 import { MutationBatchResponseSchema, MutationBatchSchema } from "@myownnotion/contracts";
-import { readPageOperationState, submitMutation } from "@myownnotion/database";
+import { submitMutation } from "@myownnotion/database";
 import { parseMutationCommand, type Uuid } from "@myownnotion/domain";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
@@ -80,27 +80,6 @@ export function registerMutationBatchRoutes(app: FastifyInstance, context: AppCo
             problem: problemFromSafeError(parsed.error),
           });
           continue;
-        }
-        if (parsed.value.type === "page.document.replace") {
-          const operational = await readPageOperationState(
-            context.db,
-            context.workspaceId,
-            parsed.value.itemId,
-          );
-          if (operational?.status === "active" || operational?.status === "blocked") {
-            results.push({
-              mutationId: queued.mutationId as Uuid,
-              status: "rejected",
-              problem: {
-                type: "https://myownnotion.dev/problems/page-operations.protocol-read-only",
-                title:
-                  "This page uses convergent synchronization and cannot be replaced as one document.",
-                status: 426,
-                code: "page-operations.protocol-read-only",
-              },
-            });
-            continue;
-          }
         }
         let outcome: Awaited<ReturnType<typeof submitMutation>>;
         try {

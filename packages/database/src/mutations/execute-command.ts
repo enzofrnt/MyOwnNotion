@@ -41,6 +41,7 @@ import {
 import { getItem } from "../repositories/hierarchy-repository.ts";
 import { executeRestore, executeTrash } from "../repositories/lifecycle-repository.ts";
 import { executeMovePlacement } from "../repositories/move-branch.ts";
+import { readPageOperationState } from "../repositories/page-operation-repository.ts";
 import {
   executeCreateRelationship,
   executeRemoveRelationship,
@@ -358,6 +359,18 @@ async function executeReplacePageDocument(
   context: MutationContext,
   command: Extract<MutationCommand, { type: "page.document.replace" }>,
 ): Promise<DomainResult<CommandExecution>> {
+  // The legacy full-document protocol and the operational page journal are
+  // mutually exclusive authorities. This check deliberately lives in the
+  // same SERIALIZABLE transaction as the replacement: a route-level check can
+  // be overtaken by activation, and a transaction retry would then execute the
+  // replacement without running that route hook again.
+  const operational = await readPageOperationState(tx, context.workspaceId, command.itemId);
+  if (operational?.status === "active" || operational?.status === "blocked") {
+    return err(
+      "page-operations.protocol-read-only",
+      "This page uses convergent synchronization and cannot be replaced as one document.",
+    );
+  }
   const item = await getItem(tx, command.itemId);
   const plan = validateReplacePageDocument(item, command);
   if (!plan.ok) {

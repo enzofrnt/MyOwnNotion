@@ -73,6 +73,7 @@ const STATUS_BY_CODE: Partial<Record<SafeErrorCode, number>> = {
   "revision.not-found": 404,
   "revision.snapshot-expired": 410,
   "revision.stale-base": 409,
+  "page-operations.protocol-read-only": 426,
   "mutation.duplicate": 409,
   "mutation.conflict": 409,
   "mutation.rejected": 409,

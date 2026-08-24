@@ -120,6 +120,7 @@ export const SAFE_ERROR_CODES = [
   "revision.not-found",
   "revision.snapshot-expired",
   "revision.stale-base",
+  "page-operations.protocol-read-only",
   "mutation.duplicate",
   "mutation.conflict",
   "mutation.rejected",

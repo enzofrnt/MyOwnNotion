@@ -5,7 +5,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openWorkspace,
-  selectItem,
+  selectSettledPage,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -19,7 +19,7 @@ test.describe("canonical files (US2)", () => {
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
 
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
     await expect(page.getByTestId("attachment-panel")).toBeVisible();
     await expect(page.getByTestId("attachments-empty")).toBeVisible();
 
@@ -54,7 +54,7 @@ test.describe("canonical files (US2)", () => {
     const pageName = uniqueName("TrashFileHost");
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
 
     const fileName = `${uniqueName("gone")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({
@@ -99,7 +99,7 @@ test.describe("what a page says about its files (US1)", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
 
     const fileName = `${uniqueName("fields")}.txt`;
     await attach(page, fileName, "some bytes");
@@ -123,7 +123,7 @@ test.describe("what a page says about its files (US1)", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", first);
     await waitForSynchronized(page);
-    await selectItem(page, first);
+    await selectSettledPage(page, first);
 
     const fileName = `${uniqueName("shared")}.txt`;
     await attach(page, fileName, "shared bytes");
@@ -142,7 +142,7 @@ test.describe("what a page says about its files (US1)", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
 
     // Blank space would read as "loading" just as easily as "empty".
     await expect(page.getByTestId("attachments-empty")).toBeVisible();
@@ -157,7 +157,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
 
     const fileName = `${uniqueName("before")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({
@@ -172,7 +172,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     await expect(page.getByTestId(`attachment-usages-${fileName}`)).toContainText(pageName);
     await page.reload();
     await openWorkspace(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
   });
 
@@ -185,7 +185,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
 
     const fileName = `${uniqueName("used")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({
@@ -215,7 +215,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
-    await selectItem(page, pageName);
+    await selectSettledPage(page, pageName);
 
     const fileName = `${uniqueName("doomed")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({

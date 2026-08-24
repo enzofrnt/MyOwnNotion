@@ -66,7 +66,6 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     const name = uniqueName("LargeDoc");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
-    await selectItem(page, name);
 
     const itemId = await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id");
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
@@ -112,7 +111,6 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     const name = uniqueName("TypingDoc");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
-    await selectItem(page, name);
 
     const itemId = await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id");
     const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
