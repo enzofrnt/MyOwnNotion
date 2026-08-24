@@ -240,6 +240,11 @@ Une ligne par lot accepté ou refus terminal.
 `page_sequence` sert à paginer et sauvegarder ; la convergence dépend des
 version vectors internes, jamais de cette séquence.
 
+`base_frontier_envelope_id` et `update_envelope_id` possèdent chacun un index de
+support de clé étrangère. PostgreSQL ne les crée pas automatiquement ; sans ces
+index, retirer les enveloppes couvertes vérifierait chaque référence par un scan
+complet de l'oplog et rendrait la compaction quadratique.
+
 La compaction ne supprime jamais la ligne d'update. `id`, digest, appareil,
 séquence d'origine et frontier résultante forment un reçu d'idempotence
 immuable : une requête rejouée après perte de réponse obtient encore exactement

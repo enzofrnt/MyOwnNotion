@@ -70,6 +70,34 @@ describe("updates, version vectors and checkpoints", () => {
       versionVectorBytesEqual(receiver.versionVectorBytes(), author.versionVectorBytes()),
     ).toBe(true);
     expect(receiver.importUpdates([])).toMatchObject({ changed: false, pending: false });
+    expect(receiver.importUpdates([first.updateBytes, second.updateBytes])).toMatchObject({
+      changed: false,
+      pending: false,
+    });
+  });
+
+  it("reports a causal batch as pending until its missing base is imported", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const origin = OperationalPageDocument.create({
+      pageId,
+      document: { blocks: [{ type: "paragraph", id: blockId, content: [{ text: "A" }] }] },
+    });
+    const checkpoint = await origin.checkpoint();
+    const author = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const receiver = await OperationalPageDocument.fromCheckpoint({ pageId, checkpoint });
+    const first = author.transact([{ type: "replace-text", blockId, from: 1, to: 1, text: "B" }]);
+    const second = author.transact([{ type: "replace-text", blockId, from: 2, to: 2, text: "C" }]);
+
+    expect(receiver.importUpdates([second.updateBytes])).toMatchObject({
+      changed: false,
+      pending: true,
+    });
+    expect(receiver.importUpdates([first.updateBytes])).toMatchObject({
+      changed: true,
+      pending: false,
+    });
+    expect(receiver.snapshot()).toEqual(author.snapshot());
   });
 
   it("verifies the causal base declared around an incremental update", async () => {
