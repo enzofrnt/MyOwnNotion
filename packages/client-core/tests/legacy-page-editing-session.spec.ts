@@ -330,6 +330,42 @@ describe("LegacyPageEditingSession", () => {
     expect(requestConversion).not.toHaveBeenCalled();
   });
 
+  it("retries a transient conversion after the queued v2 base is acknowledged", async () => {
+    const input = fixture();
+    let attempts = 0;
+    const requestConversion = vi.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) return "unavailable" as const;
+      const branch = (await log.getLegacyBranch(input.pageId))?.branch;
+      if (branch === undefined) throw new Error("expected a durable migration branch");
+      await installConvertedCheckpoint(log, input.pageId, branch.localDocument);
+      return "converted" as const;
+    });
+    const session = await LegacyPageEditingSession.open({
+      ...input,
+      log,
+      store: new LegacyPageStateStore(log),
+      activeStore: new LocalPageStateStore(log),
+      requestConversion,
+    });
+
+    await session.transact({
+      type: "replace-text",
+      blockId: input.blockId,
+      from: 6,
+      to: 6,
+      text: " after acknowledgement",
+    });
+
+    await vi.waitFor(() => expect(requestConversion).toHaveBeenCalledTimes(2), {
+      timeout: 2_000,
+    });
+    await vi.waitFor(() => expect(session.sync.kind).toBe("synced"), { timeout: 2_000 });
+    expect(session.read().blocks[0]).toMatchObject({
+      content: [{ text: "Secret after acknowledgement" }],
+    });
+  });
+
   it("lets application routing hand a converted branch over to the active session", async () => {
     const input = fixture();
     const store = new LegacyPageStateStore(log);

@@ -573,6 +573,65 @@
       }
     },
     {
+      "test": "tests/e2e/page-ambiguity.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/page-operations.ts",
+          "apps/web/src/features/editor/editor-view.tsx",
+          "apps/web/src/services/page-operations-api.ts",
+          "packages/contracts/src/page-operations.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/page-state/",
+          "apps/web/src/features/sync/",
+          "packages/client-core/src/page-sync/",
+          "packages/database/src/repositories/page-operation-",
+          "packages/page-state/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/page-multi-device-convergence.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/page-operations.ts",
+          "apps/api/src/routes/change-stream.ts",
+          "apps/web/src/services/local-content.ts",
+          "apps/web/src/services/page-operations-api.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/page-state/",
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/sync/",
+          "packages/client-core/src/page-sync/",
+          "packages/database/src/repositories/page-operation-",
+          "packages/page-state/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/page-protocol-migration.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/mutation-batch.ts",
+          "apps/api/src/routes/page-documents.ts",
+          "apps/api/src/routes/page-operations.ts",
+          "apps/web/src/services/local-content.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/page-state/",
+          "apps/web/src/features/editor/",
+          "packages/client-core/src/outbox/",
+          "packages/client-core/src/page-sync/",
+          "packages/database/src/repositories/page-operation-",
+          "packages/page-state/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/page-links.spec.ts",
       "owners": {
         "exact": [

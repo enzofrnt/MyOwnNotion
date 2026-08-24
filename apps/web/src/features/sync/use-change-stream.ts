@@ -164,13 +164,16 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
         clearTimeout(syncRetry);
         syncRetry = null;
       }
-      void serviceRef.current?.synchronize().then(() => {
+      const currentService = serviceRef.current;
+      if (currentService === null) return;
+      void currentService.synchronize().then(async () => {
         if (stopped) {
           return;
         }
         // Operational pages reconcile through their own exchanges; the
         // workspace pass cannot pull their encrypted deltas.
-        serviceRef.current?.synchronizeOpenPages();
+        const openPagesSettled = await currentService.synchronizeOpenPages();
+        if (stopped) return;
         // The state *now*, not the value that pass resolved with. Passes are
         // coalesced: a caller arriving while one is running joins it and receives
         // the state of the pass it joined, which can predate the announcement that
@@ -182,8 +185,8 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
         // This is the same trap as conflating "told about" with "applied", one
         // level up: the answer has to come from the current state rather than from
         // the reply to a question asked earlier.
-        const state = serviceRef.current?.getSnapshot().syncState ?? "offline";
-        if (state !== "offline") {
+        const state = currentService.getSnapshot().syncState;
+        if (state !== "offline" && openPagesSettled) {
           syncAttempt = 0;
           return;
         }

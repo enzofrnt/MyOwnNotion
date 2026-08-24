@@ -31,6 +31,7 @@ import {
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import {
   detectPageAmbiguities,
+  incrementalUpdateResultVersionVector,
   type OperationalPageCheckpoint,
   OperationalPageDocument,
   type SemanticUpdateRecord,
@@ -687,15 +688,6 @@ export class PageOperationService {
   }
 
   /**
-   * Applies server-authored commands — ambiguity resolutions today — through
-   * the same transactional path as client updates: transact, project,
-   * materialize, append an accepted update row, then record one change-feed
-   * entry (plan §8: a resolution is a semantic boundary).
-   *
-   * The resolution revision closes the consolidation window and becomes the
-   * page's retained boundary; source updates stay immutable.
-   */
-  /**
    * Applies server-authored commands — ambiguity resolutions today — inside
    * the caller's transaction: transact, project, materialize, append an
    * accepted update row, then record one change-feed entry (plan §8: a
@@ -858,7 +850,6 @@ export class PageOperationService {
       );
     }
     const bases = new Map<string, Uint8Array>();
-    const results = new Map<string, Uint8Array>();
     const frontiers = await this.#deps.crypto.openFrontiers(
       tx,
       rows.flatMap(({ baseFrontierEnvelopeId, resultFrontierEnvelopeId }) => [
@@ -877,67 +868,16 @@ export class PageOperationService {
         );
       }
       bases.set(row.id, baseFrontier.versionVector);
-      results.set(row.id, resultFrontier.versionVector);
     }
-    // Two updates are ambiguous candidates exactly when neither author knew
-    // the other's effect: A's base does not dominate B's result and vice
-    // versa. Result-to-result comparison cannot express this — acceptance
-    // order merges later results into a common frontier even when the
-    // intentions were authored concurrently offline.
-    const interesting = new Set<string>();
-    const entries = [...results.keys()];
-    for (let left = 0; left < entries.length; left += 1) {
-      const leftId = entries[left] as string;
-      for (let right = left + 1; right < entries.length; right += 1) {
-        const rightId = entries[right] as string;
-        const leftBase = bases.get(leftId) as Uint8Array;
-        const rightBase = bases.get(rightId) as Uint8Array;
-        const leftResult = results.get(leftId) as Uint8Array;
-        const rightResult = results.get(rightId) as Uint8Array;
-        if (
-          !versionVectorDominates(leftBase, rightResult) &&
-          !versionVectorDominates(rightBase, leftResult)
-        ) {
-          interesting.add(leftId);
-          interesting.add(rightId);
-        }
-      }
-    }
-
-    if (interesting.size > 0) {
+    if (rows.length > 1) {
       const updateBytes = await this.#deps.crypto.openBytesMany(
         tx,
         "update",
         rows.map(({ updateEnvelopeId }) => updateEnvelopeId as Uuid),
       );
-      // Each concurrent intention is replayed in ISOLATION from the shared
-      // pre-convergence state: sequential replay would hide a text edit
-      // behind another device's deletion of the same block, and the whole
-      // point of detection is to see both intentions (FR-058).
-      const common = await OperationalPageDocument.fromCheckpoint({
-        pageId: input.pageId,
-        checkpoint: input.checkpoint,
-      });
-      for (const row of rows) {
-        if (interesting.has(row.id)) continue;
+      const candidates = rows.map((row) => {
         const bytes = updateBytes.get(row.updateEnvelopeId as Uuid);
-        if (bytes === undefined) {
-          throw new PageOperationServiceError(
-            "page-operations.projection-invalid",
-            "An operational update has no retained bytes.",
-            409,
-          );
-        }
-        common.importUpdate(bytes);
-      }
-      const commonCheckpoint = await common.checkpoint();
-      const beforeBlocks = (await common.project()).document.blocks;
-
-      const records: SemanticUpdateRecord[] = [];
-      for (const row of rows) {
-        if (!interesting.has(row.id)) continue;
         const baseVersionVector = bases.get(row.id);
-        const bytes = updateBytes.get(row.updateEnvelopeId as Uuid);
         if (baseVersionVector === undefined || bytes === undefined) {
           throw new PageOperationServiceError(
             "page-operations.projection-invalid",
@@ -945,49 +885,152 @@ export class PageOperationService {
             409,
           );
         }
-        const isolated = await OperationalPageDocument.fromCheckpoint({
-          pageId: input.pageId,
-          checkpoint: commonCheckpoint,
-        });
-        const imported = isolated.importUpdate(bytes);
-        if (imported.pending) {
-          // The intention depends on work outside the shared state; its delta
-          // cannot be isolated here and stays undetected until a later pass
-          // sees it against a wider common frontier.
+        let authoredResultVersionVector: Uint8Array;
+        try {
+          authoredResultVersionVector = incrementalUpdateResultVersionVector(
+            bytes,
+            baseVersionVector,
+          );
+        } catch {
+          throw new PageOperationServiceError(
+            "page-operations.projection-invalid",
+            "An operational update has invalid retained causal metadata.",
+            409,
+          );
+        }
+        return { row, bytes, authoredResultVersionVector };
+      });
+
+      // Consecutive local operations are one intention. Keep only maximal
+      // authored frontiers so a 30-keystroke offline edit is compared as the
+      // complete branch, while genuinely divergent devices remain distinct.
+      const tips: typeof candidates = [];
+      for (const candidate of candidates) {
+        if (
+          tips.some((tip) =>
+            versionVectorDominates(
+              tip.authoredResultVersionVector,
+              candidate.authoredResultVersionVector,
+            ),
+          )
+        ) {
           continue;
         }
-        const afterBlocks = (await isolated.project()).document.blocks;
-        records.push(
-          semanticRecordFromProjectionDiff({
-            updateId: row.id as Uuid,
-            baseVersionVector,
-            resultVersionVector: isolated.versionVectorBytes(),
-            beforeBlocks,
-            afterBlocks,
-          }),
-        );
+        for (let index = tips.length - 1; index >= 0; index -= 1) {
+          const tip = tips[index];
+          if (
+            tip !== undefined &&
+            versionVectorDominates(
+              candidate.authoredResultVersionVector,
+              tip.authoredResultVersionVector,
+            )
+          ) {
+            tips.splice(index, 1);
+          }
+        }
+        tips.push(candidate);
       }
-      for (const ambiguity of detectPageAmbiguities(records)) {
-        const existing = await readPageAmbiguityByLogicalKey(tx, {
-          pageId: input.pageId,
-          logicalKey: ambiguity.logicalKey,
-        });
-        if (existing !== null) continue;
-        const detailsEnvelopeId = await this.#deps.crypto.sealBytes(
-          tx,
-          "ambiguity",
-          new TextEncoder().encode(JSON.stringify(ambiguity)),
+
+      const hasUnseenTip = tips.some(
+        (tip) =>
+          !versionVectorDominates(input.persistedVersionVector, tip.authoredResultVersionVector),
+      );
+      if (tips.length > 1 && hasUnseenTip) {
+        const commonCandidates = candidates.filter((candidate) =>
+          tips.every((tip) =>
+            versionVectorDominates(
+              tip.authoredResultVersionVector,
+              candidate.authoredResultVersionVector,
+            ),
+          ),
         );
-        await insertPageAmbiguity(tx, {
-          ambiguityId: generateUuidV7(),
+        const commonIds = new Set(commonCandidates.map(({ row }) => row.id));
+        const common = await OperationalPageDocument.fromCheckpoint({
           pageId: input.pageId,
-          workspaceId: this.#deps.workspaceId,
-          logicalKey: ambiguity.logicalKey,
-          kind: ambiguity.kind,
-          detailsEnvelopeId,
-          sourceUpdateIds: [...ambiguity.sourceUpdateIds],
-          openedAt: this.#deps.now(),
+          checkpoint: input.checkpoint,
         });
+        for (const candidate of commonCandidates) {
+          if (common.importUpdate(candidate.bytes).pending) {
+            throw new PageOperationServiceError(
+              "page-operations.projection-invalid",
+              "A retained common update has missing causal dependencies.",
+              409,
+            );
+          }
+        }
+        const commonCheckpoint = await common.checkpoint();
+        const commonVersionVector = common.versionVectorBytes();
+        const beforeBlocks = (await common.project()).document.blocks;
+
+        // Replay each maximal branch independently from the common frontier.
+        // A merged replay would let a CRDT-level deletion hide the edited
+        // subtree before the semantic safety layer can preserve it (FR-058).
+        const records: SemanticUpdateRecord[] = [];
+        for (const tip of tips) {
+          const branch = await OperationalPageDocument.fromCheckpoint({
+            pageId: input.pageId,
+            checkpoint: commonCheckpoint,
+          });
+          for (const candidate of candidates) {
+            if (commonIds.has(candidate.row.id)) continue;
+            if (
+              !versionVectorDominates(
+                tip.authoredResultVersionVector,
+                candidate.authoredResultVersionVector,
+              )
+            ) {
+              continue;
+            }
+            if (branch.importUpdate(candidate.bytes).pending) {
+              throw new PageOperationServiceError(
+                "page-operations.projection-invalid",
+                "A retained branch update has missing causal dependencies.",
+                409,
+              );
+            }
+          }
+          if (
+            !versionVectorBytesEqual(branch.versionVectorBytes(), tip.authoredResultVersionVector)
+          ) {
+            throw new PageOperationServiceError(
+              "page-operations.projection-invalid",
+              "A retained branch did not reconstruct its authored frontier.",
+              409,
+            );
+          }
+          const afterBlocks = (await branch.project()).document.blocks;
+          records.push(
+            semanticRecordFromProjectionDiff({
+              updateId: tip.row.id as Uuid,
+              baseVersionVector: commonVersionVector,
+              resultVersionVector: tip.authoredResultVersionVector,
+              beforeBlocks,
+              afterBlocks,
+            }),
+          );
+        }
+        for (const ambiguity of detectPageAmbiguities(records)) {
+          const existing = await readPageAmbiguityByLogicalKey(tx, {
+            pageId: input.pageId,
+            logicalKey: ambiguity.logicalKey,
+          });
+          if (existing !== null) continue;
+          const detailsEnvelopeId = await this.#deps.crypto.sealBytes(
+            tx,
+            "ambiguity",
+            new TextEncoder().encode(JSON.stringify(ambiguity)),
+          );
+          await insertPageAmbiguity(tx, {
+            ambiguityId: generateUuidV7(),
+            pageId: input.pageId,
+            workspaceId: this.#deps.workspaceId,
+            logicalKey: ambiguity.logicalKey,
+            kind: ambiguity.kind,
+            detailsEnvelopeId,
+            sourceUpdateIds: [...ambiguity.sourceUpdateIds],
+            openedAt: this.#deps.now(),
+          });
+        }
       }
     }
 
@@ -995,19 +1038,58 @@ export class PageOperationService {
       workspaceId: this.#deps.workspaceId,
       pageId: input.pageId,
     });
-    return open.map((row) => ({
-      ambiguityId: row.id as Uuid,
-      pageId: input.pageId,
-      kind: row.kind as ActivePageSyncResponseDto["ambiguities"][number]["kind"],
-      blockIds: blockIdsForAmbiguity(row.logicalKey),
-      openedAt: row.openedAt.toISOString(),
-      status: "open" as const,
-    }));
+    const details = await this.#deps.crypto.openBytesMany(
+      tx,
+      "ambiguity",
+      open.map(({ detailsEnvelopeId }) => detailsEnvelopeId as Uuid),
+    );
+    return open.map((row) => {
+      const bytes = details.get(row.detailsEnvelopeId as Uuid);
+      if (bytes === undefined) {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "An open ambiguity has no retained details.",
+          409,
+        );
+      }
+      return {
+        ambiguityId: row.id as Uuid,
+        pageId: input.pageId,
+        kind: row.kind as ActivePageSyncResponseDto["ambiguities"][number]["kind"],
+        blockIds: blockIdsFromAmbiguityDetails(bytes, row.logicalKey),
+        openedAt: row.openedAt.toISOString(),
+        status: "open" as const,
+      };
+    });
   }
 }
 
-/** The stable logical key embeds the involved block ids; recover them for summaries. */
-function blockIdsForAmbiguity(logicalKey: string): Uuid[] {
-  const match = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/giu;
-  return [...new Set([...logicalKey.matchAll(match)].map((m) => m[1] as Uuid))];
+/**
+ * Summaries deliberately expose block identities, never source update ids.
+ * Both happen to be UUIDs in the logical key, so the sealed detail is the
+ * only unambiguous source for this field.
+ */
+function blockIdsFromAmbiguityDetails(bytes: Uint8Array, logicalKey: string): Uuid[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    value = null;
+  }
+  if (value === null || typeof value !== "object") {
+    throw new PageOperationServiceError(
+      "page-operations.projection-invalid",
+      "An open ambiguity has invalid retained details.",
+      409,
+    );
+  }
+  const record = value as Record<string, unknown>;
+  if (record["logicalKey"] !== logicalKey || !Array.isArray(record["blockIds"])) {
+    throw new PageOperationServiceError(
+      "page-operations.projection-invalid",
+      "An open ambiguity does not match its retained details.",
+      409,
+    );
+  }
+  return record["blockIds"] as Uuid[];
 }

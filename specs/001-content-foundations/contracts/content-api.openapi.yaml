@@ -519,7 +519,7 @@ paths:
               schema: { const: no-store }
           content:
             application/json:
-              schema: { type: object, additionalProperties: true }
+              schema: { $ref: '#/components/schemas/PageAmbiguityDetail' }
         '404': { $ref: '#/components/responses/Problem' }
   /v1/page-ambiguities/{ambiguityId}/resolve:
     post:
@@ -538,7 +538,7 @@ paths:
           description: Resolution operation and resulting canonical revision
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ActivePageOperationSyncResponse' }
+              schema: { $ref: '#/components/schemas/ResolvePageAmbiguityResponse' }
         '404': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/PageOperationProblem' }
   /v1/mutations/batch:
@@ -707,6 +707,53 @@ components:
         openedAt: { type: string, format: date-time }
         status: { const: open }
       additionalProperties: false
+    CanonicalBlockSubtree:
+      type: object
+      required: [type, id]
+      properties:
+        type: { type: string, minLength: 1, maxLength: 128 }
+        id: { $ref: '#/components/schemas/Uuid' }
+      additionalProperties: true
+    PageAmbiguityDetail:
+      type: object
+      required: [ambiguityId, pageId, logicalKey, kind, status, openedAt, blockIds, sourceUpdateIds, deletedSubtree, recoverableSubtree, recoverablePlacement, propertyKey, alternatives]
+      properties:
+        ambiguityId: { $ref: '#/components/schemas/Uuid' }
+        pageId: { $ref: '#/components/schemas/Uuid' }
+        logicalKey: { type: string, minLength: 1, maxLength: 4096 }
+        kind: { enum: [delete-edit, delete-move, type-transform, property-transform, schema] }
+        status: { enum: [open, resolved-keep, resolved-delete, resolved-custom] }
+        openedAt: { type: string, format: date-time }
+        blockIds:
+          type: array
+          items: { $ref: '#/components/schemas/Uuid' }
+        sourceUpdateIds:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { $ref: '#/components/schemas/Uuid' }
+        deletedSubtree:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/CanonicalBlockSubtree' }]
+        recoverableSubtree:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/CanonicalBlockSubtree' }]
+        recoverablePlacement:
+          type: object
+          nullable: true
+          required: [parentBlockId, beforeBlockId]
+          properties:
+            parentBlockId: { type: string, format: uuid, nullable: true }
+            beforeBlockId: { type: string, format: uuid, nullable: true }
+          additionalProperties: false
+        propertyKey: { type: string, nullable: true }
+        alternatives:
+          type: array
+          nullable: true
+          minItems: 2
+          maxItems: 2
+          items: { $ref: '#/components/schemas/CanonicalBlockSubtree' }
+      additionalProperties: false
     ActivatePageOperations:
       type: object
       required: [requestId, expectedRevisionId, expectedCanonicalDigest]
@@ -834,6 +881,13 @@ components:
               oneOf: [{ $ref: '#/components/schemas/Uuid' }, { type: 'null' }]
             result: { type: object }
           additionalProperties: false
+    ResolvePageAmbiguityResponse:
+      type: object
+      required: [revisionId, status]
+      properties:
+        revisionId: { $ref: '#/components/schemas/Uuid' }
+        status: { enum: [resolved-keep, resolved-delete, resolved-custom] }
+      additionalProperties: false
     PageOperationProblem:
       type: object
       required: [code, message]

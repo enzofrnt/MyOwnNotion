@@ -14,24 +14,28 @@ import {
   type LegacySemanticCommandDto,
   MAX_PAGE_UPDATE_BATCH_BYTES,
   MAX_PAGE_UPDATES_PER_SYNC,
-  type PageCheckpointResponseDto,
+  type PageAmbiguityDetailDto,
+  type PageAmbiguitySummaryDto,
   type PageOperationProblemDto,
   type PageSyncRequestDto,
   type PageSyncResponseDto,
 } from "@myownnotion/contracts";
-import { generateUuidV7, type Uuid } from "@myownnotion/domain";
+import { type CanonicalBlockV3, generateUuidV7, type Uuid } from "@myownnotion/domain";
 import {
   OperationalPageDocument,
   sha256Hex,
   versionVectorDominates,
 } from "@myownnotion/page-state";
+import type { SealedPageAmbiguityRow } from "../local-store/schema.ts";
 import type {
   EncryptedPageOperationLog,
   LegacyOfflineBranchRecord,
+  PageAmbiguityRecord,
   PageOperationStateRecord,
   PageOperationUpdateRecord,
 } from "./encrypted-update-log.ts";
 import { decodePageOperationBytes, encodePageOperationBytes } from "./encrypted-update-log.ts";
+import { installConvertedLegacyPageCheckpoint } from "./migration.ts";
 import { withPageStateWrite } from "./page-write-coordinator.ts";
 
 export interface PageUpdateBatchCandidate {
@@ -92,12 +96,18 @@ export type PageSyncTransportResult =
           };
     };
 
+export type PageAmbiguityTransportResult =
+  | { readonly ok: true; readonly value: PageAmbiguityDetailDto }
+  | Exclude<PageSyncTransportResult, { readonly ok: true }>;
+
 export interface PageSyncTransport {
   sync(pageId: Uuid, request: PageSyncRequestDto): Promise<PageSyncTransportResult>;
   convertLegacyBranch(
     pageId: Uuid,
     request: LegacyOfflineBranchSyncRequestDto,
   ): Promise<PageSyncTransportResult>;
+  /** Protected full intentions for one summary returned by synchronization. */
+  getAmbiguity?(ambiguityId: Uuid): Promise<PageAmbiguityTransportResult>;
 }
 
 export type PageFileRequirement = ActivePageSyncResponseDto["fileRequirements"][number];
@@ -137,78 +147,6 @@ class InvalidPageSyncResponseError extends Error {
     super(message);
     this.name = "InvalidPageSyncResponseError";
   }
-}
-
-/**
- * Installs a server-created genesis/checkpoint without ever inventing a second
- * local CRDT history for the same legacy JSON document.
- */
-export async function installPageCheckpoint(
-  log: EncryptedPageOperationLog,
-  response: PageCheckpointResponseDto,
-  now: Date = new Date(),
-): Promise<PageOperationStateRecord> {
-  return await withPageStateWrite(
-    log.db,
-    response.pageId as Uuid,
-    async () => await installPageCheckpointInsideWrite(log, response, now),
-  );
-}
-
-async function installPageCheckpointInsideWrite(
-  log: EncryptedPageOperationLog,
-  response: PageCheckpointResponseDto,
-  now: Date,
-): Promise<PageOperationStateRecord> {
-  const pageId = response.pageId as Uuid;
-  const existing = await log.getState(pageId);
-  if (existing !== null) return existing;
-  const page = await OperationalPageDocument.fromSnapshotTransport({
-    pageId,
-    snapshotBytes: decodePageOperationBytes(response.checkpointBytes),
-    snapshotDigest: response.checkpointDigest,
-    versionVector: decodePageOperationBytes(response.versionVector),
-  });
-  const checkpointProjection = await page.project();
-  if (checkpointProjection.canonicalDigest !== response.canonicalDigest) {
-    throw new InvalidPageSyncResponseError("the checkpoint canonical projection has a bad digest");
-  }
-  let appliedPageSequence = response.throughPageSequence;
-  for (const remote of response.followingUpdates) {
-    const bytes = decodePageOperationBytes(remote.updateBytes);
-    if ((await sha256Hex(bytes)) !== remote.updateDigest) {
-      throw new InvalidPageSyncResponseError("a checkpoint update failed its digest check");
-    }
-    const imported = page.importUpdate(bytes);
-    if (imported.pending) {
-      throw new InvalidPageSyncResponseError("a checkpoint update has missing dependencies");
-    }
-    appliedPageSequence = remote.pageSequence;
-  }
-  const [checkpoint, projection] = await Promise.all([page.checkpoint(), page.project()]);
-  const state: PageOperationStateRecord = {
-    pageId,
-    status: "active",
-    operationalVersion: response.operationalVersion,
-    canonicalFormatVersion: 3,
-    latestServerPageSequence: appliedPageSequence,
-    localAvailability: "present",
-    lastAccessedAt: now.toISOString(),
-    recordVersion: 1,
-    checkpoint,
-    projection,
-    versionVector: checkpoint.versionVector,
-    frontiers: checkpoint.frontiers,
-    serverVersionVector: response.hasMore ? null : checkpoint.versionVector,
-  };
-  const sealed = await log.codec.sealState(state);
-  await log.db.transaction("rw", log.db.pageOperationStates, async () => {
-    if ((await log.db.pageOperationStates.get(pageId)) !== undefined) {
-      throw new ConcurrentPageReconciliationError();
-    }
-    await log.db.pageOperationStates.add(sealed);
-  });
-  return state;
 }
 
 const BLOCKING_PROBLEMS = new Set([
@@ -411,13 +349,12 @@ export class PageReconciler {
     if (result.value.mode !== "checkpoint") {
       throw new TypeError("legacy branch conversion returned an unexpected response mode");
     }
-    await installPageCheckpoint(this.#log, result.value);
-    await this.#log.putLegacyBranch({
-      ...branch,
-      status: "converted",
-      recordVersion: branch.recordVersion + 1,
-      branch: { ...branch.branch, status: "converted" },
-    });
+    if (result.value.requestId !== request.requestId || result.value.pageId !== this.#pageId) {
+      throw new InvalidPageSyncResponseError(
+        "the legacy branch conversion response identity changed",
+      );
+    }
+    await installConvertedLegacyPageCheckpoint(this.#log, result.value, branch, this.#now());
     const durableState = await this.#log.getState(this.#pageId);
     if (durableState !== null) {
       const listeners = [
@@ -440,6 +377,101 @@ export class PageReconciler {
       latestPageSequence: result.value.latestPageSequence,
       fileRequirements: [],
     };
+  }
+
+  async #prepareAmbiguities(summaries: readonly PageAmbiguitySummaryDto[]): Promise<
+    | {
+        readonly ok: true;
+        readonly rows: readonly SealedPageAmbiguityRow[];
+        readonly openIds: readonly Uuid[];
+      }
+    | { readonly ok: false; readonly offline: boolean; readonly problemCode: string }
+  > {
+    const rows: SealedPageAmbiguityRow[] = [];
+    const openIds: Uuid[] = [];
+    for (const summary of summaries) {
+      const ambiguityId = summary.ambiguityId as Uuid;
+      openIds.push(ambiguityId);
+      const existing = await this.#log.db.pageAmbiguities.get(ambiguityId);
+      if (
+        existing?.pageId === this.#pageId &&
+        existing.kind === summary.kind &&
+        existing.status === "open" &&
+        existing.openedAt === summary.openedAt
+      ) {
+        // Ambiguities are immutable while open. Reuse the already sealed
+        // details instead of downloading and re-encrypting them on every
+        // frontier confirmation.
+        rows.push(existing);
+        continue;
+      }
+      const getAmbiguity = this.#transport.getAmbiguity;
+      if (getAmbiguity === undefined) {
+        return {
+          ok: false,
+          offline: false,
+          problemCode: "page-operations.ambiguity-detail-unavailable",
+        };
+      }
+      const result = await getAmbiguity.call(this.#transport, ambiguityId);
+      if (!result.ok) {
+        return { ok: false, offline: result.offline, problemCode: result.problem.code };
+      }
+      const detail = result.value;
+      if (
+        detail.ambiguityId !== summary.ambiguityId ||
+        detail.pageId !== this.#pageId ||
+        detail.kind !== summary.kind ||
+        detail.status !== "open" ||
+        detail.openedAt !== summary.openedAt ||
+        detail.blockIds.length !== summary.blockIds.length ||
+        detail.blockIds.some((blockId, index) => blockId !== summary.blockIds[index])
+      ) {
+        return {
+          ok: false,
+          offline: false,
+          problemCode: "page-operations.projection-invalid",
+        };
+      }
+      const details: PageAmbiguityRecord["details"] = {
+        logicalKey: detail.logicalKey,
+        kind: detail.kind,
+        status: "open",
+        blockIds: detail.blockIds as Uuid[],
+        sourceUpdateIds: detail.sourceUpdateIds as [Uuid, Uuid],
+        ...(detail.deletedSubtree === null
+          ? {}
+          : { deletedSubtree: detail.deletedSubtree as CanonicalBlockV3 }),
+        ...(detail.recoverableSubtree === null
+          ? {}
+          : { recoverableSubtree: detail.recoverableSubtree as CanonicalBlockV3 }),
+        ...(detail.recoverablePlacement === null
+          ? {}
+          : {
+              recoverablePlacement: {
+                parentBlockId: detail.recoverablePlacement.parentBlockId as Uuid | null,
+                beforeBlockId: detail.recoverablePlacement.beforeBlockId as Uuid | null,
+              },
+            }),
+        ...(detail.propertyKey === null ? {} : { propertyKey: detail.propertyKey }),
+        ...(detail.alternatives === null
+          ? {}
+          : {
+              alternatives: detail.alternatives as unknown as [CanonicalBlockV3, CanonicalBlockV3],
+            }),
+      };
+      const record: PageAmbiguityRecord = {
+        ambiguityId,
+        pageId: this.#pageId,
+        kind: detail.kind,
+        status: "open",
+        openedAt: detail.openedAt,
+        recordVersion: (existing?.recordVersion ?? 0) + 1,
+        details,
+      };
+      rows.push(await this.#log.codec.sealAmbiguity(record));
+    }
+    return { ok: true, rows, openIds };
   }
 
   async #run(convertLegacyBranch: boolean): Promise<PageReconcileOutcome> {
@@ -566,11 +598,30 @@ export class PageReconciler {
           "the page synchronization response identity changed",
         );
       }
+      const ambiguities = await this.#prepareAmbiguities(response.ambiguities);
+      if (!ambiguities.ok) {
+        const blocked = !ambiguities.offline;
+        for (const update of batch) {
+          const current = await this.#log.getUpdate(update.updateId);
+          if (current?.status === "sending") {
+            await this.#log.transitionUpdate(update.updateId, blocked ? "blocked" : "pending");
+          }
+        }
+        return {
+          kind: ambiguities.offline ? "offline" : "blocked",
+          exchanges,
+          latestPageSequence: state.latestServerPageSequence,
+          fileRequirements: latestRequirements,
+          problemCode: ambiguities.problemCode,
+        };
+      }
       let durableState: PageOperationStateRecord;
       try {
         durableState = await this.#commitResponse(
           response,
           batch.map(({ updateId }) => updateId),
+          ambiguities.rows,
+          ambiguities.openIds,
         );
       } catch (error) {
         if (
@@ -643,13 +694,21 @@ export class PageReconciler {
   async #commitResponse(
     response: ActivePageSyncResponseDto,
     sentUpdateIds: readonly Uuid[],
+    ambiguityRows: readonly SealedPageAmbiguityRow[],
+    openAmbiguityIds: readonly Uuid[],
   ): Promise<PageOperationStateRecord> {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       try {
         return await withPageStateWrite(
           this.#log.db,
           this.#pageId,
-          async () => await this.#commitResponseOnce(response, sentUpdateIds),
+          async () =>
+            await this.#commitResponseOnce(
+              response,
+              sentUpdateIds,
+              ambiguityRows,
+              openAmbiguityIds,
+            ),
         );
       } catch (error) {
         if (!(error instanceof ConcurrentPageReconciliationError)) throw error;
@@ -661,6 +720,8 @@ export class PageReconciler {
   async #commitResponseOnce(
     response: ActivePageSyncResponseDto,
     sentUpdateIds: readonly Uuid[],
+    ambiguityRows: readonly SealedPageAmbiguityRow[],
+    openAmbiguityIds: readonly Uuid[],
   ): Promise<PageOperationStateRecord> {
     const state = await this.#log.getState(this.#pageId);
     if (state === null) throw new ConcurrentPageReconciliationError();
@@ -737,7 +798,11 @@ export class PageReconciler {
 
     await this.#log.db.transaction(
       "rw",
-      [this.#log.db.pageOperationStates, this.#log.db.pageOperationUpdates],
+      [
+        this.#log.db.pageOperationStates,
+        this.#log.db.pageOperationUpdates,
+        this.#log.db.pageAmbiguities,
+      ],
       async () => {
         const currentState = await this.#log.db.pageOperationStates.get(this.#pageId);
         if (currentState?.recordVersion !== state.recordVersion) {
@@ -756,6 +821,16 @@ export class PageReconciler {
         }
         await this.#log.db.pageOperationStates.put(sealedState);
         await this.#log.db.pageOperationUpdates.bulkDelete([...sentUpdateIds]);
+        const retained = new Set(openAmbiguityIds);
+        const previousOpen = await this.#log.db.pageAmbiguities
+          .where("[pageId+status]")
+          .equals([this.#pageId, "open"])
+          .primaryKeys();
+        const resolved = previousOpen.filter((ambiguityId) => !retained.has(ambiguityId));
+        if (resolved.length > 0) await this.#log.db.pageAmbiguities.bulkDelete(resolved);
+        if (ambiguityRows.length > 0) {
+          await this.#log.db.pageAmbiguities.bulkPut([...ambiguityRows]);
+        }
       },
     );
     return nextState;

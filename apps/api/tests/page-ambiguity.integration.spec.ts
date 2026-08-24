@@ -177,11 +177,14 @@ describe("page ambiguities", () => {
 
     // The collision is durable and announced in the response summary.
     const ambiguities = (
-      rightSync.json() as { ambiguities: Array<{ ambiguityId: string; kind: string }> }
+      rightSync.json() as {
+        ambiguities: Array<{ ambiguityId: string; kind: string; blockIds: string[] }>;
+      }
     ).ambiguities;
     expect(ambiguities.length).toBeGreaterThan(0);
     const summary = ambiguities.find((entry) => entry.kind === "delete-edit");
     expect(summary).toBeDefined();
+    expect(summary?.blockIds).toEqual([BLOCK_A]);
 
     // Detail exposes both intentions without leaking them into summaries.
     const detail = await harness.api.built.app.inject({
