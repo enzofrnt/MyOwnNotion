@@ -19,6 +19,19 @@ function paragraph(text: string): EditorBlock {
   } as EditorBlock;
 }
 
+function heading(text: string): EditorBlock {
+  return {
+    ...paragraph(text),
+    type: "heading",
+    props: {
+      backgroundColor: "default",
+      textColor: "default",
+      textAlignment: "left",
+      level: 1,
+    },
+  } as EditorBlock;
+}
+
 describe("editor input boundaries", () => {
   it("never splits an emoji surrogate pair when computing a replacement", () => {
     expect(minimalTextReplacement("A 👋 B", "A 👋 joli B")).toEqual({
@@ -52,12 +65,18 @@ describe("editor input boundaries", () => {
     const second = paragraph("日本");
 
     batcher.beginComposition();
-    batcher.push([
-      { type: "update", block: first, prevBlock: paragraph(""), source: { type: "local" } },
-    ] as EditorBlocksChanged);
-    batcher.push([
-      { type: "update", block: second, prevBlock: first, source: { type: "local" } },
-    ] as EditorBlocksChanged);
+    batcher.push(
+      [
+        { type: "update", block: first, prevBlock: paragraph(""), source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [first],
+    );
+    batcher.push(
+      [
+        { type: "update", block: second, prevBlock: first, source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [second],
+    );
     expect(batches).toEqual([]);
 
     batcher.endComposition();
@@ -80,17 +99,26 @@ describe("editor input boundaries", () => {
     const first = paragraph("a");
     const second = paragraph("ab");
     const final = paragraph("abc");
-    batcher.push([
-      { type: "update", block: first, prevBlock: paragraph(""), source: { type: "local" } },
-    ] as EditorBlocksChanged);
+    batcher.push(
+      [
+        { type: "update", block: first, prevBlock: paragraph(""), source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [first],
+    );
     expect(batches).toHaveLength(1);
 
-    batcher.push([
-      { type: "update", block: second, prevBlock: first, source: { type: "local" } },
-    ] as EditorBlocksChanged);
-    batcher.push([
-      { type: "update", block: final, prevBlock: second, source: { type: "local" } },
-    ] as EditorBlocksChanged);
+    batcher.push(
+      [
+        { type: "update", block: second, prevBlock: first, source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [second],
+    );
+    batcher.push(
+      [
+        { type: "update", block: final, prevBlock: second, source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [final],
+    );
     expect(batches).toHaveLength(1);
 
     releaseFirst?.();
@@ -118,17 +146,200 @@ describe("editor input boundaries", () => {
       id: "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2057",
     } as EditorBlock;
 
-    batcher.push([
-      { type: "update", block: first, prevBlock: paragraph(""), source: { type: "local" } },
-    ] as EditorBlocksChanged);
-    batcher.push([
-      { type: "update", block: second, prevBlock: first, source: { type: "local" } },
-      { type: "insert", block: inserted, prevBlock: undefined, source: { type: "local" } },
-      { type: "update", block: final, prevBlock: second, source: { type: "local" } },
-    ] as EditorBlocksChanged);
+    batcher.push(
+      [
+        { type: "update", block: first, prevBlock: paragraph(""), source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [first],
+    );
+    batcher.push(
+      [
+        { type: "update", block: second, prevBlock: first, source: { type: "local" } },
+        { type: "insert", block: inserted, prevBlock: undefined, source: { type: "local" } },
+        { type: "update", block: final, prevBlock: second, source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [final, inserted],
+    );
 
     releaseFirst?.();
     await vi.waitFor(() => expect(batches).toHaveLength(2));
     expect(batches[1]?.map((change) => change.type)).toEqual(["update", "insert", "update"]);
+  });
+
+  it("keeps a semantic gesture after pending typing in its own transaction", async () => {
+    const batches: EditorBlocksChanged[] = [];
+    const documents: Array<readonly EditorBlock[]> = [];
+    let releaseFirst: (() => void) | undefined;
+    const firstCommit = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const batcher = new EditorChangeBatcher(async (batch, document) => {
+      batches.push(batch);
+      documents.push(document);
+      if (batches.length === 1) await firstCommit;
+    });
+    const initial = paragraph("");
+    const partial = paragraph("av");
+    const final = paragraph("avant");
+    const transformed = heading("avant");
+
+    batcher.push(
+      [
+        { type: "update", block: partial, prevBlock: initial, source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [partial],
+    );
+    batcher.push(
+      [
+        { type: "update", block: final, prevBlock: partial, source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [final],
+    );
+    batcher.push(
+      [
+        { type: "update", block: transformed, prevBlock: final, source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [transformed],
+    );
+
+    releaseFirst?.();
+    await vi.waitFor(() => expect(batches).toHaveLength(3));
+    expect(batches[1]).toEqual([
+      expect.objectContaining({ type: "update", prevBlock: partial, block: final }),
+    ]);
+    expect(batches[2]).toEqual([
+      expect.objectContaining({ type: "update", prevBlock: final, block: transformed }),
+    ]);
+    expect(documents[1]).toEqual([transformed]);
+    expect(documents[2]).toEqual([transformed]);
+  });
+
+  it("bridges an input-rule character emitted only in the semantic before-state", async () => {
+    const batches: EditorBlocksChanged[] = [];
+    let releaseFirst: (() => void) | undefined;
+    const firstCommit = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const batcher = new EditorChangeBatcher(async (batch) => {
+      batches.push(batch);
+      if (batches.length === 1) await firstCommit;
+    });
+    const initial = paragraph("");
+    const first = paragraph("av");
+    const partial = paragraph("avan");
+    const semanticBefore = paragraph("avant");
+    const transformed = heading("avant");
+
+    batcher.push(
+      [{ type: "update", block: first, prevBlock: initial, source: { type: "local" } }],
+      [first],
+    );
+    batcher.push(
+      [
+        {
+          type: "update",
+          block: partial,
+          prevBlock: first,
+          source: { type: "local" },
+        },
+      ],
+      [partial],
+    );
+    batcher.push(
+      [
+        {
+          type: "update",
+          block: transformed,
+          prevBlock: semanticBefore,
+          source: { type: "local" },
+        },
+      ],
+      [transformed],
+    );
+
+    releaseFirst?.();
+    await vi.waitFor(() => expect(batches).toHaveLength(3));
+    expect(batches[1]).toEqual([
+      expect.objectContaining({ type: "update", prevBlock: first, block: semanticBefore }),
+    ]);
+    expect(batches[2]).toEqual([
+      expect.objectContaining({
+        type: "update",
+        prevBlock: semanticBefore,
+        block: transformed,
+      }),
+    ]);
+  });
+
+  it("keeps separate structural notifications as separate owner gestures", async () => {
+    const batches: EditorBlocksChanged[] = [];
+    let releaseFirst: (() => void) | undefined;
+    const firstCommit = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const batcher = new EditorChangeBatcher(async (batch) => {
+      batches.push(batch);
+      if (batches.length === 1) await firstCommit;
+    });
+    const first = paragraph("premier");
+    const second = { ...paragraph("second"), id: crypto.randomUUID() } as EditorBlock;
+    const copy = { ...second, id: crypto.randomUUID() } as EditorBlock;
+
+    batcher.push(
+      [
+        { type: "update", block: first, prevBlock: paragraph(""), source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [first],
+    );
+    batcher.push(
+      [{ type: "insert", block: second, prevBlock: undefined, source: { type: "local" } }],
+      [first, second],
+    );
+    batcher.push(
+      [{ type: "insert", block: copy, prevBlock: undefined, source: { type: "local" } }],
+      [first, second, copy],
+    );
+
+    releaseFirst?.();
+    await vi.waitFor(() => expect(batches).toHaveLength(3));
+    expect(batches[1]?.map(({ type }) => type)).toEqual(["insert"]);
+    expect(batches[2]?.map(({ type }) => type)).toEqual(["insert"]);
+  });
+
+  it("runs history only after delayed editor changes become durable", async () => {
+    const order: string[] = [];
+    let releaseFirst: (() => void) | undefined;
+    const firstCommit = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const batcher = new EditorChangeBatcher(async (batch) => {
+      order.push(`apply:${String(batch.at(-1)?.block.content)}`);
+      if (order.length === 1) await firstCommit;
+    });
+    const first = paragraph("a");
+    const second = paragraph("ab");
+
+    batcher.push(
+      [
+        { type: "update", block: first, prevBlock: paragraph(""), source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [first],
+    );
+    const history = batcher.runAfterPendingChanges(() => {
+      order.push("undo");
+    });
+    batcher.push(
+      [
+        { type: "update", block: second, prevBlock: first, source: { type: "local" } },
+      ] as EditorBlocksChanged,
+      [second],
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(order).not.toContain("undo");
+    releaseFirst?.();
+    await history;
+    expect(order.at(-1)).toBe("undo");
+    expect(order.filter((entry) => entry.startsWith("apply:"))).toHaveLength(2);
   });
 });
