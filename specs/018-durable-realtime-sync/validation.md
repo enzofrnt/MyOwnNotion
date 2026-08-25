@@ -511,3 +511,94 @@ Résultat final : code de sortie 0 sur l'intégralité du gate pré-push.
 
 Ce commit est l'arbre exécutable exact qui sera poussé. Le présent ajout est
 strictement documentaire et ne modifie pas cette preuve.
+
+## Convergence concurrente et rejeu des refus transitoires
+
+Date : 2026-08-25
+
+La seconde exécution GitHub Actions de la PR 141, run
+[`32875685165`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/32875685165),
+a signalé deux flakes navigateur : la résolution hors ligne sur Chromium
+mobile et la reprise multi-onglets sur WebKit mobile. Leur reproduction a
+permis de séparer deux défauts de simulation de deux défauts produit réels.
+
+- La provenance locale, distante ou de récupération d'un changement éditeur
+  était relue après une file asynchrone. Une mise à jour distante placée derrière
+  un commit local lent pouvait ainsi être prise pour une saisie locale et
+  republiée. La provenance est désormais capturée synchroniquement avec le
+  changement et conservée jusqu'à son traitement.
+- Une modification BlockNote ne se réancre plus sur une projection visuelle
+  contenant du texte distant qui n'existe pas encore dans l'autorité
+  opérationnelle locale. L'intention locale est traduite depuis la bonne
+  frontière au lieu de réintroduire ou perdre une partie du texte concurrent.
+- Intercepter les routes HTTP Playwright ne coupe pas un WebSocket déjà établi.
+  Le journey de conflit utilise maintenant le vrai mode hors ligne du contexte,
+  attend une transaction éditeur effective puis la frontière synchronisée.
+- Le journey de réponse perdue ne suppose plus quel onglet a émis la requête :
+  il ferme le socket de l'émetteur réellement observé après le commit serveur.
+
+Le gate complet suivant a découvert une dernière lacune produit dans Firefox.
+Le serveur décrivait correctement certains refus comme `retryable`, avec un
+éventuel `retryAfterMs`, mais le transport Web perdait ces métadonnées et
+terminait la requête. La mise à jour restait donc durablement `pending` jusqu'à
+un autre événement ou au balayage de sécurité de 60 secondes, alors que le
+socket était sain.
+
+Le transport conserve maintenant la trame sérialisée immuable et la rejoue sur
+le même socket pour un refus explicitement transitoire. Le délai serveur est
+respecté ; sinon un backoff à jitter complet, borné entre 50 ms et 2 s, est
+utilisé. Le timeout global de la requête reste la borne dure. Tous les timers,
+promesses et propriétaires de page sont libérés par un unique chemin de
+règlement, y compris lors d'une fermeture ou d'un arrêt.
+
+Preuves ciblées, toutes sans retry Playwright :
+
+- origine distante placée derrière un commit local lent : test de régression
+  éditeur réussi ;
+- réponse perdue et reprise multi-onglets : 25/25 passages, cinq répétitions sur
+  chacun des cinq profils ;
+- véritable édition hors ligne et résolution conservatrice : 25/25 passages
+  sur la même matrice ;
+- mutations successives du workspace et vidage du `pending` : 25/25 passages,
+  Firefox inclus ;
+- rejeu déterministe d'une trame refusée puis acceptée : 15/15 tests unitaires
+  du transport et de son cycle de vie.
+
+### Gate pré-push définitif
+
+Commit exécutable testé :
+`5368dc5001a0d1a98060b6ef45dabf785b682bdf`
+(`fix(sync): retry transient realtime refusals`).
+
+Commande :
+
+```bash
+env PATH="/tmp/myownnotion-pinned-tools.r7yez3:$PATH" pnpm checks:local
+```
+
+Résultat : code de sortie 0 sur la totalité de la porte obligatoire.
+
+- toolchain, shell, format, lint et tous les typechecks : réussis ;
+- couverture : 285/285 fichiers et 3 054/3 054 tests ;
+- performance : 18/18 tests, dont 10 000 mises à jour opérationnelles avec un
+  batch p95 de 101,9 ms, un rattrapage en 157 lots, un compactage en 14,25 s et
+  une croissance heap maximale de 127,6 MiB ; 10 100 opérations de base
+  structurée avec un commit local p95 de 21,7 ms ;
+- intégrations PostgreSQL, migrations et contrats : réussis ; 101/101 fichiers
+  et 1 192/1 192 contrats, dont convergence après 90 jours hors ligne et
+  10 000 changements distants ;
+- E2E complète : 5/5 profils en 1 417 s, sans flake — Chromium desktop/mobile,
+  Firefox desktop dans le runtime Linux équivalent, WebKit desktop/mobile —
+  deux profils simultanés et une base isolée par profil ;
+- builds Web/API : réussis ; images API et Web avec SBOM construites pour
+  `linux/amd64` et `linux/arm64`, puis runtime API empaqueté exécuté avec Loro,
+  l'entrée de migration et l'entrée serveur ;
+- audit production au seuil `high` : aucune vulnérabilité haute ou critique,
+  une vulnérabilité modérée signalée ; secrets et analyse statique : zéro
+  finding ; licences : zéro violation ;
+- contrat Compose : services, ports loopback, secrets, images et upgrade
+  WebSocket validés, sans Draw.io ni serveur collaboratif.
+
+Ce commit est la preuve immuable de l'arbre exécutable proposé. L'ajout de cette
+section est exclusivement documentaire ; il ne modifie ni le code testé ni un
+document consommé par l'exécution.
