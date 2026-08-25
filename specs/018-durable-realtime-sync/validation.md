@@ -436,3 +436,78 @@ Résultat : code de sortie 0 sur la chaîne complète définie dans
 Le commit ci-dessus est donc la preuve immuable de l'arbre exécutable. Les
 changements qui consignent ce résultat et ferment T101 sont exclusivement
 documentaires.
+
+## Corrections CI et gate final sur le commit proposé
+
+Date : 2026-08-25
+
+La première exécution GitHub Actions de la PR 141, run
+[`32866208877`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/32866208877)
+sur le merge synthétique `08b11d802c3c87bf1f7af56aafb2afd16656f63f`,
+a révélé deux différences propres au runner contraint sans invalider les
+comportements testés :
+
+- la propriété `legacy-document-diff.property.spec.ts` conservait ses 100 cas,
+  mais héritait du timeout générique de 5 s ; elle possède désormais un budget
+  explicite de 30 s et réussit ses 2 tests en 1,29 s localement ;
+- la fixture WebKit d'auto-réparation supposait que `navigator.storage`
+  existait avant de simuler un refus de persistance ; elle installe désormais
+  l'objet minimal lorsque le moteur ne le fournit pas. Le journey historique
+  réussit sur les cinq profils en 27 s dans la matrice ciblée.
+
+Le gate complet suivant a ensuite découvert une vraie course éditeur dans
+`rich-page.spec.ts` : BlockNote pouvait regrouper une saisie dont le
+`prevBlock` contenait déjà le premier caractère alors que l'autorité
+opérationnelle ne le contenait pas encore. Le delta persistait alors uniquement
+le suffixe et un rechargement durable transformait par exemple
+`Information` en `nformation`. Les changements BlockNote sont désormais
+réancrés sur le snapshot opérationnel autoritaire avant leur traduction, y
+compris pour des changements séquentiels ou imbriqués du même lot.
+
+Preuves ciblées de cette correction :
+
+- 24/24 tests d'adaptation et de saisie éditeur ;
+- 50/50 fichiers Web et 309/309 tests ;
+- 25/25 exécutions navigateur valides et isolées de `rich-page.spec.ts`, soit
+  cinq profils réussis puis quatre nouvelles matrices indépendantes ;
+- aucun résultat issu de répétitions partageant la même base n'a été retenu
+  comme preuve.
+
+Commit exécutable final testé :
+`44093d67510be93d45644c5229601ee308c06a47`
+(`fix(editor): preserve coalesced input prefixes`).
+
+Commande :
+
+```bash
+env PATH="/tmp/myownnotion-pinned-tools.r7yez3:$PATH" pnpm checks:local
+```
+
+Le répertoire temporaire contient uniquement le binaire officiel `shfmt`
+v3.12.0 exigé par le dépôt. Aucun fichier du dépôt, outil système ou service de
+test utilisateur n'a été remplacé.
+
+Résultat final : code de sortie 0 sur l'intégralité du gate pré-push.
+
+- toolchain, shell, format, lint et typecheck : réussis ;
+- couverture : 285/285 fichiers et 3 052/3 052 tests, 90,13 % de lignes,
+  85,05 % de branches et 93,44 % de fonctions ;
+- performance : 18/18 tests, dont 10 000 updates opérationnelles avec batch
+  p95 114,2 ms, rattrapage en 157 lots et croissance heap maximale 135,2 MiB ;
+- intégration PostgreSQL : 33/33 fichiers et 329/329 tests ; migrations :
+  10/10 ;
+- contrats API et dépôt : 101/101 fichiers et 1 192/1 192 tests, dont
+  convergence après 90 jours et 10 000 changements distants ;
+- E2E complète : 5/5 profils en 1 431 s — Chromium desktop/mobile, Firefox
+  desktop, WebKit desktop/mobile — deux profils simultanés et chaque profil sur
+  sa propre base ;
+- builds Web/API : réussis ; images API et Web construites avec SBOM pour
+  `linux/amd64` et `linux/arm64`, puis runtime API empaqueté validé ;
+- audit production au seuil `high` : aucune vulnérabilité haute ou critique,
+  une vulnérabilité modérée signalée ; secrets et analyse statique : zéro
+  finding ; licences : zéro violation ;
+- contrat Compose : services, ports loopback, secrets, images et upgrade
+  WebSocket validés, sans Draw.io ni serveur collaboratif.
+
+Ce commit est l'arbre exécutable exact qui sera poussé. Le présent ajout est
+strictement documentaire et ne modifie pas cette preuve.
