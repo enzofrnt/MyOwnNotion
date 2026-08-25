@@ -27,7 +27,11 @@ import {
   type EditorBlocksChanged,
   type EditorInstance,
 } from "./blocknote-schema.ts";
-import { commandsFromBlockNoteChanges, EditorChangeBatcher } from "./editor-adapter.ts";
+import {
+  commandsFromBlockNoteChanges,
+  EditorChangeBatcher,
+  rebaseBlockNoteChanges,
+} from "./editor-adapter.ts";
 import {
   createMemoryEditorEngine,
   createSessionEditorEngine,
@@ -330,8 +334,11 @@ export function PageEditor({
       markEditorActivity();
       let commands: readonly PageCommand[] = [];
       try {
+        const authoritativeDocument = canonicalDocumentToBlockNote(
+          engine.snapshot(),
+        ) as EditorBlock[];
         commands = commandsFromBlockNoteChanges({
-          changes,
+          changes: rebaseBlockNoteChanges(changes, authoritativeDocument),
           document,
           tableIdForInternalBlock: (blockId) => engine.canonicalBlockIdForIdentity(blockId),
         });

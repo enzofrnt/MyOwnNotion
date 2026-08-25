@@ -595,6 +595,62 @@ export function commandsFromBlockNoteChanges(input: {
   return commands;
 }
 
+function indexEditorSubtree(index: Map<string, EditorBlock>, block: EditorBlock): void {
+  index.set(block.id, block);
+  if (!Array.isArray(block.children)) return;
+  for (const child of block.children as EditorBlock[]) indexEditorSubtree(index, child);
+}
+
+function removeEditorSubtree(index: Map<string, EditorBlock>, block: EditorBlock): void {
+  index.delete(block.id);
+  if (!Array.isArray(block.children)) return;
+  for (const child of block.children as EditorBlock[]) removeEditorSubtree(index, child);
+}
+
+/**
+ * Reanchors BlockNote's incremental before-states to the operational authority.
+ *
+ * BlockNote can coalesce a fast input immediately after a slash transform and
+ * report `I -> Information` without ever publishing the leading `I` as its own
+ * change. The browser projection is truthful, but applying that delta to an
+ * authority that still holds an empty callout would durably lose the first
+ * character. Replaying each notification from the engine snapshot catches the
+ * omitted prefix while preserving the order of multiple changes in one batch.
+ */
+export function rebaseBlockNoteChanges(
+  changes: EditorBlocksChanged,
+  authoritativeDocument: readonly EditorBlock[],
+): EditorBlocksChanged {
+  const authority = new Map<string, EditorBlock>();
+  for (const block of authoritativeDocument) indexEditorSubtree(authority, block);
+
+  return changes.map((change) => {
+    switch (change.type) {
+      case "insert":
+        indexEditorSubtree(authority, change.block);
+        return change;
+      case "update": {
+        const previous = authority.get(change.block.id) ?? change.prevBlock;
+        const current = authority.get(change.block.id);
+        if (current !== undefined) removeEditorSubtree(authority, current);
+        indexEditorSubtree(authority, change.block);
+        return { ...change, prevBlock: previous };
+      }
+      case "delete": {
+        const current = authority.get(change.block.id) ?? change.block;
+        removeEditorSubtree(authority, current);
+        return change;
+      }
+      case "move":
+        // A move changes placement only. Keep the authority's content as the
+        // baseline for any update that follows it in the same notification.
+        return change;
+    }
+    const exhaustive: never = change;
+    return exhaustive;
+  });
+}
+
 type EditorChangePublisher = (
   changes: EditorBlocksChanged,
   document: readonly EditorBlock[],
