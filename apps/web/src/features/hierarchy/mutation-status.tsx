@@ -64,7 +64,7 @@ export function MutationStatus({ service }: { readonly service: LocalContentServ
   useEffect(() => {
     const refresh = async () => {
       setQueued(await service.outbox.all());
-      setConflicts(await service.outbox.conflicts());
+      setConflicts(await service.outbox.activeConflicts());
     };
     void refresh();
     return service.subscribe(() => {

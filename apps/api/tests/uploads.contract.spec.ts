@@ -11,7 +11,10 @@
  * announces itself.
  */
 
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { generateUuidV7 } from "@myownnotion/domain";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { maxFileBytes, parseUploadMetadata } from "../src/routes/uploads.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
@@ -43,12 +46,51 @@ async function createUploadOf(length: number, name = "transfer.txt") {
   });
 }
 
+async function createUploadWithIdentity(length: number, itemId: string) {
+  return harness.built.app.inject({
+    method: "POST",
+    url: "/v1/uploads",
+    headers: {
+      "upload-length": String(length),
+      "upload-metadata": encodeMetadata({
+        filename: "embedded.txt",
+        mediaType: "text/plain",
+        itemId,
+      }),
+    },
+  });
+}
+
 describe("creating an upload", () => {
   it("answers with a location and a zero offset", async () => {
     const response = await createUploadOf(120);
     expect(response.statusCode).toBe(201);
     expect(response.headers["location"]).toMatch(/^\/v1\/uploads\//);
     expect(response.headers["upload-offset"]).toBe("0");
+  });
+
+  it("preserves a client-generated document file identity through verification", async () => {
+    const itemId = generateUuidV7();
+    const created = await createUploadWithIdentity(4, itemId);
+    expect(created.statusCode, created.body).toBe(201);
+    expect(created.json()).toMatchObject({ id: itemId });
+
+    const completed = await harness.built.app.inject({
+      method: "PATCH",
+      url: created.headers["location"] as string,
+      headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
+      payload: Buffer.from("safe"),
+    });
+
+    expect(completed.statusCode, completed.body).toBe(201);
+    expect(completed.json()).toEqual({ itemId, verified: true });
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${itemId}` });
+    expect(item.statusCode).toBe(200);
+  });
+
+  it("refuses an invalid client-generated document file identity", async () => {
+    const response = await createUploadWithIdentity(4, "../not-an-item");
+    expect(response.statusCode).toBe(400);
   });
 
   it("refuses a file larger than the installation accepts, before any byte", async () => {
@@ -93,6 +135,42 @@ describe("resuming", () => {
     // What a resuming client seeks to. It keeps no count of its own, which is
     // why this number has to be right.
     expect(after.headers["upload-offset"]).toBe("4");
+  });
+
+  it("recovers bytes appended before an interrupted database commit", async () => {
+    const created = await createUploadOf(6);
+    const body = created.json() as { id: string };
+    const location = created.headers["location"] as string;
+    const partial = path.join(harness.blobRoot, "uploads", body.id);
+    await mkdir(path.dirname(partial), { recursive: true });
+    await writeFile(partial, "abc");
+
+    const recovered = await harness.built.app.inject({ method: "HEAD", url: location });
+    expect(recovered.headers["upload-offset"]).toBe("3");
+
+    const completed = await harness.built.app.inject({
+      method: "PATCH",
+      url: location,
+      headers: { "content-type": "application/offset+octet-stream", "upload-offset": "3" },
+      payload: Buffer.from("def"),
+    });
+    expect(completed.statusCode, completed.body).toBe(201);
+  });
+
+  it("repairs a historical database offset that is ahead of durable bytes", async () => {
+    const created = await createUploadOf(6);
+    const body = created.json() as { id: string };
+    const location = created.headers["location"] as string;
+    const client = new pg.Client({ connectionString: harness.postgres.connectionString });
+    await client.connect();
+    try {
+      await client.query(`UPDATE uploads SET received_length = 3 WHERE id = $1`, [body.id]);
+    } finally {
+      await client.end();
+    }
+
+    const recovered = await harness.built.app.inject({ method: "HEAD", url: location });
+    expect(recovered.headers["upload-offset"]).toBe("0");
   });
 
   it("refuses a chunk written from the wrong offset, and says where to resume", async () => {

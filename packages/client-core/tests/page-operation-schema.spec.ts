@@ -30,7 +30,7 @@ afterEach(async () => {
   databasesToDelete.clear();
 });
 
-describe("page-operation local schema v8", () => {
+describe("page-operation local schema v9", () => {
   it("upgrades v6 without changing historical projection rows", async () => {
     const name = `page-operations-v6-${generateUuidV7()}`;
     databasesToDelete.add(name);
@@ -65,6 +65,7 @@ describe("page-operation local schema v8", () => {
     expect(await upgraded.pageOperationUpdates.count()).toBe(0);
     expect(await upgraded.pageAmbiguities.count()).toBe(0);
     expect(await upgraded.legacyOfflineBranches.count()).toBe(0);
+    expect(await upgraded.legacySyncRecoveries.count()).toBe(0);
     upgraded.close();
   });
 
@@ -97,6 +98,7 @@ describe("page-operation local schema v8", () => {
       "databases",
       "items",
       "legacyOfflineBranches",
+      "legacySyncRecoveries",
       "meta",
       "outbox",
       "pageAmbiguities",
@@ -159,6 +161,10 @@ describe("page-operation local schema v8", () => {
       expect.arrayContaining(["pageId", "status", "[pageId+status]"]),
     );
     expect(db.legacyOfflineBranches.schema.primKey.name).toBe("pageId");
+    expect(db.legacySyncRecoveries.schema.primKey.name).toBe("mutationId");
+    expect(db.legacySyncRecoveries.schema.indexes.map(({ name: indexName }) => indexName)).toEqual(
+      expect.arrayContaining(["pageId", "status", "capturedAt", "[status+pageId]"]),
+    );
 
     db.close();
   });

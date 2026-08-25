@@ -149,7 +149,7 @@ export class EditorFileTransferQueue {
       if (handle === null) {
         this.#states.set(fileItemId, { kind: "uploading", sent: 0, total: file.size });
         this.#publish();
-        const created = await createUpload(file);
+        const created = await createUpload(file, fileItemId);
         if (!created.ok) {
           this.#states.set(fileItemId, {
             kind: "blocked",
@@ -175,8 +175,12 @@ export class EditorFileTransferQueue {
         }
         this.#publish();
       });
-      if (final.kind === "verifying") {
+      if (final.kind === "synchronized" && final.itemId === fileItemId) {
         this.#states.set(fileItemId, { kind: "synchronized" });
+      } else if (final.kind === "verifying") {
+        // A complete byte count is not a server verification. The final 201
+        // response is the only event allowed to move this transfer to synced.
+        this.#states.set(fileItemId, { kind: "verifying" });
       } else if (final.kind === "blocked") {
         this.#states.set(fileItemId, { kind: "blocked", reason: final.reason });
       }

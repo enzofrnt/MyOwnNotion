@@ -60,6 +60,7 @@ describe("versioned local schema (T020)", () => {
       "databases",
       "items",
       "legacyOfflineBranches",
+      "legacySyncRecoveries",
       "meta",
       "outbox",
       "pageAmbiguities",

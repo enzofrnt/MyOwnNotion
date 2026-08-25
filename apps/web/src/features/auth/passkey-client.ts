@@ -122,6 +122,56 @@ export async function createOwnerPasskey(input: {
   };
 }
 
+/** Runs the discoverable-credential assertion used by owner sign-in. */
+export async function requestOwnerPasskey(input: {
+  readonly challenge: string;
+}): Promise<PasskeyResult> {
+  if (
+    typeof window === "undefined" ||
+    typeof window.PublicKeyCredential !== "function" ||
+    navigator.credentials?.get === undefined
+  ) {
+    return { ok: false, failure: "unsupported" };
+  }
+  if (!window.isSecureContext) {
+    return { ok: false, failure: "insecure-context" };
+  }
+
+  let credential: Credential | null;
+  try {
+    credential = await navigator.credentials.get({
+      publicKey: {
+        challenge: fromBase64Url(input.challenge) as BufferSource,
+        timeout: 120_000,
+        userVerification: "required",
+      },
+    });
+  } catch (error) {
+    return { ok: false, failure: classify(error) };
+  }
+  if (credential === null) {
+    return { ok: false, failure: "cancelled" };
+  }
+
+  const assertion = credential as PublicKeyCredential;
+  const response = assertion.response as AuthenticatorAssertionResponse;
+  return {
+    ok: true,
+    credential: {
+      id: assertion.id,
+      rawId: toBase64Url(assertion.rawId),
+      type: assertion.type,
+      response: {
+        clientDataJSON: toBase64Url(response.clientDataJSON),
+        authenticatorData: toBase64Url(response.authenticatorData),
+        signature: toBase64Url(response.signature),
+        ...(response.userHandle === null ? {} : { userHandle: toBase64Url(response.userHandle) }),
+      },
+      clientExtensionResults: assertion.getClientExtensionResults(),
+    },
+  };
+}
+
 /**
  * Maps a `DOMException` to owner-facing guidance.
  *

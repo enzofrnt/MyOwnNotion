@@ -34,6 +34,7 @@ export interface DeviceRouteDeps {
   readonly devices: DeviceService;
   readonly audit: AuditService;
   readonly installationId: string;
+  readonly onDeviceRevoked?: (input: { ownerId: string; deviceId: string }) => void;
   /**
    * The shared authentication gate from the authentication routes.
    *
@@ -160,6 +161,7 @@ export function registerDeviceRoutes(app: FastifyInstance, deps: DeviceRouteDeps
       const { deviceId } = request.params as { deviceId: string };
       try {
         const device = await deps.devices.revoke({ ownerId: owner.ownerId, deviceId });
+        deps.onDeviceRevoked?.({ ownerId: owner.ownerId, deviceId });
         await deps.audit.record(auditContext(request), {
           eventType: "device.revoked",
           outcome: "success",

@@ -62,6 +62,7 @@ export const FORBIDDEN_FIELD_NAMES = [
   "token",
   "tokens",
   "sessiontoken",
+  "sessionid",
   "csrftoken",
   "bootstrapcapability",
   "capability",
@@ -79,6 +80,12 @@ export const FORBIDDEN_FIELD_NAMES = [
   "document",
   "snapshot",
   "ciphertext",
+  "updatebytes",
+  "encryptedupdatebytes",
+  "versionvector",
+  "persistedversionvector",
+  "serverversionvector",
+  "filebytes",
   // Structured workspace content (feature 009). Stable identifiers remain
   // readable, but every owner-authored label, value and view/query definition
   // is private even when it appears in an application-owned diagnostic object.

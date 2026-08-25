@@ -10,6 +10,14 @@ description: "Tâches d'implémentation de l'expérience V1 Notion-like et de la
 **Prerequisites**: `spec.md`, `plan.md`, `research.md`, `data-model.md`,
 `contracts/`, `quickstart.md`
 
+> **Suivi 2026-08-25** — Les tâches 017 déjà terminées restent la fondation
+> Loro/BlockNote, locale et serveur. La feature 018 possède désormais le canal
+> WebSocket, les ACK après commit, la reprise/crash, l'auto-réparation legacy,
+> la sécurité de session, les fichiers et la restauration. Après validation de
+> la 018, reprendre ici aux tâches UI/UX ouvertes (US7, US6 et Polish) ; ne pas
+> réintroduire HTTP+SSE ou le remplacement complet comme second chemin du corps
+> des pages.
+
 **Tests**: La spécification exige explicitement tests de propriétés,
 intégration, contrats, fault injection, multi-contextes navigateur,
 accessibilité, visuels, sécurité, migration, sauvegarde et performance. Les

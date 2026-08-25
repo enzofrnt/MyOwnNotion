@@ -50,6 +50,9 @@ export interface PageAmbiguityServiceDeps {
   readonly operations: PageOperationService;
   readonly materializer: CanonicalMaterializer;
   readonly rotationPolicies: RotationPolicyService;
+  readonly onPageCommitted?:
+    | ((event: { readonly pageId: Uuid; readonly latestPageSequence: number }) => void)
+    | undefined;
   readonly now?: () => Date;
 }
 
@@ -178,15 +181,16 @@ export class PageAmbiguityService {
           }
         })();
         const plan = planPageAmbiguityResolution(details, decision);
-        const { revisionId, committedSequence } = await this.#deps.operations.applyServerCommands(
-          {
-            pageId: row.pageId as Uuid,
-            deviceId: input.deviceId,
-            mutationId: input.request.requestId,
-            commands: plan.commands,
-          },
-          tx,
-        );
+        const { revisionId, committedSequence, latestPageSequence } =
+          await this.#deps.operations.applyServerCommands(
+            {
+              pageId: row.pageId as Uuid,
+              deviceId: input.deviceId,
+              mutationId: input.request.requestId,
+              commands: plan.commands,
+            },
+            tx,
+          );
         await resolvePageAmbiguityRow(tx, {
           workspaceId: this.#deps.workspaceId,
           ambiguityId: row.id as Uuid,
@@ -194,9 +198,23 @@ export class PageAmbiguityService {
           resolutionRevisionId: revisionId,
           resolvedAt: this.#deps.now(),
         });
-        return { revisionId, status: plan.status, committedSequence };
+        return {
+          revisionId,
+          status: plan.status,
+          committedSequence,
+          pageId: row.pageId as Uuid,
+          latestPageSequence,
+        };
       });
       announceCommitted(resolved.committedSequence);
+      try {
+        this.#deps.onPageCommitted?.({
+          pageId: resolved.pageId,
+          latestPageSequence: resolved.latestPageSequence,
+        });
+      } catch {
+        // The owner decision and generated operation are already committed.
+      }
       return { revisionId: resolved.revisionId, status: resolved.status };
     } catch (error) {
       if (error instanceof SemanticConflictError) {

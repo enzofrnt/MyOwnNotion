@@ -92,12 +92,15 @@ export function registerPageOperationRoutes(
     },
     async (request, reply) => {
       requirePageOperationProtocol(request);
-      if ((await authorizeOperationalRequest(deps, request, reply, true)) === null) return reply;
+      const owner = await authorizeOperationalRequest(deps, request, reply, true);
+      if (owner === null) return reply;
       const { pageId } = request.params as { pageId: Uuid };
       const body = parseActivatePageRequest(request.body);
       try {
         const response = await deps.activation.activate({
           pageId,
+          ownerId: owner.ownerId,
+          deviceId: owner.deviceId as Uuid,
           requestId: body.requestId as Uuid,
           expectedRevisionId: body.expectedRevisionId as Uuid,
           expectedCanonicalDigest: body.expectedCanonicalDigest,
@@ -129,6 +132,7 @@ export function registerPageOperationRoutes(
           return reply.status(200).send(
             await deps.operations.sync({
               pageId,
+              ownerId: owner.ownerId,
               deviceId: owner.deviceId as Uuid,
               request: body,
             }),
@@ -138,6 +142,7 @@ export function registerPageOperationRoutes(
           return reply.status(200).send(
             await deps.legacy.convert({
               pageId,
+              ownerId: owner.ownerId,
               deviceId: owner.deviceId as Uuid,
               request: body,
             }),

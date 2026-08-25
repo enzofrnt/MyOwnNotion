@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import type { Uuid } from "@myownnotion/domain";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   EditorBlock,
   EditorInstance,
@@ -30,12 +31,15 @@ function fakeEditor(
   initial: readonly EditorBlock[],
   activeBlockId: Uuid,
   origin: EditorOriginGuard,
+  options: { readonly root?: HTMLDivElement; readonly focused?: boolean } = {},
 ) {
   const state = {
     document: structuredClone(initial) as EditorBlock[],
     activeBlockId,
     localEchoes: 0,
     cursorMoves: 0,
+    focusCalls: 0,
+    focused: options.focused ?? false,
   };
   const touch = (): void => {
     if (origin.acceptLocalChanges) state.localEchoes += 1;
@@ -43,6 +47,12 @@ function fakeEditor(
   const lookup = (id: string): EditorBlock | undefined =>
     state.document.find((block) => block.id === id);
   const editor = {
+    domElement: options.root,
+    isFocused: () => state.focused,
+    focus: () => {
+      state.focused = true;
+      state.focusCalls += 1;
+    },
     get document() {
       return state.document;
     },
@@ -95,6 +105,11 @@ function fakeEditor(
 }
 
 describe("targeted remote application", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    vi.restoreAllMocks();
+  });
+
   it("treats omitted leaf children as an empty collection", () => {
     const { children: _currentChildren, ...currentLeaf } = paragraph(FIRST, "before");
     const { children: _nextChildren, ...nextLeaf } = paragraph(FIRST, "after");
@@ -144,6 +159,71 @@ describe("targeted remote application", () => {
     expect(result.targetedChanges.map((change) => change.type)).toEqual(["move", "update"]);
     expect(result.restoredSelection).toEqual({ activeBlockId: SECOND, placement: "end" });
     expect(origin.acceptLocalChanges).toBe(true);
+  });
+
+  it("keeps the exact mapped caret when another block is updated", () => {
+    const origin = new EditorOriginGuard();
+    const first = paragraph(FIRST, "first");
+    const second = paragraph(SECOND, "second");
+    const edited = paragraph(FIRST, "first, remotely edited");
+    const { editor, state } = fakeEditor([first, second], SECOND, origin);
+
+    const result = applyRemoteEditorProjection({ editor, origin, next: [edited, second] });
+
+    expect(result.restoredSelection).toBeNull();
+    expect(state.cursorMoves).toBe(0);
+    expect(state.activeBlockId).toBe(SECOND);
+  });
+
+  it("does not steal focus from controls outside the editor", () => {
+    const root = document.createElement("div");
+    const outside = document.createElement("button");
+    document.body.append(root, outside);
+    outside.focus();
+    const origin = new EditorOriginGuard();
+    const first = paragraph(FIRST, "first");
+    const edited = paragraph(FIRST, "remotely edited");
+    const { editor, state } = fakeEditor([first], FIRST, origin, { root, focused: false });
+
+    applyRemoteEditorProjection({ editor, origin, next: [edited] });
+
+    expect(document.activeElement).toBe(outside);
+    expect(state.cursorMoves).toBe(0);
+    expect(state.focusCalls).toBe(0);
+  });
+
+  it("restores the visible block anchor after a remote reorder", () => {
+    const root = document.createElement("div");
+    root.innerHTML = `
+      <div class="bn-block-outer" data-id="${FIRST}">first</div>
+      <div class="bn-block-outer" data-id="${SECOND}">second</div>`;
+    document.body.append(root);
+    const origin = new EditorOriginGuard();
+    const first = paragraph(FIRST, "first");
+    const second = paragraph(SECOND, "second");
+    const { editor, state } = fakeEditor([first, second], FIRST, origin, {
+      root,
+      focused: true,
+    });
+    let scrollY = 200;
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
+    window.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === "object") scrollY = Number(options.top ?? scrollY);
+    }) as typeof window.scrollTo;
+    for (const element of root.querySelectorAll<HTMLElement>("[data-id]")) {
+      element.getBoundingClientRect = () => {
+        if (element.dataset["id"] === FIRST) {
+          return { top: -1_000, bottom: -100 } as DOMRect;
+        }
+        const top = state.document[0]?.id === SECOND ? 200 : -100;
+        return { top, bottom: top + 900 } as DOMRect;
+      };
+    }
+
+    applyRemoteEditorProjection({ editor, origin, next: [second, first] });
+
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 500 });
+    expect(state.focusCalls).toBe(0);
   });
 
   it("keeps a selection on the same UUID and falls back to the logical neighbour", () => {

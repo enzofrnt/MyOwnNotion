@@ -1,7 +1,7 @@
 import type { SafeError } from "@myownnotion/domain";
 import type { LocalContentService } from "../../services/local-content.ts";
-import { StoragePanel } from "../files/storage-panel.tsx";
 import { MutationStatus } from "../hierarchy/mutation-status.tsx";
+import { StorageDiagnostics } from "../settings/storage-diagnostics.tsx";
 
 export function DiagnosticsPanel({
   problem,
@@ -32,7 +32,7 @@ export function DiagnosticsPanel({
           </p>
         </section>
       )}
-      <StoragePanel service={service} />
+      <StorageDiagnostics service={service} />
       <MutationStatus service={service} />
     </section>
   );

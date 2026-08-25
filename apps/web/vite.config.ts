@@ -10,7 +10,7 @@ import { VitePWA } from "vite-plugin-pwa";
 function apiProxy() {
   const target = process.env["MYOWNNOTION_API_URL"] ?? "http://127.0.0.1:3001";
   return {
-    "/v1": { target, changeOrigin: false },
+    "/v1": { target, changeOrigin: false, ws: true },
     "/health": { target, changeOrigin: false },
   };
 }

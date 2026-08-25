@@ -261,6 +261,31 @@ timings being measured, so a red budget would describe the profiler rather than
 the application. `test:coverage` and `test:performance` are both mandatory in
 the complete local gate; CI starts their jobs concurrently.
 
+### Fast, safe parallel feedback
+
+Run independent targeted families concurrently while developing, but give each
+family one owner and one log. A useful three-lane split is:
+
+1. pure projects: contracts, domain, page-state, client-core and Web;
+2. database/API contracts against the disposable PostgreSQL harness;
+3. one selected Playwright journey through `test:e2e:local`.
+
+Start those lanes concurrently from the test orchestrator or from separate
+terminals. Inside a lane, use one Vitest invocation with several `--project`
+arguments rather than spawning one process per file; Vitest then schedules its
+files with the available worker pool. When several database lanes run, set
+`TEST_DATABASE_URL` to the same disposable PostgreSQL server: each suite still
+creates its own random database, while avoiding one container per process.
+
+Do not run two raw Playwright commands concurrently. They share the default
+database and reset fixtures. `pnpm test:e2e:local` is the parallel-safe browser
+entry point because it allocates a database, ports, blob root, deployment key
+and Vite cache per project. Keep its default width of two on a small runner.
+
+This parallel feedback does not replace `pnpm checks:local`. The full gate owns
+its resource ordering and must run once, without a competing test process,
+against the exact commit that will be pushed.
+
 **Every browser project runs at once, each on its own stack.** The matrix used
 to run one project after another, and the reason was not the browsers: every
 journey resets the same database, so two projects sharing one would delete each
@@ -332,6 +357,55 @@ skips rather than fails.
 Security suites never sleep for a timeout: advance the controlled clock
 instead, so the 15-minute bootstrap window and the session bounds are asserted
 at exact instants.
+
+### Realtime synchronization debugging and fault injection
+
+The page channel is `/v1/page-sync/socket`. In browser network tools, a healthy
+session upgrades once and follows `hello` → `ready`; edits use correlated
+`sync`/`sync-result` exchanges and other devices receive content-free
+`page-advanced` announcements. Repeated socket creation while the page is idle,
+an HTTP page-sync call while a socket owns that invocation, or a success status
+before `sync-result` are defects.
+
+The compact UI exposes separate states for the live connection, local
+durability, pending page operations and pending files. Do not diagnose a denied
+persistent-storage permission as a content conflict: it is only a storage-risk
+warning. A genuine ambiguity remains scoped to its page and keeps both
+intentions recoverable.
+
+Server logs put safe diagnostics under `realtimeSync`: `session-opened`,
+`session-ready`, `exchange-completed` and `session-closed`. Correlate with
+connection, device and request UUIDs plus bounded outcome/latency fields. Page
+text, update bytes, vectors, cookies, CSRF tokens and keys must never appear.
+For a Compose stack, inspect only those records with:
+
+```bash
+docker compose logs --no-color api | jq 'select(.realtimeSync != null)'
+```
+
+Use deterministic seams for faults; do not add sleeps or production-only
+failure switches. The focused matrix is:
+
+```bash
+pnpm exec vitest run --project client-core \
+  packages/client-core/tests/page-operation-atomicity.spec.ts \
+  packages/client-core/tests/page-reconciler.property.spec.ts
+pnpm exec vitest run --project api-contract \
+  apps/api/tests/realtime-page-sync.contract.spec.ts \
+  apps/api/tests/page-sync-session.spec.ts \
+  apps/api/tests/realtime-device-revocation.integration.spec.ts
+pnpm exec vitest run --project web \
+  apps/web/tests/realtime-page-sync-transport.spec.ts \
+  apps/web/tests/local-content-realtime-sync.spec.ts
+pnpm test:e2e:local -- \
+  tests/e2e/page-multi-tab-convergence.spec.ts \
+  tests/e2e/realtime-sync-security-and-restore.spec.ts
+```
+
+Together these inject local transaction failures, lost replies after server
+commit, half-open sockets, shutdown, device revocation, browser death and
+restore with newer offline work. Every case must retain the same durable update
+identity and converge without a whole-document replacement.
 
 ### Search checks
 

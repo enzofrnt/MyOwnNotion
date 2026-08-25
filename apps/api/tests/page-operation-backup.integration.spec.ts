@@ -76,13 +76,14 @@ async function replica(pageId: Uuid, checkpoint: Awaited<ReturnType<typeof activ
 async function transportUpdate(
   transaction: ReturnType<OperationalPageDocument["transact"]>,
   updateId = generateUuidV7(),
+  createdAt = "2026-08-23T10:00:00.000Z",
 ) {
   return {
     updateId,
     baseVersionVector: Buffer.from(transaction.baseVersionVector).toString("base64url"),
     updateBytes: Buffer.from(transaction.updateBytes).toString("base64url"),
     updateDigest: await sha256Hex(transaction.updateBytes),
-    createdAt: "2026-08-23T10:00:00.000Z",
+    createdAt,
   };
 }
 
@@ -186,7 +187,7 @@ async function restoreBackup(archive: Buffer) {
 }
 
 describe("operational backup and restore", () => {
-  it("preserves a separately authorized absent device and merges its older offline branch", async () => {
+  it("preserves a device absent 90 days and merges its newer local branch after restore", async () => {
     const headers = await harness.authenticate();
     const absentDeviceId = generateUuidV7();
     const absentHeaders = await harness.authenticateAsDevice({
@@ -242,7 +243,11 @@ describe("operational backup and restore", () => {
       },
     ]);
     const absentUpdateId = generateUuidV7();
-    const absentUpdate = await transportUpdate(absentTransaction, absentUpdateId);
+    const absentUpdate = await transportUpdate(
+      absentTransaction,
+      absentUpdateId,
+      "2026-05-27T10:00:00.000Z",
+    );
 
     const candidate = await checkpoints().createCandidate(page.itemId);
     await checkpoints().verifyCandidate(page.itemId, candidate.id as Uuid);
@@ -255,6 +260,18 @@ describe("operational backup and restore", () => {
       operationalPageCount: 1,
       operationalCheckpointCount: 2,
       operationalUpdateCount: 1,
+    });
+    if (decoded.operationalState === null) {
+      throw new Error("the operational state is missing from the backup");
+    }
+    const archivedOperations = readPageOperationArchive(JSON.parse(decoded.operationalState));
+    expect(archivedOperations.pages[0]).toMatchObject({
+      pageId: page.itemId,
+      lastUpdateSequence: 1,
+      updates: [expect.objectContaining({ id: onlineUpdate.updateId })],
+      deviceFrontiers: expect.arrayContaining([
+        expect.objectContaining({ deviceId: absentDeviceId, deviceState: "authorized" }),
+      ]),
     });
 
     const coverage = await harness.api.built.database.db.execute(sql`
@@ -298,6 +315,22 @@ describe("operational backup and restore", () => {
     ).toBe(200);
 
     await restoreBackup(archive);
+
+    const restoredState = await harness.api.built.database.db.execute(sql`
+      SELECT s.last_update_sequence,
+             count(f.device_id)::int AS frontier_count
+        FROM page_operation_states s
+        LEFT JOIN page_device_frontiers f ON f.page_id = s.page_id
+       WHERE s.page_id = ${page.itemId}::uuid
+       GROUP BY s.last_update_sequence
+    `);
+    expect(
+      (
+        restoredState as unknown as {
+          rows: Array<{ last_update_sequence: string; frontier_count: number }>;
+        }
+      ).rows[0],
+    ).toEqual({ last_update_sequence: "1", frontier_count: 2 });
 
     const returned = await sync({
       pageId: page.itemId,

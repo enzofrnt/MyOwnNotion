@@ -156,6 +156,40 @@ describe("protected records", () => {
     expect(text(opened ?? new Uint8Array())).toBe(PAYLOAD);
   });
 
+  it("drops cached material when a restored database reuses the generation number", async () => {
+    const warmKeys = hierarchy();
+    await initialize(warmKeys);
+    await records(warmKeys).write(handle.db, {
+      entityType: "page.body",
+      entityId: "018f2b7c-0000-7000-8000-0000000000e1",
+      recordVersion: 1,
+      payload: bytes("before restore"),
+    });
+
+    // Model an operator replacing the persistent state while the API process
+    // stays alive. The replacement starts again at generation 1, but it owns a
+    // different root key and data key.
+    await handle.db.execute(sql`
+      TRUNCATE protected_envelopes, data_key_generations, workspace_root_keys,
+        wrapping_key_versions CASCADE
+    `);
+    await initialize(warmKeys);
+    await records(warmKeys).write(handle.db, {
+      entityType: "page.body",
+      entityId: "018f2b7c-0000-7000-8000-0000000000e2",
+      recordVersion: 1,
+      payload: bytes("after restore"),
+    });
+
+    // A second process has no cache. If the warm process had reused the first
+    // generation's bytes, this read would fail authentication permanently.
+    const opened = await records(hierarchy()).read(handle.db, {
+      entityType: "page.body",
+      entityId: "018f2b7c-0000-7000-8000-0000000000e2",
+    });
+    expect(text(opened ?? new Uint8Array())).toBe("after restore");
+  });
+
   it("returns null for a record that was never written", async () => {
     const keys = hierarchy();
     await initialize(keys);

@@ -97,8 +97,9 @@ function focusBlock(editor: EditorInstance, blockId: string): void {
 }
 
 export function selectBlockForAction(editor: EditorInstance, blockId: string): void {
-  const current = editor.getSelection()?.blocks ?? [];
-  if (current.some((block) => block.id === blockId)) return;
+  // A pointer context menu names one concrete block. Do not trust a selection
+  // left behind by a previous projection or by the menu taking focus: WebKit
+  // can retain that stale range even though the owner clicked another block.
   focusBlock(editor, blockId);
 }
 

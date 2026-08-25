@@ -12,6 +12,7 @@ interface PackageManifest {
 
 interface LockedDependency {
   specifier?: string;
+  version?: string;
 }
 
 function readManifest(relativePath: string): PackageManifest {
@@ -61,8 +62,35 @@ function lockedImporterDependency(
 }
 
 describe("the V1 editor toolchain", () => {
+  const api = readManifest("apps/api/package.json");
   const web = readManifest("apps/web/package.json");
   const pageState = readManifest("packages/page-state/package.json");
+
+  it("locks the Fastify WebSocket adapter without adding a collaboration service", () => {
+    expect(api.dependencies?.["@fastify/websocket"]).toBe("^11.3.0");
+    expect(lockedImporterDependency("apps/api", "dependencies", "@fastify/websocket")).toEqual({
+      specifier: "^11.3.0",
+      version: "11.3.0",
+    });
+
+    const forbidden = new Set([
+      "@hocuspocus/provider",
+      "@hocuspocus/server",
+      "@y-sweet/client",
+      "loro-websocket",
+      "socket.io",
+      "socket.io-client",
+      "y-websocket",
+    ]);
+    for (const manifestPath of workspaceManifestPaths()) {
+      for (const [name] of dependencyEntries(readManifest(manifestPath))) {
+        expect(
+          forbidden.has(name),
+          `${manifestPath} depends on external sync runtime ${name}`,
+        ).toBe(false);
+      }
+    }
+  });
 
   it("locks the three BlockNote Community packages to one exact version", () => {
     const expected = {

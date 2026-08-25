@@ -186,7 +186,9 @@ export function PageEditor({
   const lastEditorActivityAt = useRef(0);
   const editorSettled = useRef(true);
   const remoteProjectionPending = useRef(false);
+  const localBurstDrainInFlight = useRef(false);
   const projectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleProjectionSettlementRef = useRef<() => void>(() => undefined);
 
   const writeEditorSettlementState = useCallback(() => {
     const host = editorHostRef.current;
@@ -229,19 +231,34 @@ export function PageEditor({
   );
 
   const markEditorSettled = useCallback(() => {
-    if (inFlight.current > 0) return;
+    if (inFlight.current > 0 || localBurstDrainInFlight.current) return;
     const endedLocalBurst = localActivityInCurrentBurst.current;
-    editorSettled.current = true;
     localActivityInCurrentBurst.current = false;
     if (endedLocalBurst && supportsLocalInputBursts(session)) {
-      void session.endLocalInputBurst().catch((error: unknown) => {
-        setEditorError(
-          error instanceof Error
-            ? `La mise à jour distante n’a pas pu être appliquée : ${error.message}`
-            : "La mise à jour distante n’a pas pu être appliquée.",
-        );
-      });
+      // `endLocalInputBurst` may adopt durable operations and synchronously
+      // emit a remote session event before its promise resolves. Publishing a
+      // settled surface before that adoption and its visual projection finish
+      // leaves a narrow but destructive interaction window: a toolbar or
+      // context-menu gesture can target the pre-adoption tree while BlockNote
+      // is replacing it. Keep the surface busy and let a new quiet pass apply
+      // the resulting projection before acknowledging settlement.
+      localBurstDrainInFlight.current = true;
+      void session
+        .endLocalInputBurst()
+        .catch((error: unknown) => {
+          setEditorError(
+            error instanceof Error
+              ? `La mise à jour distante n’a pas pu être appliquée : ${error.message}`
+              : "La mise à jour distante n’a pas pu être appliquée.",
+          );
+        })
+        .finally(() => {
+          localBurstDrainInFlight.current = false;
+          scheduleProjectionSettlementRef.current();
+        });
+      return;
     }
+    editorSettled.current = true;
     writeEditorSettlementState();
     onSettlementChange?.(true);
     // Undo/redo availability is presentation state. Updating it once per
@@ -281,6 +298,10 @@ export function PageEditor({
         projectionTimer.current = setTimeout(inspect, EDITOR_PROJECTION_QUIET_MS);
         return;
       }
+      if (localBurstDrainInFlight.current) {
+        projectionTimer.current = setTimeout(inspect, EDITOR_PROJECTION_QUIET_MS);
+        return;
+      }
       projectionTimer.current = null;
       applyPendingRemoteProjection();
       setEditorError(null);
@@ -288,6 +309,7 @@ export function PageEditor({
     };
     projectionTimer.current = setTimeout(inspect, EDITOR_PROJECTION_QUIET_MS);
   }, [applyPendingRemoteProjection, markEditorSettled]);
+  scheduleProjectionSettlementRef.current = scheduleProjectionSettlement;
 
   useEffect(
     () => () => {

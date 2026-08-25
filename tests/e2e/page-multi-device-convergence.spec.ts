@@ -164,6 +164,27 @@ async function editSharedEndAndInsertNeighbour(page: Page): Promise<string> {
   return insertedId;
 }
 
+async function moveBlockRepeatedly(
+  page: Page,
+  label: string,
+  direction: "haut" | "bas",
+  count: number,
+): Promise<void> {
+  for (let index = 0; index < count; index += 1) {
+    const beforeMove = await editorApplyCount(page);
+    const target = blockContaining(page, label);
+    const targetId = await target.getAttribute("data-id");
+    expect(targetId).not.toBeNull();
+    await target.click({ button: "right" });
+    await expect(page.getByTestId("block-context-menu")).toHaveAttribute(
+      "data-block-id",
+      targetId as string,
+    );
+    await page.getByRole("menuitem", { name: `Déplacer vers le ${direction}` }).click();
+    await waitForEditorSettled(page, { afterApplyCount: beforeMove });
+  }
+}
+
 for (const firstToReconnect of ["A", "B"] as const) {
   test(`offline page convergence reconnecting ${firstToReconnect} first`, async ({
     page,
@@ -247,6 +268,72 @@ for (const firstToReconnect of ["A", "B"] as const) {
     }
   });
 }
+
+test("independent offline block moves converge without loss or a conflict", async ({
+  page,
+  context,
+  browser,
+  baseURL,
+}) => {
+  const second = await openSecondDevice(browser, baseURL);
+  try {
+    const pageName = uniqueName("ConcurrentBlockMoves");
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    await selectItem(page, pageName);
+    await waitForEditor(page);
+    const beforeSeed = await editorChangeSequence(page);
+    const surface = editor(page);
+    await surface.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Delete");
+    for (const [index, label] of ["alpha", "bravo", "charlie", "delta"].entries()) {
+      if (index > 0) await page.keyboard.press("ControlOrMeta+Alt+Enter");
+      await surface.pressSequentially(label);
+    }
+    await waitForEditorSettled(page, { afterSequence: beforeSeed });
+    await waitForPageSynchronized(page);
+
+    await openWorkspace(second.page);
+    await selectItem(second.page, pageName);
+    await waitForPageSynchronized(second.page);
+    const startingBlocks = await visibleBlocks(page);
+    expect(await visibleBlocks(second.page)).toEqual(startingBlocks);
+
+    await Promise.all([
+      goOffline({ context, page }),
+      goOffline({ context: second.context, page: second.page }),
+    ]);
+    // Both replicas remain offline, so neither branch can observe the other.
+    // Serializing the browser interactions avoids two context menus fighting
+    // for focus in one browser process while preserving the concurrent merge.
+    await moveBlockRepeatedly(page, "delta", "haut", 3);
+    await moveBlockRepeatedly(second.page, "bravo", "bas", 2);
+    await Promise.all([waitForEditorSettled(page), waitForEditorSettled(second.page)]);
+
+    await reconnectOpenDevice({ context, page });
+    await reconnectOpenDevice({ context: second.context, page: second.page });
+    await expect
+      .poll(async () => JSON.stringify(await visibleBlocks(page)), { timeout: 30_000 })
+      .toBe(JSON.stringify(await visibleBlocks(second.page)));
+
+    const converged = await visibleBlocks(page);
+    expect(converged).toHaveLength(4);
+    expect(new Set(converged.map(({ id }) => id)).size).toBe(4);
+    expect(converged.map(({ text }) => text).sort()).toEqual([
+      "alpha",
+      "bravo",
+      "charlie",
+      "delta",
+    ]);
+    await expect(page.getByTestId("ambiguity-notice")).toHaveCount(0);
+    await expect(second.page.getByTestId("ambiguity-notice")).toHaveCount(0);
+  } finally {
+    await second.context.close().catch(() => undefined);
+    await context.setOffline(false);
+  }
+});
 
 test("a restarted device drains a closed page without reopening it", async ({
   page,

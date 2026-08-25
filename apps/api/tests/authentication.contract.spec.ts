@@ -30,6 +30,11 @@ let harness: ApiHarness;
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
 const OWNER_ID = "018f2b7c-0000-7000-8000-0000000000bb";
 const DEVICE_ID = "018f2b7c-0000-7000-8000-0000000000cc";
+const DEVICE_CLAIM = {
+  deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
+  name: "Test browser",
+  platform: "Test platform",
+} as const;
 const PASSWORD = "correct horse battery staple";
 const COOKIE = "mn_dev_session";
 const CSRF_HEADER = "x-csrf-token";
@@ -83,7 +88,7 @@ async function seedOwner(options: { withPassword?: boolean } = {}): Promise<void
   `);
   await db.execute(sql`
     INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
-    VALUES (${DEVICE_ID}::uuid, ${OWNER_ID}::uuid, 'binding-1', 'Laptop', 'active')
+    VALUES (${DEVICE_ID}::uuid, ${OWNER_ID}::uuid, ${DEVICE_CLAIM.deviceBindingId}, 'Laptop', 'active')
   `);
   if (options.withPassword !== false) {
     const hashed = await hashPassword(PASSWORD);
@@ -125,8 +130,10 @@ function inject(options: Inject) {
   });
 }
 
-const login = (password = PASSWORD) =>
-  inject({ method: "POST", url: "/v1/auth/login/password", payload: { password } });
+const login = (
+  password = PASSWORD,
+  device: { deviceBindingId: string; name: string; platform: string } = DEVICE_CLAIM,
+) => inject({ method: "POST", url: "/v1/auth/login/password", payload: { password, device } });
 
 /** Extracts the session cookie value from a `Set-Cookie` header. */
 function cookieFrom(response: { headers: Record<string, unknown> }): string {
@@ -156,6 +163,27 @@ describe("password login", () => {
     expect(body.session.authMethod).toBe("password");
     expect(body.session.state).toBe("active");
     expect(body.csrfToken).toHaveLength(43);
+  });
+
+  it("creates and then reuses the exact profile device instead of the first row", async () => {
+    await seedOwner();
+    const secondProfile = {
+      deviceBindingId: "web-f66efccd-ac83-46d4-bde9-24e2dbd36eba",
+      name: "Second browser",
+      platform: "Test platform",
+    } as const;
+
+    const firstLogin = await login(PASSWORD, secondProfile);
+    const secondLogin = await login(PASSWORD, secondProfile);
+    const firstDeviceId = firstLogin.json().session.deviceId as string;
+
+    expect(firstLogin.statusCode).toBe(200);
+    expect(firstDeviceId).not.toBe(DEVICE_ID);
+    expect(secondLogin.json().session.deviceId).toBe(firstDeviceId);
+    const devices = await harness.built.database.db.execute(sql`
+      SELECT id, device_binding_id FROM authorized_devices ORDER BY authorized_at
+    `);
+    expect(devices.rows).toHaveLength(2);
   });
 
   it("puts the secret in a cookie and never in the body", async () => {
@@ -650,10 +678,13 @@ describe("passkey login, through its refusals", () => {
       method: "POST",
       url: "/v1/auth/login/passkey",
       payload: {
-        id: "unknown-credential",
-        rawId: "unknown-credential",
-        type: "public-key",
-        response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+        credential: {
+          id: "unknown-credential",
+          rawId: "unknown-credential",
+          type: "public-key",
+          response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+        },
+        device: DEVICE_CLAIM,
       },
     });
     expect(response.statusCode).toBe(401);
@@ -669,10 +700,13 @@ describe("passkey login, through its refusals", () => {
       method: "POST",
       url: "/v1/auth/login/passkey",
       payload: {
-        id: "unknown-credential",
-        rawId: "unknown-credential",
-        type: "public-key",
-        response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+        credential: {
+          id: "unknown-credential",
+          rawId: "unknown-credential",
+          type: "public-key",
+          response: { clientDataJSON: "e30", authenticatorData: "AA", signature: "AA" },
+        },
+        device: DEVICE_CLAIM,
       },
     });
     expect(withoutPassword.json().code).toBe("authentication_failed");

@@ -12,6 +12,7 @@
  * bug would live.
  */
 
+import { generateUuidV7 } from "@myownnotion/domain";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createUpload, sendRemaining, type UploadHandle } from "../src/features/files/upload.ts";
 
@@ -59,6 +60,28 @@ describe("starting a transfer", () => {
     expect(headers["upload-metadata"]).toContain("filename ");
   });
 
+  it("asks the server to preserve the file identity already stored in the document", async () => {
+    const fileItemId = generateUuidV7();
+    let metadata = "";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        metadata = (init.headers as Record<string, string>)["upload-metadata"] ?? "";
+        return response({
+          status: 201,
+          headers: { location: `/v1/uploads/${fileItemId}` },
+          body: { id: fileItemId },
+        });
+      }),
+    );
+
+    await expect(createUpload(fileOf(12), fileItemId)).resolves.toMatchObject({
+      ok: true,
+      handle: { uploadId: fileItemId },
+    });
+    expect(metadata).toContain(`itemId ${btoa(fileItemId)}`);
+  });
+
   it("reports the limit when the file is refused, and says the draft is safe", async () => {
     vi.stubGlobal(
       "fetch",
@@ -82,6 +105,75 @@ describe("starting a transfer", () => {
 });
 
 describe("resuming", () => {
+  it("becomes synchronized only from the server's verified final identity", async () => {
+    const fileItemId = generateUuidV7();
+    const verified: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) =>
+        init.method === "HEAD"
+          ? response({ headers: { "upload-offset": "0" } })
+          : response({
+              status: 201,
+              headers: { "upload-offset": "5", "upload-complete": "true" },
+              body: { itemId: fileItemId, verified: true },
+            }),
+      ),
+    );
+
+    const state = await sendRemaining(
+      { uploadId: fileItemId, location: `/v1/uploads/${fileItemId}` },
+      fileOf(5),
+      (progress) => {
+        if (progress.kind === "synchronized") verified.push(progress.itemId);
+      },
+    );
+
+    expect(state).toEqual({ kind: "synchronized", itemId: fileItemId });
+    expect(verified).toEqual([fileItemId]);
+  });
+
+  it("recognizes a committed file when the final upload response was lost", async () => {
+    const fileItemId = generateUuidV7();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === "HEAD") return response({ status: 404 });
+        expect(url).toBe(`/v1/items/${fileItemId}`);
+        return response({ body: { id: fileItemId, kind: "file" } });
+      }),
+    );
+
+    const state = await sendRemaining(
+      { uploadId: fileItemId, location: `/v1/uploads/${fileItemId}` },
+      fileOf(5),
+      () => {},
+    );
+    expect(state).toEqual({ kind: "synchronized", itemId: fileItemId });
+  });
+
+  it("finalizes a zero-byte file instead of leaving it in verification forever", async () => {
+    const fileItemId = generateUuidV7();
+    const methods: Array<string | undefined> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        methods.push(init?.method);
+        return init?.method === "HEAD"
+          ? response({ headers: { "upload-offset": "0" } })
+          : response({ status: 201, body: { itemId: fileItemId, verified: true } });
+      }),
+    );
+
+    const state = await sendRemaining(
+      { uploadId: fileItemId, location: `/v1/uploads/${fileItemId}` },
+      fileOf(0),
+      () => {},
+    );
+    expect(state).toEqual({ kind: "synchronized", itemId: fileItemId });
+    expect(methods).toEqual(["HEAD", "PATCH"]);
+  });
+
   it("seeks to the offset the server reports rather than to zero", async () => {
     const offsets: string[] = [];
     vi.stubGlobal(

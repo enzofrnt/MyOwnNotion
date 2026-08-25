@@ -14,17 +14,18 @@
  */
 
 import {
-  advanceUpload,
   createUpload,
   DomainRejection,
   deleteUpload,
   executeImportFile,
   findVerifiedContentByDigest,
-  getUpload,
   isComplete,
+  lockUpload,
+  reconcileUploadReceivedLength,
   recordChange,
   runMutation,
   schema,
+  type UploadRecord,
 } from "@myownnotion/database";
 import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
@@ -89,7 +90,11 @@ async function completeUpload(
     };
   }
 
-  const itemId = generateUuidV7();
+  // Editor blocks already contain this UUID before any network request. Using
+  // the upload identity for the final logical file keeps that durable document
+  // reference valid after verification instead of silently creating a second,
+  // unrelated UUID on the server.
+  const itemId = upload.id;
   const mutationId = generateUuidV7();
   // Announced after the transaction, never from inside it (feature 006). A file
   // is the case where the difference is most visible: the notification is worth
@@ -156,6 +161,66 @@ async function completeUpload(
   return { ok: true, itemId };
 }
 
+type StoredChunkOutcome =
+  | { readonly ok: true; readonly upload: UploadRecord }
+  | { readonly ok: false; readonly reason: "not-found" }
+  | { readonly ok: false; readonly reason: "offset-mismatch"; readonly expected: number }
+  | { readonly ok: false; readonly reason: "overflow" };
+
+/**
+ * Appends bytes while holding the upload row lock and makes the filesystem's
+ * durable length authoritative. A crash after append but before SQL commit is
+ * repaired by the next call; a historical database-ahead state is moved back
+ * to the bytes that really exist.
+ */
+async function storeChunk(
+  context: AppContext,
+  input: { readonly uploadId: Uuid; readonly offset: number; readonly chunk: Buffer },
+): Promise<StoredChunkOutcome> {
+  return await context.db.transaction(async (tx) => {
+    const upload = await lockUpload(tx, input.uploadId);
+    if (upload === null) return { ok: false, reason: "not-found" };
+
+    const storedBefore = await context.partialUploads.size(input.uploadId);
+    if (storedBefore > upload.declaredLength) return { ok: false, reason: "overflow" };
+    if (storedBefore !== upload.receivedLength) {
+      await reconcileUploadReceivedLength(tx, {
+        id: input.uploadId,
+        receivedLength: storedBefore,
+      });
+    }
+    if (storedBefore !== input.offset) {
+      return { ok: false, reason: "offset-mismatch", expected: storedBefore };
+    }
+    const next = storedBefore + input.chunk.byteLength;
+    if (next > upload.declaredLength) return { ok: false, reason: "overflow" };
+
+    await context.partialUploads.append(input.uploadId, input.chunk);
+    const storedAfter = await context.partialUploads.size(input.uploadId);
+    if (storedAfter !== next) {
+      throw new Error("the partial upload length does not match the appended chunk");
+    }
+    await reconcileUploadReceivedLength(tx, { id: input.uploadId, receivedLength: storedAfter });
+    return { ok: true, upload: { ...upload, receivedLength: storedAfter } };
+  });
+}
+
+/** Repairs and returns the offset from the bytes that are actually present. */
+async function reconciledUpload(context: AppContext, uploadId: Uuid) {
+  return await context.db.transaction(async (tx) => {
+    const upload = await lockUpload(tx, uploadId);
+    if (upload === null) return null;
+    const storedLength = await context.partialUploads.size(uploadId);
+    if (storedLength > upload.declaredLength) {
+      throw new Error("the partial upload exceeds its declared length");
+    }
+    if (storedLength !== upload.receivedLength) {
+      await reconcileUploadReceivedLength(tx, { id: uploadId, receivedLength: storedLength });
+    }
+    return { ...upload, receivedLength: storedLength };
+  });
+}
+
 export function registerUploadRoutes(app: FastifyInstance, context: AppContext): void {
   // tus sends chunks as `application/offset+octet-stream`, which Fastify has no
   // parser for — without this every PATCH is refused with 415 before the route
@@ -192,7 +257,7 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
     },
     async (request, reply) => {
       const declared = Number(request.headers["upload-length"]);
-      if (!Number.isFinite(declared) || declared < 0) {
+      if (!Number.isSafeInteger(declared) || declared < 0) {
         return sendProblem(reply, {
           code: "validation.invalid-payload",
           title: "Upload-Length must be a non-negative number of bytes",
@@ -216,7 +281,15 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
       const metadata = parseUploadMetadata(
         request.headers["upload-metadata"] as string | undefined,
       );
+      const requestedItemId = metadata["itemId"];
+      if (requestedItemId !== undefined && !isUuid(requestedItemId)) {
+        return sendProblem(reply, {
+          code: "validation.invalid-payload",
+          title: "The requested file identity is invalid",
+        });
+      }
       const upload = await createUpload(context.db, {
+        ...(requestedItemId === undefined ? {} : { id: requestedItemId as Uuid }),
         workspaceId: context.workspaceId,
         declaredLength: declared,
         mediaType: metadata["mediaType"] ?? "application/octet-stream",
@@ -236,7 +309,7 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
     if (!isUuid(uploadId)) {
       return reply.status(404).send();
     }
-    const upload = await getUpload(context.db, uploadId as Uuid);
+    const upload = await reconciledUpload(context, uploadId as Uuid);
     if (upload === null) {
       // 410 rather than 404 when it expired would need a tombstone; without
       // one, "gone" and "never existed" are the same answer, and both mean the
@@ -260,7 +333,7 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
       return reply.status(404).send();
     }
     const offset = Number(request.headers["upload-offset"]);
-    if (!Number.isFinite(offset) || offset < 0) {
+    if (!Number.isSafeInteger(offset) || offset < 0) {
       return sendProblem(reply, {
         code: "validation.invalid-payload",
         title: "Upload-Offset must be a non-negative number of bytes",
@@ -269,15 +342,10 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
 
     const body = request.body;
     const chunk = Buffer.isBuffer(body) ? body : Buffer.from(String(body ?? ""));
-    // The offset is recorded *before* the bytes are appended, and that order is
-    // the safe one. If the record advances and the append then fails, the client
-    // is told a position the file has not reached and the next HEAD reveals the
-    // gap; if the bytes were appended first and the record failed, the file
-    // would silently contain a chunk nothing accounts for.
-    const outcome = await advanceUpload(context.db, {
-      id: uploadId as Uuid,
-      atOffset: offset,
-      chunkLength: chunk.byteLength,
+    const outcome = await storeChunk(context, {
+      uploadId: uploadId as Uuid,
+      offset,
+      chunk,
     });
 
     if (!outcome.ok && outcome.reason === "not-found") {
@@ -299,25 +367,22 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
       });
     }
 
-    await context.partialUploads.append(uploadId, chunk);
-
-    const upload = await getUpload(context.db, uploadId as Uuid);
-    const complete = upload !== null && isComplete(upload);
-    if (complete && upload !== null) {
-      const finished = await completeUpload(context, upload);
+    const complete = isComplete(outcome.upload);
+    if (complete) {
+      const finished = await completeUpload(context, outcome.upload);
       if (!finished.ok) {
         return sendProblem(reply, finished.error);
       }
       return reply
         .status(201)
-        .header("upload-offset", String(outcome.receivedLength))
+        .header("upload-offset", String(outcome.upload.receivedLength))
         .header("upload-complete", "true")
         .header("tus-resumable", "1.0.0")
         .send({ itemId: finished.itemId, verified: true });
     }
     return reply
       .status(204)
-      .header("upload-offset", String(outcome.receivedLength))
+      .header("upload-offset", String(outcome.upload.receivedLength))
       .header("upload-complete", "false")
       .header("tus-resumable", "1.0.0")
       .send();

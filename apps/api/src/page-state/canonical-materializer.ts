@@ -27,6 +27,39 @@ export class CanonicalMaterializer {
     this.#protectedContent = protectedContent;
   }
 
+  async fileRequirements(
+    tx: Transaction,
+    fileUsageIds: readonly Uuid[],
+  ): Promise<CanonicalMaterializationResult["fileRequirements"]> {
+    const requirements: Array<{
+      readonly fileId: Uuid;
+      readonly state: "present" | "upload-required";
+    }> = [];
+    for (const fileId of fileUsageIds) {
+      const rows = await tx
+        .select({ itemId: schema.logicalFiles.itemId })
+        .from(schema.logicalFiles)
+        .where(eq(schema.logicalFiles.itemId, fileId))
+        .limit(1);
+      requirements.push({
+        fileId,
+        state: rows.length === 0 ? "upload-required" : "present",
+      });
+    }
+    return requirements;
+  }
+
+  async refreshFileRequirements(
+    tx: Transaction,
+    input: { readonly pageId: Uuid; readonly projection: CanonicalProjectionResult },
+  ): Promise<CanonicalMaterializationResult["fileRequirements"]> {
+    // A file may arrive after the document that references it. Rebuild the
+    // usage index during a later page poll so deletion protection catches up
+    // without requiring an unrelated edit to that document.
+    await rebuildEmbedUsagesV3(tx, input.pageId, input.projection.document);
+    return await this.fileRequirements(tx, input.projection.fileUsageIds);
+  }
+
   async materialize(
     tx: Transaction,
     input: {
@@ -71,21 +104,7 @@ export class CanonicalMaterializer {
       targetItemIds: input.projection.pageLinkTargets,
     });
 
-    const fileRequirements: Array<{
-      readonly fileId: Uuid;
-      readonly state: "present" | "upload-required";
-    }> = [];
-    for (const fileId of input.projection.fileUsageIds) {
-      const rows = await tx
-        .select({ itemId: schema.logicalFiles.itemId })
-        .from(schema.logicalFiles)
-        .where(eq(schema.logicalFiles.itemId, fileId))
-        .limit(1);
-      fileRequirements.push({
-        fileId,
-        state: rows.length === 0 ? "upload-required" : "present",
-      });
-    }
+    const fileRequirements = await this.fileRequirements(tx, input.projection.fileUsageIds);
     return {
       fileRequirements,
       unavailablePageLinkTargetIds: links.unavailableTargetIds,

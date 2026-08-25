@@ -181,7 +181,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OfflineConfirmation'
+              $ref: '#/components/schemas/BootstrapOfflineConfirmation'
       responses:
         '200':
           description: Explicit atomic bootstrap confirmation result
@@ -337,7 +337,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WebAuthnAssertion'
+              $ref: '#/components/schemas/PasskeyLogin'
       responses:
         '200':
           description: Owner session and CSRF token
@@ -956,6 +956,33 @@ components:
         storedOffline:
           const: true
       additionalProperties: false
+    BrowserDeviceClaim:
+      type: object
+      required: [deviceBindingId, name, platform]
+      properties:
+        deviceBindingId:
+          type: string
+          minLength: 40
+          maxLength: 40
+          pattern: '^web-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        platform:
+          type: string
+          minLength: 1
+          maxLength: 64
+      additionalProperties: false
+    BootstrapOfflineConfirmation:
+      type: object
+      required: [storedOffline, device]
+      properties:
+        storedOffline:
+          const: true
+        device:
+          $ref: '#/components/schemas/BrowserDeviceClaim'
+      additionalProperties: false
     BootstrapConfirmationResult:
       type: object
       required: [attemptId, bootstrapState, installationState, ownerCount, workspaceCount, authorizationState, deliveryState]
@@ -998,6 +1025,15 @@ components:
           required: [clientDataJSON, authenticatorData, signature]
           additionalProperties: true
       additionalProperties: true
+    PasskeyLogin:
+      type: object
+      required: [credential, device]
+      properties:
+        credential:
+          $ref: '#/components/schemas/WebAuthnAssertion'
+        device:
+          $ref: '#/components/schemas/BrowserDeviceClaim'
+      additionalProperties: false
     PasskeyEnrollmentCompletion:
       allOf:
         - $ref: '#/components/schemas/WebAuthnAssertion'
@@ -1032,13 +1068,15 @@ components:
       additionalProperties: false
     PasswordLogin:
       type: object
-      required: [password]
+      required: [password, device]
       properties:
         password:
           type: string
           minLength: 12
           maxLength: 1024
           writeOnly: true
+        device:
+          $ref: '#/components/schemas/BrowserDeviceClaim'
       additionalProperties: false
     AuthenticatedSession:
       type: object

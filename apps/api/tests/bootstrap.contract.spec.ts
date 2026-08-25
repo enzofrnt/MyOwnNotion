@@ -352,7 +352,14 @@ describe("the routes that follow credential verification", () => {
       method: "POST",
       url: `/v1/bootstrap/${attemptId}/recovery/confirm`,
       headers: { [CAPABILITY_HEADER]: capability },
-      payload: { storedOffline: true },
+      payload: {
+        storedOffline: true,
+        device: {
+          deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
+          name: "Test browser",
+          platform: "Test platform",
+        },
+      },
     });
     expect(response.statusCode).toBe(409);
     expect(await readCounts(harness.built.database.db)).toEqual({
@@ -380,7 +387,14 @@ describe("the routes that follow credential verification", () => {
       const response = await inject({
         method: "POST",
         url: `/v1/bootstrap/${attemptId}/${path}`,
-        payload: { storedOffline: true },
+        payload: {
+          storedOffline: true,
+          device: {
+            deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
+            name: "Test browser",
+            platform: "Test platform",
+          },
+        },
       });
       expect(response.statusCode, path).toBe(403);
     }

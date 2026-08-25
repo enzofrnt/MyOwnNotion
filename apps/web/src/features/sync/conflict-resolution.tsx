@@ -94,7 +94,7 @@ export function ConflictResolution({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const rows = (await service.outbox.conflicts()).filter((row) => {
+      const rows = (await service.outbox.activeConflicts()).filter((row) => {
         const payload = row.payload as { itemId?: unknown };
         return payload.itemId === itemId && row.commandType === "page.document.replace";
       });

@@ -117,7 +117,7 @@ export class DatabaseViewService {
   }> {
     const [queued, conflicts] = await Promise.all([
       this.#local.outbox.all(),
-      this.#local.outbox.conflicts(),
+      this.#local.outbox.activeConflicts(),
     ]);
     const states = new Map<Uuid, DatabaseRowSyncState>();
     let definitionIsLocal = false;

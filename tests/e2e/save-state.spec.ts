@@ -29,6 +29,14 @@ function indicator(page: import("@playwright/test").Page) {
   return page.getByTestId("editor-sync-status");
 }
 
+async function setDeviceOffline(
+  page: import("@playwright/test").Page,
+  offline: boolean,
+): Promise<void> {
+  await page.context().setOffline(offline);
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(!offline);
+}
+
 async function openPage(page: import("@playwright/test").Page, name: string): Promise<void> {
   await openWorkspace(page);
   await createRootItem(page, "page", name);
@@ -56,15 +64,19 @@ test.describe("the honest states", () => {
     const name = uniqueName("NeverPremature");
     await openPage(page, name);
 
-    await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-    await typeIntoEditor(page, "written while the server is gone");
-    await saveDocument(page);
+    await setDeviceOffline(page, true);
+    try {
+      await typeIntoEditor(page, "written while the server is gone");
+      await saveDocument(page);
 
-    // Give the interface every chance to be wrong.
-    await page.waitForTimeout(2_000);
-    await expect(indicator(page)).not.toHaveAttribute("data-sync", "synced");
-    await expect(page.getByTestId("editor-sync-label")).not.toHaveText("Synchronisé");
-    await expect(indicator(page)).toHaveAttribute("data-durable", "true");
+      // Give the interface every chance to be wrong.
+      await page.waitForTimeout(2_000);
+      await expect(indicator(page)).not.toHaveAttribute("data-sync", "synced");
+      await expect(page.getByTestId("editor-sync-label")).not.toHaveText("Synchronisé");
+      await expect(indicator(page)).toHaveAttribute("data-durable", "true");
+    } finally {
+      await setDeviceOffline(page, false);
+    }
   });
 
   test("says the work is kept on this device while offline", async ({ page }) => {
@@ -73,29 +85,33 @@ test.describe("the honest states", () => {
     const name = uniqueName("OfflineWording");
     await openPage(page, name);
 
-    await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
-    await page.evaluate(() => window.dispatchEvent(new Event("offline")));
-    await typeIntoEditor(page, "offline words");
-    await saveDocument(page);
+    await setDeviceOffline(page, true);
+    try {
+      await typeIntoEditor(page, "offline words");
+      await saveDocument(page);
 
-    await expect(indicator(page)).toHaveAttribute("data-state", "offline", { timeout: 30_000 });
-    await expect(page.getByTestId("editor-sync-label")).toContainText("hors ligne");
-    await expect(page.getByTestId("editor-sync-label")).toContainText(
-      "Enregistré sur cet appareil",
-    );
+      await expect(indicator(page)).toHaveAttribute("data-state", "offline", { timeout: 30_000 });
+      await expect(page.getByTestId("editor-sync-label")).toContainText("hors ligne");
+      await expect(page.getByTestId("editor-sync-label")).toContainText(
+        "Enregistré sur cet appareil",
+      );
+    } finally {
+      await setDeviceOffline(page, false);
+    }
   });
 
   test("resolves to synchronized once the connection returns", async ({ page }) => {
     const name = uniqueName("Resolves");
     await openPage(page, name);
 
-    await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
+    await setDeviceOffline(page, true);
     await typeIntoEditor(page, "written offline");
     await saveDocument(page);
     await expect(indicator(page)).not.toHaveAttribute("data-sync", "synced");
 
-    await page.unroute("**/v1/**");
-    // The client reconciles when it starts and when asked, not on a timer.
+    await setDeviceOffline(page, false);
+    // Reopening also proves a persisted queue resumes after the connection
+    // comes back rather than relying on the still-mounted editor.
     await page.reload();
     await openWorkspace(page);
     await waitForSynchronized(page);

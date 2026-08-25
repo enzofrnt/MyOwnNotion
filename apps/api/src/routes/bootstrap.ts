@@ -20,10 +20,11 @@
 import {
   BOOTSTRAP_CAPABILITY_HEADER,
   BootstrapConfirmationResultSchema,
+  type BootstrapOfflineConfirmationDto,
+  BootstrapOfflineConfirmationSchema,
   BootstrapProgressSchema,
   BootstrapStartedSchema,
   BootstrapStartSchema,
-  OfflineConfirmationSchema,
   SecurityProblemSchema,
 } from "@myownnotion/contracts";
 import { BootstrapCapabilityError, BootstrapTransitionError } from "@myownnotion/domain";
@@ -275,7 +276,7 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
     {
       schema: {
         params: AttemptParams,
-        body: OfflineConfirmationSchema,
+        body: BootstrapOfflineConfirmationSchema,
         response: { 200: BootstrapConfirmationResultSchema, 409: SecurityProblemSchema },
       },
     },
@@ -284,13 +285,14 @@ export function registerBootstrapRoutes(app: FastifyInstance, deps: BootstrapRou
         return reply;
       }
       const { attemptId } = request.params as { attemptId: string };
+      const { device } = request.body as BootstrapOfflineConfirmationDto;
       try {
         const promoted = await deps.service.confirmAndPromote({
           attemptId,
           capability: capabilityFrom(request),
-          deviceBindingId: `web-${attemptId}`,
-          deviceName: "First device",
-          devicePlatform: null,
+          deviceBindingId: device.deviceBindingId,
+          deviceName: device.name,
+          devicePlatform: device.platform,
           correlationId: requestContext(request).correlationId,
         });
 

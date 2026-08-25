@@ -36,9 +36,14 @@ afterEach(async () => {
 async function conversionFixture(): Promise<{
   readonly branch: LegacyOfflineBranchRecord;
   readonly response: PageCheckpointResponseDto;
+  readonly recoveryMutationId: ReturnType<typeof generateUuidV7>;
+  readonly localRevisionId: ReturnType<typeof generateUuidV7>;
+  readonly canonicalRevisionId: ReturnType<typeof generateUuidV7>;
 }> {
   const pageId = generateUuidV7();
   const blockId = generateUuidV7();
+  const localRevisionId = generateUuidV7();
+  const canonicalRevisionId = generateUuidV7();
   const semanticBranch = await createLegacyOfflineBranch({
     branchId: generateUuidV7(),
     pageId,
@@ -56,6 +61,50 @@ async function conversionFixture(): Promise<{
     requiredFileIds: [],
   };
   await log.putLegacyBranch(branch);
+  const recoveryMutationId = generateUuidV7();
+  await db.conflicts.put({
+    mutationId: recoveryMutationId,
+    commandType: "page.document.replace",
+    payload: { itemId: pageId },
+    baseRevisionIds: [semanticBranch.baseRevisionId],
+    localRevisionIds: [localRevisionId],
+    competingRevisionIds: [],
+    capturedAt: semanticBranch.createdAt,
+    errorCode: "revision.conflict",
+  });
+  await db.legacySyncRecoveries.put({
+    mutationId: recoveryMutationId,
+    pageId,
+    status: "converting",
+    reasonCode: null,
+    branchId: branch.branchId,
+    attemptCount: 1,
+    capturedAt: semanticBranch.createdAt,
+    updatedAt: semanticBranch.createdAt,
+  });
+  await db.revisionHeaders.put({
+    id: localRevisionId,
+    itemId: pageId,
+    mutationId: recoveryMutationId,
+    parentRevisionIds: [semanticBranch.baseRevisionId],
+    acceptedAt: semanticBranch.createdAt,
+    local: 1,
+  });
+  await db.items.put({
+    id: pageId,
+    kind: "page",
+    lifecycle: "active",
+    currentRevisionId: localRevisionId,
+    favourite: false,
+    offlineIntent: false,
+    localAvailability: "present",
+    trashedAt: null,
+    purgeAfter: null,
+    hasPageDocument: 1,
+    sealedName: { opaque: "not opened by routing migration" },
+    sealedPageBody: { opaque: "not opened by routing migration" },
+    sealedFile: null,
+  } as never);
 
   const page = OperationalPageDocument.create({
     pageId,
@@ -67,6 +116,9 @@ async function conversionFixture(): Promise<{
   const projection = await page.project();
   return {
     branch,
+    recoveryMutationId,
+    localRevisionId,
+    canonicalRevisionId,
     response: {
       mode: "checkpoint",
       requestId: generateUuidV7(),
@@ -78,7 +130,7 @@ async function conversionFixture(): Promise<{
       versionVector: encodePageOperationBytes(checkpoint.versionVector),
       throughPageSequence: 0,
       canonicalDigest: projection.canonicalDigest,
-      lastConsolidatedRevisionId: null,
+      lastConsolidatedRevisionId: canonicalRevisionId,
       hasUnconsolidatedChanges: false,
       followingUpdates: [],
       latestPageSequence: 0,
@@ -94,8 +146,9 @@ describe("atomic legacy page conversion", () => {
     "after-encryption",
     "after-state-write",
     "after-branch-write",
+    "after-recovery-write",
   ] as const)("keeps the complete legacy side when %s fails", async (failingPhase) => {
-    const { branch, response } = await conversionFixture();
+    const { branch, response, recoveryMutationId, localRevisionId } = await conversionFixture();
 
     await expect(
       installConvertedLegacyPageCheckpoint(log, response, branch, new Date(), {
@@ -111,10 +164,18 @@ describe("atomic legacy page conversion", () => {
       status: "editing",
       recordVersion: 1,
     });
+    expect(await db.conflicts.get(recoveryMutationId)).toBeDefined();
+    expect(await db.legacySyncRecoveries.get(recoveryMutationId)).toMatchObject({
+      status: "converting",
+      branchId: branch.branchId,
+    });
+    expect(await db.revisionHeaders.get(localRevisionId)).toMatchObject({ local: 1 });
+    expect((await db.items.get(branch.pageId))?.currentRevisionId).toBe(localRevisionId);
   });
 
   it("keeps both active state and converted marker after a caller crash", async () => {
-    const { branch, response } = await conversionFixture();
+    const { branch, response, recoveryMutationId, localRevisionId, canonicalRevisionId } =
+      await conversionFixture();
 
     await expect(
       installConvertedLegacyPageCheckpoint(log, response, branch, new Date(), {
@@ -130,6 +191,16 @@ describe("atomic legacy page conversion", () => {
       status: "converted",
       recordVersion: 2,
     });
+    expect(await db.conflicts.get(recoveryMutationId)).toBeUndefined();
+    expect(await db.legacySyncRecoveries.get(recoveryMutationId)).toMatchObject({
+      status: "converted",
+      branchId: branch.branchId,
+    });
+    expect(await db.revisionHeaders.get(localRevisionId)).toMatchObject({
+      local: 0,
+      canonicalRevisionId,
+    });
+    expect((await db.items.get(branch.pageId))?.currentRevisionId).toBe(canonicalRevisionId);
 
     await expect(
       installConvertedLegacyPageCheckpoint(log, response, branch),

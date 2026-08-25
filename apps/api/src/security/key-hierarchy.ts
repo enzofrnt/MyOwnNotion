@@ -126,7 +126,16 @@ export class KeyHierarchy {
    * in memory only and dies with the process; it is never persisted, and it is
    * keyed by generation so a revoked generation is simply never inserted.
    */
-  readonly #unwrapped = new Map<number, Uint8Array>();
+  readonly #unwrapped = new Map<
+    number,
+    {
+      /** Identity of the persisted generation this material was opened from. */
+      readonly generationId: string;
+      /** Detects an in-place rewrap or restored row even if its UUID was reused. */
+      readonly wrappedKeyMaterial: string;
+      readonly material: Uint8Array;
+    }
+  >();
 
   constructor(deps: KeyHierarchyDeps) {
     this.#deps = deps;
@@ -436,7 +445,11 @@ export class KeyHierarchy {
     }
 
     const cached = this.#unwrapped.get(stored.generation);
-    if (cached !== undefined) {
+    if (
+      cached !== undefined &&
+      cached.generationId === stored.id &&
+      cached.wrappedKeyMaterial === stored.wrappedKeyMaterial
+    ) {
       // The cache saves the unwrap, never the authorization. Returning it
       // without this check meant an operator could unmount the deployment key
       // — the emergency response to a suspected compromise — and every read
@@ -445,7 +458,15 @@ export class KeyHierarchy {
       // Checking costs one read of a small file and preserves the point of
       // the cache, which was to avoid the asymmetric crypto, not the syscall.
       this.#wrappingKey();
-      return { generation: stored.generation, material: cached };
+      return { generation: stored.generation, material: cached.material };
+    }
+
+    // A database reset or restore can legitimately reuse a generation number
+    // for a different persisted key. Generation alone is therefore not a safe
+    // cache identity: keeping the previous bytes would let this process seal
+    // new records that no freshly started process could ever open.
+    if (cached !== undefined) {
+      this.#unwrapped.delete(stored.generation);
     }
 
     const rootKey = await this.#rootKey(executor);
@@ -461,7 +482,11 @@ export class KeyHierarchy {
         `data key generation ${stored.generation} could not be unwrapped`,
       );
     }
-    this.#unwrapped.set(stored.generation, material);
+    this.#unwrapped.set(stored.generation, {
+      generationId: stored.id,
+      wrappedKeyMaterial: stored.wrappedKeyMaterial,
+      material,
+    });
     return { generation: stored.generation, material };
   }
 

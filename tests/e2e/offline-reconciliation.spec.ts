@@ -22,14 +22,19 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
-async function goOffline(page: Page): Promise<void> {
+async function blockWorkspaceApi(page: Page): Promise<void> {
   await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
   await page.route("**/health", (route) => route.abort("connectionrefused"));
 }
 
-async function goOnline(page: Page): Promise<void> {
+async function unblockWorkspaceApi(page: Page): Promise<void> {
   await page.unroute("**/v1/**");
   await page.unroute("**/health");
+}
+
+async function setDeviceOffline(page: Page, offline: boolean): Promise<void> {
+  await page.context().setOffline(offline);
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(!offline);
 }
 
 test.describe("offline continuity (US6)", () => {
@@ -43,7 +48,7 @@ test.describe("offline continuity (US6)", () => {
     await waitForSynchronized(page);
 
     // 2. Server disappears; the client reloads.
-    await goOffline(page);
+    await blockWorkspaceApi(page);
     await page.reload();
     await expect(page.getByTestId("workspace-shell")).toBeVisible();
     // Loaded hierarchy remains readable from the durable projection.
@@ -63,7 +68,7 @@ test.describe("offline continuity (US6)", () => {
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
 
     // 5. Reconnect: the outbox submits idempotently and drains.
-    await goOnline(page);
+    await unblockWorkspaceApi(page);
     await page.reload();
     await openWorkspace(page);
     await openWorkspaceDiagnostics(page);
@@ -88,7 +93,11 @@ test.describe("offline continuity (US6)", () => {
       // Offline before the first editor open deliberately creates the migration
       // branch. Its complete local snapshot is input to a one-way conversion,
       // never a replacement request against the newer server head.
-      await goOffline(page);
+      // A page has two server paths now: ordinary HTTP and the persistent
+      // operational WebSocket. Browser-context offline mode closes both and
+      // emits the real lifecycle event; aborting fetches alone would leave the
+      // page socket connected and would not create an offline branch at all.
+      await setDeviceOffline(page, true);
       await selectItem(page, pageName);
       await typeIntoEditor(page, "words written on the offline device");
       await saveDocument(page);
@@ -100,7 +109,7 @@ test.describe("offline continuity (US6)", () => {
       await typeIntoEditor(second.page, "words written on the online device");
       await saveDocument(second.page, { until: "synced" });
 
-      await goOnline(page);
+      await setDeviceOffline(page, false);
       await page.reload();
       await openWorkspace(page);
       await selectItem(page, pageName);

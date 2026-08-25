@@ -146,6 +146,27 @@ describe("pull-request selection", () => {
     ]);
   });
 
+  it("keeps historical sync migration and self-healing evidence attached to schema changes", () => {
+    const plan = pullRequestPlan(["packages/client-core/src/local-store/schema.ts"]);
+
+    expect(plan.vitest.testFiles).toContain(
+      "packages/client-core/tests/legacy-sync-recovery-schema.spec.ts",
+    );
+    expect(plan.e2e.testFiles).toContain("tests/e2e/legacy-sync-self-healing.spec.ts");
+  });
+
+  it("keeps realtime convergence, crash and security journeys attached to the socket route", () => {
+    const plan = pullRequestPlan(["apps/api/src/routes/page-sync-socket.ts"]);
+
+    expect(plan.e2e.testFiles).toEqual(
+      expect.arrayContaining([
+        "tests/e2e/realtime-page-sync.spec.ts",
+        "tests/e2e/page-multi-tab-convergence.spec.ts",
+        "tests/e2e/realtime-sync-security-and-restore.spec.ts",
+      ]),
+    );
+  });
+
   it("always runs a changed test directly", () => {
     const plan = pullRequestPlan(["apps/web/tests/sidebar.spec.ts"]);
     expect(plan.vitest.mode).toBe("direct");

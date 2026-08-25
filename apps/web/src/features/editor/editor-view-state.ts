@@ -16,8 +16,8 @@ const BLOCK_SELECTOR = ".bn-block-outer[data-id]";
  * Describes the top of the viewport as {blockId, offset}. Returns null when
  * no editor block exists yet (empty page, still loading).
  */
-export function captureScrollAnchor(): PageScrollAnchor | null {
-  const blocks = document.querySelectorAll(BLOCK_SELECTOR);
+export function captureScrollAnchor(root: ParentNode = document): PageScrollAnchor | null {
+  const blocks = root.querySelectorAll(BLOCK_SELECTOR);
   if (blocks.length === 0) return null;
   let topBlock: Element | null = null;
   for (const block of blocks) {
@@ -46,11 +46,14 @@ export function captureScrollAnchor(): PageScrollAnchor | null {
  * recorded pixel when the block was deleted or renamed out of reach, and
  * reports whether the anchor itself could be honoured.
  */
-export function restoreScrollAnchor(anchor: PageScrollAnchor): boolean {
+export function restoreScrollAnchor(
+  anchor: PageScrollAnchor,
+  root: ParentNode = document,
+): boolean {
   const target =
     anchor.blockId === null
       ? null
-      : document.querySelector(`${BLOCK_SELECTOR}[data-id="${anchor.blockId}"]`);
+      : root.querySelector(`${BLOCK_SELECTOR}[data-id="${anchor.blockId}"]`);
   if (target === null) {
     window.scrollTo({ top: anchor.fallbackPixel });
     return false;

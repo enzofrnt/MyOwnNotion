@@ -46,6 +46,7 @@ export type LegacyPageConversionCommitPhase =
   | "after-encryption"
   | "after-state-write"
   | "after-branch-write"
+  | "after-recovery-write"
   | "after-commit";
 
 export interface LegacyPageConversionCommitHooks {
@@ -178,6 +179,64 @@ export async function installConvertedLegacyPageCheckpoint(
       if (existingState === null) {
         throw new ConcurrentLegacyPageConversionError();
       }
+      // A renderer from the first v9 rollout may have committed the active
+      // checkpoint and branch marker before it was able to retire the source
+      // conflict. Finish that handover idempotently, but only after proving in
+      // the same transaction that both durable conversion records still
+      // exist. A normal legacy branch has no matching recovery row and this is
+      // therefore a no-op.
+      await log.db.transaction(
+        "rw",
+        [
+          log.db.pageOperationStates,
+          log.db.legacyOfflineBranches,
+          log.db.legacySyncRecoveries,
+          log.db.conflicts,
+          log.db.items,
+          log.db.revisionHeaders,
+        ],
+        async () => {
+          const [stateRow, branchRow, recoveries] = await Promise.all([
+            log.db.pageOperationStates.get(pageId),
+            log.db.legacyOfflineBranches.get(pageId),
+            log.db.legacySyncRecoveries.where("pageId").equals(pageId).toArray(),
+          ]);
+          if (
+            stateRow === undefined ||
+            branchRow?.branchId !== branch.branchId ||
+            branchRow.status !== "converted"
+          ) {
+            throw new ConcurrentLegacyPageConversionError();
+          }
+          const recovery = recoveries.find(
+            (candidate) =>
+              candidate.status === "converting" && candidate.branchId === branch.branchId,
+          );
+          if (recovery === undefined) return;
+          const source = await log.db.conflicts.get(recovery.mutationId);
+          const canonicalRevisionId = response.lastConsolidatedRevisionId as Uuid | null;
+          if (source !== undefined && canonicalRevisionId !== null) {
+            const localRevisionIds = new Set(source.localRevisionIds);
+            for (const localRevisionId of localRevisionIds) {
+              await log.db.revisionHeaders.update(localRevisionId, {
+                local: 0,
+                canonicalRevisionId,
+              });
+            }
+            const item = await log.db.items.get(pageId);
+            if (item !== undefined && localRevisionIds.has(item.currentRevisionId)) {
+              await log.db.items.update(pageId, { currentRevisionId: canonicalRevisionId });
+            }
+          }
+          await log.db.legacySyncRecoveries.put({
+            ...recovery,
+            status: "converted",
+            reasonCode: null,
+            updatedAt: now.toISOString(),
+          });
+          await log.db.conflicts.delete(recovery.mutationId);
+        },
+      );
       return existingState;
     }
     if (
@@ -202,11 +261,19 @@ export async function installConvertedLegacyPageCheckpoint(
 
     await log.db.transaction(
       "rw",
-      [log.db.pageOperationStates, log.db.legacyOfflineBranches],
+      [
+        log.db.pageOperationStates,
+        log.db.legacyOfflineBranches,
+        log.db.legacySyncRecoveries,
+        log.db.conflicts,
+        log.db.items,
+        log.db.revisionHeaders,
+      ],
       async () => {
-        const [stateRow, branchRow] = await Promise.all([
+        const [stateRow, branchRow, recoveries] = await Promise.all([
           log.db.pageOperationStates.get(pageId),
           log.db.legacyOfflineBranches.get(pageId),
+          log.db.legacySyncRecoveries.where("pageId").equals(pageId).toArray(),
         ]);
         if (
           branchRow?.branchId !== currentBranch.branchId ||
@@ -226,6 +293,35 @@ export async function installConvertedLegacyPageCheckpoint(
         }
         await log.db.legacyOfflineBranches.put(sealedBranch);
         hooks.at?.("after-branch-write");
+        const recovery = recoveries.find(
+          (candidate) =>
+            candidate.status === "converting" && candidate.branchId === branch.branchId,
+        );
+        if (recovery !== undefined) {
+          const source = await log.db.conflicts.get(recovery.mutationId);
+          const canonicalRevisionId = response.lastConsolidatedRevisionId as Uuid | null;
+          if (source !== undefined && canonicalRevisionId !== null) {
+            const localRevisionIds = new Set(source.localRevisionIds);
+            for (const localRevisionId of localRevisionIds) {
+              await log.db.revisionHeaders.update(localRevisionId, {
+                local: 0,
+                canonicalRevisionId,
+              });
+            }
+            const item = await log.db.items.get(pageId);
+            if (item !== undefined && localRevisionIds.has(item.currentRevisionId)) {
+              await log.db.items.update(pageId, { currentRevisionId: canonicalRevisionId });
+            }
+          }
+          await log.db.legacySyncRecoveries.put({
+            ...recovery,
+            status: "converted",
+            reasonCode: null,
+            updatedAt: now.toISOString(),
+          });
+          await log.db.conflicts.delete(recovery.mutationId);
+        }
+        hooks.at?.("after-recovery-write");
       },
     );
     hooks.at?.("after-commit");

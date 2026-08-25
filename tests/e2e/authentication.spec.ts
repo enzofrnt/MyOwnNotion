@@ -113,6 +113,36 @@ async function signIn(page: import("@playwright/test").Page, password = PASSWORD
   await page.getByTestId("sign-in-password").click();
 }
 
+async function currentSession(page: import("@playwright/test").Page): Promise<{
+  readonly sessionId: string;
+  readonly deviceId: string;
+  readonly csrfToken: string;
+}> {
+  return await page.evaluate(async () => {
+    const response = await fetch("/v1/auth/session", { credentials: "same-origin" });
+    if (!response.ok) throw new Error(`session request failed: ${response.status}`);
+    const body = (await response.json()) as {
+      session: { sessionId: string; deviceId: string };
+      csrfToken: string;
+    };
+    return { ...body.session, csrfToken: body.csrfToken };
+  });
+}
+
+async function signOutCurrentSession(page: import("@playwright/test").Page): Promise<void> {
+  const { csrfToken } = await currentSession(page);
+  await page.evaluate(async (csrf) => {
+    const response = await fetch("/v1/auth/session", {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: { "x-csrf-token": csrf },
+    });
+    if (!response.ok) throw new Error(`sign-out failed: ${response.status}`);
+  }, csrfToken);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+}
+
 test.describe("the sign-in gate", () => {
   test("an owner with no session sees sign-in, not the workspace", async ({ page }) => {
     await page.goto("/");
@@ -190,6 +220,54 @@ test.describe("signing in", () => {
     await expect(page.getByTestId("workspace-shell")).toBeVisible({
       timeout: 30_000,
     });
+  });
+
+  test("two isolated profiles get distinct devices and each profile reuses its own", async ({
+    browser,
+    page,
+    baseURL,
+  }) => {
+    await signIn(page);
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+    const profileA = await currentSession(page);
+
+    const secondContext = await browser.newContext({
+      ...(baseURL === undefined ? {} : { baseURL }),
+    });
+    try {
+      const secondPage = await secondContext.newPage();
+      await signIn(secondPage);
+      await expect(secondPage.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+      const firstLoginB = await currentSession(secondPage);
+      expect(firstLoginB.deviceId).not.toBe(profileA.deviceId);
+
+      await signOutCurrentSession(secondPage);
+      await signIn(secondPage);
+      await expect(secondPage.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+      const secondLoginB = await currentSession(secondPage);
+      expect(secondLoginB.deviceId).toBe(firstLoginB.deviceId);
+      expect((await currentSession(page)).deviceId).toBe(profileA.deviceId);
+
+      await page.evaluate(
+        async ({ deviceId, csrfToken }) => {
+          const response = await fetch(`/v1/devices/${deviceId}/revoke`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "x-csrf-token": csrfToken },
+          });
+          if (!response.ok) throw new Error(`device revocation failed: ${response.status}`);
+        },
+        { deviceId: secondLoginB.deviceId, csrfToken: profileA.csrfToken },
+      );
+      await expect(secondPage.getByTestId("live-connection-state")).toHaveAttribute(
+        "data-state",
+        "revoked",
+        { timeout: 30_000 },
+      );
+      await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live");
+    } finally {
+      await secondContext.close();
+    }
   });
 
   test("a wrong password says what to do, not what was wrong", async ({ page }) => {

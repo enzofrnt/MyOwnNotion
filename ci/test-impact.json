@@ -184,6 +184,18 @@
     {
       "paths": {
         "exact": [
+          "packages/client-core/src/local-store/schema.ts",
+          "packages/client-core/tests/fixtures/build-legacy-sync-fixtures.ts"
+        ],
+        "prefixes": ["packages/client-core/tests/fixtures/legacy-sync/"],
+        "suffixes": []
+      },
+      "tests": ["packages/client-core/tests/legacy-sync-recovery-schema.spec.ts"],
+      "groups": ["unit"]
+    },
+    {
+      "paths": {
+        "exact": [
           "apps/api/src/search/search-service.ts",
           "apps/web/src/features/search/search.worker.ts",
           "apps/web/src/services/search.ts",
@@ -511,6 +523,25 @@
       }
     },
     {
+      "test": "tests/e2e/legacy-sync-self-healing.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/components/sync-status.tsx",
+          "apps/web/src/features/settings/storage-diagnostics.tsx",
+          "apps/web/src/services/local-content.ts",
+          "packages/client-core/src/local-store/schema.ts",
+          "packages/client-core/src/outbox/outbox.ts",
+          "packages/client-core/src/page-sync/legacy-conflict-recovery.ts",
+          "packages/client-core/src/page-sync/migration.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/sync/",
+          "packages/client-core/tests/fixtures/legacy-sync/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/live-sync.spec.ts",
       "owners": {
         "exact": [
@@ -617,18 +648,71 @@
       }
     },
     {
+      "test": "tests/e2e/realtime-page-sync.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/app.ts",
+          "apps/api/src/routes/page-sync-socket.ts",
+          "apps/web/src/services/local-content.ts",
+          "apps/web/src/services/realtime-page-sync-transport.ts",
+          "docker/web-nginx.conf",
+          "packages/contracts/src/realtime-page-sync.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/realtime/",
+          "apps/api/src/page-state/",
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/sync/",
+          "packages/client-core/src/page-sync/",
+          "packages/database/src/repositories/page-operation-",
+          "packages/page-state/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/realtime-sync-security-and-restore.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/admin/admin-cli.ts",
+          "apps/api/src/app.ts",
+          "apps/api/src/routes/devices.ts",
+          "apps/api/src/routes/page-sync-socket.ts",
+          "apps/api/src/security/device-service.ts",
+          "apps/api/src/security/key-hierarchy.ts",
+          "apps/web/src/services/local-content.ts",
+          "apps/web/src/services/realtime-page-sync-transport.ts",
+          "packages/database/src/repositories/security/device-repository.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/backup/",
+          "apps/api/src/page-state/",
+          "apps/api/src/realtime/",
+          "apps/web/src/features/sync/",
+          "packages/client-core/src/page-sync/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/page-multi-tab-convergence.spec.ts",
       "owners": {
         "exact": [
+          "apps/api/src/app.ts",
+          "apps/api/src/routes/page-sync-socket.ts",
           "apps/web/src/services/local-content.ts",
+          "apps/web/src/services/realtime-page-sync-transport.ts",
           "packages/client-core/src/coordination/cross-context-coordinator.ts"
         ],
         "prefixes": [
+          "apps/api/src/realtime/",
+          "apps/api/src/page-state/",
           "apps/web/src/features/editor/",
           "apps/web/src/features/sync/",
           "packages/client-core/src/outbox/",
           "packages/client-core/src/page-sync/",
-          "packages/client-core/src/reconciliation/"
+          "packages/client-core/src/reconciliation/",
+          "packages/database/src/repositories/page-operation-"
         ],
         "suffixes": []
       }

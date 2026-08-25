@@ -213,6 +213,36 @@ export const WebAuthnAssertionSchema = Type.Object(
 );
 export type WebAuthnAssertionDto = Static<typeof WebAuthnAssertionSchema>;
 
+/**
+ * Stable, non-secret identity of one browser profile.
+ *
+ * It is attribution, not authentication: routes accept it only after a valid
+ * owner credential. The `web-` prefix keeps browser bindings distinct from
+ * future native-client namespaces without leaking any platform identifier.
+ */
+export const BrowserDeviceClaimSchema = Type.Object(
+  {
+    deviceBindingId: Type.String({
+      minLength: 40,
+      maxLength: 40,
+      pattern: "^web-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    }),
+    name: Type.String({ minLength: 1, maxLength: 120 }),
+    platform: Type.String({ minLength: 1, maxLength: 64 }),
+  },
+  { additionalProperties: false },
+);
+export type BrowserDeviceClaimDto = Static<typeof BrowserDeviceClaimSchema>;
+
+export const PasskeyLoginSchema = Type.Object(
+  {
+    credential: WebAuthnAssertionSchema,
+    device: BrowserDeviceClaimSchema,
+  },
+  { additionalProperties: false },
+);
+export type PasskeyLoginDto = Static<typeof PasskeyLoginSchema>;
+
 export const BootstrapCredentialVerificationSchema = Type.Object(
   { credential: WebAuthnAssertionSchema },
   { additionalProperties: false },
@@ -266,6 +296,13 @@ export const OfflineConfirmationSchema = Type.Object(
 );
 export type OfflineConfirmationDto = Static<typeof OfflineConfirmationSchema>;
 
+/** Bootstrap also establishes the first durable browser-device binding. */
+export const BootstrapOfflineConfirmationSchema = Type.Object(
+  { storedOffline: Type.Literal(true), device: BrowserDeviceClaimSchema },
+  { additionalProperties: false },
+);
+export type BootstrapOfflineConfirmationDto = Static<typeof BootstrapOfflineConfirmationSchema>;
+
 /**
  * The single response shape that proves the atomic promotion happened: the
  * attempt is `confirmed`, the installation is `ready`, the counts are `1/1`,
@@ -315,7 +352,10 @@ export const PasswordChangeSchema = Type.Object(
 export type PasswordChangeDto = Static<typeof PasswordChangeSchema>;
 
 export const PasswordLoginSchema = Type.Object(
-  { password: Type.String({ minLength: 12, maxLength: 1024, writeOnly: true }) },
+  {
+    password: Type.String({ minLength: 12, maxLength: 1024, writeOnly: true }),
+    device: BrowserDeviceClaimSchema,
+  },
   { additionalProperties: false },
 );
 export type PasswordLoginDto = Static<typeof PasswordLoginSchema>;

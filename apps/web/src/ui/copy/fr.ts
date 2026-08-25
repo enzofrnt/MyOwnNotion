@@ -33,6 +33,25 @@ export const FR_COPY = {
     syncing: "Synchronisation…",
     info: "Information",
   },
+  synchronization: {
+    offline: "Enregistré sur cet appareil — synchronisation à la reconnexion",
+    pending: "Enregistré sur cet appareil — changements en attente de synchronisation",
+    syncing: "Synchronisation…",
+    synced: "Synchronisé",
+    attention: "Une intervention est nécessaire — toutes les versions sont conservées",
+    localSaveFailed:
+      "Non enregistré — le stockage local est indisponible ou plein ; la dernière modification a été refusée",
+    storageNotPersistent:
+      "Protection locale non garantie par ce navigateur — consultez Stockage et synchronisation.",
+    oldDraftSingular: "ancien brouillon à récupérer",
+    oldDraftPlural: "anciens brouillons à récupérer",
+    decisionSingular: "décision",
+    decisionPlural: "décisions",
+    pendingSingular: "changement à synchroniser",
+    pendingPlural: "changements à synchroniser",
+    filePendingSingular: "fichier à transférer",
+    filePendingPlural: "fichiers à transférer",
+  },
   field: {
     optional: "facultatif",
     required: "obligatoire",

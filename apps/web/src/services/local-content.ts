@@ -12,6 +12,7 @@ import {
   type DurablePageUpdateNotice,
   EncryptedPageOperationLog,
   installPageCheckpoint,
+  LegacyConflictRecovery,
   LegacyPageEditingSession,
   LegacyPageStateStore,
   LocalCipher,
@@ -28,6 +29,7 @@ import {
   openLocalDatabase,
   PageAuthorityRetiredError,
   PageEditingSession,
+  type PageFileRequirement,
   type PageReconcileOutcome,
   PageReconciler,
   type PageTabChannel,
@@ -66,6 +68,11 @@ import {
 import { ContentApi } from "./content-api.ts";
 import { IndexedDbKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
 import { PageOperationsApi } from "./page-operations-api.ts";
+import {
+  type RealtimePageAdvance,
+  RealtimePageSyncTransport,
+  type RealtimePageSyncTransportOptions,
+} from "./realtime-page-sync-transport.ts";
 import { requestPersistentStorage } from "./storage-manager.ts";
 
 /**
@@ -75,6 +82,67 @@ import { requestPersistentStorage } from "./storage-manager.ts";
  */
 export type SyncState = "offline" | "pending" | "syncing" | "synced" | "conflict" | "quota-failure";
 
+export type FileTransferStatusKind =
+  | "queued"
+  | "uploading"
+  | "verifying"
+  | "synchronized"
+  | "blocked";
+
+export interface FileTransferStatusSource {
+  subscribe(
+    listener: (states: ReadonlyMap<Uuid, { readonly kind: FileTransferStatusKind }>) => void,
+  ): () => void;
+}
+
+function sameIds(left: ReadonlySet<Uuid>, right: ReadonlySet<Uuid>): boolean {
+  return left.size === right.size && [...left].every((id) => right.has(id));
+}
+
+/** Combines server proof and local transfer state without treating either as sufficient alone. */
+export class FileSynchronizationStatus {
+  readonly #requiredByPage = new Map<Uuid, ReadonlySet<Uuid>>();
+  #transferPending = new Set<Uuid>();
+
+  recordRequirements(pageId: Uuid, requirements: readonly PageFileRequirement[]): boolean {
+    const next = new Set<Uuid>(
+      requirements
+        .filter(({ state }) => state === "upload-required")
+        .map(({ fileId }) => fileId as Uuid),
+    );
+    const previous = this.#requiredByPage.get(pageId) ?? new Set<Uuid>();
+    if (next.size === 0) this.#requiredByPage.delete(pageId);
+    else this.#requiredByPage.set(pageId, next);
+    return !sameIds(previous, next);
+  }
+
+  recordTransfers(states: ReadonlyMap<Uuid, { readonly kind: FileTransferStatusKind }>): {
+    readonly changed: boolean;
+    readonly completed: readonly Uuid[];
+  } {
+    const next = new Set<Uuid>();
+    for (const [fileId, state] of states) {
+      if (state.kind !== "synchronized") next.add(fileId);
+    }
+    const completed = [...this.#transferPending].filter((fileId) => !next.has(fileId));
+    const changed = !sameIds(this.#transferPending, next);
+    this.#transferPending = next;
+    return { changed, completed };
+  }
+
+  get pendingIds(): ReadonlySet<Uuid> {
+    const pending = new Set(this.#transferPending);
+    for (const required of this.#requiredByPage.values()) {
+      for (const fileId of required) pending.add(fileId);
+    }
+    return pending;
+  }
+
+  get hasServerRequirements(): boolean {
+    return this.#requiredByPage.size > 0;
+  }
+}
+
 // A reconnect after a long absence may discover many edited pages. Four
 // independent exchanges keep progress moving without turning one browser tab
 // into an unbounded burst against a small self-hosted server.
@@ -83,7 +151,11 @@ const PAGE_OPERATION_SYNC_CONCURRENCY = 4;
 export interface LocalContentSnapshot {
   readonly syncState: SyncState;
   readonly pendingCount: number;
+  readonly filePendingCount: number;
   readonly conflictCount: number;
+  readonly attentionCount: number;
+  readonly recoveryPendingCount: number;
+  readonly quarantinedRecoveryCount: number;
   readonly storagePersisted: boolean | null;
 }
 
@@ -161,6 +233,10 @@ export type LocalProjectionChange =
   | { readonly kind: "clear" };
 type ProjectionListener = (change: LocalProjectionChange) => void | Promise<void>;
 
+export interface LocalContentServiceOptions {
+  readonly realtime?: Omit<RealtimePageSyncTransportOptions, "csrfToken" | "fallback">;
+}
+
 export class LocalContentService {
   readonly db: LocalDatabase;
   readonly repository: LocalRepository;
@@ -170,9 +246,15 @@ export class LocalContentService {
   readonly pageOperationLog: EncryptedPageOperationLog;
   readonly pageStateStore: LocalPageStateStore;
   readonly pageOperationsApi: PageOperationsApi;
+  readonly realtimePageSync: RealtimePageSyncTransport;
+  readonly legacyConflictRecovery: LegacyConflictRecovery;
   #syncState: SyncState = "pending";
   #pendingCount = 0;
+  #filePendingCount = 0;
   #conflictCount = 0;
+  #attentionCount = 0;
+  #recoveryPendingCount = 0;
+  #quarantinedRecoveryCount = 0;
   #storagePersisted: boolean | null = null;
   #listeners = new Set<Listener>();
   #projectionListeners = new Set<ProjectionListener>();
@@ -184,6 +266,9 @@ export class LocalContentService {
   readonly #keys: LocalKeyManager;
   readonly #codec: LocalRecordCodec;
   readonly #pageReconcilers = new Map<Uuid, PageReconciler>();
+  readonly #fileSynchronization = new FileSynchronizationStatus();
+  #fileTransferSource: FileTransferStatusSource | null = null;
+  #unsubscribeFileTransfers: (() => void) | null = null;
   /** Mounted legacy editors own their conversion queue until they close. */
   readonly #legacyPageSessionLeases = new Map<Uuid, number>();
   readonly #openingPages = new Map<
@@ -194,7 +279,11 @@ export class LocalContentService {
   #unlocked: Promise<void> | null = null;
   #initialization: Promise<void> | null = null;
 
-  constructor(api: ContentApi = new ContentApi(), databaseName = "myownnotion-local") {
+  constructor(
+    api: ContentApi = new ContentApi(),
+    databaseName = "myownnotion-local",
+    options: LocalContentServiceOptions = {},
+  ) {
     this.api = api;
     this.db = openLocalDatabase(databaseName);
     // The projection is sealed under a device key that never leaves this
@@ -213,13 +302,33 @@ export class LocalContentService {
       requireCurrentPage: true,
     });
     this.pageOperationsApi = new PageOperationsApi({ csrfToken: () => this.#pageCsrfToken() });
+    this.realtimePageSync = new RealtimePageSyncTransport({
+      ...options.realtime,
+      csrfToken: () => this.#pageCsrfToken(),
+      fallback: this.pageOperationsApi,
+    });
     this.repository = new LocalRepository(this.db, this.#codec);
     this.databases = new LocalDatabaseRepository(this.db, this.#codec);
     this.outbox = new Outbox(this.db, this.#codec);
+    this.legacyConflictRecovery = new LegacyConflictRecovery({
+      db: this.db,
+      codec: this.#codec,
+      log: this.pageOperationLog,
+      loadRevision: async (revisionId) => {
+        const result = await this.api.getRevision(revisionId);
+        return result.ok
+          ? { ok: true, value: result.value as unknown as RevisionDto }
+          : { ok: false, offline: result.offline, code: result.problem.code };
+      },
+    });
     this.#snapshot = {
       syncState: "pending",
       pendingCount: 0,
+      filePendingCount: 0,
       conflictCount: 0,
+      attentionCount: 0,
+      recoveryPendingCount: 0,
+      quarantinedRecoveryCount: 0,
       storagePersisted: null,
     };
     subscribeLocalKeyStorageCleared(async () => {
@@ -232,13 +341,28 @@ export class LocalContentService {
     this.#pageCsrfToken = csrfToken;
   }
 
+  connectFileTransferStatus(source: FileTransferStatusSource): void {
+    if (this.#fileTransferSource === source) return;
+    this.#unsubscribeFileTransfers?.();
+    this.#fileTransferSource = source;
+    this.#unsubscribeFileTransfers = source.subscribe((states) => {
+      const update = this.#fileSynchronization.recordTransfers(states);
+      if (update.changed) void this.#notify();
+      if (update.completed.length > 0) {
+        // The byte 201 is local knowledge. Poll the affected open page states
+        // so their next response can replace upload-required with server proof.
+        queueMicrotask(() => void this.synchronizeOperationalPages());
+      }
+    });
+  }
+
   pageReconciler(pageId: Uuid): PageReconciler {
     let reconciler = this.#pageReconcilers.get(pageId);
     if (reconciler === undefined) {
       reconciler = new PageReconciler({
         pageId,
         log: this.pageOperationLog,
-        transport: this.pageOperationsApi,
+        transport: this.realtimePageSync,
         // Search, backlinks and every projection consumer must observe the
         // same verified operational document as the editor. A server response
         // updates the encrypted page state independently from the workspace
@@ -250,10 +374,41 @@ export class LocalContentService {
           // workspace or page queue still owns local work.
           await this.#notify("synced");
         },
+        onFileRequirements: (requirements) => {
+          if (this.#fileSynchronization.recordRequirements(pageId, requirements)) {
+            void this.#notify();
+          }
+        },
       });
       this.#pageReconcilers.set(pageId, reconciler);
     }
     return reconciler;
+  }
+
+  /**
+   * Treats a live announcement as a wake-up, never as page content.
+   *
+   * The encrypted local frontier decides whether any work is needed. Repeated
+   * or out-of-order announcements therefore remain harmless, and a closed page
+   * with no local operational state is left lazy until the owner opens it.
+   */
+  async reconcileRealtimePageAdvance(event: RealtimePageAdvance): Promise<boolean> {
+    await this.#unlock();
+    const state = await this.pageOperationLog.getState(event.pageId);
+    if (state === null || state.latestServerPageSequence >= event.latestPageSequence) {
+      return true;
+    }
+    const outcome = await this.pageReconciler(event.pageId).synchronize();
+    await this.#notify(
+      outcome.kind === "offline"
+        ? "offline"
+        : outcome.kind === "blocked"
+          ? "conflict"
+          : outcome.kind === "pending"
+            ? "pending"
+            : "synced",
+    );
+    return outcome.kind === "synced";
   }
 
   /**
@@ -293,19 +448,48 @@ export class LocalContentService {
     if (state !== undefined) {
       this.#syncState = state;
     }
-    const [workspacePending, workspaceConflicts, pageUpdates, legacyBranches] = await Promise.all([
+    const [
+      workspacePending,
+      workspaceConflicts,
+      pageUpdates,
+      legacyBranches,
+      recoveries,
+      pageAmbiguities,
+    ] = await Promise.all([
       this.outbox.pending(),
-      this.outbox.conflicts(),
+      this.outbox.activeConflicts(),
       this.pageOperationLog.countUpdates(["pending", "sending", "blocked"]),
       this.db.legacyOfflineBranches.where("status").anyOf("editing", "sending", "blocked").count(),
+      this.db.legacySyncRecoveries.toArray(),
+      this.db.pageAmbiguities.where("status").equals("open").count(),
     ]);
-    this.#pendingCount = workspacePending.length + pageUpdates + legacyBranches;
-    this.#conflictCount = workspaceConflicts.length;
+    this.#recoveryPendingCount = recoveries.filter(({ status }) =>
+      ["pending", "converting"].includes(status),
+    ).length;
+    this.#quarantinedRecoveryCount = recoveries.filter(
+      ({ status }) => status === "quarantined",
+    ).length;
+    // A converting recovery owns the same encrypted legacy branch, so count
+    // the logical draft once rather than making “1 old draft” display as two
+    // pending changes.
+    const recoveryBranches = recoveries.filter(
+      ({ status, branchId }) => status === "converting" && branchId !== null,
+    ).length;
+    const independentLegacyBranches = Math.max(0, legacyBranches - recoveryBranches);
+    this.#filePendingCount = this.#fileSynchronization.pendingIds.size;
+    this.#pendingCount =
+      workspacePending.length +
+      pageUpdates +
+      independentLegacyBranches +
+      this.#recoveryPendingCount +
+      this.#filePendingCount;
+    this.#conflictCount = workspaceConflicts.length + pageAmbiguities;
+    this.#attentionCount = this.#conflictCount + this.#quarantinedRecoveryCount;
     if (this.#pendingCount > 0 && this.#syncState === "synced") {
       this.#syncState = "pending";
     }
     if (
-      this.#conflictCount > 0 &&
+      this.#attentionCount > 0 &&
       this.#syncState !== "offline" &&
       // A failed local save is the more urgent truth: never mask it.
       this.#syncState !== "quota-failure"
@@ -315,7 +499,11 @@ export class LocalContentService {
     const next: LocalContentSnapshot = {
       syncState: this.#syncState,
       pendingCount: this.#pendingCount,
+      filePendingCount: this.#filePendingCount,
       conflictCount: this.#conflictCount,
+      attentionCount: this.#attentionCount,
+      recoveryPendingCount: this.#recoveryPendingCount,
+      quarantinedRecoveryCount: this.#quarantinedRecoveryCount,
       storagePersisted: this.#storagePersisted,
     };
     // Replaced only when something actually differs, and this is not an
@@ -332,7 +520,11 @@ export class LocalContentService {
     if (
       next.syncState !== this.#snapshot.syncState ||
       next.pendingCount !== this.#snapshot.pendingCount ||
+      next.filePendingCount !== this.#snapshot.filePendingCount ||
       next.conflictCount !== this.#snapshot.conflictCount ||
+      next.attentionCount !== this.#snapshot.attentionCount ||
+      next.recoveryPendingCount !== this.#snapshot.recoveryPendingCount ||
+      next.quarantinedRecoveryCount !== this.#snapshot.quarantinedRecoveryCount ||
       next.storagePersisted !== this.#snapshot.storagePersisted
     ) {
       this.#snapshot = next;
@@ -392,6 +584,10 @@ export class LocalContentService {
       (async () => {
         await this.db.open();
         await this.#unlock();
+        // Classify before the first aggregate status. Otherwise an old
+        // whole-document refusal flashes as a current collaboration conflict
+        // even though v3 owns the page and recovery can proceed automatically.
+        await this.legacyConflictRecovery.classify();
         await this.synchronize();
         await this.synchronizeOperationalPages();
         // Persistence is an eviction hint, not a content-readiness gate. Some
@@ -430,6 +626,32 @@ export class LocalContentService {
    */
   async synchronizeOperationalPages(): Promise<boolean> {
     await this.#unlock();
+    const historicalPageConflicts = await this.db.conflicts
+      .filter(({ commandType }) => commandType === "page.document.replace")
+      .count();
+    // One pass can finish one historical row per page. The extra pass proves
+    // that no pending/converting recovery remains; the bound comes from the
+    // durable source rows, never from an open-ended retry loop.
+    const maxPasses = Math.max(1, historicalPageConflicts + 1);
+    for (let attempt = 0; attempt < maxPasses; attempt += 1) {
+      const recovery = await this.legacyConflictRecovery.recoverAvailable();
+      if (recovery.offline) {
+        await this.#notify("offline");
+        return false;
+      }
+      const settled = await this.#synchronizeOperationalPagePass();
+      const recoveryWorkRemaining = await this.db.legacySyncRecoveries
+        .where("status")
+        .anyOf("pending", "converting")
+        .count();
+      if (recoveryWorkRemaining === 0) return settled;
+      if (!settled) return false;
+    }
+    await this.#notify("pending");
+    return false;
+  }
+
+  async #synchronizeOperationalPagePass(): Promise<boolean> {
     const [queuedPageIds, legacyPageIds] = await Promise.all([
       this.pageOperationLog.listPageIdsWithUpdates(),
       this.pageOperationLog.listPageIdsWithLegacyBranches(),
@@ -489,7 +711,7 @@ export class LocalContentService {
 
     const [stillQueued, stillLegacyPages] = await Promise.all([
       this.pageOperationLog.countUpdates(["pending", "sending"]),
-      this.pageOperationLog.listPageIdsWithLegacyBranches(),
+      this.pageOperationLog.listPageIdsWithLegacyBranches(["editing", "sending", "blocked"]),
     ]);
     const durableWorkRemaining = stillQueued + stillLegacyPages.length;
     await this.#notify(
@@ -519,7 +741,7 @@ export class LocalContentService {
         row.payload["itemId"] === pageId);
     let [workspaceRows, workspaceConflicts] = await Promise.all([
       this.outbox.all(),
-      this.outbox.conflicts(),
+      this.outbox.activeConflicts(),
     ]);
     if (workspaceRows.some(belongsToPage)) {
       const workspaceState = await this.synchronize();
@@ -532,7 +754,7 @@ export class LocalContentService {
       }
       [workspaceRows, workspaceConflicts] = await Promise.all([
         this.outbox.all(),
-        this.outbox.conflicts(),
+        this.outbox.activeConflicts(),
       ]);
     }
     if (workspaceRows.some(belongsToPage) || workspaceConflicts.some(belongsToPage)) {
@@ -622,10 +844,24 @@ export class LocalContentService {
     await this.#unlock();
     await this.#notify("syncing");
     const outcome = await reconcile(this.db, this.#transport(), this.#codec);
+    const historical = await this.legacyConflictRecovery.classify();
+    if (historical.classified > 0) {
+      // Do not await from inside the serialized workspace drain: converting a
+      // legacy branch first verifies that this very drain has settled. The
+      // microtask starts after the owner promise unwinds and therefore cannot
+      // deadlock on itself.
+      queueMicrotask(() => void this.synchronizeOperationalPages());
+    }
+    if (!outcome.offline && this.#fileSynchronization.hasServerRequirements) {
+      // A workspace change may be the missing file arriving from another
+      // device. Page bodies use their own channel, so explicitly re-check the
+      // outstanding server requirements after that metadata catch-up.
+      queueMicrotask(() => void this.synchronizeOperationalPages());
+    }
     await this.#emitProjection({ kind: "rebuild" });
     const state: SyncState = outcome.offline
       ? "offline"
-      : outcome.conflicts > 0 || (await this.outbox.conflicts()).length > 0
+      : (await this.outbox.activeConflicts()).length > 0
         ? "conflict"
         : outcome.retained > 0
           ? "pending"

@@ -166,14 +166,13 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
       }
       const currentService = serviceRef.current;
       if (currentService === null) return;
-      void currentService.synchronize().then(async () => {
+      void currentService.synchronize().then(() => {
         if (stopped) {
           return;
         }
-        // Operational pages reconcile through their own exchanges; the
-        // workspace pass cannot pull their encrypted deltas.
-        const operationalPagesSettled = await currentService.synchronizeOperationalPages();
-        if (stopped) return;
+        // Page bodies have their own typed WebSocket, durable frontier and
+        // safety sweep. SSE now wakes workspace metadata only, so one item
+        // change cannot race a second page transport for the same updates.
         // The state *now*, not the value that pass resolved with. Passes are
         // coalesced: a caller arriving while one is running joins it and receives
         // the state of the pass it joined, which can predate the announcement that
@@ -186,7 +185,7 @@ export function useChangeStream(service: LocalContentService | null): ChangeStre
         // level up: the answer has to come from the current state rather than from
         // the reply to a question asked earlier.
         const state = currentService.getSnapshot().syncState;
-        if (state !== "offline" && operationalPagesSettled) {
+        if (state !== "offline") {
           syncAttempt = 0;
           return;
         }

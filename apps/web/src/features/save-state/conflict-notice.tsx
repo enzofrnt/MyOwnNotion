@@ -78,7 +78,7 @@ export function ConflictNotice({
   const [comparing, setComparing] = useState(false);
 
   const refresh = useCallback(async () => {
-    setConflicts(conflictsForItem(await service.outbox.conflicts(), itemId));
+    setConflicts(conflictsForItem(await service.outbox.activeConflicts(), itemId));
     const item = await service.getItem(itemId as Parameters<typeof service.getItem>[0]);
     setServerText(item?.pageDocument == null ? null : bodyAsText(item.pageDocument.body));
   }, [service, itemId]);

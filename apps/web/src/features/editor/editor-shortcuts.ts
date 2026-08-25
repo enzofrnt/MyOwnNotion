@@ -4,7 +4,6 @@ import {
   insertParagraphAfterSelection,
   moveSelectedBlocks,
   resolveContiguousBlockSelection,
-  selectBlockForAction,
 } from "./block-selection.ts";
 import type { EditorInstance } from "./blocknote-schema.ts";
 
@@ -20,6 +19,8 @@ export type EditorShortcutAction =
 export interface EditorContextMenuState {
   readonly x: number;
   readonly y: number;
+  /** Stable target retained while the menu takes focus away from the editor. */
+  readonly blockId: string;
 }
 
 export const MARKDOWN_INSERTION_SHORTCUTS = [
@@ -61,17 +62,24 @@ export function historyActionFromInputType(inputType: string): "undo" | "redo" |
 
 function blockIdFromTarget(target: EventTarget | null): string | null {
   if (!(target instanceof Element)) return null;
-  return target.closest<HTMLElement>("[data-id]")?.dataset["id"] ?? null;
+  // BlockNote also uses `data-id` on internal editor nodes. Only the outer
+  // block owns the canonical UUID an action may persist.
+  return target.closest<HTMLElement>(".bn-block-outer[data-id]")?.dataset["id"] ?? null;
 }
 
 function menuPointForSelection(editor: EditorInstance): EditorContextMenuState {
   const first = resolveContiguousBlockSelection(editor).blocks[0];
+  if (first === undefined) throw new Error("Aucun bloc n’est sélectionné.");
   const candidates = editor.domElement?.querySelectorAll<HTMLElement>("[data-id]") ?? [];
-  const element = [...candidates].find((candidate) => candidate.dataset["id"] === first?.id);
+  const element = [...candidates].find((candidate) => candidate.dataset["id"] === first.id);
   const rect = element?.getBoundingClientRect();
   return rect === undefined
-    ? { x: window.innerWidth / 2, y: window.innerHeight / 2 }
-    : { x: rect.left + Math.min(32, rect.width / 2), y: rect.top + Math.min(24, rect.height) };
+    ? { x: window.innerWidth / 2, y: window.innerHeight / 2, blockId: first.id }
+    : {
+        x: rect.left + Math.min(32, rect.width / 2),
+        y: rect.top + Math.min(24, rect.height),
+        blockId: first.id,
+      };
 }
 
 export function useEditorShortcuts(input: {
@@ -147,8 +155,7 @@ export function useEditorShortcuts(input: {
       const blockId = blockIdFromTarget(event.target);
       if (blockId === null || input.editor.getBlock(blockId) === undefined) return;
       event.preventDefault();
-      selectBlockForAction(input.editor, blockId);
-      setContextMenu({ x: event.clientX, y: event.clientY });
+      setContextMenu({ x: event.clientX, y: event.clientY, blockId });
     },
     [input],
   );

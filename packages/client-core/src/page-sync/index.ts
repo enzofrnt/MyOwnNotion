@@ -1,4 +1,5 @@
 export * from "./encrypted-update-log.ts";
+export * from "./legacy-conflict-recovery.ts";
 export * from "./legacy-page-editing-session.ts";
 export * from "./legacy-page-state.ts";
 export * from "./local-page-state.ts";

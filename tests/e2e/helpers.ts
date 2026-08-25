@@ -643,9 +643,10 @@ export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 export async function openSecondDevice(
   browser: Browser,
   baseURL: string | undefined,
+  name = "Second end-to-end device",
 ): Promise<{ context: BrowserContext; page: Page; deviceId: string | null }> {
   const context = await browser.newContext();
-  const seeded = await seedSessionOnNewDevice();
+  const seeded = await seedSessionOnNewDevice(name);
   if (seeded !== null && baseURL !== undefined) {
     await context.addCookies([
       {

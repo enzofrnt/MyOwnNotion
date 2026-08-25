@@ -146,6 +146,31 @@ export interface ConflictRecordRow {
   readonly structured?: StructuredConflictContext;
 }
 
+export type LegacySyncRecoveryStatus = "pending" | "converting" | "quarantined" | "converted";
+
+export const LEGACY_SYNC_RECOVERY_REASON_CODES = [
+  "legacy-recovery.payload-unreadable",
+  "legacy-recovery.base-unavailable",
+  "legacy-recovery.schema-unsupported",
+  "legacy-recovery.diff-unprovable",
+  "legacy-recovery.item-not-page",
+  "legacy-recovery.integrity-failed",
+] as const;
+export type LegacySyncRecoveryReasonCode = (typeof LEGACY_SYNC_RECOVERY_REASON_CODES)[number];
+
+/** Content-free routing for a historical whole-document conflict. */
+export interface LegacySyncRecoveryRow {
+  readonly mutationId: Uuid;
+  /** Null only when payload and retained revision headers are both unreadable. */
+  readonly pageId: Uuid | null;
+  readonly status: LegacySyncRecoveryStatus;
+  readonly reasonCode: LegacySyncRecoveryReasonCode | null;
+  readonly branchId: Uuid | null;
+  readonly attemptCount: number;
+  readonly capturedAt: string;
+  readonly updatedAt: string;
+}
+
 export type StructuredConflictContext =
   | {
       readonly kind: "database-definition";
@@ -212,7 +237,7 @@ export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow,
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 8;
+export const LOCAL_SCHEMA_VERSION = 9;
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -317,6 +342,7 @@ export type LocalDatabase = Dexie & {
   pageOperationUpdates: EntityTable<SealedPageOperationUpdateRow, "updateId">;
   pageAmbiguities: EntityTable<SealedPageAmbiguityRow, "ambiguityId">;
   legacyOfflineBranches: EntityTable<SealedLegacyOfflineBranchRow, "pageId">;
+  legacySyncRecoveries: EntityTable<LegacySyncRecoveryRow, "mutationId">;
 };
 
 export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
@@ -445,6 +471,26 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
   // envelopes can contain thousands of changes and many megabytes of private
   // content. Adding an index rewrites only IndexedDB routing metadata; it does
   // not open, migrate or replace a single sealed update.
+  db.version(8).stores({
+    items: "id, kind, lifecycle, localAvailability",
+    placements: "id, itemId, parentKey, [parentKey+kind]",
+    relationships: "id, sourceItemId, targetItemId",
+    revisionHeaders: "id, itemId, local",
+    outbox: "mutationId, status, enqueueOrder",
+    conflicts: "mutationId, capturedAt",
+    meta: "key",
+    databases: "itemId",
+    databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
+    pageOperationStates: "pageId, status, localAvailability, lastAccessedAt",
+    pageOperationUpdates:
+      "updateId, pageId, status, enqueueOrder, [pageId+status], [status+pageId]",
+    pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
+    legacyOfflineBranches: "pageId, branchId, status",
+  });
+  // Version 9 adds content-free routing for historical page conflicts. The
+  // Dexie upgrade does not decrypt, classify or remove anything: the device
+  // key is established later, then an idempotent recovery service proves each
+  // conversion while the original sealed conflict remains authoritative.
   db.version(LOCAL_SCHEMA_VERSION).stores({
     items: "id, kind, lifecycle, localAvailability",
     placements: "id, itemId, parentKey, [parentKey+kind]",
@@ -460,6 +506,7 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
       "updateId, pageId, status, enqueueOrder, [pageId+status], [status+pageId]",
     pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
     legacyOfflineBranches: "pageId, branchId, status",
+    legacySyncRecoveries: "mutationId, pageId, status, capturedAt, [status+pageId]",
   });
   return db;
 }
