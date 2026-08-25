@@ -11,6 +11,7 @@ import {
   expect,
   type Locator,
   type Page,
+  type Request,
 } from "@playwright/test";
 import { seedSessionOnNewDevice } from "./reset-installation.ts";
 
@@ -39,17 +40,44 @@ export async function openWorkspace(page: Page): Promise<void> {
         return false;
       }
     })();
-  if (!atWorkspaceRoot) await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.getByTestId("workspace-shell")).toBeVisible();
-  await expect(page.getByTestId("active-item-title")).toBeVisible();
-  // Wait for the initial load (tree or empty state) to settle. On a phone the
-  // navigation is a closed modal drawer, so readiness is represented by the
-  // settled content being attached rather than necessarily visible. Derived
-  // services such as search are forbidden from holding this readiness boundary
-  // open; a timeout here therefore reports a real boot failure.
-  await expect(page.locator('[role="tree"], [data-testid="empty-state"]').first()).toBeAttached({
-    timeout: 15_000,
-  });
+  const transientNetworkChanges: string[] = [];
+  const recordTransientNetworkChange = (request: Request) => {
+    const errorText = request.failure()?.errorText;
+    if (errorText?.includes("ERR_NETWORK_CHANGED") === true) {
+      transientNetworkChanges.push(request.url());
+    }
+  };
+  if (!atWorkspaceRoot) page.on("requestfailed", recordTransientNetworkChange);
+
+  try {
+    if (!atWorkspaceRoot) await page.goto("/", { waitUntil: "domcontentloaded" });
+    const shell = page.getByTestId("workspace-shell");
+    try {
+      await expect(shell).toBeVisible();
+    } catch (error) {
+      // The local matrix starts and tears down isolated browser stacks in
+      // parallel. Chromium can observe that host-network transition between
+      // receiving Vite's HTML and fetching one of its source modules, leaving
+      // an otherwise healthy app on a permanently blank page. Retry only that
+      // exact transport failure, and only for a navigation performed here; an
+      // application boot error or a deliberately offline existing page still
+      // fails at the original assertion.
+      if (atWorkspaceRoot || transientNetworkChanges.length === 0) throw error;
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(shell).toBeVisible();
+    }
+    await expect(page.getByTestId("active-item-title")).toBeVisible();
+    // Wait for the initial load (tree or empty state) to settle. On a phone the
+    // navigation is a closed modal drawer, so readiness is represented by the
+    // settled content being attached rather than necessarily visible. Derived
+    // services such as search are forbidden from holding this readiness boundary
+    // open; a timeout here therefore reports a real boot failure.
+    await expect(page.locator('[role="tree"], [data-testid="empty-state"]').first()).toBeAttached({
+      timeout: 15_000,
+    });
+  } finally {
+    if (!atWorkspaceRoot) page.off("requestfailed", recordTransientNetworkChange);
+  }
 }
 
 /**
