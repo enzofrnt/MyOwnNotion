@@ -70,72 +70,77 @@ function isWholeDocumentReplacement(request: Request): boolean {
   );
 }
 
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
+function deferred<T = void>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
     resolve = done;
   });
   return { promise, resolve };
 }
 
-async function interceptNextCommittedSocketReply(page: Page): Promise<{
-  readonly arm: () => Promise<void>;
+async function interceptNextCommittedSocketReply(pages: readonly Page[]): Promise<{
+  readonly arm: () => Promise<Page>;
 }> {
   let armed = false;
   let targetRequestId: string | null = null;
-  let committed = deferred();
-  await page.routeWebSocket("**/v1/page-sync/socket", (browserSocket) => {
-    const serverSocket = browserSocket.connectToServer();
-    browserSocket.onMessage((message) => {
-      const text = typeof message === "string" ? message : message.toString("utf8");
-      if (armed && targetRequestId === null) {
-        try {
-          const frame = JSON.parse(text) as {
-            readonly type?: string;
-            readonly requestId?: string;
-            readonly request?: { readonly mode?: string; readonly updates?: readonly unknown[] };
-          };
-          if (
-            frame.type === "sync" &&
-            frame.request?.mode === "active" &&
-            (frame.request.updates?.length ?? 0) > 0 &&
-            typeof frame.requestId === "string"
-          ) {
-            targetRequestId = frame.requestId;
+  let committed = deferred<Page>();
+  for (const page of pages) {
+    await page.routeWebSocket("**/v1/page-sync/socket", (browserSocket) => {
+      const serverSocket = browserSocket.connectToServer();
+      browserSocket.onMessage((message) => {
+        const text = typeof message === "string" ? message : message.toString("utf8");
+        if (armed && targetRequestId === null) {
+          try {
+            const frame = JSON.parse(text) as {
+              readonly type?: string;
+              readonly requestId?: string;
+              readonly request?: { readonly mode?: string; readonly updates?: readonly unknown[] };
+            };
+            if (
+              frame.type === "sync" &&
+              frame.request?.mode === "active" &&
+              (frame.request.updates?.length ?? 0) > 0 &&
+              typeof frame.requestId === "string"
+            ) {
+              targetRequestId = frame.requestId;
+            }
+          } catch {
+            // The real server remains the protocol authority for malformed data.
           }
-        } catch {
-          // The real server remains the protocol authority for malformed data.
         }
-      }
-      serverSocket.send(message);
-    });
-    serverSocket.onMessage((message) => {
-      const text = typeof message === "string" ? message : message.toString("utf8");
-      if (targetRequestId !== null) {
-        try {
-          const frame = JSON.parse(text) as { readonly type?: string; readonly requestId?: string };
-          if (frame.type === "sync-result" && frame.requestId === targetRequestId) {
-            // The server only emits sync-result after its transaction. Losing
-            // this frame leaves the immutable local row in `sending`, exactly
-            // like a tab or network dying after commit but before local ACK.
-            armed = false;
-            targetRequestId = null;
-            committed.resolve();
-            return;
+        serverSocket.send(message);
+      });
+      serverSocket.onMessage((message) => {
+        const text = typeof message === "string" ? message : message.toString("utf8");
+        if (targetRequestId !== null) {
+          try {
+            const frame = JSON.parse(text) as {
+              readonly type?: string;
+              readonly requestId?: string;
+            };
+            if (frame.type === "sync-result" && frame.requestId === targetRequestId) {
+              // The server only emits sync-result after its transaction. Losing
+              // this frame leaves the immutable local row in `sending`, exactly
+              // like a tab or network dying after commit but before local ACK.
+              armed = false;
+              targetRequestId = null;
+              committed.resolve(page);
+              return;
+            }
+          } catch {
+            // Forward anything that is not the selected committed response.
           }
-        } catch {
-          // Forward anything that is not the selected committed response.
         }
-      }
-      browserSocket.send(message);
+        browserSocket.send(message);
+      });
     });
-  });
+  }
   return {
     arm: async () => {
-      committed = deferred();
+      committed = deferred<Page>();
       armed = true;
       targetRequestId = null;
-      await committed.promise;
+      return await committed.promise;
     },
   };
 }
@@ -171,7 +176,7 @@ test("same-origin tabs adopt offline edits and recover a crashed sender", async 
   };
   context.on("request", recordReplacement);
   const second = await context.newPage();
-  const committedReply = await interceptNextCommittedSocketReply(page);
+  const committedReply = await interceptNextCommittedSocketReply([page, second]);
 
   try {
     const pageName = uniqueName("MultiTabConvergence");
@@ -209,25 +214,26 @@ test("same-origin tabs adopt offline edits and recover a crashed sender", async 
 
     const committedWithoutAck = committedReply.arm();
     await typeAt(page, "end", " — repris après crash");
-    await committedWithoutAck;
+    const sendingTab = await committedWithoutAck;
     await expect.poll(() => countSendingPageUpdates(page), { timeout: 15_000 }).toBeGreaterThan(0);
 
-    // Closing the transport owner terminates its Web Lock after the server has
-    // committed but before this tab has received the ACK. The already-open
-    // successor must retry the same immutable update ID, receive `repeated`,
-    // and adopt the committed frontier without a duplicate.
-    const closed = new Promise<void>((resolve) => page.once("close", () => resolve()));
-    const closing = page.close();
+    // Either tab can win the origin-wide synchronization lock. Close the tab
+    // whose socket actually sent the committed request, then require the
+    // already-open survivor to retry the same immutable update ID, receive
+    // `repeated`, and adopt the committed frontier without a duplicate.
+    const survivor = sendingTab === page ? second : page;
+    const closed = new Promise<void>((resolve) => sendingTab.once("close", () => resolve()));
+    const closing = sendingTab.close();
     await closed;
     await closing;
-    await expect(second.getByTestId("block-editor")).toContainText("repris après crash", {
+    await expect(survivor.getByTestId("block-editor")).toContainText("repris après crash", {
       timeout: 30_000,
     });
-    await waitForPageSynced(second);
+    await waitForPageSynced(survivor);
     expect(replacements).toEqual([]);
   } finally {
     context.off("request", recordReplacement);
     await context.setOffline(false);
-    await second.close();
+    if (!second.isClosed()) await second.close();
   }
 });

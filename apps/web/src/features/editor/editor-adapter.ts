@@ -4,6 +4,7 @@ import type { PageCommand } from "@myownnotion/page-state";
 import { stableMoveChanges } from "./block-drag-drop.ts";
 import { blockNoteBlockToCanonical, blockNoteInlineToCanonical } from "./blocknote-conversion.ts";
 import type { EditorBlock, EditorBlocksChanged } from "./blocknote-schema.ts";
+import type { EditorChangeOrigin } from "./editor-remote-apply.ts";
 
 export interface TextReplacement {
   readonly from: number;
@@ -654,6 +655,7 @@ export function rebaseBlockNoteChanges(
 type EditorChangePublisher = (
   changes: EditorBlocksChanged,
   document: readonly EditorBlock[],
+  origin: EditorChangeOrigin,
 ) => void | Promise<void>;
 
 function descendantIdentityShape(block: EditorBlock): readonly unknown[] {
@@ -748,6 +750,7 @@ function editorTransactions(changes: EditorBlocksChanged): EditorBlocksChanged[]
 
 interface PendingEditorChanges {
   readonly type: "changes";
+  readonly origin: EditorChangeOrigin;
   changes: EditorBlocksChanged;
   document: readonly EditorBlock[] | null;
 }
@@ -779,20 +782,29 @@ export class EditorChangeBatcher {
   beginComposition(): void {
     if (this.#composing) return;
     this.#composing = true;
-    const work: PendingEditorChanges = { type: "changes", changes: [], document: null };
+    const work: PendingEditorChanges = {
+      type: "changes",
+      origin: "local",
+      changes: [],
+      document: null,
+    };
     this.#compositionWork = work;
     this.#pending.push(work);
     void this.#drain();
   }
 
-  push(changes: EditorBlocksChanged, document: readonly EditorBlock[]): void {
+  push(
+    changes: EditorBlocksChanged,
+    document: readonly EditorBlock[],
+    origin: EditorChangeOrigin = "local",
+  ): void {
     if (changes.length === 0) return;
-    if (this.#composing && this.#compositionWork !== null) {
+    if (this.#composing && this.#compositionWork !== null && origin === "local") {
       this.#compositionWork.changes = [...this.#compositionWork.changes, ...changes];
       this.#compositionWork.document = [...document];
       return;
     }
-    this.#enqueueChanges(changes, document);
+    this.#enqueueChanges(changes, document, origin);
     void this.#drain();
   }
 
@@ -824,7 +836,11 @@ export class EditorChangeBatcher {
     return action();
   }
 
-  #enqueueChanges(changes: EditorBlocksChanged, document: readonly EditorBlock[]): void {
+  #enqueueChanges(
+    changes: EditorBlocksChanged,
+    document: readonly EditorBlock[],
+    origin: EditorChangeOrigin,
+  ): void {
     const previous = this.#pending.at(-1);
     const previousTail = previous?.changes.at(-1);
     const incomingHead = changes[0];
@@ -839,6 +855,7 @@ export class EditorChangeBatcher {
     const canExtendPendingTextBurst =
       previous !== undefined &&
       previous !== this.#compositionWork &&
+      previous.origin === origin &&
       previous.changes.every(isCoalescibleTextUpdate) &&
       (changes.every(isCoalescibleTextUpdate) || canJoinFollowingUpdateGesture);
     if (canExtendPendingTextBurst) {
@@ -846,7 +863,12 @@ export class EditorChangeBatcher {
       previous.document = [...document];
       return;
     }
-    this.#pending.push({ type: "changes", changes: [...changes], document: [...document] });
+    this.#pending.push({
+      type: "changes",
+      origin,
+      changes: [...changes],
+      document: [...document],
+    });
   }
 
   #whenIdle(): Promise<void> {
@@ -876,7 +898,7 @@ export class EditorChangeBatcher {
             throw new Error("editor change batch lost its document projection");
           }
           for (const transaction of editorTransactions(pending.changes)) {
-            await this.#publish(transaction, pending.document);
+            await this.#publish(transaction, pending.document, pending.origin);
           }
         }
       }

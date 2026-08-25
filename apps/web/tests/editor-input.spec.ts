@@ -189,6 +189,55 @@ describe("editor input boundaries", () => {
     ]);
   });
 
+  it("preserves a remote origin while its editor echo waits behind a local commit", async () => {
+    const publications: Array<{ readonly text: string; readonly origin: string }> = [];
+    let releaseLocal: (() => void) | undefined;
+    const localCommit = new Promise<void>((resolve) => {
+      releaseLocal = resolve;
+    });
+    const batcher = new EditorChangeBatcher(async (batch, _document, origin) => {
+      const update = batch[0];
+      if (update?.type !== "update") throw new Error("expected an editor update");
+      publications.push({
+        text: (update.block.content[0] as { readonly text: string }).text,
+        origin,
+      });
+      if (publications.length === 1) await localCommit;
+    });
+    const local = paragraph("A — base");
+    const remote = paragraph("base — B");
+
+    batcher.push(
+      [
+        {
+          type: "update",
+          block: local,
+          prevBlock: paragraph("base"),
+          source: { type: "local" },
+        },
+      ] as EditorBlocksChanged,
+      [local],
+      "local",
+    );
+    batcher.push(
+      [
+        {
+          type: "update",
+          block: remote,
+          prevBlock: local,
+          source: { type: "local" },
+        },
+      ] as EditorBlocksChanged,
+      [remote],
+      "remote",
+    );
+
+    expect(publications).toEqual([{ text: "A — base", origin: "local" }]);
+    releaseLocal?.();
+    await vi.waitFor(() => expect(publications).toHaveLength(2));
+    expect(publications[1]).toEqual({ text: "base — B", origin: "remote" });
+  });
+
   it("does not coalesce updates across a structural editor change", async () => {
     const batches: EditorBlocksChanged[] = [];
     let releaseFirst: (() => void) | undefined;

@@ -43,7 +43,11 @@ import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
 import { FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
-import { applyRemoteEditorProjection, EditorOriginGuard } from "./editor-remote-apply.ts";
+import {
+  applyRemoteEditorProjection,
+  type EditorChangeOrigin,
+  EditorOriginGuard,
+} from "./editor-remote-apply.ts";
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
 import { pageLinkTargetFromHref } from "./page-link-href.ts";
 import { updatePageLinkPresentations } from "./page-link-inline-content.ts";
@@ -323,10 +327,19 @@ export function PageEditor({
   );
 
   const applyLocalChanges = useCallback(
-    async (changes: EditorBlocksChanged, document: readonly EditorBlock[]): Promise<void> => {
+    async (
+      changes: EditorBlocksChanged,
+      document: readonly EditorBlock[],
+      publishedOrigin: EditorChangeOrigin,
+    ): Promise<void> => {
       if (changes.length === 0) return;
       editorLocalChangeCount.current += 1;
-      if (!origin.acceptLocalChanges) {
+      // The origin must be the one captured synchronously by BlockNote's
+      // onChange callback. A remote projection can be queued behind a slow
+      // local IndexedDB commit; consulting the mutable guard here would then
+      // see `local` again and durably translate the remote echo as an owner
+      // deletion.
+      if (publishedOrigin !== "local") {
         editorSuppressedChangeCount.current += 1;
         writeEditorSettlementState();
         return;
@@ -338,7 +351,14 @@ export function PageEditor({
           engine.snapshot(),
         ) as EditorBlock[];
         commands = commandsFromBlockNoteChanges({
-          changes: rebaseBlockNoteChanges(changes, authoritativeDocument),
+          // A pending remote projection means the operational authority has
+          // advanced beyond the still-visible BlockNote baseline. Rebasing
+          // against that newer authority would interpret absent remote text
+          // as an owner deletion. The reported before-state remains the safe
+          // coordinate system until the projection reaches the surface.
+          changes: remoteProjectionPending.current
+            ? changes
+            : rebaseBlockNoteChanges(changes, authoritativeDocument),
           document,
           tableIdForInternalBlock: (blockId) => engine.canonicalBlockIdForIdentity(blockId),
         });
@@ -394,7 +414,6 @@ export function PageEditor({
       engine,
       markEditorActivity,
       markEditorSettled,
-      origin,
       recoverVisibleProjection,
       scheduleProjectionSettlement,
       session,
@@ -409,9 +428,10 @@ export function PageEditor({
         batcher.push(
           getChanges() as unknown as EditorBlocksChanged,
           changedEditor.document as unknown as readonly EditorBlock[],
+          origin.origin,
         );
       }),
-    [batcher, editor],
+    [batcher, editor, origin],
   );
 
   // The session is also fed from outside this component: remote merges adopted
