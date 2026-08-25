@@ -367,6 +367,29 @@ Les preuves ciblées exécutées sont :
 stockage local et moteur page-sync afin que cette frontière soit toujours
 rejouée par la CI.
 
+## Régression de revendication `sending`
+
+La CI Firefox a exposé une opération acceptée côté serveur qui pouvait rester
+durablement `sending` si une erreur locale inattendue interrompait le commit de
+la réponse. Les passages suivants ne trouvaient alors aucun lot `pending`, mais
+envoyaient jusqu'à la limite d'échanges des requêtes `updates: []` sans pouvoir
+annoncer la convergence.
+
+Un échange retient désormais uniquement les identités qu'il a revendiquées et
+remet ses propres lignes encore `sending` à `pending` sur toute sortie avant le
+commit. Un passage concurrent qui rencontre une revendication préexistante de
+la même page attend sans transport : il ne vole pas le lot d'un autre onglet et
+n'envoie pas un suffixe causal.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Réconciliateur déterministe | `pnpm exec vitest run --project client-core packages/client-core/tests/page-reconciler.property.spec.ts` | 16 tests passés ; échec de scellement récupéré, même `updateId` renvoyé puis acquitté |
+| Typage et statique | typecheck client-core et contrôle Biome des deux sources modifiées | passés |
+| Runner Firefox Linux | journey `workspace-shell.spec.ts` ciblé avec `--repeat-each=20` dans l'image Playwright CI et une base jetable migrée | 20/20 passages en 1 min 54, sans retry |
+| Références Chromium Linux | `workspace-shell-visual.spec.ts` dans l'image Playwright CI et une base jetable migrée | 4/4 références workspace/réglages, clair/sombre |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :

@@ -360,9 +360,12 @@ La version locale passe de 6 à 7 sans supprimer les déclarations historiques.
 - statuts `pending`, `sending`, `accepted`, `blocked` ;
 - résultat serveur scellé si nécessaire.
 
-Les rows `sending` reviennent à `pending` au boot. Une update acceptée peut être
-retirée seulement après inclusion vérifiée dans le checkpoint local et frontier
-serveur correspondante.
+Les rows `sending` reviennent à `pending` au boot. Pendant l'exécution, chaque
+échange ne peut libérer que les rows qu'il a lui-même revendiquées et les remet
+à `pending` sur toute sortie qui précède le commit local. Un autre passage qui
+observe cette revendication attend sans transport et ne peut envoyer le suffixe
+causal. Une update acceptée peut être retirée seulement après inclusion vérifiée
+dans le checkpoint local et frontier serveur correspondante.
 
 ### `pageAmbiguities`
 
