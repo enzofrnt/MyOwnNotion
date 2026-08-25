@@ -617,6 +617,23 @@
       }
     },
     {
+      "test": "tests/e2e/page-multi-tab-convergence.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/services/local-content.ts",
+          "packages/client-core/src/coordination/cross-context-coordinator.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/sync/",
+          "packages/client-core/src/outbox/",
+          "packages/client-core/src/page-sync/",
+          "packages/client-core/src/reconciliation/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/page-protocol-migration.spec.ts",
       "owners": {
         "exact": [

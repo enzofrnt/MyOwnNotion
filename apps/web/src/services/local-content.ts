@@ -9,6 +9,7 @@
  */
 import {
   applyLocalMutation,
+  type DurablePageUpdateNotice,
   EncryptedPageOperationLog,
   installPageCheckpoint,
   LegacyPageEditingSession,
@@ -23,11 +24,13 @@ import {
   LocalRecordCodec,
   LocalRepository,
   Outbox,
+  openBrowserPageTabChannel,
   openLocalDatabase,
   PageAuthorityRetiredError,
   PageEditingSession,
   type PageReconcileOutcome,
   PageReconciler,
+  type PageTabChannel,
   type ProjectedItem,
   type ReconcileTransport,
   reconcile,
@@ -100,7 +103,38 @@ export type OpenOperationalPageResult =
       readonly message: string;
     };
 
-type SharedOpenedOperationalPage = Omit<Extract<OpenOperationalPageResult, { ok: true }>, "close">;
+type SharedOpenedOperationalPage = Omit<
+  Extract<OpenOperationalPageResult, { ok: true }>,
+  "close"
+> & {
+  /** One mounted editor lease; releasing the last one closes its tab channel. */
+  readonly acquire: () => () => void;
+};
+type OpenOperationalPageFailure = Extract<OpenOperationalPageResult, { ok: false }>;
+
+function channelLease(channel: PageTabChannel): () => () => void {
+  let leases = 0;
+  let disposed = false;
+  let disposalQueued = false;
+  return () => {
+    if (disposed) return () => undefined;
+    leases += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      leases -= 1;
+      if (leases !== 0 || disposalQueued) return;
+      disposalQueued = true;
+      queueMicrotask(() => {
+        disposalQueued = false;
+        if (leases !== 0 || disposed) return;
+        disposed = true;
+        channel.close();
+      });
+    };
+  };
+}
 
 type OnlinePageActivationResult =
   | { readonly kind: "active" }
@@ -154,7 +188,7 @@ export class LocalContentService {
   readonly #legacyPageSessionLeases = new Map<Uuid, number>();
   readonly #openingPages = new Map<
     Uuid,
-    Promise<SharedOpenedOperationalPage | OpenOperationalPageResult>
+    Promise<SharedOpenedOperationalPage | OpenOperationalPageFailure>
   >();
   #pageCsrfToken: () => string | null = () => null;
   #unlocked: Promise<void> | null = null;
@@ -358,10 +392,6 @@ export class LocalContentService {
       (async () => {
         await this.db.open();
         await this.#unlock();
-        // `sending` is a crash marker, not a transport lease. Recover it once
-        // before any page reconciler can start; doing this at the beginning of
-        // every page pass resets another page's genuinely in-flight updates.
-        await this.pageOperationLog.recoverInterruptedSending();
         await this.synchronize();
         await this.synchronizeOperationalPages();
         // Persistence is an eviction hint, not a content-readiness gate. Some
@@ -631,23 +661,23 @@ export class LocalContentService {
     if (inFlight !== undefined) {
       const shared = await inFlight;
       if (!shared.ok) return shared;
-      return this.#attachToOpenedPage(shared.session, shared.reconciler, shared.mode);
+      return this.#attachToOpenedPage(shared);
     }
-    const opened: Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> =
+    const opened: Promise<SharedOpenedOperationalPage | OpenOperationalPageFailure> =
       this.#openOperationalPageOnce(itemId).finally(() => {
         this.#openingPages.delete(itemId);
       });
     this.#openingPages.set(itemId, opened);
     const shared = await opened;
     if (!shared.ok) return shared;
-    return this.#attachToOpenedPage(shared.session, shared.reconciler, shared.mode);
+    return this.#attachToOpenedPage(shared);
   }
 
   #attachToOpenedPage(
-    session: PageEditingSession | LegacyPageEditingSession,
-    reconciler: PageReconciler,
-    mode: "active" | "legacy-branch",
+    shared: SharedOpenedOperationalPage,
   ): Extract<OpenOperationalPageResult, { ok: true }> {
+    const { session, reconciler, mode } = shared;
+    const releaseShared = shared.acquire();
     if (mode === "legacy-branch") {
       this.#legacyPageSessionLeases.set(
         session.pageId,
@@ -674,17 +704,43 @@ export class LocalContentService {
         if (closed) return;
         closed = true;
         unsubscribe();
-        if (mode !== "legacy-branch") return;
-        const leases = this.#legacyPageSessionLeases.get(session.pageId) ?? 0;
-        if (leases <= 1) this.#legacyPageSessionLeases.delete(session.pageId);
-        else this.#legacyPageSessionLeases.set(session.pageId, leases - 1);
+        releaseShared();
+        if (mode === "legacy-branch") {
+          const leases = this.#legacyPageSessionLeases.get(session.pageId) ?? 0;
+          if (leases <= 1) this.#legacyPageSessionLeases.delete(session.pageId);
+          else this.#legacyPageSessionLeases.set(session.pageId, leases - 1);
+        }
       },
     };
   }
 
+  #openPageTabChannel(
+    itemId: Uuid,
+    session: PageEditingSession | LegacyPageEditingSession,
+    reconciler: PageReconciler,
+  ): PageTabChannel {
+    return openBrowserPageTabChannel({
+      workspaceId: this.db.name,
+      pageId: itemId,
+      peerId: session.peerId,
+      persistIncoming: async (notice) => {
+        // BroadcastChannel is only a wake-up path. The session verifies the
+        // encrypted IndexedDB row/frontier and adopts that authority instead
+        // of importing message bytes directly.
+        await session.adoptDurableUpdate(notice);
+        await this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
+        await this.#notify();
+        // If the sender owned the page transport this waits on its Web Lock;
+        // closing/crashing that tab releases the lock and this owner retries
+        // the same immutable update id immediately.
+        void reconciler.synchronize();
+      },
+    });
+  }
+
   async #openOperationalPageOnce(
     itemId: Uuid,
-  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> {
+  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageFailure> {
     await this.#unlock();
     let state = await this.pageOperationLog.getState(itemId);
     const online = typeof navigator === "undefined" ? true : navigator.onLine;
@@ -906,15 +962,17 @@ export class LocalContentService {
   async #openActivePageSession(
     itemId: Uuid,
     online: boolean,
-  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> {
+  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageFailure> {
     const state = await this.pageOperationLog.getState(itemId);
     const reconciler = this.pageReconciler(itemId);
+    let tabChannel: PageTabChannel | null = null;
     const session = await PageEditingSession.resume({
       pageId: itemId,
       log: this.pageOperationLog,
       store: this.pageStateStore,
       online,
-      publishDurableUpdate: () => {
+      publishDurableUpdate: (notice: DurablePageUpdateNotice) => {
+        tabChannel?.publishUpdate(notice);
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
         // Derive pending from the durable queues. This callback is deliberately
         // fire-and-forget; forcing the state before its IndexedDB reads finish
@@ -931,6 +989,7 @@ export class LocalContentService {
         message: "The local operational checkpoint is unavailable.",
       };
     }
+    tabChannel = this.#openPageTabChannel(itemId, session, reconciler);
     // An active page with no blocks cannot mount in BlockNote. The first
     // paragraph is seeded as a real committed transaction — not faked in the
     // editor — so its identity lives in the operational state and every
@@ -957,7 +1016,13 @@ export class LocalContentService {
         throw error;
       }
     }
-    return { ok: true, mode: "active", session, reconciler };
+    return {
+      ok: true,
+      mode: "active",
+      session,
+      reconciler,
+      acquire: channelLease(tabChannel),
+    };
   }
 
   /**
@@ -971,7 +1036,7 @@ export class LocalContentService {
   async #openLegacyBranchSession(
     itemId: Uuid,
     storedBody: unknown,
-  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageResult> {
+  ): Promise<SharedOpenedOperationalPage | OpenOperationalPageFailure> {
     const item = await this.repository.getItem(itemId);
     if (item === null || item.kind !== "page") {
       return {
@@ -1002,6 +1067,7 @@ export class LocalContentService {
       return await this.#openActivePageSession(itemId, online);
     }
     const reconciler = this.pageReconciler(itemId);
+    let tabChannel: PageTabChannel | null = null;
     const session = await LegacyPageEditingSession.tryOpen({
       pageId: itemId,
       baseRevisionId: item.currentRevisionId,
@@ -1011,7 +1077,8 @@ export class LocalContentService {
       // Backing for the in-place upgrade once the branch converts.
       activeStore: this.pageStateStore,
       online,
-      publishDurableUpdate: () => {
+      publishDurableUpdate: (notice: DurablePageUpdateNotice) => {
+        tabChannel?.publishUpdate(notice);
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
         void this.#notify();
         void reconciler.synchronize();
@@ -1047,7 +1114,14 @@ export class LocalContentService {
       // instead of surfacing a transient protocol error to the editor.
       return await this.#openActivePageSession(itemId, online);
     }
-    return { ok: true, mode: "legacy-branch", session, reconciler };
+    tabChannel = this.#openPageTabChannel(itemId, session, reconciler);
+    return {
+      ok: true,
+      mode: "legacy-branch",
+      session,
+      reconciler,
+      acquire: channelLease(tabChannel),
+    };
   }
 
   async getDatabase(databaseId: Uuid): Promise<LocalDatabaseRow | null> {

@@ -23,6 +23,7 @@ import {
 } from "@myownnotion/page-state";
 import { LocalIntegrityError, LocalKeyLockedError, LocalKeyLostError } from "../security/index.ts";
 import type {
+  DurablePageUpdateNotice,
   EncryptedPageOperationLog,
   LegacyOfflineBranchRecord,
 } from "./encrypted-update-log.ts";
@@ -87,7 +88,7 @@ export interface OpenLegacyPageEditingSessionOptions {
    */
   readonly activeStore?: LocalPageTransactionCommitter;
   /** Publishes durable operational updates produced after the upgrade. */
-  readonly publishDurableUpdate?: (updateId: Uuid, updateBytes: Uint8Array) => void;
+  readonly publishDurableUpdate?: (notice: DurablePageUpdateNotice) => void;
   /**
    * Drives branch conversion (plan §6). Resolves "converted" once the server
    * accepted the journal and an active checkpoint is installed locally.
@@ -176,7 +177,7 @@ export class LegacyPageEditingSession {
   readonly #log: EncryptedPageOperationLog;
   readonly #store: LegacyPageBranchCommitter;
   readonly #activeStore: LocalPageTransactionCommitter | undefined;
-  readonly #publishDurableUpdate: ((updateId: Uuid, updateBytes: Uint8Array) => void) | undefined;
+  readonly #publishDurableUpdate: ((notice: DurablePageUpdateNotice) => void) | undefined;
   readonly #requestConversion: (() => Promise<"converted" | "unavailable">) | undefined;
   readonly #now: () => Date;
   readonly #createTransactionId: () => Uuid;
@@ -199,6 +200,8 @@ export class LegacyPageEditingSession {
   #sync: PageSyncState;
   #tail: Promise<void> = Promise.resolve();
   #queuedTransactions = 0;
+  /** Prevents branch conversion from changing the replica beneath visible offsets. */
+  #localInputBursts = 0;
   #recoveryBuffer: LegacyPageEditingRecoveryBuffer | null = null;
   #failedCommit: FailedLegacyCommit | null = null;
 
@@ -315,6 +318,11 @@ export class LegacyPageEditingSession {
     return this.#page.pageId;
   }
 
+  /** Stable tab-channel identity; the active successor remains hidden in place. */
+  get peerId(): string {
+    return this.#successor?.peerId ?? this.#page.peerId;
+  }
+
   get branchId(): Uuid {
     return this.#branch.branchId;
   }
@@ -399,6 +407,19 @@ export class LegacyPageEditingSession {
     this.#refreshSync("status");
   }
 
+  beginLocalInputBurst(): void {
+    this.#localInputBursts += 1;
+    this.#successor?.beginLocalInputBurst();
+  }
+
+  async endLocalInputBurst(): Promise<void> {
+    if (this.#localInputBursts === 0) return;
+    this.#localInputBursts -= 1;
+    const successor = this.#successor;
+    if (successor !== null) await successor.endLocalInputBurst();
+    if (this.#localInputBursts === 0 && successor === null) this.#scheduleConversion();
+  }
+
   /**
    * Adopts durable operational state for this page.
    *
@@ -422,6 +443,17 @@ export class LegacyPageEditingSession {
         this.#onBackgroundError?.(error);
       }),
     );
+  }
+
+  /** Verifies the shared update before upgrading/adopting the active page. */
+  async adoptDurableUpdate(notice: DurablePageUpdateNotice): Promise<void> {
+    const successor = this.#successor;
+    if (successor !== null) return await successor.adoptDurableUpdate(notice);
+    if (notice.pageId !== this.pageId) {
+      throw new Error("the tab notice belongs to another page");
+    }
+    await this.#log.assertDurableUpdate(notice);
+    await this.adoptDurablePage();
   }
 
   async retryBlockedCommit(): Promise<LegacyPageCommitResult> {
@@ -620,6 +652,7 @@ export class LegacyPageEditingSession {
       this.#activeStore === undefined ||
       this.#converting ||
       this.#successor !== null ||
+      this.#localInputBursts > 0 ||
       !this.#online
     ) {
       return;
@@ -687,6 +720,7 @@ export class LegacyPageEditingSession {
       this.#conversionRetryTimer !== null ||
       !this.#online ||
       this.#successor !== null ||
+      this.#localInputBursts > 0 ||
       !this.#hasUserEdits()
     ) {
       return;
@@ -740,6 +774,9 @@ export class LegacyPageEditingSession {
         : { onBackgroundError: this.#onBackgroundError }),
     });
     if (resumed === null) throw new Error("the converted page has no usable active checkpoint");
+    for (let index = 0; index < this.#localInputBursts; index += 1) {
+      resumed.beginLocalInputBurst();
+    }
     resumed.subscribe((change) => {
       for (const listener of this.#listeners) {
         listener({

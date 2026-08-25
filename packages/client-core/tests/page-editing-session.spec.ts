@@ -1,4 +1,5 @@
 import {
+  type DurablePageUpdateNotice,
   derivePageSyncState,
   EncryptedPageOperationLog,
   LocalCipher,
@@ -227,6 +228,46 @@ describe("PageEditingSession", () => {
     expect(resumed?.read()).toEqual(session.read());
   });
 
+  it("keeps visible text offsets stable until a local input burst has drained", async () => {
+    const { pageId, blockId, page } = pageFixture();
+    const store = new LocalPageStateStore(log);
+    const author = await PageEditingSession.open({ page, log, store });
+    await author.transact({
+      type: "replace-text",
+      blockId,
+      from: 1,
+      to: 1,
+      text: " base",
+    });
+    const receiver = await PageEditingSession.resume({ pageId, log, store });
+    if (receiver === null) throw new Error("expected a resumable receiver");
+
+    receiver.beginLocalInputBurst();
+    await author.transact({ type: "replace-text", blockId, from: 0, to: 0, text: "remote " });
+    await receiver.transact({
+      type: "replace-text",
+      blockId,
+      from: "A base".length,
+      to: "A base".length,
+      text: " local",
+    });
+    await receiver.transact({
+      type: "replace-text",
+      blockId,
+      from: "A base local".length,
+      to: "A base local".length,
+      text: " burst",
+    });
+
+    expect(receiver.read().blocks[0]).toMatchObject({
+      content: [{ text: "A base local burst" }],
+    });
+    await receiver.endLocalInputBurst();
+    expect(receiver.read().blocks[0]).toMatchObject({
+      content: [{ text: "remote A base local burst" }],
+    });
+  });
+
   it("recognizes a commit that became durable immediately before the renderer failed", async () => {
     const { blockId, page } = pageFixture();
     const publishDurableUpdate = vi.fn();
@@ -325,6 +366,49 @@ describe("PageEditingSession", () => {
     expect(resumed?.read().blocks[0]).toMatchObject({ content: [{ text: "ABC" }] });
     expect(resumed?.sync).toMatchObject({ kind: "pending", pendingCount: 2 });
   });
+
+  it("adopts a tab update only after verifying the shared durable authority", async () => {
+    const { blockId, pageId, page } = pageFixture();
+    const notices: DurablePageUpdateNotice[] = [];
+    const store = new LocalPageStateStore(log);
+    const author = await PageEditingSession.open({
+      page,
+      log,
+      store,
+      publishDurableUpdate: (notice) => notices.push(notice),
+    });
+    await author.transact({
+      type: "replace-text",
+      blockId,
+      from: 1,
+      to: 1,
+      text: " durable seed",
+    });
+    const receiver = await PageEditingSession.resume({ pageId, log, store });
+    if (receiver === null) throw new Error("expected a resumable receiver");
+
+    await author.transact({
+      type: "replace-text",
+      blockId,
+      from: "A durable seed".length,
+      to: "A durable seed".length,
+      text: " from another tab",
+    });
+    const notice = notices.at(-1);
+    if (notice === undefined) throw new Error("expected a durable update notice");
+
+    await receiver.adoptDurableUpdate(notice);
+
+    expect(receiver.read().blocks[0]).toMatchObject({
+      content: [{ text: "A durable seed from another tab" }],
+    });
+    await expect(
+      receiver.adoptDurableUpdate({
+        ...notice,
+        updateBytes: new Uint8Array([0, 1, 2]),
+      }),
+    ).rejects.toThrow("does not match the shared durable update");
+  });
 });
 
 describe("derivePageSyncState", () => {
@@ -378,6 +462,15 @@ describe("derivePageSyncState", () => {
         ambiguities: [],
       }),
     ).toMatchObject({ kind: "syncing", synchronizationKind: "syncing" });
+    expect(
+      derivePageSyncState({
+        localCommit: "idle",
+        online: false,
+        operationState: committed.state,
+        updates: [sending],
+        ambiguities: [],
+      }),
+    ).toMatchObject({ kind: "offline", synchronizationKind: "offline", pendingCount: 1 });
 
     const synchronizedState = {
       ...committed.state,

@@ -31,6 +31,10 @@ import {
   readDocumentBody,
   type Uuid,
 } from "@myownnotion/domain";
+import {
+  WORKSPACE_SYNC_RESOURCE,
+  withLocalDatabaseLock,
+} from "../coordination/cross-context-coordinator.ts";
 import { LocalRepository } from "../local-store/local-repository.ts";
 import {
   type LocalDatabase,
@@ -290,7 +294,7 @@ function snapshotBody(snapshot: Record<string, unknown> | null): unknown {
   return document?.body;
 }
 
-export async function reconcile(
+async function reconcileAsOwner(
   db: LocalDatabase,
   transport: ReconcileTransport,
   codec: LocalRecordCodec,
@@ -546,4 +550,21 @@ export async function reconcile(
     usedSnapshotFallback,
     offline: false,
   };
+}
+
+/**
+ * Owns the workspace transport across tabs for the entire recover→submit→pull
+ * pass. Once this lock is acquired, every pre-existing `sending` row belongs
+ * to a terminated owner and can be retried with its immutable mutation ID.
+ */
+export async function reconcile(
+  db: LocalDatabase,
+  transport: ReconcileTransport,
+  codec: LocalRecordCodec,
+): Promise<ReconcileOutcome> {
+  return await withLocalDatabaseLock(
+    db,
+    WORKSPACE_SYNC_RESOURCE,
+    async () => await reconcileAsOwner(db, transport, codec),
+  );
 }

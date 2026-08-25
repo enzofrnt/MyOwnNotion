@@ -41,6 +41,19 @@ function deferred() {
   return { promise, resolve };
 }
 
+function notice(
+  pageId: ReturnType<typeof generateUuidV7>,
+  updateId: ReturnType<typeof generateUuidV7>,
+  transaction: { readonly updateBytes: Uint8Array; readonly resultVersionVector: Uint8Array },
+) {
+  return {
+    pageId,
+    updateId,
+    updateBytes: transaction.updateBytes,
+    resultVersionVector: transaction.resultVersionVector,
+  };
+}
+
 async function twoTabDocuments() {
   const pageId = generateUuidV7();
   const blockId = generateUuidV7();
@@ -95,7 +108,7 @@ describe("same-browser page update channel", () => {
     });
 
     const updateId = generateUuidV7();
-    channelA.publishUpdate(updateId, transaction.updateBytes);
+    channelA.publishUpdate(notice(pageId, updateId, transaction));
     await vi.waitFor(() => expect(receiverPersistCalls).toBe(1));
     expect(acknowledgements).toEqual([]);
     expect(authorEchoCalls).toBe(0);
@@ -139,8 +152,8 @@ describe("same-browser page update channel", () => {
     });
     const updateId = generateUuidV7();
 
-    channelA.publishUpdate(updateId, transaction.updateBytes);
-    channelA.publishUpdate(updateId, transaction.updateBytes);
+    channelA.publishUpdate(notice(pageId, updateId, transaction));
+    channelA.publishUpdate(notice(pageId, updateId, transaction));
 
     await vi.waitFor(() => expect(acknowledgements.length).toBeGreaterThanOrEqual(1));
     expect(persistCalls).toBe(1);
@@ -172,7 +185,7 @@ describe("same-browser page update channel", () => {
       onError: (error) => errors.push(error),
     });
 
-    channelA.publishUpdate(generateUuidV7(), transaction.updateBytes);
+    channelA.publishUpdate(notice(pageId, generateUuidV7(), transaction));
     await vi.waitFor(() => expect(errors).toHaveLength(1));
     expect(acknowledgements).toEqual([]);
     channelA.close();
@@ -219,7 +232,14 @@ describe("same-browser page update channel", () => {
     expect(calls).toBe(0);
     expect(acknowledgementCalls).toBe(0);
     channel.close();
-    expect(() => channel.publishUpdate(generateUuidV7(), new Uint8Array([1]))).toThrow("closed");
+    expect(() =>
+      channel.publishUpdate({
+        pageId,
+        updateId: generateUuidV7(),
+        updateBytes: new Uint8Array([1]),
+        resultVersionVector: new Uint8Array([1]),
+      }),
+    ).toThrow("closed");
     outsider.close();
   });
 });

@@ -289,15 +289,17 @@ Après chaque transaction :
    appareil » et diffuse l'update aux autres onglets.
 4. Un ordonnanceur groupe les lots réseau pendant une courte fenêtre, sans
    supprimer leurs identités ni retarder la durabilité.
-5. La reprise au démarrage remet tout lot `sending` en `pending`, comme
-   l'outbox actuelle. En fonctionnement, une tentative suit uniquement ses
-   propres revendications et les libère sur toute sortie antérieure au commit ;
-   un passage concurrent qui observe une revendication de la même page attend
-   sans transport. Le drainage découvre ensuite les identités de pages par un
-   index de routage sans ouvrir leurs contenus chiffrés, puis échange leurs
-   frontières avec une concurrence bornée. Il ne dépend pas du montage d'un
-   éditeur : une page fermée reprend au lancement, au retour du réseau et après
-   un signal de changement.
+5. Le propriétaire qui acquiert le verrou inter-contexte d'une file récupère
+   seulement les lots `sending` de cette file, puis tente le transport. Aucun
+   reset global au démarrage ne peut préempter l'envoi vivant d'un autre onglet.
+   Une tentative suit uniquement ses propres revendications et les libère sur
+   toute sortie antérieure au commit ; si son onglet disparaît, le navigateur
+   libère son verrou et le successeur reprend les mêmes identités idempotentes.
+   Le drainage découvre ensuite les identités de pages par un index de routage
+   sans ouvrir leurs contenus chiffrés, puis échange leurs frontières avec une
+   concurrence bornée. Il ne dépend pas du montage d'un éditeur : une page
+   fermée reprend au lancement, au retour du réseau et après un signal de
+   changement.
 
 Les demandes de drainage concurrentes partagent une seule promesse couvrant la
 totalité des passes coalescées. Un appel arrivé pendant une passe ne peut donc
@@ -312,9 +314,27 @@ version vector, le digest canonique ou l'ensemble d'ambiguïtés a matérielleme
 changé. Cette frontière empêche une projection identique de se notifier elle-même
 en boucle et de relancer des pulls sans fin.
 
-`BroadcastChannel` accélère les onglets, mais chaque destinataire importe et
-persiste la mise à jour avant de l'afficher comme durable. Un onglet qui ne peut
-pas déchiffrer ou écrire reste bloqué sans accuser réception.
+Les fenêtres de mutation et de transport partagées entre onglets sont protégées
+par Web Locks. Les noms ne contiennent que la base locale et la ressource
+workspace/page ; les tests hors navigateur injectent une file déterministe de
+même sémantique. Le verrou workspace couvre toute la passe
+récupération-soumission-pull et le verrou page couvre une seule page, sans
+acquisition imbriquée de la même ressource.
+
+`BroadcastChannel` n'est qu'un accélérateur. Après le commit Dexie, l'émetteur
+publie l'identité, une copie des octets et la version vector de l'update. Ces
+octets ne deviennent jamais une autorité de contenu : le destinataire les
+compare à l'update chiffrée dans IndexedDB ou prouve que l'état durable domine
+déjà causalement leur frontier avant d'adopter exclusivement cet état partagé,
+de notifier la projection et de demander un drainage borné. Un onglet qui ne
+peut pas vérifier ou adopter reste bloqué sans accuser réception ; le canal
+ferme avec la dernière session de page.
+
+Pendant une rafale de saisie locale, la réplique visible garde sa base
+positionnelle stable : les événements BlockNote déjà produits ne sont pas
+réinterprétés contre une insertion distante arrivée entre deux touches. Chaque
+geste reste commité dans l'autorité Dexie ; à la fin de la rafale, la session
+importe la frontier durable complète et converge avant le prochain geste.
 
 ### 4. Chemin serveur : accepter, matérialiser, notifier
 

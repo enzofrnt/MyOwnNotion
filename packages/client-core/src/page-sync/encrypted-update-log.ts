@@ -86,6 +86,19 @@ export interface PageOperationUpdateRecord {
   readonly serverResult?: PageOperationServerResult;
 }
 
+/**
+ * Immutable proof published after one operational update is durable.
+ *
+ * Same-origin channels use this as a wake-up hint only. Receivers re-read the
+ * encrypted IndexedDB authority and never import these bytes directly.
+ */
+export interface DurablePageUpdateNotice {
+  readonly pageId: Uuid;
+  readonly updateId: Uuid;
+  readonly updateBytes: Uint8Array;
+  readonly resultVersionVector: Uint8Array;
+}
+
 export interface PageAmbiguityRecord {
   readonly ambiguityId: Uuid;
   readonly pageId: Uuid;
@@ -786,6 +799,37 @@ export class EncryptedPageOperationLog {
     return row === undefined ? null : await this.codec.openUpdate(row);
   }
 
+  /**
+   * Proves a tab-channel notice against the shared encrypted authority.
+   *
+   * A queued row must match byte-for-byte. If server acknowledgement already
+   * compacted that row away, the durable page frontier must causally dominate
+   * the notice instead. The caller may then adopt the IndexedDB state; the
+   * untrusted accelerator payload itself is never applied to an editor.
+   */
+  async assertDurableUpdate(notice: DurablePageUpdateNotice): Promise<void> {
+    // Keep these reads ordered. If the first one observes that compaction has
+    // removed the update, the following state read is guaranteed to observe
+    // that same committed transaction (or something newer), including the
+    // frontier that replaced the row. Parallel reads could straddle the
+    // transaction in the opposite order and reject a valid notice briefly.
+    const stored = await this.getUpdate(notice.updateId);
+    if (stored !== null) {
+      const matches =
+        stored.pageId === notice.pageId &&
+        stored.updateBytes.byteLength === notice.updateBytes.byteLength &&
+        stored.updateBytes.every((byte, index) => byte === notice.updateBytes[index]) &&
+        versionVectorBytesEqual(stored.resultVersionVector, notice.resultVersionVector);
+      if (matches) return;
+      throw new Error("the tab notice does not match the shared durable update");
+    }
+    const state = await this.getState(notice.pageId);
+    if (state !== null && versionVectorDominates(state.versionVector, notice.resultVersionVector)) {
+      return;
+    }
+    throw new Error("the tab notice is not present in the shared durable page");
+  }
+
   async listUpdates(
     pageId: Uuid,
     statuses?: readonly PageOperationUpdateStatus[],
@@ -892,8 +936,14 @@ export class EncryptedPageOperationLog {
     return row === undefined ? null : await this.codec.openLegacyBranch(row);
   }
 
-  async recoverInterruptedSending(): Promise<number> {
-    const rows = await this.db.pageOperationUpdates.where("status").equals("sending").toArray();
+  async recoverInterruptedSending(pageId?: Uuid): Promise<number> {
+    const rows =
+      pageId === undefined
+        ? await this.db.pageOperationUpdates.where("status").equals("sending").toArray()
+        : await this.db.pageOperationUpdates
+            .where("[pageId+status]")
+            .equals([pageId, "sending"])
+            .toArray();
     const replacements: Array<{
       readonly previous: SealedPageOperationUpdateRow;
       readonly next: SealedPageOperationUpdateRow;

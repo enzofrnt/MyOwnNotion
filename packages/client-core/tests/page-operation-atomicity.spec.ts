@@ -16,15 +16,19 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 let db: LocalDatabase;
 let log: EncryptedPageOperationLog;
+let cipher: LocalCipher;
+
+const encryptionContext = {
+  installationId: "018f2b7c-0000-7000-8000-000000000001",
+  workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
+};
 
 beforeEach(async () => {
   db = openLocalDatabase(`page-atomicity-${generateUuidV7()}`);
   const keys = new LocalKeyManager(new MemorySecureStorage());
   await keys.establish();
-  log = new EncryptedPageOperationLog(db, new LocalCipher(keys), {
-    installationId: "018f2b7c-0000-7000-8000-000000000001",
-    workspaceId: "018f2b7c-0000-7000-8000-0000000000aa",
-  });
+  cipher = new LocalCipher(keys);
+  log = new EncryptedPageOperationLog(db, cipher, encryptionContext);
 });
 
 afterEach(async () => {
@@ -52,6 +56,64 @@ async function counts() {
 }
 
 describe("atomic operational page commit", () => {
+  it("converges simultaneous same-paragraph commits from independent database handles", async () => {
+    const secondDb = openLocalDatabase(db.name);
+    const secondLog = new EncryptedPageOperationLog(secondDb, cipher, encryptionContext);
+    try {
+      const pageId = generateUuidV7();
+      const blockId = generateUuidV7();
+      const origin = OperationalPageDocument.create({
+        pageId,
+        document: {
+          blocks: [{ type: "paragraph", id: blockId, content: [{ text: "middle" }] }],
+        },
+      });
+      const seed = origin.transact([
+        { type: "replace-text", blockId, from: "middle".length, to: "middle".length, text: "." },
+      ]);
+      await new LocalPageStateStore(log).commitLocalTransaction({
+        page: origin,
+        transaction: seed,
+        updateId: generateUuidV7(),
+        enqueueOrder: 1,
+      });
+      const first = await PageEditingSession.resume({
+        pageId,
+        log,
+        store: new LocalPageStateStore(log),
+      });
+      const second = await PageEditingSession.resume({
+        pageId,
+        log: secondLog,
+        store: new LocalPageStateStore(secondLog),
+      });
+      if (first === null || second === null) throw new Error("expected two resumable sessions");
+
+      await Promise.all([
+        first.transact({ type: "replace-text", blockId, from: 0, to: 0, text: "left " }),
+        second.transact({
+          type: "replace-text",
+          blockId,
+          from: "middle.".length,
+          to: "middle.".length,
+          text: " right",
+        }),
+      ]);
+      await Promise.all([first.adoptDurablePage(), second.adoptDurablePage()]);
+
+      expect(first.peerId).not.toBe(second.peerId);
+      expect(first.read()).toEqual(second.read());
+      expect(first.read().blocks[0]).toMatchObject({
+        content: [{ text: "left middle. right" }],
+      });
+      const updates = await log.listUpdates(pageId);
+      expect(updates).toHaveLength(3);
+      expect(new Set(updates.map(({ updateId }) => updateId)).size).toBe(3);
+    } finally {
+      secondDb.close();
+    }
+  });
+
   it("refuses a prepared editor update after the item becomes a folder", async () => {
     const { pageId, page, transaction } = editedPage();
     await db.items.put({ id: pageId, kind: "folder" } as never);

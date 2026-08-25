@@ -1,4 +1,8 @@
-import { encodePageOperationBytes, type PageEditingSession } from "@myownnotion/client-core";
+import {
+  encodePageOperationBytes,
+  openLocalDatabase,
+  type PageEditingSession,
+} from "@myownnotion/client-core";
 import {
   type ItemDto,
   PAGE_OPERATIONAL_VERSION,
@@ -104,7 +108,10 @@ const services: LocalContentService[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  await Promise.all(services.splice(0).map(async (service) => await service.db.delete()));
+  const opened = services.splice(0);
+  const databaseNames = new Set(opened.map(({ db }) => db.name));
+  for (const service of opened) service.db.close();
+  for (const databaseName of databaseNames) await openLocalDatabase(databaseName).delete();
 });
 
 describe("operational page opening", () => {
@@ -167,6 +174,69 @@ describe("operational page opening", () => {
       expectedCanonicalDigest: await documentDigestV3(document),
     });
     opened.close();
+  });
+
+  it("propagates a durable active-page edit between two service tabs without reload", async () => {
+    vi.stubGlobal("navigator", { onLine: true });
+    const databaseName = `tab-propagation-${Date.now()}`;
+    const firstService = new LocalContentService(workspaceApi(), databaseName);
+    const secondService = new LocalContentService(workspaceApi(), databaseName);
+    services.push(firstService, secondService);
+    await firstService.initialize();
+    await secondService.initialize();
+
+    const pageId = generateUuidV7();
+    const revisionId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const document: BlockDocumentV3 = {
+      blocks: [{ type: "paragraph", id: blockId, content: [{ text: "Shared" }] }],
+    };
+    const item = pageItem(pageId, revisionId, document);
+    await firstService.repository.applyServerItems([item]);
+    vi.spyOn(firstService.pageOperationsApi, "checkpoint").mockImplementation(
+      async (activatedPageId, requestId) => ({
+        ok: true,
+        value: await checkpointResponse({
+          pageId: activatedPageId,
+          requestId: requestId as Uuid,
+          revisionId,
+          document,
+        }),
+      }),
+    );
+    const synchronized = {
+      kind: "synced" as const,
+      exchanges: 0,
+      latestPageSequence: 0,
+      fileRequirements: [],
+    };
+    vi.spyOn(firstService.pageReconciler(pageId), "synchronize").mockResolvedValue(synchronized);
+    vi.spyOn(secondService.pageReconciler(pageId), "synchronize").mockResolvedValue(synchronized);
+
+    const first = await firstService.openOperationalPage(pageId);
+    const second = await secondService.openOperationalPage(pageId);
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+
+    await first.session.transact({
+      type: "replace-text",
+      blockId,
+      from: "Shared".length,
+      to: "Shared".length,
+      text: " between tabs",
+    });
+
+    await vi.waitFor(() =>
+      expect(second.session.read().blocks[0]).toMatchObject({
+        content: [{ text: "Shared between tabs" }],
+      }),
+    );
+    expect(first.session.peerId).not.toBe(second.session.peerId);
+
+    first.close();
+    second.close();
+    await Promise.resolve();
   });
 
   it("does not resurrect page authority when conversion wins an in-flight activation", async () => {

@@ -46,6 +46,22 @@ import { updatePageLinkPresentations } from "./page-link-inline-content.ts";
 
 const EDITOR_PROJECTION_QUIET_MS = 120;
 
+interface LocalInputBurstSession {
+  beginLocalInputBurst(): void;
+  endLocalInputBurst(): Promise<void>;
+}
+
+function supportsLocalInputBursts(value: unknown): value is LocalInputBurstSession {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "beginLocalInputBurst" in value &&
+    typeof value.beginLocalInputBurst === "function" &&
+    "endLocalInputBurst" in value &&
+    typeof value.endLocalInputBurst === "function"
+  );
+}
+
 export interface PageEditorHandle {
   read(): BlockDocument;
   focus(target?: { readonly blockId: Uuid; readonly placement: "start" | "end" }): void;
@@ -198,6 +214,7 @@ export function PageEditor({
       if (beginsLocalBurst) {
         editorActivitySequence.current += 1;
         localActivityInCurrentBurst.current = true;
+        if (supportsLocalInputBursts(session)) session.beginLocalInputBurst();
       }
       lastEditorActivityAt.current = Date.now();
       editorSettled.current = false;
@@ -208,19 +225,29 @@ export function PageEditor({
         onSettlementChange?.(false);
       }
     },
-    [onSettlementChange, writeEditorSettlementState],
+    [onSettlementChange, session, writeEditorSettlementState],
   );
 
   const markEditorSettled = useCallback(() => {
     if (inFlight.current > 0) return;
+    const endedLocalBurst = localActivityInCurrentBurst.current;
     editorSettled.current = true;
     localActivityInCurrentBurst.current = false;
+    if (endedLocalBurst && supportsLocalInputBursts(session)) {
+      void session.endLocalInputBurst().catch((error: unknown) => {
+        setEditorError(
+          error instanceof Error
+            ? `La mise à jour distante n’a pas pu être appliquée : ${error.message}`
+            : "La mise à jour distante n’a pas pu être appliquée.",
+        );
+      });
+    }
     writeEditorSettlementState();
     onSettlementChange?.(true);
     // Undo/redo availability is presentation state. Updating it once per
     // settled burst avoids re-rendering a 500-block surface for every key.
     setHistoryVersion((version) => version + 1);
-  }, [onSettlementChange, writeEditorSettlementState]);
+  }, [onSettlementChange, session, writeEditorSettlementState]);
 
   const applyPendingRemoteProjection = useCallback(() => {
     if (!remoteProjectionPending.current) return;
