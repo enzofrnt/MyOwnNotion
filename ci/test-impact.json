@@ -486,8 +486,13 @@
     {
       "test": "tests/e2e/item-conversion.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/features/navigation/convert-item.tsx"],
+        "exact": [
+          "apps/web/src/features/navigation/convert-item.tsx",
+          "apps/web/src/services/local-content.ts",
+          "packages/client-core/src/local-store/local-repository.ts"
+        ],
         "prefixes": [
+          "packages/client-core/src/page-sync/",
           "packages/domain/src/content/conversion",
           "packages/database/src/repositories/content/conversion-"
         ],

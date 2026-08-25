@@ -107,23 +107,45 @@ async function preparePageCheckpoint(
   return { state, sealed: await log.codec.sealState(state) };
 }
 
-/** Installs a server-created genesis/checkpoint exactly once. */
+/**
+ * Installs a server-created genesis/checkpoint exactly once.
+ *
+ * The item-kind check belongs to the same IndexedDB transaction as the state
+ * write. A page can be converted to a folder while an activation request is in
+ * flight; checking before this transaction would let the late response
+ * recreate operational authority after the conversion had removed it.
+ * `null` means that the local item no longer accepts page authority.
+ */
 export async function installPageCheckpoint(
   log: EncryptedPageOperationLog,
   response: PageCheckpointResponseDto,
   now: Date = new Date(),
-): Promise<PageOperationStateRecord> {
+): Promise<PageOperationStateRecord | null> {
   return await withPageStateWrite(log.db, response.pageId as Uuid, async () => {
-    const existing = await log.getState(response.pageId as Uuid);
-    if (existing !== null) return existing;
+    const pageId = response.pageId as Uuid;
+    const existing = await log.getState(pageId);
+    if (existing !== null) {
+      const item = await log.db.items.get(pageId);
+      return item?.kind === "page" ? existing : null;
+    }
     const prepared = await preparePageCheckpoint(log, response, now);
-    await log.db.transaction("rw", log.db.pageOperationStates, async () => {
-      if ((await log.db.pageOperationStates.get(prepared.state.pageId)) !== undefined) {
-        throw new ConcurrentPageCheckpointError();
-      }
-      await log.db.pageOperationStates.add(prepared.sealed);
-    });
-    return prepared.state;
+    const installed = await log.db.transaction(
+      "rw",
+      [log.db.items, log.db.pageOperationStates],
+      async () => {
+        const [item, currentState] = await Promise.all([
+          log.db.items.get(pageId),
+          log.db.pageOperationStates.get(pageId),
+        ]);
+        if (item?.kind !== "page") return false;
+        if (currentState !== undefined) {
+          throw new ConcurrentPageCheckpointError();
+        }
+        await log.db.pageOperationStates.add(prepared.sealed);
+        return true;
+      },
+    );
+    return installed ? prepared.state : null;
   });
 }
 

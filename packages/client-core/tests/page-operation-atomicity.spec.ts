@@ -7,6 +7,7 @@ import {
   LocalPageStateStore,
   MemorySecureStorage,
   openLocalDatabase,
+  PageAuthorityRetiredError,
   PageEditingSession,
 } from "@myownnotion/client-core";
 import { generateUuidV7 } from "@myownnotion/domain";
@@ -51,6 +52,22 @@ async function counts() {
 }
 
 describe("atomic operational page commit", () => {
+  it("refuses a prepared editor update after the item becomes a folder", async () => {
+    const { pageId, page, transaction } = editedPage();
+    await db.items.put({ id: pageId, kind: "folder" } as never);
+
+    await expect(
+      new LocalPageStateStore(log, { requireCurrentPage: true }).commitLocalTransaction({
+        page,
+        transaction,
+        updateId: generateUuidV7(),
+        enqueueOrder: 1,
+      }),
+    ).rejects.toBeInstanceOf(PageAuthorityRetiredError);
+
+    expect(await counts()).toEqual({ states: 0, updates: 0 });
+  });
+
   it.each([
     "before-encryption",
     "after-encryption",

@@ -35,6 +35,8 @@ export type LocalPageCommitPhase =
 export interface LocalPageCommitHooks {
   /** Synchronous by design: asynchronous work inside a Dexie transaction can close it early. */
   readonly at?: (phase: LocalPageCommitPhase) => void;
+  /** Refuse a late editor write after the workspace item stopped being a page. */
+  readonly requireCurrentPage?: boolean;
 }
 
 export interface CommitLocalPageTransactionInput {
@@ -65,6 +67,13 @@ export class DuplicatePageUpdateIdError extends Error {
   constructor(updateId: Uuid) {
     super(`page operation update id already exists: ${updateId}`);
     this.name = "DuplicatePageUpdateIdError";
+  }
+}
+
+export class PageAuthorityRetiredError extends Error {
+  constructor(pageId: Uuid) {
+    super(`page operation authority is retired: ${pageId}`);
+    this.name = "PageAuthorityRetiredError";
   }
 }
 
@@ -106,10 +115,12 @@ function assertTransactionMatchesPage(
 export class LocalPageStateStore {
   readonly #log: EncryptedPageOperationLog;
   readonly #hooks: LocalPageCommitHooks;
+  readonly #requireCurrentPage: boolean;
 
   constructor(log: EncryptedPageOperationLog, hooks: LocalPageCommitHooks = {}) {
     this.#log = log;
     this.#hooks = hooks;
+    this.#requireCurrentPage = hooks.requireCurrentPage ?? false;
   }
 
   /**
@@ -239,8 +250,12 @@ export class LocalPageStateStore {
 
     await this.#log.db.transaction(
       "rw",
-      [this.#log.db.pageOperationStates, this.#log.db.pageOperationUpdates],
+      [this.#log.db.items, this.#log.db.pageOperationStates, this.#log.db.pageOperationUpdates],
       async () => {
+        if (this.#requireCurrentPage) {
+          const item = await this.#log.db.items.get(input.page.pageId);
+          if (item?.kind !== "page") throw new PageAuthorityRetiredError(input.page.pageId);
+        }
         const current = await this.#log.db.pageOperationStates.get(input.page.pageId);
         if ((current?.recordVersion ?? 0) !== expectedStateRecordVersion) {
           throw new ConcurrentLocalPageStateError();

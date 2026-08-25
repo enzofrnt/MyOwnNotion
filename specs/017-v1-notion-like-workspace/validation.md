@@ -1,6 +1,6 @@
 # Validation — Feature 017
 
-Dernière mise à jour : 2026-08-24
+Dernière mise à jour : 2026-08-25
 Tranches validées : US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222
 
 Ce document consigne les preuves exécutées. Il ne remplace ni les critères de
@@ -339,6 +339,33 @@ le défilement était appliqué au contenu interne. Le conteneur borné est
 maintenant la surface défilable ; insertion et suppression restent accessibles
 sur les cinq profils, même lorsqu'aucun côté de l'ancre ne peut accueillir le
 menu entier.
+
+## Régression activation/conversion fermée
+
+Le premier gate de cette tranche a révélé une course réelle sur Firefox : une
+activation de page et son premier bloc opérationnel pouvaient être déjà en vol
+quand l'utilisateur convertissait cette page en dossier. La conversion était
+bien acceptée, mais la réponse tardive recréait une update de page que le
+serveur refusait ensuite avec `page-operations.projection-invalid`. Le statut
+restait alors durablement sur « 1 changement en attente ».
+
+L'installation d'un checkpoint et chaque commit éditorial vérifient désormais
+le type courant dans la même transaction IndexedDB que l'écriture. Le cache de
+projection utilise en plus un compare-and-swap sur la révision observée. Si la
+conversion gagne, aucune autorité de page ne peut réapparaître ; si l'écriture
+gagne, la transaction de conversion retire ensuite état et updates ensemble.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Course d'activation | `pnpm exec vitest run --project web apps/web/tests/operational-page-opening.spec.ts` | 8 tests passés ; une activation libérée après la conversion ne recrée ni état ni update |
+| Commit atomique | `pnpm exec vitest run --project client-core packages/client-core/tests/page-operation-atomicity.spec.ts` | 15 tests passés ; un commit préparé est refusé quand l'item est devenu dossier |
+| Journey contraint répété | matrice `item-conversion.spec.ts` ciblée avec `--repeat-each=10` | 50/50 passages, dix sur chacun des cinq profils, sans retry |
+
+`ci/test-impact.json` relie maintenant ce journey aux changements de service,
+stockage local et moteur page-sync afin que cette frontière soit toujours
+rejouée par la CI.
 
 ## Limites encore ouvertes
 

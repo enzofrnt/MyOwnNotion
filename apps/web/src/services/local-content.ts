@@ -24,6 +24,7 @@ import {
   LocalRepository,
   Outbox,
   openLocalDatabase,
+  PageAuthorityRetiredError,
   PageEditingSession,
   type PageReconcileOutcome,
   PageReconciler,
@@ -174,7 +175,9 @@ export class LocalContentService {
     };
     this.#codec = new LocalRecordCodec(cipher, operationContext);
     this.pageOperationLog = new EncryptedPageOperationLog(this.db, cipher, operationContext);
-    this.pageStateStore = new LocalPageStateStore(this.pageOperationLog);
+    this.pageStateStore = new LocalPageStateStore(this.pageOperationLog, {
+      requireCurrentPage: true,
+    });
     this.pageOperationsApi = new PageOperationsApi({ csrfToken: () => this.#pageCsrfToken() });
     this.repository = new LocalRepository(this.db, this.#codec);
     this.databases = new LocalDatabaseRepository(this.db, this.#codec);
@@ -689,6 +692,14 @@ export class LocalContentService {
       const checkpoint = await this.pageOperationsApi.checkpoint(itemId, generateUuidV7());
       if (checkpoint.ok) {
         state = await this.#installOperationalCheckpoint(itemId, checkpoint.value);
+        if (state === null) {
+          return {
+            ok: false,
+            offline: false,
+            code: "item.not-found",
+            message: "This item is no longer an editable page.",
+          };
+        }
       } else if (!checkpoint.offline && checkpoint.problem.code !== "page-operations.not-active") {
         return {
           ok: false,
@@ -793,8 +804,13 @@ export class LocalContentService {
     checkpoint: Parameters<typeof installPageCheckpoint>[1],
   ) {
     const state = await installPageCheckpoint(this.pageOperationLog, checkpoint);
+    if (state === null) return null;
     if (state.projection !== null) {
-      await this.repository.cacheOperationalPageProjection(itemId, state.projection.document);
+      const cached = await this.repository.cacheOperationalPageProjection(
+        itemId,
+        state.projection.document,
+      );
+      if (!cached) return null;
     }
     await this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
     return state;
@@ -848,7 +864,15 @@ export class LocalContentService {
         expectedCanonicalDigest: await documentDigestV3(migrated.document),
       });
       if (activation.ok) {
-        await this.#installOperationalCheckpoint(itemId, activation.value);
+        const installed = await this.#installOperationalCheckpoint(itemId, activation.value);
+        if (installed === null) {
+          return {
+            kind: "failed",
+            offline: false,
+            code: "item.not-found",
+            message: "This item is no longer an editable page.",
+          };
+        }
         return { kind: "active" };
       }
       if (activation.offline) return { kind: "local-branch" };
@@ -914,12 +938,24 @@ export class LocalContentService {
     // from elsewhere (another device's conversion); a locally pristine page
     // opens on the legacy branch above and seeds nothing durable.
     if (state.status === "active" && session.read().blocks.length === 0) {
-      await session.transact({
-        type: "insert-block",
-        block: { type: "paragraph", id: generateUuidV7(), content: [] },
-        parentBlockId: null,
-        beforeBlockId: null,
-      });
+      try {
+        await session.transact({
+          type: "insert-block",
+          block: { type: "paragraph", id: generateUuidV7(), content: [] },
+          parentBlockId: null,
+          beforeBlockId: null,
+        });
+      } catch (error) {
+        if (error instanceof PageAuthorityRetiredError) {
+          return {
+            ok: false,
+            offline: false,
+            code: "item.not-found",
+            message: "This item is no longer an editable page.",
+          };
+        }
+        throw error;
+      }
     }
     return { ok: true, mode: "active", session, reconciler };
   }
@@ -973,7 +1009,7 @@ export class LocalContentService {
       log: this.pageOperationLog,
       store: new LegacyPageStateStore(this.pageOperationLog),
       // Backing for the in-place upgrade once the branch converts.
-      activeStore: new LocalPageStateStore(this.pageOperationLog),
+      activeStore: this.pageStateStore,
       online,
       publishDurableUpdate: () => {
         void this.#emitProjection({ kind: "upsert", itemIds: [itemId] });
