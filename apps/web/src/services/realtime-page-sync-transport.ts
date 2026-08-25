@@ -53,9 +53,15 @@ function configuredApiUrl(): string {
 
 interface PendingRequest {
   readonly pageId: Uuid;
+  readonly frame: string;
   readonly resolve: (result: PageSyncTransportResult) => void;
   readonly timer: ReturnType<typeof setTimeout>;
+  retryAttempt: number;
+  retryTimer: ReturnType<typeof setTimeout> | null;
 }
+
+const MIN_RETRY_DELAY_MS = 50;
+const MAX_RETRY_DELAY_MS = 2_000;
 
 const OFFLINE_RESULT = {
   ok: false,
@@ -237,7 +243,8 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
     if (!ready) {
       return (await fallback()) ?? OFFLINE_RESULT;
     }
-    if (this.#socket === null || this.#socket.readyState !== 1 || this.#state !== "ready") {
+    const socket = this.#socket;
+    if (socket === null || socket.readyState !== 1 || this.#state !== "ready") {
       return (await fallback()) ?? OFFLINE_RESULT;
     }
     if (this.#pending.has(request.requestId as Uuid) || this.#inFlightPages.has(pageId)) {
@@ -253,12 +260,11 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
     return await new Promise<PageSyncTransportResult>((resolve) => {
       const timeoutMs = this.#requestTimeoutOverride ?? this.#serverRequestTimeoutMs;
       const requestId = request.requestId as Uuid;
+      const frame = JSON.stringify({ type: "sync", requestId, pageId, request });
       const timer = setTimeout(() => {
         const pending = this.#pending.get(requestId);
         if (pending === undefined) return;
-        this.#pending.delete(requestId);
-        this.#inFlightPages.delete(pageId);
-        pending.resolve({
+        this.#settleRequest(requestId, pending, {
           ok: false,
           offline: true,
           problem: {
@@ -276,17 +282,17 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
           );
         }
       }, timeoutMs);
-      this.#pending.set(requestId, { pageId, resolve, timer });
+      const pending: PendingRequest = {
+        pageId,
+        frame,
+        resolve,
+        timer,
+        retryAttempt: 0,
+        retryTimer: null,
+      };
+      this.#pending.set(requestId, pending);
       this.#inFlightPages.add(pageId);
-      try {
-        this.#socket?.send(JSON.stringify({ type: "sync", requestId, pageId, request }));
-      } catch {
-        clearTimeout(timer);
-        this.#pending.delete(requestId);
-        this.#inFlightPages.delete(pageId);
-        resolve(OFFLINE_RESULT);
-        if (this.#socket !== null) this.#abandonSocket(this.#socket, 1001, "send-failed");
-      }
+      this.#sendPendingFrame(socket, requestId, pending);
     });
   }
 
@@ -406,18 +412,69 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
     const requestId = message.requestId as Uuid;
     const pending = this.#pending.get(requestId);
     if (pending === undefined || pending.pageId !== message.pageId) return;
+    if (message.type === "sync-result") {
+      this.#settleRequest(requestId, pending, { ok: true, value: message.response });
+      return;
+    }
+    if (message.retryable) {
+      this.#scheduleRequestRetry(socket, requestId, pending, message.retryAfterMs);
+      return;
+    }
+    this.#settleRequest(requestId, pending, {
+      ok: false,
+      offline: message.offline,
+      problem: message.problem,
+    });
+  }
+
+  /**
+   * Replays one immutable request after an explicitly retryable server reply.
+   *
+   * The durable update ID makes an uncertain server commit safe to submit at
+   * least once. Keeping the same correlated request alive also prevents a
+   * transient transaction refusal from falling back to the 60-second safety
+   * sweep while the socket itself is healthy.
+   */
+  #scheduleRequestRetry(
+    socket: WebSocket,
+    requestId: Uuid,
+    pending: PendingRequest,
+    retryAfterMs: number | undefined,
+  ): void {
+    if (pending.retryTimer !== null) return;
+    const ceiling = Math.min(MIN_RETRY_DELAY_MS * 2 ** pending.retryAttempt, MAX_RETRY_DELAY_MS);
+    const jittered = Math.floor(this.#random() * (ceiling + 1));
+    const delay = Math.max(MIN_RETRY_DELAY_MS, retryAfterMs ?? 0, jittered);
+    pending.retryAttempt += 1;
+    pending.retryTimer = setTimeout(() => {
+      pending.retryTimer = null;
+      if (this.#pending.get(requestId) !== pending) return;
+      if (this.#socket !== socket || socket.readyState !== 1 || this.#state !== "ready") {
+        this.#settleRequest(requestId, pending, OFFLINE_RESULT);
+        if (this.#socket === socket) this.#abandonSocket(socket, 1001, "retry-disconnected");
+        return;
+      }
+      this.#sendPendingFrame(socket, requestId, pending);
+    }, delay);
+  }
+
+  #sendPendingFrame(socket: WebSocket, requestId: Uuid, pending: PendingRequest): void {
+    try {
+      socket.send(pending.frame);
+    } catch {
+      this.#settleRequest(requestId, pending, OFFLINE_RESULT);
+      if (this.#socket === socket) this.#abandonSocket(socket, 1001, "send-failed");
+    }
+  }
+
+  #settleRequest(requestId: Uuid, pending: PendingRequest, result: PageSyncTransportResult): void {
+    if (this.#pending.get(requestId) !== pending) return;
     clearTimeout(pending.timer);
+    if (pending.retryTimer !== null) clearTimeout(pending.retryTimer);
+    pending.retryTimer = null;
     this.#pending.delete(requestId);
     this.#inFlightPages.delete(pending.pageId);
-    if (message.type === "sync-result") {
-      pending.resolve({ ok: true, value: message.response });
-    } else {
-      pending.resolve({
-        ok: false,
-        offline: message.offline,
-        problem: message.problem,
-      });
-    }
+    pending.resolve(result);
   }
 
   #abandonSocket(socket: WebSocket, code: number, reason: string): void {
@@ -557,6 +614,8 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
     this.#inFlightPages.clear();
     for (const request of pending) {
       clearTimeout(request.timer);
+      if (request.retryTimer !== null) clearTimeout(request.retryTimer);
+      request.retryTimer = null;
       request.resolve(result);
     }
   }

@@ -187,6 +187,46 @@ describe("RealtimePageSyncTransport", () => {
     transport.stop();
   });
 
+  it("replays a retryable live refusal with the same immutable request before the safety sweep", async () => {
+    vi.useFakeTimers();
+    const { socket, transport } = openTransport({ random: () => 0 });
+    const pageId = generateUuidV7();
+    const body = request();
+    const result = transport.sync(pageId, body);
+    const firstFrame = socket.sent[1];
+
+    socket.serverMessage({
+      type: "sync-problem",
+      requestId: body.requestId,
+      pageId,
+      offline: false,
+      retryable: true,
+      retryAfterMs: 50,
+      problem: {
+        code: "realtime.transaction-retry",
+        message: "The transaction can be retried.",
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(49);
+    expect(socket.sent).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(socket.sent).toHaveLength(3);
+    expect(socket.sent[2]).toBe(firstFrame);
+
+    socket.serverMessage({
+      type: "sync-result",
+      requestId: body.requestId,
+      pageId,
+      response: activeResponse(pageId, body.requestId, 1),
+    });
+    await expect(result).resolves.toMatchObject({
+      ok: true,
+      value: { pageId, latestPageSequence: 1 },
+    });
+    transport.stop();
+  });
+
   it("abandons a silent half-open socket and reconnects after full-jitter backoff", async () => {
     vi.useFakeTimers();
     const { factory, socket, transport } = openTransport({ reconnect: true, random: () => 0.5 });
