@@ -80,14 +80,15 @@ Exécution groupée finale : 37/37 tests unitaires/propriétés et 5/5 journeys
 Chromium réussis, sans retry. Les 1 000 seeds aléatoires et les 300 cas
 focalisés ont tous convergé.
 
-## Matrices restantes
+## État des matrices
 
 - US2 : validée.
 - US3 : validée.
 - US4 : validée.
-- US5 : validée sur la matrice ciblée et le journey Chromium ; matrice complète
-  des cinq profils conservée pour la phase finale.
-- Navigateurs desktop/mobile et proxy HTTPS — à exécuter en phase finale.
+- US5 : validée.
+- Navigateurs desktop/mobile : matrice ciblée puis matrice complète validées sur
+  les cinq profils.
+- Proxy HTTPS : quickstart jetable en images de production validé.
 
 ## US3 — Coupures, réponse perdue et redémarrage
 
@@ -392,3 +393,46 @@ Résultat : 5/5 projets en 141 s, sans retry — Chromium desktop, Chromium
 mobile, Firefox desktop, WebKit desktop et WebKit mobile. Chaque profil a reçu
 sa base et ses ports isolés ; deux profils seulement ont tourné simultanément
 afin de rester compatible avec un runner GitHub peu doté.
+
+## Gate local complet pré-push
+
+Date : 2026-08-25
+
+Commit exécutable testé :
+`0ae794052530d849bf059f0fbabaab08abcbd730`.
+
+Commande :
+
+```bash
+pnpm checks:local
+```
+
+Le binaire officiel `shfmt` v3.12.0 exigé par le dépôt a été placé
+temporairement en tête du `PATH`, sans modifier le dépôt ni l'installation
+système ; le runtime hôte proposait une version plus récente que celle épinglée.
+
+Résultat : code de sortie 0 sur la chaîne complète définie dans
+`docs/development.md`.
+
+- toolchain, shell, format, lint et typecheck : réussis ;
+- couverture : 285/285 fichiers et 3 050/3 050 tests, 90,12 % de lignes,
+  85,05 % de branches et 93,44 % de fonctions ;
+- performance : 18/18 tests, dont 10 000 updates opérationnelles avec batch p95
+  95,5 ms et 10 100 commits de base structurée avec p95 22,8 ms ;
+- intégration : 33/33 fichiers et 329/329 tests ; migrations : 10/10 ;
+- contrats : 101/101 fichiers et 1 192/1 192 tests, dont l'appareil absent
+  90 jours et 10 000 updates ;
+- E2E complète : 5/5 profils en 1 325 s — Chromium desktop/mobile, Firefox
+  desktop, WebKit desktop/mobile — deux profils simultanés, bases, ports et
+  fichiers isolés, aucun gate relâché ;
+- builds de production Web/API : réussis ; images API et Web construites pour
+  `linux/amd64` et `linux/arm64`, smoke du runtime API empaqueté réussi ;
+- audit de production au seuil `high` : réussi avec une vulnérabilité modérée
+  signalée ; scans de secrets et analyse statique : zéro finding ; licences :
+  zéro violation ;
+- contrat Compose : services, ports loopback, secrets, images et upgrade
+  WebSocket validés, sans service Draw.io ou serveur collaboratif.
+
+Le commit ci-dessus est donc la preuve immuable de l'arbre exécutable. Les
+changements qui consignent ce résultat et ferment T101 sont exclusivement
+documentaires.

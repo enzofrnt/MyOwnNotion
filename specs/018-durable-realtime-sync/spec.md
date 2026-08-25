@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-25
 
-**Status**: Implemented locally; full pre-push gate and pull request pending
+**Status**: Ready for review; full local gate passed, pull request pending
 
 **Input**: User description: "Faire de la synchronisation multi-appareils la
 fondation prioritaire de l'application. Un même propriétaire doit pouvoir
