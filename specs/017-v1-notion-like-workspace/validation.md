@@ -422,7 +422,10 @@ différente. Ensuite, une insertion distante entre deux événements d'une même
 rafale de frappe pouvait décaler les offsets encore calculés contre l'ancien
 texte visible. La session diffère cette adoption jusqu'à la fin de la rafale,
 tout en committant chaque touche immédiatement, puis importe la frontier durable
-complète.
+complète. Une régression Chromium a ensuite exposé la variante où l'adoption
+était déjà en file au démarrage de `beforeinput`. La garde est donc réévaluée à
+l'exécution et après la reconstruction asynchrone, juste avant l'import dans la
+réplique visible.
 
 Les cinq profils prouvent désormais le même parcours : édition hors ligne dans
 un onglet visible dans l'autre sans rechargement, modifications simultanées du
@@ -435,8 +438,10 @@ Les preuves exécutées pour fermer cette tranche sont :
 | Couche | Commande | Résultat |
 | --- | --- | --- |
 | Coordination déterministe | `pnpm exec vitest run --project client-core packages/client-core/tests/cross-context-coordinator.spec.ts packages/client-core/tests/page-operation-atomicity.spec.ts packages/client-core/tests/page-reconciler.property.spec.ts packages/client-core/tests/page-tab-channel.spec.ts packages/client-core/tests/page-editing-session.spec.ts` | 5 fichiers, 54 tests passés ; exclusion mutuelle, reprise du même ID et convergence de deux handles indépendants |
+| Régression adoption déjà en file | `pnpm exec vitest run --project client-core packages/client-core/tests/page-editing-session.spec.ts` | 1 fichier, 13 tests passés ; la rafale conserve ses offsets puis adopte la frontier durable complète |
 | Intégration web | `pnpm exec vitest run --project web apps/web/tests/operational-page-opening.spec.ts apps/web/tests/synchronize-serialization.spec.ts` | 2 fichiers, 19 tests passés ; canal réel, adoption vérifiée et sérialisation du transport |
 | Journey multi-onglets | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-multi-tab-convergence.spec.ts` | 5/5 profils passés en 35 s ; offline, même paragraphe, crash pendant `sending`, reprise et convergence sans remplacement complet |
+| Journey riche ciblé | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/rich-page.spec.ts` puis `--repeat-each=5` | 5/5 profils puis 25/25 répétitions passés ; aucun premier caractère perdu après adoption distante |
 | Gate pré-push exact | `pnpm checks:local` avec les versions d'outils imposées par `docs/development.md` | passé ; 2 936 tests de couverture, 15 tests de performance, migrations et 1 151 tests de contrat, gate E2E 5/5, build de production, images API/web `amd64` et `arm64`, sécurité, licences et contrat Compose |
 
 ## Limites encore ouvertes

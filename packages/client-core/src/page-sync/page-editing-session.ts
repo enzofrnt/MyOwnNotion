@@ -362,6 +362,12 @@ export class PageEditingSession {
     }
   }
 
+  #deferDurableAdoptionDuringLocalInput(): boolean {
+    if (this.#localInputBursts === 0) return false;
+    this.#durableAdoptionDeferred = true;
+    return true;
+  }
+
   async refreshFromDurableState(): Promise<void> {
     const {
       state: operationState,
@@ -380,10 +386,7 @@ export class PageEditingSession {
 
   /** Imports a response only after the reconciler has committed it to IndexedDB. */
   adoptDurablePage(): Promise<void> {
-    if (this.#localInputBursts > 0) {
-      this.#durableAdoptionDeferred = true;
-      return Promise.resolve();
-    }
+    if (this.#deferDurableAdoptionDuringLocalInput()) return Promise.resolve();
     // Adoption is part of the same serial authority as local gestures. Merely
     // awaiting the current tail leaves a gap in which a new gesture can attach
     // to that resolved tail while this method is reading an older checkpoint.
@@ -391,7 +394,14 @@ export class PageEditingSession {
     // listener silently misses the acknowledgement, leaving already accepted
     // updates displayed as pending. Chaining first closes that gap: gestures
     // queued after the notification run against the adopted frontier.
-    const adoption = this.#tail.then(async () => await this.#adoptDurablePage());
+    const adoption = this.#tail.then(async () => {
+      // The notification may have entered the queue before the browser's
+      // beforeinput event started a burst. Re-check at execution time so that
+      // an already queued adoption cannot move the replica beneath offsets
+      // captured by the now-visible gesture.
+      if (this.#deferDurableAdoptionDuringLocalInput()) return;
+      await this.#adoptDurablePage();
+    });
     this.#tail = adoption.then(
       () => undefined,
       () => undefined,
@@ -430,6 +440,10 @@ export class PageEditingSession {
       if (durable.importUpdates(updates.map(({ updateBytes }) => updateBytes)).pending) {
         throw new Error("the durable operational page has missing dependencies");
       }
+      // Re-check after the asynchronous snapshot reconstruction as input can
+      // begin while IndexedDB or Loro is yielding. Everything after this guard
+      // is synchronous until the replica import completes.
+      if (this.#deferDurableAdoptionDuringLocalInput()) return;
       const currentVersion = this.#page.versionVectorBytes();
       if (!versionVectorDominates(durable.versionVectorBytes(), currentVersion)) {
         throw new Error("the durable operational page does not include the visible editor");

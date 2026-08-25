@@ -334,7 +334,10 @@ Pendant une rafale de saisie locale, la réplique visible garde sa base
 positionnelle stable : les événements BlockNote déjà produits ne sont pas
 réinterprétés contre une insertion distante arrivée entre deux touches. Chaque
 geste reste commité dans l'autorité Dexie ; à la fin de la rafale, la session
-importe la frontier durable complète et converge avant le prochain geste.
+importe la frontier durable complète et converge avant le prochain geste. La
+garde est réévaluée à la demande d'adoption, à son exécution dans la file et
+après toute reconstruction durable asynchrone : une notification déjà en file
+ne peut donc pas déplacer la réplique sous un geste qui vient de commencer.
 
 ### 4. Chemin serveur : accepter, matérialiser, notifier
 

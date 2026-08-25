@@ -268,6 +268,70 @@ describe("PageEditingSession", () => {
     });
   });
 
+  it("defers a durable adoption queued immediately before a local input burst", async () => {
+    const { pageId, blockId, page } = pageFixture();
+    const store = new LocalPageStateStore(log);
+    const author = await PageEditingSession.open({ page, log, store });
+    await author.transact({
+      type: "replace-text",
+      blockId,
+      from: 1,
+      to: 1,
+      text: " base",
+    });
+
+    const localCommitEntered = deferred();
+    const releaseLocalCommit = deferred();
+    const receiver = await PageEditingSession.resume({
+      pageId,
+      log,
+      store: {
+        async commitLocalTransaction(input) {
+          localCommitEntered.resolve();
+          await releaseLocalCommit.promise;
+          return await store.commitLocalTransaction(input);
+        },
+      },
+    });
+    if (receiver === null) throw new Error("expected a resumable receiver");
+
+    const localCommit = receiver.transact({
+      type: "replace-text",
+      blockId,
+      from: "A base".length,
+      to: "A base".length,
+      text: " local",
+    });
+    await localCommitEntered.promise;
+
+    // The remote notification reaches the session just before beforeinput.
+    // Its adoption is queued behind the local commit while no burst exists.
+    const queuedAdoption = receiver.adoptDurablePage();
+    receiver.beginLocalInputBurst();
+    await author.transact({ type: "replace-text", blockId, from: 0, to: 0, text: "remote " });
+
+    releaseLocalCommit.resolve();
+    await localCommit;
+    await queuedAdoption;
+
+    // The queued callback must re-check the burst instead of moving the CRDT
+    // replica beneath offsets already captured by the visible editor.
+    expect(receiver.read().blocks[0]).toMatchObject({
+      content: [{ text: "A base local" }],
+    });
+    await receiver.transact({
+      type: "replace-text",
+      blockId,
+      from: "A base local".length,
+      to: "A base local".length,
+      text: " burst",
+    });
+    await receiver.endLocalInputBurst();
+    expect(receiver.read().blocks[0]).toMatchObject({
+      content: [{ text: "remote A base local burst" }],
+    });
+  });
+
   it("recognizes a commit that became durable immediately before the renderer failed", async () => {
     const { blockId, page } = pageFixture();
     const publishDurableUpdate = vi.fn();
