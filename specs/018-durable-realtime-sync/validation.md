@@ -602,3 +602,92 @@ Résultat : code de sortie 0 sur la totalité de la porte obligatoire.
 Ce commit est la preuve immuable de l'arbre exécutable proposé. L'ajout de cette
 section est exclusivement documentaire ; il ne modifie ni le code testé ni un
 document consommé par l'exécution.
+
+## Compactage PostgreSQL et stabilité du démarrage E2E
+
+Date : 2026-08-25
+
+La troisième exécution GitHub Actions de la PR 141, run
+[`32890206864`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/32890206864),
+a isolé un unique échec dans le benchmark des 10 000 mises à jour : le
+compactage a pris 31,04 s pour une limite de 30 s. Le même scénario avait pris
+18,21 s dans le run CI précédent et 14,25 s dans le gate local, ce qui montrait
+une marge insuffisante sous contention plutôt qu'une perte de convergence.
+
+La cause était un aller-retour inutile des cardinalités maximales par Node : le
+repository lisait jusqu'à 10 000 identifiants de mises à jour et 20 000
+identifiants d'enveloppes, puis les renvoyait à PostgreSQL dans deux listes
+`IN`. Le compactage est désormais une unique instruction PostgreSQL à CTE
+modificatrices qui, dans la même transaction :
+
+- sélectionne et verrouille les candidats autorisés ;
+- détache les références de payload des reçus conservés ;
+- supprime uniquement les deux enveloppes protégées devenues redondantes pour
+  chaque mise à jour compactée ;
+- ne renvoie à Node que les deux compteurs nécessaires.
+
+L'invariant `enveloppes supprimées = 2 × mises à jour compactées` est contrôlé
+avant le commit. Toute incohérence lève une erreur et annule donc toute la
+transaction au lieu de laisser un compactage partiel.
+
+Preuves ciblées sur le commit
+`e2e4cf837ac8df696cfebb39d451d79895f87f88`
+(`perf(sync): compact page updates inside postgres`) :
+
+- 15/15 tests d'intégration du compactage ;
+- scénario de 90 jours hors ligne, 10 000 changements, compactage et rejeu :
+  réussi ;
+- benchmark isolé des 10 000 changements : compactage en 12,41 s, contre
+  14,25 s avant le changement et 31,04 s sur le runner en échec ;
+- premier passage complet : benchmark critique réussi avec un compactage en
+  15,08 s.
+
+Ce premier passage complet a ensuite rencontré un échec indépendant après
+239/240 journeys Chromium desktop : le second contexte avait reçu
+`ERR_NETWORK_CHANGED` pendant le chargement des modules source Vite, avant le
+montage React, et restait sur une page blanche. La trace ne contenait aucune
+erreur de synchronisation. Le journey fautif a immédiatement réussi sur les
+cinq profils et cinq piles neuves en 36 s.
+
+Le helper E2E recharge maintenant une seule fois uniquement lorsqu'il a
+lui-même initié la navigation et observé exactement `ERR_NETWORK_CHANGED` sur
+une ressource. Une erreur de boot applicative, une page existante volontairement
+hors ligne ou un second échec continuent de faire échouer le gate. Le parcours
+temps réel ciblé reste vert sur 5/5 profils après ce durcissement.
+
+### Gate pré-push final
+
+Commit exécutable testé :
+`012debc6bd1a633cb7ebe579da4dfa51a0fea4bd`
+(`test(e2e): recover transient Vite boot interruption`).
+
+Commande :
+
+```bash
+env PATH="/tmp/myownnotion-pinned-tools.r7yez3:$PATH" pnpm checks:local
+```
+
+Résultat : code de sortie 0 sur la totalité de la porte obligatoire.
+
+- toolchain, shell, format, lint et tous les typechecks : réussis ;
+- couverture : 285/285 fichiers et 3 054/3 054 tests ;
+- performance : 18/18 tests, benchmark des 10 000 mises à jour et compactage
+  sous le budget de 30 s ; 10 100 opérations structurées avec un commit local
+  p95 de 21,6 ms ;
+- intégrations PostgreSQL et migrations : réussies ; contrats : 101/101
+  fichiers et 1 192/1 192 tests, dont reprise après 90 jours et 10 000
+  changements en 150,82 s ;
+- E2E complète : 5/5 profils en 1 398 s — Chromium desktop/mobile, Firefox
+  desktop dans le runtime Linux équivalent, WebKit desktop/mobile — deux
+  profils simultanés et une base isolée par profil ;
+- builds Web/API : réussis ; images API et Web avec SBOM construites pour
+  `linux/amd64` et `linux/arm64`, puis runtime API empaqueté validé ;
+- audit production au seuil `high` : aucune vulnérabilité haute ou critique,
+  une vulnérabilité modérée signalée ; secrets et analyse statique : zéro
+  finding ; licences : zéro violation ;
+- contrat Compose : services, ports loopback, secrets, images et upgrade
+  WebSocket validés, sans Draw.io ni serveur collaboratif.
+
+Le commit ci-dessus est la preuve immuable de l'arbre exécutable proposé. Le
+présent ajout est exclusivement documentaire et ne modifie aucun consommateur
+exécutable.
