@@ -8,6 +8,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createChildItem,
   createRootItem,
+  openSettingsSection,
   openWorkspace,
   selectItem,
   waitForSynchronized,
@@ -117,10 +118,22 @@ for (const theme of ["light", "dark"] as const) {
       caret: "hide",
       clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
       maxDiffPixelRatio: 0.005,
-      mask: [
-        page.getByRole("region", { name: "Item details" }),
-        page.getByRole("region", { name: "Revision history" }),
-      ],
+    });
+  });
+
+  test(`matches the controlled ${theme} settings reference`, async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium-desktop",
+      "One controlled Chromium engine owns visual pixels; all five projects own behavior.",
+    );
+    await prepareReference(page, theme);
+    await openSettingsSection(page, "trash");
+
+    await expect(page).toHaveScreenshot(`settings-shell-${theme}.png`, {
+      animations: "disabled",
+      caret: "hide",
+      clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
+      maxDiffPixelRatio: 0.005,
     });
   });
 }

@@ -48,8 +48,6 @@ import { DatabasePage, type DefinitionConfirmation } from "../databases/database
 import { EntryPanel } from "../databases/entry-panel.tsx";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
-import { StoragePanel } from "../files/storage-panel.tsx";
-import { RevisionRestore } from "../history/revision-restore.tsx";
 import { BranchState } from "../navigation/branch-state.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
 import { NavigationItemMenu } from "../navigation/navigation-item-menu.tsx";
@@ -69,8 +67,6 @@ import { useActiveItem } from "../workspace/use-active-item.ts";
 import { WorkspaceShell } from "../workspace/workspace-shell.tsx";
 import { WorkspaceState } from "../workspace/workspace-state.tsx";
 import { FileNode } from "./file-node.tsx";
-import { ItemDetails } from "./item-details.tsx";
-import { MutationStatus } from "./mutation-status.tsx";
 
 type LoadState = "loading" | "ready";
 type LoadPhase = "initializing" | "reading-local" | "seeding" | "navigation" | "refreshing";
@@ -189,16 +185,27 @@ function searchBranchOptions(
 }
 
 export function HierarchyExplorer({
+  active,
   backupStale,
   pageOperationCsrfToken,
+  onActiveItemChange,
   onOpenBackups,
+  onOpenDiagnostics,
   onOpenSettings,
+  onProblemChange,
+  onTrashedItemsChange,
 }: {
+  /** False while the retained workspace is hidden behind a settings destination. */
+  readonly active: boolean;
   readonly backupStale: boolean;
   readonly pageOperationCsrfToken: () => string | null;
+  readonly onActiveItemChange: (item: ProjectedItem | null) => void;
   readonly onOpenBackups: () => void;
+  readonly onOpenDiagnostics: () => void;
   /** Settings live outside the workspace, so the shortcut asks rather than routes. */
   readonly onOpenSettings: () => void;
+  readonly onProblemChange: (problem: SafeError | null) => void;
+  readonly onTrashedItemsChange: (items: readonly ProjectedItem[]) => void;
 }) {
   const service = useMemo(() => {
     const content = localContent();
@@ -301,6 +308,7 @@ export function HierarchyExplorer({
   }, []);
 
   useEffect(() => {
+    if (!active) return;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (isSearchShortcut(event) && !searchOpen) {
         event.preventDefault();
@@ -309,7 +317,13 @@ export function HierarchyExplorer({
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [openSearch, searchOpen]);
+  }, [active, openSearch, searchOpen]);
+
+  useEffect(() => {
+    if (active) return;
+    setSearchOpen(false);
+    setMobileNavigationOpen(false);
+  }, [active]);
 
   useEffect(() => {
     const nextSearch = new WorkspaceSearchService(service);
@@ -411,6 +425,18 @@ export function HierarchyExplorer({
   const allNodes = useMemo(() => flattenAll(tree), [tree]);
   const draggableTreeItems = useMemo(() => treeDragItems(tree), [tree]);
   const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
+
+  useEffect(() => {
+    onActiveItemChange(selectedItem);
+  }, [onActiveItemChange, selectedItem]);
+
+  useEffect(() => {
+    onTrashedItemsChange(trashedItems);
+  }, [onTrashedItemsChange, trashedItems]);
+
+  useEffect(() => {
+    onProblemChange(problem);
+  }, [onProblemChange, problem]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1207,10 +1233,6 @@ export function HierarchyExplorer({
             setMobileNavigationOpen(false);
             onOpenSettings();
           }}
-          onOpenBackups={() => {
-            setMobileNavigationOpen(false);
-            onOpenBackups();
-          }}
           onOpenSearch={openSearch}
         />
       }
@@ -1225,28 +1247,16 @@ export function HierarchyExplorer({
           }))}
           status={<SyncStatus service={service} />}
           actions={
-            <>
-              <Button
-                size="square"
-                variant="ghost"
-                aria-label="Sauvegardes"
-                data-testid="open-backups"
-                onClick={onOpenBackups}
-              >
-                <AppIcon name="archive" />
-                <span className="ui-visually-hidden">Sauvegardes</span>
-              </Button>
-              <Button
-                size="square"
-                variant="ghost"
-                aria-label="Réglages et sécurité"
-                data-testid="toggle-security-settings"
-                onClick={onOpenSettings}
-              >
-                <AppIcon name="settings" />
-                <span className="ui-visually-hidden">Réglages et sécurité</span>
-              </Button>
-            </>
+            <Button
+              size="square"
+              variant="ghost"
+              aria-label="Réglages"
+              data-testid="toggle-security-settings"
+              onClick={onOpenSettings}
+            >
+              <AppIcon name="settings" />
+              <span className="ui-visually-hidden">Réglages</span>
+            </Button>
           }
         />
       }
@@ -1277,10 +1287,9 @@ export function HierarchyExplorer({
       {problem !== null ? (
         <div className="status-banner" data-state="error" role="alert" data-testid="problem-banner">
           <strong>{problem.title}</strong>
-          <details>
-            <summary>Détails techniques</summary>
-            <code>{problem.code}</code>
-          </details>
+          <Button size="compact" variant="ghost" onClick={onOpenDiagnostics}>
+            Voir les détails
+          </Button>
         </div>
       ) : null}
 
@@ -1297,13 +1306,6 @@ export function HierarchyExplorer({
         />
       ) : null}
 
-      {loadState === "ready" ? (
-        <details className="workspace-diagnostics">
-          <summary>État local et stockage</summary>
-          <MutationStatus service={service} />
-          <StoragePanel service={service} />
-        </details>
-      ) : null}
       {selectedItem !== null && selectedItem.kind === "page" ? (
         <DatabaseConflictResolution
           service={service}
@@ -1591,38 +1593,6 @@ export function HierarchyExplorer({
             onOpenUsage={(itemId) => openPageLink(itemId)}
           />
         </>
-      ) : null}
-      {selectedItem !== null ? (
-        <>
-          <ItemDetails item={selectedItem} />
-          <RevisionRestore item={selectedItem} onRestored={() => void service.synchronize()} />
-        </>
-      ) : null}
-
-      {trashedItems.length > 0 ? (
-        <section className="panel" aria-label="Trash">
-          <h2>Trash (30-day recovery)</h2>
-          <ul className="tree">
-            {trashedItems.map((item) => (
-              <li key={item.id} className="tree-row" data-testid={`trash-item-${item.name}`}>
-                <span className="tree-kind">{item.kind}</span>
-                <span className="tree-name">{item.name}</span>
-                <span className="muted">recoverable until {item.purgeAfter ?? "unknown"}</span>
-                <span className="tree-actions">
-                  <button
-                    type="button"
-                    aria-label={`Restore ${item.name}`}
-                    onClick={() =>
-                      void runCommand("item.restore", { itemId: item.id }, [item.currentRevisionId])
-                    }
-                  >
-                    restore
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
       ) : null}
     </WorkspaceShell>
   );

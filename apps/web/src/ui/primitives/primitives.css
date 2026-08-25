@@ -191,6 +191,11 @@
   z-index: var(--ui-layer-menu);
 }
 
+.ui-menu__positioner {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .ui-popover {
   padding: var(--ui-space-4);
 }

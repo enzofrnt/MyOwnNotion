@@ -411,11 +411,23 @@ simple différence de paragraphe ne devient pas un conflit de page entière.
 Un appel `mode: "active"` avec `updates: []` suffit. Il n'existe pas d'endpoint
 GET avec version vector en query string.
 
-L'état local `sending` représente uniquement une tentative interrompue. Il est
-récupéré une fois à l'initialisation du stockage, avant le démarrage des
-réconciliateurs. Un passage de synchronisation vivant ne récupère jamais les
-updates d'une autre page : il pourrait sinon remettre en attente un envoi réel
-et laisser les deux réconciliateurs se disputer la même ligne durable.
+L'état local `sending` matérialise la revendication exclusive d'un lot par une
+tentative vivante ; après l'interruption de son propriétaire, il représente une
+tentative interrompue. Il est récupéré une fois à l'initialisation du stockage,
+avant le démarrage des réconciliateurs.
+
+Chaque échange retient exactement les identités qu'il a lui-même fait passer de
+`pending` à `sending`. Toute sortie antérieure au commit atomique local — erreur
+réseau levée, chiffrement, IndexedDB, validation ou course locale — remet ses
+propres lignes encore `sending` à `pending`. Une ligne supprimée par le commit ou
+passée explicitement à `blocked` n'est pas recréée.
+
+Un passage qui observe une ligne `sending` préexistante pour la même page rend
+un résultat `pending` sans transport : il ne peut ni envoyer un suffixe causal,
+ni produire des appels `updates: []` en boucle, ni reprendre la revendication
+d'un autre onglet. Un passage vivant ne récupère donc jamais les updates d'une
+autre page ou d'un autre propriétaire ; le boot reste l'autorité de reprise
+après un arrêt brutal.
 
 Un lot reçu dans une même requête est validé et importé dans son ordre causal,
 puis projeté une seule fois. Le serveur scelle en groupe les octets et les

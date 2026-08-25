@@ -538,6 +538,21 @@ export class PageReconciler {
           problemCode: "page-operations.local-state-missing",
         };
       }
+      const inFlight = await this.#log.listUpdates(this.#pageId, ["sending"]);
+      if (inFlight.length > 0) {
+        // A different tab or service already owns the causal prefix. Sending a
+        // later pending update — or polling with an empty batch — can neither
+        // advance that prefix nor prove convergence. Leave the claim intact;
+        // its owner will commit it, while boot recovery handles a crashed
+        // owner before any reconciler starts.
+        return {
+          kind: "pending",
+          exchanges,
+          latestPageSequence: state.latestServerPageSequence,
+          fileRequirements: latestRequirements,
+          problemCode: "page-operations.update-in-flight",
+        };
+      }
       const pending = await this.#log.listUpdates(this.#pageId, ["pending"]);
       let batch: PageOperationUpdateRecord[];
       try {
@@ -556,79 +571,56 @@ export class PageReconciler {
         throw error;
       }
 
-      for (const update of batch) await this.#log.transitionUpdate(update.updateId, "sending");
-      const persistedVersionVector = batch.at(-1)?.resultVersionVector ?? state.versionVector;
-      const request: ActivePageSyncRequestDto = {
-        mode: "active",
-        requestId: this.#createRequestId(),
-        operationalVersion: 1,
-        persistedVersionVector: encodePageOperationBytes(persistedVersionVector),
-        knownServerPageSequence: state.latestServerPageSequence,
-        updates: batch.map(pageUpdateRequest),
-        maxRemoteBytes: this.#maxRemoteBytes,
-      };
-      const result = await this.#transport.sync(this.#pageId, request);
-      exchanges += 1;
-      if (!result.ok) {
-        const blocking = !result.offline && BLOCKING_PROBLEMS.has(result.problem.code);
-        for (const update of batch) {
-          const current = await this.#log.getUpdate(update.updateId);
-          if (current?.status === "sending") {
-            await this.#log.transitionUpdate(update.updateId, blocking ? "blocked" : "pending");
-          }
-        }
-        return {
-          kind: result.offline ? "offline" : blocking ? "blocked" : "pending",
-          exchanges,
-          latestPageSequence: state.latestServerPageSequence,
-          fileRequirements: latestRequirements,
-          problemCode: result.problem.code,
-        };
-      }
-      if (result.value.mode !== "active") {
-        throw new InvalidPageSyncResponseError("an active page received a checkpoint response");
-      }
-      const response = result.value;
-      if (response.requestId !== request.requestId || response.pageId !== this.#pageId) {
-        throw new InvalidPageSyncResponseError(
-          "the page synchronization response identity changed",
-        );
-      }
-      const previousOpenAmbiguityIds = await this.#log.db.pageAmbiguities
-        .where("[pageId+status]")
-        .equals([this.#pageId, "open"])
-        .primaryKeys();
-      const ambiguities = await this.#prepareAmbiguities(response.ambiguities);
-      if (!ambiguities.ok) {
-        const blocked = !ambiguities.offline;
-        for (const update of batch) {
-          const current = await this.#log.getUpdate(update.updateId);
-          if (current?.status === "sending") {
-            await this.#log.transitionUpdate(update.updateId, blocked ? "blocked" : "pending");
-          }
-        }
-        return {
-          kind: ambiguities.offline ? "offline" : "blocked",
-          exchanges,
-          latestPageSequence: state.latestServerPageSequence,
-          fileRequirements: latestRequirements,
-          problemCode: ambiguities.problemCode,
-        };
-      }
-      let durableState: PageOperationStateRecord;
+      const claimedUpdateIds: Uuid[] = [];
       try {
-        durableState = await this.#commitResponse(
-          response,
-          batch.map(({ updateId }) => updateId),
-          ambiguities.rows,
-          ambiguities.openIds,
-        );
-      } catch (error) {
-        if (
-          error instanceof InvalidPageSyncResponseError ||
-          error instanceof ConcurrentPageReconciliationError
-        ) {
-          const blocked = error instanceof InvalidPageSyncResponseError;
+        for (const update of batch) {
+          await this.#log.transitionUpdate(update.updateId, "sending");
+          claimedUpdateIds.push(update.updateId);
+        }
+        const persistedVersionVector = batch.at(-1)?.resultVersionVector ?? state.versionVector;
+        const request: ActivePageSyncRequestDto = {
+          mode: "active",
+          requestId: this.#createRequestId(),
+          operationalVersion: 1,
+          persistedVersionVector: encodePageOperationBytes(persistedVersionVector),
+          knownServerPageSequence: state.latestServerPageSequence,
+          updates: batch.map(pageUpdateRequest),
+          maxRemoteBytes: this.#maxRemoteBytes,
+        };
+        const result = await this.#transport.sync(this.#pageId, request);
+        exchanges += 1;
+        if (!result.ok) {
+          const blocking = !result.offline && BLOCKING_PROBLEMS.has(result.problem.code);
+          for (const update of batch) {
+            const current = await this.#log.getUpdate(update.updateId);
+            if (current?.status === "sending") {
+              await this.#log.transitionUpdate(update.updateId, blocking ? "blocked" : "pending");
+            }
+          }
+          return {
+            kind: result.offline ? "offline" : blocking ? "blocked" : "pending",
+            exchanges,
+            latestPageSequence: state.latestServerPageSequence,
+            fileRequirements: latestRequirements,
+            problemCode: result.problem.code,
+          };
+        }
+        if (result.value.mode !== "active") {
+          throw new InvalidPageSyncResponseError("an active page received a checkpoint response");
+        }
+        const response = result.value;
+        if (response.requestId !== request.requestId || response.pageId !== this.#pageId) {
+          throw new InvalidPageSyncResponseError(
+            "the page synchronization response identity changed",
+          );
+        }
+        const previousOpenAmbiguityIds = await this.#log.db.pageAmbiguities
+          .where("[pageId+status]")
+          .equals([this.#pageId, "open"])
+          .primaryKeys();
+        const ambiguities = await this.#prepareAmbiguities(response.ambiguities);
+        if (!ambiguities.ok) {
+          const blocked = !ambiguities.offline;
           for (const update of batch) {
             const current = await this.#log.getUpdate(update.updateId);
             if (current?.status === "sending") {
@@ -636,63 +628,99 @@ export class PageReconciler {
             }
           }
           return {
-            kind: blocked ? "blocked" : "pending",
+            kind: ambiguities.offline ? "offline" : "blocked",
             exchanges,
             latestPageSequence: state.latestServerPageSequence,
             fileRequirements: latestRequirements,
-            problemCode: blocked
-              ? "page-operations.projection-invalid"
-              : "page-operations.local-state-advanced",
+            problemCode: ambiguities.problemCode,
           };
         }
-        throw error;
-      }
-      latestRequirements = response.fileRequirements;
-      try {
-        this.#onFileRequirements?.(latestRequirements);
-      } catch (error) {
-        this.#onBackgroundError?.(error);
-      }
-      const previousAmbiguityIds = new Set(previousOpenAmbiguityIds);
-      const ambiguitySetChanged =
-        previousAmbiguityIds.size !== ambiguities.openIds.length ||
-        ambiguities.openIds.some((ambiguityId) => !previousAmbiguityIds.has(ambiguityId));
-      const durablePageChanged =
-        batch.length > 0 ||
-        response.remoteUpdates.length > 0 ||
-        response.throughPageSequence !== state.latestServerPageSequence ||
-        state.serverVersionVector === null ||
-        durableState.serverVersionVector === null ||
-        !versionVectorBytesEqual(state.serverVersionVector, durableState.serverVersionVector) ||
-        state.projection?.canonicalDigest !== durableState.projection?.canonicalDigest ||
-        ambiguitySetChanged;
-      if (durablePageChanged) {
-        const listeners = [
-          ...(this.#onDurablePage === undefined ? [] : [this.#onDurablePage]),
-          ...this.#durablePageListeners,
-        ];
-        await Promise.all(
-          listeners.map(async (listener) => {
-            try {
-              await listener(durableState);
-            } catch (error) {
-              this.#onBackgroundError?.(error);
+        let durableState: PageOperationStateRecord;
+        try {
+          durableState = await this.#commitResponse(
+            response,
+            batch.map(({ updateId }) => updateId),
+            ambiguities.rows,
+            ambiguities.openIds,
+          );
+        } catch (error) {
+          if (
+            error instanceof InvalidPageSyncResponseError ||
+            error instanceof ConcurrentPageReconciliationError
+          ) {
+            const blocked = error instanceof InvalidPageSyncResponseError;
+            for (const update of batch) {
+              const current = await this.#log.getUpdate(update.updateId);
+              if (current?.status === "sending") {
+                await this.#log.transitionUpdate(update.updateId, blocked ? "blocked" : "pending");
+              }
             }
-          }),
-        );
-      }
+            return {
+              kind: blocked ? "blocked" : "pending",
+              exchanges,
+              latestPageSequence: state.latestServerPageSequence,
+              fileRequirements: latestRequirements,
+              problemCode: blocked
+                ? "page-operations.projection-invalid"
+                : "page-operations.local-state-advanced",
+            };
+          }
+          throw error;
+        }
+        latestRequirements = response.fileRequirements;
+        try {
+          this.#onFileRequirements?.(latestRequirements);
+        } catch (error) {
+          this.#onBackgroundError?.(error);
+        }
+        const previousAmbiguityIds = new Set(previousOpenAmbiguityIds);
+        const ambiguitySetChanged =
+          previousAmbiguityIds.size !== ambiguities.openIds.length ||
+          ambiguities.openIds.some((ambiguityId) => !previousAmbiguityIds.has(ambiguityId));
+        const durablePageChanged =
+          batch.length > 0 ||
+          response.remoteUpdates.length > 0 ||
+          response.throughPageSequence !== state.latestServerPageSequence ||
+          state.serverVersionVector === null ||
+          durableState.serverVersionVector === null ||
+          !versionVectorBytesEqual(state.serverVersionVector, durableState.serverVersionVector) ||
+          state.projection?.canonicalDigest !== durableState.projection?.canonicalDigest ||
+          ambiguitySetChanged;
+        if (durablePageChanged) {
+          const listeners = [
+            ...(this.#onDurablePage === undefined ? [] : [this.#onDurablePage]),
+            ...this.#durablePageListeners,
+          ];
+          await Promise.all(
+            listeners.map(async (listener) => {
+              try {
+                await listener(durableState);
+              } catch (error) {
+                this.#onBackgroundError?.(error);
+              }
+            }),
+          );
+        }
 
-      const remaining = await this.#log.listUpdates(this.#pageId, ["pending", "sending"]);
-      const serverIncludesLocal =
-        durableState.serverVersionVector !== null &&
-        versionVectorDominates(durableState.serverVersionVector, durableState.versionVector);
-      if (remaining.length === 0 && !response.hasMore && serverIncludesLocal) {
-        return {
-          kind: "synced",
-          exchanges,
-          latestPageSequence: durableState.latestServerPageSequence,
-          fileRequirements: latestRequirements,
-        };
+        const remaining = await this.#log.listUpdates(this.#pageId, ["pending", "sending"]);
+        const serverIncludesLocal =
+          durableState.serverVersionVector !== null &&
+          versionVectorDominates(durableState.serverVersionVector, durableState.versionVector);
+        if (remaining.length === 0 && !response.hasMore && serverIncludesLocal) {
+          return {
+            kind: "synced",
+            exchanges,
+            latestPageSequence: durableState.latestServerPageSequence,
+            fileRequirements: latestRequirements,
+          };
+        }
+      } finally {
+        // Every row still marked `sending` was claimed by this exact exchange.
+        // On success the atomic response commit deleted it; on an expected
+        // refusal the branches above moved it to pending/blocked. This final
+        // guard also covers unexpected storage, crypto and transport failures,
+        // preventing a stranded claim and the empty-request storm it caused.
+        await this.#releaseSendingClaims(claimedUpdateIds);
       }
     }
 
@@ -704,6 +732,22 @@ export class PageReconciler {
       fileRequirements: latestRequirements,
       problemCode: "page-operations.exchange-limit",
     };
+  }
+
+  async #releaseSendingClaims(updateIds: readonly Uuid[]): Promise<void> {
+    for (const updateId of updateIds) {
+      const current = await this.#log.getUpdate(updateId);
+      if (current?.status !== "sending") continue;
+      try {
+        await this.#log.transitionUpdate(updateId, "pending");
+      } catch (error) {
+        // A concurrent response may have deleted or advanced the row between
+        // the read and compare-and-swap. Only surface the error if our claim is
+        // genuinely still stranded after that race.
+        const latest = await this.#log.getUpdate(updateId);
+        if (latest?.status === "sending") throw error;
+      }
+    }
   }
 
   async #commitResponse(

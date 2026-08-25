@@ -15,6 +15,7 @@ import {
   openSecondDevice,
   openWorkspace,
   openWorkspaceDiagnostics,
+  returnToWorkspace,
   saveEntryProperties,
   selectItem,
   uniqueName,
@@ -259,9 +260,12 @@ test.describe("structured offline convergence (US5)", () => {
       // server is unreachable, then recovered after a complete page restart.
       await goOffline(second.page);
       await addTextProperty(second.page, offlineProperty, { online: false });
+      await openWorkspaceDiagnostics(second.page);
       await expect(pendingCommand(second.page, "database.definition.replace")).toHaveCount(1);
       await expect(second.page.getByTestId("sync-status")).toHaveAttribute("data-state", "offline");
+      await returnToWorkspace(second.page);
       await updateTextCell(second.page, entryName, "Notes", "local compatible note");
+      await openWorkspaceDiagnostics(second.page);
       await expect(pendingCommand(second.page, "database.entry.values.replace")).toHaveCount(1);
 
       await second.page.reload();
@@ -318,6 +322,7 @@ test.describe("structured offline convergence (US5)", () => {
 
       await goOffline(second.page);
       await updateTextCell(second.page, entryName, "Notes", "local divergent note");
+      await openWorkspaceDiagnostics(second.page);
       await expect(pendingCommand(second.page, "database.entry.values.replace")).toHaveCount(1);
       await second.page.reload();
       await openDatabaseAfterReload(second.page, databaseName);

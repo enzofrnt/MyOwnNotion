@@ -16,6 +16,7 @@ import {
   openItemActions,
   openWorkspace,
   openWorkspaceDiagnostics,
+  returnToWorkspace,
   saveDocument,
   selectItem,
   typeIntoEditor,
@@ -139,6 +140,7 @@ test.describe("what this device says it is holding", () => {
     await selectItem(page, pageName);
     await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
     await openWorkspaceDiagnostics(page);
+    await returnToWorkspace(page);
 
     await context.setOffline(true);
     try {
@@ -147,8 +149,10 @@ test.describe("what this device says it is holding", () => {
 
       // Squeeze the device: 1 GB is the smallest offered, and the eviction pass
       // runs against whatever it measures.
+      await openWorkspaceDiagnostics(page);
       await page.getByTestId("storage-limit").selectOption(String(1024 * 1024 * 1024));
       await page.waitForTimeout(500);
+      await returnToWorkspace(page);
 
       // Still there. Releasing this would destroy an edit the server has never
       // seen, and there would be nowhere to fetch it back from.

@@ -14,6 +14,7 @@ import {
   openSecondDevice,
   openWorkspace,
   openWorkspaceDiagnostics,
+  returnToWorkspace,
   saveDocument,
   selectItem,
   typeIntoEditor,
@@ -68,6 +69,7 @@ test.describe("offline continuity (US6)", () => {
     await openWorkspaceDiagnostics(page);
     await waitForSynchronized(page);
     await expect(page.getByTestId("mutation-status-empty")).toBeVisible();
+    await returnToWorkspace(page);
     await ensureNavigationRowVisible(page, offlineItem);
   });
 

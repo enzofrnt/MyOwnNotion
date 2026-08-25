@@ -11,6 +11,8 @@ import { expect, test } from "./fixtures.ts";
 import {
   ensureNavigationVisible,
   openWorkspace,
+  openWorkspaceDiagnostics,
+  returnToWorkspace,
   waitForDatabaseDefinitionSaved,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -147,9 +149,11 @@ test("keeps structured content out of local storage, addresses and diagnostics",
   const panel = page.locator(".entry-panel");
   await panel.getByLabel(SENTINELS.property, { exact: true }).fill(SENTINELS.offline);
   await panel.getByRole("button", { name: "Save properties" }).click();
+  await openWorkspaceDiagnostics(page);
   await expect(page.getByTestId("pending-mutations")).toContainText(
     "database.entry.values.replace",
   );
+  await returnToWorkspace(page);
   await expect(panel.getByLabel(SENTINELS.property, { exact: true })).toHaveValue(
     SENTINELS.offline,
   );

@@ -169,6 +169,64 @@ describe("operational page opening", () => {
     opened.close();
   });
 
+  it("does not resurrect page authority when conversion wins an in-flight activation", async () => {
+    vi.stubGlobal("navigator", { onLine: true });
+    const service = new LocalContentService(workspaceApi(), `activation-conversion-${Date.now()}`);
+    services.push(service);
+    await service.initialize();
+
+    const pageId = generateUuidV7();
+    const revisionId = generateUuidV7();
+    const document: BlockDocumentV3 = { blocks: [] };
+    const item = pageItem(pageId, revisionId, document);
+    await service.repository.applyServerItems([item]);
+    vi.spyOn(service.pageOperationsApi, "checkpoint").mockResolvedValue({
+      ok: false,
+      offline: false,
+      problem: { code: "page-operations.not-active", message: "Not active." },
+    });
+    vi.spyOn(service.api, "getItem").mockResolvedValue({ ok: true, value: item });
+    vi.spyOn(service, "synchronize").mockResolvedValue("synced");
+
+    let releaseActivation: (() => void) | undefined;
+    const activationBlocked = new Promise<void>((resolve) => {
+      releaseActivation = resolve;
+    });
+    const activate = vi
+      .spyOn(service.pageOperationsApi, "activate")
+      .mockImplementation(async (activatedPageId, request) => {
+        await activationBlocked;
+        return {
+          ok: true,
+          value: await checkpointResponse({
+            pageId: activatedPageId,
+            requestId: request.requestId as Uuid,
+            revisionId,
+            document,
+          }),
+        };
+      });
+
+    const opening = service.openOperationalPage(pageId);
+    await vi.waitFor(() => expect(activate).toHaveBeenCalledOnce());
+
+    const converted = await service.mutate("item.convert", {
+      itemId: pageId,
+      targetKind: "folder",
+      confirmedDestruction: false,
+    });
+    expect(converted).toEqual({ ok: true });
+    expect(await service.getItem(pageId)).toMatchObject({ kind: "folder", pageDocument: null });
+
+    releaseActivation?.();
+    const opened = await opening;
+
+    expect(opened).toMatchObject({ ok: false, offline: false, code: "item.not-found" });
+    expect(await service.pageOperationLog.getState(pageId)).toBeNull();
+    expect(await service.pageOperationLog.listUpdates(pageId)).toEqual([]);
+    expect(await service.getItem(pageId)).toMatchObject({ kind: "folder", pageDocument: null });
+  });
+
   it("keeps a never-activated page editable on a durable branch when truly offline", async () => {
     vi.stubGlobal("navigator", { onLine: false });
     const service = new LocalContentService(workspaceApi(), `offline-branch-${Date.now()}`);

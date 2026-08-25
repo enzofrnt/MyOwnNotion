@@ -1,7 +1,7 @@
 # Validation — Feature 017
 
-Dernière mise à jour : 2026-08-24
-Tranche validée : US5, synchronisation éditoriale convergente et migration v2
+Dernière mise à jour : 2026-08-25
+Tranches validées : US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222
 
 Ce document consigne les preuves exécutées. Il ne remplace ni les critères de
 `spec.md`, ni les tâches encore ouvertes dans `tasks.md`, ni le gate avant push
@@ -298,12 +298,104 @@ fichier et non locale au scénario de suppression. Cent répétitions ciblées,
 cinquante par interaction et réparties sur les cinq profils, n'ont produit ni
 échec ni retry.
 
+## Résultat de la frontière workspace/réglages
+
+Le workspace ne rend plus sous le document courant les panneaux de stockage,
+outbox, diagnostics, corbeille, identifiants, relations techniques ou
+restauration de révision. La barre de page conserve uniquement un accès aux
+réglages, un statut de synchronisation compact et, lorsqu'une action échoue, un
+message compréhensible avec un lien vers le diagnostic détaillé.
+
+Une destination Réglages indépendante regroupe sécurité et appareils,
+sauvegardes, stockage et synchronisation, corbeille et détails de la page
+courante. Le workspace reste monté mais inerté et masqué pendant la visite : le
+retour restaure la page active, le déclencheur ayant le focus, le scroll global
+et le bloc de lecture visible sans remonter le document ni recréer l'éditeur.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composant et client web | `pnpm exec vitest run --project web` | 43 fichiers, 263 tests passés |
+| Typage web | `pnpm --filter @myownnotion/web typecheck` | passé |
+| Frontière workspace/réglages | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/workspace-settings-boundary.spec.ts` | 5 profils passés ; item, focus, scroll et bloc visible restaurés |
+| Régressions contenu/gestion | matrice ciblée fichiers, hiérarchie, relations, révisions, offline, interruptions et sauvegardes | tous les scénarios passés sur les 5 profils après déplacement des surfaces |
+| Régressions shell | matrice ciblée authentification, appareils, sécurité, connexion, clavier, accessibilité, 320 px et shell | tous les scénarios fonctionnels passés sur les 5 profils |
+| Accès aux surfaces déplacées | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/databases-offline-sync.spec.ts tests/e2e/databases-security.spec.ts tests/e2e/search.spec.ts` | 5 profils passés ; outbox consultée dans Réglages, édition reprise dans le workspace et restauration effectuée dans la corbeille dédiée |
+| Menus bornés par le viewport | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/block-editor.spec.ts tests/e2e/page-ambiguity.spec.ts` | 5 profils passés ; première et dernière actions atteignables sur desktop et mobile |
+| Références visuelles | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/workspace-shell-visual.spec.ts --update-snapshots` | workspace et réglages approuvés en clair/sombre sur Chromium contrôlé ; comportement passé sur les 5 profils |
+
+Le journey est enregistré dans `ci/test-impact.json`. Les helpers historiques
+ouvrent désormais les surfaces d'exploitation via leur destination et le
+statut compact agrégé reste la frontière d'attente de la synchronisation, sans
+remonter une outbox technique sous chaque note.
+
+La matrice complète a révélé que trois journeys historiques cherchaient encore
+l'outbox ou la corbeille sous le document. Ils suivent désormais le même chemin
+que l'utilisateur : ouverture de la destination dédiée, contrôle ou action,
+puis retour au workspace retenu. Elle a aussi exposé un défaut réel des menus
+contextuels hauts : Ariakit bornait son conteneur de positionnement, tandis que
+le défilement était appliqué au contenu interne. Le conteneur borné est
+maintenant la surface défilable ; insertion et suppression restent accessibles
+sur les cinq profils, même lorsqu'aucun côté de l'ancre ne peut accueillir le
+menu entier.
+
+## Régression activation/conversion fermée
+
+Le premier gate de cette tranche a révélé une course réelle sur Firefox : une
+activation de page et son premier bloc opérationnel pouvaient être déjà en vol
+quand l'utilisateur convertissait cette page en dossier. La conversion était
+bien acceptée, mais la réponse tardive recréait une update de page que le
+serveur refusait ensuite avec `page-operations.projection-invalid`. Le statut
+restait alors durablement sur « 1 changement en attente ».
+
+L'installation d'un checkpoint et chaque commit éditorial vérifient désormais
+le type courant dans la même transaction IndexedDB que l'écriture. Le cache de
+projection utilise en plus un compare-and-swap sur la révision observée. Si la
+conversion gagne, aucune autorité de page ne peut réapparaître ; si l'écriture
+gagne, la transaction de conversion retire ensuite état et updates ensemble.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Course d'activation | `pnpm exec vitest run --project web apps/web/tests/operational-page-opening.spec.ts` | 8 tests passés ; une activation libérée après la conversion ne recrée ni état ni update |
+| Commit atomique | `pnpm exec vitest run --project client-core packages/client-core/tests/page-operation-atomicity.spec.ts` | 15 tests passés ; un commit préparé est refusé quand l'item est devenu dossier |
+| Journey contraint répété | matrice `item-conversion.spec.ts` ciblée avec `--repeat-each=10` | 50/50 passages, dix sur chacun des cinq profils, sans retry |
+
+`ci/test-impact.json` relie maintenant ce journey aux changements de service,
+stockage local et moteur page-sync afin que cette frontière soit toujours
+rejouée par la CI.
+
+## Régression de revendication `sending`
+
+La CI Firefox a exposé une opération acceptée côté serveur qui pouvait rester
+durablement `sending` si une erreur locale inattendue interrompait le commit de
+la réponse. Les passages suivants ne trouvaient alors aucun lot `pending`, mais
+envoyaient jusqu'à la limite d'échanges des requêtes `updates: []` sans pouvoir
+annoncer la convergence.
+
+Un échange retient désormais uniquement les identités qu'il a revendiquées et
+remet ses propres lignes encore `sending` à `pending` sur toute sortie avant le
+commit. Un passage concurrent qui rencontre une revendication préexistante de
+la même page attend sans transport : il ne vole pas le lot d'un autre onglet et
+n'envoie pas un suffixe causal.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Réconciliateur déterministe | `pnpm exec vitest run --project client-core packages/client-core/tests/page-reconciler.property.spec.ts` | 16 tests passés ; échec de scellement récupéré, même `updateId` renvoyé puis acquitté |
+| Typage et statique | typecheck client-core et contrôle Biome des deux sources modifiées | passés |
+| Runner Firefox Linux | journey `workspace-shell.spec.ts` ciblé avec `--repeat-each=20` dans l'image Playwright CI et une base jetable migrée | 20/20 passages en 1 min 54, sans retry |
+| Références Chromium Linux | `workspace-shell-visual.spec.ts` dans l'image Playwright CI et une base jetable migrée | 4/4 références workspace/réglages, clair/sombre |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
 
 - les blocs riches et fichiers restant à terminer en US3 ;
-- la frontière visuelle T222, la finition et les surfaces restantes en US6/US7.
+- la finition et les surfaces restantes en US6/US7.
 
 La tranche prouve donc le parcours de synchronisation implémenté aujourd'hui ;
 elle ne prétend pas encore que toute la V1 est terminée.

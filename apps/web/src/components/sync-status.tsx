@@ -34,10 +34,10 @@ const COMPACT_LABELS: Record<string, string> = {
 export function SyncStatus({ service }: { readonly service: LocalContentService }) {
   const snapshot = useSyncExternalStore(service.subscribe, service.getSnapshot);
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
-  // Opened here rather than in the shell because this is the component that is
-  // mounted for exactly as long as the workspace is on screen, and the stream's
-  // lifetime should be the workspace's. Mounting it in the shell would hold a
-  // connection open behind the security screen, where nothing consumes it.
+  // Opened here because the retained workspace owns the synchronization
+  // lifetime. The workspace may be visually hidden while settings are open,
+  // but it deliberately stays mounted so remote changes keep arriving and the
+  // owner returns to current content rather than a frozen copy.
   const stream = useChangeStream(service);
 
   useEffect(() => {

@@ -5,8 +5,10 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   openSecondDevice,
+  openSettingsSection,
   openWorkspace,
   renameItem,
+  returnToWorkspace,
   saveDocument,
   selectItem,
   typeIntoEditor,
@@ -23,14 +25,17 @@ test.describe("revision history (US5)", () => {
 
     // Select the page; note the original head.
     await selectItem(page, pageName);
+    await openSettingsSection(page, "page-details");
     await expect(page.getByTestId("revision-restore")).toBeVisible();
     const originalHead = await page.getByTestId("current-head").textContent();
 
     // Edit the document to supersede the original revision.
+    await returnToWorkspace(page);
     await typeIntoEditor(page, "version 2");
     await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
     await selectItem(page, pageName);
+    await openSettingsSection(page, "page-details");
 
     // Preview and restore the superseded revision (retained 24h).
     await page.getByTestId("revision-id-input").fill(originalHead ?? "");
@@ -63,13 +68,16 @@ test.describe("revision history (US5)", () => {
     await waitForSynchronized(page);
 
     await selectItem(page, pageName);
+    await openSettingsSection(page, "page-details");
     const originalHead = await page.getByTestId("current-head").textContent();
 
     // Edit once so the original head is restorable history.
+    await returnToWorkspace(page);
     await typeIntoEditor(page, "v2");
     await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
     await selectItem(page, pageName);
+    await openSettingsSection(page, "page-details");
 
     // Preview the original revision.
     await page.getByTestId("revision-id-input").fill(originalHead ?? "");

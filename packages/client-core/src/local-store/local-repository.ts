@@ -317,22 +317,39 @@ export class LocalRepository {
     return (await this.#openAll([fetched]))[0] ?? null;
   }
 
-  /** Restores an offloaded page row from a verified operational projection. */
-  async cacheOperationalPageProjection(pageId: Uuid, document: BlockDocumentV3): Promise<void> {
-    const row = await this.db.items.get(pageId);
-    if (row === undefined) throw new Error(`page item not found: ${pageId}`);
-    const item = await this.#codec.openItem(row);
-    if (item.kind !== "page") throw new TypeError(`item is not a page: ${pageId}`);
-    const sealed = await this.#codec.sealItem({
-      ...item,
-      localAvailability: "present",
-      pageDocument: {
-        format: "myownnotion.document+json",
-        formatVersion: 3,
-        body: { blocks: structuredClone(document.blocks) },
-      },
-    });
-    await this.db.items.put(sealed);
+  /**
+   * Restores an offloaded page row from a verified operational projection.
+   *
+   * Sealing happens outside IndexedDB, so the item can change while WebCrypto
+   * runs. The compare-and-swap prevents a late checkpoint from overwriting a
+   * conversion (or another newer revision) with the stale page row it opened.
+   * `false` means the item stopped being this page before the cache committed.
+   */
+  async cacheOperationalPageProjection(pageId: Uuid, document: BlockDocumentV3): Promise<boolean> {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const row = await this.db.items.get(pageId);
+      if (row === undefined || row.kind !== "page") return false;
+      const item = await this.#codec.openItem(row);
+      const sealed = await this.#codec.sealItem({
+        ...item,
+        localAvailability: "present",
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: { blocks: structuredClone(document.blocks) },
+        },
+      });
+      const committed = await this.db.transaction("rw", this.db.items, async () => {
+        const current = await this.db.items.get(pageId);
+        if (current === undefined || current.kind !== "page") return "retired" as const;
+        if (current.currentRevisionId !== row.currentRevisionId) return "retry" as const;
+        await this.db.items.put(sealed);
+        return "stored" as const;
+      });
+      if (committed === "stored") return true;
+      if (committed === "retired") return false;
+    }
+    return false;
   }
 
   async listItems(lifecycle?: LocalItemRow["lifecycle"]): Promise<ProjectedItem[]> {

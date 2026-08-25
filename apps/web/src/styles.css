@@ -4,6 +4,7 @@
 @import "./ui/ui-lab.css";
 @import "./features/navigation/navigation.css";
 @import "./features/workspace/workspace.css";
+@import "./features/settings/settings.css";
 
 * {
   box-sizing: border-box;
@@ -50,6 +51,10 @@ textarea {
   max-width: none;
   margin: 0;
   padding: 0;
+}
+
+.app-shell[hidden] {
+  display: none;
 }
 
 .app-header h1 {

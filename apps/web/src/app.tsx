@@ -12,18 +12,23 @@
  * sign-in prompt would suggest the content is already available to whoever is
  * looking at the screen.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ProjectedItem } from "@myownnotion/client-core";
+import type { SafeError } from "@myownnotion/domain";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BootstrapPage } from "./features/auth/bootstrap-page.tsx";
 import { LoginPage } from "./features/auth/login-page.tsx";
 import { BackupPanel } from "./features/backup/backup-panel.tsx";
 import { ConnectionStatus } from "./features/connection/connection-status.tsx";
 import { HierarchyExplorer } from "./features/hierarchy/hierarchy-explorer.tsx";
 import { SecuritySettings } from "./features/security/security-settings.tsx";
+import { type SettingsSection, SettingsShell } from "./features/settings/settings-shell.tsx";
+import { WorkspaceManagementSettings } from "./features/settings/workspace-management-settings.tsx";
 import { ContentApi } from "./services/content-api.ts";
+import { localContent } from "./services/local-content.ts";
 import { SecurityApi } from "./services/security-api.ts";
 
 type Gate = "checking" | "bootstrap" | "login" | "workspace";
-type WorkspaceView = "workspace" | "security" | "backups";
+type WorkspaceView = "workspace" | SettingsSection;
 const BACKUP_STATUS_POLL_MS = 15 * 60 * 1000;
 
 export interface AppProps {
@@ -45,6 +50,14 @@ export function App(props: AppProps = {}) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [view, setView] = useState<WorkspaceView>("workspace");
   const [workspaceBackupStale, setWorkspaceBackupStale] = useState(false);
+  const [activeItem, setActiveItem] = useState<ProjectedItem | null>(null);
+  const [operationalProblem, setOperationalProblem] = useState<SafeError | null>(null);
+  const [trashedItems, setTrashedItems] = useState<readonly ProjectedItem[]>([]);
+  const contentService = useMemo(() => localContent(), []);
+  const workspaceReturn = useRef<{
+    readonly focus: HTMLElement | null;
+    readonly scrollY: number;
+  } | null>(null);
 
   const loadBackupStatus = useCallback(async () => {
     const result = await api.backupStatus();
@@ -138,9 +151,35 @@ export function App(props: AppProps = {}) {
   const onSignedOut = useCallback(() => {
     setSessionId(null);
     setView("workspace");
+    workspaceReturn.current = null;
     setGate("login");
   }, []);
   const pageOperationCsrfToken = useCallback(() => api.csrfTokenForSameOriginWrite(), [api]);
+
+  const openSettings = useCallback((section: SettingsSection) => {
+    workspaceReturn.current = {
+      focus: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+      scrollY: window.scrollY,
+    };
+    setView(section);
+  }, []);
+
+  const returnToWorkspace = useCallback(() => {
+    setView("workspace");
+  }, []);
+
+  useLayoutEffect(() => {
+    if (gate !== "workspace") return;
+    if (view !== "workspace") {
+      window.scrollTo({ top: 0, left: 0 });
+      return;
+    }
+    const destination = workspaceReturn.current;
+    if (destination === null) return;
+    window.scrollTo({ top: destination.scrollY, left: 0 });
+    destination.focus?.focus({ preventScroll: true });
+    workspaceReturn.current = null;
+  }, [gate, view]);
 
   if (gate === "checking") {
     return (
@@ -168,50 +207,48 @@ export function App(props: AppProps = {}) {
     );
   }
 
-  if (view === "workspace") {
-    return (
-      <div className="app-shell app-shell--workspace">
+  return (
+    <>
+      <div
+        className="app-shell app-shell--workspace"
+        hidden={view !== "workspace"}
+        data-testid="workspace-surface"
+      >
         <HierarchyExplorer
+          active={view === "workspace"}
           backupStale={workspaceBackupStale}
           pageOperationCsrfToken={pageOperationCsrfToken}
-          onOpenBackups={() => setView("backups")}
-          onOpenSettings={() => setView("security")}
+          onActiveItemChange={setActiveItem}
+          onOpenBackups={() => openSettings("backups")}
+          onOpenDiagnostics={() => openSettings("local-data")}
+          onOpenSettings={() => openSettings("security")}
+          onProblemChange={setOperationalProblem}
+          onTrashedItemsChange={setTrashedItems}
         />
       </div>
-    );
-  }
 
-  return (
-    <div className="app-shell">
-      <header className="app-header">
-        <h1>MyOwnNotion</h1>
-        <p className="app-subtitle">
-          {view === "security" ? "Réglages et sécurité" : "Sauvegardes"}
-        </p>
-        <button
-          type="button"
-          className="link"
-          onClick={() => setView("workspace")}
-          data-testid="back-to-workspace"
-        >
-          Retour à l’espace de travail
-        </button>
-      </header>
-      <main className="app-main">
-        {view === "security" ? (
-          <>
-            {/* On the security screen rather than in the workspace chrome: an
-                owner checks who they are talking to when they are thinking
-                about trust, and a permanent banner in the sidebar becomes
-                furniture nobody reads. The insecure-channel warning inside it
-                is the exception — it is an alert wherever it appears. */}
-            <ConnectionStatus api={connectionApi} />
-            <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
-          </>
-        ) : (
-          <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />
-        )}
-      </main>
-    </div>
+      {view === "workspace" ? null : (
+        <SettingsShell activeSection={view} onBack={returnToWorkspace} onSectionChange={setView}>
+          {view === "security" ? (
+            <>
+              {/* Trust information belongs to the security destination, not
+                  alongside the owner's current note. */}
+              <ConnectionStatus api={connectionApi} />
+              <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
+            </>
+          ) : view === "backups" ? (
+            <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />
+          ) : (
+            <WorkspaceManagementSettings
+              activeItem={activeItem}
+              section={view}
+              service={contentService}
+              problem={operationalProblem}
+              trashedItems={trashedItems}
+            />
+          )}
+        </SettingsShell>
+      )}
+    </>
   );
 }

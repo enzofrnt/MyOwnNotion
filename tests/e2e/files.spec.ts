@@ -4,6 +4,7 @@
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
+  openSettingsSection,
   openWorkspace,
   selectSettledPage,
   uniqueName,
@@ -70,6 +71,7 @@ test.describe("canonical files (US2)", () => {
     // The canonical file entered the 30-day trash (after sync refresh).
     await page.reload();
     await openWorkspace(page);
+    await openSettingsSection(page, "trash");
     await expect(page.getByTestId(`trash-item-${fileName}`)).toBeVisible({ timeout: 15_000 });
   });
 });
@@ -235,6 +237,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     await waitForSynchronized(page);
     await page.reload();
     await openWorkspace(page);
+    await openSettingsSection(page, "trash");
     await expect(page.getByTestId(`trash-item-${fileName}`)).toBeVisible({ timeout: 30_000 });
   });
 });

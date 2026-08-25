@@ -41,7 +41,12 @@ export function WorkspaceShell({
       </ResponsiveSidebar>
       <div className="workspace-stage">
         {header}
-        <main id="workspace-main" className="workspace-main" tabIndex={-1}>
+        <main
+          id="workspace-main"
+          className="workspace-main"
+          tabIndex={-1}
+          data-testid="workspace-main"
+        >
           <div className="workspace-reading-column">{children}</div>
         </main>
       </div>

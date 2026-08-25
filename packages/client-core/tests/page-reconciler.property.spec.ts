@@ -141,6 +141,31 @@ describe("page update batching", () => {
 });
 
 describe("PageReconciler", () => {
+  it("waits for another same-page exchange without polling or stealing its claim", async () => {
+    const { pageId, blockId, page } = fixture();
+    const committed = await commitEdit(page, blockId, " local", 1);
+    await log.transitionUpdate(committed.update.updateId, "sending");
+    const sync = vi.fn<PageSyncTransport["sync"]>();
+    const reconciler = new PageReconciler({
+      pageId,
+      log,
+      transport: {
+        sync,
+        async convertLegacyBranch() {
+          throw new Error("unexpected legacy branch conversion");
+        },
+      },
+    });
+
+    await expect(reconciler.synchronize()).resolves.toMatchObject({
+      kind: "pending",
+      exchanges: 0,
+      problemCode: "page-operations.update-in-flight",
+    });
+    expect(sync).not.toHaveBeenCalled();
+    expect((await log.getUpdate(committed.update.updateId))?.status).toBe("sending");
+  });
+
   it("never recovers another page's genuinely in-flight update", async () => {
     const first = fixture();
     const second = fixture();
@@ -214,6 +239,52 @@ describe("PageReconciler", () => {
     releaseFirstTransport.resolve();
     await expect(firstPass).resolves.toMatchObject({ kind: "synced" });
     expect(await log.getUpdate(firstCommit.update.updateId)).toBeNull();
+  });
+
+  it("returns its own claim to pending after an unexpected local commit failure", async () => {
+    const { pageId, blockId, page } = fixture();
+    const committed = await commitEdit(page, blockId, " local", 1);
+    const sentIds: Uuid[][] = [];
+    const transport: PageSyncTransport = {
+      async sync(_pageId, request) {
+        if (request.mode !== "active") throw new Error("expected active sync");
+        sentIds.push(request.updates.map(({ updateId }) => updateId as Uuid));
+        return {
+          ok: true,
+          value: activeResponse(request, pageId, {
+            accepted: [
+              {
+                updateId: committed.update.updateId,
+                pageSequence: 1,
+                resultVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+              },
+            ],
+            serverVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            latestPageSequence: 1,
+            canonical: {
+              format: "myownnotion.document+json",
+              formatVersion: 3,
+              digest: committed.state.projection?.canonicalDigest ?? "",
+              lastConsolidatedRevisionId: null,
+              hasUnconsolidatedChanges: true,
+            },
+          }),
+        };
+      },
+      async convertLegacyBranch() {
+        throw new Error("unexpected legacy branch conversion");
+      },
+    };
+    const sealFailure = new Error("simulated IndexedDB seal failure");
+    vi.spyOn(log.codec, "sealState").mockRejectedValueOnce(sealFailure);
+    const reconciler = new PageReconciler({ pageId, log, transport });
+
+    await expect(reconciler.synchronize()).rejects.toBe(sealFailure);
+    expect((await log.getUpdate(committed.update.updateId))?.status).toBe("pending");
+
+    await expect(reconciler.synchronize()).resolves.toMatchObject({ kind: "synced" });
+    expect(sentIds).toEqual([[committed.update.updateId], [committed.update.updateId]]);
+    expect(await log.getUpdate(committed.update.updateId)).toBeNull();
   });
 
   it("blocks a submitted batch when a successful response violates the negotiated contract", async () => {

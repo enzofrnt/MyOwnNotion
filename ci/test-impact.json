@@ -486,8 +486,13 @@
     {
       "test": "tests/e2e/item-conversion.spec.ts",
       "owners": {
-        "exact": ["apps/web/src/features/navigation/convert-item.tsx"],
+        "exact": [
+          "apps/web/src/features/navigation/convert-item.tsx",
+          "apps/web/src/services/local-content.ts",
+          "packages/client-core/src/local-store/local-repository.ts"
+        ],
         "prefixes": [
+          "packages/client-core/src/page-sync/",
           "packages/domain/src/content/conversion",
           "packages/database/src/repositories/content/conversion-"
         ],
@@ -796,6 +801,20 @@
           "packages/domain/src/security/wrapping-key-",
           "packages/domain/src/security/rotation-",
           "packages/database/src/repositories/security/rotation-"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/workspace-settings-boundary.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
+        "prefixes": [
+          "apps/web/src/features/diagnostics/",
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/settings/",
+          "apps/web/src/features/workspace/"
         ],
         "suffixes": []
       }

@@ -290,11 +290,14 @@ Après chaque transaction :
 4. Un ordonnanceur groupe les lots réseau pendant une courte fenêtre, sans
    supprimer leurs identités ni retarder la durabilité.
 5. La reprise au démarrage remet tout lot `sending` en `pending`, comme
-   l'outbox actuelle, découvre les identités de pages par un index de routage
-   sans ouvrir leurs contenus chiffrés, puis échange leurs frontières avec une
-   concurrence bornée. Ce drainage ne dépend pas du montage d'un éditeur : une
-   page fermée reprend au lancement, au retour du réseau et après un signal de
-   changement.
+   l'outbox actuelle. En fonctionnement, une tentative suit uniquement ses
+   propres revendications et les libère sur toute sortie antérieure au commit ;
+   un passage concurrent qui observe une revendication de la même page attend
+   sans transport. Le drainage découvre ensuite les identités de pages par un
+   index de routage sans ouvrir leurs contenus chiffrés, puis échange leurs
+   frontières avec une concurrence bornée. Il ne dépend pas du montage d'un
+   éditeur : une page fermée reprend au lancement, au retour du réseau et après
+   un signal de changement.
 
 Les demandes de drainage concurrentes partagent une seule promesse couvrant la
 totalité des passes coalescées. Un appel arrivé pendant une passe ne peut donc
