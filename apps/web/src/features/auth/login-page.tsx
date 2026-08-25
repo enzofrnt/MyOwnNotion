@@ -14,7 +14,7 @@
 
 import { useCallback, useId, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
-import { passkeysAvailable } from "./passkey-client.ts";
+import { passkeysAvailable, requestOwnerPasskey } from "./passkey-client.ts";
 
 export interface LoginPageProps {
   readonly api: SecurityApi;
@@ -76,8 +76,25 @@ export function LoginPage(props: LoginPageProps) {
     // indistinguishable to us from a refused credential, and is reported the
     // same way.
     setMessage("Waiting for your device…");
+    const assertion = await requestOwnerPasskey(options.value);
+    if (!assertion.ok) {
+      setMessage(REFUSED);
+      setBusy(false);
+      return;
+    }
+    const result = await props.api.loginWithPasskey(assertion.credential);
+    if (!result.ok) {
+      setMessage(
+        result.problem.code === "rate_limited"
+          ? "Too many attempts. Wait a few minutes before trying again."
+          : REFUSED,
+      );
+      setBusy(false);
+      return;
+    }
     setBusy(false);
-  }, [props.api]);
+    props.onSignedIn();
+  }, [props.api, props.onSignedIn]);
 
   return (
     <main className="login-page" aria-labelledby="login-heading">

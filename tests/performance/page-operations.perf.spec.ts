@@ -26,13 +26,14 @@ import {
   type AuthenticatedPageOperationHarness,
   createAuthenticatedPageOperationHarness,
 } from "../../apps/api/tests/helpers/authenticated-page-operations.ts";
+import { REALTIME_SYNC_BUDGETS } from "./reference-machine.ts";
 
 const RETURNING_DEVICE_ID = "018f2b7c-0000-7000-8000-0000000000ef" as Uuid;
 const UPDATE_COUNT = 10_000;
 const MAX_INGEST_DURATION_MS = 300_000;
-const MAX_CATCH_UP_DURATION_MS = 60_000;
+const MAX_CATCH_UP_DURATION_MS = REALTIME_SYNC_BUDGETS.tenThousandUpdateCatchUpMs;
 const MAX_COMPACTION_DURATION_MS = 30_000;
-const MAX_PEAK_HEAP_GROWTH_BYTES = 512 * 1024 * 1024;
+const MAX_PEAK_HEAP_GROWTH_BYTES = REALTIME_SYNC_BUDGETS.maxPeakHeapGrowthBytes;
 
 let currentTime = new Date("2026-08-24T12:00:00.000Z");
 let backupVerified = false;

@@ -333,10 +333,33 @@ export class Outbox {
     });
   }
 
+  /** Every retained conflict payload, including historical recovery proofs. */
   async conflicts(): Promise<ConflictRecordRow[]> {
     return await Promise.all(
       (await this.#db.conflicts.toArray()).map((row) => this.#openConflict(row)),
     );
+  }
+
+  /** Explicit alias used by retention/budget code where preservation is the point. */
+  async retainedConflicts(): Promise<ConflictRecordRow[]> {
+    return await this.conflicts();
+  }
+
+  /**
+   * Decisions that still belong in the normal conflict UI.
+   *
+   * A v9 recovery row moves an old whole-document refusal into a separate,
+   * conservative workflow. Its sealed conflict remains retained, but counting
+   * it here would recreate the false global “Conflict” state the migration is
+   * intended to remove.
+   */
+  async activeConflicts(): Promise<ConflictRecordRow[]> {
+    const [rows, recoveries] = await Promise.all([
+      this.conflicts(),
+      this.#db.legacySyncRecoveries.toArray(),
+    ]);
+    const recovering = new Set(recoveries.map(({ mutationId }) => mutationId));
+    return rows.filter(({ mutationId }) => !recovering.has(mutationId));
   }
 
   /**
@@ -348,6 +371,14 @@ export class Outbox {
    * record exists to prevent.
    */
   async resolveConflict(mutationId: Uuid): Promise<void> {
-    await this.#db.conflicts.delete(mutationId);
+    await this.#db.transaction(
+      "rw",
+      [this.#db.conflicts, this.#db.legacySyncRecoveries],
+      async () => {
+        if ((await this.#db.conflicts.get(mutationId)) === undefined) return;
+        await this.#db.conflicts.delete(mutationId);
+        await this.#db.legacySyncRecoveries.delete(mutationId);
+      },
+    );
   }
 }

@@ -20,8 +20,10 @@ const artifactPath = path.join(repoRoot, "license-policy.json");
  * SPDX identifiers permitted for production dependencies.
  *
  * Feature 017 relies on MIT foundations (Loro, Tailwind, Ariakit, dnd-kit and
- * Lucide) and MPL-2.0 BlockNote Community packages. Both grants permit the
- * self-hosted product while preserving their respective attribution terms.
+ * Lucide) and MPL-2.0 BlockNote Community packages. Feature 018 adds the MIT
+ * Fastify WebSocket adapter without adding a hosted synchronization runtime.
+ * Those grants permit the self-hosted product while preserving their
+ * respective attribution terms.
  */
 const allowedLicenses = new Set([
   "0BSD",

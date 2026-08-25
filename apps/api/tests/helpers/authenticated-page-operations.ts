@@ -17,7 +17,7 @@ import {
 } from "./app.ts";
 
 const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
-const OWNER_ID = "018f2b7c-0000-7000-8000-0000000000bb";
+export const PAGE_OPERATION_OWNER_ID = "018f2b7c-0000-7000-8000-0000000000bb";
 export const PAGE_OPERATION_DEVICE_ID = "018f2b7c-0000-7000-8000-0000000000cc" as Uuid;
 const PASSWORD = "correct horse battery staple";
 
@@ -87,24 +87,24 @@ export async function createAuthenticatedPageOperationHarness(
     });
     await api.built.database.db.execute(sql`
       INSERT INTO owners (id, installation_id, state)
-      VALUES (${OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')
+      VALUES (${PAGE_OPERATION_OWNER_ID}::uuid, ${INSTALLATION_ID}::uuid, 'active')
     `);
     await api.built.database.db.execute(sql`
       UPDATE installations
-         SET state = 'ready', owner_id = ${OWNER_ID}::uuid,
+         SET state = 'ready', owner_id = ${PAGE_OPERATION_OWNER_ID}::uuid,
              workspace_id = ${api.built.context.workspaceId}::uuid
        WHERE id = ${INSTALLATION_ID}::uuid
     `);
     await api.built.database.db.execute(sql`
       INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
-      VALUES (${PAGE_OPERATION_DEVICE_ID}::uuid, ${OWNER_ID}::uuid,
-              'operation-service-device', 'Laptop', 'active')
+      VALUES (${PAGE_OPERATION_DEVICE_ID}::uuid, ${PAGE_OPERATION_OWNER_ID}::uuid,
+              'web-39a88270-225f-4ec4-9548-aebfa39fb55e', 'Laptop', 'active')
     `);
     const password = await hashPassword(PASSWORD);
     await api.built.database.db.execute(sql`
       INSERT INTO password_credential_versions
         (id, owner_id, password_hash, hash_algorithm, state)
-      VALUES (gen_random_uuid(), ${OWNER_ID}::uuid, ${password.encoded}, 'scrypt', 'active')
+      VALUES (gen_random_uuid(), ${PAGE_OPERATION_OWNER_ID}::uuid, ${password.encoded}, 'scrypt', 'active')
     `);
   };
 
@@ -113,7 +113,14 @@ export async function createAuthenticatedPageOperationHarness(
       method: "POST",
       url: "/v1/auth/login/password",
       headers: currentProtocolHeaders(),
-      payload: { password: PASSWORD },
+      payload: {
+        password: PASSWORD,
+        device: {
+          deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
+          name: "Laptop",
+          platform: "Test platform",
+        },
+      },
     });
     if (response.statusCode !== 200) throw new Error(`login failed: ${response.body}`);
     return {
@@ -146,7 +153,7 @@ export async function createAuthenticatedPageOperationHarness(
     authenticateAsDevice: async ({ deviceId, name = "Second device" }) => {
       await api.built.database.db.execute(sql`
         INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
-        VALUES (${deviceId}::uuid, ${OWNER_ID}::uuid, ${`operation-device-${deviceId}`}, ${name}, 'active')
+        VALUES (${deviceId}::uuid, ${PAGE_OPERATION_OWNER_ID}::uuid, ${`operation-device-${deviceId}`}, ${name}, 'active')
       `);
       return await reauthenticateAsDevice({ deviceId });
     },

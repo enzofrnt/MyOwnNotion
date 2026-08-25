@@ -22,21 +22,24 @@
 import { randomUUID } from "node:crypto";
 import {
   AuthenticatedSessionSchema,
+  type BrowserDeviceClaimDto,
   PasskeyEnrollmentCompletionSchema,
+  type PasskeyLoginDto,
+  PasskeyLoginSchema,
   PasskeyViewSchema,
   PasswordChangeSchema,
   PasswordLoginSchema,
   PasswordViewSchema,
   SecurityProblemSchema,
   SessionViewSchema,
-  WebAuthnAssertionSchema,
   WebAuthnOptionsSchema,
 } from "@myownnotion/contracts";
 import type { Database } from "@myownnotion/database";
 import {
+  claimDeviceForAuthentication,
+  DeviceRepositoryError,
   enrollPasskey,
   findActivePassword,
-  findAnyAuthorizedDevice,
   findPasskeyByCredentialId,
   LastCredentialError,
   listPasskeys,
@@ -44,6 +47,7 @@ import {
   recordDeviceActivity,
   recordPasskeyUse,
   revokePasskey,
+  runSecurityTransaction,
   setPassword,
 } from "@myownnotion/database";
 import {
@@ -238,6 +242,40 @@ export function registerAuthenticationRoutes(
     });
   };
 
+  const resolveLoginDevice = async (
+    request: FastifyRequest,
+    ownerId: string,
+    device: BrowserDeviceClaimDto,
+  ): Promise<string | null> => {
+    try {
+      const claimed = await runSecurityTransaction(
+        deps.db,
+        async (tx) =>
+          await claimDeviceForAuthentication(tx, {
+            ownerId,
+            proposedDeviceId: randomUUID(),
+            deviceBindingId: device.deviceBindingId,
+            name: device.name,
+            platform: device.platform,
+            now: deps.now(),
+          }),
+        { maxAttempts: 3 },
+      );
+      if (claimed.disposition !== "existing") {
+        await deps.audit.record(auditContext(request), {
+          eventType: "device.authorized",
+          outcome: "success",
+          objectKind: "device",
+          objectId: claimed.device.id,
+        });
+      }
+      return claimed.device.id;
+    } catch (error) {
+      if (error instanceof DeviceRepositoryError) return null;
+      throw error;
+    }
+  };
+
   // -------------------------------------------------------------------------
   // Login
   // -------------------------------------------------------------------------
@@ -259,12 +297,13 @@ export function registerAuthenticationRoutes(
     "/v1/auth/login/passkey",
     {
       schema: {
-        body: WebAuthnAssertionSchema,
+        body: PasskeyLoginSchema,
         response: { 200: AuthenticatedSessionSchema, 401: SecurityProblemSchema },
       },
     },
     async (request, reply) => {
-      const assertion = request.body as { id: string; response: { clientDataJSON: string } };
+      const body = request.body as PasskeyLoginDto;
+      const assertion = body.credential;
       try {
         await deps.sessions.chargeLoginAttempt(assertion.id);
       } catch (error) {
@@ -306,8 +345,8 @@ export function registerAuthenticationRoutes(
         return await refuseLogin(request, reply);
       }
 
-      const device = await findAnyAuthorizedDevice(deps.db, credential.ownerId);
-      if (device === null || device.state !== "active") {
+      const deviceId = await resolveLoginDevice(request, credential.ownerId, body.device);
+      if (deviceId === null) {
         // A revoked device cannot sign in, however good the credential.
         return await refuseLogin(request, reply);
       }
@@ -319,7 +358,7 @@ export function registerAuthenticationRoutes(
       });
       return await completeLogin(request, reply, {
         ownerId: credential.ownerId,
-        deviceId: device.id,
+        deviceId,
         authMethod: "passkey",
       });
     },
@@ -334,7 +373,7 @@ export function registerAuthenticationRoutes(
       },
     },
     async (request, reply) => {
-      const body = request.body as { password: string };
+      const body = request.body as { password: string; device: BrowserDeviceClaimDto };
       try {
         // Keyed by the origin rather than by a username: there is only one
         // owner, so the password itself is the only other candidate and using
@@ -357,13 +396,13 @@ export function registerAuthenticationRoutes(
         return await refuseLogin(request, reply);
       }
 
-      const device = await findAnyAuthorizedDevice(deps.db, stored.ownerId);
-      if (device === null || device.state !== "active") {
+      const deviceId = await resolveLoginDevice(request, stored.ownerId, body.device);
+      if (deviceId === null) {
         return await refuseLogin(request, reply);
       }
       return await completeLogin(request, reply, {
         ownerId: stored.ownerId,
-        deviceId: device.id,
+        deviceId,
         authMethod: "password",
       });
     },

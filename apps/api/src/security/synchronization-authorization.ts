@@ -17,7 +17,12 @@
  * FR-010 forbids the interface from implying.
  */
 
-import { type Database, findDevice, type Transaction } from "@myownnotion/database";
+import {
+  type Database,
+  findDevice,
+  lockDeviceForSynchronization,
+  type Transaction,
+} from "@myownnotion/database";
 import { type DeviceState, mayHoldSynchronizationKey } from "@myownnotion/domain";
 
 export type SynchronizationRefusal =
@@ -84,6 +89,27 @@ export async function authorizeSynchronization(
       deviceState: device.state,
     });
     return { allowed: false, refusal: reason, deviceState: device.state };
+  }
+  return { allowed: true, deviceState: device.state };
+}
+
+/**
+ * The write-path form of authorization. Its row lock is held by the caller's
+ * transaction, so a revocation either commits before the write (and refuses
+ * it) or waits until that already-authorized write has committed.
+ */
+export async function authorizeSynchronizationWrite(
+  tx: Transaction,
+  input: { ownerId: string; deviceId: string },
+): Promise<SynchronizationDecision> {
+  const device = await lockDeviceForSynchronization(tx, input);
+  if (device === null) return { allowed: false, refusal: "device_unknown" };
+  if (!mayHoldSynchronizationKey(device.state)) {
+    return {
+      allowed: false,
+      refusal: REFUSALS[device.state as Exclude<DeviceState, "active">],
+      deviceState: device.state,
+    };
   }
   return { allowed: true, deviceState: device.state };
 }

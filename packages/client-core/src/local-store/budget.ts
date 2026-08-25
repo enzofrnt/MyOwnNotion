@@ -236,7 +236,7 @@ async function candidatesFrom(
       queued.add(payload.itemId);
     }
   }
-  for (const row of await outbox.conflicts()) {
+  for (const row of await outbox.retainedConflicts()) {
     const payload = row.payload as { itemId?: unknown };
     if (typeof payload.itemId === "string") {
       queued.add(payload.itemId);

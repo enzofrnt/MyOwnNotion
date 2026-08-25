@@ -15,6 +15,7 @@
 import { randomUUID } from "node:crypto";
 import {
   type AuthorizedDevice,
+  claimDeviceForAuthentication,
   createInstallation,
   DeviceRepositoryError,
   findDevice,
@@ -265,6 +266,60 @@ describe("reauthorization is not revocation", () => {
       name: "Still mine",
     });
     expect(renamed.name).toBe("Still mine");
+  });
+});
+
+describe("authentication attribution", () => {
+  const claim = (deviceBindingId: string, proposedDeviceId = generateUuidV7()) =>
+    claimDeviceForAuthentication(context.handle.db, {
+      ownerId,
+      proposedDeviceId,
+      deviceBindingId,
+      name: "Chromium on macOS",
+      platform: "macOS",
+      now: context.clock.now(),
+    });
+
+  it("creates one row per profile and reuses it on the next login", async () => {
+    const firstA = await claim("web-39a88270-225f-4ec4-9548-aebfa39fb55e");
+    const secondA = await claim("web-39a88270-225f-4ec4-9548-aebfa39fb55e");
+    const firstB = await claim("web-f66efccd-ac83-46d4-bde9-24e2dbd36eba");
+
+    expect(firstA.disposition).toBe("created");
+    expect(secondA).toMatchObject({ disposition: "existing", device: { id: firstA.device.id } });
+    expect(firstB.device.id).not.toBe(firstA.device.id);
+    expect(await listDevices(context.handle.db, ownerId)).toHaveLength(2);
+  });
+
+  it("activates a device explicitly waiting for authentication", async () => {
+    const binding = "web-39a88270-225f-4ec4-9548-aebfa39fb55e";
+    const created = await claim(binding);
+    await requireDeviceReauthorization(context.handle.db, {
+      ownerId,
+      deviceId: created.device.id,
+    });
+
+    const authenticated = await claim(binding);
+
+    expect(authenticated).toMatchObject({
+      disposition: "reauthorized",
+      device: { id: created.device.id, state: "active" },
+    });
+  });
+
+  it("never falls back to another active row for a revoked binding", async () => {
+    await claim("web-f66efccd-ac83-46d4-bde9-24e2dbd36eba");
+    const revoked = await claim("web-39a88270-225f-4ec4-9548-aebfa39fb55e");
+    await revokeDevice(context.handle.db, {
+      ownerId,
+      deviceId: revoked.device.id,
+      now: context.clock.now(),
+    });
+
+    await expect(claim("web-39a88270-225f-4ec4-9548-aebfa39fb55e")).rejects.toMatchObject({
+      code: "device_revoked",
+    });
+    expect(await listDevices(context.handle.db, ownerId)).toHaveLength(2);
   });
 });
 

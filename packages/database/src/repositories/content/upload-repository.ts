@@ -29,12 +29,25 @@ export interface UploadRecord {
   readonly expiresAt: Date;
 }
 
+function toUploadRecord(row: typeof uploads.$inferSelect): UploadRecord {
+  return {
+    id: row.id as Uuid,
+    declaredLength: row.declaredLength,
+    receivedLength: row.receivedLength,
+    mediaType: row.mediaType,
+    originalName: row.originalName,
+    storageKey: row.storageKey,
+    expiresAt: row.expiresAt,
+  };
+}
+
 /** How long an untouched upload survives before its bytes are reclaimed. */
 export const UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function createUpload(
   executor: Database | Transaction,
   input: {
+    readonly id?: Uuid;
     readonly workspaceId: Uuid;
     readonly declaredLength: number;
     readonly mediaType: string;
@@ -42,7 +55,7 @@ export async function createUpload(
     readonly now?: Date;
   },
 ): Promise<UploadRecord> {
-  const id = generateUuidV7();
+  const id = input.id ?? generateUuidV7();
   const now = input.now ?? new Date();
   const record = {
     id,
@@ -66,17 +79,27 @@ export async function getUpload(
   id: Uuid,
 ): Promise<UploadRecord | null> {
   const [row] = await executor.select().from(uploads).where(eq(uploads.id, id)).limit(1);
-  return row === undefined
-    ? null
-    : {
-        id: row.id as Uuid,
-        declaredLength: row.declaredLength,
-        receivedLength: row.receivedLength,
-        mediaType: row.mediaType,
-        originalName: row.originalName,
-        storageKey: row.storageKey,
-        expiresAt: row.expiresAt,
-      };
+  return row === undefined ? null : toUploadRecord(row);
+}
+
+/** Serializes one upload while its bytes and durable offset are reconciled. */
+export async function lockUpload(tx: Transaction, id: Uuid): Promise<UploadRecord | null> {
+  const [row] = await tx.select().from(uploads).where(eq(uploads.id, id)).for("update").limit(1);
+  return row === undefined ? null : toUploadRecord(row);
+}
+
+/**
+ * Records the byte length observed in durable storage while the upload row is
+ * locked. This may move either direction after an interrupted old or new write.
+ */
+export async function reconcileUploadReceivedLength(
+  tx: Transaction,
+  input: { readonly id: Uuid; readonly receivedLength: number },
+): Promise<void> {
+  await tx
+    .update(uploads)
+    .set({ receivedLength: input.receivedLength })
+    .where(eq(uploads.id, input.id));
 }
 
 export type AdvanceOutcome =
@@ -154,15 +177,7 @@ export async function expireUploads(
     return [];
   }
   await executor.delete(uploads).where(lt(uploads.expiresAt, now));
-  return expired.map((row) => ({
-    id: row.id as Uuid,
-    declaredLength: row.declaredLength,
-    receivedLength: row.receivedLength,
-    mediaType: row.mediaType,
-    originalName: row.originalName,
-    storageKey: row.storageKey,
-    expiresAt: row.expiresAt,
-  }));
+  return expired.map(toUploadRecord);
 }
 
 /** Total bytes currently held by unfinished uploads, for diagnostics. */

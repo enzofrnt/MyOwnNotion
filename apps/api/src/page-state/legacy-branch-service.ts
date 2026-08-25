@@ -50,6 +50,7 @@ import {
 import type { SearchService } from "../search/search-service.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
+import { authorizeSynchronizationWrite } from "../security/synchronization-authorization.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 import type { CanonicalMaterializer } from "./canonical-materializer.ts";
 import type { PageActivationService } from "./page-activation-service.ts";
@@ -67,6 +68,9 @@ export interface LegacyBranchServiceDeps {
   readonly operations: PageOperationService;
   readonly rotationPolicies: RotationPolicyService;
   readonly search?: SearchService | undefined;
+  readonly onPageCommitted?:
+    | ((event: { readonly pageId: Uuid; readonly latestPageSequence: number }) => void)
+    | undefined;
   readonly now?: () => Date;
 }
 
@@ -426,17 +430,28 @@ export class LegacyBranchService {
 
   async convert(input: {
     readonly pageId: Uuid;
+    readonly ownerId: string;
     readonly deviceId: Uuid;
     readonly request: LegacyOfflineBranchSyncRequestDto;
   }): Promise<LegacyBranchConvertedResponseDto> {
     await this.#deps.activation.activateCurrent({
       pageId: input.pageId,
+      ownerId: input.ownerId,
+      deviceId: input.deviceId,
       requestId: input.request.requestId as Uuid,
       maxRemoteBytes: MAX_PAGE_UPDATE_BATCH_BYTES,
     });
     const digest = requestDigest(input.request);
     let committedSequence: number | undefined;
     const response = await runMutation(this.#deps.db, async (tx) => {
+      const authorization = await authorizeSynchronizationWrite(tx, input);
+      if (!authorization.allowed) {
+        throw new PageOperationServiceError(
+          "page-operations.device-revoked",
+          "This device is no longer authorized.",
+          403,
+        );
+      }
       await this.#deps.rotationPolicies.assertWritesAllowed(tx);
       const loaded = await this.#deps.operations.loadForMutation(tx, input.pageId);
       const existing = await lockLegacyBranchConversion(tx, input.request.branchId as Uuid);
@@ -601,6 +616,16 @@ export class LegacyBranchService {
       return converted;
     });
     announceCommitted(committedSequence);
+    if (committedSequence !== undefined) {
+      try {
+        this.#deps.onPageCommitted?.({
+          pageId: input.pageId,
+          latestPageSequence: response.latestPageSequence,
+        });
+      } catch {
+        // Durable conversion wins over an ephemeral notification failure.
+      }
+    }
     if (committedSequence !== undefined && this.#deps.search !== undefined) {
       try {
         await this.#deps.search.applyCommittedChanges([input.pageId], committedSequence);

@@ -2,6 +2,7 @@ import type { PartialBlock } from "@blocknote/core";
 import { canonicalDocumentJsonV3, type Uuid } from "@myownnotion/domain";
 import { blockNoteDocumentToCanonical } from "./blocknote-conversion.ts";
 import type { EditorBlock, EditorInstance } from "./blocknote-schema.ts";
+import { captureScrollAnchor, restoreScrollAnchor } from "./editor-view-state.ts";
 
 export type EditorChangeOrigin = "local" | "remote" | "recovery";
 
@@ -258,11 +259,11 @@ function insertAtPlacement(
   block: EditorBlock,
   parentBlockId: Uuid | null,
   beforeBlockId: Uuid | null,
-): void {
+): boolean {
   const partial = structuredClone(block) as unknown as PartialBlock;
   if (beforeBlockId !== null && editor.getBlock(beforeBlockId) !== undefined) {
     editor.insertBlocks([partial], beforeBlockId, "before");
-    return;
+    return false;
   }
 
   if (parentBlockId !== null) {
@@ -271,7 +272,7 @@ function insertAtPlacement(
     const lastChild = childBlocks(parent).at(-1);
     if (lastChild !== undefined) {
       editor.insertBlocks([partial], lastChild.id, "after");
-      return;
+      return false;
     }
 
     // BlockNote has no public "insert as first child" primitive. Insert next
@@ -280,18 +281,20 @@ function insertAtPlacement(
     editor.insertBlocks([partial], parentBlockId, "after");
     editor.setTextCursorPosition(block.id, "start");
     editor.nestBlock();
-    return;
+    return true;
   }
 
   const lastRoot = (editor.document as EditorBlock[]).at(-1);
   if (lastRoot === undefined) throw new Error("the visible document has no insertion anchor");
   editor.insertBlocks([partial], lastRoot.id, "after");
+  return false;
 }
 
 function applyTargetedChanges(
   editor: EditorInstance,
   changes: readonly RemoteEditorChange[],
-): void {
+): boolean {
+  let commandMovedCursor = false;
   editor.transact(() => {
     for (const change of changes) {
       switch (change.type) {
@@ -299,13 +302,17 @@ function applyTargetedChanges(
           if (editor.getBlock(change.blockId) !== undefined) editor.removeBlocks([change.blockId]);
           break;
         case "insert":
-          insertAtPlacement(editor, change.block, change.parentBlockId, change.beforeBlockId);
+          commandMovedCursor =
+            insertAtPlacement(editor, change.block, change.parentBlockId, change.beforeBlockId) ||
+            commandMovedCursor;
           break;
         case "move": {
           const block = editor.getBlock(change.blockId) as EditorBlock | undefined;
           if (block === undefined) throw new Error(`remote block ${change.blockId} is unavailable`);
           editor.removeBlocks([change.blockId]);
-          insertAtPlacement(editor, block, change.parentBlockId, change.beforeBlockId);
+          commandMovedCursor =
+            insertAtPlacement(editor, block, change.parentBlockId, change.beforeBlockId) ||
+            commandMovedCursor;
           break;
         }
         case "update":
@@ -317,6 +324,54 @@ function applyTargetedChanges(
       }
     }
   });
+  return commandMovedCursor;
+}
+
+interface EditorInteractionSnapshot {
+  readonly focused: boolean;
+  readonly root: HTMLDivElement | undefined;
+  readonly scrollAnchor: ReturnType<typeof captureScrollAnchor>;
+}
+
+function captureEditorInteraction(editor: EditorInstance): EditorInteractionSnapshot {
+  const root = editor.domElement;
+  if (root === undefined) {
+    // BlockNote's headless mode is used by unit tests and import tools. There
+    // is no browser focus to preserve, so retain the historical cursor-safe
+    // behaviour without touching DOM globals.
+    return { focused: true, root, scrollAnchor: null };
+  }
+  let focused = false;
+  try {
+    focused = editor.isFocused();
+  } catch {
+    focused = false;
+  }
+  const scrollAnchor =
+    typeof document === "undefined" || typeof window === "undefined"
+      ? null
+      : captureScrollAnchor(root);
+  return { focused, root, scrollAnchor };
+}
+
+function restoreEditorInteraction(
+  editor: EditorInstance,
+  snapshot: EditorInteractionSnapshot,
+): void {
+  if (snapshot.focused && snapshot.root !== undefined) {
+    let stillFocused = false;
+    try {
+      stillFocused = editor.isFocused();
+    } catch {
+      stillFocused = false;
+    }
+    if (!stillFocused && snapshot.root.isConnected) editor.focus();
+  }
+  if (snapshot.scrollAnchor !== null && snapshot.root?.isConnected === true) {
+    // Restoring after cursor/focus avoids their browser scroll side effects.
+    // A block anchor, unlike a raw pixel, also survives inserts above the fold.
+    restoreScrollAnchor(snapshot.scrollAnchor, snapshot.root);
+  }
 }
 
 export interface RemoteEditorApplyResult {
@@ -342,20 +397,26 @@ export function applyRemoteEditorProjection(input: {
     return { targetedChanges: [], repairedProjection: false, restoredSelection: null };
   }
 
+  const interaction = captureEditorInteraction(input.editor);
   let selection: StableEditorSelection | null = null;
-  try {
-    selection = {
-      activeBlockId: input.editor.getTextCursorPosition().block.id as Uuid,
-      placement: "end",
-    };
-  } catch {
-    selection = null;
+  if (interaction.focused) {
+    try {
+      selection = {
+        activeBlockId: input.editor.getTextCursorPosition().block.id as Uuid,
+        placement: "end",
+      };
+    } catch {
+      selection = null;
+    }
   }
 
   const targetedChanges = planRemoteEditorChanges(previous, input.next);
   let repairedProjection = false;
+  let commandMovedCursor = false;
   try {
-    input.origin.run("remote", () => applyTargetedChanges(input.editor, targetedChanges));
+    commandMovedCursor = input.origin.run("remote", () =>
+      applyTargetedChanges(input.editor, targetedChanges),
+    );
   } catch {
     repairedProjection = true;
   }
@@ -373,16 +434,27 @@ export function applyRemoteEditorProjection(input: {
     });
   }
 
-  const restoredSelection =
+  const stableSelection =
     selection === null
       ? null
       : restoreStableSelection(selection, input.editor.document as EditorBlock[], previous);
+  const selectedBlockWasRecreated =
+    selection !== null &&
+    targetedChanges.some(
+      (change) =>
+        (change.type === "delete" || change.type === "move") &&
+        change.blockId === selection.activeBlockId,
+    );
+  const needsExplicitSelectionRestore =
+    repairedProjection || commandMovedCursor || selectedBlockWasRecreated;
+  const restoredSelection = needsExplicitSelectionRestore ? stableSelection : null;
   if (restoredSelection !== null) {
     input.editor.setTextCursorPosition(
       restoredSelection.activeBlockId,
       restoredSelection.placement,
     );
   }
+  restoreEditorInteraction(input.editor, interaction);
 
   return { targetedChanges, repairedProjection, restoredSelection };
 }

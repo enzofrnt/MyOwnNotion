@@ -11,6 +11,7 @@ import {
   duplicateSelectedBlocks,
   insertParagraphAfterSelection,
   moveSelectedBlocks,
+  selectBlockForAction,
   transformSelectedBlocks,
 } from "../block-selection.ts";
 import type { EditorInstance } from "../blocknote-schema.ts";
@@ -29,6 +30,11 @@ export function BlockContextMenu({
 }) {
   const execute = (action: () => void): void => {
     try {
+      // Ariakit moves focus into the menu before dispatching its action. Some
+      // engines consequently clear ProseMirror's live selection. Re-anchor the
+      // action to the block that opened the menu instead of whichever cursor
+      // state the browser happened to preserve.
+      if (state !== null) selectBlockForAction(editor, state.blockId);
       action();
       onDismiss();
     } catch (error) {
@@ -62,7 +68,11 @@ export function BlockContextMenu({
           <span />
         </MenuTrigger>
       )}
-      <MenuContent data-testid="block-context-menu" aria-label="Actions du bloc">
+      <MenuContent
+        data-testid="block-context-menu"
+        data-block-id={state?.blockId}
+        aria-label="Actions du bloc"
+      >
         <MenuLabel>Bloc</MenuLabel>
         <MenuItem
           data-testid="context-insert-after"

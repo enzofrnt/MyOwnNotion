@@ -9,6 +9,7 @@
 
 import type { Uuid } from "@myownnotion/domain";
 import { useEffect, useState } from "react";
+import { localContent } from "../../services/local-content.ts";
 import { EditorFileTransferQueue, type EditorFileTransferState } from "./editor-files.ts";
 
 export type FileBlockAvailability =
@@ -18,6 +19,7 @@ export type FileBlockAvailability =
   | { readonly kind: "blocked"; readonly detail: string };
 
 const queue = new EditorFileTransferQueue();
+let connectedToGlobalStatus = false;
 
 // A refused attempt must resume by itself when connectivity returns (FR-027):
 // the owner dropped one file, not one file plus a retry chore.
@@ -29,6 +31,10 @@ if (typeof window !== "undefined") {
 
 /** The editor-wide transfer queue; blocks subscribe to their own item. */
 export function editorFileTransferQueue(): EditorFileTransferQueue {
+  if (!connectedToGlobalStatus) {
+    localContent().connectFileTransferStatus(queue);
+    connectedToGlobalStatus = true;
+  }
   return queue;
 }
 

@@ -2,6 +2,7 @@ export * from "./block-tree.ts";
 export * from "./canonical-projection.ts";
 export * from "./checkpoints.ts";
 export * from "./document.ts";
+export * from "./legacy-document-diff.ts";
 export * from "./legacy-offline-branch.ts";
 export * from "./rich-text.ts";
 export * from "./semantic-conflicts.ts";

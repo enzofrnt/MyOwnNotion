@@ -27,7 +27,11 @@ import {
   type EditorBlocksChanged,
   type EditorInstance,
 } from "./blocknote-schema.ts";
-import { commandsFromBlockNoteChanges, EditorChangeBatcher } from "./editor-adapter.ts";
+import {
+  commandsFromBlockNoteChanges,
+  EditorChangeBatcher,
+  rebaseBlockNoteChanges,
+} from "./editor-adapter.ts";
 import {
   createMemoryEditorEngine,
   createSessionEditorEngine,
@@ -39,7 +43,11 @@ import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
 import { FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
-import { applyRemoteEditorProjection, EditorOriginGuard } from "./editor-remote-apply.ts";
+import {
+  applyRemoteEditorProjection,
+  type EditorChangeOrigin,
+  EditorOriginGuard,
+} from "./editor-remote-apply.ts";
 import { historyActionFromInputType, useEditorShortcuts } from "./editor-shortcuts.ts";
 import { pageLinkTargetFromHref } from "./page-link-href.ts";
 import { updatePageLinkPresentations } from "./page-link-inline-content.ts";
@@ -186,7 +194,9 @@ export function PageEditor({
   const lastEditorActivityAt = useRef(0);
   const editorSettled = useRef(true);
   const remoteProjectionPending = useRef(false);
+  const localBurstDrainInFlight = useRef(false);
   const projectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleProjectionSettlementRef = useRef<() => void>(() => undefined);
 
   const writeEditorSettlementState = useCallback(() => {
     const host = editorHostRef.current;
@@ -229,19 +239,34 @@ export function PageEditor({
   );
 
   const markEditorSettled = useCallback(() => {
-    if (inFlight.current > 0) return;
+    if (inFlight.current > 0 || localBurstDrainInFlight.current) return;
     const endedLocalBurst = localActivityInCurrentBurst.current;
-    editorSettled.current = true;
     localActivityInCurrentBurst.current = false;
     if (endedLocalBurst && supportsLocalInputBursts(session)) {
-      void session.endLocalInputBurst().catch((error: unknown) => {
-        setEditorError(
-          error instanceof Error
-            ? `La mise à jour distante n’a pas pu être appliquée : ${error.message}`
-            : "La mise à jour distante n’a pas pu être appliquée.",
-        );
-      });
+      // `endLocalInputBurst` may adopt durable operations and synchronously
+      // emit a remote session event before its promise resolves. Publishing a
+      // settled surface before that adoption and its visual projection finish
+      // leaves a narrow but destructive interaction window: a toolbar or
+      // context-menu gesture can target the pre-adoption tree while BlockNote
+      // is replacing it. Keep the surface busy and let a new quiet pass apply
+      // the resulting projection before acknowledging settlement.
+      localBurstDrainInFlight.current = true;
+      void session
+        .endLocalInputBurst()
+        .catch((error: unknown) => {
+          setEditorError(
+            error instanceof Error
+              ? `La mise à jour distante n’a pas pu être appliquée : ${error.message}`
+              : "La mise à jour distante n’a pas pu être appliquée.",
+          );
+        })
+        .finally(() => {
+          localBurstDrainInFlight.current = false;
+          scheduleProjectionSettlementRef.current();
+        });
+      return;
     }
+    editorSettled.current = true;
     writeEditorSettlementState();
     onSettlementChange?.(true);
     // Undo/redo availability is presentation state. Updating it once per
@@ -281,6 +306,10 @@ export function PageEditor({
         projectionTimer.current = setTimeout(inspect, EDITOR_PROJECTION_QUIET_MS);
         return;
       }
+      if (localBurstDrainInFlight.current) {
+        projectionTimer.current = setTimeout(inspect, EDITOR_PROJECTION_QUIET_MS);
+        return;
+      }
       projectionTimer.current = null;
       applyPendingRemoteProjection();
       setEditorError(null);
@@ -288,6 +317,7 @@ export function PageEditor({
     };
     projectionTimer.current = setTimeout(inspect, EDITOR_PROJECTION_QUIET_MS);
   }, [applyPendingRemoteProjection, markEditorSettled]);
+  scheduleProjectionSettlementRef.current = scheduleProjectionSettlement;
 
   useEffect(
     () => () => {
@@ -297,10 +327,19 @@ export function PageEditor({
   );
 
   const applyLocalChanges = useCallback(
-    async (changes: EditorBlocksChanged, document: readonly EditorBlock[]): Promise<void> => {
+    async (
+      changes: EditorBlocksChanged,
+      document: readonly EditorBlock[],
+      publishedOrigin: EditorChangeOrigin,
+    ): Promise<void> => {
       if (changes.length === 0) return;
       editorLocalChangeCount.current += 1;
-      if (!origin.acceptLocalChanges) {
+      // The origin must be the one captured synchronously by BlockNote's
+      // onChange callback. A remote projection can be queued behind a slow
+      // local IndexedDB commit; consulting the mutable guard here would then
+      // see `local` again and durably translate the remote echo as an owner
+      // deletion.
+      if (publishedOrigin !== "local") {
         editorSuppressedChangeCount.current += 1;
         writeEditorSettlementState();
         return;
@@ -308,8 +347,18 @@ export function PageEditor({
       markEditorActivity();
       let commands: readonly PageCommand[] = [];
       try {
+        const authoritativeDocument = canonicalDocumentToBlockNote(
+          engine.snapshot(),
+        ) as EditorBlock[];
         commands = commandsFromBlockNoteChanges({
-          changes,
+          // A pending remote projection means the operational authority has
+          // advanced beyond the still-visible BlockNote baseline. Rebasing
+          // against that newer authority would interpret absent remote text
+          // as an owner deletion. The reported before-state remains the safe
+          // coordinate system until the projection reaches the surface.
+          changes: remoteProjectionPending.current
+            ? changes
+            : rebaseBlockNoteChanges(changes, authoritativeDocument),
           document,
           tableIdForInternalBlock: (blockId) => engine.canonicalBlockIdForIdentity(blockId),
         });
@@ -365,7 +414,6 @@ export function PageEditor({
       engine,
       markEditorActivity,
       markEditorSettled,
-      origin,
       recoverVisibleProjection,
       scheduleProjectionSettlement,
       session,
@@ -380,9 +428,10 @@ export function PageEditor({
         batcher.push(
           getChanges() as unknown as EditorBlocksChanged,
           changedEditor.document as unknown as readonly EditorBlock[],
+          origin.origin,
         );
       }),
-    [batcher, editor],
+    [batcher, editor, origin],
   );
 
   // The session is also fed from outside this component: remote merges adopted

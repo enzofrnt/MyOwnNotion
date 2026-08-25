@@ -112,7 +112,8 @@ async function seedOwner(): Promise<void> {
   );
   await db.execute(sql`
     INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
-    VALUES (gen_random_uuid(), ${OWNER_ID}::uuid, 'rotation-binding', 'Laptop', 'active')
+    VALUES (gen_random_uuid(), ${OWNER_ID}::uuid,
+            'web-39a88270-225f-4ec4-9548-aebfa39fb55e', 'Laptop', 'active')
   `);
   const hashed = await hashPassword(PASSWORD);
   await db.execute(sql`
@@ -126,7 +127,14 @@ async function authenticate(): Promise<{ cookie: string; csrf: string }> {
   const response = await harness.built.app.inject({
     method: "POST",
     url: "/v1/auth/login/password",
-    payload: { password: PASSWORD },
+    payload: {
+      password: PASSWORD,
+      device: {
+        deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
+        name: "Laptop",
+        platform: "Test platform",
+      },
+    },
   });
   expect(response.statusCode, response.body).toBe(200);
   const header = response.headers["set-cookie"];

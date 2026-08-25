@@ -5,6 +5,7 @@ import {
   commandsFromBlockNoteChanges,
   EditorChangeBatcher,
   minimalTextReplacement,
+  rebaseBlockNoteChanges,
 } from "../src/features/editor/editor-adapter.ts";
 
 const BLOCK_ID = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056" as Uuid;
@@ -32,7 +33,67 @@ function heading(text: string): EditorBlock {
   } as EditorBlock;
 }
 
+function callout(text: string): EditorBlock {
+  return {
+    ...paragraph(text),
+    type: "callout",
+    props: { icon: "💡", tone: "yellow" },
+  } as EditorBlock;
+}
+
 describe("editor input boundaries", () => {
+  it("recovers a leading character omitted after a slash-menu transform", () => {
+    const durable = callout("");
+    const reportedBefore = callout("I");
+    const visible = callout("Information mise en évidence");
+    const changes = [
+      {
+        type: "update",
+        block: visible,
+        prevBlock: reportedBefore,
+        source: { type: "local" },
+      },
+    ] as EditorBlocksChanged;
+
+    const rebased = rebaseBlockNoteChanges(changes, [durable]);
+
+    expect(rebased[0]).toMatchObject({ prevBlock: durable, block: visible });
+    expect(commandsFromBlockNoteChanges({ changes: rebased, document: [visible] })).toEqual([
+      {
+        type: "replace-text",
+        blockId: BLOCK_ID,
+        from: 0,
+        to: 0,
+        text: "Information mise en évidence",
+      },
+    ]);
+  });
+
+  it("rebases consecutive updates on the result of the previous local change", () => {
+    const durable = callout("");
+    const first = callout("Info");
+    const final = callout("Information");
+    const changes = [
+      {
+        type: "update",
+        block: first,
+        prevBlock: callout("I"),
+        source: { type: "local" },
+      },
+      {
+        type: "update",
+        block: final,
+        prevBlock: first,
+        source: { type: "local" },
+      },
+    ] as EditorBlocksChanged;
+
+    const rebased = rebaseBlockNoteChanges(changes, [durable]);
+
+    expect(rebased[0]).toMatchObject({ prevBlock: durable, block: first });
+    expect(rebased[1]).toMatchObject({ prevBlock: first, block: final });
+  });
+
   it("never splits an emoji surrogate pair when computing a replacement", () => {
     expect(minimalTextReplacement("A 👋 B", "A 👋 joli B")).toEqual({
       from: 5,
@@ -126,6 +187,55 @@ describe("editor input boundaries", () => {
     expect(batches[1]).toEqual([
       expect.objectContaining({ type: "update", prevBlock: first, block: final }),
     ]);
+  });
+
+  it("preserves a remote origin while its editor echo waits behind a local commit", async () => {
+    const publications: Array<{ readonly text: string; readonly origin: string }> = [];
+    let releaseLocal: (() => void) | undefined;
+    const localCommit = new Promise<void>((resolve) => {
+      releaseLocal = resolve;
+    });
+    const batcher = new EditorChangeBatcher(async (batch, _document, origin) => {
+      const update = batch[0];
+      if (update?.type !== "update") throw new Error("expected an editor update");
+      publications.push({
+        text: (update.block.content[0] as { readonly text: string }).text,
+        origin,
+      });
+      if (publications.length === 1) await localCommit;
+    });
+    const local = paragraph("A — base");
+    const remote = paragraph("base — B");
+
+    batcher.push(
+      [
+        {
+          type: "update",
+          block: local,
+          prevBlock: paragraph("base"),
+          source: { type: "local" },
+        },
+      ] as EditorBlocksChanged,
+      [local],
+      "local",
+    );
+    batcher.push(
+      [
+        {
+          type: "update",
+          block: remote,
+          prevBlock: local,
+          source: { type: "local" },
+        },
+      ] as EditorBlocksChanged,
+      [remote],
+      "remote",
+    );
+
+    expect(publications).toEqual([{ text: "A — base", origin: "local" }]);
+    releaseLocal?.();
+    await vi.waitFor(() => expect(publications).toHaveLength(2));
+    expect(publications[1]).toEqual({ text: "base — B", origin: "remote" });
   });
 
   it("does not coalesce updates across a structural editor change", async () => {

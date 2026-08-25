@@ -104,13 +104,11 @@ test.describe("rich page composition", () => {
 
     // Reload only once every transaction is durable and accepted: the
     // assertions target the stored document, not a mid-flight draft.
-    const status = page.getByTestId("editor-sync-status");
-    if (await status.count()) {
-      await expect(status).toHaveAttribute("data-sync", "synced", { timeout: 30_000 });
-    } else {
-      await page.getByTestId("save-document").click();
-      await expect(page.getByTestId("document-saved")).toBeVisible({ timeout: 15_000 });
-    }
+    // The transport can still report the previous frontier as synchronized in
+    // the narrow task between BlockNote painting a key and the adapter making
+    // that gesture durable. Cross both boundaries before reloading: editor
+    // settlement first, then the server acknowledgement.
+    await saveDocument(page, { until: "synced" });
 
     // Reload: every block still carries its content.
     await page.reload();

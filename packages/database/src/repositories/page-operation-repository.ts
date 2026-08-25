@@ -8,7 +8,7 @@
  */
 
 import type { DeviceState, Uuid } from "@myownnotion/domain";
-import { and, asc, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import {
   authorizedDevices,
@@ -1021,7 +1021,6 @@ export async function hasPageAmbiguityDependencyThrough(
 
 export interface CompactPageOperationPayloadsResult {
   readonly compactedUpdates: number;
-  readonly removedEnvelopeIds: readonly Uuid[];
 }
 
 /**
@@ -1037,42 +1036,59 @@ export async function compactPageOperationPayloads(
     readonly compactedAt: Date;
   },
 ): Promise<CompactPageOperationPayloadsResult> {
-  const rows = await tx
-    .select({
-      id: pageOperationUpdates.id,
-      baseFrontierEnvelopeId: pageOperationUpdates.baseFrontierEnvelopeId,
-      updateEnvelopeId: pageOperationUpdates.updateEnvelopeId,
-    })
-    .from(pageOperationUpdates)
-    .where(
-      and(
-        eq(pageOperationUpdates.workspaceId, input.workspaceId),
-        eq(pageOperationUpdates.pageId, input.pageId),
-        eq(pageOperationUpdates.status, "accepted"),
-        lte(pageOperationUpdates.pageSequence, input.throughPageSequence),
-        isNull(pageOperationUpdates.compactedAt),
-      ),
+  // Keep all update and envelope identities inside PostgreSQL. Returning
+  // 10,000 update IDs to Node and sending 20,000 envelope IDs back as `IN`
+  // parameters made compaction depend heavily on runner and network speed.
+  const result = await tx.execute(sql`
+    WITH candidates AS MATERIALIZED (
+      SELECT id, base_frontier_envelope_id, update_envelope_id
+        FROM page_operation_updates
+       WHERE workspace_id = ${input.workspaceId}::uuid
+         AND page_id = ${input.pageId}::uuid
+         AND status = 'accepted'
+         AND page_sequence <= ${input.throughPageSequence}
+         AND compacted_at IS NULL
+       ORDER BY page_sequence
+       FOR UPDATE
+    ),
+    compacted AS (
+      UPDATE page_operation_updates AS updates
+         SET base_frontier_envelope_id = NULL,
+             update_envelope_id = NULL,
+             compacted_at = ${input.compactedAt}
+        FROM candidates
+       WHERE updates.id = candidates.id
+      RETURNING candidates.base_frontier_envelope_id,
+                candidates.update_envelope_id
+    ),
+    envelope_ids AS MATERIALIZED (
+      SELECT base_frontier_envelope_id AS id FROM compacted
+      UNION ALL
+      SELECT update_envelope_id AS id FROM compacted
+    ),
+    removed AS (
+      DELETE FROM protected_envelopes AS envelopes
+       USING envelope_ids
+       WHERE envelopes.id = envelope_ids.id
+      RETURNING envelopes.id
     )
-    .orderBy(asc(pageOperationUpdates.pageSequence));
-  if (rows.length === 0) return { compactedUpdates: 0, removedEnvelopeIds: [] };
-
-  const removedEnvelopeIds = rows.flatMap(({ baseFrontierEnvelopeId, updateEnvelopeId }) => {
-    if (baseFrontierEnvelopeId === null || updateEnvelopeId === null) {
-      throw new Error("an uncompacted page update has incomplete protected payloads");
-    }
-    return [baseFrontierEnvelopeId as Uuid, updateEnvelopeId as Uuid];
-  });
-  await tx
-    .update(pageOperationUpdates)
-    .set({ baseFrontierEnvelopeId: null, updateEnvelopeId: null, compactedAt: input.compactedAt })
-    .where(
-      inArray(
-        pageOperationUpdates.id,
-        rows.map(({ id }) => id),
-      ),
-    );
-  await tx.delete(protectedEnvelopes).where(inArray(protectedEnvelopes.id, removedEnvelopeIds));
-  return { compactedUpdates: rows.length, removedEnvelopeIds };
+    SELECT (SELECT count(*)::integer FROM compacted) AS compacted_updates,
+           (SELECT count(*)::integer FROM removed) AS removed_envelopes
+  `);
+  const row = result.rows[0] as
+    | { readonly compacted_updates: number | string; readonly removed_envelopes: number | string }
+    | undefined;
+  const compactedUpdates = Number(row?.compacted_updates ?? 0);
+  const removedEnvelopes = Number(row?.removed_envelopes ?? 0);
+  if (
+    !Number.isSafeInteger(compactedUpdates) ||
+    compactedUpdates < 0 ||
+    !Number.isSafeInteger(removedEnvelopes) ||
+    removedEnvelopes !== compactedUpdates * 2
+  ) {
+    throw new Error("page update compaction did not remove every redundant protected payload");
+  }
+  return { compactedUpdates };
 }
 
 export async function lockLegacyBranchConversion(

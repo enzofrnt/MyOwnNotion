@@ -71,6 +71,22 @@ for (const required of ["api", "web", "postgres"]) {
     failures.push(`compose.yaml must declare the \`${required}\` service`);
   }
 }
+const supportedServices = ["api", "migrate", "postgres", "web"];
+for (const [file, document] of [
+  ["compose.yaml", base],
+  ["compose.override.yaml", override],
+] as const) {
+  for (const [name, service] of Object.entries(document.services ?? {})) {
+    if (!supportedServices.includes(name)) {
+      failures.push(
+        `${file} service \`${name}\` is outside the supported app/database/migration topology`,
+      );
+    }
+    if (/draw\.?io|hocuspocus|y-websocket|collab/i.test(`${name} ${service.image ?? ""}`)) {
+      failures.push(`${file} must not add a Draw.io or collaboration sidecar (${name})`);
+    }
+  }
+}
 for (const required of ["postgres-data", "file-store"]) {
   if (base.volumes?.[required] === undefined) {
     failures.push(`compose.yaml must declare the durable \`${required}\` volume`);
@@ -241,6 +257,26 @@ if (overrideCookieException?.[1].trim() !== "1") {
   );
 }
 
+// 6. The only public application service must carry persistent page-sync
+// upgrades to the API. A plain HTTP proxy here makes the app appear healthy
+// while every browser quietly falls back to slower polling.
+const nginx = readFileSync(path.join(repoRoot, "docker/web-nginx.conf"), "utf8");
+for (const [label, pattern] of [
+  ["HTTP/1.1 upstream", /location\s+\/v1\/\s*\{[\s\S]*?proxy_http_version\s+1\.1;/],
+  ["Upgrade header", /location\s+\/v1\/\s*\{[\s\S]*?proxy_set_header\s+Upgrade\s+\$http_upgrade;/],
+  [
+    "Connection upgrade header",
+    /location\s+\/v1\/\s*\{[\s\S]*?proxy_set_header\s+Connection\s+\$connection_upgrade;/,
+  ],
+  ["unbuffered realtime response", /location\s+\/v1\/\s*\{[\s\S]*?proxy_buffering\s+off;/],
+] as const) {
+  if (!pattern.test(nginx)) failures.push(`docker/web-nginx.conf is missing ${label}`);
+}
+const realtimeTimeout = /location\s+\/v1\/\s*\{[\s\S]*?proxy_read_timeout\s+(\d+)s;/.exec(nginx);
+if (Number(realtimeTimeout?.[1] ?? 0) < 60) {
+  failures.push("docker/web-nginx.conf /v1/ proxy_read_timeout must be at least 60 seconds");
+}
+
 if (failures.length > 0) {
   console.error("Compose contract check failed:\n");
   for (const failure of failures) {
@@ -249,4 +285,6 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.info("Compose contract check passed (services, loopback ports, secrets, image pinning).");
+console.info(
+  "Compose contract check passed (services, loopback ports, secrets, images, realtime upgrade).",
+);

@@ -53,6 +53,7 @@ import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { SearchService } from "../search/search-service.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
+import { authorizeSynchronizationWrite } from "../security/synchronization-authorization.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 import type { CanonicalMaterializer } from "./canonical-materializer.ts";
 import type { PageHistoryService } from "./page-history-service.ts";
@@ -72,6 +73,10 @@ export interface PageOperationServiceDeps {
   readonly rotationPolicies: RotationPolicyService;
   readonly history?: Pick<PageHistoryService, "consolidateIfDue"> | undefined;
   readonly search?: SearchService | undefined;
+  /** Ephemeral wake-up emitted only after the page transaction committed. */
+  readonly onPageCommitted?:
+    | ((event: { readonly pageId: Uuid; readonly latestPageSequence: number }) => void)
+    | undefined;
   readonly now?: () => Date;
 }
 
@@ -455,11 +460,20 @@ export class PageOperationService {
   /** Shared locked loader for migration and later server-side maintenance. */
   async sync(input: {
     readonly pageId: Uuid;
+    readonly ownerId: string;
     readonly deviceId: Uuid;
     readonly request: ActivePageSyncRequestDto;
   }): Promise<ActivePageSyncResponseDto> {
     let committedSequence: number | undefined;
     const response = await runMutation(this.#deps.db, async (tx) => {
+      const authorization = await authorizeSynchronizationWrite(tx, input);
+      if (!authorization.allowed) {
+        throw new PageOperationServiceError(
+          "page-operations.device-revoked",
+          "This device is no longer authorized.",
+          403,
+        );
+      }
       await this.#deps.rotationPolicies.assertWritesAllowed(tx);
       try {
         await this.#deps.history?.consolidateIfDue(tx, input.pageId);
@@ -679,6 +693,17 @@ export class PageOperationService {
           projection,
         });
         fileRequirements = [...materialized.fileRequirements];
+      } else {
+        // A transfer can complete after the document update that referenced
+        // it. Polls must therefore re-evaluate bytes even when no new document
+        // operation was accepted; otherwise upload-required stays stuck until
+        // somebody edits the page again.
+        fileRequirements = [
+          ...(await this.#deps.materializer.refreshFileRequirements(tx, {
+            pageId: input.pageId,
+            projection,
+          })),
+        ];
       }
 
       const persistedVersionVector = decode(input.request.persistedVersionVector);
@@ -922,6 +947,17 @@ export class PageOperationService {
       };
     });
     announceCommitted(committedSequence);
+    if (committedSequence !== undefined) {
+      try {
+        this.#deps.onPageCommitted?.({
+          pageId: input.pageId,
+          latestPageSequence: response.latestPageSequence,
+        });
+      } catch {
+        // The transaction is already durable. A dead live listener is repaired
+        // by frontier catch-up and must never turn that commit into a failure.
+      }
+    }
     if (committedSequence !== undefined && this.#deps.search !== undefined) {
       try {
         await this.#deps.search.applyCommittedChanges([input.pageId], committedSequence);
@@ -956,7 +992,11 @@ export class PageOperationService {
       readonly commands: readonly import("@myownnotion/page-state").PageCommand[];
     },
     tx: Transaction,
-  ): Promise<{ revisionId: Uuid; committedSequence: number }> {
+  ): Promise<{
+    revisionId: Uuid;
+    committedSequence: number;
+    latestPageSequence: number;
+  }> {
     const loaded = await this.#load(tx, input.pageId);
     const document = loaded.document;
     // The resolution applies on top of the current merged state; its causal
@@ -994,7 +1034,7 @@ export class PageOperationService {
       "update",
       transaction.updateBytes,
     );
-    await appendAcceptedPageOperationUpdate(tx, {
+    const appended = await appendAcceptedPageOperationUpdate(tx, {
       updateId: input.mutationId,
       pageId: input.pageId,
       workspaceId: this.#deps.workspaceId,
@@ -1059,7 +1099,11 @@ export class PageOperationService {
       revisionIds: [revisionId],
       changedItemIds: [input.pageId],
     });
-    return { revisionId, committedSequence };
+    return {
+      revisionId,
+      committedSequence,
+      latestPageSequence: appended.state.lastUpdateSequence,
+    };
   }
 
   /**

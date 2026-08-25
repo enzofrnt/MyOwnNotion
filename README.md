@@ -9,12 +9,13 @@ Le dépôt est préparé avec GitHub Spec Kit pour OpenAI Codex et Cursor. Les d
 
 ## État du développement
 
-Mise à jour du 20 août 2026 :
+Mise à jour du 25 août 2026 :
 
 | Grande étape | Fait | Reste à faire (RAF) |
 | --- | --- | --- |
 | Fondations fonctionnelles — features 001 à 008 | Implémentées et fusionnées dans `main` : sécurité mono-utilisateur, pages et dossiers, éditeur par blocs, fichiers, offline, synchronisation, sauvegarde/restauration et recherche. | Exécuter les trois protocoles humains/opérationnels encore ouverts dans la feature 002 et terminer la convergence d'interface 017 avant de déclarer la release V1 formellement validée. |
-| Convergence V1 proche de Notion — feature 017 | Périmètre produit spécifié : shell, navigation, éditeur et système visuel commun, avec autosauvegarde et synchronisation convergente du corps des pages entre appareils hors ligne. | Planifier puis livrer l'interface qualitative, les interactions d'édition contextuelles, les blocs riches, la convergence par texte/blocs stables, la migration sûre, l'accessibilité, le français, la restauration du scroll et le cas clavier WebKit. |
+| Convergence V1 proche de Notion — feature 017 | Fondations BlockNote Community/Loro, shell focalisé, autosauvegarde locale, modèle opérationnel, convergence et séparation des réglages déjà livrés. Le durcissement du transport est transféré à la 018. | Reprendre après la 018 : navigation et arborescence plus fluides, interactions d'édition avancées, cohérence visuelle de toutes les surfaces, accessibilité clavier/toucher/WebKit, français et références visuelles. |
+| Synchronisation temps réel durable — feature 018 | Canal WebSocket same-origin avec ACK après commit, reprise hors ligne/crash, convergence des pages fermées, auto-réparation des anciens conflits, révocation immédiate, fichiers vérifiés, identité distincte par profil et passkey complète sont implémentés. La matrice complète cinq navigateurs, le parcours HTTPS jetable à deux appareils et le gate local complet sont validés. | Ouvrir la PR, obtenir la CI distante verte puis fusionner ; aucune nouvelle UI fonctionnelle ne s'intercale avant cette validation. |
 | Bases structurées et tâches — feature 009 | Implémentation terminée, convergée et validée par le gate local complet ; [pull request #125](https://github.com/enzofrnt/MyOwnNotion/pull/125) ouverte. | Obtenir un gate CI distant vert, faire relire puis fusionner la pull request dans `main`. |
 | Graphe de connaissances — feature 010 | Direction et dépendances définies dans la roadmap. | Spécifier, planifier et implémenter la navigation par graphe après la 009 et la convergence V1 017. |
 | Tableaux blancs — feature 011 | Périmètre produit ordonné après le graphe. | Spécifier, planifier et implémenter les canvas sans dupliquer les données canoniques. |

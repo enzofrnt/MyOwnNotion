@@ -4,6 +4,7 @@ import type { PageCommand } from "@myownnotion/page-state";
 import { stableMoveChanges } from "./block-drag-drop.ts";
 import { blockNoteBlockToCanonical, blockNoteInlineToCanonical } from "./blocknote-conversion.ts";
 import type { EditorBlock, EditorBlocksChanged } from "./blocknote-schema.ts";
+import type { EditorChangeOrigin } from "./editor-remote-apply.ts";
 
 export interface TextReplacement {
   readonly from: number;
@@ -595,9 +596,66 @@ export function commandsFromBlockNoteChanges(input: {
   return commands;
 }
 
+function indexEditorSubtree(index: Map<string, EditorBlock>, block: EditorBlock): void {
+  index.set(block.id, block);
+  if (!Array.isArray(block.children)) return;
+  for (const child of block.children as EditorBlock[]) indexEditorSubtree(index, child);
+}
+
+function removeEditorSubtree(index: Map<string, EditorBlock>, block: EditorBlock): void {
+  index.delete(block.id);
+  if (!Array.isArray(block.children)) return;
+  for (const child of block.children as EditorBlock[]) removeEditorSubtree(index, child);
+}
+
+/**
+ * Reanchors BlockNote's incremental before-states to the operational authority.
+ *
+ * BlockNote can coalesce a fast input immediately after a slash transform and
+ * report `I -> Information` without ever publishing the leading `I` as its own
+ * change. The browser projection is truthful, but applying that delta to an
+ * authority that still holds an empty callout would durably lose the first
+ * character. Replaying each notification from the engine snapshot catches the
+ * omitted prefix while preserving the order of multiple changes in one batch.
+ */
+export function rebaseBlockNoteChanges(
+  changes: EditorBlocksChanged,
+  authoritativeDocument: readonly EditorBlock[],
+): EditorBlocksChanged {
+  const authority = new Map<string, EditorBlock>();
+  for (const block of authoritativeDocument) indexEditorSubtree(authority, block);
+
+  return changes.map((change) => {
+    switch (change.type) {
+      case "insert":
+        indexEditorSubtree(authority, change.block);
+        return change;
+      case "update": {
+        const previous = authority.get(change.block.id) ?? change.prevBlock;
+        const current = authority.get(change.block.id);
+        if (current !== undefined) removeEditorSubtree(authority, current);
+        indexEditorSubtree(authority, change.block);
+        return { ...change, prevBlock: previous };
+      }
+      case "delete": {
+        const current = authority.get(change.block.id) ?? change.block;
+        removeEditorSubtree(authority, current);
+        return change;
+      }
+      case "move":
+        // A move changes placement only. Keep the authority's content as the
+        // baseline for any update that follows it in the same notification.
+        return change;
+    }
+    const exhaustive: never = change;
+    return exhaustive;
+  });
+}
+
 type EditorChangePublisher = (
   changes: EditorBlocksChanged,
   document: readonly EditorBlock[],
+  origin: EditorChangeOrigin,
 ) => void | Promise<void>;
 
 function descendantIdentityShape(block: EditorBlock): readonly unknown[] {
@@ -692,6 +750,7 @@ function editorTransactions(changes: EditorBlocksChanged): EditorBlocksChanged[]
 
 interface PendingEditorChanges {
   readonly type: "changes";
+  readonly origin: EditorChangeOrigin;
   changes: EditorBlocksChanged;
   document: readonly EditorBlock[] | null;
 }
@@ -723,20 +782,29 @@ export class EditorChangeBatcher {
   beginComposition(): void {
     if (this.#composing) return;
     this.#composing = true;
-    const work: PendingEditorChanges = { type: "changes", changes: [], document: null };
+    const work: PendingEditorChanges = {
+      type: "changes",
+      origin: "local",
+      changes: [],
+      document: null,
+    };
     this.#compositionWork = work;
     this.#pending.push(work);
     void this.#drain();
   }
 
-  push(changes: EditorBlocksChanged, document: readonly EditorBlock[]): void {
+  push(
+    changes: EditorBlocksChanged,
+    document: readonly EditorBlock[],
+    origin: EditorChangeOrigin = "local",
+  ): void {
     if (changes.length === 0) return;
-    if (this.#composing && this.#compositionWork !== null) {
+    if (this.#composing && this.#compositionWork !== null && origin === "local") {
       this.#compositionWork.changes = [...this.#compositionWork.changes, ...changes];
       this.#compositionWork.document = [...document];
       return;
     }
-    this.#enqueueChanges(changes, document);
+    this.#enqueueChanges(changes, document, origin);
     void this.#drain();
   }
 
@@ -768,7 +836,11 @@ export class EditorChangeBatcher {
     return action();
   }
 
-  #enqueueChanges(changes: EditorBlocksChanged, document: readonly EditorBlock[]): void {
+  #enqueueChanges(
+    changes: EditorBlocksChanged,
+    document: readonly EditorBlock[],
+    origin: EditorChangeOrigin,
+  ): void {
     const previous = this.#pending.at(-1);
     const previousTail = previous?.changes.at(-1);
     const incomingHead = changes[0];
@@ -783,6 +855,7 @@ export class EditorChangeBatcher {
     const canExtendPendingTextBurst =
       previous !== undefined &&
       previous !== this.#compositionWork &&
+      previous.origin === origin &&
       previous.changes.every(isCoalescibleTextUpdate) &&
       (changes.every(isCoalescibleTextUpdate) || canJoinFollowingUpdateGesture);
     if (canExtendPendingTextBurst) {
@@ -790,7 +863,12 @@ export class EditorChangeBatcher {
       previous.document = [...document];
       return;
     }
-    this.#pending.push({ type: "changes", changes: [...changes], document: [...document] });
+    this.#pending.push({
+      type: "changes",
+      origin,
+      changes: [...changes],
+      document: [...document],
+    });
   }
 
   #whenIdle(): Promise<void> {
@@ -820,7 +898,7 @@ export class EditorChangeBatcher {
             throw new Error("editor change batch lost its document projection");
           }
           for (const transaction of editorTransactions(pending.changes)) {
-            await this.#publish(transaction, pending.document);
+            await this.#publish(transaction, pending.document, pending.origin);
           }
         }
       }

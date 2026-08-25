@@ -24,6 +24,7 @@ import {
   renameDevice,
   requireDeviceReauthorization,
   revokeDevice,
+  runSecurityTransaction,
   setLocalStorageLimit,
   type Transaction,
 } from "@myownnotion/database";
@@ -157,11 +158,16 @@ export class DeviceService {
    * next request rather than at the next key rotation.
    */
   async revoke(input: { ownerId: string; deviceId: string }, tx?: Transaction): Promise<DeviceDto> {
-    const device = await revokeDevice(this.#executor(tx), {
-      ...input,
-      now: this.#deps.now(),
-    });
-    return toDeviceDto(device);
+    const revoke = async (executor: Transaction): Promise<DeviceDto> =>
+      toDeviceDto(
+        await revokeDevice(executor, {
+          ...input,
+          now: this.#deps.now(),
+        }),
+      );
+    return tx === undefined
+      ? await runSecurityTransaction(this.#deps.db, revoke, { isolation: "read committed" })
+      : await revoke(tx);
   }
 
   /** Requires the device to prove itself again, without cutting it off. */
@@ -169,7 +175,12 @@ export class DeviceService {
     input: { ownerId: string; deviceId: string },
     tx?: Transaction,
   ): Promise<DeviceDto> {
-    const device = await requireDeviceReauthorization(this.#executor(tx), input);
-    return toDeviceDto(device);
+    const requireAgain = async (executor: Transaction): Promise<DeviceDto> =>
+      toDeviceDto(await requireDeviceReauthorization(executor, input));
+    return tx === undefined
+      ? await runSecurityTransaction(this.#deps.db, requireAgain, {
+          isolation: "read committed",
+        })
+      : await requireAgain(tx);
   }
 }

@@ -34,7 +34,7 @@ const INSTALLATION_ID = "018f2b7c-0000-7000-8000-000000000001";
 const OWNER_ID = "018f2b7c-0000-7000-8000-0000000001a2";
 const DEVICE_ID = "018f2b7c-0000-7000-8000-0000000001a3";
 const DEVICE_NAME = "Kitchen laptop";
-const DEVICE_BINDING = "binding-secret-do-not-leak";
+const DEVICE_BINDING = "web-39a88270-225f-4ec4-9548-aebfa39fb55e";
 const PASSWORD = "correct horse battery staple";
 const COOKIE = "mn_dev_session";
 
@@ -100,7 +100,14 @@ async function signIn(): Promise<Signed> {
   const response = await harness.built.app.inject({
     method: "POST",
     url: "/v1/auth/login/password",
-    payload: { password: PASSWORD },
+    payload: {
+      password: PASSWORD,
+      device: {
+        deviceBindingId: DEVICE_BINDING,
+        name: DEVICE_NAME,
+        platform: "macOS",
+      },
+    },
   });
   expect(response.statusCode, response.body).toBe(200);
   const header = response.headers["set-cookie"];

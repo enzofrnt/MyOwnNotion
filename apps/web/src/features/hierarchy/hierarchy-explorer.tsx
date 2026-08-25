@@ -62,6 +62,7 @@ import {
 import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
+import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
 import { PageHeader } from "../workspace/page-header.tsx";
 import { useActiveItem } from "../workspace/use-active-item.ts";
 import { WorkspaceShell } from "../workspace/workspace-shell.tsx";
@@ -212,6 +213,7 @@ export function HierarchyExplorer({
     content.configurePageOperationAuthorization(pageOperationCsrfToken);
     return content;
   }, [pageOperationCsrfToken]);
+  useRealtimeSync(service);
   const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const [items, setItems] = useState<ProjectedItem[]>([]);

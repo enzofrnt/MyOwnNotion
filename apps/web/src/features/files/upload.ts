@@ -35,13 +35,18 @@ export interface UploadHandle {
 /** Creates the upload, or reports the refusal without touching the draft. */
 export async function createUpload(
   file: File,
+  fileItemId?: string,
 ): Promise<{ ok: true; handle: UploadHandle } | { ok: false; state: TransferState }> {
   const response = await fetch("/v1/uploads", {
     method: "POST",
     credentials: "same-origin",
     headers: {
       "upload-length": String(file.size),
-      "upload-metadata": encodeMetadata({ filename: file.name, mediaType: file.type }),
+      "upload-metadata": encodeMetadata({
+        filename: file.name,
+        mediaType: file.type,
+        ...(fileItemId === undefined ? {} : { itemId: fileItemId }),
+      }),
     },
   });
 
@@ -68,6 +73,15 @@ export async function createUpload(
   }
 
   const body = (await response.json()) as { id: string };
+  if (fileItemId !== undefined && body.id !== fileItemId) {
+    return {
+      ok: false,
+      state: {
+        kind: "blocked",
+        reason: "The server did not preserve this file's document identity.",
+      },
+    };
+  }
   return {
     ok: true,
     handle: {
@@ -92,6 +106,37 @@ export async function serverOffset(handle: UploadHandle): Promise<number | null>
   return Number.isFinite(offset) ? offset : null;
 }
 
+/** Proves a final response was lost after the server already committed the file. */
+async function verifiedFileExists(itemId: string): Promise<boolean> {
+  const response = await fetch(`/v1/items/${encodeURIComponent(itemId)}`, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) return false;
+  const item = (await response.json().catch(() => null)) as {
+    id?: unknown;
+    kind?: unknown;
+  } | null;
+  return item?.id === itemId && item.kind === "file";
+}
+
+async function synchronizedAfterCommit(itemId: string): Promise<TransferState | null> {
+  return (await verifiedFileExists(itemId)) ? { kind: "synchronized", itemId } : null;
+}
+
+async function readVerifiedCompletion(
+  response: Response,
+  uploadId: string,
+): Promise<TransferState | null> {
+  if (response.status !== 201) return null;
+  const completed = (await response.json().catch(() => null)) as {
+    itemId?: unknown;
+    verified?: unknown;
+  } | null;
+  return completed?.verified === true && completed.itemId === uploadId
+    ? { kind: "synchronized", itemId: uploadId }
+    : null;
+}
+
 /**
  * Sends the rest of a file, resuming from wherever the server is.
  *
@@ -105,12 +150,57 @@ export async function sendRemaining(
 ): Promise<TransferState> {
   const startingAt = await serverOffset(handle);
   if (startingAt === null) {
+    const committed = await synchronizedAfterCommit(handle.uploadId);
+    if (committed !== null) {
+      onProgress(committed);
+      return committed;
+    }
     return {
       kind: "blocked",
       reason: "This transfer expired. Starting it again will send the file from the beginning.",
     };
   }
   let offset: number = startingAt;
+  if (offset > file.size) {
+    return {
+      kind: "blocked",
+      reason: "The server holds more bytes than this local file. The transfer was stopped safely.",
+    };
+  }
+
+  // A zero-byte file, or bytes committed just before a failed finalization,
+  // needs one empty PATCH so the server can atomically create and verify the
+  // logical file. Offset === size alone is not proof of completion.
+  if (offset === file.size) {
+    onProgress({ kind: "verifying" });
+    const response = await fetch(handle.location, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/offset+octet-stream",
+        "upload-offset": String(offset),
+      },
+      body: file.slice(offset, offset),
+    });
+    const completed = await readVerifiedCompletion(response, handle.uploadId);
+    if (completed !== null) {
+      onProgress(completed);
+      return completed;
+    }
+    if (response.status === 404) {
+      const committed = await synchronizedAfterCommit(handle.uploadId);
+      if (committed !== null) {
+        onProgress(committed);
+        return committed;
+      }
+    }
+    return response.ok
+      ? { kind: "verifying" }
+      : {
+          kind: "blocked",
+          reason: "This transfer stopped while the server verified it. It is safe to retry.",
+        };
+  }
 
   while (offset < file.size) {
     onProgress({ kind: "uploading", sent: offset, total: file.size });
@@ -150,6 +240,18 @@ export async function sendRemaining(
         kind: "blocked",
         reason: "This transfer stopped. It will continue from where it got to when you retry.",
       };
+    }
+
+    if (response.status === 201) {
+      const completed = await readVerifiedCompletion(response, handle.uploadId);
+      if (completed === null) {
+        return {
+          kind: "blocked",
+          reason: "The server could not prove the identity of the verified file.",
+        };
+      }
+      onProgress(completed);
+      return completed;
     }
 
     const next = Number(response.headers.get("upload-offset"));

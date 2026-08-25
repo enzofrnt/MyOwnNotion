@@ -19,8 +19,10 @@ import {
   AuditEventSchema,
   BOOTSTRAP_CAPABILITY_HEADER,
   BootstrapConfirmationResultSchema,
+  BootstrapOfflineConfirmationSchema,
   BootstrapProgressSchema,
   BootstrapStartedSchema,
+  BrowserDeviceClaimSchema,
   CSRF_TOKEN_HEADER,
   DeviceSchema,
   InitializedInstallationStatusSchema,
@@ -204,6 +206,19 @@ describe("bootstrap", () => {
 
   it("requires an explicit offline confirmation", () => {
     expect(schema("OfflineConfirmation").properties?.["storedOffline"]?.const).toBe(true);
+    expect(schema("BootstrapOfflineConfirmation").required?.sort()).toEqual([
+      "device",
+      "storedOffline",
+    ]);
+    expect(typeboxRequired(BootstrapOfflineConfirmationSchema)).toEqual([
+      "device",
+      "storedOffline",
+    ]);
+    expect(typeboxRequired(BrowserDeviceClaimSchema)).toEqual([
+      "deviceBindingId",
+      "name",
+      "platform",
+    ]);
   });
 
   it("lets only a fully promoted bootstrap produce a confirmation result", () => {

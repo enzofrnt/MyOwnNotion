@@ -16,6 +16,15 @@ restauration de scroll et le cas clavier WebKit encore ouverts dans la feature
 plusieurs appareils hors ligne, puis retrouver automatiquement un contenu
 convergent sans remplacement du document entier ni perte silencieuse."
 
+> **Répartition active (2026-08-25)** — La feature
+> [018](../018-durable-realtime-sync/spec.md) spécialise et remplace la mise en
+> œuvre du transport éditorial temps réel, de la reprise des profils hérités,
+> des limites de session, de la révocation active, du statut fichier et de la
+> continuité après restauration. Les exigences produit de convergence restent
+> valides ici ; leur preuve technique vit désormais dans la 018. Une fois cette
+> fondation validée, la 017 reprend à US7/US6 et aux tâches UI/éditeur encore
+> ouvertes, sans reconstruire un second transport.
+
 ## Product Direction, Dependencies, and Scope
 
 Cette feature concrétise les sections 3, 6.1, 7, 9 à 21, 28 à 32 et 42 à 47 du

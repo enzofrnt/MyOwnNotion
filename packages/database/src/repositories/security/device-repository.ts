@@ -64,6 +64,11 @@ export interface AuthorizedDevice {
   readonly revokedAt: Date | null;
 }
 
+export interface AuthenticationDeviceClaim {
+  readonly device: AuthorizedDevice;
+  readonly disposition: "created" | "existing" | "reauthorized";
+}
+
 export class DeviceRepositoryError extends Error {
   readonly code: string;
 
@@ -129,6 +134,130 @@ export async function findDevice(
   return row === undefined ? null : toDevice(row);
 }
 
+async function findDeviceForUpdate(
+  executor: Executor,
+  input: { ownerId: string; deviceId: string },
+): Promise<AuthorizedDevice | null> {
+  const rows = await executor
+    .select()
+    .from(authorizedDevices)
+    .where(
+      and(eq(authorizedDevices.id, input.deviceId), eq(authorizedDevices.ownerId, input.ownerId)),
+    )
+    .for("update")
+    .limit(1);
+  const row = rows[0];
+  return row === undefined ? null : toDevice(row);
+}
+
+async function findDeviceByBindingForUpdate(
+  executor: Executor,
+  input: { ownerId: string; deviceBindingId: string },
+): Promise<AuthorizedDevice | null> {
+  const rows = await executor
+    .select()
+    .from(authorizedDevices)
+    .where(
+      and(
+        eq(authorizedDevices.ownerId, input.ownerId),
+        eq(authorizedDevices.deviceBindingId, input.deviceBindingId),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  const row = rows[0];
+  return row === undefined ? null : toDevice(row);
+}
+
+/**
+ * Resolves the exact browser binding after an owner credential was verified.
+ *
+ * The proposed UUID is used only for a genuinely new binding. An existing row
+ * always wins, a reauthorization request is completed by this fresh proof,
+ * and revocation is terminal. In particular, this function never chooses some
+ * other active device merely because it belongs to the same owner.
+ */
+export async function claimDeviceForAuthentication(
+  executor: Executor,
+  input: {
+    ownerId: string;
+    proposedDeviceId: string;
+    deviceBindingId: string;
+    name: string;
+    platform: string;
+    now: Date;
+  },
+): Promise<AuthenticationDeviceClaim> {
+  const resolveExisting = async (
+    existing: AuthorizedDevice,
+  ): Promise<AuthenticationDeviceClaim> => {
+    if (existing.state === "revoked") {
+      throw new DeviceRepositoryError("device_revoked", "this device has been revoked");
+    }
+    if (existing.state === "active") {
+      return { device: existing, disposition: "existing" };
+    }
+    requireTransition(existing.state, "active");
+    const rows = await executor
+      .update(authorizedDevices)
+      .set({ state: "active", revokedAt: null })
+      .where(eq(authorizedDevices.id, existing.id))
+      .returning();
+    return {
+      device: toDevice(rows[0] as typeof authorizedDevices.$inferSelect),
+      disposition: "reauthorized",
+    };
+  };
+
+  const existing = await findDeviceByBindingForUpdate(executor, input);
+  if (existing !== null) return await resolveExisting(existing);
+
+  const rows = await executor
+    .insert(authorizedDevices)
+    .values({
+      id: input.proposedDeviceId,
+      ownerId: input.ownerId,
+      deviceBindingId: input.deviceBindingId,
+      name: input.name,
+      platform: input.platform,
+      clientType: "web",
+      state: "active",
+      authorizedAt: input.now,
+      lastActivityAt: null,
+      lastSyncAt: null,
+    })
+    .onConflictDoNothing({
+      target: [authorizedDevices.ownerId, authorizedDevices.deviceBindingId],
+    })
+    .returning();
+  const inserted = rows[0];
+  if (inserted !== undefined) {
+    return { device: toDevice(inserted), disposition: "created" };
+  }
+
+  // A concurrent login inserted the same profile binding. Resolve that row
+  // under the same rules rather than manufacturing a second identity.
+  const raced = await findDeviceByBindingForUpdate(executor, input);
+  if (raced === null) {
+    throw new DeviceRepositoryError(
+      "device_not_found",
+      "concurrent device authorization did not leave a resolvable row",
+    );
+  }
+  return await resolveExisting(raced);
+}
+
+/**
+ * Serializes page writes with revocation on the same durable device row.
+ * Callers must keep this lock until their synchronization transaction commits.
+ */
+export async function lockDeviceForSynchronization(
+  tx: Transaction,
+  input: { ownerId: string; deviceId: string },
+): Promise<AuthorizedDevice | null> {
+  return await findDeviceForUpdate(tx, input);
+}
+
 /**
  * Loads a device that must be operable, or refuses.
  *
@@ -139,8 +268,11 @@ export async function findDevice(
 async function requireOperable(
   executor: Executor,
   input: { ownerId: string; deviceId: string },
+  lock = false,
 ): Promise<AuthorizedDevice> {
-  const device = await findDevice(executor, input);
+  const device = lock
+    ? await findDeviceForUpdate(executor, input)
+    : await findDevice(executor, input);
   if (device === null) {
     throw new DeviceRepositoryError("device_not_found", "no such device for this owner");
   }
@@ -216,7 +348,7 @@ export async function revokeDevice(
   executor: Executor,
   input: { ownerId: string; deviceId: string; now: Date },
 ): Promise<AuthorizedDevice> {
-  const current = await requireOperable(executor, input);
+  const current = await requireOperable(executor, input, true);
   requireTransition(current.state, "revoked");
   const rows = await executor
     .update(authorizedDevices)
@@ -236,7 +368,7 @@ export async function requireDeviceReauthorization(
   executor: Executor,
   input: { ownerId: string; deviceId: string },
 ): Promise<AuthorizedDevice> {
-  const current = await requireOperable(executor, input);
+  const current = await requireOperable(executor, input, true);
   requireTransition(current.state, "reauthorization-required");
   const rows = await executor
     .update(authorizedDevices)

@@ -29,6 +29,7 @@ import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
 import { resolveProtectedContent } from "../security/content-resolution.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
+import { authorizeSynchronizationWrite } from "../security/synchronization-authorization.ts";
 import type { PageOperationCrypto } from "./page-operation-crypto.ts";
 import { PageOperationServiceError } from "./page-operation-errors.ts";
 
@@ -70,6 +71,8 @@ export class PageActivationService {
 
   async activate(input: {
     readonly pageId: Uuid;
+    readonly ownerId: string;
+    readonly deviceId: Uuid;
     readonly requestId: Uuid;
     readonly expectedRevisionId: Uuid;
     readonly expectedCanonicalDigest: string;
@@ -83,6 +86,14 @@ export class PageActivationService {
     for (let attempt = 0; ; attempt += 1) {
       try {
         await runMutation(this.#deps.db, async (tx) => {
+          const authorization = await authorizeSynchronizationWrite(tx, input);
+          if (!authorization.allowed) {
+            throw new PageOperationServiceError(
+              "page-operations.device-revoked",
+              "This device is no longer authorized.",
+              403,
+            );
+          }
           await this.#deps.rotationPolicies.assertWritesAllowed(tx);
           const existing = await readPageOperationState(tx, this.#deps.workspaceId, input.pageId);
           if (existing?.status === "active") return;
@@ -219,6 +230,8 @@ export class PageActivationService {
    */
   async activateCurrent(input: {
     readonly pageId: Uuid;
+    readonly ownerId: string;
+    readonly deviceId: Uuid;
     readonly requestId: Uuid;
     readonly maxRemoteBytes?: number;
   }): Promise<PageCheckpointResponseDto> {
@@ -242,6 +255,8 @@ export class PageActivationService {
       try {
         return await this.activate({
           pageId: input.pageId,
+          ownerId: input.ownerId,
+          deviceId: input.deviceId,
           requestId: input.requestId,
           expectedRevisionId: current.revisionId,
           expectedCanonicalDigest: current.canonicalDigest,

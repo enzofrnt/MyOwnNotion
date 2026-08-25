@@ -47,6 +47,23 @@ async function attachAuthenticator(page: Page): Promise<CDPSession> {
   return client;
 }
 
+async function signOut(page: Page): Promise<void> {
+  const csrfToken = await page.evaluate(async () => {
+    const response = await fetch("/v1/auth/session", { credentials: "same-origin" });
+    if (!response.ok) throw new Error(`session request failed: ${response.status}`);
+    return ((await response.json()) as { csrfToken: string }).csrfToken;
+  });
+  await page.evaluate(async (csrf) => {
+    const response = await fetch("/v1/auth/session", {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: { "x-csrf-token": csrf },
+    });
+    if (!response.ok) throw new Error(`sign-out failed: ${response.status}`);
+  }, csrfToken);
+  await page.reload();
+}
+
 test.describe("the first-run gate", () => {
   test("an installation with no owner shows setup, not the workspace", async ({ page }) => {
     await page.goto("/");
@@ -122,6 +139,35 @@ test.describe("the full ceremony", () => {
       timeout: 30_000,
     });
     expect(await readCommittedCounts()).toEqual({ ownerCount: 1, workspaceCount: 1 });
+  });
+
+  test("the bootstrap passkey signs the same browser back into its own device", async ({
+    page,
+  }) => {
+    await attachAuthenticator(page);
+    await page.goto("/");
+    await page.getByTestId("begin-setup").click();
+    await expect(page.getByTestId("recovery-kit-id")).toBeVisible({ timeout: 30_000 });
+    const download = page.waitForEvent("download");
+    await page.getByTestId("download-recovery-kit").click();
+    await download;
+    await page.getByTestId("acknowledge-offline-storage").check();
+    await page.getByTestId("confirm-offline-storage").click();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+    const bootstrapDeviceId = await page.evaluate(async () => {
+      const response = await fetch("/v1/auth/session", { credentials: "same-origin" });
+      return ((await response.json()) as { session: { deviceId: string } }).session.deviceId;
+    });
+
+    await signOut(page);
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("sign-in-passkey").click();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
+    const loginDeviceId = await page.evaluate(async () => {
+      const response = await fetch("/v1/auth/session", { credentials: "same-origin" });
+      return ((await response.json()) as { session: { deviceId: string } }).session.deviceId;
+    });
+    expect(loginDeviceId).toBe(bootstrapDeviceId);
   });
 
   test("confirmation stays refused until the kit has actually been downloaded", async ({

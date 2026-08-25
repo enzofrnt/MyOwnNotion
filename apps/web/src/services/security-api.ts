@@ -24,6 +24,7 @@ import {
   type BootstrapConfirmationResultDto,
   type BootstrapProgressDto,
   type BootstrapStartedDto,
+  type BrowserDeviceClaimDto,
   CSRF_TOKEN_HEADER,
   type DeviceDto,
   type InstallationStatusDto,
@@ -32,6 +33,7 @@ import {
   type SecurityProblemDto,
   type SessionViewDto,
 } from "@myownnotion/contracts";
+import { browserDeviceIdentity } from "../features/auth/browser-device-identity.ts";
 
 /**
  * A refusal the page can render.
@@ -131,6 +133,7 @@ export function newClientNonce(): string {
 
 export class SecurityApi {
   readonly #baseUrl: string;
+  readonly #deviceIdentity: () => BrowserDeviceClaimDto;
 
   /**
    * Memory only, and deliberately not React state: a re-render must not be
@@ -138,8 +141,12 @@ export class SecurityApi {
    */
   #capability: string | null = null;
 
-  constructor(baseUrl: string = import.meta.env["VITE_API_URL"] ?? "") {
+  constructor(
+    baseUrl: string = import.meta.env["VITE_API_URL"] ?? "",
+    deviceIdentity: () => BrowserDeviceClaimDto = () => browserDeviceIdentity.getOrCreate(),
+  ) {
     this.#baseUrl = baseUrl.replace(/\/$/, "");
+    this.#deviceIdentity = deviceIdentity;
   }
 
   /** True once an attempt is in flight on this page. */
@@ -297,7 +304,7 @@ export class SecurityApi {
       `/v1/bootstrap/${attemptId}/recovery/confirm`,
       {
         method: "POST",
-        body: JSON.stringify({ storedOffline: true }),
+        body: JSON.stringify({ storedOffline: true, device: this.#deviceIdentity() }),
         // The one bootstrap call that accepts a cookie: the server signs the
         // new owner in here, and with `omit` the browser would discard the
         // `Set-Cookie` and send the owner straight to a sign-in screen they
@@ -368,7 +375,10 @@ export class SecurityApi {
   async loginWithPassword(password: string): Promise<SecurityResult<AuthenticatedSessionDto>> {
     const result = await this.#authenticatedJson<AuthenticatedSessionDto>(
       "/v1/auth/login/password",
-      { method: "POST", body: JSON.stringify({ password }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ password, device: this.#deviceIdentity() }),
+      },
     );
     if (result.ok) {
       this.#csrfToken = result.value.csrfToken;
@@ -386,7 +396,10 @@ export class SecurityApi {
   async loginWithPasskey(credential: unknown): Promise<SecurityResult<AuthenticatedSessionDto>> {
     const result = await this.#authenticatedJson<AuthenticatedSessionDto>(
       "/v1/auth/login/passkey",
-      { method: "POST", body: JSON.stringify(credential) },
+      {
+        method: "POST",
+        body: JSON.stringify({ credential, device: this.#deviceIdentity() }),
+      },
     );
     if (result.ok) {
       this.#csrfToken = result.value.csrfToken;

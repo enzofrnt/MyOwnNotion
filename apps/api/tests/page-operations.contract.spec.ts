@@ -90,7 +90,8 @@ beforeEach(async () => {
   `);
   await harness.built.database.db.execute(sql`
     INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
-    VALUES (${DEVICE_ID}::uuid, ${OWNER_ID}::uuid, 'page-operation-device', 'Laptop', 'active')
+    VALUES (${DEVICE_ID}::uuid, ${OWNER_ID}::uuid,
+            'web-39a88270-225f-4ec4-9548-aebfa39fb55e', 'Laptop', 'active')
   `);
   const password = await hashPassword(PASSWORD);
   await harness.built.database.db.execute(sql`
@@ -111,7 +112,14 @@ async function authenticate(): Promise<Record<string, string>> {
     method: "POST",
     url: "/v1/auth/login/password",
     headers: currentProtocolHeaders(),
-    payload: { password: PASSWORD },
+    payload: {
+      password: PASSWORD,
+      device: {
+        deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
+        name: "Laptop",
+        platform: "Test platform",
+      },
+    },
   });
   expect(response.statusCode, response.body).toBe(200);
   return {

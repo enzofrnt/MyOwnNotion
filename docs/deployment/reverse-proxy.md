@@ -53,6 +53,7 @@ request really did arrive over loopback.
 | Set `X-Forwarded-Proto` and `X-Forwarded-For` | How the API learns the request was HTTPS |
 | Have its address in `MYOWNNOTION_TRUSTED_PROXY_CIDRS` | Forwarded headers from untrusted sources are ignored, and rightly so — anyone can send them |
 | Use a real hostname, not an IP | Passkeys need a registrable domain; `localhost` works, `127.0.0.1` does not |
+| Preserve WebSocket upgrades on `/v1/` with a timeout of at least 60 seconds | Page synchronization uses a persistent same-origin channel with a 20-second heartbeat |
 
 Set `MYOWNNOTION_PUBLIC_ORIGIN` to the public origin **exactly**, including the
 port if it is not 443. A mismatch between it and what the browser sends
@@ -104,12 +105,22 @@ server {
 	# taken, and the owner sees a proxy error page instead of an explanation.
 	client_max_body_size 100m;
 
+	# nginx does not forward WebSocket upgrade headers unless they are explicit.
+	# Seventy-five seconds leaves room for the app's 20-second heartbeat and
+	# 60-second liveness timeout without retaining dead connections forever.
+	proxy_read_timeout 75s;
+	proxy_send_timeout 75s;
+
 	location / {
 		proxy_pass http://127.0.0.1:5173;
+		proxy_http_version 1.1;
 		proxy_set_header Host              $host;
 		proxy_set_header X-Real-IP         $remote_addr;
 		proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
 		proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_set_header Upgrade           $http_upgrade;
+		proxy_set_header Connection        "upgrade";
+		proxy_buffering off;
 	}
 }
 
@@ -136,6 +147,24 @@ services:
 
 Traefik sets the forwarded headers by default. Its container address goes in
 `MYOWNNOTION_TRUSTED_PROXY_CIDRS`.
+
+## Diagnosing a realtime connection
+
+Open the browser developer tools, select **Network**, then filter for
+`/v1/page-sync/socket`. A healthy connection starts with **101 Switching
+Protocols** and remains open while the workspace is visible.
+
+- `403` means the browser origin does not exactly match
+  `MYOWNNOTION_PUBLIC_ORIGIN`, or the proxy rewrote `Host`/scheme incorrectly.
+- `401` means the secure session cookie did not reach the same origin.
+- A connection that closes after roughly one minute usually means an upstream
+  proxy has a timeout below 60 seconds or did not forward the heartbeat frames.
+- A normal `200` response instead of `101 Switching Protocols` means the
+  `Upgrade` and `Connection` headers were not preserved.
+
+Do not add a Yjs, Hocuspocus, Draw.io, or other collaboration sidecar to repair
+these symptoms. The API owns the durable page protocol; the proxy only carries
+its WebSocket connection.
 
 ## Choosing an image, and going back
 

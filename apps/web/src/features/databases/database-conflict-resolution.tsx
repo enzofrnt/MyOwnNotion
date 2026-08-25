@@ -377,7 +377,7 @@ export function DatabaseConflictResolution({
     Array<ConflictRecordRow & { readonly structured: StructuredConflictContext }>
   >([]);
   const refresh = useCallback(async () => {
-    const conflicts = await service.outbox.conflicts();
+    const conflicts = await service.outbox.activeConflicts();
     setRows(
       conflicts.filter(
         (row): row is ConflictRecordRow & { readonly structured: StructuredConflictContext } => {

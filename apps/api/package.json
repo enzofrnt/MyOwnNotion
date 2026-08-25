@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@fastify/multipart": "^9.4.0",
+    "@fastify/websocket": "^11.3.0",
     "@myownnotion/blob-store": "workspace:*",
     "@myownnotion/contracts": "workspace:*",
     "@myownnotion/database": "workspace:*",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@myownnotion/test-utils": "workspace:*",
+    "@types/ws": "^8.18.1",
     "esbuild": "^0.27.3",
     "tsx": "^4.20.1",
     "typescript": "^5.9.3",

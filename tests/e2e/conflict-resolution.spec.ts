@@ -3,13 +3,14 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
+  editorChangeSequence,
   openSecondDevice,
   openWorkspace,
   saveDocument,
   selectItem,
   typeIntoEditor,
   uniqueName,
-  waitForEditor,
+  waitForEditorSettled,
   waitForSynchronized,
 } from "./helpers.ts";
 
@@ -27,11 +28,14 @@ async function appendInPlace(
   text: string,
   options: { readonly until?: "durable" | "synced" } = {},
 ): Promise<void> {
-  await waitForEditor(page);
+  await waitForEditorSettled(page);
+  const beforeSequence = await editorChangeSequence(page);
   const surface = page.getByTestId("block-editor").locator(".ProseMirror");
   await surface.click();
   await page.keyboard.press("ControlOrMeta+End");
   await surface.pressSequentially(text);
+  await waitForEditorSettled(page, { afterSequence: beforeSequence });
+  await expect(surface).toContainText(text);
   await saveDocument(page, options);
 }
 
@@ -39,6 +43,17 @@ async function visibleDocumentText(page: Page): Promise<string> {
   return ((await page.getByTestId("block-editor").locator(".ProseMirror").innerText()) ?? "")
     .replace(/\s+/gu, " ")
     .trim();
+}
+
+async function setDeviceOffline(page: Page, offline: boolean): Promise<void> {
+  await page.context().setOffline(offline);
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(!offline);
+  if (await page.getByTestId("editor-sync-status").count()) {
+    await expect(page.getByTestId("editor-sync-status")).toHaveAttribute(
+      "data-sync",
+      offline ? "offline" : /^(?:pending|sending|synced)$/u,
+    );
+  }
 }
 
 test.describe("a device that is merely behind (FR-011)", () => {
@@ -53,7 +68,8 @@ test.describe("a device that is merely behind (FR-011)", () => {
       // The second device loads the page and then stops hearing anything.
       await openWorkspace(second.page);
       await selectItem(second.page, name);
-      await second.page.route("**/v1/**", (route) => route.abort("connectionrefused"));
+      await saveDocument(second.page, { until: "synced" });
+      await setDeviceOffline(second.page, true);
 
       // Only the first device writes. The second one is behind and has changed
       // nothing, which is not a divergence by any definition.
@@ -62,7 +78,7 @@ test.describe("a device that is merely behind (FR-011)", () => {
       await saveDocument(page, { until: "synced" });
       await waitForSynchronized(page);
 
-      await second.page.unroute("**/v1/**");
+      await setDeviceOffline(second.page, false);
       await second.page.reload();
       await expect(second.page.getByTestId("workspace-shell")).toBeVisible();
       await selectItem(second.page, name);
@@ -100,10 +116,11 @@ test.describe("concurrent edits to the same paragraph (US3)", () => {
       // Both devices hold the same starting point.
       await openWorkspace(second.page);
       await selectItem(second.page, name);
+      await saveDocument(second.page, { until: "synced" });
 
       // The second device is cut off, then both devices edit the same paragraph
       // from the same causal frontier.
-      await second.page.route("**/v1/**", (route) => route.abort("connectionrefused"));
+      await setDeviceOffline(second.page, true);
       await appendInPlace(second.page, " — and what the second device added");
 
       await appendInPlace(page, " — and what the first device added", { until: "synced" });
@@ -111,7 +128,7 @@ test.describe("concurrent edits to the same paragraph (US3)", () => {
 
       // Reconnection imports operations instead of replacing either complete
       // document. Both independent insertions must survive without a question.
-      await second.page.unroute("**/v1/**");
+      await setDeviceOffline(second.page, false);
       await second.page.reload();
       await openWorkspace(second.page);
       await selectItem(second.page, name);

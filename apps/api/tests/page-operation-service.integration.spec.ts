@@ -314,6 +314,50 @@ describe("operational page materialization", () => {
       SELECT count(*)::int AS count FROM file_usages WHERE used_by_item_id = ${source.itemId}::uuid
     `);
     expect((usages as unknown as { rows: Array<{ count: number }> }).rows[0]?.count).toBe(0);
+
+    const upload = await harness.api.built.app.inject({
+      method: "POST",
+      url: "/v1/uploads",
+      headers: {
+        ...headers,
+        "upload-length": "4",
+        "upload-metadata": [
+          `filename ${Buffer.from("embedded.txt").toString("base64")}`,
+          `mediaType ${Buffer.from("text/plain").toString("base64")}`,
+          `itemId ${Buffer.from(missingFileId).toString("base64")}`,
+        ].join(","),
+      },
+    });
+    expect(upload.statusCode, upload.body).toBe(201);
+    const completed = await harness.api.built.app.inject({
+      method: "PATCH",
+      url: upload.headers["location"] as string,
+      headers: {
+        ...headers,
+        "content-type": "application/offset+octet-stream",
+        "upload-offset": "0",
+      },
+      payload: Buffer.from("safe"),
+    });
+    expect(completed.statusCode, completed.body).toBe(201);
+    expect(completed.json()).toEqual({ itemId: missingFileId, verified: true });
+
+    const confirmed = await sync(source.itemId, headers, {
+      persistedVersionVector: transaction.resultVersionVector,
+      knownServerPageSequence: 1,
+      updates: [],
+    });
+    expect(confirmed.statusCode, confirmed.body).toBe(200);
+    expect(confirmed.json().fileRequirements).toContainEqual({
+      fileId: missingFileId,
+      state: "present",
+    });
+    const refreshedUsages = await harness.api.built.database.db.execute(sql`
+      SELECT count(*)::int AS count FROM file_usages WHERE used_by_item_id = ${source.itemId}::uuid
+    `);
+    expect((refreshedUsages as unknown as { rows: Array<{ count: number }> }).rows[0]?.count).toBe(
+      1,
+    );
   });
 
   it("rolls a whole request back when a later update fails integrity", async () => {

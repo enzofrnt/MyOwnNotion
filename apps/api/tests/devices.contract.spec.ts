@@ -85,7 +85,8 @@ async function seedOwner(): Promise<void> {
   );
   await db.execute(sql`
     INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, platform, state)
-    VALUES (${DEVICE_ID}::uuid, ${OWNER_ID}::uuid, 'binding-1', 'Laptop', 'macOS', 'active'),
+    VALUES (${DEVICE_ID}::uuid, ${OWNER_ID}::uuid,
+              'web-39a88270-225f-4ec4-9548-aebfa39fb55e', 'Laptop', 'macOS', 'active'),
            (${OTHER_DEVICE_ID}::uuid, ${OWNER_ID}::uuid, 'binding-2', 'Phone', NULL, 'active')
   `);
   const hashed = await hashPassword(PASSWORD);
@@ -106,7 +107,14 @@ async function authenticate(): Promise<{ cookie: string; csrf: string }> {
   const response = await harness.built.app.inject({
     method: "POST",
     url: "/v1/auth/login/password",
-    payload: { password: PASSWORD },
+    payload: {
+      password: PASSWORD,
+      device: {
+        deviceBindingId: "web-39a88270-225f-4ec4-9548-aebfa39fb55e",
+        name: "Laptop",
+        platform: "macOS",
+      },
+    },
   });
   expect(response.statusCode, response.body).toBe(200);
   return { cookie: cookieFrom(response), csrf: response.json().csrfToken as string };

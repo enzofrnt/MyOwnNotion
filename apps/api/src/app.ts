@@ -8,7 +8,9 @@
 
 import { randomUUID } from "node:crypto";
 import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
 import { ContentStore, FilesystemBlobStore, PartialUploadStore } from "@myownnotion/blob-store";
+import { MAX_REALTIME_PAGE_SYNC_MESSAGE_BYTES } from "@myownnotion/contracts";
 import {
   createDatabase,
   createInstallation,
@@ -42,6 +44,9 @@ import { PageOperationService } from "./page-state/page-operation-service.ts";
 import { registerErrorHandling } from "./plugins/errors.ts";
 import { registerLogging } from "./plugins/logging.ts";
 import { registerProtocolAnnouncement } from "./plugins/protocol.ts";
+import { PageAdvanceNotifier } from "./realtime/page-advance-notifier.ts";
+import { PageSyncHub } from "./realtime/page-sync-hub.ts";
+import { RealtimePageSyncObservability } from "./realtime/page-sync-observability.ts";
 import { registerAuthenticationRoutes } from "./routes/authentication.ts";
 import { registerBackupRoutes } from "./routes/backups.ts";
 import { registerBootstrapRoutes } from "./routes/bootstrap.ts";
@@ -57,6 +62,7 @@ import { registerItemRoutes } from "./routes/items.ts";
 import { registerMutationBatchRoutes } from "./routes/mutation-batch.ts";
 import { registerPageDocumentRoutes } from "./routes/page-documents.ts";
 import { registerPageOperationRoutes } from "./routes/page-operations.ts";
+import { registerPageSyncSocketRoutes } from "./routes/page-sync-socket.ts";
 import { registerPlacementRoutes } from "./routes/placements.ts";
 import { registerRelationshipRoutes } from "./routes/relationships.ts";
 import { registerRevisionRoutes } from "./routes/revisions.ts";
@@ -271,6 +277,11 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   const app = Fastify({
     logger: options.logger === false ? false : registerLogging(),
     bodyLimit: 64 * 1024 * 1024,
+  });
+  // Must precede every route so upgrade requests are intercepted by Fastify's
+  // normal authentication hooks rather than falling through as plain HTTP.
+  await app.register(websocket, {
+    options: { maxPayload: MAX_REALTIME_PAGE_SYNC_MESSAGE_BYTES },
   });
   await app.register(multipart, {
     limits: { fileSize: 256 * 1024 * 1024, files: 1 },
@@ -568,12 +579,25 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       require: requireOwner,
     });
 
+    const pageAdvances = new PageAdvanceNotifier();
+    const pageSyncHub = new PageSyncHub();
+    const pageSyncObservability = new RealtimePageSyncObservability(app.log);
+    const unsubscribePageAdvances = pageAdvances.subscribe((event) => pageSyncHub.publish(event));
+    app.addHook("onClose", async () => {
+      unsubscribePageAdvances();
+      pageSyncHub.close();
+      pageAdvances.clear();
+    });
+
     devices = new DeviceService({ db: database.db, now });
     registerDeviceRoutes(app, {
       devices,
       audit,
       installationId: INSTALLATION_ID,
       require: requireOwner,
+      onDeviceRevoked: ({ ownerId, deviceId }) => {
+        pageSyncHub.closeDevice(ownerId, deviceId, 4403, "device-revoked");
+      },
     });
 
     pageOperationCrypto = new PageOperationCrypto(protectedRecords);
@@ -609,6 +633,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       rotationPolicies,
       history: pageHistory,
       search,
+      onPageCommitted: (event) => pageAdvances.publish(event),
       now,
     });
     pageCheckpoints = new PageCheckpointService({
@@ -632,6 +657,20 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       operations: pageOperations,
       materializer: canonicalMaterializer,
       rotationPolicies,
+      onPageCommitted: (event) => pageAdvances.publish(event),
+      now,
+    });
+    const legacyBranches = new LegacyBranchService({
+      db: database.db,
+      workspaceId: workspace.id,
+      crypto: pageOperationCrypto,
+      protectedContent,
+      materializer: canonicalMaterializer,
+      activation: pageActivation,
+      operations: pageOperations,
+      rotationPolicies,
+      search,
+      onPageCommitted: (event) => pageAdvances.publish(event),
       now,
     });
     registerPageOperationRoutes(app, {
@@ -640,18 +679,18 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       activation: pageActivation,
       operations: pageOperations,
       ambiguities: pageAmbiguities,
-      legacy: new LegacyBranchService({
-        db: database.db,
-        workspaceId: workspace.id,
-        crypto: pageOperationCrypto,
-        protectedContent,
-        materializer: canonicalMaterializer,
-        activation: pageActivation,
-        operations: pageOperations,
-        rotationPolicies,
-        search,
-        now,
-      }),
+      legacy: legacyBranches,
+    });
+    registerPageSyncSocketRoutes(app, {
+      db: database.db,
+      config: securityConfig,
+      deploymentKey,
+      require: requireOwner,
+      activation: pageActivation,
+      operations: pageOperations,
+      legacy: legacyBranches,
+      hub: pageSyncHub,
+      observability: pageSyncObservability,
     });
 
     const bootstrap = new BootstrapService({
