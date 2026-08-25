@@ -691,3 +691,35 @@ Résultat : code de sortie 0 sur la totalité de la porte obligatoire.
 Le commit ci-dessus est la preuve immuable de l'arbre exécutable proposé. Le
 présent ajout est exclusivement documentaire et ne modifie aucun consommateur
 exécutable.
+
+## Livraison finale sur `main`
+
+Date : 2026-08-25
+
+La PR [#141](https://github.com/enzofrnt/MyOwnNotion/pull/141) a été validée
+sur son head `b8afc2377c6c687db6e31b1a49b09a5cc290ed34` par le run CI
+[`32898638601`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/32898638601) :
+23 contrôles réussis, aucun échec, dont les cinq profils Playwright, la
+performance de référence, les builds multi-architecture et le scan des
+conteneurs. Aucun gate n'a été désactivé pour obtenir ce résultat.
+La branche ne requérait aucune approbation GitHub supplémentaire ; la fusion a
+été explicitement autorisée par le propriétaire après revue du résultat.
+
+La PR a ensuite été fusionnée en squash sur `main` au commit
+`b0e16ad52974650061ac75ca34afaaab71805394`. Le run complet de `main`
+[`32900890334`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/32900890334)
+a réussi ses 24 jobs, sans échec, sur le commit fusionné. Il comprend le corpus
+complet de tests, les cinq matrices navigateur, le gate qualité et la
+publication des images immuables suivantes pour `linux/amd64` et
+`linux/arm64` :
+
+- `ghcr.io/enzofrnt/myownnotion-api:sha-b0e16ad52974650061ac75ca34afaaab71805394`
+  — digest
+  `sha256:82470bc313f520afd319616c3f1c289690d6ccda4e16d24c403b9d1d001b8e45` ;
+- `ghcr.io/enzofrnt/myownnotion-web:sha-b0e16ad52974650061ac75ca34afaaab71805394`
+  — digest
+  `sha256:9e1f2df35c76f65ebb897356d4c34890d9ab531a01f83e5865a8fea49117aa50`.
+
+Ces preuves ferment T102 et T103. La feature 018 ne conserve plus de tâche
+ouverte ; toute évolution ultérieure relève d'une nouvelle feature ou d'une
+maintenance explicitement spécifiée.

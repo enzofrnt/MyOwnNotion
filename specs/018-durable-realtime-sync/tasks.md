@@ -255,8 +255,8 @@ gates de livraison avant la PR.
 - [x] T099 Exécuter intégralement `quickstart.md`, dont proxy HTTPS local jetable, deux profils et deux `deviceId` réels, puis compléter `specs/018-durable-realtime-sync/validation.md`
 - [x] T100 Exécuter `$speckit-converge`, ajouter toute preuve manquante à `specs/018-durable-realtime-sync/tasks.md` et fermer chaque tâche ajoutée
 - [x] T101 Exécuter `pnpm checks:local` selon `docs/development.md` et enregistrer le commit exact et le résultat dans `specs/018-durable-realtime-sync/validation.md`
-- [ ] T102 Pousser `codex/018-durable-realtime-sync`, ouvrir la PR et vérifier que chaque gate requise s'exécute sur le merge commit proposé
-- [ ] T103 Corriger tout échec de CI sans désactiver de gate, obtenir la revue, fusionner la PR verte et vérifier la CI complète ainsi que les images commit-addressable de `main`
+- [x] T102 Pousser `codex/018-durable-realtime-sync`, ouvrir la PR et vérifier que chaque gate requise s'exécute sur le merge commit proposé
+- [x] T103 Corriger tout échec de CI sans désactiver de gate, obtenir la revue, fusionner la PR verte et vérifier la CI complète ainsi que les images commit-addressable de `main`
 
 ---
 
