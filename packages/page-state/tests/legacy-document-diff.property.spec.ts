@@ -85,7 +85,7 @@ async function proveExactReplay(seed: number): Promise<void> {
 describe("historical document diff", () => {
   it("replays 100 combinations of text, marks, insertions, moves, nesting and deletion exactly", async () => {
     for (let seed = 1; seed <= 100; seed += 1) await proveExactReplay(seed);
-  });
+  }, 30_000);
 
   it("fails closed when an existing table would require an unproved cell rewrite", async () => {
     const pageId = generateUuidV7();

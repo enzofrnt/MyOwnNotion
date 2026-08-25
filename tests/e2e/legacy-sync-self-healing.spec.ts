@@ -15,12 +15,21 @@ test("five retained page conflicts self-heal while persistent storage remains a 
   request,
 }) => {
   await context.addInitScript(() => {
-    if (navigator.storage === undefined) return;
-    Object.defineProperty(navigator.storage, "persisted", {
+    // Playwright's Linux WebKit mobile profile omits StorageManager entirely.
+    // Install the missing surface so every browser actually exercises the
+    // specified "permission denied" state instead of silently testing unknown.
+    const storage = navigator.storage ?? {};
+    if (navigator.storage === undefined) {
+      Object.defineProperty(navigator, "storage", {
+        configurable: true,
+        value: storage,
+      });
+    }
+    Object.defineProperty(storage, "persisted", {
       configurable: true,
       value: async () => false,
     });
-    Object.defineProperty(navigator.storage, "persist", {
+    Object.defineProperty(storage, "persist", {
       configurable: true,
       value: async () => false,
     });
