@@ -9,7 +9,9 @@ import {
   openLocalDatabase,
   PageReconciler,
   type PageSyncTransport,
+  pageSynchronizationResource,
   selectPageUpdateBatch,
+  withLocalDatabaseLock,
 } from "@myownnotion/client-core";
 import type { ActivePageSyncRequestDto, ActivePageSyncResponseDto } from "@myownnotion/contracts";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
@@ -141,11 +143,86 @@ describe("page update batching", () => {
 });
 
 describe("PageReconciler", () => {
+  it("refreshes its open session after another tab committed the durable frontier", async () => {
+    const { pageId, blockId, page } = fixture();
+    const committed = await commitEdit(page, blockId, " shared", 1);
+    const transport: PageSyncTransport = {
+      async sync(_pageId, request) {
+        if (request.mode !== "active") throw new Error("expected active sync");
+        return {
+          ok: true,
+          value: activeResponse(request, pageId, {
+            accepted: request.updates.map(({ updateId }) => ({
+              updateId,
+              pageSequence: 1,
+              resultVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            })),
+            serverVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            latestPageSequence: 1,
+            canonical: {
+              format: "myownnotion.document+json",
+              formatVersion: 3,
+              digest: committed.state.projection?.canonicalDigest ?? "",
+              lastConsolidatedRevisionId: null,
+              hasUnconsolidatedChanges: true,
+            },
+          }),
+        };
+      },
+      async convertLegacyBranch() {
+        throw new Error("unexpected legacy branch conversion");
+      },
+    };
+    const owner = new PageReconciler({ pageId, log, transport });
+    const follower = new PageReconciler({ pageId, log, transport });
+    const observedRecordVersions: number[] = [];
+    follower.subscribeDurablePage((state) => {
+      observedRecordVersions.push(state.recordVersion);
+    });
+    await vi.waitFor(() => expect(observedRecordVersions).toHaveLength(1));
+
+    await expect(owner.synchronize()).resolves.toMatchObject({ kind: "synced" });
+    await expect(follower.synchronize()).resolves.toMatchObject({ kind: "synced" });
+
+    expect(observedRecordVersions).toHaveLength(2);
+    expect(observedRecordVersions[1]).toBeGreaterThan(observedRecordVersions[0] ?? 0);
+  });
+
   it("waits for another same-page exchange without polling or stealing its claim", async () => {
     const { pageId, blockId, page } = fixture();
     const committed = await commitEdit(page, blockId, " local", 1);
-    await log.transitionUpdate(committed.update.updateId, "sending");
-    const sync = vi.fn<PageSyncTransport["sync"]>();
+    const ownerEntered = deferred();
+    const releaseOwner = deferred();
+    const owner = withLocalDatabaseLock(log.db, pageSynchronizationResource(pageId), async () => {
+      await log.transitionUpdate(committed.update.updateId, "sending");
+      ownerEntered.resolve();
+      await releaseOwner.promise;
+    });
+    await ownerEntered.promise;
+    const sync = vi.fn<PageSyncTransport["sync"]>(async (_pageId, request) => {
+      if (request.mode !== "active") throw new Error("expected active sync");
+      return {
+        ok: true,
+        value: activeResponse(request, pageId, {
+          accepted: [
+            {
+              updateId: committed.update.updateId,
+              pageSequence: 1,
+              resultVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            },
+          ],
+          serverVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+          latestPageSequence: 1,
+          canonical: {
+            format: "myownnotion.document+json",
+            formatVersion: 3,
+            digest: committed.state.projection?.canonicalDigest ?? "",
+            lastConsolidatedRevisionId: null,
+            hasUnconsolidatedChanges: true,
+          },
+        }),
+      };
+    });
     const reconciler = new PageReconciler({
       pageId,
       log,
@@ -157,13 +234,58 @@ describe("PageReconciler", () => {
       },
     });
 
-    await expect(reconciler.synchronize()).resolves.toMatchObject({
-      kind: "pending",
-      exchanges: 0,
-      problemCode: "page-operations.update-in-flight",
-    });
+    const follower = reconciler.synchronize();
+    await Promise.resolve();
     expect(sync).not.toHaveBeenCalled();
     expect((await log.getUpdate(committed.update.updateId))?.status).toBe("sending");
+    releaseOwner.resolve();
+    await owner;
+    await expect(follower).resolves.toMatchObject({ kind: "synced", exchanges: 1 });
+    expect(sync).toHaveBeenCalledOnce();
+    expect(await log.getUpdate(committed.update.updateId)).toBeNull();
+  });
+
+  it("reclaims an interrupted sending claim after acquiring the page owner", async () => {
+    const { pageId, blockId, page } = fixture();
+    const committed = await commitEdit(page, blockId, " recovered", 1);
+    await log.transitionUpdate(committed.update.updateId, "sending");
+    const sentIds: Uuid[][] = [];
+    const transport: PageSyncTransport = {
+      async sync(_pageId, request) {
+        if (request.mode !== "active") throw new Error("expected active sync");
+        sentIds.push(request.updates.map(({ updateId }) => updateId as Uuid));
+        return {
+          ok: true,
+          value: activeResponse(request, pageId, {
+            accepted: [
+              {
+                updateId: committed.update.updateId,
+                pageSequence: 1,
+                resultVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+              },
+            ],
+            serverVersionVector: encodePageOperationBytes(committed.update.resultVersionVector),
+            latestPageSequence: 1,
+            canonical: {
+              format: "myownnotion.document+json",
+              formatVersion: 3,
+              digest: committed.state.projection?.canonicalDigest ?? "",
+              lastConsolidatedRevisionId: null,
+              hasUnconsolidatedChanges: true,
+            },
+          }),
+        };
+      },
+      async convertLegacyBranch() {
+        throw new Error("unexpected legacy branch conversion");
+      },
+    };
+
+    await expect(
+      new PageReconciler({ pageId, log, transport }).synchronize(),
+    ).resolves.toMatchObject({ kind: "synced" });
+    expect(sentIds).toEqual([[committed.update.updateId]]);
+    expect(await log.getUpdate(committed.update.updateId)).toBeNull();
   });
 
   it("never recovers another page's genuinely in-flight update", async () => {

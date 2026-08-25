@@ -32,6 +32,9 @@ Les scénarios centraux du quickstart sont verts :
 - une page active modifiée hors ligne reste découvrable après fermeture du
   navigateur ; au redémarrage sur une autre page, sa file chiffrée est drainée
   sans rouvrir l'éditeur et le statut global reste honnête jusqu'à l'acquittement.
+- deux onglets d'une même origine voient leurs commits durables sans rechargement,
+  convergent après des éditions simultanées du même paragraphe et reprennent le
+  même lot idempotent si l'onglet propriétaire ferme pendant son envoi.
 
 ## Commandes et résultats
 
@@ -55,6 +58,9 @@ Les scénarios centraux du quickstart sont verts :
 | Convergence générée | `pnpm exec vitest run --project page-state tests/checkpoints.property.spec.ts tests/multi-device-convergence.property.spec.ts` | 2 fichiers, 23 tests passés, dont 10 rejeux de rollover et 1 000 suites ; seed par défaut `170191` |
 | Routage local des pages fermées | `pnpm exec vitest run --project client-core packages/client-core/tests/page-operation-schema.spec.ts packages/client-core/tests/page-operation-encryption.spec.ts` | 2 fichiers, 9 tests passés ; migration v7 vers v8, contenu chiffré préservé, identités dédupliquées sans ouverture des enveloppes |
 | Ordonnancement au démarrage | `pnpm exec vitest run --project web apps/web/tests/synchronize-serialization.spec.ts` | 1 fichier, 10 tests passés ; reprise sans éditeur, attente du drain coalescé, statut global honnête et plafond de 4 échanges de pages |
+| Coordination inter-contexte | matrice Vitest ciblée `cross-context-coordinator`, `page-operation-atomicity`, `page-editing-session`, `page-reconciler.property` et `page-tab-channel` | 5 fichiers, 54 tests passés ; deux handles Dexie, verrou exclusif, même paragraphe, propriétaire interrompu, adoption durable et absence de vol d'un envoi vivant |
+| Service web inter-onglets | matrice Vitest ciblée `operational-page-opening` et `synchronize-serialization` | 2 fichiers, 19 tests passés ; canal réel partagé, notification après commit, session ouverte rafraîchie et drainage coalescé |
+| Deux onglets et propriétaire interrompu | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-multi-tab-convergence.spec.ts` | 1 scénario × 5 profils, 5/5 passés en 35 s ; convergence sans rechargement, fermeture pendant `sending`, reprise automatique du même ID et aucune mutation `page.document.replace` |
 | Redémarrage sur une autre page | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/page-multi-device-convergence.spec.ts --grep "a restarted device drains a closed page without reopening it"` | 5 profils passés ; fermeture hors ligne, nouveau contexte navigateur, aucune réouverture du document modifié |
 | Longue absence | `pnpm exec vitest run --project api-contract tests/page-operation-long-absence.integration.spec.ts` | 1 scénario passé : 90 jours, 10 000 updates distantes puis 1 locale, durée 150,55 s |
 | Performance de synchronisation | `pnpm exec vitest run --project performance tests/performance/page-operations.perf.spec.ts` | 10 000 updates puis 1 locale : ingestion 15,27 s, catch-up 15,20 s en 157 échanges, compaction 11,88 s, pic de heap 99,0 MiB |
@@ -389,6 +395,54 @@ Les preuves ciblées exécutées sont :
 | Typage et statique | typecheck client-core et contrôle Biome des deux sources modifiées | passés |
 | Runner Firefox Linux | journey `workspace-shell.spec.ts` ciblé avec `--repeat-each=20` dans l'image Playwright CI et une base jetable migrée | 20/20 passages en 1 min 54, sans retry |
 | Références Chromium Linux | `workspace-shell-visual.spec.ts` dans l'image Playwright CI et une base jetable migrée | 4/4 références workspace/réglages, clair/sombre |
+
+## Coordination réelle de plusieurs onglets
+
+Les files JavaScript historiques étaient seulement partagées par les appels
+ayant importé la même instance de module. Deux onglets, deux workers ou deux
+handles Dexie pouvaient donc chacun croire posséder la page. Plus grave, le
+reset général des lignes `sending` au démarrage permettait à un nouvel onglet de
+préempter un envoi encore vivant. Ce comportement expliquait à la fois les
+requêtes vides, les statuts bloqués et les reprises qui ressemblaient à un
+remplacement manuel plutôt qu'à une synchronisation.
+
+Les propriétés critiques sont maintenant détenues par des Web Locks de même
+origine. Seul l'onglet qui vient d'acquérir la ressource récupère les envois
+interrompus de sa file ; la fermeture du propriétaire libère automatiquement le
+lock, puis le successeur reprend le même `updateId`. Un `BroadcastChannel`
+signale les commits locaux, mais le destinataire ne fait confiance qu'à la ligne
+chiffrée partagée dans IndexedDB ou à un état durable qui domine déjà sa version
+vector. Le message n'est jamais importé comme contenu faisant autorité.
+
+Le journey a révélé deux dernières courses d'interface. Après le commit serveur
+par l'onglet propriétaire, l'autre onglet conservait « synchronisation… » parce
+qu'une confirmation vide ne rafraîchissait pas sa session ouverte. Le
+reconciler republie désormais seulement une observation durable matériellement
+différente. Ensuite, une insertion distante entre deux événements d'une même
+rafale de frappe pouvait décaler les offsets encore calculés contre l'ancien
+texte visible. La session diffère cette adoption jusqu'à la fin de la rafale,
+tout en committant chaque touche immédiatement, puis importe la frontier durable
+complète. Une régression Chromium a ensuite exposé la variante où l'adoption
+était déjà en file au démarrage de `beforeinput`. La garde est donc réévaluée à
+l'exécution et après la reconstruction asynchrone, juste avant l'import dans la
+réplique visible.
+
+Les cinq profils prouvent désormais le même parcours : édition hors ligne dans
+un onglet visible dans l'autre sans rechargement, modifications simultanées du
+même paragraphe, reconnexion, fermeture du propriétaire pendant `sending`,
+reprise automatique et convergence du texte, des identités et des statuts sans
+aucun `page.document.replace`.
+
+Les preuves exécutées pour fermer cette tranche sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Coordination déterministe | `pnpm exec vitest run --project client-core packages/client-core/tests/cross-context-coordinator.spec.ts packages/client-core/tests/page-operation-atomicity.spec.ts packages/client-core/tests/page-reconciler.property.spec.ts packages/client-core/tests/page-tab-channel.spec.ts packages/client-core/tests/page-editing-session.spec.ts` | 5 fichiers, 54 tests passés ; exclusion mutuelle, reprise du même ID et convergence de deux handles indépendants |
+| Régression adoption déjà en file | `pnpm exec vitest run --project client-core packages/client-core/tests/page-editing-session.spec.ts` | 1 fichier, 13 tests passés ; la rafale conserve ses offsets puis adopte la frontier durable complète |
+| Intégration web | `pnpm exec vitest run --project web apps/web/tests/operational-page-opening.spec.ts apps/web/tests/synchronize-serialization.spec.ts` | 2 fichiers, 19 tests passés ; canal réel, adoption vérifiée et sérialisation du transport |
+| Journey multi-onglets | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/page-multi-tab-convergence.spec.ts` | 5/5 profils passés en 35 s ; offline, même paragraphe, crash pendant `sending`, reprise et convergence sans remplacement complet |
+| Journey riche ciblé | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/rich-page.spec.ts` puis `--repeat-each=5` | 5/5 profils puis 25/25 répétitions passés ; aucun premier caractère perdu après adoption distante |
+| Gate pré-push exact | `pnpm checks:local` avec les versions d'outils imposées par `docs/development.md` | passé ; 2 936 tests de couverture, 15 tests de performance, migrations et 1 151 tests de contrat, gate E2E 5/5, build de production, images API/web `amd64` et `arm64`, sécurité, licences et contrat Compose |
 
 ## Limites encore ouvertes
 

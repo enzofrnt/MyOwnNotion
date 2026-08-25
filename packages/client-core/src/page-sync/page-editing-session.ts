@@ -19,11 +19,13 @@ import {
   versionVectorDominates,
 } from "@myownnotion/page-state";
 import { LocalIntegrityError, LocalKeyLockedError, LocalKeyLostError } from "../security/index.ts";
-import type {
-  EncryptedPageOperationLog,
-  PageAmbiguityRecord,
-  PageOperationStateRecord,
-  PageOperationUpdateRecord,
+import {
+  copyPageOperationBytes,
+  type DurablePageUpdateNotice,
+  type EncryptedPageOperationLog,
+  type PageAmbiguityRecord,
+  type PageOperationStateRecord,
+  type PageOperationUpdateRecord,
 } from "./encrypted-update-log.ts";
 import type {
   CommitLocalPageTransactionInput,
@@ -91,7 +93,7 @@ export interface OpenPageEditingSessionOptions {
   readonly now?: () => Date;
   readonly createUpdateId?: () => Uuid;
   /** Called only after the same immutable update is proven durable in IndexedDB. */
-  readonly publishDurableUpdate?: (updateId: Uuid, updateBytes: Uint8Array) => void;
+  readonly publishDurableUpdate?: (notice: DurablePageUpdateNotice) => void;
   readonly onBackgroundError?: (error: unknown) => void;
 }
 
@@ -155,7 +157,7 @@ export class PageEditingSession {
   readonly #store: LocalPageTransactionCommitter;
   readonly #now: () => Date;
   readonly #createUpdateId: () => Uuid;
-  readonly #publishDurableUpdate: ((updateId: Uuid, updateBytes: Uint8Array) => void) | undefined;
+  readonly #publishDurableUpdate: ((notice: DurablePageUpdateNotice) => void) | undefined;
   readonly #onBackgroundError: ((error: unknown) => void) | undefined;
   readonly #listeners = new Set<(change: PageSessionChange) => void>();
   #page: OperationalPageDocument;
@@ -171,6 +173,10 @@ export class PageEditingSession {
   #nextEnqueueOrder: number;
   #tail: Promise<void> = Promise.resolve();
   #queuedTransactions = 0;
+  /** Mounted editor bursts whose visible offsets still target this replica. */
+  #localInputBursts = 0;
+  /** Shared state advanced while visible browser input still used the old offsets. */
+  #durableAdoptionDeferred = false;
   #recoveryBuffer: PageEditingRecoveryBuffer | null = null;
   #failedCommit: FailedCommitContext | null = null;
   #remoteAdoptionErrorType: string | null = null;
@@ -242,6 +248,11 @@ export class PageEditingSession {
 
   get pageId(): Uuid {
     return this.#page.pageId;
+  }
+
+  /** Random Loro replica identity owned by this exact editor session. */
+  get peerId(): string {
+    return this.#page.peerId;
   }
 
   get sync(): PageSyncState {
@@ -329,6 +340,34 @@ export class PageEditingSession {
     this.#refreshSync("status");
   }
 
+  /** Keeps one browser typing burst on a stable local CRDT replica. */
+  beginLocalInputBurst(): void {
+    this.#localInputBursts += 1;
+  }
+
+  /**
+   * Adopts every durable concurrent update once all visible offsets from the
+   * burst have crossed the local commit boundary.
+   */
+  async endLocalInputBurst(): Promise<void> {
+    if (this.#localInputBursts === 0) return;
+    this.#localInputBursts -= 1;
+    if (this.#localInputBursts !== 0 || !this.#durableAdoptionDeferred) return;
+    this.#durableAdoptionDeferred = false;
+    try {
+      await this.adoptDurablePage();
+    } catch (error) {
+      this.#durableAdoptionDeferred = true;
+      throw error;
+    }
+  }
+
+  #deferDurableAdoptionDuringLocalInput(): boolean {
+    if (this.#localInputBursts === 0) return false;
+    this.#durableAdoptionDeferred = true;
+    return true;
+  }
+
   async refreshFromDurableState(): Promise<void> {
     const {
       state: operationState,
@@ -347,6 +386,7 @@ export class PageEditingSession {
 
   /** Imports a response only after the reconciler has committed it to IndexedDB. */
   adoptDurablePage(): Promise<void> {
+    if (this.#deferDurableAdoptionDuringLocalInput()) return Promise.resolve();
     // Adoption is part of the same serial authority as local gestures. Merely
     // awaiting the current tail leaves a gap in which a new gesture can attach
     // to that resolved tail while this method is reading an older checkpoint.
@@ -354,12 +394,31 @@ export class PageEditingSession {
     // listener silently misses the acknowledgement, leaving already accepted
     // updates displayed as pending. Chaining first closes that gap: gestures
     // queued after the notification run against the adopted frontier.
-    const adoption = this.#tail.then(async () => await this.#adoptDurablePage());
+    const adoption = this.#tail.then(async () => {
+      // The notification may have entered the queue before the browser's
+      // beforeinput event started a burst. Re-check at execution time so that
+      // an already queued adoption cannot move the replica beneath offsets
+      // captured by the now-visible gesture.
+      if (this.#deferDurableAdoptionDuringLocalInput()) return;
+      await this.#adoptDurablePage();
+    });
     this.#tail = adoption.then(
       () => undefined,
       () => undefined,
     );
     return adoption;
+  }
+
+  /**
+   * Adopts another tab's update only after proving it against shared durable
+   * state. The channel bytes are never imported directly into the editor.
+   */
+  async adoptDurableUpdate(notice: DurablePageUpdateNotice): Promise<void> {
+    if (notice.pageId !== this.pageId) {
+      throw new Error("the tab notice belongs to another page");
+    }
+    await this.#log.assertDurableUpdate(notice);
+    await this.adoptDurablePage();
   }
 
   async #adoptDurablePage(): Promise<void> {
@@ -381,6 +440,10 @@ export class PageEditingSession {
       if (durable.importUpdates(updates.map(({ updateBytes }) => updateBytes)).pending) {
         throw new Error("the durable operational page has missing dependencies");
       }
+      // Re-check after the asynchronous snapshot reconstruction as input can
+      // begin while IndexedDB or Loro is yielding. Everything after this guard
+      // is synchronous until the replica import completes.
+      if (this.#deferDurableAdoptionDuringLocalInput()) return;
       const currentVersion = this.#page.versionVectorBytes();
       if (!versionVectorDominates(durable.versionVectorBytes(), currentVersion)) {
         throw new Error("the durable operational page does not include the visible editor");
@@ -510,7 +573,7 @@ export class PageEditingSession {
         if (
           sameDurableUpdate(update, transaction) &&
           state !== null &&
-          versionVectorBytesEqual(state.versionVector, this.#page.versionVectorBytes())
+          versionVectorDominates(state.versionVector, this.#page.versionVectorBytes())
         ) {
           return { update, state };
         }
@@ -522,11 +585,13 @@ export class PageEditingSession {
   }
 
   async #recordDurableCommit(committed: CommittedLocalPageTransaction): Promise<boolean> {
-    const adoptedRemote = !versionVectorBytesEqual(
+    const durableAdvanced = !versionVectorBytesEqual(
       committed.state.versionVector,
       this.#page.versionVectorBytes(),
     );
-    if (adoptedRemote) {
+    const adoptRemoteNow = durableAdvanced && this.#localInputBursts === 0;
+    if (durableAdvanced && !adoptRemoteNow) this.#durableAdoptionDeferred = true;
+    if (adoptRemoteNow) {
       if (committed.state.checkpoint === null) {
         throw new Error("a committed active page has no local checkpoint");
       }
@@ -560,13 +625,18 @@ export class PageEditingSession {
     this.#updates.sort((left, right) => left.enqueueOrder - right.enqueueOrder);
     this.#nextEnqueueOrder = Math.max(this.#nextEnqueueOrder, committed.update.enqueueOrder + 1);
     try {
-      this.#publishDurableUpdate?.(committed.update.updateId, committed.update.updateBytes);
+      this.#publishDurableUpdate?.({
+        pageId: committed.update.pageId,
+        updateId: committed.update.updateId,
+        updateBytes: copyPageOperationBytes(committed.update.updateBytes),
+        resultVersionVector: copyPageOperationBytes(committed.update.resultVersionVector),
+      });
     } catch (error) {
       // Same-tab propagation is an accelerator. Its failure cannot undo or
       // downgrade a transaction already committed to the durable authority.
       this.#onBackgroundError?.(error);
     }
-    return adoptedRemote;
+    return adoptRemoteNow;
   }
 
   #blockAfterLocalFailure(error: unknown, failed: FailedCommitContext): void {

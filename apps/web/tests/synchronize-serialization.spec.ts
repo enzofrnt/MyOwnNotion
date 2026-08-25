@@ -79,7 +79,7 @@ afterEach(async () => {
 });
 
 describe("synchronize serialization", () => {
-  it("recovers interrupted page sends exactly once at the boot boundary", async () => {
+  it("does not reset another tab's live page send at the boot boundary", async () => {
     const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
     service = new LocalContentService(makeApi(recorder), `initialize-${Date.now()}`);
     const recover = vi
@@ -88,7 +88,10 @@ describe("synchronize serialization", () => {
 
     await Promise.all([service.initialize(), service.initialize(), service.initialize()]);
 
-    expect(recover).toHaveBeenCalledTimes(1);
+    // Recovery now belongs to the per-page reconciler after it acquires the
+    // origin-wide transport lock. Boot cannot know whether another tab still
+    // owns a `sending` row and must leave it untouched here.
+    expect(recover).not.toHaveBeenCalled();
     expect(recorder.passes).toBe(1);
   });
 

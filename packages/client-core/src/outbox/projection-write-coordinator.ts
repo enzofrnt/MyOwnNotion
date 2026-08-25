@@ -8,26 +8,16 @@
  * atomic but causally inconsistent together. Only local preparation and
  * persistence are serialized here; network requests never hold the lock.
  */
-import type { LocalDatabase } from "../local-store/schema.ts";
 
-const tails = new WeakMap<LocalDatabase, Promise<void>>();
+import {
+  PROJECTION_WRITE_RESOURCE,
+  withLocalDatabaseLock,
+} from "../coordination/cross-context-coordinator.ts";
+import type { LocalDatabase } from "../local-store/schema.ts";
 
 export async function withProjectionWrite<T>(
   db: LocalDatabase,
   work: () => Promise<T>,
 ): Promise<T> {
-  const previous = tails.get(db) ?? Promise.resolve();
-  let release = (): void => undefined;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const tail = previous.then(() => gate);
-  tails.set(db, tail);
-  await previous;
-  try {
-    return await work();
-  } finally {
-    release();
-    if (tails.get(db) === tail) tails.delete(db);
-  }
+  return await withLocalDatabaseLock(db, PROJECTION_WRITE_RESOURCE, work);
 }

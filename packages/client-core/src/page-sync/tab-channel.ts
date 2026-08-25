@@ -2,13 +2,14 @@
  * Best-effort same-browser propagation for operational page updates.
  *
  * BroadcastChannel is an accelerator, never the durability authority. A
- * receiver acknowledges only after its caller has imported and persisted the
- * update. Failures stay unacknowledged and the normal IndexedDB/server catch-up
- * path remains authoritative.
+ * receiver acknowledges only after its caller has verified and adopted the
+ * update from shared IndexedDB. Message bytes are an untrusted proof input,
+ * never content authority. Failures stay unacknowledged and the normal
+ * IndexedDB/server catch-up path remains authoritative.
  */
 
 import type { Uuid } from "@myownnotion/domain";
-import { copyPageOperationBytes } from "./encrypted-update-log.ts";
+import { copyPageOperationBytes, type DurablePageUpdateNotice } from "./encrypted-update-log.ts";
 
 const PAGE_TAB_CHANNEL_VERSION = 1 as const;
 
@@ -18,10 +19,7 @@ export interface PageTabTransport {
   close(): void;
 }
 
-export interface IncomingPageTabUpdate {
-  readonly pageId: Uuid;
-  readonly updateId: Uuid;
-  readonly updateBytes: Uint8Array;
+export interface IncomingPageTabUpdate extends DurablePageUpdateNotice {
   readonly senderTabId: string;
   readonly senderPeerId: string;
 }
@@ -33,12 +31,9 @@ export interface DurablePageTabAcknowledgement {
   readonly recipientPeerId: string;
 }
 
-interface UpdateMessage {
+interface UpdateMessage extends DurablePageUpdateNotice {
   readonly channelVersion: typeof PAGE_TAB_CHANNEL_VERSION;
   readonly type: "page-update";
-  readonly pageId: Uuid;
-  readonly updateId: Uuid;
-  readonly updateBytes: Uint8Array;
   readonly senderTabId: string;
   readonly senderPeerId: string;
 }
@@ -83,6 +78,7 @@ function isPageTabMessage(value: unknown): value is PageTabMessage {
   if (value["type"] === "page-update") {
     return (
       value["updateBytes"] instanceof Uint8Array &&
+      value["resultVersionVector"] instanceof Uint8Array &&
       typeof value["senderTabId"] === "string" &&
       typeof value["senderPeerId"] === "string"
     );
@@ -156,15 +152,19 @@ export class PageTabChannel {
     });
   }
 
-  publishUpdate(updateId: Uuid, updateBytes: Uint8Array): void {
+  publishUpdate(notice: DurablePageUpdateNotice): void {
     if (this.#closed) throw new Error("page tab channel is closed");
-    this.#publishedUpdates.add(updateId);
+    if (notice.pageId !== this.#pageId) {
+      throw new Error("the durable update belongs to another page channel");
+    }
+    this.#publishedUpdates.add(notice.updateId);
     const message: UpdateMessage = {
       channelVersion: PAGE_TAB_CHANNEL_VERSION,
       type: "page-update",
       pageId: this.#pageId,
-      updateId,
-      updateBytes: copyPageOperationBytes(updateBytes),
+      updateId: notice.updateId,
+      updateBytes: copyPageOperationBytes(notice.updateBytes),
+      resultVersionVector: copyPageOperationBytes(notice.resultVersionVector),
       senderTabId: this.tabId,
       senderPeerId: this.peerId,
     };
@@ -210,6 +210,7 @@ export class PageTabChannel {
           pageId: value.pageId,
           updateId: value.updateId,
           updateBytes: copyPageOperationBytes(value.updateBytes),
+          resultVersionVector: copyPageOperationBytes(value.resultVersionVector),
           senderTabId: value.senderTabId,
           senderPeerId: value.senderPeerId,
         });

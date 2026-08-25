@@ -88,11 +88,11 @@ function baseSyncState(input: DerivePageSyncStateInput): BasePageSyncState {
   if (input.localCommit === "saving") {
     return { synchronizationKind: "local-saving", locallyDurable: false };
   }
-  if (input.importingRemote === true || input.updates.some(({ status }) => status === "sending")) {
-    return { synchronizationKind: "syncing", locallyDurable: true };
-  }
   if (!input.online) {
     return { synchronizationKind: "offline", locallyDurable: true };
+  }
+  if (input.importingRemote === true || input.updates.some(({ status }) => status === "sending")) {
+    return { synchronizationKind: "syncing", locallyDurable: true };
   }
   if (input.updates.some(({ status }) => status === "pending")) {
     return { synchronizationKind: "pending", locallyDurable: true };

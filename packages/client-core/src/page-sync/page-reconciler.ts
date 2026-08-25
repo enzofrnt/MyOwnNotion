@@ -27,6 +27,10 @@ import {
   versionVectorBytesEqual,
   versionVectorDominates,
 } from "@myownnotion/page-state";
+import {
+  pageSynchronizationResource,
+  withLocalDatabaseLock,
+} from "../coordination/cross-context-coordinator.ts";
 import type { SealedPageAmbiguityRow } from "../local-store/schema.ts";
 import type {
   EncryptedPageOperationLog,
@@ -204,8 +208,10 @@ export class PageReconciler {
   readonly #onFileRequirements: PageReconcilerOptions["onFileRequirements"];
   readonly #onDurablePage: PageReconcilerOptions["onDurablePage"];
   readonly #onBackgroundError: PageReconcilerOptions["onBackgroundError"];
-  readonly #durablePageListeners = new Set<
-    (state: PageOperationStateRecord) => void | Promise<void>
+  /** Last material durable observation delivered to each mounted session. */
+  readonly #durablePageListeners = new Map<
+    (state: PageOperationStateRecord) => void | Promise<void>,
+    string | null
   >();
   #inFlight: Promise<PageReconcileOutcome> | null = null;
   #anotherPassRequested = false;
@@ -244,7 +250,23 @@ export class PageReconciler {
       this.#anotherPassRequested = true;
       return this.#inFlight;
     }
-    this.#inFlight = this.#drain().finally(() => {
+    this.#inFlight = withLocalDatabaseLock(
+      this.#log.db,
+      pageSynchronizationResource(this.#pageId),
+      async () => {
+        // Acquiring the origin-wide owner proves no live same-page exchange can
+        // still own these crash markers. Recover only this page; independent
+        // page transports remain parallel and untouched.
+        await this.#log.recoverInterruptedSending(this.#pageId);
+        // Another tab may have committed the server response while this one
+        // waited for the transport owner. Refresh its mounted session before
+        // an empty confirmation can make that external advance look like a
+        // no-op. The material observation key suppresses repeated empty polls.
+        const current = await this.#log.getState(this.#pageId);
+        if (current !== null) await this.#publishDurableListeners(current);
+        return await this.#drain();
+      },
+    ).finally(() => {
       this.#inFlight = null;
     });
     return this.#inFlight;
@@ -253,7 +275,7 @@ export class PageReconciler {
   subscribeDurablePage(
     listener: (state: PageOperationStateRecord) => void | Promise<void>,
   ): () => void {
-    this.#durablePageListeners.add(listener);
+    this.#durablePageListeners.set(listener, null);
     // A surface can subscribe while an exchange is committing or just after
     // it completed. Replaying the current durable state closes that window:
     // subscriptions behave like state observation, not edge-only events, so a
@@ -263,14 +285,86 @@ export class PageReconciler {
       .getState(this.#pageId)
       .then(async (state) => {
         if (state === null || !this.#durablePageListeners.has(listener)) return;
+        await this.#publishDurableListeners(state, [listener]);
+      })
+      .catch((error: unknown) => this.#onBackgroundError?.(error));
+    return () => this.#durablePageListeners.delete(listener);
+  }
+
+  /**
+   * Fingerprint only causally/user-visible state, never checkpoint bytes or
+   * access timestamps. Loro can encode the same frontier differently and an
+   * empty server confirmation increments the storage record version; neither
+   * is a reason to repaint an editor. Queue routing and ambiguity identities
+   * are included so cross-tab acknowledgement/removal still refreshes status.
+   */
+  async #durableObservationKey(state: PageOperationStateRecord): Promise<string> {
+    const [updates, ambiguities] = await Promise.all([
+      this.#log.db.pageOperationUpdates.where("pageId").equals(this.#pageId).sortBy("enqueueOrder"),
+      this.#log.db.pageAmbiguities
+        .where("[pageId+status]")
+        .equals([this.#pageId, "open"])
+        .toArray(),
+    ]);
+    return JSON.stringify({
+      state: [
+        state.status,
+        state.operationalVersion,
+        state.canonicalFormatVersion,
+        state.latestServerPageSequence,
+        state.localAvailability,
+        encodePageOperationBytes(state.versionVector),
+        state.serverVersionVector === null
+          ? null
+          : encodePageOperationBytes(state.serverVersionVector),
+        state.projection?.canonicalDigest ?? null,
+      ],
+      updates: updates.map(({ updateId, status, recordVersion }) => [
+        updateId,
+        status,
+        recordVersion,
+      ]),
+      ambiguities: ambiguities
+        .map(({ ambiguityId, status, recordVersion }) => [ambiguityId, status, recordVersion])
+        .sort(([left], [right]) => String(left).localeCompare(String(right))),
+    });
+  }
+
+  async #publishDurableListeners(
+    state: PageOperationStateRecord,
+    selected: readonly ((state: PageOperationStateRecord) => void | Promise<void>)[] = [
+      ...this.#durablePageListeners.keys(),
+    ],
+  ): Promise<void> {
+    const observation = await this.#durableObservationKey(state);
+    await Promise.all(
+      selected.map(async (listener) => {
+        const previous = this.#durablePageListeners.get(listener);
+        if (previous === undefined || previous === observation) return;
+        // Claim before awaiting so overlapping replay/transport notifications
+        // cannot apply the same durable frontier twice.
+        this.#durablePageListeners.set(listener, observation);
         try {
           await listener(state);
         } catch (error) {
           this.#onBackgroundError?.(error);
         }
-      })
-      .catch((error: unknown) => this.#onBackgroundError?.(error));
-    return () => this.#durablePageListeners.delete(listener);
+      }),
+    );
+  }
+
+  async #publishDurablePage(state: PageOperationStateRecord): Promise<void> {
+    await Promise.all([
+      (async () => {
+        if (this.#onDurablePage === undefined) return;
+        try {
+          await this.#onDurablePage(state);
+        } catch (error) {
+          this.#onBackgroundError?.(error);
+        }
+      })(),
+      this.#publishDurableListeners(state),
+    ]);
   }
 
   async #drain(): Promise<PageReconcileOutcome> {
@@ -353,19 +447,7 @@ export class PageReconciler {
     await installConvertedLegacyPageCheckpoint(this.#log, result.value, branch, this.#now());
     const durableState = await this.#log.getState(this.#pageId);
     if (durableState !== null) {
-      const listeners = [
-        ...(this.#onDurablePage === undefined ? [] : [this.#onDurablePage]),
-        ...this.#durablePageListeners,
-      ];
-      await Promise.all(
-        listeners.map(async (listener) => {
-          try {
-            await listener(durableState);
-          } catch (error) {
-            this.#onBackgroundError?.(error);
-          }
-        }),
-      );
+      await this.#publishDurablePage(durableState);
     }
     return {
       kind: "synced",
@@ -687,19 +769,7 @@ export class PageReconciler {
           state.projection?.canonicalDigest !== durableState.projection?.canonicalDigest ||
           ambiguitySetChanged;
         if (durablePageChanged) {
-          const listeners = [
-            ...(this.#onDurablePage === undefined ? [] : [this.#onDurablePage]),
-            ...this.#durablePageListeners,
-          ];
-          await Promise.all(
-            listeners.map(async (listener) => {
-              try {
-                await listener(durableState);
-              } catch (error) {
-                this.#onBackgroundError?.(error);
-              }
-            }),
-          );
+          await this.#publishDurablePage(durableState);
         }
 
         const remaining = await this.#log.listUpdates(this.#pageId, ["pending", "sending"]);
