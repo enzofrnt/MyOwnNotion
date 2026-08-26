@@ -723,3 +723,39 @@ publication des images immuables suivantes pour `linux/amd64` et
 Ces preuves ferment T102 et T103. La feature 018 ne conserve plus de tâche
 ouverte ; toute évolution ultérieure relève d'une nouvelle feature ou d'une
 maintenance explicitement spécifiée.
+
+## Convergence de maintenance — lignée de consolidation
+
+Date : 2026-08-26
+
+Le déploiement local de `main` au commit
+`34774f0ac52cf4e5ff1f28418619a19c3c391160` a révélé deux fenêtres de révision
+éditoriale arrivées à échéance mais impossibles à consolider. Dans les deux
+cas, la tête canonique de l'item avait avancé normalement pendant l'édition :
+une page avait été déplacée, l'autre renommée. La frontière opérationnelle
+restait un ancêtre de cette tête ; l'égalité stricte entre les deux identifiants
+refusait pourtant la consolidation à chaque passage du planificateur.
+
+Trois régressions d'intégration reproduisent désormais :
+
+- une édition suivie d'un renommage puis d'une consolidation ;
+- une édition suivie d'un déplacement puis d'une consolidation ;
+- une lignée réellement divergente qui reste refusée sans empêcher une autre
+  page arrivée à échéance d'être consolidée.
+
+Avant correction, les trois cas échouaient avec
+`the item head and operational history boundary disagree`. Après correction,
+la révision consolidée prend pour parent la tête canonique courante seulement
+si la frontière opérationnelle en est un ancêtre. Une divergence reçoit le
+code sûr `page-history.lineage-diverged`, reste intacte pour diagnostic et
+n'interrompt plus le traitement des autres pages.
+
+Preuves ciblées :
+
+- `page-history-consolidation.integration.spec.ts` : 7/7 tests réussis ;
+- matrice voisine historique, temps réel et sauvegarde : 13/13 tests réussis ;
+- typecheck des neuf projets : réussi ;
+- Biome sur les fichiers touchés : réussi.
+
+La porte complète et les preuves de livraison seront ajoutées après validation
+de l'arbre final.

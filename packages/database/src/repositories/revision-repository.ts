@@ -13,7 +13,7 @@ import {
   snapshotExpiry,
   type Uuid,
 } from "@myownnotion/domain";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import {
   authorizedDevices,
@@ -245,6 +245,35 @@ export async function loadParentEdges(
     frontier = next;
   }
   return edges;
+}
+
+/**
+ * Checks one ancestry relation in PostgreSQL without loading the complete
+ * history into the application process.
+ *
+ * The target boundary stops expanding as soon as it is reached. `UNION`
+ * deduplicates visited revisions, so even a damaged cyclic graph terminates.
+ */
+export async function revisionDescendsFrom(
+  tx: Transaction,
+  descendantRevisionId: Uuid,
+  ancestorRevisionId: Uuid,
+): Promise<boolean> {
+  const result = await tx.execute(sql`
+    WITH RECURSIVE ancestry (revision_id) AS (
+      SELECT ${descendantRevisionId}::uuid
+      UNION
+      SELECT rp.parent_revision_id
+        FROM revision_parents rp
+        JOIN ancestry a ON rp.revision_id = a.revision_id
+       WHERE a.revision_id <> ${ancestorRevisionId}::uuid
+    )
+    SELECT 1 AS found
+      FROM ancestry
+     WHERE revision_id = ${ancestorRevisionId}::uuid
+     LIMIT 1
+  `);
+  return result.rows.length > 0;
 }
 
 /**

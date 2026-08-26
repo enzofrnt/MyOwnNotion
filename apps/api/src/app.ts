@@ -754,10 +754,25 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       if (consolidationRunning) return;
       consolidationRunning = true;
       void pageHistory
-        ?.consolidateDue()
+        .consolidateDue()
+        .then(({ failures }) => {
+          for (const failure of failures) {
+            app.log.error(
+              {
+                pageId: failure.pageId,
+                failureCode: failure.code,
+                errorName: failure.errorName,
+              },
+              "page history consolidation failed",
+            );
+          }
+        })
         .catch((error: unknown) => {
           app.log.error(
-            { errorName: error instanceof Error ? error.name : "unknown" },
+            {
+              failureCode: "page-history.batch-failed",
+              errorName: error instanceof Error ? error.name : "unknown",
+            },
             "page history consolidation failed",
           );
         })

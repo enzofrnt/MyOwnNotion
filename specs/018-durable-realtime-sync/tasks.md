@@ -369,3 +369,9 @@ T059 status UI ─────────────► T068–T069
   avant d'être considérée terminée.
 - Les pushes indexent des chemins explicites ; les modifications de l'autre
   worktree propriétaire restent hors périmètre.
+
+## Phase 9: Convergence
+
+- [x] T104 [P] Ajouter les régressions d'intégration édition opérationnelle puis renommage ou déplacement avant consolidation, divergence réelle de lignée et poursuite des autres candidats dans `apps/api/tests/page-history-consolidation.integration.spec.ts` per FR-035 et US5/AC3 (missing)
+- [x] T105 Faire suivre à la révision consolidée la tête canonique descendante courante tout en refusant une lignée concurrente dans `apps/api/src/page-state/page-history-service.ts` per FR-005, FR-029 et US5/AC3 (contradicts)
+- [x] T106 Isoler l'échec d'un candidat de consolidation et journaliser une cause structurée expurgée sans bloquer les autres pages dans `apps/api/src/page-state/page-history-service.ts` et `apps/api/src/app.ts` per FR-027 (partial)
