@@ -844,3 +844,50 @@ Linux équivalent documenté :
 T113 est donc fermé. T114 reste volontairement ouvert jusqu'à la CI verte, la
 fusion, la validation de `main`, le redéploiement des images immuables et le
 contrôle des anciens états réels à l'origine du HAR.
+
+### Durcissement du parcours WebKit mobile de la PR
+
+Le run de PR
+[`32939749766`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/32939749766)
+a validé 21 jobs techniques. Le seul échec racine était un flaky détecté à
+juste titre par `--fail-on-flaky-tests` dans le parcours de fermeture brutale
+d'un onglet sur WebKit mobile : le premier essai ne montait jamais l'espace de
+travail, puis le retry réussissait. Le gate qualité a propagé cet échec et la
+publication a été ignorée, comme prévu.
+
+La capture était entièrement blanche et la trace permet d'exclure une
+régression de synchronisation. Après la création d'un nouvel onglet, le test
+enchaînait une navigation, un rechargement immédiat, puis le helper d'ouverture.
+WebKit signalait pendant ce second chargement
+`TypeError: Importing a module script failed` et refusait les trois modules Vite
+avec `WebKit encountered an internal error`, avant tout démarrage de
+l'application. Le scénario métier exige une fermeture brutale suivie d'une
+réouverture dans le même profil ; une seule navigation du nouvel onglet constitue
+cette frontière. Le rechargement redondant a donc été supprimé et l'ouverture
+est désormais entièrement confiée au helper partagé.
+
+Preuves sur le commit exécutable
+`b30337397b8b6258f3bc5c55d38b419a807d01ca`
+(`test(e2e): avoid redundant WebKit reopen reload`) :
+
+- validation ciblée : les deux scénarios d'autosave répétés cinq fois sur
+  chacun des cinq profils, soit 50 exécutions, ont réussi sans flaky en 92 s ;
+- couverture : 286/286 fichiers et 3 064/3 064 tests, avec 90,13 % de lignes,
+  85,09 % de branches et 93,46 % de fonctions ;
+- performances : 7/7 fichiers et 18/18 tests, dont 10 000 opérations de page et
+  10 100 mutations structurées ;
+- intégrations PostgreSQL : 33/33 fichiers et 329/329 tests ; migrations :
+  10/10 ; contrats : 101/101 fichiers et 1 196/1 196 tests, dont 90 jours hors
+  ligne et 10 000 changements distants ;
+- E2E complète : 5/5 profils sans flaky en 1 459 s, deux piles simultanées et
+  une base isolée par profil ;
+- builds Web/API/PWA, images API/Web `linux/amd64` et `linux/arm64` avec SBOM,
+  runtime empaqueté, audit, secrets, analyse statique, licences et contrat
+  Compose : réussis.
+
+Le gate complet a utilisé le binaire officiel `shfmt` 3.12.0 verrouillé par le
+dépôt, téléchargé hors de l'arbre et vérifié avec la somme SHA-256 publiée
+`d903802e0ce3ecbc82b98512f55ba370b0d37a93f3f78de394f5b657052b33dd`.
+La version globale 3.13.1 de la machine n'a donc pas affaibli ni modifié la
+politique d'outillage. T114 reste ouvert jusqu'à la nouvelle CI verte, la
+fusion, le run de `main`, le redéploiement et la validation des états réels.
