@@ -813,4 +813,34 @@ Preuves ciblées sur l'arbre de travail :
   modification hors ligne et rechargement ;
 - typecheck client-core, Web, API et racine : réussi.
 
-La porte complète obligatoire reste à exécuter sur l'arbre final avant push.
+### Porte locale complète avant livraison
+
+L'arbre exécutable validé a été figé sans autre modification au commit
+`90183b1969f8e33efb33d7de6a5b35364fe487df`. La commande obligatoire
+`pnpm checks:local` s'est terminée avec le code 0 le 2026-08-26, avec deux
+profils Playwright simultanés au maximum et Firefox exécuté dans le runtime
+Linux équivalent documenté :
+
+- politique d'outillage, ShellCheck/shfmt, format, lint et typecheck strict :
+  réussis ;
+- couverture : 286/286 fichiers et 3 064/3 064 tests réussis, avec 90,13 % de
+  statements et lignes, 85,06 % de branches et 93,46 % de fonctions ;
+- performances : 7/7 fichiers et 18/18 tests réussis, dont ingestion,
+  rattrapage et consolidation de 10 000 opérations ainsi que 10 100 mutations
+  structurées ;
+- intégrations PostgreSQL : 33/33 fichiers et 329/329 tests ; migrations :
+  10/10 tests ; contrats : 101/101 fichiers et 1 196/1 196 tests, dont retour
+  après 90 jours hors ligne et 10 000 changements distants ;
+- E2E : 5/5 profils réussis en 1 481 s — Chromium desktop/mobile, Firefox
+  desktop, WebKit desktop/mobile — avec une base, des ports et des stockages
+  isolés par profil ;
+- builds Web/API et PWA : réussis ; images API et Web avec SBOM construites
+  pour `linux/amd64` et `linux/arm64`, puis runtime API empaqueté validé ;
+- audit de production : aucune vulnérabilité haute ou critique, une modérée ;
+  secrets et analyse statique : zéro finding ; licences : zéro violation ;
+- contrat Compose : services, ports loopback, secrets, images et upgrade
+  WebSocket validés.
+
+T113 est donc fermé. T114 reste volontairement ouvert jusqu'à la CI verte, la
+fusion, la validation de `main`, le redéploiement des images immuables et le
+contrôle des anciens états réels à l'origine du HAR.
