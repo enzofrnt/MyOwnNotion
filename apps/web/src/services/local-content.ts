@@ -459,7 +459,10 @@ export class LocalContentService {
       this.outbox.pending(),
       this.outbox.activeConflicts(),
       this.pageOperationLog.countUpdates(["pending", "sending", "blocked"]),
-      this.db.legacyOfflineBranches.where("status").anyOf("editing", "sending", "blocked").count(),
+      this.db.legacyOfflineBranches
+        .where("status")
+        .anyOf("editing", "sending", "blocked")
+        .toArray(),
       this.db.legacySyncRecoveries.toArray(),
       this.db.pageAmbiguities.where("status").equals("open").count(),
     ]);
@@ -469,13 +472,20 @@ export class LocalContentService {
     this.#quarantinedRecoveryCount = recoveries.filter(
       ({ status }) => status === "quarantined",
     ).length;
-    // A converting recovery owns the same encrypted legacy branch, so count
-    // the logical draft once rather than making “1 old draft” display as two
-    // pending changes.
-    const recoveryBranches = recoveries.filter(
-      ({ status, branchId }) => status === "converting" && branchId !== null,
+    // A recovery owns the same encrypted legacy branch, so count the logical
+    // draft once. A quarantined branch is attention, not active work: keeping
+    // it in “pending” would recreate the endless retry symptom it just left.
+    const recoveryBranchIds = new Set(
+      recoveries
+        .filter(
+          ({ status, branchId }) =>
+            ["converting", "quarantined"].includes(status) && branchId !== null,
+        )
+        .map(({ branchId }) => branchId),
+    );
+    const independentLegacyBranches = legacyBranches.filter(
+      ({ branchId }) => !recoveryBranchIds.has(branchId),
     ).length;
-    const independentLegacyBranches = Math.max(0, legacyBranches - recoveryBranches);
     this.#filePendingCount = this.#fileSynchronization.pendingIds.size;
     this.#pendingCount =
       workspacePending.length +
@@ -709,11 +719,25 @@ export class LocalContentService {
       }
     }
 
-    const [stillQueued, stillLegacyPages] = await Promise.all([
+    const [stillQueued, stillLegacyBranches, recoveries] = await Promise.all([
       this.pageOperationLog.countUpdates(["pending", "sending"]),
-      this.pageOperationLog.listPageIdsWithLegacyBranches(["editing", "sending", "blocked"]),
+      this.db.legacyOfflineBranches
+        .where("status")
+        .anyOf("editing", "sending", "blocked")
+        .toArray(),
+      this.db.legacySyncRecoveries.toArray(),
     ]);
-    const durableWorkRemaining = stillQueued + stillLegacyPages.length;
+    const recoveryBranchIds = new Set(
+      recoveries
+        .filter(
+          ({ status, branchId }) =>
+            ["converting", "quarantined"].includes(status) && branchId !== null,
+        )
+        .map(({ branchId }) => branchId),
+    );
+    const durableWorkRemaining =
+      stillQueued +
+      stillLegacyBranches.filter(({ branchId }) => !recoveryBranchIds.has(branchId)).length;
     await this.#notify(
       offline ? "offline" : settled && durableWorkRemaining === 0 ? "synced" : "pending",
     );
@@ -1341,7 +1365,10 @@ export class LocalContentService {
         // sending, blocked, or retained as a conflict; acknowledgement removes
         // it and installs its local -> canonical revision alias atomically.
         const outcome = await this.#convertLegacyBranchAfterWorkspace(itemId, reconciler);
-        return outcome.kind === "synced" ? "converted" : "unavailable";
+        if (outcome.kind === "synced") return "converted";
+        return outcome.kind === "blocked" && outcome.problemCode === "item.not-found"
+          ? "retained"
+          : "unavailable";
       },
     });
     if (session === null) {
@@ -1588,6 +1615,11 @@ export class LocalContentService {
       schemaVersion: snapshot.value.schemaVersion,
       cursor: snapshot.value.cursor,
       items: snapshot.value.items as ItemDto[],
+      relationships: snapshot.value.relationships,
+      ...(snapshot.value.databases === undefined ? {} : { databases: snapshot.value.databases }),
+      ...(snapshot.value.databaseEntries === undefined
+        ? {}
+        : { databaseEntries: snapshot.value.databaseEntries }),
     });
     await this.#emitProjection({ kind: "rebuild" });
     await this.#notify("synced");

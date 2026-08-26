@@ -154,6 +154,7 @@ export const LEGACY_SYNC_RECOVERY_REASON_CODES = [
   "legacy-recovery.schema-unsupported",
   "legacy-recovery.diff-unprovable",
   "legacy-recovery.item-not-page",
+  "legacy-recovery.server-item-missing",
   "legacy-recovery.integrity-failed",
 ] as const;
 export type LegacySyncRecoveryReasonCode = (typeof LEGACY_SYNC_RECOVERY_REASON_CODES)[number];

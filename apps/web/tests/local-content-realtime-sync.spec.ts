@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
 
-import { PAGE_OPERATION_PROTOCOL_VERSION, type QueuedMutationDto } from "@myownnotion/contracts";
-import { generateUuidV7 } from "@myownnotion/domain";
+import {
+  type ItemDto,
+  PAGE_OPERATION_PROTOCOL_VERSION,
+  type QueuedMutationDto,
+} from "@myownnotion/contracts";
+import { createInitialDatabaseDefinition, generateUuidV7 } from "@myownnotion/domain";
+import {
+  appendLegacySemanticTransaction,
+  createLegacyOfflineBranch,
+} from "@myownnotion/page-state";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RealtimeSyncLifecycle } from "../src/features/sync/realtime-sync-lifecycle.ts";
 import type { ContentApi } from "../src/services/content-api.ts";
@@ -55,6 +63,104 @@ afterEach(async () => {
 });
 
 describe("LocalContentService realtime integration", () => {
+  it("seeds every structured projection from one complete snapshot", async () => {
+    const workspaceId = generateUuidV7();
+    const databaseId = generateUuidV7();
+    const entryId = generateUuidV7();
+    const targetId = generateUuidV7();
+    const relationshipId = generateUuidV7();
+    const propertyId = generateUuidV7();
+    const item = (id: string, name: string): ItemDto =>
+      ({
+        id,
+        kind: "page",
+        name,
+        lifecycle: "active",
+        currentRevisionId: generateUuidV7(),
+        pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+        placements: [
+          {
+            id: generateUuidV7(),
+            itemId: id,
+            kind: "hierarchy",
+            parentItemId: null,
+            positionKey: "V",
+          },
+        ],
+      }) as ItemDto;
+    const definition = createInitialDatabaseDefinition({
+      type: "database.create",
+      id: databaseId,
+      name: "Projects",
+      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "V" },
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "Table",
+    });
+    const api = {
+      submitMutationBatch: async () => ({ ok: true as const, value: { results: [] } }),
+      listChanges: async () => ({
+        ok: true as const,
+        value: { changes: [], cursor: "0", hasMore: false },
+      }),
+      currentSnapshot: async () => ({
+        ok: true as const,
+        value: {
+          workspaceId,
+          schemaVersion: 1,
+          cursor: "42",
+          digest: "a".repeat(64),
+          items: [
+            item(databaseId, "Projects"),
+            item(entryId, "Migration"),
+            item(targetId, "Owner"),
+          ],
+          relationships: [
+            {
+              id: relationshipId,
+              sourceItemId: entryId,
+              targetItemId: targetId,
+              relationType: "database:property",
+              metadata: { databaseId, propertyId },
+              createdRevisionId: generateUuidV7(),
+              removedRevisionId: null,
+            },
+          ],
+          databases: [{ itemId: databaseId, definitionVersion: 1, definition }],
+          databaseEntries: [
+            {
+              entryItemId: entryId,
+              databaseId,
+              valueVersion: 1,
+              values: {
+                format: "myownnotion.database-entry-values+json",
+                formatVersion: 1,
+                databaseId,
+                entryId,
+                values: { [propertyId]: { kind: "text", value: "common owner" } },
+                preserved: [],
+              },
+            },
+          ],
+        },
+      }),
+    } as unknown as ContentApi;
+    const service = new LocalContentService(api, `snapshot-${generateUuidV7()}`);
+    services.push(service);
+    await service.initialize();
+
+    await expect(service.seedFromServer()).resolves.toBe(true);
+    expect((await service.getDatabase(databaseId))?.definition).toEqual(definition);
+    expect((await service.getDatabaseEntry(entryId))?.values.values[propertyId]).toEqual({
+      kind: "text",
+      value: "common owner",
+    });
+    expect(await service.db.relationships.get(relationshipId)).toMatchObject({
+      sourceItemId: entryId,
+      targetItemId: targetId,
+    });
+  });
+
   it("drains operational pages as soon as the authenticated channel is ready", async () => {
     const { factory, service } = serviceWithSocket();
     const drain = vi.spyOn(service, "synchronizeOperationalPages").mockResolvedValue(true);
@@ -138,6 +244,63 @@ describe("LocalContentService realtime integration", () => {
     window.dispatchEvent(new Event("online"));
     expect(factory.sockets).toHaveLength(2);
     expect(service.realtimePageSync.state).toBe("connecting");
+  });
+
+  it("does not leave a quarantined orphan branch in the active pending count", async () => {
+    const service = new LocalContentService(contentApi(), `orphan-status-${generateUuidV7()}`);
+    services.push(service);
+    await service.initialize();
+    const pageId = generateUuidV7();
+    let branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId: generateUuidV7(),
+      baseDocument: { blocks: [] },
+      createdAt: "2026-08-26T06:00:00.000Z",
+    });
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 1,
+      commands: [
+        {
+          type: "insert-block",
+          block: {
+            type: "paragraph",
+            id: generateUuidV7(),
+            content: [{ text: "retained orphan" }],
+          },
+          parentBlockId: null,
+          beforeBlockId: null,
+        },
+      ],
+    });
+    await service.pageOperationLog.putLegacyBranch({
+      pageId,
+      branchId: branch.branchId,
+      status: "blocked",
+      createdAt: branch.createdAt,
+      recordVersion: 1,
+      requiredFileIds: [],
+      branch: { ...branch, status: "blocked" },
+    });
+    await service.db.legacySyncRecoveries.put({
+      mutationId: branch.branchId,
+      pageId,
+      status: "quarantined",
+      reasonCode: "legacy-recovery.server-item-missing",
+      branchId: branch.branchId,
+      attemptCount: 1,
+      capturedAt: branch.createdAt,
+      updatedAt: "2026-08-26T06:00:01.000Z",
+    });
+
+    await expect(service.synchronizeOperationalPages()).resolves.toBe(true);
+    expect(service.getSnapshot()).toMatchObject({
+      syncState: "conflict",
+      pendingCount: 0,
+      attentionCount: 1,
+      quarantinedRecoveryCount: 1,
+    });
   });
 
   it("moves a historical whole-document refusal into recovery instead of a live conflict", async () => {

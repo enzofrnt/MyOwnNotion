@@ -64,11 +64,12 @@ test.describe("autosave under abrupt exit", () => {
     }
 
     // Closing the page's tab is the abrupt exit; a fresh tab in the same
-    // context keeps both the session and the device's sealed storage.
+    // context keeps both the session and the device's sealed storage. Opening
+    // the workspace once is the browser-reopen boundary under test. An
+    // immediate second reload races WebKit's Vite module imports and can leave
+    // a blank test page before the application has had a chance to boot.
     await page.close();
     const second = await context.newPage();
-    await second.goto("/");
-    await second.reload();
     await openWorkspace(second);
     await selectItem(second, name);
     await expect(second.getByTestId("block-editor")).toContainText("écrit puis fermé brutalement", {

@@ -17,6 +17,8 @@ const REASON_COPY: Record<LegacySyncRecoveryReasonCode, string> = {
   "legacy-recovery.diff-unprovable":
     "Le brouillon ne peut pas être reconstruit exactement par les opérations connues.",
   "legacy-recovery.item-not-page": "La page d’origine n’existe plus comme page éditable.",
+  "legacy-recovery.server-item-missing":
+    "La page n’existe plus sur ce serveur. Le brouillon local complet a été conservé.",
   "legacy-recovery.integrity-failed":
     "Les preuves locales de conversion sont incomplètes ou incohérentes.",
 };

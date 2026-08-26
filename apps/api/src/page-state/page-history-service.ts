@@ -13,6 +13,7 @@ import {
   insertRevision,
   lockPageOperationState,
   readPageOperationCheckpoint,
+  revisionDescendsFrom,
   runMutation,
   schema,
   supersedeRevision,
@@ -57,6 +58,44 @@ export class PageHistoryServiceError extends Error {
 export interface PageHistoryConsolidation {
   readonly pageId: Uuid;
   readonly revisionId: Uuid;
+}
+
+export type PageHistoryConsolidationFailureCode =
+  | "page-history.item-head-missing"
+  | "page-history.lineage-diverged";
+
+export class PageHistoryConsolidationError extends Error {
+  override readonly name = "PageHistoryConsolidationError";
+
+  constructor(
+    readonly code: PageHistoryConsolidationFailureCode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export interface PageHistoryConsolidationFailure {
+  readonly pageId: Uuid;
+  readonly code: PageHistoryConsolidationFailureCode;
+  readonly errorName: string;
+}
+
+export interface PageHistoryConsolidationRun {
+  readonly consolidated: number;
+  readonly pageIds: readonly Uuid[];
+  readonly failures: readonly PageHistoryConsolidationFailure[];
+}
+
+function consolidationFailure(
+  pageId: Uuid,
+  error: PageHistoryConsolidationError,
+): PageHistoryConsolidationFailure {
+  return {
+    pageId,
+    code: error.code,
+    errorName: error.name,
+  };
 }
 
 export interface PageHistoryServiceDeps {
@@ -357,9 +396,39 @@ export class PageHistoryService {
       throw new Error("an operational page has no revision boundary to consolidate");
     }
 
+    const historyBoundaryId = state.lastRevisionId as Uuid;
     const itemRevisionHead = await lockItemRevisionHead(tx, this.#deps.workspaceId, pageId);
-    if (itemRevisionHead !== state.lastRevisionId) {
-      throw new Error("the item head and operational history boundary disagree");
+    if (itemRevisionHead === null) {
+      throw new PageHistoryConsolidationError(
+        "page-history.item-head-missing",
+        "the operational page has no canonical item head",
+      );
+    }
+    const [historyBoundary, itemHead] = await Promise.all([
+      getRevision(tx, historyBoundaryId),
+      itemRevisionHead === historyBoundaryId ? null : getRevision(tx, itemRevisionHead),
+    ]);
+    if (
+      historyBoundary?.itemId !== pageId ||
+      (itemRevisionHead !== historyBoundaryId && itemHead?.itemId !== pageId)
+    ) {
+      throw new PageHistoryConsolidationError(
+        "page-history.lineage-diverged",
+        "the item head and operational history boundary belong to different lineages",
+      );
+    }
+    if (itemRevisionHead !== historyBoundaryId) {
+      const descendsFromBoundary = await revisionDescendsFrom(
+        tx,
+        itemRevisionHead,
+        historyBoundaryId,
+      );
+      if (!descendsFromBoundary) {
+        throw new PageHistoryConsolidationError(
+          "page-history.lineage-diverged",
+          "the item head does not descend from the operational history boundary",
+        );
+      }
     }
 
     const revisionId = generateUuidV7();
@@ -369,12 +438,12 @@ export class PageHistoryService {
       id: revisionId,
       itemId: pageId,
       mutationId,
-      parentRevisionIds: [state.lastRevisionId as Uuid],
+      parentRevisionIds: [itemRevisionHead],
       snapshot,
       acceptedAt: now,
     });
     await this.#deps.protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot });
-    await supersedeRevision(tx, state.lastRevisionId as Uuid, now);
+    await supersedeRevision(tx, itemRevisionHead, now);
     await tx.insert(schema.mutations).values({
       id: mutationId,
       workspaceId: this.#deps.workspaceId,
@@ -418,7 +487,7 @@ export class PageHistoryService {
     return { pageId, revisionId };
   }
 
-  async consolidateDue(): Promise<{ readonly consolidated: number; readonly pageIds: Uuid[] }> {
+  async consolidateDue(): Promise<PageHistoryConsolidationRun> {
     const now = this.#deps.now();
     const idleBefore = new Date(now.getTime() - PAGE_HISTORY_IDLE_MS);
     const maximumBefore = new Date(now.getTime() - PAGE_HISTORY_MAX_WINDOW_MS);
@@ -437,14 +506,21 @@ export class PageHistoryService {
         ),
       );
     const pageIds: Uuid[] = [];
+    const failures: PageHistoryConsolidationFailure[] = [];
     for (const candidate of candidates) {
-      const consolidated = await runMutation(this.#deps.db, async (tx) => {
-        await this.#deps.rotationPolicies.assertWritesAllowed(tx);
-        return await this.consolidateIfDue(tx, candidate.pageId as Uuid, { now });
-      });
-      if (consolidated !== null) pageIds.push(consolidated.pageId);
+      const pageId = candidate.pageId as Uuid;
+      try {
+        const consolidated = await runMutation(this.#deps.db, async (tx) => {
+          await this.#deps.rotationPolicies.assertWritesAllowed(tx);
+          return await this.consolidateIfDue(tx, pageId, { now });
+        });
+        if (consolidated !== null) pageIds.push(consolidated.pageId);
+      } catch (error) {
+        if (!(error instanceof PageHistoryConsolidationError)) throw error;
+        failures.push(consolidationFailure(pageId, error));
+      }
     }
-    return { consolidated: pageIds.length, pageIds };
+    return { consolidated: pageIds.length, pageIds, failures };
   }
 
   async restoreRevision(input: {

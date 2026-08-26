@@ -723,3 +723,171 @@ publication des images immuables suivantes pour `linux/amd64` et
 Ces preuves ferment T102 et T103. La feature 018 ne conserve plus de tâche
 ouverte ; toute évolution ultérieure relève d'une nouvelle feature ou d'une
 maintenance explicitement spécifiée.
+
+## Convergence de maintenance — lignée de consolidation
+
+Date : 2026-08-26
+
+Le déploiement local de `main` au commit
+`34774f0ac52cf4e5ff1f28418619a19c3c391160` a révélé deux fenêtres de révision
+éditoriale arrivées à échéance mais impossibles à consolider. Dans les deux
+cas, la tête canonique de l'item avait avancé normalement pendant l'édition :
+une page avait été déplacée, l'autre renommée. La frontière opérationnelle
+restait un ancêtre de cette tête ; l'égalité stricte entre les deux identifiants
+refusait pourtant la consolidation à chaque passage du planificateur.
+
+Trois régressions d'intégration reproduisent désormais :
+
+- une édition suivie d'un renommage puis d'une consolidation ;
+- une édition suivie d'un déplacement puis d'une consolidation ;
+- une lignée réellement divergente qui reste refusée sans empêcher une autre
+  page arrivée à échéance d'être consolidée.
+
+Avant correction, les trois cas échouaient avec
+`the item head and operational history boundary disagree`. Après correction,
+la révision consolidée prend pour parent la tête canonique courante seulement
+si la frontière opérationnelle en est un ancêtre. Une divergence reçoit le
+code sûr `page-history.lineage-diverged`, reste intacte pour diagnostic et
+n'interrompt plus le traitement des autres pages.
+
+Preuves ciblées :
+
+- `page-history-consolidation.integration.spec.ts` : 7/7 tests réussis ;
+- matrice voisine historique, temps réel et sauvegarde : 13/13 tests réussis ;
+- typecheck des neuf projets : réussi ;
+- Biome sur les fichiers touchés : réussi.
+
+La porte complète et les preuves de livraison seront ajoutées après validation
+de l'arbre final.
+
+## Convergence de maintenance — HAR réel, reconnexion et projection hors ligne
+
+Date : 2026-08-26
+
+Le HAR fourni par le propriétaire a été analysé en ne conservant dans les
+preuves que les routes, statuts, identifiants techniques et messages sûrs ; les
+cookies, jetons et contenus privés n'ont pas été recopiés. Il contenait, sur une
+fenêtre d'environ neuf secondes :
+
+- 33 ouvertures authentifiées de `/v1/page-sync/socket` ;
+- une page existante qui répétait un échange `active`, recevait
+  `realtime.internal-error`, puis voyait sa session fermée avec le code 4500 ;
+- une branche locale historique de 61 transactions dont la page n'existait plus
+  sur le serveur, refusée de façon déterministe avec `item.not-found` ;
+- 68 lectures `GET /v1/databases/:id` terminées par le 404 attendu
+  `database.not-found`, alors que l'élément sélectionné était une page ordinaire.
+
+La base du déploiement a confirmé que la frontière historique de la première
+page était un ancêtre valide, à trois révisions de sa tête courante. Le refus
+était donc produit par l'égalité de lignée trop stricte corrigée par T104–T106,
+pas par une divergence réelle ni par une disparition de la page.
+
+Les amplificateurs et pertes adjacentes ont également été fermés :
+
+- atteindre l'état WebSocket `ready` ne remet plus immédiatement le backoff à
+  zéro ; il faut désormais un échange réussi ou une connexion restée stable ;
+- une divergence historique réelle devient un problème sûr
+  `page-operations.projection-invalid` (409) et ne ferme plus la session comme
+  une erreur interne ;
+- l'amorçage local installe atomiquement items, relations, bases et entrées du
+  snapshot complet ; une page absente de ces projections n'est plus sondée à
+  tort comme une base distante ;
+- une branche refusée par `item.not-found` est chiffrée dans la récupération,
+  marquée en quarantaine exportable, retirée du travail actif et n'est plus
+  rejouée indéfiniment ;
+- le dernier état d'un champ structuré est conservé dans une référence synchrone
+  avant l'action Enregistrer, afin que WebKit ne puisse plus envoyer la valeur
+  du rendu React précédent.
+
+Preuves ciblées sur l'arbre de travail :
+
+- Web : 19/19 tests ciblés réussis (transport, snapshot structuré, statut de la
+  quarantaine et enregistrement immédiat des propriétés) ;
+- client-core : 47/47 tests ciblés réussis, dont conservation complète d'une
+  branche orpheline, absence de second envoi et blocage explicite des nouvelles
+  éditions sur cette branche terminale ;
+- API : 6/6 tests d'intégration de matérialisation réussis, dont la divergence
+  de lignée renvoyée en 409 sans erreur interne ;
+- parcours structuré hors ligne : 5/5 profils réussis en 65 s, deux journeys par
+  profil ; WebKit desktop conserve désormais `Owner = common owner` après
+  modification hors ligne et rechargement ;
+- typecheck client-core, Web, API et racine : réussi.
+
+### Porte locale complète avant livraison
+
+L'arbre exécutable validé a été figé sans autre modification au commit
+`90183b1969f8e33efb33d7de6a5b35364fe487df`. La commande obligatoire
+`pnpm checks:local` s'est terminée avec le code 0 le 2026-08-26, avec deux
+profils Playwright simultanés au maximum et Firefox exécuté dans le runtime
+Linux équivalent documenté :
+
+- politique d'outillage, ShellCheck/shfmt, format, lint et typecheck strict :
+  réussis ;
+- couverture : 286/286 fichiers et 3 064/3 064 tests réussis, avec 90,13 % de
+  statements et lignes, 85,06 % de branches et 93,46 % de fonctions ;
+- performances : 7/7 fichiers et 18/18 tests réussis, dont ingestion,
+  rattrapage et consolidation de 10 000 opérations ainsi que 10 100 mutations
+  structurées ;
+- intégrations PostgreSQL : 33/33 fichiers et 329/329 tests ; migrations :
+  10/10 tests ; contrats : 101/101 fichiers et 1 196/1 196 tests, dont retour
+  après 90 jours hors ligne et 10 000 changements distants ;
+- E2E : 5/5 profils réussis en 1 481 s — Chromium desktop/mobile, Firefox
+  desktop, WebKit desktop/mobile — avec une base, des ports et des stockages
+  isolés par profil ;
+- builds Web/API et PWA : réussis ; images API et Web avec SBOM construites
+  pour `linux/amd64` et `linux/arm64`, puis runtime API empaqueté validé ;
+- audit de production : aucune vulnérabilité haute ou critique, une modérée ;
+  secrets et analyse statique : zéro finding ; licences : zéro violation ;
+- contrat Compose : services, ports loopback, secrets, images et upgrade
+  WebSocket validés.
+
+T113 est donc fermé. T114 reste volontairement ouvert jusqu'à la CI verte, la
+fusion, la validation de `main`, le redéploiement des images immuables et le
+contrôle des anciens états réels à l'origine du HAR.
+
+### Durcissement du parcours WebKit mobile de la PR
+
+Le run de PR
+[`32939749766`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/32939749766)
+a validé 21 jobs techniques. Le seul échec racine était un flaky détecté à
+juste titre par `--fail-on-flaky-tests` dans le parcours de fermeture brutale
+d'un onglet sur WebKit mobile : le premier essai ne montait jamais l'espace de
+travail, puis le retry réussissait. Le gate qualité a propagé cet échec et la
+publication a été ignorée, comme prévu.
+
+La capture était entièrement blanche et la trace permet d'exclure une
+régression de synchronisation. Après la création d'un nouvel onglet, le test
+enchaînait une navigation, un rechargement immédiat, puis le helper d'ouverture.
+WebKit signalait pendant ce second chargement
+`TypeError: Importing a module script failed` et refusait les trois modules Vite
+avec `WebKit encountered an internal error`, avant tout démarrage de
+l'application. Le scénario métier exige une fermeture brutale suivie d'une
+réouverture dans le même profil ; une seule navigation du nouvel onglet constitue
+cette frontière. Le rechargement redondant a donc été supprimé et l'ouverture
+est désormais entièrement confiée au helper partagé.
+
+Preuves sur le commit exécutable
+`b30337397b8b6258f3bc5c55d38b419a807d01ca`
+(`test(e2e): avoid redundant WebKit reopen reload`) :
+
+- validation ciblée : les deux scénarios d'autosave répétés cinq fois sur
+  chacun des cinq profils, soit 50 exécutions, ont réussi sans flaky en 92 s ;
+- couverture : 286/286 fichiers et 3 064/3 064 tests, avec 90,13 % de lignes,
+  85,09 % de branches et 93,46 % de fonctions ;
+- performances : 7/7 fichiers et 18/18 tests, dont 10 000 opérations de page et
+  10 100 mutations structurées ;
+- intégrations PostgreSQL : 33/33 fichiers et 329/329 tests ; migrations :
+  10/10 ; contrats : 101/101 fichiers et 1 196/1 196 tests, dont 90 jours hors
+  ligne et 10 000 changements distants ;
+- E2E complète : 5/5 profils sans flaky en 1 459 s, deux piles simultanées et
+  une base isolée par profil ;
+- builds Web/API/PWA, images API/Web `linux/amd64` et `linux/arm64` avec SBOM,
+  runtime empaqueté, audit, secrets, analyse statique, licences et contrat
+  Compose : réussis.
+
+Le gate complet a utilisé le binaire officiel `shfmt` 3.12.0 verrouillé par le
+dépôt, téléchargé hors de l'arbre et vérifié avec la somme SHA-256 publiée
+`d903802e0ce3ecbc82b98512f55ba370b0d37a93f3f78de394f5b657052b33dd`.
+La version globale 3.13.1 de la machine n'a donc pas affaibli ni modifié la
+politique d'outillage. T114 reste ouvert jusqu'à la nouvelle CI verte, la
+fusion, le run de `main`, le redéploiement et la validation des états réels.

@@ -118,6 +118,52 @@ describe("operational page materialization", () => {
     expect(stalePull.json()).toMatchObject({ code: "page-operations.projection-invalid" });
   });
 
+  it("returns a bounded projection problem when consolidation finds a divergent item head", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage("Divergent operational history");
+    const unrelated = await harness.createLegacyPage("Unrelated revision lineage");
+    const checkpoint = await activate(page, headers);
+    const author = await replica(page.itemId, checkpoint);
+    const transaction = author.transact([
+      {
+        type: "insert-block",
+        block: {
+          type: "paragraph",
+          id: generateUuidV7(),
+          content: [{ text: "Retained local edit" }],
+        },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    const accepted = await sync(page.itemId, headers, {
+      persistedVersionVector: transaction.resultVersionVector,
+      updates: [await transportUpdate(transaction)],
+    });
+    expect(accepted.statusCode, accepted.body).toBe(200);
+
+    await harness.api.built.database.db.execute(sql`
+      UPDATE page_operation_states
+         SET revision_window_started_at = now() - interval '1 hour',
+             revision_window_last_update_at = now() - interval '1 hour'
+       WHERE page_id = ${page.itemId}::uuid
+    `);
+    await harness.api.built.database.db.execute(sql`
+      UPDATE items
+         SET current_revision_id = ${unrelated.revisionId}::uuid
+       WHERE id = ${page.itemId}::uuid
+    `);
+
+    const refused = await sync(page.itemId, headers, {
+      persistedVersionVector: author.versionVectorBytes(),
+      updates: [],
+      knownServerPageSequence: 1,
+    });
+
+    expect(refused.statusCode, refused.body).toBe(409);
+    expect(refused.json()).toMatchObject({ code: "page-operations.projection-invalid" });
+  });
+
   it("does not trust a page cursor that its durable frontier cannot prove", async () => {
     const headers = await harness.authenticate();
     const page = await harness.createLegacyPage("Untrusted page cursor");

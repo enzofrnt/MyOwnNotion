@@ -369,3 +369,20 @@ T059 status UI ─────────────► T068–T069
   avant d'être considérée terminée.
 - Les pushes indexent des chemins explicites ; les modifications de l'autre
   worktree propriétaire restent hors périmètre.
+
+## Phase 9: Convergence
+
+- [x] T104 [P] Ajouter les régressions d'intégration édition opérationnelle puis renommage ou déplacement avant consolidation, divergence réelle de lignée et poursuite des autres candidats dans `apps/api/tests/page-history-consolidation.integration.spec.ts` per FR-035 et US5/AC3 (missing)
+- [x] T105 Faire suivre à la révision consolidée la tête canonique descendante courante tout en refusant une lignée concurrente dans `apps/api/src/page-state/page-history-service.ts` per FR-005, FR-029 et US5/AC3 (contradicts)
+- [x] T106 Isoler l'échec d'un candidat de consolidation et journaliser une cause structurée expurgée sans bloquer les autres pages dans `apps/api/src/page-state/page-history-service.ts` et `apps/api/src/app.ts` per FR-027 (partial)
+
+## Phase 10: Convergence HAR et durabilité hors ligne
+
+- [x] T107 Diagnostiquer sans exposer de secret le HAR réel contenant les boucles `404`, les fermetures WebSocket `4500` et la branche historique orpheline, puis consigner les causes et preuves dans `validation.md` per FR-027 et FR-035 (missing)
+- [x] T108 [P] Ajouter une régression du transport puis conserver le backoff exponentiel entre des connexions qui atteignent `ready` mais échouent aussitôt, avec remise à zéro seulement après un échange réussi ou une connexion durable dans `apps/web/tests/realtime-page-sync-transport.spec.ts` et `apps/web/src/services/realtime-page-sync-transport.ts` per FR-032 et US3/AC3 (partial)
+- [x] T109 [P] Ajouter les régressions de projection structurée complète, inclure relations, bases et entrées dans tout amorçage par snapshot, et supprimer la détection distante répétée d'une base pour une page ordinaire dans `apps/web/tests/`, `apps/web/src/services/local-content.ts` et `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` per FR-003, FR-009 et FR-035 (partial)
+- [x] T110 [P] Reproduire l'enregistrement immédiat de plusieurs propriétés puis rendre la dernière frappe durable même si React n'a pas encore rerendu le panneau dans `apps/web/tests/` et `apps/web/src/features/databases/entry-panel.tsx` per FR-009 et FR-035 (missing)
+- [x] T111 [P] Transformer toute divergence réelle détectée pendant une synchronisation active en problème sûr `page-operations.projection-invalid` sans fermeture interne de la session dans `apps/api/tests/` et `apps/api/src/page-state/page-operation-service.ts` per FR-026, FR-027 et US5/AC3 (partial)
+- [x] T112 Préserver et mettre en quarantaine exportable une branche historique dont la page n'existe plus côté serveur, puis empêcher son rejeu infini dans `packages/client-core/tests/`, `packages/client-core/src/page-sync/` et l'interface de récupération per FR-019, FR-020 et US4/AC3 (partial)
+- [x] T113 Exécuter les tests ciblés, la matrice WebKit de convergence structurée puis `pnpm checks:local`, et consigner les preuves immuables dans `validation.md` per FR-035 (missing)
+- [ ] T114 Pousser la correction, obtenir une CI entièrement verte, fusionner, vérifier `main`, redéployer les images immuables et valider sur les données réelles que les boucles HAR ne réapparaissent plus per FR-035 et US5/AC3 (missing)

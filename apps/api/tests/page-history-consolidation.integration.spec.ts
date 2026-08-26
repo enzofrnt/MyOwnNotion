@@ -1,8 +1,9 @@
 /** Operational history windows and restore-as-operations (T126/T146, US5). */
 
+import { insertRevision, schema } from "@myownnotion/database";
 import { generateUuidV7, normaliseDocumentV3, type Uuid } from "@myownnotion/domain";
 import { OperationalPageDocument, sha256Hex } from "@myownnotion/page-state";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { commandsForPageRestore } from "../src/page-state/page-history-service.ts";
 import {
@@ -249,6 +250,212 @@ describe("visible history consolidation", () => {
     });
     expect(boundary.canonical.hasUnconsolidatedChanges).toBe(false);
     expect((await operationState(page.itemId))?.revision_window_started_at).toBeNull();
+  });
+
+  it("consolidates an open editing window on top of a newer rename revision", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage("Rename during editing");
+    const checkpoint = await activate(page, headers);
+    const author = await replica(page.itemId, checkpoint);
+    const edit = author.transact([
+      {
+        type: "insert-block",
+        block: {
+          type: "paragraph",
+          id: generateUuidV7(),
+          content: [{ text: "The edited body survives the rename" }],
+        },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    await sync({ pageId: page.itemId, headers, replica: author, transaction: edit });
+
+    const rename = await harness.api.built.app.inject({
+      method: "PATCH",
+      url: `/v1/items/${page.itemId}`,
+      headers: { ...headers, "idempotency-key": generateUuidV7() },
+      payload: { baseRevisionId: page.revisionId, name: "Renamed during editing" },
+    });
+    expect(rename.statusCode, rename.body).toBe(200);
+    const renameRevisionId = rename.json().revisionIds[0] as Uuid;
+
+    nowMs += 30_000;
+    const result = await history().consolidateDue();
+    expect(result).toMatchObject({ consolidated: 1 });
+    const state = await operationState(page.itemId);
+    expect(state?.revision_window_started_at).toBeNull();
+    expect(state?.last_revision_id).not.toBe(renameRevisionId);
+
+    const lineage = await harness.api.built.database.db.execute(sql`
+      SELECT parent_revision_id
+        FROM revision_parents
+       WHERE revision_id = ${state?.last_revision_id}::uuid
+    `);
+    expect(
+      (
+        lineage as unknown as {
+          rows: Array<{ parent_revision_id: Uuid }>;
+        }
+      ).rows,
+    ).toEqual([{ parent_revision_id: renameRevisionId }]);
+
+    const stored = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${page.itemId}`,
+      headers,
+    });
+    expect(stored.statusCode, stored.body).toBe(200);
+    expect(stored.json()).toMatchObject({
+      name: "Renamed during editing",
+      currentRevisionId: state?.last_revision_id,
+      pageDocument: {
+        body: {
+          blocks: [{ content: [{ text: "The edited body survives the rename" }] }],
+        },
+      },
+    });
+  });
+
+  it("consolidates an open editing window on top of a newer placement revision", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage("Move during editing");
+    const checkpoint = await activate(page, headers);
+    const author = await replica(page.itemId, checkpoint);
+    const edit = author.transact([
+      {
+        type: "insert-block",
+        block: {
+          type: "paragraph",
+          id: generateUuidV7(),
+          content: [{ text: "The edited body survives the move" }],
+        },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    await sync({ pageId: page.itemId, headers, replica: author, transaction: edit });
+
+    const placement = await harness.api.built.database.db.execute(sql`
+      SELECT id
+        FROM placements
+       WHERE item_id = ${page.itemId}::uuid AND removed_at IS NULL
+       LIMIT 1
+    `);
+    const placementId = (placement as unknown as { rows: Array<{ id: Uuid }> }).rows[0]?.id;
+    expect(placementId).toBeDefined();
+    let moveRevisionId: Uuid | undefined;
+    for (const positionKey of ["W", "Y", "Z"]) {
+      const move = await harness.api.built.app.inject({
+        method: "POST",
+        url: `/v1/placements/${placementId}/move`,
+        headers: { ...headers, "idempotency-key": generateUuidV7() },
+        payload: { parentItemId: null, positionKey },
+      });
+      expect(move.statusCode, move.body).toBe(200);
+      moveRevisionId = move.json().revisionIds[0] as Uuid;
+    }
+    expect(moveRevisionId).toBeDefined();
+
+    nowMs += 30_000;
+    const result = await history().consolidateDue();
+    expect(result).toMatchObject({ consolidated: 1 });
+    const state = await operationState(page.itemId);
+    expect(state?.revision_window_started_at).toBeNull();
+    const lineage = await harness.api.built.database.db.execute(sql`
+      SELECT parent_revision_id
+        FROM revision_parents
+       WHERE revision_id = ${state?.last_revision_id}::uuid
+    `);
+    expect(
+      (
+        lineage as unknown as {
+          rows: Array<{ parent_revision_id: Uuid }>;
+        }
+      ).rows,
+    ).toEqual([{ parent_revision_id: moveRevisionId }]);
+
+    const stored = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${page.itemId}`,
+      headers,
+    });
+    expect(stored.statusCode, stored.body).toBe(200);
+    expect(stored.json()).toMatchObject({
+      currentRevisionId: state?.last_revision_id,
+      placements: [{ positionKey: "Z" }],
+      pageDocument: {
+        body: {
+          blocks: [{ content: [{ text: "The edited body survives the move" }] }],
+        },
+      },
+    });
+  });
+
+  it("reports a divergent lineage without preventing another due page from consolidating", async () => {
+    const headers = await harness.authenticate();
+    const divergent = await harness.createLegacyPage("Divergent history");
+    const healthy = await harness.createLegacyPage("Healthy history");
+
+    for (const page of [divergent, healthy]) {
+      const checkpoint = await activate(page, headers);
+      const author = await replica(page.itemId, checkpoint);
+      const edit = author.transact([
+        {
+          type: "insert-block",
+          block: {
+            type: "paragraph",
+            id: generateUuidV7(),
+            content: [{ text: page.itemId }],
+          },
+          parentBlockId: null,
+          beforeBlockId: null,
+        },
+      ]);
+      await sync({ pageId: page.itemId, headers, replica: author, transaction: edit });
+    }
+
+    const rogueRevisionId = generateUuidV7();
+    const rogueMutationId = generateUuidV7();
+    await harness.api.built.database.db.transaction(async (tx) => {
+      await tx.insert(schema.mutations).values({
+        id: rogueMutationId,
+        workspaceId: harness.api.built.context.workspaceId,
+        commandType: "page-operations.consolidated",
+        status: "accepted",
+        submittedAt: new Date(nowMs),
+        acceptedAt: new Date(nowMs),
+        resultRevisionIds: [rogueRevisionId],
+      });
+      await insertRevision(tx, {
+        id: rogueRevisionId,
+        itemId: divergent.itemId,
+        mutationId: rogueMutationId,
+        parentRevisionIds: [],
+        snapshot: {},
+        acceptedAt: new Date(nowMs),
+      });
+      await tx
+        .update(schema.items)
+        .set({ currentRevisionId: rogueRevisionId, updatedAt: new Date(nowMs) })
+        .where(eq(schema.items.id, divergent.itemId));
+    });
+
+    nowMs += 30_000;
+    const result = await history().consolidateDue();
+    expect(result).toMatchObject({
+      consolidated: 1,
+      pageIds: [healthy.itemId],
+      failures: [
+        {
+          pageId: divergent.itemId,
+          code: "page-history.lineage-diverged",
+          errorName: "PageHistoryConsolidationError",
+        },
+      ],
+    });
+    expect((await operationState(divergent.itemId))?.revision_window_started_at).not.toBeNull();
+    expect((await operationState(healthy.itemId))?.revision_window_started_at).toBeNull();
   });
 
   it("restores an active page by new causal operations and still merges an offline edit", async () => {
