@@ -984,6 +984,33 @@ describe("commands with no offline semantics", () => {
 });
 
 describe("conversion and definition validation", () => {
+  it("gives a folder converted offline an editable empty page document immediately", async () => {
+    const { itemId } = await createItem("folder", "Offline container", null);
+
+    const convert = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.convert",
+        payload: { itemId, targetKind: "page", confirmedDestruction: false },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+
+    expect(convert.ok).toBe(true);
+    expect(await readItem(itemId)).toMatchObject({
+      kind: "page",
+      localAvailability: "present",
+      pageDocument: {
+        format: "myownnotion.document+json",
+        formatVersion: 1,
+        body: {},
+      },
+    });
+  });
+
   it("refuses converting a page with content to a folder without confirmation", async () => {
     const id = generateUuidV7();
     const create = await applyLocalMutation(

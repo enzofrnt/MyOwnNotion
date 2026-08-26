@@ -1921,12 +1921,56 @@ code,
 }
 
 .editor-callout-icon {
+  width: 2rem;
+  min-height: var(--ui-target-compact);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  font: inherit;
   line-height: var(--ui-leading-relaxed);
-  user-select: none;
+  text-align: center;
+}
+
+.editor-callout-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-1);
+}
+
+.editor-callout-controls select {
+  width: 5rem;
+  min-height: var(--ui-target-compact);
+  padding: 0;
+  color: var(--ui-color-text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  cursor: pointer;
+}
+
+.editor-callout-controls select:hover,
+.editor-callout-controls select:focus-visible,
+.editor-callout-icon:hover,
+.editor-callout-icon:focus-visible {
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface-hover);
+}
+
+.editor-callout-controls :focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 1px;
 }
 
 .editor-callout-content {
   min-width: 0;
+}
+
+.editor-toggle-content {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--ui-target-compact);
+  margin: 0;
 }
 
 .editor-code-block {
@@ -1971,6 +2015,7 @@ code,
 .editor-table-toolbar button:focus-visible,
 .editor-image-block input:focus-visible,
 .editor-file-block input:focus-visible,
+.editor-file-block a:focus-visible,
 .editor-embed-block :focus-visible {
   outline: 2px solid var(--ui-color-focus);
   outline-offset: 1px;
@@ -2062,6 +2107,22 @@ code,
   border-radius: var(--ui-radius-md);
 }
 
+.editor-image-preview {
+  display: block;
+  width: auto;
+  max-width: min(100%, 42rem);
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: var(--ui-radius-md);
+}
+
+.editor-image-fields {
+  display: grid;
+  width: min(100%, 42rem);
+  gap: var(--ui-space-1);
+}
+
 .editor-image-block label,
 .editor-image-block input,
 .editor-file-block label,
@@ -2096,6 +2157,28 @@ code,
   font-size: var(--ui-text-xl);
 }
 
+.editor-file-description {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.editor-file-description .editor-file-state {
+  margin: 0;
+}
+
+.editor-file-download {
+  min-height: var(--ui-target-compact);
+  align-content: center;
+  padding-inline: var(--ui-space-2);
+  border-radius: var(--ui-radius-sm);
+  white-space: nowrap;
+}
+
+.editor-file-download:hover {
+  background: var(--ui-color-surface-hover);
+}
+
 .editor-file-block input {
   text-align: left;
 }
@@ -2109,10 +2192,33 @@ code,
   border-radius: var(--ui-radius-md);
 }
 
-.editor-embed-block > header {
+.editor-embed-preview > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--ui-space-3);
+}
+
+.editor-embed-fields {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1fr) minmax(8rem, 0.5fr);
+  gap: var(--ui-space-2);
+}
+
+.editor-embed-fields input,
+.editor-embed-fields select {
+  width: 100%;
+  min-height: var(--ui-target-compact);
+  padding: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-sm);
+  font: inherit;
+}
+
+.editor-embed-preview {
+  display: grid;
   gap: var(--ui-space-3);
 }
 
@@ -2132,6 +2238,21 @@ code,
   background: var(--ui-color-accent);
   border: 0;
   border-radius: var(--ui-radius-sm);
+}
+
+@media (max-width: 40rem) {
+  .editor-embed-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-file-block {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .editor-file-download {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 
 .block-controls {

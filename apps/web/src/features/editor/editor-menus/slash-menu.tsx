@@ -125,6 +125,21 @@ export function FrenchSlashMenu({
       group: "Blocs avancés",
       onItemClick: () => insertTableAfterCurrent(editor as unknown as SlashEditor),
     },
+    {
+      title: "Contenu intégré",
+      subtext: "Ajouter un lien ou un aperçu tiers avec votre accord",
+      aliases: ["embed", "vidéo", "figma", "github", "lien"],
+      group: "Blocs avancés",
+      onItemClick: () =>
+        insertRichBlock(editor, {
+          type: "embed",
+          props: {
+            provider: "bookmark",
+            sourceUrl: "https://example.org/",
+            caption: "",
+          },
+        }),
+    },
   ];
   const navigationItems =
     onCreateSubpage === undefined

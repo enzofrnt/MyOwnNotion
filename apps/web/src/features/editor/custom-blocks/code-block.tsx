@@ -1,6 +1,7 @@
 import { plainContentToString } from "@blocknote/core";
 import { createReactBlockSpec } from "@blocknote/react";
 import { useState } from "react";
+import { FR_COPY } from "../../../ui/copy/fr.ts";
 
 const CODE_LANGUAGES = [
   "",
@@ -15,6 +16,26 @@ const CODE_LANGUAGES = [
   "typescript",
 ] as const;
 
+interface PlainTextClipboard {
+  writeText(value: string): Promise<void>;
+}
+
+/** Copies exactly the plain source text; HTML is never interpreted or written. */
+export async function copyCodeText(
+  value: string,
+  clipboard: PlainTextClipboard | null = typeof navigator === "undefined"
+    ? null
+    : navigator.clipboard,
+): Promise<boolean> {
+  if (clipboard === null) return false;
+  try {
+    await clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const codeBlockSpec = createReactBlockSpec(
   {
     type: "codeBlock",
@@ -26,41 +47,39 @@ export const codeBlockSpec = createReactBlockSpec(
     render: ({ block, editor, contentRef }) => {
       const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
       const copy = async (): Promise<void> => {
-        try {
-          await navigator.clipboard.writeText(plainContentToString(block.content));
-          setCopyState("copied");
-        } catch {
-          setCopyState("failed");
-        }
+        setCopyState(
+          (await copyCodeText(plainContentToString(block.content))) ? "copied" : "failed",
+        );
       };
 
       return (
-        <section className="editor-code-block" aria-label="Bloc de code">
+        <section className="editor-code-block" aria-label={FR_COPY.editor.richBlocks.code.label}>
           <header className="editor-code-toolbar" contentEditable={false}>
             <label>
-              <span className="sr-only">Langage du code</span>
+              <span className="sr-only">{FR_COPY.editor.richBlocks.code.language}</span>
               <select
-                aria-label="Langage du code"
+                aria-label={FR_COPY.editor.richBlocks.code.language}
                 value={block.props.language}
+                disabled={!editor.isEditable}
                 onChange={(event) =>
                   editor.updateBlock(block.id, { props: { language: event.currentTarget.value } })
                 }
               >
                 {CODE_LANGUAGES.map((language) => (
                   <option key={language || "none"} value={language}>
-                    {language || "Texte brut"}
+                    {language || FR_COPY.editor.richBlocks.code.plainText}
                   </option>
                 ))}
               </select>
             </label>
             <button type="button" onClick={() => void copy()}>
-              Copier
+              {FR_COPY.editor.richBlocks.code.copy}
             </button>
             <span className="sr-only" role="status" aria-live="polite">
               {copyState === "copied"
-                ? "Code copié."
+                ? FR_COPY.editor.richBlocks.code.copied
                 : copyState === "failed"
-                  ? "Impossible de copier le code."
+                  ? FR_COPY.editor.richBlocks.code.copyFailed
                   : ""}
             </span>
           </header>

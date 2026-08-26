@@ -478,62 +478,71 @@ describe("operational page opening", () => {
     opened.close();
   });
 
-  it("drains a new page creation before activating its canonical server head", async () => {
-    vi.stubGlobal("navigator", { onLine: true });
-    const service = new LocalContentService(workspaceApi(), `creation-barrier-${Date.now()}`);
-    services.push(service);
-    await service.initialize();
+  it.each(["item.create", "item.convert"] as const)(
+    "drains a pending %s before checking or activating its canonical server head",
+    async (commandType) => {
+      vi.stubGlobal("navigator", { onLine: true });
+      const service = new LocalContentService(workspaceApi(), `creation-barrier-${Date.now()}`);
+      services.push(service);
+      await service.initialize();
 
-    const pageId = generateUuidV7();
-    const revisionId = generateUuidV7();
-    const document: BlockDocumentV3 = {
-      blocks: [{ type: "paragraph", id: generateUuidV7(), content: [{ text: "new page" }] }],
-    };
-    const item = pageItem(pageId, revisionId, document);
-    await service.repository.applyServerItems([item]);
-    vi.spyOn(service.pageOperationsApi, "checkpoint").mockResolvedValue({
-      ok: false,
-      offline: false,
-      problem: { code: "page-operations.not-active", message: "Not active." },
-    });
-    vi.spyOn(service.outbox, "all")
-      .mockResolvedValueOnce([
-        {
-          commandType: "item.create",
-          payload: { id: pageId },
-        } as never,
-      ])
-      .mockResolvedValue([]);
-    vi.spyOn(service.outbox, "conflicts").mockResolvedValue([]);
-    const synchronize = vi.spyOn(service, "synchronize").mockResolvedValue("synced");
-    const getItem = vi.spyOn(service.api, "getItem").mockResolvedValue({ ok: true, value: item });
-    vi.spyOn(service.pageOperationsApi, "activate").mockImplementation(
-      async (activatedPageId, request) => ({
-        ok: true,
-        value: await checkpointResponse({
-          pageId: activatedPageId,
-          requestId: request.requestId as Uuid,
-          revisionId,
-          document,
+      const pageId = generateUuidV7();
+      const revisionId = generateUuidV7();
+      const document: BlockDocumentV3 = {
+        blocks: [{ type: "paragraph", id: generateUuidV7(), content: [{ text: "new page" }] }],
+      };
+      const item = pageItem(pageId, revisionId, document);
+      await service.repository.applyServerItems([item]);
+      const checkpoint = vi.spyOn(service.pageOperationsApi, "checkpoint").mockResolvedValue({
+        ok: false,
+        offline: false,
+        problem: { code: "page-operations.not-active", message: "Not active." },
+      });
+      vi.spyOn(service.outbox, "all")
+        .mockResolvedValueOnce([
+          {
+            commandType,
+            payload:
+              commandType === "item.create"
+                ? { id: pageId }
+                : { itemId: pageId, targetKind: "page" },
+          } as never,
+        ])
+        .mockResolvedValue([]);
+      vi.spyOn(service.outbox, "conflicts").mockResolvedValue([]);
+      const synchronize = vi.spyOn(service, "synchronize").mockResolvedValue("synced");
+      const getItem = vi.spyOn(service.api, "getItem").mockResolvedValue({ ok: true, value: item });
+      vi.spyOn(service.pageOperationsApi, "activate").mockImplementation(
+        async (activatedPageId, request) => ({
+          ok: true,
+          value: await checkpointResponse({
+            pageId: activatedPageId,
+            requestId: request.requestId as Uuid,
+            revisionId,
+            document,
+          }),
         }),
-      }),
-    );
-    vi.spyOn(service.pageReconciler(pageId), "synchronize").mockResolvedValue({
-      kind: "synced",
-      exchanges: 0,
-      latestPageSequence: 0,
-      fileRequirements: [],
-    });
+      );
+      vi.spyOn(service.pageReconciler(pageId), "synchronize").mockResolvedValue({
+        kind: "synced",
+        exchanges: 0,
+        latestPageSequence: 0,
+        fileRequirements: [],
+      });
 
-    const opened = await service.openOperationalPage(pageId);
+      const opened = await service.openOperationalPage(pageId);
 
-    expect(opened.ok).toBe(true);
-    if (!opened.ok) return;
-    expect(opened.mode).toBe("active");
-    expect(synchronize).toHaveBeenCalledOnce();
-    expect(synchronize.mock.invocationCallOrder[0]).toBeLessThan(
-      getItem.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    );
-    opened.close();
-  });
+      expect(opened.ok).toBe(true);
+      if (!opened.ok) return;
+      expect(opened.mode).toBe("active");
+      expect(synchronize).toHaveBeenCalledOnce();
+      expect(synchronize.mock.invocationCallOrder[0]).toBeLessThan(
+        checkpoint.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+      );
+      expect(synchronize.mock.invocationCallOrder[0]).toBeLessThan(
+        getItem.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+      );
+      opened.close();
+    },
+  );
 });

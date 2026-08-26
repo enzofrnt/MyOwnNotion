@@ -77,18 +77,29 @@ test.describe("rich page composition", () => {
     await calloutBody.click();
     await editor.pressSequentially("Information mise en évidence");
     await expect(editor.locator(".editor-callout")).toContainText("Information mise en évidence");
+    await calloutBody.getByRole("textbox", { name: "Icône de l’encadré" }).fill("🚀");
+    await calloutBody.getByRole("combobox", { name: "Couleur de l’encadré" }).selectOption("blue");
+    await expect(calloutBody).toHaveAttribute("data-tone", "blue");
 
     // Liste dépliable on a fresh block below the callout. The ASCII alias
     // avoids per-engine dead-key handling of « é » in slash queries.
+    await calloutBody.locator(".bn-inline-content").click();
     await expect(editor).toBeFocused();
     await editor.press("ControlOrMeta+Alt+Enter");
     await editor.pressSequentially("/tog");
     const toggleMenu = page.getByRole("listbox");
     await toggleMenu.getByRole("option", { name: /^Liste dépliable/u }).click();
     await expect(toggleMenu).toBeHidden();
-    // BlockNote 0.54 renders its toggle as a wrapper with a disclosure button.
+    // The disclosure is a real accessible control, not an unlabelled chevron.
     const toggleBody = editor.locator('[data-content-type="toggleListItem"]').first();
-    await toggleBody.click();
+    const toggleButton = toggleBody.getByRole("button", { name: "Déplier cette section" });
+    await expect(toggleButton).toHaveAttribute("aria-expanded", "false");
+    await toggleButton.click();
+    await expect(toggleBody.getByRole("button", { name: "Replier cette section" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    await toggleBody.locator(".editor-toggle-content").click();
     await editor.pressSequentially("Section repliée");
     await expect(editor.locator('[data-content-type="toggleListItem"]')).toContainText(
       "Section repliée",
@@ -101,6 +112,11 @@ test.describe("rich page composition", () => {
     await tableMenu.getByRole("option", { name: /^Tableau simple/u }).click();
     await expect(tableMenu).toBeHidden();
     await expect(editor.locator(".editor-table-toolbar")).toBeVisible();
+    const tableCells = editor.locator(".editor-table-cell");
+    await expect(tableCells).toHaveCount(6);
+    await tableCells.last().click();
+    await tableCells.last().press("Tab");
+    await expect(tableCells).toHaveCount(9);
 
     // Reload only once every transaction is durable and accepted: the
     // assertions target the stored document, not a mid-flight draft.
@@ -118,10 +134,15 @@ test.describe("rich page composition", () => {
     await expect(reloaded).toBeVisible({ timeout: 30_000 });
     await expect(reloaded.locator("strong")).toContainText("important");
     await expect(reloaded.locator(".editor-callout")).toContainText("Information mise en évidence");
+    await expect(reloaded.locator(".editor-callout")).toHaveAttribute("data-tone", "blue");
+    await expect(
+      reloaded.locator(".editor-callout").getByRole("textbox", { name: "Icône de l’encadré" }),
+    ).toHaveValue("🚀");
     await expect(reloaded.locator('[data-content-type="toggleListItem"]')).toContainText(
       "Section repliée",
     );
     await expect(reloaded.locator(".editor-table-toolbar")).toBeVisible();
+    await expect(reloaded.locator(".editor-table-cell")).toHaveCount(9);
 
     // The durable document holds what the screen shows (FR-025).
     const itemId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
@@ -132,5 +153,7 @@ test.describe("rich page composition", () => {
     expect(types.has("table")).toBe(true);
     expect(types.has("toggle")).toBe(true);
     expect(JSON.stringify(blocks)).toContain('"bold"');
+    expect(JSON.stringify(blocks)).toContain('"icon":"🚀"');
+    expect(JSON.stringify(blocks)).toContain('"tone":"blue"');
   });
 });
