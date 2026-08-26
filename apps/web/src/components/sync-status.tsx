@@ -125,7 +125,7 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
   })();
 
   return (
-    <div>
+    <section className="workspace-sync-status" aria-label="Synchronisation de l’espace de travail">
       <p
         className="status-banner"
         data-state={snapshot.syncState}
@@ -146,8 +146,14 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
           data-state="storage-advisory"
           role="status"
           data-testid="storage-persistence-advisory"
+          title={FR_COPY.synchronization.storageNotPersistent}
         >
-          {FR_COPY.synchronization.storageNotPersistent}
+          <span className="workspace-status__full">
+            {FR_COPY.synchronization.storageNotPersistent}
+          </span>
+          <span className="workspace-status__compact" aria-hidden="true">
+            Stockage local non garanti
+          </span>
         </p>
       ) : null}
       {quotaWarning !== null ? (
@@ -160,6 +166,6 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
           {quotaWarning}
         </p>
       ) : null}
-    </div>
+    </section>
   );
 }

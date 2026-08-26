@@ -155,6 +155,35 @@ describe("BlockNote changes → page commands", () => {
     ]);
   });
 
+  it("persists a slash transform that changes text and adds a page link together", () => {
+    const before = paragraph(FIRST, "/page");
+    const after = {
+      ...paragraph(FIRST, ""),
+      content: [
+        {
+          type: "pageLink",
+          props: { targetItemId: FIRST },
+          content: [{ type: "text", text: "Sans titre", styles: {} }],
+        },
+      ],
+    } as EditorBlock;
+    const changes = [
+      { type: "update", block: after, prevBlock: before, source: { type: "local" } },
+    ] as EditorBlocksChanged;
+
+    expect(commandsFromBlockNoteChanges({ changes, document: [after] })).toEqual([
+      { type: "replace-text", blockId: FIRST, from: 0, to: 4, text: "Sans titr" },
+      {
+        type: "set-mark",
+        blockId: FIRST,
+        from: 0,
+        to: 10,
+        mark: { type: "pageLink", targetItemId: FIRST },
+        enabled: true,
+      },
+    ]);
+  });
+
   it("keeps a move as one move command, never delete plus insert", () => {
     const first = paragraph(FIRST, "first");
     const second = paragraph(SECOND, "second");

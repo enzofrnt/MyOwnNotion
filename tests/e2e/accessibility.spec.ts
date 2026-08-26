@@ -12,6 +12,8 @@ import {
   ensureNavigationRowVisible,
   ensureNavigationVisible,
   openItemActions,
+  openPageAttachments,
+  openRootCreation,
   openSettingsSection,
   openWorkspace,
   openWorkspaceDiagnostics,
@@ -57,6 +59,7 @@ test.describe("accessibility (all viewports/browsers)", () => {
   test("interactive elements expose visible focus", async ({ page }) => {
     await openWorkspace(page);
     await ensureNavigationVisible(page);
+    await openRootCreation(page);
     const nameInput = page.getByLabel("Nom", { exact: true });
     await nameInput.focus();
     const outline = await nameInput.evaluate((element) => getComputedStyle(element).outlineStyle);
@@ -66,6 +69,7 @@ test.describe("accessibility (all viewports/browsers)", () => {
   test("keyboard-only operation: create, select, and navigate", async ({ page }) => {
     await openWorkspace(page);
     await ensureNavigationVisible(page);
+    await openRootCreation(page);
     const name = uniqueName("KeyboardOnly");
     await page.getByLabel("Nom", { exact: true }).fill(name);
     // Reach and activate the create button with the keyboard only.
@@ -88,6 +92,7 @@ test.describe("accessibility (all viewports/browsers)", () => {
   test("the layout stays operable at the current viewport", async ({ page }) => {
     await openWorkspace(page);
     await ensureNavigationVisible(page);
+    await openRootCreation(page);
     // Toolbar must be reachable within the viewport on every configured
     // project, including mobile sizes; created items stay operable after
     // scrolling (no horizontal cut-off).
@@ -238,6 +243,7 @@ test.describe("the file surfaces (feature 005)", () => {
     await createRootItem(page, "page", pageName);
     await waitForSynchronized(page);
     await selectSettledPage(page, pageName);
+    await openPageAttachments(page, pageName);
     const fileName = `${uniqueName("a11y")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({
       name: fileName,
@@ -307,6 +313,7 @@ test.describe("synchronization accessibility (feature 006)", () => {
 
   test("the connection state is announced politely, not as an alert", async ({ page }) => {
     await openWorkspace(page);
+    await ensureNavigationVisible(page);
     const state = page.getByTestId("live-connection-state");
     await expect(state).toBeVisible({ timeout: 15_000 });
     // `status` while things are ordinary. The two states that need acting on —
@@ -339,13 +346,14 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await ensureNavigationVisible(page);
     const databaseName = uniqueName("Accessible planning");
     const entryName = uniqueName("Keyboard card");
+    await openRootCreation(page);
     await page.getByTestId("new-root-database").click();
     const createDatabase = page.getByRole("form", { name: "Create a database" });
     await createDatabase.getByLabel("Create a database").fill(databaseName);
     const createDatabaseButton = createDatabase.getByRole("button", { name: "Create database" });
     await createDatabaseButton.click();
     await expect(createDatabase).toBeHidden({ timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+    await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
     await waitForSynchronized(page);
 
     const addProperty = async (name: string, type: "status" | "date"): Promise<void> => {

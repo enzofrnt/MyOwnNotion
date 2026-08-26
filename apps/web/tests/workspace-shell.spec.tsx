@@ -64,7 +64,7 @@ describe("workspace shell", () => {
     expect(markup).toContain("Aller au contenu");
   });
 
-  it("renders a stable title row, breadcrumb and reserved contextual actions", () => {
+  it("keeps page title, synchronization and settings out of the compact page chrome", () => {
     const markup = renderToStaticMarkup(
       <PageHeader
         title="Projet Atlas"
@@ -79,9 +79,10 @@ describe("workspace shell", () => {
     );
     expect(markup).toContain('aria-label="Fil d’Ariane"');
     expect(markup).toContain('aria-current="page"');
-    expect(markup).toContain('<h1 data-testid="active-item-title">Projet Atlas</h1>');
-    expect(markup).toContain('data-testid="page-context-actions"');
-    expect(markup).toContain("Synchronisé");
+    expect(markup).not.toContain('data-testid="active-item-title"');
+    expect(markup).not.toContain('data-testid="page-context-actions"');
+    expect(markup).not.toContain("Synchronisé");
+    expect(markup).not.toContain("Plus d’actions");
   });
 
   it("keeps loading geometry explicit instead of returning a blank page", () => {

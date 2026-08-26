@@ -14,6 +14,7 @@ import type {
   PageSyncState,
 } from "@myownnotion/client-core";
 import { useEffect, useState } from "react";
+import { AppIcon } from "../../ui/icons.tsx";
 import { LocalCommitRecovery } from "./local-commit-recovery.tsx";
 
 export const BLOCKED_REASON_COPY: Record<PageSyncState["blockedReason"] & string, string> = {
@@ -85,33 +86,40 @@ export function EditorSyncStatus({
     ? "local-saving"
     : sync.synchronizationKind;
   const displayedLocallyDurable = !editorCommitPending && sync.locallyDurable;
+  const label = editorCommitPending ? "Enregistrement…" : editorSyncLabel(sync);
+  const requiresAction = displayedSynchronizationKind === "blocked" || sync.kind === "attention";
 
   return (
-    <div className="editor-sync-status">
-      <p
-        className="save-state"
-        data-testid="editor-sync-status"
-        data-state={displayedKind}
-        data-sync={displayedSynchronizationKind}
-        data-durable={displayedLocallyDurable ? "true" : "false"}
-        data-pending-count={sync.pendingCount}
-        data-attention-count={sync.attentionCount}
-        data-adoption-error={remoteAdoptionErrorType ?? undefined}
-        data-importing-remote={importingRemote ? "true" : "false"}
-        role="status"
-        aria-live="polite"
-      >
-        <strong data-testid="editor-sync-label">
-          {editorCommitPending ? "Enregistrement…" : editorSyncLabel(sync)}
-        </strong>
-        {sync.blockedReason !== undefined ? (
-          <span data-testid="editor-sync-blocked-reason">
-            {" "}
-            — {BLOCKED_REASON_COPY[sync.blockedReason]}
+    <div className="editor-sync-status" data-requires-action={requiresAction || undefined}>
+      <details {...(requiresAction ? { open: true } : {})}>
+        <summary title={`${label} — afficher les détails`}>
+          <AppIcon name={requiresAction ? "conflict" : "info"} size="small" />
+          <span
+            className="editor-sync-status__label"
+            data-testid="editor-sync-status"
+            data-state={displayedKind}
+            data-sync={displayedSynchronizationKind}
+            data-durable={displayedLocallyDurable ? "true" : "false"}
+            data-pending-count={sync.pendingCount}
+            data-attention-count={sync.attentionCount}
+            data-adoption-error={remoteAdoptionErrorType ?? undefined}
+            data-importing-remote={importingRemote ? "true" : "false"}
+            role="status"
+            aria-live="polite"
+          >
+            <strong data-testid="editor-sync-label">{label}</strong>
           </span>
-        ) : null}
-      </p>
-      <LocalCommitRecovery session={session} />
+        </summary>
+        <div className="editor-sync-status__details">
+          <p>{label}</p>
+          {sync.blockedReason !== undefined ? (
+            <p data-testid="editor-sync-blocked-reason">
+              {BLOCKED_REASON_COPY[sync.blockedReason]}
+            </p>
+          ) : null}
+          <LocalCommitRecovery session={session} />
+        </div>
+      </details>
     </div>
   );
 }

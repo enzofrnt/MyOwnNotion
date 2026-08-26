@@ -375,13 +375,13 @@ test("a restarted device drains a closed page without reopening it", async ({
     // Chromium rejects that navigation before the service worker can answer,
     // which tests the automation transport rather than application recovery.
     await selectItem(second.page, landingName);
-    await expect(second.page.getByTestId("active-item-title")).toHaveText(landingName);
+    await expect(second.page.getByTestId("active-item-title")).toHaveValue(landingName);
     await second.page.close();
 
     await second.context.setOffline(false);
     second.page = await second.context.newPage();
     await openWorkspace(second.page);
-    await expect(second.page.getByTestId("active-item-title")).toHaveText(landingName);
+    await expect(second.page.getByTestId("active-item-title")).toHaveValue(landingName);
 
     // Device A keeps the edited page open. Device B must publish its durable
     // queue from boot discovery alone; no selection, reload or save-shaped

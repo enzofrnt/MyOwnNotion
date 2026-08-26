@@ -6,6 +6,7 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { WorkspaceSearchService } from "../../services/search.ts";
 import { ALL_SEARCH_KINDS, type SearchBranchOption, SearchFilters } from "./search-filters.tsx";
 import { SearchResults } from "./search-results.tsx";
@@ -120,6 +121,20 @@ export function SearchDialog({
   const requestSerial = useRef(0);
 
   useEffect(() => {
+    const appRoot = document.getElementById("root");
+    if (appRoot === null) return;
+    const wasInert = appRoot.inert;
+    const previousAriaHidden = appRoot.getAttribute("aria-hidden");
+    appRoot.inert = true;
+    appRoot.setAttribute("aria-hidden", "true");
+    return () => {
+      appRoot.inert = wasInert;
+      if (previousAriaHidden === null) appRoot.removeAttribute("aria-hidden");
+      else appRoot.setAttribute("aria-hidden", previousAriaHidden);
+    };
+  }, []);
+
+  useEffect(() => {
     input.current?.focus();
   }, []);
 
@@ -216,7 +231,7 @@ export function SearchDialog({
     onClose();
   };
 
-  return (
+  return createPortal(
     <div className="search-backdrop" role="presentation">
       <section
         ref={dialog}
@@ -378,6 +393,7 @@ export function SearchDialog({
           ) : null}
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

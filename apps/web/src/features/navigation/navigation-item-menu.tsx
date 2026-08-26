@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from "react";
+import { type MouseEvent, type ReactNode, useRef } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   MenuContent,
@@ -19,6 +19,7 @@ export interface NavigationItemMenuProps {
   readonly onCreatePage: () => void;
   readonly onCreateFolder: () => void;
   readonly onCreateDatabase: () => void;
+  readonly onImportFile?: ((file: File) => void) | undefined;
   readonly onRename: () => void;
   readonly onMoveUp: () => void;
   readonly onMoveDown: () => void;
@@ -40,6 +41,7 @@ export function NavigationItemMenu({
   onCreateDatabase,
   onCreateFolder,
   onCreatePage,
+  onImportFile,
   onMoveDown,
   onMoveSelectedInside,
   onMoveToRoot,
@@ -49,6 +51,7 @@ export function NavigationItemMenu({
   onToggleOffline,
   onTrash,
 }: NavigationItemMenuProps) {
+  const fileInput = useRef<HTMLInputElement | null>(null);
   return (
     <span className="navigation-item-actions">
       {conversion}
@@ -80,6 +83,15 @@ export function NavigationItemMenu({
                 <AppIcon name="table" size="small" />
                 Nouvelle base à l’intérieur
               </MenuItem>
+              {onImportFile === undefined ? null : (
+                <MenuItem
+                  data-testid={`new-file-inside-${itemName}`}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  <AppIcon name="upload" size="small" />
+                  Importer un fichier à l’intérieur
+                </MenuItem>
+              )}
               <MenuSeparator />
             </>
           ) : null}
@@ -136,6 +148,20 @@ export function NavigationItemMenu({
           </MenuItem>
         </MenuContent>
       </MenuRoot>
+      {onImportFile === undefined ? null : (
+        <input
+          ref={fileInput}
+          type="file"
+          hidden
+          tabIndex={-1}
+          data-testid={`hierarchy-file-input-${itemName}`}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = "";
+            if (file !== undefined) onImportFile(file);
+          }}
+        />
+      )}
     </span>
   );
 }

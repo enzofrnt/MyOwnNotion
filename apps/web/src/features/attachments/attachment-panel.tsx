@@ -136,15 +136,19 @@ export function AttachmentPanel({
   );
 
   return (
-    <section className="panel" aria-label="Page attachments" data-testid="attachment-panel">
-      <h2>Attachments</h2>
+    <section
+      className="workspace-attachment-panel"
+      aria-label="Pièces jointes de la page"
+      data-testid="attachment-panel"
+    >
+      <h2>Pièces jointes</h2>
       {problem !== null ? (
         <p className="status-banner" data-state="error" role="alert">
           {problem.code}: {problem.title}
         </p>
       ) : null}
       <div className="field-row">
-        <label htmlFor={`attachment-upload-${pageId}`}>Import file into this page</label>
+        <label htmlFor={`attachment-upload-${pageId}`}>Ajouter un fichier à cette page</label>
         <input
           id={`attachment-upload-${pageId}`}
           data-testid="attachment-upload"

@@ -15,6 +15,7 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
+import { openSettings } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { resetSecurityInstallation, seedCommittedOwner } from "./reset-installation.ts";
 
@@ -97,7 +98,7 @@ async function openDevices(page: import("@playwright/test").Page): Promise<void>
   await expect(page.getByTestId("workspace-shell")).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByTestId("toggle-security-settings").click();
+  await openSettings(page);
   await expect(page.getByTestId("device-list")).toBeVisible({ timeout: 30_000 });
 }
 

@@ -8,7 +8,7 @@ export interface PageBreadcrumb {
 }
 
 export interface PageHeaderProps {
-  readonly title: string;
+  readonly title?: string;
   readonly breadcrumbs?: readonly PageBreadcrumb[];
   readonly status?: ReactNode;
   readonly actions?: ReactNode;
@@ -29,8 +29,13 @@ export function PageHeader({
   status,
   title,
 }: PageHeaderProps) {
+  const pageChromeOnly = kind === "page";
   return (
-    <header className="workspace-page-header" data-testid="workspace-page-header">
+    <header
+      className="workspace-page-header"
+      data-compact={pageChromeOnly || undefined}
+      data-testid="workspace-page-header"
+    >
       <div className="workspace-page-header__path-row">
         <nav aria-label="Fil d’Ariane" className="workspace-breadcrumbs">
           <ol>
@@ -58,19 +63,25 @@ export function PageHeader({
             ))}
           </ol>
         </nav>
-        <section className="workspace-page-header__status" aria-label="État du document">
-          {status}
-        </section>
+        {pageChromeOnly || status === undefined ? null : (
+          <section className="workspace-page-header__status" aria-label="État du document">
+            {status}
+          </section>
+        )}
       </div>
-      <div className="workspace-page-header__title-row">
-        <div className="workspace-page-header__identity">
-          <span className="workspace-page-header__kind">{KIND_LABELS[kind]}</span>
-          <h1 data-testid="active-item-title">{title}</h1>
+      {pageChromeOnly ? null : (
+        <div className="workspace-page-header__title-row">
+          <div className="workspace-page-header__identity">
+            <span className="workspace-page-header__kind">{KIND_LABELS[kind]}</span>
+            <h1 data-testid="active-item-heading">{title ?? "Bienvenue"}</h1>
+          </div>
+          {actions === undefined ? null : (
+            <div className="workspace-page-header__actions" data-testid="page-context-actions">
+              {actions}
+            </div>
+          )}
         </div>
-        <div className="workspace-page-header__actions" data-testid="page-context-actions">
-          {actions}
-        </div>
-      </div>
+      )}
     </header>
   );
 }

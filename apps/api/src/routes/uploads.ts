@@ -80,7 +80,7 @@ export function parseUploadMetadata(header: string | undefined): Record<string, 
  */
 async function completeUpload(
   context: AppContext,
-  upload: { readonly id: Uuid; readonly mediaType: string; readonly originalName: string },
+  upload: UploadRecord,
 ): Promise<{ ok: true; itemId: Uuid } | { ok: false; error: SafeError }> {
   const bytes = await context.partialUploads.read(upload.id);
   if (bytes === null) {
@@ -114,7 +114,14 @@ async function completeUpload(
         name: upload.originalName,
         mediaType: upload.mediaType,
         content: stored,
-        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        placement:
+          upload.attachmentParentItemId === null
+            ? { kind: "hierarchy", parentItemId: null, positionKey: "V" }
+            : {
+                kind: "attachment",
+                parentItemId: upload.attachmentParentItemId,
+                positionKey: "V",
+              },
         acceptedAt: new Date(),
       });
       if (!execution.ok) {
@@ -288,8 +295,18 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
           title: "The requested file identity is invalid",
         });
       }
+      const attachmentParentItemId = metadata["attachmentParentItemId"];
+      if (attachmentParentItemId !== undefined && !isUuid(attachmentParentItemId)) {
+        return sendProblem(reply, {
+          code: "validation.invalid-payload",
+          title: "The attachment source page identity is invalid",
+        });
+      }
       const upload = await createUpload(context.db, {
         ...(requestedItemId === undefined ? {} : { id: requestedItemId as Uuid }),
+        ...(attachmentParentItemId === undefined
+          ? {}
+          : { attachmentParentItemId: attachmentParentItemId as Uuid }),
         workspaceId: context.workspaceId,
         declaredLength: declared,
         mediaType: metadata["mediaType"] ?? "application/octet-stream",

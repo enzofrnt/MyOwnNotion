@@ -11,6 +11,7 @@ import {
   createRootItem,
   ensureNavigationVisible,
   moveSelectedItemInto,
+  openRootCreation,
   openWorkspace,
   renameItem,
   saveEntryProperties,
@@ -36,12 +37,13 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await createRootItem(page, "folder", folderName);
   await createRootItem(page, "page", targetName);
 
+  await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeAttached({ timeout: 15_000 });
-  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
   await waitForSynchronized(page);
 
   const addProperty = async (name: string, type: string, options?: string): Promise<void> => {
@@ -83,7 +85,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await saveEntryProperties(page);
 
   await page.getByRole("button", { name: "Close entry" }).click();
-  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
   await selectItem(page, targetName);
   await renameItem(page, targetName, renamedTarget);
@@ -110,11 +112,12 @@ test("announces the active entry count before trashing a database", async ({ pag
   const entryNames = [uniqueName("First entry"), uniqueName("Second entry")];
 
   await ensureNavigationVisible(page);
+  await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
-  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
   for (const entryName of entryNames) {
     await createDatabaseEntry(page, entryName);
@@ -130,5 +133,5 @@ test("announces the active entry count before trashing a database", async ({ pag
   await dialog.dismiss();
   await trash;
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible();
-  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 });

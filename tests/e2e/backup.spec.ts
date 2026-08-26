@@ -106,6 +106,10 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
 
   await makeLastVerificationStale();
   await page.getByTestId("back-to-workspace").click();
+  const notices = page.getByTestId("workspace-notices-summary");
+  await expect(notices).toBeVisible();
+  await expect(notices).toContainText("1 alerte");
+  await notices.click();
   const workspaceWarning = page.getByTestId("workspace-backup-stale");
   await expect(workspaceWarning).toBeVisible();
   await expect(workspaceWarning).toContainText("Aucune sauvegarde vérifiée depuis plus d’un jour");

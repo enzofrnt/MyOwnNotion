@@ -10,6 +10,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   ensureNavigationVisible,
+  openRootCreation,
   openWorkspace,
   openWorkspaceDiagnostics,
   returnToWorkspace,
@@ -64,11 +65,12 @@ async function indexedDbContents(page: Page): Promise<string> {
 
 async function createStructuredContent(page: Page): Promise<string> {
   await ensureNavigationVisible(page);
+  await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(SENTINELS.database);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
-  await expect(page.getByRole("heading", { name: SENTINELS.database })).toBeVisible({
+  await expect(page.getByTestId("active-item-title")).toHaveValue(SENTINELS.database, {
     timeout: 15_000,
   });
   await waitForSynchronized(page);

@@ -27,6 +27,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
 import { PageAmbiguityNotice } from "../sync/page-ambiguity-notice.tsx";
 import { usePageReconciler } from "../sync/use-page-reconciler.ts";
+import type { CreateSubpage } from "./editor-menus/slash-menu.tsx";
 import { EditorSurface, type EditorSurfaceHandle } from "./editor-surface.tsx";
 import { type EditorDurableSession, EditorSyncStatus } from "./editor-sync-status.tsx";
 import { captureScrollAnchor, restoreScrollAnchor } from "./editor-view-state.ts";
@@ -52,6 +53,7 @@ export function EditorView({
   itemId,
   editingAllowed = true,
   items = [],
+  onCreateSubpage,
   onOpenPage,
   initialScrollAnchor = null,
   onCaptureScrollAnchor,
@@ -61,6 +63,7 @@ export function EditorView({
   /** False when the device key is unavailable and nothing can be sealed. */
   readonly editingAllowed?: boolean;
   readonly items?: readonly ProjectedItem[];
+  readonly onCreateSubpage?: CreateSubpage;
   readonly onOpenPage?: (itemId: string) => void;
   /** Where the owner left this page, restored once blocks are mounted (FR-009). */
   readonly initialScrollAnchor?: PageScrollAnchor | null;
@@ -245,7 +248,7 @@ export function EditorView({
 
   if (state.kind === "loading") {
     return (
-      <section className="panel" aria-label="Page content" aria-busy="true">
+      <section className="workspace-page-editor" aria-label="Page content" aria-busy="true">
         <p className="muted" role="status">
           Loading this page…
         </p>
@@ -255,7 +258,7 @@ export function EditorView({
 
   if (state.kind === "unavailable") {
     return (
-      <section className="panel" aria-label="Page content">
+      <section className="workspace-page-editor" aria-label="Page content">
         <p
           className="status-banner"
           data-state="error"
@@ -269,7 +272,11 @@ export function EditorView({
   }
 
   return (
-    <section className="panel" aria-label="Page content" data-testid="operational-editor">
+    <section
+      className="workspace-page-editor"
+      aria-label="Page content"
+      data-testid="operational-editor"
+    >
       <PageAmbiguityNotice records={ambiguities} onResolve={resolveAmbiguity} />
       {/* Keyed by item and mode alone: the session owns causality, so another
           device's write must never remount this surface. A mode change (an
@@ -282,6 +289,7 @@ export function EditorView({
         handleRef={surface}
         currentItemId={itemId}
         items={items}
+        onCreateSubpage={onCreateSubpage}
         onOpenPage={onOpenPage}
         onSettlementChange={setEditorSettled}
         session={state.session}

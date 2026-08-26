@@ -30,6 +30,22 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
   await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live", {
     timeout: 15_000,
   });
+  await expect(
+    page.getByTestId("workspace-page-header").getByTestId("active-item-title"),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("toggle-security-settings")).toHaveCount(0);
+  await expect(page.getByTestId("attachment-panel")).toHaveCount(0);
+  await expect(page.getByTestId("operational-editor")).not.toHaveClass(/\bpanel\b/u);
+  const compactEditorStatus = page.getByTestId("editor-sync-status");
+  await expect(compactEditorStatus).toBeVisible();
+  await expect
+    .poll(() => compactEditorStatus.evaluate((node) => getComputedStyle(node).opacity))
+    .toBe("0");
+  const pageTop = await page.getByTestId("active-item-title").boundingBox();
+  const editorTop = await page.getByTestId("block-editor").boundingBox();
+  expect(pageTop).not.toBeNull();
+  expect(editorTop).not.toBeNull();
+  expect((pageTop?.y ?? 0) + (pageTop?.height ?? 0)).toBeLessThanOrEqual(editorTop?.y ?? 0);
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
   await page.evaluate(async () => await document.fonts.ready);
   // Backup verification belongs to its own journey and persists across test
@@ -37,7 +53,7 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
   // backup test happened to run earlier. The editor can also claim focus while
   // mounting and scroll the document; capture the deliberate top-of-page state.
   await page.addStyleTag({
-    content: '[data-testid="workspace-backup-stale"] { display: none !important; }',
+    content: ".workspace-notices { display: none !important; }",
   });
   await page.evaluate(() => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();

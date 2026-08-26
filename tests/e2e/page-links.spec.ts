@@ -161,3 +161,53 @@ test("links to another page without nesting it, including a descendant", async (
   );
   await page.unroute("**/v1/**");
 });
+
+test("/page creates one linked subpage under the current page", async ({ page }) => {
+  await openWorkspace(page);
+  const parent = uniqueName("Parent slash");
+  await createRootItem(page, "page", parent);
+  await waitForSynchronized(page);
+  await selectItem(page, parent);
+
+  const editor = editorSurface(page);
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await editor.pressSequentially("/page");
+  const sourceBlockId = await editor
+    .locator(":scope > .bn-block-group > .bn-block-outer[data-id]")
+    .first()
+    .getAttribute("data-id");
+  if (sourceBlockId === null) throw new Error("Le bloc source doit avoir une identité stable.");
+  const menu = page.getByRole("listbox");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("option", { name: /^Sous-page/u }).click();
+
+  await expect(page.getByTestId("active-item-title")).toHaveValue("Sans titre");
+  await ensureNavigationVisible(page);
+  const child = page.locator(`[role="treeitem"][data-item-id="${sourceBlockId}"]`);
+  await expect(child).toHaveAttribute("aria-selected", "true");
+  await selectItem(page, parent);
+
+  const link = pageLinks(page).first();
+  await expect(link).toHaveText("Sans titre");
+  const href = await link.getAttribute("href");
+  if (href === null || !href.startsWith(PAGE_LINK_PREFIX)) {
+    throw new Error("La sous-page doit conserver une identité de lien interne.");
+  }
+  const childId = href.slice(PAGE_LINK_PREFIX.length);
+  expect(childId).toBe(sourceBlockId);
+  const parentRow = page.getByTestId(`tree-item-${parent}`);
+  if ((await parentRow.getAttribute("aria-expanded")) !== "true") {
+    await page.getByRole("button", { name: `Expand ${parent}` }).click();
+  }
+  await expect(child).toHaveCount(1);
+  await expect(child).toContainText("Sans titre");
+  await waitForSynchronized(page);
+
+  await page.reload();
+  await openWorkspace(page);
+  await selectItem(page, parent);
+  await expect(pageLinks(page)).toHaveCount(1);
+  await expect(page.locator(`[role="treeitem"][data-item-id="${childId}"]`)).toHaveCount(1);
+});

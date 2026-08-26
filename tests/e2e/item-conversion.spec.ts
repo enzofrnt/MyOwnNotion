@@ -22,6 +22,7 @@ import {
   createRootItem,
   ensureNavigationRowVisible,
   expectNoHorizontalOverflow,
+  openPageAttachments,
   openWorkspace,
   readTreeOrder,
   saveDocument,
@@ -293,8 +294,10 @@ test.describe("the two relations a page has", () => {
     // The hierarchy child is in the tree.
     await ensureNavigationRowVisible(page, filed);
 
-    // The attachments panel is a separate region and does not list it.
-    const attachments = page.getByRole("region", { name: /attachments/i });
+    // Content attachments are disclosed from their own control under the page
+    // row and never leak hierarchy children into that collection.
+    await openPageAttachments(page, parent);
+    const attachments = page.getByTestId("attachment-panel");
     await expect(attachments).toBeVisible();
     await expect(attachments).not.toContainText(filed);
   });
@@ -308,7 +311,8 @@ test.describe("the two relations a page has", () => {
     await waitForSynchronized(page);
     await selectItem(page, folder);
 
-    await expect(page.getByRole("region", { name: /attachments/i })).toBeHidden();
+    await expect(page.getByRole("button", { name: `Pièces jointes de ${folder}` })).toHaveCount(0);
+    await expect(page.getByTestId("attachment-panel")).toBeHidden();
   });
 
   test("converting a page to a folder takes its attachments panel with it", async ({ page }) => {
@@ -317,12 +321,14 @@ test.describe("the two relations a page has", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await selectItem(page, name);
-    await expect(page.getByRole("region", { name: /attachments/i })).toBeVisible();
+    await openPageAttachments(page, name);
+    await expect(page.getByTestId("attachment-panel")).toBeVisible();
 
     await convertAndSettle(page, name, "folder");
     await selectItem(page, name);
 
-    await expect(page.getByRole("region", { name: /attachments/i })).toBeHidden();
+    await expect(page.getByRole("button", { name: `Pièces jointes de ${name}` })).toHaveCount(0);
+    await expect(page.getByTestId("attachment-panel")).toBeHidden();
   });
 });
 

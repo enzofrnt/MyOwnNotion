@@ -36,16 +36,17 @@ test.describe("live synchronization (US1)", () => {
     try {
       await openWorkspace(page);
       await openWorkspace(second.page);
+      // Workspace diagnostics live in the navigation footer. On phones the
+      // drawer is closed by default, so expose it before asserting the label.
+      await ensureNavigationVisible(second.page);
       // The indicator exists and says something. Not asserted as "live": a
       // first connection that is still opening would fail a test about
       // synchronization for a reason that is not about synchronization.
       await expect(second.page.getByTestId("live-connection-state")).toBeVisible({
         timeout: 15_000,
       });
-      // Opening the mobile drawer is part of initial setup, before the remote
-      // mutation. It remains untouched afterwards, preserving the live-update
+      // The drawer remains untouched afterwards, preserving the live-update
       // property this journey exists to prove.
-      await ensureNavigationVisible(second.page);
 
       const created = uniqueName("LiveFolder");
       const startedAt = Date.now();

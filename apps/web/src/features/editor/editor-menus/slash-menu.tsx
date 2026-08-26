@@ -31,6 +31,41 @@ interface SlashEditor {
   };
   insertBlocks(blocks: unknown[], reference: string, placement: "before" | "after"): unknown;
   removeBlocks(blockIds: string[]): unknown;
+  updateBlock(blockId: string, update: unknown): unknown;
+}
+
+export interface CreateSubpageRequest {
+  readonly id: string;
+  readonly title: string;
+}
+
+export type CreateSubpage = (
+  request: CreateSubpageRequest,
+) => Promise<{ readonly id: string; readonly title: string }>;
+
+/**
+ * Creates the hierarchy item before replacing the slash block with its link.
+ * The block UUID doubles as the child UUID, making a retry after an interrupted
+ * local mutation idempotent without adding a second identity map.
+ */
+export async function createSubpageFromSlash(
+  editor: Pick<SlashEditor, "getTextCursorPosition" | "updateBlock">,
+  createSubpage: CreateSubpage,
+  onCreated?: (child: { readonly id: string; readonly title: string }) => void | Promise<void>,
+): Promise<void> {
+  const current = editor.getTextCursorPosition().block;
+  const child = await createSubpage({ id: current.id, title: "Sans titre" });
+  editor.updateBlock(current.id, {
+    type: "paragraph",
+    content: [
+      {
+        type: "pageLink",
+        props: { targetItemId: child.id },
+        content: [{ type: "text", text: child.title, styles: {} }],
+      },
+    ],
+  });
+  await onCreated?.(child);
 }
 
 /**
@@ -51,7 +86,17 @@ function insertTableAfterCurrent(editor: SlashEditor): void {
 }
 
 /** French, filtered Community menu: no XL or not-yet-durable block leaks into V1. */
-export function FrenchSlashMenu() {
+export function FrenchSlashMenu({
+  onCreateSubpage,
+  onSubpageCreated,
+  onError,
+}: {
+  readonly onCreateSubpage?: CreateSubpage | undefined;
+  readonly onSubpageCreated?:
+    | ((child: { readonly id: string; readonly title: string }) => void | Promise<void>)
+    | undefined;
+  readonly onError?: ((message: string) => void) | undefined;
+}) {
   const editor = useBlockNoteEditor();
   const advancedItems = [
     {
@@ -81,6 +126,28 @@ export function FrenchSlashMenu() {
       onItemClick: () => insertTableAfterCurrent(editor as unknown as SlashEditor),
     },
   ];
+  const navigationItems =
+    onCreateSubpage === undefined
+      ? []
+      : [
+          {
+            title: "Sous-page",
+            subtext: "Créer une page imbriquée et insérer son lien",
+            aliases: ["page", "sous-page", "subpage"],
+            group: "Navigation",
+            onItemClick: () => {
+              void createSubpageFromSlash(
+                editor as unknown as SlashEditor,
+                onCreateSubpage,
+                onSubpageCreated,
+              ).catch((error: unknown) => {
+                onError?.(
+                  error instanceof Error ? error.message : "La sous-page n’a pas pu être créée.",
+                );
+              });
+            },
+          },
+        ];
   return (
     <SuggestionMenuController
       triggerCharacter="/"
@@ -88,6 +155,7 @@ export function FrenchSlashMenu() {
         filterSuggestionItems(
           [
             ...getDefaultReactSlashMenuItems(editor).filter((item) => US2_TITLES.has(item.title)),
+            ...navigationItems,
             ...advancedItems,
           ],
           query,

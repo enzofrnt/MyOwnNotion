@@ -27,6 +27,7 @@ import type {
 import {
   type DatabaseDefinition,
   generateUuidV7,
+  isSafeErrorCode,
   isUuid,
   jsonValuesEqual,
   type SafeError,
@@ -47,6 +48,7 @@ import { DATABASE_COPY } from "../databases/database-copy.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
 import { EntryPanel } from "../databases/entry-panel.tsx";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
+import type { CreateSubpageRequest } from "../editor/editor-menus/slash-menu.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { BranchState } from "../navigation/branch-state.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
@@ -64,6 +66,7 @@ import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
 import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
 import { PageHeader } from "../workspace/page-header.tsx";
+import { PageTitleEditor } from "../workspace/page-title-editor.tsx";
 import { useActiveItem } from "../workspace/use-active-item.ts";
 import { WorkspaceShell } from "../workspace/workspace-shell.tsx";
 import { WorkspaceState } from "../workspace/workspace-state.tsx";
@@ -221,6 +224,7 @@ export function HierarchyExplorer({
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadPhase, setLoadPhase] = useState<LoadPhase>("initializing");
   const [problem, setProblem] = useState<SafeError | null>(null);
+  const [noticesOpen, setNoticesOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
   /** Device-local scroll anchors, kept beside the rest of the ergonomics. */
   const presentationRef = useRef<WorkspacePresentationState | null>(null);
@@ -245,6 +249,7 @@ export function HierarchyExplorer({
   const [structuredSelectionLoading, setStructuredSelectionLoading] = useState(false);
   const structuredSelectionItemId = useRef<Uuid | null>(null);
   const definitionMutationQueue = useRef<Promise<void>>(Promise.resolve());
+  const titleMutationQueue = useRef<Promise<void>>(Promise.resolve());
   const optimisticDatabaseDefinition = useRef<{
     readonly databaseId: Uuid;
     readonly definition: DatabaseDefinition;
@@ -258,16 +263,24 @@ export function HierarchyExplorer({
   // Which branches are open. Everything was permanently expanded before US3,
   // which is workable at ten items and unusable at a hundred.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [expandedAttachments, setExpandedAttachments] = useState<ReadonlySet<string>>(new Set());
   // Guards the persistence effect below. Without it that effect can fire before
   // the stored state has been read and write the empty set back, erasing every
   // open branch on the way in.
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [newItemName, setNewItemName] = useState("");
+  const [rootCreationOpen, setRootCreationOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchReturnFocus = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    // Routine backup reminders stay as one compact affordance. A failed owner
+    // action opens itself because that is the one case that must interrupt.
+    if (problem !== null) setNoticesOpen(true);
+  }, [problem]);
 
   const openSearch = useCallback(() => {
     if (document.activeElement instanceof HTMLElement) {
@@ -306,6 +319,7 @@ export function HierarchyExplorer({
   }, []);
 
   const openDatabaseCreation = useCallback((parentItemId: Uuid | null) => {
+    if (parentItemId === null) setRootCreationOpen(false);
     setDatabaseFormParent(parentItemId);
   }, []);
 
@@ -426,6 +440,17 @@ export function HierarchyExplorer({
   const visibleNodes = useMemo(() => flatten(tree, expanded), [tree, expanded]);
   const allNodes = useMemo(() => flattenAll(tree), [tree]);
   const draggableTreeItems = useMemo(() => treeDragItems(tree), [tree]);
+  const attachmentCountByPage = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      if (item.kind !== "file") continue;
+      for (const placement of item.placements) {
+        if (placement.kind !== "attachment" || placement.parentItemId === null) continue;
+        counts.set(placement.parentItemId, (counts.get(placement.parentItemId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [items]);
   const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
 
   useEffect(() => {
@@ -712,8 +737,41 @@ export function HierarchyExplorer({
         setProblem(result.error);
       }
       await refresh();
+      return result.ok;
     },
     [service, refresh],
+  );
+
+  const renameSelectedPage = useCallback(
+    (itemId: Uuid, name: string): Promise<void> => {
+      const operation = async (): Promise<void> => {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const current = await service.getItem(itemId);
+          if (current === null) throw new Error("Cette page n’est plus disponible.");
+          if (current.name === name) return;
+          const result = await service.mutate("item.rename", { itemId, name }, [
+            current.currentRevisionId,
+          ]);
+          if (result.ok) {
+            await refresh();
+            return;
+          }
+          if (result.error.code === "revision.stale-base") continue;
+          setProblem(result.error);
+          throw new Error(result.error.title);
+        }
+        const error: SafeError = {
+          code: "revision.stale-base",
+          title: "Le titre a changé sur un autre appareil. Votre saisie est conservée.",
+        };
+        setProblem(error);
+        throw new Error(error.title);
+      };
+      const queued = titleMutationQueue.current.then(operation, operation);
+      titleMutationQueue.current = queued.catch(() => undefined);
+      return queued;
+    },
+    [refresh, service],
   );
 
   const siblingKeys = useCallback(
@@ -756,10 +814,12 @@ export function HierarchyExplorer({
       // "Untitled page": the clear from the previous creation had landed
       // between the test filling the field and clicking the button.
       setNewItemName("");
+      setRootCreationOpen(false);
       const keys = siblingKeys(parentItemId);
       const positionKey = safeKeyBetween(keys[keys.length - 1] ?? null, null);
-      await runCommand("item.create", {
-        id: generateUuidV7(),
+      const itemId = generateUuidV7();
+      const created = await runCommand("item.create", {
+        id: itemId,
         kind,
         name,
         placement: { id: generateUuidV7(), kind: "hierarchy", parentItemId, positionKey },
@@ -773,14 +833,101 @@ export function HierarchyExplorer({
             }
           : {}),
       });
+      if (!created) return;
       if (parentItemId !== null) {
         // Open the branch we just put something into. Creating a page inside a
         // collapsed folder and being shown nothing is indistinguishable from
         // the creation having failed.
         setExpanded((current) => new Set(current).add(parentItemId));
       }
+      // Creation is navigation, not merely a tree mutation. A page that has
+      // just been created is the owner's next destination on every viewport.
+      if (kind === "page") openItem(itemId);
     },
-    [newItemName, runCommand, siblingKeys],
+    [newItemName, openItem, runCommand, siblingKeys],
+  );
+
+  const createSubpage = useCallback(
+    async (parentItemId: Uuid, request: CreateSubpageRequest) => {
+      if (!isUuid(request.id)) throw new Error("L’identité de la sous-page est invalide.");
+      const itemId = request.id as Uuid;
+      const existing = await service.getItem(itemId);
+      if (existing !== null) {
+        const alreadyAttached = existing.placements.some(
+          (placement) => placement.kind === "hierarchy" && placement.parentItemId === parentItemId,
+        );
+        if (!alreadyAttached || existing.kind !== "page") {
+          throw new Error("Cette identité appartient déjà à un autre élément.");
+        }
+        return { id: existing.id, title: existing.name };
+      }
+
+      const keys = items
+        .flatMap((item) =>
+          item.placements
+            .filter(
+              (placement) =>
+                placement.kind === "hierarchy" && placement.parentItemId === parentItemId,
+            )
+            .map((placement) => placement.positionKey),
+        )
+        .sort();
+      const result = await service.mutate("item.create", {
+        id: itemId,
+        kind: "page",
+        name: request.title.trim() || "Sans titre",
+        placement: {
+          id: generateUuidV7(),
+          kind: "hierarchy",
+          parentItemId,
+          positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
+        },
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 1,
+          body: {},
+        },
+      });
+      if (!result.ok) {
+        setProblem(result.error);
+        throw new Error(result.error.title);
+      }
+      setExpanded((current) => new Set(current).add(parentItemId));
+      await refresh();
+      return { id: itemId, title: request.title.trim() || "Sans titre" };
+    },
+    [items, refresh, service],
+  );
+
+  const importHierarchyFile = useCallback(
+    async (parentItemId: Uuid, file: File) => {
+      const keys = items
+        .flatMap((item) =>
+          item.placements
+            .filter(
+              (placement) =>
+                placement.kind === "hierarchy" && placement.parentItemId === parentItemId,
+            )
+            .map((placement) => placement.positionKey),
+        )
+        .sort();
+      const result = await service.api.importFile(generateUuidV7(), file, {
+        kind: "hierarchy",
+        parentItemId,
+        positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
+      });
+      if (!result.ok) {
+        setProblem({
+          code: isSafeErrorCode(result.problem.code) ? result.problem.code : "internal.unexpected",
+          title: result.problem.title,
+        });
+        return;
+      }
+      setExpanded((current) => new Set(current).add(parentItemId));
+      await service.synchronize();
+      await refresh();
+    },
+    [items, refresh, service],
   );
 
   const createDatabase = useCallback(
@@ -995,6 +1142,8 @@ export function HierarchyExplorer({
     const isSelected = selectedId === node.item.id;
     const parentPlacement = node.item.placements.find((entry) => entry.kind === "hierarchy");
     const parentId = parentPlacement?.parentItemId ?? null;
+    const attachmentCount = attachmentCountByPage.get(node.item.id) ?? 0;
+    const attachmentsOpen = expandedAttachments.has(node.item.id);
     return (
       <li key={node.item.id} role="none">
         <TreeDropTarget itemId={node.item.id}>
@@ -1042,7 +1191,17 @@ export function HierarchyExplorer({
                 // nothing.
                 <span className="tree-twisty tree-twisty--leaf" aria-hidden="true" />
               )}
-              <span className="tree-kind">{node.item.kind}</span>
+              <AppIcon
+                className="workspace-tree-item-icon"
+                name={
+                  node.item.kind === "folder"
+                    ? "folder"
+                    : node.item.kind === "file"
+                      ? "file"
+                      : "fileText"
+                }
+                size="small"
+              />
               <span className="tree-name">{node.item.name}</span>
               {/* Marked, never as "missing" (FR-018). Content the server holds is
               not lost because this device released it or has not fetched it, and
@@ -1060,6 +1219,31 @@ export function HierarchyExplorer({
                 </span>
               ) : null}
               {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
+              {node.item.kind === "page" ? (
+                <Button
+                  size="square"
+                  variant="ghost"
+                  className="workspace-page-attachments-trigger"
+                  aria-label={`Pièces jointes de ${node.item.name}`}
+                  aria-expanded={attachmentsOpen}
+                  aria-controls={`page-attachments-${node.item.id}`}
+                  data-testid={`toggle-attachments-${node.item.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setExpandedAttachments((current) => {
+                      const next = new Set(current);
+                      if (next.has(node.item.id)) next.delete(node.item.id);
+                      else next.add(node.item.id);
+                      return next;
+                    });
+                  }}
+                >
+                  <AppIcon name="file" size="small" />
+                  {attachmentCount > 0 ? (
+                    <span className="workspace-page-attachments-count">{attachmentCount}</span>
+                  ) : null}
+                </Button>
+              ) : null}
               <NavigationItemMenu
                 itemName={node.item.name}
                 canContainChildren={node.item.kind !== "file"}
@@ -1080,6 +1264,7 @@ export function HierarchyExplorer({
                 onCreatePage={() => void createItem("page", node.item.id)}
                 onCreateFolder={() => void createItem("folder", node.item.id)}
                 onCreateDatabase={() => openDatabaseCreation(node.item.id)}
+                onImportFile={(file) => void importHierarchyFile(node.item.id, file)}
                 onRename={() => void renameItem(node)}
                 onMoveUp={() => void reorder(node, -1)}
                 onMoveDown={() => void reorder(node, 1)}
@@ -1107,6 +1292,28 @@ export function HierarchyExplorer({
             </div>
           )}
         </TreeDropTarget>
+        {node.item.kind === "page" && attachmentsOpen ? (
+          // biome-ignore lint/a11y/useSemanticElements: ARIA tree descendants use role="group" rather than a form fieldset
+          <div
+            id={`page-attachments-${node.item.id}`}
+            className="workspace-page-attachments"
+            data-testid={`page-attachments-${node.item.name}`}
+            role="group"
+          >
+            <div
+              role="treeitem"
+              aria-level={level + 1}
+              aria-label={`Pièces jointes de ${node.item.name}`}
+              tabIndex={-1}
+            >
+              <AttachmentPanel
+                pageId={node.item.id}
+                onChanged={() => void refresh()}
+                onOpenUsage={(itemId) => openPageLink(itemId)}
+              />
+            </div>
+          </div>
+        ) : null}
         {/* Rendered only when open. Hiding a collapsed branch with CSS would
             leave its rows in the accessibility tree and in the tab order, so a
             screen reader would announce children of a folder the owner has
@@ -1172,48 +1379,65 @@ export function HierarchyExplorer({
 
   const creationControls = (
     <div className="workspace-navigation__create">
-      <Field
-        id="new-item-name"
-        label="Nom"
+      <Button
         size="compact"
-        value={newItemName}
-        placeholder="Sans titre"
-        onChange={(event) => setNewItemName(event.target.value)}
-      />
-      <div className="workspace-navigation__create-actions">
-        <Button
-          size="compact"
-          variant="ghost"
-          data-testid="new-root-page"
-          onClick={() => void createItem("page", null)}
-        >
-          <AppIcon name="fileText" size="small" />
-          Page
-        </Button>
-        <Button
-          size="compact"
-          variant="ghost"
-          data-testid="new-root-folder"
-          onClick={() => void createItem("folder", null)}
-        >
-          <AppIcon name="folder" size="small" />
-          Dossier
-        </Button>
-        <Button
-          size="compact"
-          variant="ghost"
-          data-testid="new-root-database"
-          onClick={() => openDatabaseCreation(null)}
-        >
-          <AppIcon name="table" size="small" />
-          Base
-        </Button>
-      </div>
+        variant="ghost"
+        className="workspace-navigation__create-trigger"
+        data-testid="toggle-root-creation"
+        aria-expanded={rootCreationOpen}
+        onClick={() => setRootCreationOpen((open) => !open)}
+      >
+        <AppIcon name="add" size="small" />
+        Nouveau
+      </Button>
+      {rootCreationOpen ? (
+        <div className="workspace-navigation__create-popover">
+          <Field
+            id="new-item-name"
+            label="Nom"
+            size="compact"
+            value={newItemName}
+            placeholder="Sans titre"
+            onChange={(event) => setNewItemName(event.target.value)}
+          />
+          <div className="workspace-navigation__create-actions">
+            <Button
+              size="compact"
+              variant="ghost"
+              data-testid="new-root-page"
+              onClick={() => void createItem("page", null)}
+            >
+              <AppIcon name="fileText" size="small" />
+              Page
+            </Button>
+            <Button
+              size="compact"
+              variant="ghost"
+              data-testid="new-root-folder"
+              onClick={() => void createItem("folder", null)}
+            >
+              <AppIcon name="folder" size="small" />
+              Dossier
+            </Button>
+            <Button
+              size="compact"
+              variant="ghost"
+              data-testid="new-root-database"
+              onClick={() => openDatabaseCreation(null)}
+            >
+              <AppIcon name="table" size="small" />
+              Base
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+  const noticeCount = (backupStale ? 1 : 0) + (problem === null ? 0 : 1);
 
   return (
     <WorkspaceShell
+      contentMode={selectedItem?.kind === "page" ? "page" : "bounded"}
       mobileNavigationOpen={mobileNavigationOpen}
       sidebarOpen={sidebarOpen}
       sidebarWidth={sidebarWidth}
@@ -1225,6 +1449,7 @@ export function HierarchyExplorer({
           items={items}
           tree={navigationTree}
           creationControls={creationControls}
+          footerStatus={<SyncStatus service={service} />}
           onOpen={openItem}
           onOpenSettings={() => {
             setMobileNavigationOpen(false);
@@ -1235,26 +1460,13 @@ export function HierarchyExplorer({
       }
       header={
         <PageHeader
-          title={selectedItem?.name ?? "Bienvenue"}
           kind={selectedItem?.kind ?? "workspace"}
+          {...(selectedItem?.kind === "page" ? {} : { title: selectedItem?.name ?? "Bienvenue" })}
           breadcrumbs={activePath.map((item, index) => ({
             id: item.id,
             label: item.name,
             ...(index === activePath.length - 1 ? {} : { onOpen: () => openItem(item.id) }),
           }))}
-          status={<SyncStatus service={service} />}
-          actions={
-            <Button
-              size="square"
-              variant="ghost"
-              aria-label="Réglages"
-              data-testid="toggle-security-settings"
-              onClick={onOpenSettings}
-            >
-              <AppIcon name="settings" />
-              <span className="ui-visually-hidden">Réglages</span>
-            </Button>
-          }
         />
       }
     >
@@ -1267,27 +1479,52 @@ export function HierarchyExplorer({
         />
       ) : null}
 
-      {backupStale ? (
-        <p
-          className="status-banner"
-          data-state="error"
-          role="alert"
-          data-testid="workspace-backup-stale"
+      {backupStale || problem !== null ? (
+        <details
+          className="workspace-notices"
+          aria-label="Informations nécessitant votre attention"
+          open={noticesOpen}
+          onToggle={(event) => setNoticesOpen(event.currentTarget.open)}
         >
-          <strong>Aucune sauvegarde vérifiée depuis plus d’un jour.</strong>{" "}
-          <Button size="compact" variant="ghost" onClick={onOpenBackups}>
-            Vérifier les sauvegardes
-          </Button>
-        </p>
-      ) : null}
-
-      {problem !== null ? (
-        <div className="status-banner" data-state="error" role="alert" data-testid="problem-banner">
-          <strong>{problem.title}</strong>
-          <Button size="compact" variant="ghost" onClick={onOpenDiagnostics}>
-            Voir les détails
-          </Button>
-        </div>
+          <summary
+            className="workspace-notices__summary"
+            data-testid="workspace-notices-summary"
+            title="Afficher les alertes de l’espace de travail"
+          >
+            <AppIcon name="conflict" size="small" />
+            <span>
+              {noticeCount} {noticeCount > 1 ? "alertes" : "alerte"}
+            </span>
+          </summary>
+          <div className="workspace-notices__panel">
+            {backupStale ? (
+              <p
+                className="status-banner"
+                data-state="error"
+                role="alert"
+                data-testid="workspace-backup-stale"
+              >
+                <strong>Aucune sauvegarde vérifiée depuis plus d’un jour.</strong>{" "}
+                <Button size="compact" variant="ghost" onClick={onOpenBackups}>
+                  Vérifier les sauvegardes
+                </Button>
+              </p>
+            ) : null}
+            {problem !== null ? (
+              <div
+                className="status-banner"
+                data-state="error"
+                role="alert"
+                data-testid="problem-banner"
+              >
+                <strong>{problem.title}</strong>
+                <Button size="compact" variant="ghost" onClick={onOpenDiagnostics}>
+                  Voir les détails
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </details>
       ) : null}
 
       {loadState === "loading" ? (
@@ -1318,168 +1555,182 @@ export function HierarchyExplorer({
       ) : selectedItem !== null &&
         selectedDatabase !== null &&
         selectedDatabase.databaseId === selectedItem.id ? (
-        <DatabasePage
-          database={selectedDatabase}
-          entries={databaseEntries}
-          onPreviewDefinitionImpact={async (definition) => {
-            const current = await service.getItem(selectedItem.id);
-            return current === null
-              ? null
-              : await service.previewDatabaseDefinitionImpact(
-                  selectedItem.id,
-                  current.currentRevisionId,
-                  definition,
-                );
-          }}
-          onReplaceDefinition={(
-            definition: DatabaseDefinition,
-            confirmation?: DefinitionConfirmation,
-          ) => {
-            const previousDatabase = selectedDatabase;
-            optimisticDatabaseDefinition.current = {
-              databaseId: selectedItem.id,
-              definition,
-            };
-            setSelectedDatabase({
-              ...previousDatabase,
-              definition,
-            } as unknown as DatabaseDto);
-            const rollbackOptimisticDefinition = (): void => {
-              if (
-                optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
-                jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
-              ) {
-                optimisticDatabaseDefinition.current = null;
-              }
-              setSelectedDatabase((current) =>
-                current !== null && jsonValuesEqual(current.definition, definition)
-                  ? previousDatabase
-                  : current,
-              );
-            };
-            const operation = async (): Promise<void> => {
-              for (let attempt = 0; attempt < 3; attempt += 1) {
-                const [currentItem, currentDatabase] = await Promise.all([
-                  service.getItem(selectedItem.id),
-                  service.getDatabase(selectedItem.id),
-                ]);
+        <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
+          <PageTitleEditor
+            key={`title-${selectedItem.id}`}
+            title={selectedItem.name}
+            onCommit={(name) => renameSelectedPage(selectedItem.id, name)}
+            onMoveToContent={() => {
+              document
+                .querySelector<HTMLElement>(
+                  ".database-page button:not([disabled]), .database-page input:not([disabled])",
+                )
+                ?.focus();
+            }}
+          />
+          <DatabasePage
+            database={selectedDatabase}
+            entries={databaseEntries}
+            onPreviewDefinitionImpact={async (definition) => {
+              const current = await service.getItem(selectedItem.id);
+              return current === null
+                ? null
+                : await service.previewDatabaseDefinitionImpact(
+                    selectedItem.id,
+                    current.currentRevisionId,
+                    definition,
+                  );
+            }}
+            onReplaceDefinition={(
+              definition: DatabaseDefinition,
+              confirmation?: DefinitionConfirmation,
+            ) => {
+              const previousDatabase = selectedDatabase;
+              optimisticDatabaseDefinition.current = {
+                databaseId: selectedItem.id,
+                definition,
+              };
+              setSelectedDatabase({
+                ...previousDatabase,
+                definition,
+              } as unknown as DatabaseDto);
+              const rollbackOptimisticDefinition = (): void => {
                 if (
-                  currentItem === null ||
-                  currentDatabase === null ||
-                  !jsonValuesEqual(currentDatabase.definition, previousDatabase.definition)
+                  optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
+                  jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
                 ) {
-                  const error: SafeError = {
-                    code: "database.definition-conflict",
-                    title: DATABASE_COPY.hierarchy.schemaChanged,
-                  };
-                  rollbackOptimisticDefinition();
-                  setProblem(error);
-                  throw new Error(error.title);
+                  optimisticDatabaseDefinition.current = null;
                 }
-                const body = {
-                  baseRevisionId: currentItem.currentRevisionId,
-                  definition,
-                  ...(confirmation === undefined ? {} : { impactConfirmation: confirmation }),
-                } as unknown as ReplaceDefinitionRequestDto;
-                const result = await service.replaceDatabaseDefinition(selectedItem.id, body);
-                if (result.ok) {
-                  let syncState = await service.synchronize();
-                  for (let pass = 0; pass < 3; pass += 1) {
-                    if (
-                      syncState === "conflict" ||
-                      syncState === "offline" ||
-                      (await service.outbox.pending()).length === 0
-                    ) {
-                      break;
-                    }
-                    syncState = await service.synchronize();
-                  }
-                  if (syncState === "conflict") {
+                setSelectedDatabase((current) =>
+                  current !== null && jsonValuesEqual(current.definition, definition)
+                    ? previousDatabase
+                    : current,
+                );
+              };
+              const operation = async (): Promise<void> => {
+                for (let attempt = 0; attempt < 3; attempt += 1) {
+                  const [currentItem, currentDatabase] = await Promise.all([
+                    service.getItem(selectedItem.id),
+                    service.getDatabase(selectedItem.id),
+                  ]);
+                  if (
+                    currentItem === null ||
+                    currentDatabase === null ||
+                    !jsonValuesEqual(currentDatabase.definition, previousDatabase.definition)
+                  ) {
                     const error: SafeError = {
                       code: "database.definition-conflict",
-                      title: DATABASE_COPY.hierarchy.viewChanged,
+                      title: DATABASE_COPY.hierarchy.schemaChanged,
                     };
                     rollbackOptimisticDefinition();
                     setProblem(error);
                     throw new Error(error.title);
                   }
-                  const [updatedItem, updatedDatabase] = await Promise.all([
-                    service.getItem(selectedItem.id),
-                    service.getDatabase(selectedItem.id),
-                  ]);
-                  if (updatedItem !== null && updatedDatabase !== null) {
-                    const refreshed = {
-                      databaseId: selectedItem.id,
-                      definitionRevisionId: updatedItem.currentRevisionId,
-                      lifecycle: updatedItem.lifecycle,
-                      name: updatedItem.name,
-                      definition: updatedDatabase.definition,
-                    } as unknown as DatabaseDto;
-                    setSelectedDatabase((current) =>
-                      current !== null && jsonValuesEqual(current.definition, definition)
-                        ? refreshed
-                        : current,
-                    );
+                  const body = {
+                    baseRevisionId: currentItem.currentRevisionId,
+                    definition,
+                    ...(confirmation === undefined ? {} : { impactConfirmation: confirmation }),
+                  } as unknown as ReplaceDefinitionRequestDto;
+                  const result = await service.replaceDatabaseDefinition(selectedItem.id, body);
+                  if (result.ok) {
+                    let syncState = await service.synchronize();
+                    for (let pass = 0; pass < 3; pass += 1) {
+                      if (
+                        syncState === "conflict" ||
+                        syncState === "offline" ||
+                        (await service.outbox.pending()).length === 0
+                      ) {
+                        break;
+                      }
+                      syncState = await service.synchronize();
+                    }
+                    if (syncState === "conflict") {
+                      const error: SafeError = {
+                        code: "database.definition-conflict",
+                        title: DATABASE_COPY.hierarchy.viewChanged,
+                      };
+                      rollbackOptimisticDefinition();
+                      setProblem(error);
+                      throw new Error(error.title);
+                    }
+                    const [updatedItem, updatedDatabase] = await Promise.all([
+                      service.getItem(selectedItem.id),
+                      service.getDatabase(selectedItem.id),
+                    ]);
+                    if (updatedItem !== null && updatedDatabase !== null) {
+                      const refreshed = {
+                        databaseId: selectedItem.id,
+                        definitionRevisionId: updatedItem.currentRevisionId,
+                        lifecycle: updatedItem.lifecycle,
+                        name: updatedItem.name,
+                        definition: updatedDatabase.definition,
+                      } as unknown as DatabaseDto;
+                      setSelectedDatabase((current) =>
+                        current !== null && jsonValuesEqual(current.definition, definition)
+                          ? refreshed
+                          : current,
+                      );
+                    }
+                    if (
+                      optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
+                      jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
+                    ) {
+                      optimisticDatabaseDefinition.current = null;
+                    }
+                    return;
                   }
-                  if (
-                    optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
-                    jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
-                  ) {
-                    optimisticDatabaseDefinition.current = null;
+                  if (result.error.code !== "revision.stale-base") {
+                    rollbackOptimisticDefinition();
+                    setProblem(result.error);
+                    throw new Error(result.error.title);
                   }
-                  return;
                 }
-                if (result.error.code !== "revision.stale-base") {
-                  rollbackOptimisticDefinition();
-                  setProblem(result.error);
-                  throw new Error(result.error.title);
-                }
-              }
-              const error: SafeError = {
-                code: "revision.stale-base",
-                title: DATABASE_COPY.hierarchy.propertySaveChanged,
+                const error: SafeError = {
+                  code: "revision.stale-base",
+                  title: DATABASE_COPY.hierarchy.propertySaveChanged,
+                };
+                rollbackOptimisticDefinition();
+                setProblem(error);
+                throw new Error(error.title);
               };
-              rollbackOptimisticDefinition();
-              setProblem(error);
-              throw new Error(error.title);
-            };
-            const queued = definitionMutationQueue.current.then(operation, operation);
-            definitionMutationQueue.current = queued.catch(() => undefined);
-            return queued;
-          }}
-          onCreateEntry={async (title) => {
-            const keys = siblingKeys(selectedItem.id);
-            const result = await service.createDatabaseEntry(selectedItem.id, {
-              id: generateUuidV7(),
-              title,
-              placement: {
+              const queued = definitionMutationQueue.current.then(operation, operation);
+              definitionMutationQueue.current = queued.catch(() => undefined);
+              return queued;
+            }}
+            onCreateEntry={async (title) => {
+              const keys = siblingKeys(selectedItem.id);
+              const result = await service.createDatabaseEntry(selectedItem.id, {
                 id: generateUuidV7(),
-                parentItemId: selectedItem.id,
-                positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
-              },
-              document: {
-                format: "myownnotion.document+json",
-                formatVersion: 1,
-                body: {},
-              },
-              values: {},
-              relationTargets: {},
-            });
-            if (!result.ok) {
-              setProblem(result.error);
-              throw new Error(result.error.title);
-            }
-            setExpanded((current) => new Set(current).add(selectedItem.id));
-          }}
-          onQueryView={querySelectedDatabaseView}
-          onUpdateEntry={updateSelectedDatabaseEntry}
-          relationOptions={items
-            .filter((item) => item.kind === "page" && item.lifecycle === "active")
-            .map((item) => ({ id: item.id, label: item.name }))}
-          returnFocusEntryId={entryReturnFocusId}
-          onReturnFocusRestored={clearEntryReturnFocus}
-          onOpenEntry={openSelectedDatabaseEntry}
-        />
+                title,
+                placement: {
+                  id: generateUuidV7(),
+                  parentItemId: selectedItem.id,
+                  positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
+                },
+                document: {
+                  format: "myownnotion.document+json",
+                  formatVersion: 1,
+                  body: {},
+                },
+                values: {},
+                relationTargets: {},
+              });
+              if (!result.ok) {
+                setProblem(result.error);
+                throw new Error(result.error.title);
+              }
+              setExpanded((current) => new Set(current).add(selectedItem.id));
+            }}
+            onQueryView={querySelectedDatabaseView}
+            onUpdateEntry={updateSelectedDatabaseEntry}
+            relationOptions={items
+              .filter((item) => item.kind === "page" && item.lifecycle === "active")
+              .map((item) => ({ id: item.id, label: item.name }))}
+            returnFocusEntryId={entryReturnFocusId}
+            onReturnFocusRestored={clearEntryReturnFocus}
+            onOpenEntry={openSelectedDatabaseEntry}
+          />
+        </article>
       ) : selectedItem !== null &&
         selectedEntry !== null &&
         selectedEntry.entryId === selectedItem.id &&
@@ -1544,34 +1795,40 @@ export function HierarchyExplorer({
             remotelyOpenedEntry.current = null;
           }}
           pageContent={
-            <>
-              <EditorView
-                service={service}
-                itemId={selectedItem.id}
-                items={items}
-                onOpenPage={openPageLink}
-                initialScrollAnchor={
-                  presentationRef.current === null
-                    ? null
-                    : scrollAnchorFor(presentationRef.current, selectedItem.id)
-                }
-                onCaptureScrollAnchor={onCaptureScrollAnchor}
-              />
-              <AttachmentPanel
-                pageId={selectedItem.id}
-                onChanged={() => void refresh()}
-                onOpenUsage={(itemId) => openPageLink(itemId)}
-              />
-            </>
+            <EditorView
+              service={service}
+              itemId={selectedItem.id}
+              items={items}
+              onCreateSubpage={(request) => createSubpage(selectedItem.id, request)}
+              onOpenPage={openPageLink}
+              initialScrollAnchor={
+                presentationRef.current === null
+                  ? null
+                  : scrollAnchorFor(presentationRef.current, selectedItem.id)
+              }
+              onCaptureScrollAnchor={onCaptureScrollAnchor}
+            />
           }
         />
       ) : selectedItem !== null && selectedItem.kind === "page" ? (
-        <>
+        <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
+          <PageTitleEditor
+            key={`title-${selectedItem.id}`}
+            title={selectedItem.name}
+            onCommit={(name) => renameSelectedPage(selectedItem.id, name)}
+            onMoveToContent={() => {
+              const editable = document.querySelector<HTMLElement>(
+                '[data-testid="operational-editor"] .ProseMirror',
+              );
+              editable?.focus();
+            }}
+          />
           <EditorView
             key={`page-${selectedItem.id}`}
             service={service}
             itemId={selectedItem.id}
             items={items}
+            onCreateSubpage={(request) => createSubpage(selectedItem.id, request)}
             initialScrollAnchor={
               presentationRef.current === null
                 ? null
@@ -1580,16 +1837,7 @@ export function HierarchyExplorer({
             onCaptureScrollAnchor={onCaptureScrollAnchor}
             onOpenPage={openPageLink}
           />
-          <AttachmentPanel
-            pageId={selectedItem.id}
-            onChanged={() => void refresh()}
-            // A usage is only reachable if selecting it actually goes there
-            // (FR-005); a list that names pages without opening them leaves the
-            // owner to find them by hand. `openPageLink` is the same journey a
-            // page link takes, so both arrive the same way.
-            onOpenUsage={(itemId) => openPageLink(itemId)}
-          />
-        </>
+        </article>
       ) : null}
     </WorkspaceShell>
   );

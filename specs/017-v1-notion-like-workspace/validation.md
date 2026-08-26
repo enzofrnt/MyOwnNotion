@@ -444,6 +444,46 @@ Les preuves exécutées pour fermer cette tranche sont :
 | Journey riche ciblé | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/rich-page.spec.ts` puis `--repeat-each=5` | 5/5 profils puis 25/25 répétitions passés ; aucun premier caractère perdu après adoption distante |
 | Gate pré-push exact | `pnpm checks:local` avec les versions d'outils imposées par `docs/development.md` | passé ; 2 936 tests de couverture, 15 tests de performance, migrations et 1 151 tests de contrat, gate E2E 5/5, build de production, images API/web `amd64` et `arm64`, sécurité, licences et contrat Compose |
 
+## Canevas de page focalisé et fichiers rattachés
+
+La correction des boucles révélées par le HAR est présente dans la base de
+cette tranche : une page ordinaire n'est plus sondée comme une base structurée,
+les récupérations impossibles sont mises en quarantaine et une absence distante
+ne relance plus indéfiniment la même branche historique. La présente tranche ne
+modifie pas ce protocole ; elle rend son état lisible sans laisser les
+diagnostics occuper ou déplacer le document.
+
+Le titre est maintenant la première grande ligne éditable de la page et son
+identité reste stable quand son libellé devient « Sans titre ». Le fil d'Ariane
+et la navigation adoptent le renommage sans remonter l'éditeur. Le document
+forme un canevas continu : il n'est plus enfermé dans une carte, le réglage
+n'est plus dupliqué dans l'en-tête et l'indicateur détaillé de synchronisation
+reste accessible depuis un discret bouton d'information en bas de page. Les
+alertes globales sont elles aussi compactes et ne recouvrent plus les contrôles
+mobiles.
+
+Un fichier déposé dans l'éditeur conserve désormais une seule identité pendant
+la reprise tus et devient une pièce jointe de contenu sous sa page source. Il
+n'apparaît plus à la racine. Le contrôle de pièces jointes reste distinct du
+contrôle des sous-pages ; un fichier autonome peut toujours être créé
+volontairement dans la hiérarchie. La commande `/page` crée quant à elle une
+sous-page sous la page courante, remplace le bloc seulement après le succès de
+la création, attend la durabilité de ce lien puis ouvre immédiatement la page
+créée. La création depuis la navigation suit la même règle sur desktop comme
+sur mobile : la nouvelle page devient la surface active, sans second clic.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composants Web | `pnpm exec vitest run --project web apps/web/tests/page-title-editor.spec.tsx apps/web/tests/slash-menu.spec.ts apps/web/tests/editor-adapter.spec.ts apps/web/tests/realtime-file-sync-status.spec.ts apps/web/tests/workspace-shell.spec.tsx` | 5 fichiers, 28 tests passés ; titre, `/page`, adaptation texte/marks, statut compact et frontières du canevas |
+| Upload API et stockage | `pnpm exec vitest run --project api-contract --project database-integration apps/api/tests/uploads.contract.spec.ts packages/database/tests/uploads.integration.spec.ts packages/database/tests/migrations.integration.spec.ts` | 3 fichiers, 42 tests passés ; finalisation idempotente, rattachement à la page et migration vide/avant |
+| Journeys multi-navigateurs | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/workspace-shell.spec.ts tests/e2e/workspace-settings-boundary.spec.ts tests/e2e/workspace-shell-visual.spec.ts tests/e2e/files.spec.ts tests/e2e/editor-offline-media.spec.ts tests/e2e/page-links.spec.ts tests/e2e/accessibility.spec.ts tests/e2e/backup.spec.ts` | 5/5 profils passés en 173 s ; desktop/mobile, Chromium/Firefox/WebKit, fichiers, sous-pages, clavier, alertes et réglages |
+| Navigation après création | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/workspace-shell.spec.ts tests/e2e/page-links.spec.ts tests/e2e/item-conversion.spec.ts tests/e2e/page-scroll-restoration.spec.ts tests/e2e/databases-offline-sync.spec.ts tests/e2e/databases-schema.spec.ts` | 5/5 profils passés ; toute page créée devient active, le tiroir mobile se ferme et le lien `/page` survit au retour puis au rechargement de sa source |
+| Références visuelles | `workspace-shell-visual.spec.ts` sur l'hôte puis Chromium dans l'image Linux de CI | 5/5 profils fonctionnels et 4/4 références clair/sombre approuvées ; le libellé de statut reste visuellement masqué au repos |
+| Statique | `pnpm format:check`, `pnpm lint:ci`, `pnpm typecheck`, `git diff --check` | passés |
+| Gate pré-push exact | `pnpm checks:local` avec l'ordonnancement et la largeur Playwright définis dans `docs/development.md` | passé sur le commit de cette tranche |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :

@@ -18,6 +18,7 @@ import {
   createRootItem,
   ensureNavigationVisible,
   expectNoHorizontalOverflow,
+  openPageAttachments,
   openSettingsSection,
   openWorkspace,
   saveDocument,
@@ -186,6 +187,7 @@ test.describe("the file surfaces at 320 pixels", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await selectSettledPage(page, name);
+    await openPageAttachments(page, name);
 
     const fileName = `${uniqueName("narrow")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({
@@ -207,6 +209,7 @@ test.describe("the file surfaces at 320 pixels", () => {
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
     await selectSettledPage(page, name);
+    await openPageAttachments(page, name);
 
     const fileName = `${uniqueName("narrowdel")}.txt`;
     await page.getByTestId("attachment-upload").setInputFiles({

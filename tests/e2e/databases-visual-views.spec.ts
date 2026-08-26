@@ -3,6 +3,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
   ensureNavigationVisible,
+  openRootCreation,
   openWorkspace,
   saveEntryProperties,
   uniqueName,
@@ -76,13 +77,14 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   const secondDate = `${month}-11`;
 
   await ensureNavigationVisible(page);
+  await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   const createDatabaseButton = createDatabase.getByRole("button", { name: "Create database" });
   await createDatabaseButton.click();
   await expect(createDatabase).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
   await waitForSynchronized(page);
   await addProperty(page, "Status", "status");
   await addProperty(page, "Due", "date");

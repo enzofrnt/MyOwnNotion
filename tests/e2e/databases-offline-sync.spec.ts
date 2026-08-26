@@ -12,6 +12,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   closeMobileNavigation,
   ensureNavigationVisible,
+  openRootCreation,
   openSecondDevice,
   openWorkspace,
   openWorkspaceDiagnostics,
@@ -45,11 +46,12 @@ async function goOnline(page: Page): Promise<void> {
 
 async function createDatabase(page: Page, name: string): Promise<void> {
   await ensureNavigationVisible(page);
+  await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
   const form = page.getByRole("form", { name: "Create a database" });
   await form.getByLabel("Create a database").fill(name);
   await form.getByRole("button", { name: "Create database" }).click();
-  await expect(page.getByRole("heading", { name })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("active-item-title")).toHaveValue(name, { timeout: 15_000 });
   await waitForSynchronized(page);
 }
 
@@ -130,7 +132,7 @@ function pendingCommand(page: Page, commandType: string) {
 async function openDatabaseAfterReload(page: Page, databaseName: string): Promise<void> {
   await openWorkspace(page);
   await selectItem(page, databaseName);
-  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible({
+  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName, {
     timeout: 15_000,
   });
 }
@@ -255,6 +257,17 @@ test.describe("structured offline convergence (US5)", () => {
       ).toBeVisible({
         timeout: 15_000,
       });
+
+      // A visible entry row proves the item arrived, not that every structured
+      // value has already crossed the catch-up boundary. WebKit can render that
+      // row before the value projection finishes hydrating. Establish the full
+      // common baseline before deliberately disconnecting this device, or the
+      // journey tests an interrupted initial download instead of offline
+      // convergence from a shared ancestor.
+      await openEntry(second.page, entryName);
+      await expect(second.page.getByLabel("Notes", { exact: true })).toHaveValue("common note");
+      await expect(second.page.getByLabel("Owner", { exact: true })).toHaveValue("common owner");
+      await closeEntry(second.page);
 
       // Schema, saved-view and value work are all committed locally while the
       // server is unreachable, then recovered after a complete page restart.

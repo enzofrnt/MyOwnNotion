@@ -28,6 +28,29 @@ describe("reviewed SQL migrations", () => {
     expect(applied).toContain("0009_page_operation_compaction");
     expect(applied).toContain("0010_page_operation_backups");
     expect(applied).toContain("0011_page_operation_compaction_indexes");
+    expect(applied).toContain("0012_upload_attachment_parent");
+  });
+
+  it("retains an editor upload's source page until finalization", async () => {
+    const client = new pg.Client({ connectionString: database.connectionString });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{ exists: boolean; nullable: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'uploads'
+              AND column_name = 'attachment_parent_item_id'
+         ) AS exists,
+         EXISTS (
+           SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'uploads'
+              AND column_name = 'attachment_parent_item_id' AND is_nullable = 'YES'
+         ) AS nullable`,
+      );
+      expect(rows[0]).toEqual({ exists: true, nullable: true });
+    } finally {
+      await client.end();
+    }
   });
 
   it("is idempotent: reapplying applies nothing", async () => {
@@ -298,6 +321,7 @@ describe("reviewed SQL migrations", () => {
         "0009_page_operation_compaction",
         "0010_page_operation_backups",
         "0011_page_operation_compaction_indexes",
+        "0012_upload_attachment_parent",
       ]);
       const { rows } = await client.query<{
         format_version: number;

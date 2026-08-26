@@ -36,6 +36,7 @@ export interface UploadHandle {
 export async function createUpload(
   file: File,
   fileItemId?: string,
+  attachmentParentItemId?: string,
 ): Promise<{ ok: true; handle: UploadHandle } | { ok: false; state: TransferState }> {
   const response = await fetch("/v1/uploads", {
     method: "POST",
@@ -46,6 +47,7 @@ export async function createUpload(
         filename: file.name,
         mediaType: file.type,
         ...(fileItemId === undefined ? {} : { itemId: fileItemId }),
+        ...(attachmentParentItemId === undefined ? {} : { attachmentParentItemId }),
       }),
     },
   });
