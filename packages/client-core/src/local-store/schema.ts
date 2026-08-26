@@ -238,7 +238,7 @@ export interface SealedLocalDatabaseEntryRow extends Omit<LocalDatabaseEntryRow,
  * because they are what the projection is *queried* by, and encrypting them
  * would mean decrypting every row to answer "what is in this folder".
  */
-export const LOCAL_SCHEMA_VERSION = 9;
+export const LOCAL_SCHEMA_VERSION = 10;
 export const META_KEYS = {
   workspaceId: "workspaceId",
   schemaVersion: "schemaVersion",
@@ -329,6 +329,31 @@ export interface SealedLegacyOfflineBranchRow {
   readonly sealedBranch: LocalEnvelope;
 }
 
+/** Durable preparation state for bytes referenced by a page editor block. */
+export type PendingFileTransferStatus = "staging" | "ready";
+
+/**
+ * Only identity and recovery routing remain readable. File name, media type,
+ * size, parent page and transfer metadata all live inside `sealedManifest`.
+ */
+export interface SealedPendingFileTransferRow {
+  readonly fileItemId: Uuid;
+  readonly status: PendingFileTransferStatus;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly recordVersion: number;
+  readonly sealedManifest: LocalEnvelope;
+}
+
+/** One encrypted byte range. Its exact length and contents are sealed. */
+export interface SealedPendingFileTransferChunkRow {
+  readonly id: string;
+  readonly fileItemId: Uuid;
+  readonly chunkIndex: number;
+  readonly recordVersion: number;
+  readonly sealedChunk: LocalEnvelope;
+}
+
 export type LocalDatabase = Dexie & {
   items: EntityTable<SealedLocalItemRow, "id">;
   placements: EntityTable<LocalPlacementRow, "id">;
@@ -344,6 +369,8 @@ export type LocalDatabase = Dexie & {
   pageAmbiguities: EntityTable<SealedPageAmbiguityRow, "ambiguityId">;
   legacyOfflineBranches: EntityTable<SealedLegacyOfflineBranchRow, "pageId">;
   legacySyncRecoveries: EntityTable<LegacySyncRecoveryRow, "mutationId">;
+  pendingFileTransfers: EntityTable<SealedPendingFileTransferRow, "fileItemId">;
+  pendingFileTransferChunks: EntityTable<SealedPendingFileTransferChunkRow, "id">;
 };
 
 export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
@@ -492,6 +519,26 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
   // Dexie upgrade does not decrypt, classify or remove anything: the device
   // key is established later, then an idempotent recovery service proves each
   // conversion while the original sealed conflict remains authoritative.
+  db.version(9).stores({
+    items: "id, kind, lifecycle, localAvailability",
+    placements: "id, itemId, parentKey, [parentKey+kind]",
+    relationships: "id, sourceItemId, targetItemId",
+    revisionHeaders: "id, itemId, local",
+    outbox: "mutationId, status, enqueueOrder",
+    conflicts: "mutationId, capturedAt",
+    meta: "key",
+    databases: "itemId",
+    databaseEntries: "entryItemId, databaseId, availability, [databaseId+availability]",
+    pageOperationStates: "pageId, status, localAvailability, lastAccessedAt",
+    pageOperationUpdates:
+      "updateId, pageId, status, enqueueOrder, [pageId+status], [status+pageId]",
+    pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
+    legacyOfflineBranches: "pageId, branchId, status",
+    legacySyncRecoveries: "mutationId, pageId, status, capturedAt, [status+pageId]",
+  });
+  // Version 10 adds encrypted durable staging for editor file bytes. Historical
+  // versions remain unchanged so an existing offline workspace upgrades
+  // without rewriting or decrypting any owner-authored content.
   db.version(LOCAL_SCHEMA_VERSION).stores({
     items: "id, kind, lifecycle, localAvailability",
     placements: "id, itemId, parentKey, [parentKey+kind]",
@@ -508,6 +555,8 @@ export function openLocalDatabase(name = "myownnotion-local"): LocalDatabase {
     pageAmbiguities: "ambiguityId, pageId, status, [pageId+status]",
     legacyOfflineBranches: "pageId, branchId, status",
     legacySyncRecoveries: "mutationId, pageId, status, capturedAt, [status+pageId]",
+    pendingFileTransfers: "fileItemId, status, createdAt",
+    pendingFileTransferChunks: "id, fileItemId, chunkIndex, [fileItemId+chunkIndex]",
   });
   return db;
 }

@@ -1,5 +1,6 @@
 export * from "./coordination/cross-context-coordinator.ts";
 export * from "./databases/index.ts";
+export * from "./files/pending-file-transfer-store.ts";
 export * from "./local-store/budget.ts";
 export * from "./local-store/local-repository.ts";
 export * from "./local-store/reseal.ts";

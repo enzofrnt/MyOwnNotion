@@ -214,6 +214,71 @@ describe("resuming", () => {
     expect(offsets).toEqual(["0", "25"]);
   });
 
+  it("stops when a successful response omits or repeats its offset", async () => {
+    for (const headers of [{}, { "upload-offset": "0" }]) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (_url: string, init: RequestInit) =>
+          init.method === "HEAD"
+            ? response({ headers: { "upload-offset": "0" } })
+            : response({ status: 204, headers }),
+        ),
+      );
+
+      const state = await sendRemaining(handle, fileOf(10), () => {});
+      expect(state.kind).toBe("blocked");
+    }
+  });
+
+  it("stops when a correction claims more bytes than the local file", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) =>
+        init.method === "HEAD"
+          ? response({ headers: { "upload-offset": "0" } })
+          : response({ status: 409, headers: { "upload-offset": "11" } }),
+      ),
+    );
+
+    const state = await sendRemaining(handle, fileOf(10), () => {});
+    expect(state.kind).toBe("blocked");
+  });
+
+  it("stops when a rejected chunk repeats the attempted offset", async () => {
+    let patches = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        if (init.method === "HEAD") return response({ headers: { "upload-offset": "0" } });
+        patches += 1;
+        return response({ status: 409, headers: { "upload-offset": "0" } });
+      }),
+    );
+
+    const state = await sendRemaining(handle, fileOf(10), () => {});
+    expect(state.kind).toBe("blocked");
+    expect(patches).toBe(1);
+  });
+
+  it("bounds oscillating offset corrections instead of retrying forever", async () => {
+    let patches = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        if (init.method === "HEAD") return response({ headers: { "upload-offset": "0" } });
+        patches += 1;
+        return response({
+          status: 409,
+          headers: { "upload-offset": patches % 2 === 1 ? "5" : "0" },
+        });
+      }),
+    );
+
+    const state = await sendRemaining(handle, fileOf(10), () => {});
+    expect(state.kind).toBe("blocked");
+    expect(patches).toBe(9);
+  });
+
   it("trusts the offset in the response over its own arithmetic", async () => {
     const offsets: string[] = [];
     vi.stubGlobal(

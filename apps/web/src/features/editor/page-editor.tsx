@@ -516,9 +516,9 @@ export function PageEditor({
   const redo = useCallback(() => applyHistory("redo"), [applyHistory]);
   const reportEditorError = useCallback((message: string) => setEditorError(message), []);
 
-  // Dropped or pasted files become durable document references first (T095):
-  // the block commit goes through the same engine as any gesture, then the
-  // bytes follow the resumable transfer queue on their own schedule.
+  // Dropped or pasted bytes are encrypted durably before the block commit.
+  // The transfer becomes runnable only after that commit succeeds, so neither
+  // quota nor a process interruption can leave an orphan editor reference.
   const fileQueue = useMemo(editorFileTransferQueue, []);
   const acceptFiles = useCallback(
     (files: readonly File[]) => {
@@ -548,20 +548,21 @@ export function PageEditor({
       } catch {
         beforeId = null;
       }
-      void insertDroppedFiles(engine, files, {
-        parentBlockId: parentId,
-        beforeBlockId: beforeId,
-      })
+      void insertDroppedFiles(
+        engine,
+        files,
+        {
+          parentBlockId: parentId,
+          beforeBlockId: beforeId,
+        },
+        fileQueue,
+        pageId,
+      )
         .then((inserted) => {
           // The insertion went straight to the authority, so the visible
           // surface must be re-projected from it (a plain onChange echo never
           // happened for this gesture).
           if (inserted.length > 0) recoverVisibleProjection();
-          // One transfer per inserted block, in the same order as the files.
-          inserted.forEach((entry, index) => {
-            const file = files[index];
-            if (file !== undefined) fileQueue.enqueue(entry.fileItemId, file, pageId);
-          });
           void fileQueue.flush();
         })
         .catch((error: unknown) => {
