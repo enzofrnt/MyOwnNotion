@@ -541,12 +541,47 @@ Les preuves ciblées exécutées sont :
 | Barrière et statut agrégé | `pnpm exec vitest run --project web apps/web/tests/operational-page-opening.spec.ts apps/web/tests/synchronize-serialization.spec.ts` | 21/21 tests passés ; création et conversion sont drainées avant le checkpoint, et une ligne `sending` interdit « synchronisé » |
 | Journey répété sous charge | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/item-conversion.spec.ts --repeat-each=10` | 700/700 parcours passés sans retry : 140 sur chacun des cinq profils, Firefox dans l'image Linux CI |
 
+## Octets hors ligne durables après fermeture
+
+L'insertion d'un média ne crée plus son bloc avant que ses octets et ses
+métadonnées soient durablement chiffrés dans IndexedDB. Le staging passe par un
+manifeste incomplet, des morceaux scellés dont l'AAD lie l'identité du fichier,
+l'index et les métadonnées, puis un état `ready` atomique. Une interruption à
+n'importe laquelle de ces frontières est nettoyée au redémarrage ; un quota
+insuffisant ne laisse ni bloc, ni manifeste, ni morceau orphelin.
+
+Au lancement et au retour réseau, la file reconstruit les fichiers sans
+dépendre d'un objet `File` encore présent en mémoire. Un verrou éditorial
+protège la transition staging → bloc et un verrou par `fileItemId` empêche deux
+onglets de créer le même upload. La reprise découvre d'abord l'upload
+déterministe par `HEAD` puis l'élément final par `GET`, vérifie strictement
+l'offset serveur et ne supprime les octets locaux qu'après vérification de la
+finalisation. Le même identifiant survit donc à la fermeture et chaque fichier
+n'est créé qu'une fois côté serveur.
+
+Le journey ferme la page alors que toutes les routes `/v1/**` sont coupées,
+ouvre une nouvelle page sans aucun état JavaScript précédent, vérifie les blocs
+et les octets relus depuis IndexedDB, puis rétablit l'API et attend la
+convergence distante. Le blocage des routes est intentionnel :
+`browserContext.setOffline(true)` rend même un `File` JavaScript en mémoire
+illisible sous Playwright WebKit (`NotReadableError`). Couper toute l'API garde
+le serveur réellement inaccessible sans confondre cette anomalie du moteur de
+test avec le comportement du produit.
+
+Les preuves exécutées pour fermer T252 à T255 sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Stockage chiffré et crash | `pnpm exec vitest run --project client-core packages/client-core/tests/pending-file-transfer-store.spec.ts` | 10/10 tests passés ; aucun nom, type ou octet en clair, reconstruction exacte après réouverture, nettoyage aux trois frontières de crash, quota, isolation d'un manifeste altéré et conservation du ciphertext lorsque le routage contredit l'enveloppe authentifiée |
+| Reprise, concurrence et upload | `pnpm exec vitest run --project web apps/web/tests/realtime-file-sync-status.spec.ts apps/web/tests/upload.spec.ts` | 23/23 tests passés ; même ID après redémarrage, un seul `POST` entre deux onglets, aucun upload orphelin après suppression du bloc, exclusion staging/nettoyage, quota sans bloc et arrêt sûr face aux offsets absents, répétés, oscillants ou hors bornes |
+| Fermeture hors ligne multi-navigateurs | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/editor-offline-media.spec.ts` | 5/5 profils passés en 28 s ; image et fichier restaurés depuis IndexedDB chiffré, aucun plaintext, exactement deux créations distantes uniques, aucun fichier racine ni panneau de pièces jointes parasite |
+| Régression Firefox du gate | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/databases-schema.spec.ts` | 5/5 profils passés en 37 s ; les champs de propriété sont ciblés exactement et ne collisionnent plus avec un nom aléatoire contenant « tags » |
+| Gate pré-push exact | `MYOWNNOTION_E2E_JOBS=5 pnpm checks:local` avec les outils imposés par `docs/development.md` | passé ; 290 fichiers et 3 103 tests de couverture (90,17 % lignes, 85,13 % branches), 18 tests de performance, 331 intégrations PostgreSQL, 1 198 contrats, E2E 5/5 en 1 098 s, builds de production et images API/web `amd64`/`arm64`, sécurité, licences et contrat Compose |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
 
-- la persistance chiffrée des octets d'un nouveau fichier hors ligne au-delà
-  d'une fermeture brutale du navigateur (FR-075, SC-022, T252 à T255) ;
 - la finition et les surfaces restantes en US6/US7.
 
 La tranche prouve donc le parcours de synchronisation implémenté aujourd'hui ;

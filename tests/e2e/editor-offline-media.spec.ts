@@ -7,12 +7,11 @@
  * they wait for the network and are stated honestly as pending rather than
  * dressed up as synchronized.
  *
- * Every third-party route is cut for the whole offline stretch (SC-013): the
- * context is offline from before the drop to after the durability assertions,
- * so nothing but this installation can have been reached. Durability is proven
- * by leaving the page and coming back — the editor remounts from the device's
- * own sealed state — because an emulated-offline context cannot reload a page
- * from a network dev server in the first place.
+ * Every API route remains cut from before the drop through the replacement
+ * process. This models a running/cached application with the server unreachable
+ * while avoiding a Playwright WebKit defect: its full-offline emulation makes
+ * even a JavaScript-created local `File` throw `NotReadableError`. IndexedDB is
+ * therefore the only possible source for blocks and bytes before reconnect.
  */
 
 import { expect, test } from "./fixtures.ts";
@@ -28,17 +27,17 @@ test.describe("editor media offline", () => {
   test("a file dropped offline becomes a durable reference with an honest transfer state", async ({
     page,
   }) => {
+    const context = page.context();
     const pageName = uniqueName("OfflineMedia");
-    const otherName = uniqueName("Elsewhere");
     await openWorkspace(page);
     await createRootItem(page, "page", pageName);
-    await createRootItem(page, "folder", otherName);
     await selectItem(page, pageName);
     const editor = page.getByTestId("block-editor").locator(".ProseMirror");
     await expect(editor).toBeVisible({ timeout: 30_000 });
 
-    // Offline before anything is inserted: no byte path can succeed.
-    await page.context().setOffline(true);
+    // Server disconnected before anything is inserted: no upload can succeed.
+    const apiPattern = "**/v1/**";
+    await context.route(apiPattern, (route) => route.abort());
 
     // Drop a PNG onto the surface. The block must appear through the durable
     // engine commit even though no upload can run. The File is built inside
@@ -72,14 +71,49 @@ test.describe("editor media offline", () => {
     await expect(stateLine.first()).not.toContainText("vérifiés sur le serveur");
     await expect(stateLine.last()).not.toContainText("vérifiés sur le serveur");
 
-    // Leave the page and come back while still offline: the reference and its
-    // pending transfer survive because the device holds them durably.
-    await selectItem(page, otherName);
-    await selectItem(page, pageName);
-    const remounted = page.getByTestId("block-editor").locator(".ProseMirror");
+    // Abrupt process boundary: close the only page. The replacement may load
+    // Vite's shell, but the API stays unreachable until the reconnect below.
+    await page.close();
+    const restarted = await context.newPage();
+    await openWorkspace(restarted);
+    await selectItem(restarted, pageName);
+    const remounted = restarted.getByTestId("block-editor").locator(".ProseMirror");
     await expect(remounted).toBeVisible({ timeout: 30_000 });
     await expect(remounted.locator(".editor-image-block")).toBeVisible();
     await expect(remounted.locator(".editor-file-block")).toBeVisible();
+    await expect(remounted.locator("img.editor-image-preview")).toHaveAttribute(
+      "alt",
+      "capture.png",
+    );
+
+    // IndexedDB may expose routing IDs, never names, media types or bytes.
+    const storedRows = await restarted.evaluate(async () => {
+      const request = indexedDB.open("myownnotion-local");
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const transaction = database.transaction(
+        ["pendingFileTransfers", "pendingFileTransferChunks"],
+        "readonly",
+      );
+      const read = (storeName: string) =>
+        new Promise<unknown[]>((resolve, reject) => {
+          const rows = transaction.objectStore(storeName).getAll();
+          rows.onsuccess = () => resolve(rows.result);
+          rows.onerror = () => reject(rows.error);
+        });
+      const result = await Promise.all([
+        read("pendingFileTransfers"),
+        read("pendingFileTransferChunks"),
+      ]);
+      database.close();
+      return JSON.stringify(result);
+    });
+    expect(storedRows).not.toContain("capture.png");
+    expect(storedRows).not.toContain("compte-rendu.txt");
+    expect(storedRows).not.toContain("Compte rendu hors ligne");
+    expect(storedRows).not.toContain("text/plain");
 
     // Text keeps working offline next to the pending media: create a fresh
     // editable block below the image and type into it.
@@ -90,7 +124,20 @@ test.describe("editor media offline", () => {
 
     // Back online: the queued transfer resumes by itself and reports
     // completion honestly — bytes verified, not merely an accepted operation.
-    await page.context().setOffline(false);
+    let uploadCreations = 0;
+    const verifiedItems = new Set<string>();
+    restarted.on("request", (request) => {
+      if (request.method() === "POST" && new URL(request.url()).pathname === "/v1/uploads") {
+        uploadCreations += 1;
+      }
+    });
+    restarted.on("response", async (response) => {
+      if (response.request().method() !== "PATCH" || response.status() !== 201) return;
+      const body = (await response.json().catch(() => null)) as { itemId?: unknown } | null;
+      if (typeof body?.itemId === "string") verifiedItems.add(body.itemId);
+    });
+    await context.unroute(apiPattern);
+    await restarted.evaluate(() => window.dispatchEvent(new Event("online")));
     await expect(remounted.locator(".editor-file-state").first()).toHaveAttribute(
       "data-state",
       "synchronized",
@@ -101,14 +148,16 @@ test.describe("editor media offline", () => {
       "synchronized",
       { timeout: 30_000 },
     );
+    expect(uploadCreations).toBe(2);
+    expect(verifiedItems.size).toBe(2);
 
     // A hard reload destroys the upload queue and its in-memory File objects.
     // Both blocks must now resolve the verified feature-005 items, render from
     // server bytes, and avoid inventing a new queued transfer.
-    await page.reload();
-    await openWorkspace(page);
-    await selectItem(page, pageName);
-    const serverBacked = page.getByTestId("block-editor").locator(".ProseMirror");
+    await restarted.reload();
+    await openWorkspace(restarted);
+    await selectItem(restarted, pageName);
+    const serverBacked = restarted.getByTestId("block-editor").locator(".ProseMirror");
     await expect(serverBacked).toBeVisible({ timeout: 30_000 });
     await expect(serverBacked.locator("img.editor-image-preview")).toBeVisible({ timeout: 30_000 });
     const fileBlock = serverBacked.locator(".editor-file-block");
@@ -121,11 +170,13 @@ test.describe("editor media offline", () => {
 
     // An editor file is a content attachment of this page. It is neither a
     // root hierarchy item nor a panel appended below the writing canvas.
-    await expect(page.getByTestId("tree-item-capture.png")).toHaveCount(0);
-    await expect(page.getByTestId("tree-item-compte-rendu.txt")).toHaveCount(0);
-    await expect(page.getByTestId("attachment-panel")).toHaveCount(0);
-    await openPageAttachments(page, pageName);
-    await expect(page.getByTestId("attachment-capture.png")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("attachment-compte-rendu.txt")).toBeVisible({ timeout: 30_000 });
+    await expect(restarted.getByTestId("tree-item-capture.png")).toHaveCount(0);
+    await expect(restarted.getByTestId("tree-item-compte-rendu.txt")).toHaveCount(0);
+    await expect(restarted.getByTestId("attachment-panel")).toHaveCount(0);
+    await openPageAttachments(restarted, pageName);
+    await expect(restarted.getByTestId("attachment-capture.png")).toBeVisible({ timeout: 30_000 });
+    await expect(restarted.getByTestId("attachment-compte-rendu.txt")).toBeVisible({
+      timeout: 30_000,
+    });
   });
 });

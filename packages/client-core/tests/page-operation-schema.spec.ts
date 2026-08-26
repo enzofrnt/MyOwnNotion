@@ -30,7 +30,7 @@ afterEach(async () => {
   databasesToDelete.clear();
 });
 
-describe("page-operation local schema v9", () => {
+describe("page-operation local schema v10", () => {
   it("upgrades v6 without changing historical projection rows", async () => {
     const name = `page-operations-v6-${generateUuidV7()}`;
     databasesToDelete.add(name);
@@ -66,6 +66,8 @@ describe("page-operation local schema v9", () => {
     expect(await upgraded.pageAmbiguities.count()).toBe(0);
     expect(await upgraded.legacyOfflineBranches.count()).toBe(0);
     expect(await upgraded.legacySyncRecoveries.count()).toBe(0);
+    expect(await upgraded.pendingFileTransfers.count()).toBe(0);
+    expect(await upgraded.pendingFileTransferChunks.count()).toBe(0);
     upgraded.close();
   });
 
@@ -104,6 +106,8 @@ describe("page-operation local schema v9", () => {
       "pageAmbiguities",
       "pageOperationStates",
       "pageOperationUpdates",
+      "pendingFileTransferChunks",
+      "pendingFileTransfers",
       "placements",
       "relationships",
       "revisionHeaders",
@@ -165,6 +169,17 @@ describe("page-operation local schema v9", () => {
     expect(db.legacySyncRecoveries.schema.indexes.map(({ name: indexName }) => indexName)).toEqual(
       expect.arrayContaining(["pageId", "status", "capturedAt", "[status+pageId]"]),
     );
+    expect(db.pendingFileTransfers.schema.primKey.name).toBe("fileItemId");
+    expect(db.pendingFileTransfers.schema.indexes.map(({ name }) => name)).toEqual([
+      "status",
+      "createdAt",
+    ]);
+    expect(db.pendingFileTransferChunks.schema.primKey.name).toBe("id");
+    expect(db.pendingFileTransferChunks.schema.indexes.map(({ name }) => name)).toEqual([
+      "fileItemId",
+      "chunkIndex",
+      "[fileItemId+chunkIndex]",
+    ]);
 
     db.close();
   });

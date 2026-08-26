@@ -48,6 +48,8 @@ export const LOCAL_ENTITY_TYPES = {
   pageOperationUpdate: "local.page-operation.update",
   pageAmbiguityDetails: "local.page-ambiguity.details",
   legacyOfflineBranch: "local.page-operation.legacy-branch",
+  pendingFileTransferManifest: "local.pending-file.manifest",
+  pendingFileTransferChunk: "local.pending-file.chunk",
 } as const;
 
 export interface LocalEnvelope {
@@ -104,12 +106,19 @@ export class LocalCipher {
   }
 
   async seal(binding: EnvelopeBinding, plaintext: unknown): Promise<LocalEnvelope> {
+    return this.sealBytes(binding, new TextEncoder().encode(JSON.stringify(plaintext)));
+  }
+
+  /** Seals arbitrary bytes without first expanding them through JSON/base64. */
+  async sealBytes(binding: EnvelopeBinding, plaintext: Uint8Array): Promise<LocalEnvelope> {
     const { key, keyId } = this.#keys.requireKey();
     const nonce = crypto.getRandomValues(new Uint8Array(NONCE_BYTES));
+    const bytes = new Uint8Array(new ArrayBuffer(plaintext.byteLength));
+    bytes.set(plaintext);
     const ciphertext = await crypto.subtle.encrypt(
       { name: "AES-GCM", iv: nonce, additionalData: aadFor(binding) },
       key,
-      new TextEncoder().encode(JSON.stringify(plaintext)),
+      bytes,
     );
     return {
       format: LOCAL_ENVELOPE_FORMAT,
@@ -121,6 +130,15 @@ export class LocalCipher {
   }
 
   async open(binding: EnvelopeBinding, envelope: LocalEnvelope): Promise<unknown> {
+    const plaintext = await this.openBytes(binding, envelope);
+    return JSON.parse(new TextDecoder().decode(plaintext));
+  }
+
+  /** Opens arbitrary sealed bytes and preserves their exact binary value. */
+  async openBytes(
+    binding: EnvelopeBinding,
+    envelope: LocalEnvelope,
+  ): Promise<Uint8Array<ArrayBuffer>> {
     const { key, keyId } = this.#keys.requireKey();
     // Checked before the tag, because the two failures mean different things
     // to the owner: a record sealed under a key this device no longer holds is
@@ -144,7 +162,7 @@ export class LocalCipher {
       // the caller can do nothing different with the detail anyway.
       throw new LocalIntegrityError();
     }
-    return JSON.parse(new TextDecoder().decode(plaintext));
+    return new Uint8Array(plaintext);
   }
 }
 

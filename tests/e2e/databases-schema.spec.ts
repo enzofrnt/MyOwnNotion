@@ -74,14 +74,17 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await entryButton.click();
 
   await expect(page.getByText("Database entry · page")).toBeVisible();
-  await page.getByLabel("Notes").fill("Move the customer data without downtime");
-  await page.getByLabel("Estimate").fill("12.5");
-  await page.getByLabel("Due").fill("2026-09-15");
-  await page.getByLabel("Status").selectOption({ label: "In progress" });
-  await page.getByLabel("Priority").selectOption({ label: "High" });
-  await page.getByLabel("Tags").selectOption(["Backend", "Migration"]);
-  await page.getByLabel("Done").check();
-  await page.getByLabel("Related").selectOption({ label: targetName });
+  const entryPanel = page.locator(".entry-panel");
+  await entryPanel
+    .getByLabel("Notes", { exact: true })
+    .fill("Move the customer data without downtime");
+  await entryPanel.getByLabel("Estimate", { exact: true }).fill("12.5");
+  await entryPanel.getByLabel("Due", { exact: true }).fill("2026-09-15");
+  await entryPanel.getByLabel("Status", { exact: true }).selectOption({ label: "In progress" });
+  await entryPanel.getByLabel("Priority", { exact: true }).selectOption({ label: "High" });
+  await entryPanel.getByLabel("Tags", { exact: true }).selectOption(["Backend", "Migration"]);
+  await entryPanel.getByLabel("Done", { exact: true }).check();
+  await entryPanel.getByLabel("Related", { exact: true }).selectOption({ label: targetName });
   await saveEntryProperties(page);
 
   await page.getByRole("button", { name: "Close entry" }).click();
@@ -99,8 +102,12 @@ test("creates a typed database whose entry and relations keep canonical page ide
     .getByRole("button", { name: entryName, exact: true });
   await expect(reopenedEntryButton).toBeVisible({ timeout: 15_000 });
   await reopenedEntryButton.click();
-  await expect(page.getByLabel("Related").locator("option:checked")).toHaveText(renamedTarget);
-  await expect(page.getByLabel("Notes")).toHaveValue("Move the customer data without downtime");
+  await expect(
+    entryPanel.getByLabel("Related", { exact: true }).locator("option:checked"),
+  ).toHaveText(renamedTarget);
+  await expect(entryPanel.getByLabel("Notes", { exact: true })).toHaveValue(
+    "Move the customer data without downtime",
+  );
 
   expect(Date.now() - startedAt).toBeLessThan(300_000);
 });

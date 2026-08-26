@@ -15,6 +15,9 @@
 /** 8 MiB: large enough to keep the request count sane, small enough to lose little. */
 export const CHUNK_BYTES = 8 * 1024 * 1024;
 
+/** Prevents a broken server/proxy from making two offsets oscillate forever. */
+const MAX_CONSECUTIVE_OFFSET_CORRECTIONS = 8;
+
 export type TransferState =
   | { readonly kind: "idle" }
   | { readonly kind: "uploading"; readonly sent: number; readonly total: number }
@@ -32,9 +35,24 @@ export interface UploadHandle {
   readonly location: string;
 }
 
+/** File-like bytes, including an encrypted IndexedDB-backed source after restart. */
+export interface UploadByteSource {
+  readonly name: string;
+  readonly type: string;
+  readonly size: number;
+  slice(start?: number, end?: number): Blob | Promise<Blob>;
+}
+
+function readUploadOffset(headers: Headers): number | null {
+  const raw = headers.get("upload-offset");
+  if (raw === null || raw.trim() === "") return null;
+  const offset = Number(raw);
+  return Number.isSafeInteger(offset) && offset >= 0 ? offset : null;
+}
+
 /** Creates the upload, or reports the refusal without touching the draft. */
 export async function createUpload(
-  file: File,
+  file: UploadByteSource,
   fileItemId?: string,
   attachmentParentItemId?: string,
 ): Promise<{ ok: true; handle: UploadHandle } | { ok: false; state: TransferState }> {
@@ -93,6 +111,63 @@ export async function createUpload(
   };
 }
 
+export type UploadDiscovery =
+  | { readonly kind: "upload"; readonly handle: UploadHandle }
+  | { readonly kind: "synchronized"; readonly state: TransferState }
+  | { readonly kind: "missing" }
+  | { readonly kind: "blocked"; readonly state: TransferState };
+
+/**
+ * Finds a transfer after a browser restart without risking a duplicate POST.
+ * A new upload is permitted only when both the deterministic upload URL and
+ * the final file item return 404. Any other response is ambiguity, not proof
+ * that creating another server row is safe.
+ */
+export async function discoverUpload(fileItemId: string): Promise<UploadDiscovery> {
+  const handle = { uploadId: fileItemId, location: `/v1/uploads/${fileItemId}` };
+  const upload = await fetch(handle.location, { method: "HEAD", credentials: "same-origin" });
+  if (upload.ok) {
+    return readUploadOffset(upload.headers) !== null
+      ? { kind: "upload", handle }
+      : {
+          kind: "blocked",
+          state: {
+            kind: "blocked",
+            reason: "Le serveur n’a pas fourni un offset de reprise valide.",
+          },
+        };
+  }
+  if (upload.status !== 404) {
+    return {
+      kind: "blocked",
+      state: {
+        kind: "blocked",
+        reason: "Impossible de vérifier la reprise du transfert sans risquer un doublon.",
+      },
+    };
+  }
+  const item = await fetch(`/v1/items/${encodeURIComponent(fileItemId)}`, {
+    credentials: "same-origin",
+  });
+  if (item.ok) {
+    const body = (await item.json().catch(() => null)) as { id?: unknown; kind?: unknown } | null;
+    return body?.id === fileItemId && body.kind === "file"
+      ? { kind: "synchronized", state: { kind: "synchronized", itemId: fileItemId } }
+      : {
+          kind: "blocked",
+          state: { kind: "blocked", reason: "L’identité du fichier vérifié est incohérente." },
+        };
+  }
+  if (item.status === 404) return { kind: "missing" };
+  return {
+    kind: "blocked",
+    state: {
+      kind: "blocked",
+      reason: "Impossible de vérifier le fichier distant sans risquer un doublon.",
+    },
+  };
+}
+
 /**
  * The offset the server holds, which is the only offset that matters.
  *
@@ -104,8 +179,7 @@ export async function serverOffset(handle: UploadHandle): Promise<number | null>
   if (!response.ok) {
     return null;
   }
-  const offset = Number(response.headers.get("upload-offset"));
-  return Number.isFinite(offset) ? offset : null;
+  return readUploadOffset(response.headers);
 }
 
 /** Proves a final response was lost after the server already committed the file. */
@@ -147,7 +221,7 @@ async function readVerifiedCompletion(
  */
 export async function sendRemaining(
   handle: UploadHandle,
-  file: File,
+  file: UploadByteSource,
   onProgress: (state: TransferState) => void,
 ): Promise<TransferState> {
   const startingAt = await serverOffset(handle);
@@ -163,6 +237,7 @@ export async function sendRemaining(
     };
   }
   let offset: number = startingAt;
+  let consecutiveOffsetCorrections = 0;
   if (offset > file.size) {
     return {
       kind: "blocked",
@@ -182,7 +257,7 @@ export async function sendRemaining(
         "content-type": "application/offset+octet-stream",
         "upload-offset": String(offset),
       },
-      body: file.slice(offset, offset),
+      body: await file.slice(offset, offset),
     });
     const completed = await readVerifiedCompletion(response, handle.uploadId);
     if (completed !== null) {
@@ -206,7 +281,7 @@ export async function sendRemaining(
 
   while (offset < file.size) {
     onProgress({ kind: "uploading", sent: offset, total: file.size });
-    const chunk = file.slice(offset, Math.min(offset + CHUNK_BYTES, file.size));
+    const chunk = await file.slice(offset, Math.min(offset + CHUNK_BYTES, file.size));
     const response = await fetch(handle.location, {
       method: "PATCH",
       credentials: "same-origin",
@@ -221,8 +296,30 @@ export async function sendRemaining(
       // The server disagreed. Its number wins, always: continuing from ours
       // would write bytes to the wrong place inside a file that then completes
       // and verifies as though nothing had happened.
-      const corrected = Number(response.headers.get("upload-offset"));
-      if (Number.isFinite(corrected)) {
+      const corrected = readUploadOffset(response.headers);
+      if (corrected !== null) {
+        if (corrected > file.size) {
+          return {
+            kind: "blocked",
+            reason:
+              "Le serveur annonce plus d’octets que le fichier local. Le transfert est arrêté sûrement.",
+          };
+        }
+        if (corrected === offset) {
+          return {
+            kind: "blocked",
+            reason:
+              "Le serveur a refusé le transfert sans fournir de nouvel offset. Il est arrêté sûrement.",
+          };
+        }
+        consecutiveOffsetCorrections += 1;
+        if (consecutiveOffsetCorrections > MAX_CONSECUTIVE_OFFSET_CORRECTIONS) {
+          return {
+            kind: "blocked",
+            reason:
+              "Les offsets de reprise du serveur sont instables. Le transfert est arrêté sûrement.",
+          };
+        }
         offset = corrected;
         continue;
       }
@@ -232,6 +329,28 @@ export async function sendRemaining(
         return {
           kind: "blocked",
           reason: "This transfer is no longer available. Starting it again will send it afresh.",
+        };
+      }
+      if (asked > file.size) {
+        return {
+          kind: "blocked",
+          reason:
+            "Le serveur annonce plus d’octets que le fichier local. Le transfert est arrêté sûrement.",
+        };
+      }
+      if (asked === offset) {
+        return {
+          kind: "blocked",
+          reason:
+            "Le serveur a refusé le transfert sans fournir de nouvel offset. Il est arrêté sûrement.",
+        };
+      }
+      consecutiveOffsetCorrections += 1;
+      if (consecutiveOffsetCorrections > MAX_CONSECUTIVE_OFFSET_CORRECTIONS) {
+        return {
+          kind: "blocked",
+          reason:
+            "Les offsets de reprise du serveur sont instables. Le transfert est arrêté sûrement.",
         };
       }
       offset = asked;
@@ -256,11 +375,26 @@ export async function sendRemaining(
       return completed;
     }
 
-    const next = Number(response.headers.get("upload-offset"));
+    const next = readUploadOffset(response.headers);
     // Taken from the response rather than computed by adding the chunk size:
     // the server is the authority on what it stored, and the two can only ever
     // differ in the direction that loses data.
-    offset = Number.isFinite(next) ? next : offset + chunk.size;
+    if (next === null) {
+      return {
+        kind: "blocked",
+        reason:
+          "Le serveur n’a pas confirmé l’offset enregistré. Le transfert est arrêté sûrement.",
+      };
+    }
+    if (next <= offset || next > file.size) {
+      return {
+        kind: "blocked",
+        reason:
+          "Le serveur n’a pas confirmé une progression valide. Le transfert est arrêté sûrement.",
+      };
+    }
+    consecutiveOffsetCorrections = 0;
+    offset = next;
   }
 
   onProgress({ kind: "verifying" });

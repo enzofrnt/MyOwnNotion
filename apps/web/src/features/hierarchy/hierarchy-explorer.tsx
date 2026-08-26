@@ -48,6 +48,7 @@ import { DATABASE_COPY } from "../databases/database-copy.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
 import { EntryPanel } from "../databases/entry-panel.tsx";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
+import { initializeEditorFileTransfers } from "../editor/editor-file-state.tsx";
 import type { CreateSubpageRequest } from "../editor/editor-menus/slash-menu.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { BranchState } from "../navigation/branch-state.tsx";
@@ -373,6 +374,7 @@ export function HierarchyExplorer({
     void (async () => {
       setLoadPhase("initializing");
       await service.initialize();
+      await initializeEditorFileTransfers(service);
       // First boot on this device: seed the projection when reachable.
       setLoadPhase("reading-local");
       if ((await service.listActiveItems()).length === 0) {

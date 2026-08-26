@@ -33,6 +33,7 @@ import {
   type PageReconcileOutcome,
   PageReconciler,
   type PageTabChannel,
+  PendingFileTransferStore,
   type ProjectedItem,
   type ReconcileTransport,
   reconcile,
@@ -248,6 +249,7 @@ export class LocalContentService {
   readonly pageOperationsApi: PageOperationsApi;
   readonly realtimePageSync: RealtimePageSyncTransport;
   readonly legacyConflictRecovery: LegacyConflictRecovery;
+  readonly pendingFileTransfers: PendingFileTransferStore;
   #syncState: SyncState = "pending";
   #pendingCount = 0;
   #filePendingCount = 0;
@@ -298,6 +300,7 @@ export class LocalContentService {
     };
     this.#codec = new LocalRecordCodec(cipher, operationContext);
     this.pageOperationLog = new EncryptedPageOperationLog(this.db, cipher, operationContext);
+    this.pendingFileTransfers = new PendingFileTransferStore(this.db, cipher, operationContext);
     this.pageStateStore = new LocalPageStateStore(this.pageOperationLog, {
       requireCurrentPage: true,
     });
@@ -339,6 +342,19 @@ export class LocalContentService {
 
   configurePageOperationAuthorization(csrfToken: () => string | null): void {
     this.#pageCsrfToken = csrfToken;
+  }
+
+  /** Proves whether a ready local file staging still has an editorial owner. */
+  async isFileReferencedByPage(pageId: Uuid, fileItemId: Uuid): Promise<boolean> {
+    await this.#unlock();
+    const [state, branch] = await Promise.all([
+      this.pageOperationLog.getState(pageId),
+      this.pageOperationLog.getLegacyBranch(pageId),
+    ]);
+    return (
+      state?.projection?.fileUsageIds.includes(fileItemId) === true ||
+      branch?.requiredFileIds.includes(fileItemId) === true
+    );
   }
 
   connectFileTransferStatus(source: FileTransferStatusSource): void {

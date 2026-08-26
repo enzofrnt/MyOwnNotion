@@ -66,6 +66,8 @@ describe("versioned local schema (T020)", () => {
       "pageAmbiguities",
       "pageOperationStates",
       "pageOperationUpdates",
+      "pendingFileTransferChunks",
+      "pendingFileTransfers",
       "placements",
       "relationships",
       "revisionHeaders",

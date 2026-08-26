@@ -105,13 +105,16 @@ function envelopeBytes(envelope: { readonly ciphertext: string } | null | undefi
 
 /** What is holding the space, grouped as an owner would think of it. */
 async function breakdownOf(db: LocalDatabase): Promise<Array<{ label: string; bytes: number }>> {
-  const [items, states, updates, ambiguities, branches] = await Promise.all([
-    db.items.toArray(),
-    db.pageOperationStates.toArray(),
-    db.pageOperationUpdates.toArray(),
-    db.pageAmbiguities.toArray(),
-    db.legacyOfflineBranches.toArray(),
-  ]);
+  const [items, states, updates, ambiguities, branches, pendingFiles, pendingChunks] =
+    await Promise.all([
+      db.items.toArray(),
+      db.pageOperationStates.toArray(),
+      db.pageOperationUpdates.toArray(),
+      db.pageAmbiguities.toArray(),
+      db.legacyOfflineBranches.toArray(),
+      db.pendingFileTransfers.toArray(),
+      db.pendingFileTransferChunks.toArray(),
+    ]);
   let fileBytes = 0;
   let pageBytes = 0;
   for (const item of items) {
@@ -121,6 +124,8 @@ async function breakdownOf(db: LocalDatabase): Promise<Array<{ label: string; by
     }
     pageBytes += envelopeBytes(item.sealedPageBody);
   }
+  fileBytes += pendingFiles.reduce((total, row) => total + envelopeBytes(row.sealedManifest), 0);
+  fileBytes += pendingChunks.reduce((total, row) => total + envelopeBytes(row.sealedChunk), 0);
   pageBytes += states.reduce((total, row) => total + envelopeBytes(row.sealedState), 0);
   pageBytes += updates.reduce((total, row) => total + envelopeBytes(row.sealedBody), 0);
   pageBytes += ambiguities.reduce((total, row) => total + envelopeBytes(row.sealedDetails), 0);
