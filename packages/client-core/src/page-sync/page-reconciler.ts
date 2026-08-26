@@ -31,7 +31,11 @@ import {
   pageSynchronizationResource,
   withLocalDatabaseLock,
 } from "../coordination/cross-context-coordinator.ts";
-import type { SealedPageAmbiguityRow } from "../local-store/schema.ts";
+import type {
+  ConflictRecordRow,
+  LegacySyncRecoveryRow,
+  SealedPageAmbiguityRow,
+} from "../local-store/schema.ts";
 import type {
   EncryptedPageOperationLog,
   LegacyOfflineBranchRecord,
@@ -367,6 +371,77 @@ export class PageReconciler {
     ]);
   }
 
+  /**
+   * Retires a branch that can never be accepted because its server page no
+   * longer exists, while retaining the complete encrypted local document for
+   * an explicit export/recovery decision.
+   */
+  async #quarantineMissingLegacyBranch(branch: LegacyOfflineBranchRecord): Promise<void> {
+    const timestamp = this.#now().toISOString();
+    const mutationId = branch.branchId;
+    const conflict: ConflictRecordRow = {
+      mutationId,
+      commandType: "page.document.replace",
+      payload: {
+        itemId: branch.pageId,
+        baseRevisionId: branch.branch.baseRevisionId,
+        document: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: { blocks: structuredClone(branch.branch.localDocument.blocks) },
+        },
+      },
+      baseRevisionIds: [branch.branch.baseRevisionId],
+      localRevisionIds: [],
+      competingRevisionIds: [],
+      capturedAt: branch.createdAt,
+      errorCode: "item.not-found",
+    };
+    const blocked: LegacyOfflineBranchRecord = {
+      ...branch,
+      status: "blocked",
+      recordVersion: branch.recordVersion + 1,
+      branch: { ...branch.branch, status: "blocked" },
+    };
+    const recovery: LegacySyncRecoveryRow = {
+      mutationId,
+      pageId: branch.pageId,
+      status: "quarantined",
+      reasonCode: "legacy-recovery.server-item-missing",
+      branchId: branch.branchId,
+      attemptCount: 1,
+      capturedAt: branch.createdAt,
+      updatedAt: timestamp,
+    };
+    const [sealedConflict, sealedBranch] = await Promise.all([
+      this.#log.localCodec.sealConflict(conflict),
+      this.#log.codec.sealLegacyBranch(blocked),
+    ]);
+    await withPageStateWrite(this.#log.db, branch.pageId, async () => {
+      await this.#log.db.transaction(
+        "rw",
+        [
+          this.#log.db.conflicts,
+          this.#log.db.legacyOfflineBranches,
+          this.#log.db.legacySyncRecoveries,
+        ],
+        async () => {
+          const current = await this.#log.db.legacyOfflineBranches.get(branch.pageId);
+          if (
+            current === undefined ||
+            current.branchId !== branch.branchId ||
+            current.recordVersion !== branch.recordVersion
+          ) {
+            throw new ConcurrentPageReconciliationError();
+          }
+          await this.#log.db.conflicts.put(sealedConflict as unknown as ConflictRecordRow);
+          await this.#log.db.legacySyncRecoveries.put(recovery);
+          await this.#log.db.legacyOfflineBranches.put(sealedBranch);
+        },
+      );
+    });
+  }
+
   async #drain(): Promise<PageReconcileOutcome> {
     let outcome: PageReconcileOutcome;
     do {
@@ -428,6 +503,16 @@ export class PageReconciler {
     };
     const result = await this.#transport.convertLegacyBranch(this.#pageId, request);
     if (!result.ok) {
+      if (!result.offline && result.problem.code === "item.not-found") {
+        await this.#quarantineMissingLegacyBranch(branch);
+        return {
+          kind: "blocked",
+          exchanges: 1,
+          latestPageSequence: 0,
+          fileRequirements: [],
+          problemCode: result.problem.code,
+        };
+      }
       return {
         kind: result.offline ? "offline" : "pending",
         exchanges: 0,
@@ -562,6 +647,15 @@ export class PageReconciler {
     // active checkpoint, which installs exactly like any other.
     const branch = await this.#log.getLegacyBranch(this.#pageId);
     if (branch !== null && branch.status !== "converted") {
+      if (branch.status === "blocked") {
+        return {
+          kind: "blocked",
+          exchanges: 0,
+          latestPageSequence: 0,
+          fileRequirements: [],
+          problemCode: "page-operations.legacy-branch-retained",
+        };
+      }
       const bootstrapOnly =
         branch.branch.bootstrapTransactionId !== undefined
           ? branch.branch.semanticTransactions.length === 1 &&

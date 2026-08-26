@@ -244,6 +244,32 @@ describe("RealtimePageSyncTransport", () => {
     transport.stop();
   });
 
+  it("keeps exponential backoff when a ready channel repeatedly fails before one exchange", async () => {
+    vi.useFakeTimers();
+    const { factory, socket, transport } = openTransport({
+      reconnect: true,
+      random: () => 0.9999,
+    });
+
+    socket.serverClose(4500, "internal-error");
+    expect(transport.state).toBe("backoff");
+    await vi.advanceTimersByTimeAsync(499);
+    expect(factory.sockets).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    const second = factory.latest;
+    second.open();
+    const secondHello = JSON.parse(second.sent[0] ?? "null") as { requestId: Uuid };
+    second.serverMessage(ready(secondHello.requestId));
+    second.serverClose(4500, "internal-error");
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(factory.sockets).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(factory.sockets).toHaveLength(3);
+    transport.stop();
+  });
+
   it("extends liveness whenever the server heartbeat arrives", async () => {
     vi.useFakeTimers();
     const { socket, transport } = openTransport();

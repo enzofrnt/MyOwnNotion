@@ -920,6 +920,96 @@ describe("PageReconciler", () => {
     ]);
     expect(conversionRequests).toBe(1);
   });
+
+  it("quarantines an orphaned server page once and keeps the complete branch exportable", async () => {
+    const pageId = generateUuidV7();
+    const baseRevisionId = generateUuidV7();
+    const blockId = generateUuidV7();
+    let branch = await createLegacyOfflineBranch({
+      branchId: generateUuidV7(),
+      pageId,
+      baseRevisionId,
+      baseDocument: { blocks: [] },
+      createdAt: "2026-08-21T12:00:00.000Z",
+    });
+    branch = await appendLegacySemanticTransaction(branch, {
+      transactionId: generateUuidV7(),
+      sequence: 1,
+      commands: [
+        {
+          type: "insert-block",
+          block: { type: "paragraph", id: blockId, content: [{ text: "offline draft" }] },
+          parentBlockId: null,
+          beforeBlockId: null,
+        },
+      ],
+    });
+    await log.putLegacyBranch({
+      pageId,
+      branchId: branch.branchId,
+      status: "editing",
+      createdAt: branch.createdAt,
+      recordVersion: 1,
+      requiredFileIds: [],
+      branch,
+    });
+    const convertLegacyBranch = vi.fn(async () => ({
+      ok: false as const,
+      offline: false,
+      problem: { code: "item.not-found", message: "Page not found." },
+    }));
+    const reconciler = new PageReconciler({
+      pageId,
+      log,
+      transport: {
+        async sync() {
+          throw new Error("unexpected active sync");
+        },
+        convertLegacyBranch,
+      },
+    });
+
+    await expect(reconciler.convertLegacyBranch()).resolves.toMatchObject({
+      kind: "blocked",
+      problemCode: "item.not-found",
+    });
+    await expect(reconciler.convertLegacyBranch()).resolves.toMatchObject({
+      kind: "blocked",
+      exchanges: 0,
+      problemCode: "page-operations.legacy-branch-retained",
+    });
+    expect(convertLegacyBranch).toHaveBeenCalledOnce();
+    expect(await log.getLegacyBranch(pageId)).toMatchObject({
+      branchId: branch.branchId,
+      status: "blocked",
+      branch: {
+        status: "blocked",
+        localDocument: {
+          blocks: [{ id: blockId, content: [{ text: "offline draft" }] }],
+        },
+      },
+    });
+    expect(await db.legacySyncRecoveries.get(branch.branchId)).toMatchObject({
+      pageId,
+      status: "quarantined",
+      reasonCode: "legacy-recovery.server-item-missing",
+      branchId: branch.branchId,
+    });
+    const storedConflict = await db.conflicts.get(branch.branchId);
+    expect(storedConflict).toBeDefined();
+    if (storedConflict === undefined) return;
+    await expect(log.localCodec.openConflict(storedConflict as never)).resolves.toMatchObject({
+      mutationId: branch.branchId,
+      errorCode: "item.not-found",
+      payload: {
+        itemId: pageId,
+        document: {
+          formatVersion: 3,
+          body: { blocks: [{ id: blockId, content: [{ text: "offline draft" }] }] },
+        },
+      },
+    });
+  });
 });
 
 describe("reconciler refusal paths", () => {

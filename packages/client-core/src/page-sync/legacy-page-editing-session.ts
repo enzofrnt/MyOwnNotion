@@ -93,7 +93,7 @@ export interface OpenLegacyPageEditingSessionOptions {
    * Drives branch conversion (plan §6). Resolves "converted" once the server
    * accepted the journal and an active checkpoint is installed locally.
    */
-  readonly requestConversion?: () => Promise<"converted" | "unavailable">;
+  readonly requestConversion?: () => Promise<"converted" | "retained" | "unavailable">;
   readonly online?: boolean;
   readonly now?: () => Date;
   readonly createBranchId?: () => Uuid;
@@ -178,7 +178,9 @@ export class LegacyPageEditingSession {
   readonly #store: LegacyPageBranchCommitter;
   readonly #activeStore: LocalPageTransactionCommitter | undefined;
   readonly #publishDurableUpdate: ((notice: DurablePageUpdateNotice) => void) | undefined;
-  readonly #requestConversion: (() => Promise<"converted" | "unavailable">) | undefined;
+  readonly #requestConversion:
+    | (() => Promise<"converted" | "retained" | "unavailable">)
+    | undefined;
   readonly #now: () => Date;
   readonly #createTransactionId: () => Uuid;
   readonly #publishDurableBranch: ((branchId: Uuid) => void) | undefined;
@@ -682,6 +684,15 @@ export class LegacyPageEditingSession {
             // the active document instead of a branch already converted.
             await this.#upgradeToActiveSession();
             this.#conversionRetryAttempt = 0;
+          } else if (outcome === "retained") {
+            const retained = await this.#log.getLegacyBranch(this.pageId);
+            if (retained?.branchId === this.#branch.branchId && retained.status === "blocked") {
+              this.#record = retained;
+              this.#branch = retained.branch;
+              this.#conversionRetryAttempt = 0;
+            } else {
+              retry = true;
+            }
           } else {
             // The common migration race is intentional and transient: the
             // semantic branch can be based on an optimistic v2 revision whose

@@ -56,7 +56,7 @@ import type { RotationPolicyService } from "../security/rotation-policy-service.
 import { authorizeSynchronizationWrite } from "../security/synchronization-authorization.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 import type { CanonicalMaterializer } from "./canonical-materializer.ts";
-import type { PageHistoryService } from "./page-history-service.ts";
+import { PageHistoryConsolidationError, type PageHistoryService } from "./page-history-service.ts";
 import type { PageOperationCrypto } from "./page-operation-crypto.ts";
 import { PageOperationServiceError } from "./page-operation-errors.ts";
 import { semanticRecordFromProjectionDiff } from "./semantic-detection.ts";
@@ -104,6 +104,32 @@ export class PageOperationService {
 
   constructor(deps: PageOperationServiceDeps) {
     this.#deps = { ...deps, now: deps.now ?? (() => new Date()) };
+  }
+
+  async #consolidateHistory(
+    tx: Transaction,
+    pageId: Uuid,
+    options: { readonly force?: boolean } = {},
+  ) {
+    try {
+      return await this.#deps.history?.consolidateIfDue(tx, pageId, options);
+    } catch (error) {
+      // A retired page and a provably divergent history lineage are both
+      // deterministic page-state failures. Returning a bounded 409 keeps the
+      // multiplexed socket alive and lets the client retain this page for
+      // repair instead of reconnecting every few hundred milliseconds.
+      if (
+        (error instanceof PageOperationRepositoryError && error.code === "state-not-found") ||
+        error instanceof PageHistoryConsolidationError
+      ) {
+        throw new PageOperationServiceError(
+          "page-operations.projection-invalid",
+          "The page history requires repair before synchronization can continue.",
+          409,
+        );
+      }
+      throw error;
+    }
   }
 
   async #load(tx: Transaction, pageId: Uuid): Promise<LoadedOperationalPage> {
@@ -475,23 +501,7 @@ export class PageOperationService {
         );
       }
       await this.#deps.rotationPolicies.assertWritesAllowed(tx);
-      try {
-        await this.#deps.history?.consolidateIfDue(tx, input.pageId);
-      } catch (error) {
-        // A confirmed page -> folder conversion retires operational state
-        // under the same row lock used by synchronization. A stale device may
-        // already have prepared its next pull; answer that normal lifecycle
-        // race as a protocol refusal instead of leaking the repository's
-        // state-not-found error through the generic 500 handler.
-        if (error instanceof PageOperationRepositoryError && error.code === "state-not-found") {
-          throw new PageOperationServiceError(
-            "page-operations.projection-invalid",
-            "The page no longer has operational state.",
-            409,
-          );
-        }
-        throw error;
-      }
+      await this.#consolidateHistory(tx, input.pageId);
       let loaded = await this.#load(tx, input.pageId);
       let state = loaded.state;
       const document = loaded.document;
@@ -885,7 +895,7 @@ export class PageOperationService {
         });
         throughPageSequence = row.pageSequence;
       }
-      const consolidated = await this.#deps.history?.consolidateIfDue(tx, input.pageId, {
+      const consolidated = await this.#consolidateHistory(tx, input.pageId, {
         force: input.request.revisionBoundary === "editor-closed",
       });
       if (consolidated !== null && consolidated !== undefined) {

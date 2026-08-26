@@ -759,3 +759,58 @@ Preuves ciblées :
 
 La porte complète et les preuves de livraison seront ajoutées après validation
 de l'arbre final.
+
+## Convergence de maintenance — HAR réel, reconnexion et projection hors ligne
+
+Date : 2026-08-26
+
+Le HAR fourni par le propriétaire a été analysé en ne conservant dans les
+preuves que les routes, statuts, identifiants techniques et messages sûrs ; les
+cookies, jetons et contenus privés n'ont pas été recopiés. Il contenait, sur une
+fenêtre d'environ neuf secondes :
+
+- 33 ouvertures authentifiées de `/v1/page-sync/socket` ;
+- une page existante qui répétait un échange `active`, recevait
+  `realtime.internal-error`, puis voyait sa session fermée avec le code 4500 ;
+- une branche locale historique de 61 transactions dont la page n'existait plus
+  sur le serveur, refusée de façon déterministe avec `item.not-found` ;
+- 68 lectures `GET /v1/databases/:id` terminées par le 404 attendu
+  `database.not-found`, alors que l'élément sélectionné était une page ordinaire.
+
+La base du déploiement a confirmé que la frontière historique de la première
+page était un ancêtre valide, à trois révisions de sa tête courante. Le refus
+était donc produit par l'égalité de lignée trop stricte corrigée par T104–T106,
+pas par une divergence réelle ni par une disparition de la page.
+
+Les amplificateurs et pertes adjacentes ont également été fermés :
+
+- atteindre l'état WebSocket `ready` ne remet plus immédiatement le backoff à
+  zéro ; il faut désormais un échange réussi ou une connexion restée stable ;
+- une divergence historique réelle devient un problème sûr
+  `page-operations.projection-invalid` (409) et ne ferme plus la session comme
+  une erreur interne ;
+- l'amorçage local installe atomiquement items, relations, bases et entrées du
+  snapshot complet ; une page absente de ces projections n'est plus sondée à
+  tort comme une base distante ;
+- une branche refusée par `item.not-found` est chiffrée dans la récupération,
+  marquée en quarantaine exportable, retirée du travail actif et n'est plus
+  rejouée indéfiniment ;
+- le dernier état d'un champ structuré est conservé dans une référence synchrone
+  avant l'action Enregistrer, afin que WebKit ne puisse plus envoyer la valeur
+  du rendu React précédent.
+
+Preuves ciblées sur l'arbre de travail :
+
+- Web : 19/19 tests ciblés réussis (transport, snapshot structuré, statut de la
+  quarantaine et enregistrement immédiat des propriétés) ;
+- client-core : 47/47 tests ciblés réussis, dont conservation complète d'une
+  branche orpheline, absence de second envoi et blocage explicite des nouvelles
+  éditions sur cette branche terminale ;
+- API : 6/6 tests d'intégration de matérialisation réussis, dont la divergence
+  de lignée renvoyée en 409 sans erreur interne ;
+- parcours structuré hors ligne : 5/5 profils réussis en 65 s, deux journeys par
+  profil ; WebKit desktop conserve désormais `Owner = common owner` après
+  modification hors ligne et rechargement ;
+- typecheck client-core, Web, API et racine : réussi.
+
+La porte complète obligatoire reste à exécuter sur l'arbre final avant push.

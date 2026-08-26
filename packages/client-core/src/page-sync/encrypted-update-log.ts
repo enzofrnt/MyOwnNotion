@@ -37,6 +37,7 @@ import type {
   SealedPageOperationUpdateRow,
 } from "../local-store/schema.ts";
 import { LOCAL_ENTITY_TYPES, type LocalCipher } from "../security/local-encryption.ts";
+import { LocalRecordCodec } from "../security/local-record-codec.ts";
 
 const PAGE_OPERATION_PAYLOAD_VERSION = 1 as const;
 
@@ -755,10 +756,13 @@ function assertStateConsistency(record: PageOperationStateRecord): void {
 export class EncryptedPageOperationLog {
   readonly db: LocalDatabase;
   readonly codec: PageOperationRecordCodec;
+  /** Shared-key codec for retained workspace recovery records. */
+  readonly localCodec: LocalRecordCodec;
 
   constructor(db: LocalDatabase, cipher: LocalCipher, context: PageOperationEncryptionContext) {
     this.db = db;
     this.codec = new PageOperationRecordCodec(cipher, context);
+    this.localCodec = new LocalRecordCodec(cipher, context);
   }
 
   async getState(pageId: Uuid): Promise<PageOperationStateRecord | null> {

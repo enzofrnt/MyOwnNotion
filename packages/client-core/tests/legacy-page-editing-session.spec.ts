@@ -366,6 +366,49 @@ describe("LegacyPageEditingSession", () => {
     });
   });
 
+  it("stops retrying and blocks new edits after an orphaned branch is retained", async () => {
+    const input = fixture();
+    const requestConversion = vi.fn(async () => {
+      const record = await log.getLegacyBranch(input.pageId);
+      if (record === null) throw new Error("expected the durable branch");
+      await log.putLegacyBranch({
+        ...record,
+        status: "blocked",
+        recordVersion: record.recordVersion + 1,
+        branch: { ...record.branch, status: "blocked" },
+      });
+      return "retained" as const;
+    });
+    const session = await LegacyPageEditingSession.open({
+      ...input,
+      log,
+      store: new LegacyPageStateStore(log),
+      activeStore: new LocalPageStateStore(log),
+      requestConversion,
+    });
+
+    await session.transact({
+      type: "replace-text",
+      blockId: input.blockId,
+      from: 6,
+      to: 6,
+      text: " retained",
+    });
+    await vi.waitFor(() => expect(session.sync.kind).toBe("blocked"));
+
+    await expect(
+      session.transact({
+        type: "replace-text",
+        blockId: input.blockId,
+        from: 15,
+        to: 15,
+        text: " should not be accepted",
+      }),
+    ).rejects.toBeInstanceOf(LegacyPageEditingSessionBlockedError);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(requestConversion).toHaveBeenCalledOnce();
+  });
+
   it("lets application routing hand a converted branch over to the active session", async () => {
     const input = fixture();
     const store = new LegacyPageStateStore(log);

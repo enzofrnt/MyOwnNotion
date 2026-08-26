@@ -95,20 +95,37 @@ export function EntryPanel({
       editableProperties.map((property) => [property.id, initialDraft(property, entry)]),
     ),
   );
+  // Pointer activation may run before React commits the render scheduled by
+  // the last input event (observed on WebKit). Keep the authoritative draft in
+  // a synchronously updated ref so Save can never submit the previous render's
+  // value while the field already shows the owner's final text.
+  const draftsRef = useRef(drafts);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
   const saveInFlight = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveConfirmation, setSaveConfirmation] = useState<string | null>(null);
 
+  const updateDraft = (propertyId: Uuid, input: ValueDraft): void => {
+    const next = { ...draftsRef.current, [propertyId]: input };
+    draftsRef.current = next;
+    setDrafts(next);
+    setSaveConfirmation(null);
+    setErrors((current) => {
+      const { [propertyId]: _removed, ...remaining } = current;
+      return remaining;
+    });
+  };
+
   const save = async (): Promise<void> => {
     if (saveInFlight.current) return;
     const nextValues: Record<string, NonRelationPropertyValue> = {};
     const nextRelations: Record<string, readonly Uuid[]> = {};
     const nextErrors: Record<string, string> = {};
+    const currentDrafts = draftsRef.current;
     for (const property of editableProperties) {
       const input =
-        drafts[property.id] ??
+        currentDrafts[property.id] ??
         (property.type === "checkbox" ? false : property.type === "multi-select" ? [] : "");
       const result = validateValueDraft(property, input);
       if (!result.ok) {
@@ -185,14 +202,7 @@ export function EntryPanel({
                       relationOptions={relationOptions.filter(
                         (option) => option.id !== entry.entryId,
                       )}
-                      onChange={(input) => {
-                        setDrafts((current) => ({ ...current, [property.id]: input }));
-                        setSaveConfirmation(null);
-                        setErrors((current) => {
-                          const { [property.id]: _removed, ...remaining } = current;
-                          return remaining;
-                        });
-                      }}
+                      onChange={(input) => updateDraft(property.id, input)}
                     />
                   </div>
                 ))}
@@ -219,14 +229,7 @@ export function EntryPanel({
                     relationOptions={relationOptions.filter(
                       (option) => option.id !== entry.entryId,
                     )}
-                    onChange={(input) => {
-                      setDrafts((current) => ({ ...current, [property.id]: input }));
-                      setSaveConfirmation(null);
-                      setErrors((current) => {
-                        const { [property.id]: _removed, ...remaining } = current;
-                        return remaining;
-                      });
-                    }}
+                    onChange={(input) => updateDraft(property.id, input)}
                   />
                 ))}
               </section>

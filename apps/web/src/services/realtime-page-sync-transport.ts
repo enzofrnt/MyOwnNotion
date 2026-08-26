@@ -62,6 +62,8 @@ interface PendingRequest {
 
 const MIN_RETRY_DELAY_MS = 50;
 const MAX_RETRY_DELAY_MS = 2_000;
+/** A channel that stays healthy this long has earned a fresh reconnect budget. */
+const STABLE_CONNECTION_MS = 10_000;
 
 const OFFLINE_RESULT = {
   ok: false,
@@ -104,6 +106,7 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
   #helloRequestId: Uuid | null = null;
   #serverRequestTimeoutMs = REALTIME_PAGE_SYNC_REQUEST_TIMEOUT_MS;
   #reconnectAttempt = 0;
+  #readyAt = 0;
   #reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   #livenessTimer: ReturnType<typeof setTimeout> | null = null;
   #lastServerFrameAt = 0;
@@ -138,6 +141,8 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
     if (this.#livenessTimer !== null) clearTimeout(this.#livenessTimer);
     this.#reconnectTimer = null;
     this.#livenessTimer = null;
+    this.#reconnectAttempt = 0;
+    this.#readyAt = 0;
     const socket = this.#socket;
     this.#socket = null;
     this.#settleReadyWaiters(false);
@@ -180,6 +185,8 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
     if (this.#livenessTimer !== null) clearTimeout(this.#livenessTimer);
     this.#reconnectTimer = null;
     this.#livenessTimer = null;
+    this.#reconnectAttempt = 0;
+    this.#readyAt = 0;
     const socket = this.#socket;
     this.#socket = null;
     this.#helloRequestId = null;
@@ -374,7 +381,12 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
         return;
       }
       this.#serverRequestTimeoutMs = message.requestTimeoutMs;
-      this.#reconnectAttempt = 0;
+      // Reaching `ready` proves authentication, not application health. A
+      // deterministic page failure can arrive immediately afterwards and
+      // close the socket. Resetting here turned that failure into an endless
+      // 0–500 ms reconnect storm. A successful exchange (below), or a channel
+      // that remains ready for a meaningful period, resets the budget.
+      this.#readyAt = Date.now();
       this.#setState("ready");
       this.#touchLiveness(socket);
       this.#settleReadyWaiters(true);
@@ -413,6 +425,7 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
     const pending = this.#pending.get(requestId);
     if (pending === undefined || pending.pageId !== message.pageId) return;
     if (message.type === "sync-result") {
+      this.#reconnectAttempt = 0;
       this.#settleRequest(requestId, pending, { ok: true, value: message.response });
       return;
     }
@@ -491,6 +504,10 @@ export class RealtimePageSyncTransport implements PageSyncTransport {
 
   #closed(socket: WebSocket, code: number): void {
     if (this.#socket !== socket) return;
+    if (this.#readyAt > 0 && Date.now() - this.#readyAt >= STABLE_CONNECTION_MS) {
+      this.#reconnectAttempt = 0;
+    }
+    this.#readyAt = 0;
     this.#socket = null;
     this.#helloRequestId = null;
     if (this.#livenessTimer !== null) clearTimeout(this.#livenessTimer);

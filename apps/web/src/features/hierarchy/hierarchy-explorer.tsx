@@ -505,17 +505,12 @@ export function HierarchyExplorer({
 
       const entryRow = await service.getDatabaseEntry(selectedItem.id);
       if (entryRow === null) {
-        const remoteDatabase = await service.api.getDatabase(selectedItem.id);
-        if (cancelled) return;
-        if (remoteDatabase.ok) {
-          setSelectedDatabase(remoteDatabase.value);
-          setDatabaseEntries([]);
-          setSelectedEntry(null);
-          setEntryDefinition(null);
-          structuredSelectionItemId.current = selectedItem.id;
-          setStructuredSelectionLoading(false);
-          return;
-        }
+        // Items, database definitions and memberships are installed in one
+        // local snapshot/change transaction. A page absent from both local
+        // structured stores is therefore an ordinary page, not a reason to
+        // probe `/v1/databases/:pageId`. That old discriminator produced one
+        // expected 404 on every tree refresh and amplified sync failures into
+        // dozens of meaningless requests.
         const remoteEntry = remotelyOpenedEntry.current;
         if (remoteEntry?.entry.entryId === selectedItem.id) {
           setSelectedDatabase(null);
