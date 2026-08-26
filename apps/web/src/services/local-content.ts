@@ -449,14 +449,14 @@ export class LocalContentService {
       this.#syncState = state;
     }
     const [
-      workspacePending,
+      workspaceRows,
       workspaceConflicts,
       pageUpdates,
       legacyBranches,
       recoveries,
       pageAmbiguities,
     ] = await Promise.all([
-      this.outbox.pending(),
+      this.outbox.all(),
       this.outbox.activeConflicts(),
       this.pageOperationLog.countUpdates(["pending", "sending", "blocked"]),
       this.db.legacyOfflineBranches
@@ -486,9 +486,12 @@ export class LocalContentService {
     const independentLegacyBranches = legacyBranches.filter(
       ({ branchId }) => !recoveryBranchIds.has(branchId),
     ).length;
+    const workspaceWork = workspaceRows.filter(({ status }) =>
+      ["pending", "sending", "blocked"].includes(status),
+    );
     this.#filePendingCount = this.#fileSynchronization.pendingIds.size;
     this.#pendingCount =
-      workspacePending.length +
+      workspaceWork.length +
       pageUpdates +
       independentLegacyBranches +
       this.#recoveryPendingCount +
@@ -1004,7 +1007,19 @@ export class LocalContentService {
     await this.#unlock();
     let state = await this.pageOperationLog.getState(itemId);
     const online = typeof navigator === "undefined" ? true : navigator.onLine;
-    if (state === null && online) {
+    // A page can exist optimistically before the workspace mutation that
+    // creates or converts it has committed on the server. Crossing into the
+    // operational API before that mutation settles produces a legitimate
+    // `page-operations.not-active`; a following item read can then import the
+    // older server folder over the optimistic page. Drain that page's workspace
+    // journal before *any* remote page read, not only immediately before
+    // activation. Offline or blocked work keeps using the durable local branch.
+    const workspaceJournal =
+      state === null
+        ? await this.#settleWorkspacePageJournal(itemId)
+        : ({ kind: "ready" } as const);
+    const operationalTransportReady = online && workspaceJournal.kind === "ready";
+    if (state === null && operationalTransportReady) {
       const checkpoint = await this.pageOperationsApi.checkpoint(itemId, generateUuidV7());
       if (checkpoint.ok) {
         state = await this.#installOperationalCheckpoint(itemId, checkpoint.value);
@@ -1047,7 +1062,7 @@ export class LocalContentService {
         };
       }
       if (item.localAvailability !== "present" || item.pageDocument === null) {
-        if (online) {
+        if (operationalTransportReady) {
           const remote = await this.api.getItem(itemId);
           if (remote.ok) {
             await this.repository.applyServerItems([remote.value]);
@@ -1092,7 +1107,7 @@ export class LocalContentService {
           message: "This page cannot be activated without reducing its content.",
         };
       }
-      if (online) {
+      if (operationalTransportReady) {
         const activation = await this.#activateOnlinePage(itemId);
         if (activation.kind === "active") {
           return await this.#openActivePageSession(itemId, true);

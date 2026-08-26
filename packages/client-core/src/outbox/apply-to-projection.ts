@@ -598,7 +598,20 @@ export async function prepareProjectionWrite(
               // Confirmation was checked above using the same domain rule as
               // the server. Once accepted, a folder cannot retain a hidden
               // page body that could later resurrect on an offline conversion.
-              pageDocument: command.targetKind === "folder" ? null : opened.pageDocument,
+              // The opposite direction must be useful before the network is
+              // available too: a folder has no document to retain, so seed the
+              // same empty canonical envelope the server exposes for a page
+              // without a stored body. Leaving this null made an optimistic
+              // folder -> page conversion look like content that had never
+              // downloaded and prevented the owner from editing it offline.
+              pageDocument:
+                command.targetKind === "folder"
+                  ? null
+                  : (opened.pageDocument ?? {
+                      format: "myownnotion.document+json",
+                      formatVersion: 1,
+                      body: {},
+                    }),
               currentRevisionId: revisionId,
             };
           default:

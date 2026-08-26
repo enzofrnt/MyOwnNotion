@@ -17,6 +17,12 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   browser,
   baseURL,
 }) => {
+  // This acceptance journey deliberately serializes many durable definition
+  // writes before proving the result on a second device. Keep every individual
+  // wait strict, while allowing the complete journey to run on a constrained
+  // Firefox container without exhausting the suite-wide 60-second budget.
+  test.slow();
+
   await openWorkspace(page);
   const databaseName = uniqueName("Projects views");
   const entries = {

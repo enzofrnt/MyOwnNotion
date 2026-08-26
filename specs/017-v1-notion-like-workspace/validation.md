@@ -1,7 +1,7 @@
 # Validation — Feature 017
 
-Dernière mise à jour : 2026-08-25
-Tranches validées : US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222
+Dernière mise à jour : 2026-08-26
+Tranches validées : US3, US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222
 
 Ce document consigne les preuves exécutées. Il ne remplace ni les critères de
 `spec.md`, ni les tâches encore ouvertes dans `tasks.md`, ni le gate avant push
@@ -484,11 +484,69 @@ Les preuves ciblées exécutées sont :
 | Statique | `pnpm format:check`, `pnpm lint:ci`, `pnpm typecheck`, `git diff --check` | passés |
 | Gate pré-push exact | `pnpm checks:local` avec l'ordonnancement et la largeur Playwright définis dans `docs/development.md` | passé sur le commit de cette tranche |
 
+## Blocs riches et médias intégrés
+
+Les primitives riches de l'éditeur possèdent maintenant leur interaction V1
+complète plutôt qu'une simple projection visuelle : toggle accessible et
+persisté, callout avec icône et ton, table bornée navigable au clavier, bloc de
+code copiable en texte brut, image et fichier réellement consultables, et
+contenu externe chargé seulement après consentement explicite dans une iframe
+restreinte. Les sources externes sont normalisées vers les lecteurs approuvés ;
+une URL invalide ou dangereuse n'entre jamais dans le document canonique.
+
+Les images et fichiers résolvent d'abord les octets encore détenus par la file
+locale, puis leur ressource serveur après acquittement. Un élément distant
+inconnu n'est plus présenté à tort comme un upload local en attente. Le même
+identifiant de fichier est conservé pendant la reprise réseau et les aperçus
+restent honnêtes lorsque les octets sont indisponibles.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Contrats des blocs | `pnpm exec vitest run --project web apps/web/tests/rich-block-behavior.spec.tsx` | 1 fichier, 8 tests passés ; accessibilité du toggle, grapheme du callout, copie sûre, bornes de table, consentement/sandbox et état fichier honnête |
+| Régressions Web | `pnpm exec vitest run --project web` | 54 fichiers, 328 tests passés |
+| Blocs riches multi-navigateurs | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/rich-page.spec.ts` | 5/5 profils passés ; callout, toggle, table, code et propriétés canoniques persistent après rechargement |
+| Médias hors ligne puis distants | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/editor-offline-media.spec.ts` | 5/5 profils passés ; image et fichier visibles hors ligne, même identité à la reconnexion, puis résolution depuis le serveur après rechargement |
+| Parcours structuré long sous charge | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts --repeat-each=5` | 25/25 exécutions passées, dont 5 Firefox dans l'image Linux CI ; chaque attente métier garde son plafond strict et le budget global reflète les écritures durables séquentielles du parcours |
+
+## Course de conversion dossier vers page
+
+Le premier gate complet de la tranche a révélé une course réelle dans
+`item-conversion.spec.ts`, et non un manque de délai. La conversion était déjà
+durable localement et visible dans l'arbre, mais sa mutation venait de passer de
+`pending` à `sending`. Le statut global ne comptait alors que les lignes
+`pending` : la fin indépendante d'un échange de page pouvait annoncer
+« synchronisé » pendant que le serveur traitait encore la conversion. Une
+ouverture immédiate demandait le checkpoint trop tôt, recevait
+`page-operations.not-active`, puis réimportait la réponse canonique encore
+typée dossier. La page restait affichée sans éditeur avec un faux diagnostic de
+contenu non téléchargé.
+
+La correction ferme les trois frontières observées dans la trace :
+
+- une conversion optimiste dossier vers page crée l'enveloppe canonique vide,
+  donc reste éditable même réellement hors ligne ;
+- l'agrégat workspace compte aussi `sending` et `blocked`, donc une autre file
+  terminée ne peut plus publier une confirmation globale prématurée ;
+- l'ouverture d'une page sans état opérationnel draine sa création ou sa
+  conversion avant toute demande de checkpoint ou lecture distante, et pas
+  seulement juste avant l'activation finale.
+
+Les preuves ciblées exécutées sont :
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Projection locale | `pnpm exec vitest run --project client-core packages/client-core/tests/apply-to-projection.spec.ts` | 34/34 tests passés ; la conversion hors ligne possède immédiatement un document vide présent |
+| Barrière et statut agrégé | `pnpm exec vitest run --project web apps/web/tests/operational-page-opening.spec.ts apps/web/tests/synchronize-serialization.spec.ts` | 21/21 tests passés ; création et conversion sont drainées avant le checkpoint, et une ligne `sending` interdit « synchronisé » |
+| Journey répété sous charge | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/item-conversion.spec.ts --repeat-each=10` | 700/700 parcours passés sans retry : 140 sur chacun des cinq profils, Firefox dans l'image Linux CI |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
 
-- les blocs riches et fichiers restant à terminer en US3 ;
+- la persistance chiffrée des octets d'un nouveau fichier hors ligne au-delà
+  d'une fermeture brutale du navigateur (FR-075, SC-022, T252 à T255) ;
 - la finition et les surfaces restantes en US6/US7.
 
 La tranche prouve donc le parcours de synchronisation implémenté aujourd'hui ;

@@ -339,6 +339,19 @@ garde est réévaluée à la demande d'adoption, à son exécution dans la file 
 après toute reconstruction durable asynchrone : une notification déjà en file
 ne peut donc pas déplacer la réplique sous un geste qui vient de commencer.
 
+Les octets déposés dans un bloc suivent une file distincte des opérations Loro,
+mais leur préparation locale est une précondition de l'insertion. Le navigateur
+chiffre les octets par morceaux avec la clé locale non extractible et une AAD
+liant `fileItemId`, index et métadonnées, puis écrit dans Dexie un manifeste de
+transfert prêt seulement lorsque tous les morceaux sont présents. Le commit du
+bloc intervient ensuite avec la même identité. Un staging interrompu avant ce
+manifeste est incomplet et récupérable/nettoyable ; il ne produit jamais de
+référence éditoriale. Au lancement et au retour du réseau, la file reconstruit
+le `File` logique depuis les morceaux, reprend l'offset déclaré par le serveur
+et supprime le staging seulement après vérification distante. Une insuffisance
+de quota bloque l'insertion avant le commit du bloc et explique que rien n'a été
+ajouté. Cette file ne stocke jamais les octets en clair dans IndexedDB.
+
 ### 4. Chemin serveur : accepter, matérialiser, notifier
 
 Une requête d'updates contient l'identité stable du lot, la page, l'appareil, la
@@ -439,6 +452,16 @@ de libérer les gestes suivants. Si l'appareil avait déjà récupéré un check
 actif créé ailleurs, la branche locale reste prioritaire à l'ouverture puis une
 passe active suit obligatoirement sa conversion pour importer le résultat
 fusionné ; « synchronisé » reste impossible si une commande locale a échoué.
+
+Cette frontière commence avant toute lecture de l'API opérationnelle. Une
+création ou conversion optimiste encore `pending` ou `sending` est drainée avant
+la demande de checkpoint comme avant la lecture canonique de l'item ; une
+ancienne réponse serveur ne peut donc pas réimporter le dossier qui précédait
+une conversion locale en page. L'agrégat workspace compte `pending`, `sending`
+et `blocked` comme travail non acquitté, y compris lorsqu'une autre file de page
+vient simultanément de terminer. Hors ligne, une conversion dossier vers page
+installe immédiatement l'enveloppe canonique vide et ouvre une branche
+sémantique éditable sans attendre le réseau.
 
 Une conversion confirmée de page vers dossier retire dans une même transaction
 locale la projection éditoriale, les updates, ambiguïtés, checkpoints et

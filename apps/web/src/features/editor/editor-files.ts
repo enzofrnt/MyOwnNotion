@@ -110,8 +110,13 @@ export class EditorFileTransferQueue {
     return () => this.#listeners.delete(listener);
   }
 
-  stateFor(fileItemId: Uuid): EditorFileTransferState {
-    return this.#states.get(fileItemId) ?? { kind: "queued" };
+  stateFor(fileItemId: Uuid): EditorFileTransferState | undefined {
+    return this.#states.get(fileItemId);
+  }
+
+  /** Bytes still held by this browser for a pending or completed editor upload. */
+  localFileFor(fileItemId: Uuid): File | null {
+    return this.#transfers.get(fileItemId)?.file ?? null;
   }
 
   #publish(): void {

@@ -211,12 +211,12 @@ rouvrir hors ligne, l'exporter et vérifier références, sécurité et inconnus
 
 ### Implementation for User Story 3
 
-- [ ] T090 [P] [US3] Implémenter toggle et callout accessibles dans `apps/web/src/features/editor/custom-blocks/toggle.tsx` et `apps/web/src/features/editor/custom-blocks/callout.tsx`
-- [ ] T091 [US3] Implémenter table simple avec IDs ligne/cellule, clavier et overflow mobile dans `apps/web/src/features/editor/custom-blocks/table.tsx`
-- [ ] T092 [P] [US3] Implémenter code, langue et copie sûre dans `apps/web/src/features/editor/custom-blocks/code-block.tsx`
-- [ ] T093 [P] [US3] Implémenter image et fileEmbed liés aux items 005 dans `apps/web/src/features/editor/custom-blocks/image.tsx` et `apps/web/src/features/editor/custom-blocks/file-embed.tsx`
-- [ ] T094 [P] [US3] Implémenter embed allowlist, consentement et sandbox dans `apps/web/src/features/editor/custom-blocks/embed.tsx`
-- [x] T095 [US3] Brancher dépôt/collage de fichiers sur la file durable existante dans `apps/web/src/features/editor/editor-files.ts` et `apps/web/src/features/files/upload.ts`
+- [X] T090 [P] [US3] Implémenter toggle et callout accessibles dans `apps/web/src/features/editor/custom-blocks/toggle.tsx` et `apps/web/src/features/editor/custom-blocks/callout.tsx`
+- [X] T091 [US3] Implémenter table simple avec IDs ligne/cellule, clavier et overflow mobile dans `apps/web/src/features/editor/custom-blocks/table.tsx`
+- [X] T092 [P] [US3] Implémenter code, langue et copie sûre dans `apps/web/src/features/editor/custom-blocks/code-block.tsx`
+- [X] T093 [P] [US3] Implémenter image et fileEmbed liés aux items 005 dans `apps/web/src/features/editor/custom-blocks/image.tsx` et `apps/web/src/features/editor/custom-blocks/file-embed.tsx`
+- [X] T094 [P] [US3] Implémenter embed allowlist, consentement et sandbox dans `apps/web/src/features/editor/custom-blocks/embed.tsx`
+- [X] T095 [US3] Brancher dépôt/collage de fichiers sur la file de transfert, conserver le même `fileItemId` pendant les reprises réseau et séparer commit documentaire et vérification des octets dans `apps/web/src/features/editor/editor-files.ts` et `apps/web/src/features/files/upload.ts` ; la survie à un arrêt complet est suivie par T252–T255
 - [x] T096 [US3] Implémenter souligné, couleurs et surlignage selon tokens dans `apps/web/src/features/editor/blocknote-schema.ts` et `apps/web/src/features/editor/editor-menus/formatting-toolbar.tsx`
 - [x] T097 [US3] Assainir collage riche avec fallback texte sans réduction silencieuse dans `apps/web/src/features/editor/paste-sanitizer.ts`
 - [x] T098 [US3] Afficher états actif/supprimé/indisponible/inconnu des page-links dans `apps/web/src/features/editor/page-link.ts` et `apps/web/src/features/editor/editor-menus/page-link-picker.tsx`
@@ -616,3 +616,16 @@ canvas produit.
 - [X] T249 [US1] [US3] Exposer dans chaque ligne de page deux contrôles de dépliage distincts — enfants de hiérarchie et pièces jointes de contenu —, charger les pièces jointes seulement à l'ouverture, permettre la création volontaire d'un fichier autonome sous la page par les actions de hiérarchie et ne jamais mélanger lien interne, enfant et pièce jointe dans `apps/web/src/features/hierarchy/hierarchy-explorer.tsx`, `apps/web/src/features/attachments/attachment-panel.tsx`, `apps/web/src/features/navigation/navigation-item-menu.tsx` et `apps/web/src/features/navigation/navigation.css` per FR-005, FR-007, FR-023 et canvas 11.2/12
 - [X] T250 [US1] [US2] Faire de toute création de page une navigation vers la nouvelle identité canonique ; pour `/page`, attendre le commit durable du lien dans la page source avant d'ouvrir la sous-page et révéler sa branche ; en cas d'échec, conserver le bloc original pour permettre une reprise sûre dans `apps/web/src/features/editor/editor-menus/slash-menu.tsx`, `apps/web/src/features/editor/editor-surface.tsx`, `apps/web/src/features/editor/page-editor.tsx` et `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` per FR-010, FR-011, FR-022, FR-027, FR-028, FR-074 et SC-012
 - [X] T251 [US1] [US3] [US6] Exécuter les journeys ciblés sur les cinq profils, mettre à jour les références visuelles approuvées, contrôler 320 px, zoom 200 %, clavier, toucher, lecteurs d'écran et absence de déplacement supérieur à un pixel, documenter les preuves dans `specs/017-v1-notion-like-workspace/validation.md`, puis lancer les gates ordonnés de `docs/development.md` sur le commit exact per SC-004, SC-005, SC-006, SC-010, SC-011 et SC-014
+- [X] T256 [US2] [US5] Fermer la course dossier → page révélée par le gate complet : amorcer localement un document vide éditable, compter les mutations workspace `sending` dans l'état non synchronisé et drainer création/conversion avant toute lecture opérationnelle distante ; verrouiller ces trois frontières par tests déterministes et 700 parcours réels sans retry dans `packages/client-core/src/outbox/apply-to-projection.ts`, `apps/web/src/services/local-content.ts`, leurs tests et `tests/e2e/item-conversion.spec.ts` per FR-026, FR-064 et FR-073
+
+## Phase 14: Convergence — octets hors ligne réellement durables
+
+**Purpose**: Fermer l'écart découvert entre une file de transfert qui survit au
+remontage d'une page et une file locale qui survit réellement à la fermeture du
+navigateur, sans stocker de contenu privé en clair ni créer de référence
+orpheline.
+
+- [ ] T252 [P] [US3] Écrire avant correction les tests de staging chiffré, quota, crash à chaque frontière et reprise du même `fileItemId` dans `packages/client-core/tests/pending-file-transfer-store.spec.ts`, `apps/web/tests/realtime-file-sync-status.spec.ts` et `tests/e2e/editor-offline-media.spec.ts` per FR-023, FR-027, FR-071, FR-075, SC-020 et SC-022
+- [ ] T253 [US3] Ajouter à Dexie le manifeste et les morceaux chiffrés d'un transfert fichier, avec AAD liée à l'identité, migration, nettoyage des stagings incomplets et aucune donnée en clair dans `packages/client-core/src/local-store/schema.ts`, `packages/client-core/src/files/pending-file-transfer-store.ts` et les codecs de chiffrement locaux per FR-049, FR-067 et FR-075
+- [ ] T254 [US3] Faire précéder le commit du bloc par le staging durable, reconstruire et drainer toutes les files au lancement/online, reprendre l'offset serveur et supprimer les morceaux seulement après vérification dans `apps/web/src/features/editor/editor-files.ts`, `apps/web/src/features/editor/page-editor.tsx`, `apps/web/src/features/sync/use-page-reconciler.ts` et `apps/web/src/features/files/upload.ts` per FR-027, FR-071, FR-073 et FR-075
+- [ ] T255 [US3] Exécuter crash/rechargement hors ligne puis reconnexion sur les cinq profils, vérifier absence de doublon/orphelin/plaintext, documenter les preuves dans `specs/017-v1-notion-like-workspace/validation.md` et lancer le gate exact de `docs/development.md` per SC-013, SC-020, SC-021 et SC-022

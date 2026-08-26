@@ -283,6 +283,70 @@ describe("synchronize serialization", () => {
     expect(joinedResolved).toBe(true);
   });
 
+  it("never reports synchronized while a workspace mutation is still sending", async () => {
+    const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
+    const submitGate = deferred<void>();
+    const api = makeApi(recorder);
+    vi.spyOn(api, "submitMutationBatch").mockImplementation(async (mutations) => {
+      await submitGate.promise;
+      return {
+        ok: true,
+        value: {
+          results: mutations.map(({ mutationId }) => ({
+            mutationId,
+            status: "accepted" as const,
+            revisionIds: [generateUuidV7()],
+          })),
+        },
+      };
+    });
+    service = new LocalContentService(api, `sending-status-${Date.now()}`);
+    await service.initialize();
+
+    const created = await service.mutate("item.create", {
+      id: generateUuidV7(),
+      kind: "page",
+      name: "Still sending",
+      placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+    });
+    expect(created).toEqual({ ok: true });
+    await vi.waitFor(async () => {
+      expect((await service?.outbox.all())?.[0]?.status).toBe("sending");
+    });
+
+    // A page exchange on another queue can finish while this workspace batch is
+    // in flight. Its notification may refresh the aggregate, but must not turn
+    // the still-owned `sending` row into a false all-devices confirmation.
+    const announcedPageId = generateUuidV7();
+    vi.spyOn(service.pageOperationLog, "getState").mockResolvedValue({
+      pageId: announcedPageId,
+      latestServerPageSequence: 0,
+    } as never);
+    vi.spyOn(service, "pageReconciler").mockReturnValue({
+      synchronize: vi.fn().mockResolvedValue({
+        kind: "synced",
+        exchanges: 1,
+        latestPageSequence: 1,
+        fileRequirements: [],
+      }),
+    } as never);
+
+    await service.reconcileRealtimePageAdvance({
+      pageId: announcedPageId,
+      latestPageSequence: 1,
+    });
+
+    expect(service.getSnapshot()).toMatchObject({
+      syncState: "pending",
+      pendingCount: 1,
+    });
+
+    const completed = service.synchronize();
+    submitGate.resolve();
+    await completed;
+    expect(service.getSnapshot()).toMatchObject({ syncState: "synced", pendingCount: 0 });
+  });
+
   it("runs exactly one pass when callers do not overlap", async () => {
     const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
     service = new LocalContentService(makeApi(recorder), `sequential-${Date.now()}`);

@@ -51,19 +51,26 @@ test.describe("editor media offline", () => {
         ),
         (character) => character.charCodeAt(0),
       );
-      const file = new File([bytes], "capture.png", { type: "image/png" });
       const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(file);
+      dataTransfer.items.add(new File([bytes], "capture.png", { type: "image/png" }));
+      dataTransfer.items.add(
+        new File(["Compte rendu hors ligne"], "compte-rendu.txt", { type: "text/plain" }),
+      );
       surface.dispatchEvent(
         new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }),
       );
     });
     await expect(editor.locator(".editor-image-block")).toBeVisible({ timeout: 15_000 });
+    await expect(editor.locator("img.editor-image-preview")).toBeVisible();
+    await expect(editor.locator("img.editor-image-preview")).toHaveAttribute("alt", "capture.png");
+    await expect(editor.locator(".editor-file-block")).toBeVisible();
     // Either wording is honest offline: queued before any attempt, or waiting
     // for the network once an attempt was refused. Never « synchronisé ».
     const stateLine = editor.locator(".editor-file-state");
-    await expect(stateLine).toBeVisible();
-    await expect(stateLine).not.toContainText("vérifiés sur le serveur");
+    await expect(stateLine).toHaveCount(2);
+    await expect(stateLine.first()).toBeVisible();
+    await expect(stateLine.first()).not.toContainText("vérifiés sur le serveur");
+    await expect(stateLine.last()).not.toContainText("vérifiés sur le serveur");
 
     // Leave the page and come back while still offline: the reference and its
     // pending transfer survive because the device holds them durably.
@@ -72,6 +79,7 @@ test.describe("editor media offline", () => {
     const remounted = page.getByTestId("block-editor").locator(".ProseMirror");
     await expect(remounted).toBeVisible({ timeout: 30_000 });
     await expect(remounted.locator(".editor-image-block")).toBeVisible();
+    await expect(remounted.locator(".editor-file-block")).toBeVisible();
 
     // Text keeps working offline next to the pending media: create a fresh
     // editable block below the image and type into it.
@@ -83,17 +91,41 @@ test.describe("editor media offline", () => {
     // Back online: the queued transfer resumes by itself and reports
     // completion honestly — bytes verified, not merely an accepted operation.
     await page.context().setOffline(false);
-    await expect(remounted.locator(".editor-file-state")).toHaveAttribute(
+    await expect(remounted.locator(".editor-file-state").first()).toHaveAttribute(
+      "data-state",
+      "synchronized",
+      { timeout: 30_000 },
+    );
+    await expect(remounted.locator(".editor-file-state").last()).toHaveAttribute(
       "data-state",
       "synchronized",
       { timeout: 30_000 },
     );
 
+    // A hard reload destroys the upload queue and its in-memory File objects.
+    // Both blocks must now resolve the verified feature-005 items, render from
+    // server bytes, and avoid inventing a new queued transfer.
+    await page.reload();
+    await openWorkspace(page);
+    await selectItem(page, pageName);
+    const serverBacked = page.getByTestId("block-editor").locator(".ProseMirror");
+    await expect(serverBacked).toBeVisible({ timeout: 30_000 });
+    await expect(serverBacked.locator("img.editor-image-preview")).toBeVisible({ timeout: 30_000 });
+    const fileBlock = serverBacked.locator(".editor-file-block");
+    await expect(fileBlock).toContainText("text/plain");
+    await expect(fileBlock.getByRole("link", { name: "Télécharger" })).toHaveAttribute(
+      "href",
+      /\/v1\/files\/[^/]+\/content$/u,
+    );
+    await expect(serverBacked.locator(".editor-file-state")).toHaveCount(0);
+
     // An editor file is a content attachment of this page. It is neither a
     // root hierarchy item nor a panel appended below the writing canvas.
     await expect(page.getByTestId("tree-item-capture.png")).toHaveCount(0);
+    await expect(page.getByTestId("tree-item-compte-rendu.txt")).toHaveCount(0);
     await expect(page.getByTestId("attachment-panel")).toHaveCount(0);
     await openPageAttachments(page, pageName);
     await expect(page.getByTestId("attachment-capture.png")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("attachment-compte-rendu.txt")).toBeVisible({ timeout: 30_000 });
   });
 });

@@ -631,6 +631,13 @@ en charge, une fois sans pointeur puis une fois au toucher.
   reprise MUST être bornée en concurrence, ne MUST pas dépendre d'un geste dans
   l'éditeur et MUST conserver un état global honnête tant qu'une file reste
   locale.
+- **FR-075**: Avant qu'un bloc image ou fichier créé hors ligne soit annoncé
+  comme enregistré sur cet appareil, ses octets, ses métadonnées et son
+  identité de transfert MUST être conservés localement de manière durable et
+  confidentielle. Cette préparation MUST survivre à un rechargement, une
+  fermeture brutale et un redémarrage du navigateur, puis reprendre avec le
+  même `fileItemId`. Si le stockage local ne peut pas l'accepter, l'insertion
+  MUST être refusée clairement avant de créer une référence orpheline.
 
 #### Cohesive product experience
 
@@ -800,6 +807,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   intégrés traversent migration, synchronisation, projection, export,
   sauvegarde et restauration sans perte de données représentables ni référence
   orpheline.
+- **SC-022**: Après dépôt d'une image et d'un fichier avec le réseau coupé, une
+  fermeture brutale suivie d'un nouveau lancement hors ligne retrouve les deux
+  blocs et leurs octets ; la reconnexion reprend les transferts sous les mêmes
+  identités, les vérifie une seule fois et ne crée aucun fichier dupliqué.
 
 ## Assumptions
 
