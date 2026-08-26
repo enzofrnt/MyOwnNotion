@@ -15,11 +15,11 @@
  */
 
 import { expect, test } from "./fixtures.ts";
-import { openWorkspace } from "./helpers.ts";
+import { openSettings, openWorkspace } from "./helpers.ts";
 
 async function openConnectionPanel(page: import("@playwright/test").Page): Promise<void> {
   await openWorkspace(page);
-  await page.getByTestId("toggle-security-settings").click();
+  await openSettings(page);
   await expect(page.getByRole("region", { name: "Connection" })).toBeVisible({ timeout: 30_000 });
 }
 

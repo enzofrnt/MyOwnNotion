@@ -27,6 +27,7 @@ import {
   apiOrigin,
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
+  createUnopenedPage,
   editorApplyCount,
   openWorkspace,
   saveDocument,
@@ -403,35 +404,20 @@ test.describe("a block this client does not recognise", () => {
     // materialization.
     const name = uniqueName("UnknownBlockPage");
     await openWorkspace(page);
-    await createRootItem(page, "page", name);
-    await waitForSynchronized(page);
-    const itemId = (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
-    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
-    const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
-
     const unknownBlock = {
       type: "kanbanBoard",
       id: "01924f8e-7c1a-7000-8000-0000000000ff",
       columns: ["todo", "doing"],
       nested: { deep: [1, 2, 3] },
     };
-    const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
-      data: {
-        baseRevisionId: head,
-        document: {
-          format: "myownnotion.document+json",
-          formatVersion: 2,
-          body: { blocks: [unknownBlock] },
-        },
-      },
+    const { itemId } = await createUnopenedPage(request, name, {
+      format: "myownnotion.document+json",
+      formatVersion: 2,
+      body: { blocks: [unknownBlock] },
     });
-    expect(seeded.ok(), await seeded.text()).toBe(true);
 
-    // The document was written straight to the server, so the client has to
-    // pull it before the editor can render it. Without this the test races
-    // the reconciler: it passed on a fast machine, failed on a loaded CI
-    // runner, and reported itself flaky rather than wrong.
+    // The page was prepared outside the browser and has never mounted an
+    // editor. Reloading pulls it into the local projection before first open.
     await page.reload();
     await openWorkspace(page);
     await waitForSynchronized(page);
@@ -469,11 +455,6 @@ test.describe("a page written before the block editor existed", () => {
     // document replacement can no longer overwrite it (plan §6, FR-064).
     const name = uniqueName("LegacyPage");
     await openWorkspace(page);
-    await createRootItem(page, "page", name);
-    await waitForSynchronized(page);
-    const itemId = (await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id")) ?? "";
-    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
-    const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
     const seededBody = {
       blocks: [
         {
@@ -483,15 +464,11 @@ test.describe("a page written before the block editor existed", () => {
         },
       ],
     };
-    const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
-      data: {
-        baseRevisionId: head,
-        document: { format: "myownnotion.document+json", formatVersion: 2, body: seededBody },
-      },
+    const { itemId, revisionId: seededHead } = await createUnopenedPage(request, name, {
+      format: "myownnotion.document+json",
+      formatVersion: 2,
+      body: seededBody,
     });
-    expect(seeded.ok(), await seeded.text()).toBe(true);
-    const seededHead = ((await seeded.json()) as { revision?: { id?: string } }).revision?.id;
 
     await page.reload();
     await openWorkspace(page);
@@ -501,9 +478,7 @@ test.describe("a page written before the block editor existed", () => {
     // available and does not move the canonical head.
     const afterRead = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
     const afterHead = ((await afterRead.json()) as { currentRevisionId: string }).currentRevisionId;
-    if (seededHead !== undefined) {
-      expect(afterHead).toBe(seededHead);
-    }
+    expect(afterHead).toBe(seededHead);
     const stillPlain = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
       headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
       data: {

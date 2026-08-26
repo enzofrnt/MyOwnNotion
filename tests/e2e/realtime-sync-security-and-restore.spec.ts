@@ -9,6 +9,7 @@ import {
   createRootItem,
   editorChangeSequence,
   openSecondDevice,
+  openSettings,
   openWorkspace,
   selectItem,
   uniqueName,
@@ -82,7 +83,7 @@ test("revoking a device closes all of its live page sockets immediately", async 
       "live",
     );
 
-    await page.getByTestId("toggle-security-settings").click();
+    await openSettings(page);
     const row = page.getByTestId("device-row").filter({ hasText: deviceName });
     await expect(row).toBeVisible();
     await row.getByTestId("revoke-device").click();

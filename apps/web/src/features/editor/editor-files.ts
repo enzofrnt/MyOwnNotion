@@ -96,6 +96,7 @@ export class EditorFileTransferQueue {
     {
       readonly fileItemId: Uuid;
       readonly file: File;
+      readonly attachmentParentItemId: Uuid;
       handle: UploadHandle | null;
       running: boolean;
     }
@@ -117,9 +118,15 @@ export class EditorFileTransferQueue {
     for (const listener of this.#listeners) listener(this.#states);
   }
 
-  enqueue(fileItemId: Uuid, file: File): void {
+  enqueue(fileItemId: Uuid, file: File, attachmentParentItemId: Uuid): void {
     if (this.#transfers.has(fileItemId)) return;
-    this.#transfers.set(fileItemId, { fileItemId, file, handle: null, running: false });
+    this.#transfers.set(fileItemId, {
+      fileItemId,
+      file,
+      attachmentParentItemId,
+      handle: null,
+      running: false,
+    });
     this.#states.set(fileItemId, { kind: "queued" });
     this.#publish();
   }
@@ -133,15 +140,17 @@ export class EditorFileTransferQueue {
       if (current?.kind === "synchronized") continue;
       transfer.running = true;
       started.push(
-        this.#run(transfer.fileItemId, transfer.file).finally(() => {
-          transfer.running = false;
-        }),
+        this.#run(transfer.fileItemId, transfer.file, transfer.attachmentParentItemId).finally(
+          () => {
+            transfer.running = false;
+          },
+        ),
       );
     }
     await Promise.all(started);
   }
 
-  async #run(fileItemId: Uuid, file: File): Promise<void> {
+  async #run(fileItemId: Uuid, file: File, attachmentParentItemId: Uuid): Promise<void> {
     const entry = this.#transfers.get(fileItemId);
     if (entry === undefined) return;
     try {
@@ -149,7 +158,7 @@ export class EditorFileTransferQueue {
       if (handle === null) {
         this.#states.set(fileItemId, { kind: "uploading", sent: 0, total: file.size });
         this.#publish();
-        const created = await createUpload(file, fileItemId);
+        const created = await createUpload(file, fileItemId, attachmentParentItemId);
         if (!created.ok) {
           this.#states.set(fileItemId, {
             kind: "blocked",

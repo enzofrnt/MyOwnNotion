@@ -2,6 +2,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
   ensureNavigationVisible,
+  openRootCreation,
   openSecondDevice,
   openWorkspace,
   saveEntryProperties,
@@ -25,11 +26,12 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   };
 
   await ensureNavigationVisible(page);
+  await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
-  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
   await page.getByRole("button", { name: "Add property" }).click();
   const propertyEditor = page.getByRole("form", { name: "Property editor" });
@@ -49,7 +51,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     await panel.getByLabel("Status", { exact: true }).selectOption({ label: status });
     await saveEntryProperties(page);
     await page.getByRole("button", { name: "Close entry" }).click();
-    await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+    await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
     await expect(
       page.locator(`[data-entry-trigger]`).filter({ hasText: title }).first(),
     ).toBeFocused({ timeout: 15_000 });

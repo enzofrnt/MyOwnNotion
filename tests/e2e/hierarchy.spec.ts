@@ -5,6 +5,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createChildItem,
   createRootItem,
+  ensureNavigationVisible,
   expectTreeOrder,
   moveItemToRoot,
   moveItemUp,
@@ -67,6 +68,7 @@ test.describe("hierarchy organization (US1)", () => {
     // the client has already discarded. It surfaced as a webkit-mobile
     // flake, which is only where the timing was slow enough to lose reliably.
     await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
 
     // Startup navigation hydration must finish before the tree becomes
     // interactive. Otherwise it can arrive here and collapse the parent after

@@ -25,6 +25,7 @@ export interface UploadRecord {
   readonly receivedLength: number;
   readonly mediaType: string;
   readonly originalName: string;
+  readonly attachmentParentItemId: Uuid | null;
   readonly storageKey: string;
   readonly expiresAt: Date;
 }
@@ -36,6 +37,7 @@ function toUploadRecord(row: typeof uploads.$inferSelect): UploadRecord {
     receivedLength: row.receivedLength,
     mediaType: row.mediaType,
     originalName: row.originalName,
+    attachmentParentItemId: row.attachmentParentItemId as Uuid | null,
     storageKey: row.storageKey,
     expiresAt: row.expiresAt,
   };
@@ -52,6 +54,7 @@ export async function createUpload(
     readonly declaredLength: number;
     readonly mediaType: string;
     readonly originalName: string;
+    readonly attachmentParentItemId?: Uuid;
     readonly now?: Date;
   },
 ): Promise<UploadRecord> {
@@ -64,6 +67,7 @@ export async function createUpload(
     receivedLength: 0,
     mediaType: input.mediaType,
     originalName: input.originalName,
+    attachmentParentItemId: input.attachmentParentItemId ?? null,
     // Keyed by the upload's own identity, so two uploads of the same bytes
     // never accumulate into one another's partial file.
     storageKey: `uploads/${id}`,

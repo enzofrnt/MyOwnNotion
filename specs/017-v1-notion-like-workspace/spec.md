@@ -466,6 +466,11 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **FR-010**: Navigation, renommage, déplacement, conversion et ouverture d'un
   lien interne MUST conserver l'identité et le focus utile plutôt que remonter
   arbitrairement en haut de l'application.
+- **FR-074**: Après toute création réussie d'une page depuis la navigation ou
+  la commande `/page`, la nouvelle page MUST devenir immédiatement la page
+  active et éditable, sa branche MUST être révélée et, pour `/page`, le lien
+  MUST rester présent lorsque le propriétaire revient à la page source ou la
+  recharge.
 
 #### Block editing
 

@@ -4,6 +4,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
   createRootItem,
+  ensureNavigationVisible,
   openWorkspace,
   uniqueName,
   waitForSynchronized,
@@ -148,6 +149,7 @@ test("five retained page conflicts self-heal while persistent storage remains a 
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
     timeout: 45_000,
   });
+  await ensureNavigationVisible(page);
   await expect(page.getByTestId("storage-persistence-advisory")).toBeVisible();
   await expect(page.getByTestId("sync-status")).not.toContainText(/conflit/iu);
 

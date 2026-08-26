@@ -11,7 +11,7 @@
 import { expect, test } from "./fixtures.ts";
 import { createRootItem, openWorkspace, selectItem, uniqueName } from "./helpers.ts";
 
-const PARAGRAPHS = 12;
+const PARAGRAPHS = 32;
 
 async function fillLongPage(page: import("@playwright/test").Page): Promise<void> {
   const editor = page.getByTestId("block-editor").locator(".ProseMirror");

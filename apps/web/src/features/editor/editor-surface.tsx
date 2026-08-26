@@ -1,6 +1,7 @@
 import type { ProjectedItem } from "@myownnotion/client-core";
 import type { BlockDocument, Uuid } from "@myownnotion/domain";
 import { memo } from "react";
+import type { CreateSubpage } from "./editor-menus/slash-menu.tsx";
 import { PageEditor, type PageEditorHandle } from "./page-editor.tsx";
 
 export type EditorSurfaceHandle = PageEditorHandle;
@@ -19,6 +20,7 @@ export const EditorSurface = memo(function EditorSurface({
   handleRef,
   currentItemId,
   items,
+  onCreateSubpage,
   onOpenPage,
   onSettlementChange,
   session,
@@ -28,6 +30,7 @@ export const EditorSurface = memo(function EditorSurface({
   readonly handleRef: React.RefObject<EditorSurfaceHandle | null>;
   readonly currentItemId: string;
   readonly items: readonly ProjectedItem[];
+  readonly onCreateSubpage?: CreateSubpage | undefined;
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
   readonly onSettlementChange?: ((settled: boolean) => void) | undefined;
   readonly session?: import("./editor-sync-status.tsx").EditorDurableSession | undefined;
@@ -39,6 +42,7 @@ export const EditorSurface = memo(function EditorSurface({
       editable={editable}
       handleRef={handleRef}
       items={items}
+      onCreateSubpage={onCreateSubpage}
       onOpenPage={onOpenPage}
       onSettlementChange={onSettlementChange}
       session={session}

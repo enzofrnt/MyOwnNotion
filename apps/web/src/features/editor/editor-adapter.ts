@@ -114,17 +114,32 @@ function sameSpans(left: readonly MarkSpan[], right: readonly MarkSpan[]): boole
   );
 }
 
-function markCommands(before: EditorBlock, after: EditorBlock): PageCommand[] {
-  if (textOf(before) !== textOf(after)) return [];
+interface MarkCommandPhases {
+  readonly beforeText: PageCommand[];
+  readonly afterText: PageCommand[];
+}
+
+/**
+ * Keeps formatting exact when one editor gesture changes text and marks.
+ *
+ * Mark removals use the old text coordinates and must therefore run before a
+ * replacement. Mark additions use the new coordinates and run afterwards.
+ * A slash command such as `/page` changes both at once; dropping the mark in
+ * that case persisted the label as plain text even though the link was visible
+ * until reload.
+ */
+function markCommandPhases(before: EditorBlock, after: EditorBlock): MarkCommandPhases {
+  const textChanged = textOf(before) !== textOf(after);
   const previous = markSpans(inlineOf(before));
   const current = markSpans(inlineOf(after));
-  const commands: PageCommand[] = [];
+  const beforeText: PageCommand[] = [];
+  const afterText: PageCommand[] = [];
   for (const key of new Set([...previous.keys(), ...current.keys()])) {
     const oldSpans = previous.get(key) ?? [];
     const newSpans = current.get(key) ?? [];
     if (sameSpans(oldSpans, newSpans)) continue;
     for (const span of oldSpans) {
-      commands.push({
+      (textChanged ? beforeText : afterText).push({
         type: "set-mark",
         blockId: after.id as Uuid,
         from: span.from,
@@ -134,7 +149,7 @@ function markCommands(before: EditorBlock, after: EditorBlock): PageCommand[] {
       });
     }
     for (const span of newSpans) {
-      commands.push({
+      afterText.push({
         type: "set-mark",
         blockId: after.id as Uuid,
         from: span.from,
@@ -144,7 +159,7 @@ function markCommands(before: EditorBlock, after: EditorBlock): PageCommand[] {
       });
     }
   }
-  return commands;
+  return { beforeText, afterText };
 }
 
 interface Placement {
@@ -552,12 +567,14 @@ export function commandsFromBlockNoteChanges(input: {
     if (change.block.type === "table" || change.block.type === "tableRow") continue;
     const changedType = typeCommand(change.prevBlock, change.block);
     const replacement = minimalTextReplacement(textOf(change.prevBlock), textOf(change.block));
+    const markPhases = markCommandPhases(change.prevBlock, change.block);
     // A divider cannot temporarily retain text in the operational model. The
     // slash menu can expose `/div` and its final type change in one coalesced
     // browser batch, so remove the query before changing the block type.
     // Other text-capable transforms keep their type-first ordering.
     const clearsTextForDivider =
       changedType?.type === "set-block-type" && changedType.blockType === "divider";
+    commands.push(...markPhases.beforeText);
     if (clearsTextForDivider && replacement !== null) {
       commands.push({
         type: "replace-text",
@@ -574,7 +591,7 @@ export function commandsFromBlockNoteChanges(input: {
       });
     }
     commands.push(...propertyCommands(change.prevBlock, change.block));
-    commands.push(...markCommands(change.prevBlock, change.block));
+    commands.push(...markPhases.afterText);
   }
 
   for (const change of input.changes) {

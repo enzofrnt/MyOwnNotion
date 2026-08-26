@@ -13,6 +13,7 @@ import {
   createRootItem,
   ensureNavigationVisible,
   moveSelectedItemInto,
+  openPageAttachments,
   openSecondDevice,
   openSettingsSection,
   openWorkspace,
@@ -67,6 +68,7 @@ test.describe("workspace search (US1)", () => {
     await typeIntoEditor(page, bodyPhrase);
     await saveDocument(page, { until: "synced" });
     await waitForSynchronized(page);
+    await openPageAttachments(page, bodyPage);
 
     await page.getByTestId("attachment-upload").setInputFiles({
       name: fileName,

@@ -15,7 +15,7 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
-import { ensureNavigationVisible } from "./helpers.ts";
+import { ensureNavigationVisible, openSettings } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { resetSecurityInstallation, seedCommittedOwner } from "./reset-installation.ts";
 
@@ -326,7 +326,7 @@ test.describe("signing in", () => {
 test.describe("the security screen", () => {
   test("lists this browser's session and marks it", async ({ page }) => {
     await signIn(page);
-    await page.getByTestId("toggle-security-settings").click();
+    await openSettings(page);
     await expect(page.getByTestId("session-list")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("current-session")).toBeVisible();
   });
@@ -335,7 +335,7 @@ test.describe("the security screen", () => {
     // An owner deciding whether to set a password deserves to know this before
     // they choose it, not after they forget it.
     await signIn(page);
-    await page.getByTestId("toggle-security-settings").click();
+    await openSettings(page);
     await expect(page.getByTestId("no-reset-warning")).toContainText("no password reset", {
       timeout: 30_000,
     });
@@ -343,7 +343,7 @@ test.describe("the security screen", () => {
 
   test("signing out returns to the sign-in page", async ({ page }) => {
     await signIn(page);
-    await page.getByTestId("toggle-security-settings").click();
+    await openSettings(page);
     await expect(page.getByTestId("session-list")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("revoke-session").first().click();
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
@@ -351,7 +351,7 @@ test.describe("the security screen", () => {
 
   test("a signed-out session does not come back on reload", async ({ page }) => {
     await signIn(page);
-    await page.getByTestId("toggle-security-settings").click();
+    await openSettings(page);
     await expect(page.getByTestId("session-list")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("revoke-session").first().click();
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
@@ -363,7 +363,7 @@ test.describe("the security screen", () => {
     // A control that always succeeds by doing nothing teaches the owner to
     // distrust it.
     await signIn(page);
-    await page.getByTestId("toggle-security-settings").click();
+    await openSettings(page);
     await expect(page.getByTestId("session-list")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("revoke-other-sessions")).toBeDisabled();
   });

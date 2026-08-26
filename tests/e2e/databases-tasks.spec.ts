@@ -3,6 +3,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   editorApplyCount,
+  openRootCreation,
   openWorkspace,
   saveDocument,
   saveEntryProperties,
@@ -33,11 +34,12 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   const editorialNote = uniqueName("editorial-checkbox");
 
   await createRootItem(page, "page", projectName);
+  await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
   const createDatabase = page.getByRole("form", { name: "Create a database" });
   await createDatabase.getByLabel("Create a database").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Create database" }).click();
-  await expect(page.getByRole("heading", { name: databaseName })).toBeVisible();
+  await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
   await waitForSynchronized(page);
 
   const addProperty = async (name: string, type: string, options?: string): Promise<void> => {

@@ -255,6 +255,12 @@ export const uploads = pgTable(
     receivedLength: bigint("received_length", { mode: "number" }).notNull().default(0),
     mediaType: text("media_type").notNull(),
     originalName: text("original_name").notNull(),
+    /**
+     * Editor uploads finalize as attachments of this page. Deliberately not a
+     * foreign key: deleting a page while bytes are in flight must not mutate
+     * the transfer record; finalization will refuse the now-invalid placement.
+     */
+    attachmentParentItemId: uuid("attachment_parent_item_id"),
     storageKey: text("storage_key").notNull().unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** Abandoned uploads are reclaimed; otherwise they occupy storage nothing accounts for. */

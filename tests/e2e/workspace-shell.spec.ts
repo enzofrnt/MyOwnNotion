@@ -10,7 +10,6 @@ import {
   moveSelectedItemInto,
   openWorkspace,
   renameItem,
-  selectItem,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -58,15 +57,15 @@ test.describe("focused workspace shell", () => {
 
     await createRootItem(page, "folder", projects);
     await createChildItem(page, projects, "page", originalPage);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(originalPage);
     await createRootItem(page, "folder", archive);
-    await selectItem(page, originalPage);
 
-    await expect(page.getByTestId("active-item-title")).toHaveText(originalPage);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(originalPage);
     await expect(page.getByRole("navigation", { name: "Fil d’Ariane" })).toContainText(projects);
 
     await renameItem(page, originalPage, renamedPage);
     await expect(page.getByTestId(`tree-item-${renamedPage}`)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("active-item-title")).toHaveText(renamedPage);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(renamedPage);
 
     // Capture the stable identity while its current branch is expanded. Once
     // moved under the closed archive the row is correctly absent from the DOM,
@@ -82,7 +81,7 @@ test.describe("focused workspace shell", () => {
     await expect(page.getByRole("navigation", { name: "Fil d’Ariane" })).toContainText(archive, {
       timeout: 15_000,
     });
-    await expect(page.getByTestId("active-item-title")).toHaveText(renamedPage);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(renamedPage);
 
     const resizer = page.getByTestId("sidebar-resizer");
     await resizer.focus();
@@ -101,7 +100,7 @@ test.describe("focused workspace shell", () => {
 
     await page.reload();
     await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("active-item-title")).toHaveText(renamedPage);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(renamedPage);
     await expect(page.getByRole("navigation", { name: "Fil d’Ariane" })).toContainText(archive);
     await expect(page.getByTestId(`tree-item-${projects}`)).toHaveAttribute(
       "aria-expanded",
@@ -122,10 +121,9 @@ test.describe("focused workspace shell", () => {
     await expect(drawer).toBeVisible();
     await createRootItem(page, "page", pageName);
 
-    await selectItem(page, pageName);
     await expect(drawer).toBeHidden();
     await expect(trigger).toBeFocused();
-    await expect(page.getByTestId("active-item-title")).toHaveText(pageName);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(pageName);
 
     await trigger.click();
     await expect(drawer).toBeVisible();
@@ -138,5 +136,36 @@ test.describe("focused workspace shell", () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(horizontalOverflow).toBeLessThanOrEqual(1);
+  });
+
+  test("edits the page title in the document without remounting the editor", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+    const original = uniqueName("Titre intégré");
+    const renamed = uniqueName("Titre modifié");
+    await createRootItem(page, "page", original);
+    await waitForSynchronized(page);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(original);
+
+    const editorIdentity = await page.getByTestId("block-editor").evaluate((node) => {
+      node.dataset["mountIdentity"] = crypto.randomUUID();
+      return node.dataset["mountIdentity"];
+    });
+    const title = page.getByRole("textbox", { name: "Titre de la page" });
+    await expect(title).toHaveValue(original);
+    await title.fill(renamed);
+    await title.blur();
+
+    await expect(page.getByTestId(`tree-item-${renamed}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("navigation", { name: "Fil d’Ariane" })).toContainText(renamed);
+    await expect(page.getByTestId("block-editor")).toHaveAttribute(
+      "data-mount-identity",
+      editorIdentity,
+    );
+
+    await title.fill("");
+    await title.blur();
+    await expect(title).toHaveValue("Sans titre");
+    await expect(page.getByTestId("tree-item-Sans titre")).toBeVisible({ timeout: 15_000 });
   });
 });

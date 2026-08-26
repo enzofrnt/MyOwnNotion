@@ -6,6 +6,7 @@
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
+  openSettings,
   openWorkspace,
   selectItem,
   trashItem,
@@ -13,7 +14,7 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
-const PARAGRAPHS = 10;
+const PARAGRAPHS = 20;
 
 async function fillLongPage(page: import("@playwright/test").Page): Promise<void> {
   const editor = page.getByTestId("block-editor").locator(".ProseMirror");
@@ -61,9 +62,8 @@ test("settings stay outside the document and returning restores item, focus and 
   expect(rememberedBlockId).not.toBeNull();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
 
-  const settingsTrigger = page.getByTestId("toggle-security-settings");
-  await settingsTrigger.click();
-  await expect(page.getByTestId("settings-shell")).toBeVisible();
+  const settingsTrigger = page.getByTestId("open-settings");
+  await openSettings(page);
   await expect(page.getByTestId("workspace-surface")).toBeHidden();
 
   await page.getByTestId("settings-nav-backups").click();
@@ -85,7 +85,7 @@ test("settings stay outside the document and returning restores item, focus and 
 
   await page.getByTestId("back-to-workspace").click();
   await expect(page.getByTestId("workspace-surface")).toBeVisible();
-  await expect(page.getByTestId("active-item-title")).toHaveText(pageName);
+  await expect(page.getByTestId("active-item-title")).toHaveValue(pageName);
   await expect(settingsTrigger).toBeFocused();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
 

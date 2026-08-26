@@ -42,7 +42,7 @@ import { insertDroppedFiles } from "./editor-files.ts";
 import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
-import { FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
+import { type CreateSubpage, FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
 import {
   applyRemoteEditorProjection,
   type EditorChangeOrigin,
@@ -81,6 +81,7 @@ export function PageEditor({
   editable,
   handleRef,
   items,
+  onCreateSubpage,
   onOpenPage,
   onSettlementChange,
   session,
@@ -90,6 +91,7 @@ export function PageEditor({
   readonly editable: boolean;
   readonly handleRef: React.RefObject<PageEditorHandle | null>;
   readonly items: readonly ProjectedItem[];
+  readonly onCreateSubpage?: CreateSubpage | undefined;
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
   /** Reports whether every browser gesture has crossed the durable engine boundary. */
   readonly onSettlementChange?: ((settled: boolean) => void) | undefined;
@@ -191,6 +193,7 @@ export function PageEditor({
   const editorApplyCount = useRef(0);
   const editorApplyFailureCount = useRef(0);
   const lastEditorApplyErrorType = useRef<string | null>(null);
+  const recentFileGesture = useRef<{ fingerprint: string; acceptedAt: number } | null>(null);
   const lastEditorActivityAt = useRef(0);
   const editorSettled = useRef(true);
   const remoteProjectionPending = useRef(false);
@@ -421,6 +424,15 @@ export function PageEditor({
     ],
   );
   const batcher = useMemo(() => new EditorChangeBatcher(applyLocalChanges), [applyLocalChanges]);
+  const openCreatedSubpage = useCallback(
+    async (child: { readonly id: string }) => {
+      // BlockNote publishes menu changes just after the click handler. Wait for
+      // the generated page-link operation to cross the durable engine boundary
+      // before unmounting this page to open its new child.
+      await batcher.runAfterPendingChanges(() => onOpenPageRef.current?.(child.id));
+    },
+    [batcher],
+  );
 
   useEffect(
     () =>
@@ -511,6 +523,22 @@ export function PageEditor({
   const acceptFiles = useCallback(
     (files: readonly File[]) => {
       if (!editable || files.length === 0) return;
+      const fingerprint = files
+        .map((file) => `${file.name}\u0000${file.size}\u0000${file.type}\u0000${file.lastModified}`)
+        .join("\u0001");
+      const acceptedAt = performance.now();
+      const previous = recentFileGesture.current;
+      // Touch engines can re-deliver one native file gesture as a second drop.
+      // Deduplicate that delivery window without merging two separate files in
+      // the same intentional multi-file gesture.
+      if (
+        previous !== null &&
+        previous.fingerprint === fingerprint &&
+        acceptedAt - previous.acceptedAt < 750
+      ) {
+        return;
+      }
+      recentFileGesture.current = { fingerprint, acceptedAt };
       let parentId: Uuid | null = null;
       let beforeId: Uuid | null = null;
       try {
@@ -532,7 +560,7 @@ export function PageEditor({
           // One transfer per inserted block, in the same order as the files.
           inserted.forEach((entry, index) => {
             const file = files[index];
-            if (file !== undefined) fileQueue.enqueue(entry.fileItemId, file);
+            if (file !== undefined) fileQueue.enqueue(entry.fileItemId, file, pageId);
           });
           void fileQueue.flush();
         })
@@ -544,7 +572,7 @@ export function PageEditor({
           );
         });
     },
-    [editable, editor, engine, fileQueue, recoverVisibleProjection],
+    [editable, editor, engine, fileQueue, pageId, recoverVisibleProjection],
   );
   const shortcuts = useEditorShortcuts({
     editor,
@@ -582,7 +610,10 @@ export function PageEditor({
       onCompositionEnd={() => batcher.endComposition()}
       onKeyDownCapture={shortcuts.onKeyDown}
       onContextMenu={shortcuts.onContextMenu}
-      onDrop={(event) => {
+      // Capture before BlockNote sees the native drop. Handling this while the
+      // event bubbled let BlockNote insert its own image first on touch-sized
+      // WebKit/Chromium surfaces, then our durable path inserted it again.
+      onDropCapture={(event) => {
         const files = [...event.dataTransfer.files];
         if (files.length === 0) return;
         event.preventDefault();
@@ -650,7 +681,11 @@ export function PageEditor({
         tableHandles={false}
         emojiPicker={false}
       >
-        <FrenchSlashMenu />
+        <FrenchSlashMenu
+          onCreateSubpage={onCreateSubpage}
+          onSubpageCreated={openCreatedSubpage}
+          onError={reportEditorError}
+        />
         <BlockSideMenu onError={reportEditorError} />
         <EditorFormattingToolbar currentItemId={pageId} items={items} />
       </BlockNoteView>

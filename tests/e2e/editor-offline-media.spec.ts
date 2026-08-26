@@ -16,7 +16,13 @@
  */
 
 import { expect, test } from "./fixtures.ts";
-import { createRootItem, openWorkspace, selectItem, uniqueName } from "./helpers.ts";
+import {
+  createRootItem,
+  openPageAttachments,
+  openWorkspace,
+  selectItem,
+  uniqueName,
+} from "./helpers.ts";
 
 test.describe("editor media offline", () => {
   test("a file dropped offline becomes a durable reference with an honest transfer state", async ({
@@ -82,5 +88,12 @@ test.describe("editor media offline", () => {
       "synchronized",
       { timeout: 30_000 },
     );
+
+    // An editor file is a content attachment of this page. It is neither a
+    // root hierarchy item nor a panel appended below the writing canvas.
+    await expect(page.getByTestId("tree-item-capture.png")).toHaveCount(0);
+    await expect(page.getByTestId("attachment-panel")).toHaveCount(0);
+    await openPageAttachments(page, pageName);
+    await expect(page.getByTestId("attachment-capture.png")).toBeVisible({ timeout: 30_000 });
   });
 });

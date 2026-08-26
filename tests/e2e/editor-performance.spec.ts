@@ -17,12 +17,9 @@
  * to repeat.
  */
 
-import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures.ts";
 import {
-  apiOrigin,
-  CURRENT_PROTOCOL_HEADERS,
-  createRootItem,
+  createUnopenedPage,
   openWorkspace,
   selectItem,
   uniqueName,
@@ -64,24 +61,11 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     );
     await openWorkspace(page);
     const name = uniqueName("LargeDoc");
-    await createRootItem(page, "page", name);
-    await waitForSynchronized(page);
-
-    const itemId = await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id");
-    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
-    const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
-    const seeded = await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
-      data: {
-        baseRevisionId: head,
-        document: {
-          format: "myownnotion.document+json",
-          formatVersion: 2,
-          body: largeDocument(),
-        },
-      },
+    await createUnopenedPage(request, name, {
+      format: "myownnotion.document+json",
+      formatVersion: 2,
+      body: largeDocument(),
     });
-    expect(seeded.ok(), await seeded.text()).toBe(true);
 
     await page.reload();
     await openWorkspace(page);
@@ -109,22 +93,10 @@ test.describe(`a document of ${BLOCK_COUNT} blocks`, () => {
     );
     await openWorkspace(page);
     const name = uniqueName("TypingDoc");
-    await createRootItem(page, "page", name);
-    await waitForSynchronized(page);
-
-    const itemId = await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id");
-    const current = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
-    const head = ((await current.json()) as { currentRevisionId: string }).currentRevisionId;
-    await request.put(`${apiOrigin()}/v1/pages/${itemId}/document`, {
-      headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": randomUUID() },
-      data: {
-        baseRevisionId: head,
-        document: {
-          format: "myownnotion.document+json",
-          formatVersion: 2,
-          body: largeDocument(),
-        },
-      },
+    await createUnopenedPage(request, name, {
+      format: "myownnotion.document+json",
+      formatVersion: 2,
+      body: largeDocument(),
     });
 
     await page.reload();

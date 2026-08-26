@@ -7,7 +7,7 @@
  */
 import { MINIMUM_WRITE_VERSION, PROTOCOL_VERSION } from "@myownnotion/domain";
 import { expect, test } from "./fixtures.ts";
-import { openSecondDevice, openWorkspace, uniqueName } from "./helpers.ts";
+import { ensureNavigationVisible, openSecondDevice, openWorkspace, uniqueName } from "./helpers.ts";
 import { revokeDevice } from "./reset-installation.ts";
 
 test.describe("an out-of-date client (FR-018 to FR-020)", () => {
@@ -70,6 +70,7 @@ test.describe("a revoked device (FR-021)", () => {
     try {
       await openWorkspace(page);
       await openWorkspace(second.page);
+      await ensureNavigationVisible(second.page);
       await expect(second.page.getByTestId("live-connection-state")).toBeVisible({
         timeout: 15_000,
       });
@@ -91,6 +92,7 @@ test.describe("a revoked device (FR-021)", () => {
 
       // The first device is unaffected: revoking one device is not signing out.
       const stillWorks = uniqueName("AfterRevocation");
+      await ensureNavigationVisible(page);
       await expect(page.getByTestId("sync-status")).toBeVisible();
       await expect(page.getByTestId("workspace-shell")).toBeVisible();
       expect(stillWorks).toBeTruthy();

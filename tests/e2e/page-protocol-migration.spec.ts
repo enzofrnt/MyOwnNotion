@@ -16,6 +16,7 @@ import {
   apiOrigin,
   CURRENT_PROTOCOL_HEADERS,
   createRootItem,
+  createUnopenedPage,
   editorChangeSequence,
   openWorkspace,
   saveDocument,
@@ -132,7 +133,7 @@ async function appendOperationalParagraph(page: Page, text: string): Promise<voi
 }
 
 test.describe("page protocol migration", () => {
-  test("uses operational updates from the first normal online edit", async ({ page }) => {
+  test("uses operational updates from the first normal online edit", async ({ page, request }) => {
     const pageName = uniqueName("DirectOperationalActivation");
     const typed = `écriture CRDT directe ${pageName}`;
 
@@ -140,6 +141,25 @@ test.describe("page protocol migration", () => {
     await createRootItem(page, "page", pageName);
     const itemId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
     if (itemId === null) throw new Error("the created page has no stable identity");
+
+    await waitForEditor(page);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(async (id) => {
+            const modulePath = "/src/services/local-content.ts";
+            const loaded = (await import(/* @vite-ignore */ modulePath)) as {
+              localContent(): {
+                pageOperationLog: {
+                  getState(pageId: string): Promise<{ status: string } | null>;
+                };
+              };
+            };
+            return (await loaded.localContent().pageOperationLog.getState(id))?.status ?? null;
+          }, itemId),
+        { timeout: 30_000 },
+      )
+      .toBe("active");
 
     const editorialRequests: string[] = [];
     const recordEditorialRequest = (request: import("@playwright/test").Request) => {
@@ -153,8 +173,6 @@ test.describe("page protocol migration", () => {
     };
     page.on("request", recordEditorialRequest);
     try {
-      await selectItem(page, pageName);
-      await waitForEditor(page);
       const editor = surface(page);
       const beforeSequence = await editorChangeSequence(page);
       await editor.click();
@@ -162,9 +180,15 @@ test.describe("page protocol migration", () => {
       await waitForEditorSettled(page, { afterSequence: beforeSequence });
       await saveDocument(page, { until: "synced" });
 
-      expect(editorialRequests).toContain(`POST /v1/page-operations/${itemId}/activate`);
-      expect(editorialRequests).toContain(`POST /v1/page-operations/${itemId}/sync`);
+      // HTTP fallback and the live socket are both valid operational transports.
+      // A durable server copy plus no whole-document PUT proves the edit crossed
+      // the operational boundary without coupling the journey to one transport.
       expect(editorialRequests).not.toContain(`PUT /v1/pages/${itemId}/document`);
+      const stored = await request.get(`${apiOrigin()}/v1/items/${itemId}`);
+      expect(stored.ok(), await stored.text()).toBe(true);
+      expect(
+        JSON.stringify(((await stored.json()) as { pageDocument: unknown }).pageDocument),
+      ).toContain(typed);
 
       const localAuthority = await page.evaluate(async (id) => {
         const modulePath = "/src/services/local-content.ts";
@@ -200,10 +224,11 @@ test.describe("page protocol migration", () => {
     const operationalText = `nouvelle écriture opérationnelle ${pageName}`;
 
     await openWorkspace(page);
-    await createRootItem(page, "page", pageName);
+    const { itemId } = await createUnopenedPage(request, pageName);
+    await page.reload();
+    await openWorkspace(page);
     await waitForSynchronized(page);
-    const itemId = await page.getByTestId(`tree-item-${pageName}`).getAttribute("data-item-id");
-    if (itemId === null) throw new Error("the created page has no stable identity");
+    await expect(page.getByTestId(`tree-item-${pageName}`)).toBeAttached({ timeout: 15_000 });
 
     // This is the browser state present at upgrade time: a v2 replacement is
     // durable on the device but has never reached the server.

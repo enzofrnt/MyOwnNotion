@@ -4,6 +4,7 @@ import { ResponsiveSidebar } from "../navigation/responsive-sidebar.tsx";
 export interface WorkspaceShellProps {
   readonly children: ReactNode;
   readonly header: ReactNode;
+  readonly contentMode?: "bounded" | "page";
   readonly mobileNavigationOpen: boolean;
   readonly navigation: ReactNode;
   readonly sidebarOpen: boolean;
@@ -15,6 +16,7 @@ export interface WorkspaceShellProps {
 
 export function WorkspaceShell({
   children,
+  contentMode = "bounded",
   header,
   mobileNavigationOpen,
   navigation,
@@ -44,6 +46,7 @@ export function WorkspaceShell({
         <main
           id="workspace-main"
           className="workspace-main"
+          data-content-mode={contentMode}
           tabIndex={-1}
           data-testid="workspace-main"
         >

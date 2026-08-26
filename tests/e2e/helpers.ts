@@ -4,8 +4,9 @@
  * The security section at the bottom adds the virtual-authenticator, mounted
  * secret, and readiness helpers the feature-002 journeys need (T003).
  */
-import { PROTOCOL_VERSION } from "@myownnotion/domain";
+import { generateUuidV7, type PageDocument, PROTOCOL_VERSION } from "@myownnotion/domain";
 import {
+  type APIRequestContext,
   type Browser,
   type BrowserContext,
   expect,
@@ -22,6 +23,43 @@ export const CURRENT_PROTOCOL_HEADERS = {
 
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/**
+ * Creates server content without opening its editor in the browser.
+ *
+ * Historical-protocol and large-document journeys need to prepare the exact
+ * document that exists before a modern client first opens it. Creating through
+ * the navigation is intentionally unsuitable: page creation now navigates to
+ * the new page, and mounting that editor activates convergent synchronization
+ * before the fixture can be installed.
+ */
+export async function createUnopenedPage(
+  request: APIRequestContext,
+  name: string,
+  document: PageDocument = {
+    format: "myownnotion.document+json",
+    formatVersion: 1,
+    body: {},
+  },
+): Promise<{ itemId: string; revisionId: string }> {
+  const itemId = generateUuidV7();
+  const response = await request.post(`${apiOrigin()}/v1/items`, {
+    headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": generateUuidV7() },
+    data: {
+      id: itemId,
+      kind: "page",
+      name,
+      placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
+      pageDocument: document,
+    },
+  });
+  const raw = await response.text();
+  expect(response.status(), raw).toBe(201);
+  const body = JSON.parse(raw) as { revisionIds?: string[] };
+  const revisionId = body.revisionIds?.[0];
+  if (revisionId === undefined) throw new Error("unopened page creation returned no revision");
+  return { itemId, revisionId };
 }
 
 export async function openWorkspace(page: Page): Promise<void> {
@@ -66,7 +104,13 @@ export async function openWorkspace(page: Page): Promise<void> {
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(shell).toBeVisible();
     }
-    await expect(page.getByTestId("active-item-title")).toBeVisible();
+    await expect(
+      page
+        .locator(
+          '[data-testid="active-item-title"], [data-testid="active-item-heading"], .entry-panel',
+        )
+        .first(),
+    ).toBeVisible();
     // Wait for the initial load (tree or empty state) to settle. On a phone the
     // navigation is a closed modal drawer, so readiness is represented by the
     // settled content being attached rather than necessarily visible. Derived
@@ -94,6 +138,7 @@ export async function openWorkspace(page: Page): Promise<void> {
  */
 async function typeItemName(page: Page, name: string): Promise<void> {
   await ensureNavigationVisible(page);
+  await openRootCreation(page);
   const field = page.getByLabel("Nom", { exact: true });
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await field.fill(name);
@@ -105,6 +150,13 @@ async function typeItemName(page: Page, name: string): Promise<void> {
   await expect(field).toHaveValue(name);
 }
 
+export async function openRootCreation(page: Page): Promise<void> {
+  await ensureNavigationVisible(page);
+  const trigger = page.getByTestId("toggle-root-creation");
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+  await expect(page.getByLabel("Nom", { exact: true })).toBeVisible();
+}
+
 export async function createRootItem(
   page: Page,
   kind: "page" | "folder",
@@ -112,14 +164,12 @@ export async function createRootItem(
 ): Promise<void> {
   await typeItemName(page, name);
   await page.getByTestId(kind === "page" ? "new-root-page" : "new-root-folder").click();
-  // The same 15-second budget `createChildItem` already uses, and for the same
-  // reason. These two helpers do the same work, but only the child one was
-  // hardened when it last flaked; this one kept Playwright's 5-second default
-  // and went on failing intermittently on WebKit, which is slow enough to
-  // exceed it under a loaded CI runner. Two identical waits with different
-  // budgets is not a policy, it is an oversight that took two red runs on
-  // `main` to surface.
-  await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
+  // A successful page creation deliberately closes the mobile drawer and
+  // opens the new page. Assert its projected presence without reopening navigation:
+  // doing so would both undo the product outcome and race the asynchronous
+  // close that follows the mutation. Callers that need the row interactively
+  // use `ensureNavigationRowVisible` afterwards.
+  await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
 }
 
 export async function createChildItem(
@@ -139,7 +189,10 @@ export async function createChildItem(
   // locator and scrolling it detached the element and failed the journey —
   // intermittently, which is the worst way for it to fail.
   await clickItemAction(page, parentName, `new-${kind}-inside-${parentName}`);
-  await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible({ timeout: 15_000 });
+  // Page creation is navigation on mobile, so the drawer closing is success,
+  // not a reason for this helper to reopen it. The child remains mounted in the
+  // tree and later row interactions reopen navigation explicitly.
+  await expect(page.getByTestId(`tree-item-${name}`)).toBeAttached({ timeout: 15_000 });
 }
 
 export async function ensureNavigationVisible(page: Page): Promise<void> {
@@ -176,6 +229,16 @@ export async function ensureNavigationRowVisible(page: Page, itemName: string): 
   const row = page.getByTestId(`tree-item-${itemName}`);
   await expect(row).toBeVisible({ timeout: 15_000 });
   return row;
+}
+
+/** Opens content attachments without conflating them with hierarchy children. */
+export async function openPageAttachments(page: Page, pageName: string): Promise<void> {
+  const row = await ensureNavigationRowVisible(page, pageName);
+  await row.focus();
+  const trigger = page.getByRole("button", { name: `Pièces jointes de ${pageName}` });
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+  await expect(page.getByTestId(`page-attachments-${pageName}`)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("attachment-panel")).toBeVisible({ timeout: 15_000 });
 }
 
 /** Opens one row's accessible action menu without relying on hover state. */
@@ -279,13 +342,17 @@ export async function convertItem(page: Page, itemName: string): Promise<void> {
 
 type SettingsSection = "security" | "backups" | "local-data" | "trash" | "page-details";
 
+/** Opens the settings destination from its only workspace entry point. */
+export async function openSettings(page: Page): Promise<void> {
+  if (await page.getByTestId("settings-shell").isVisible()) return;
+  await ensureNavigationVisible(page);
+  await page.getByTestId("open-settings").click();
+  await expect(page.getByTestId("settings-shell")).toBeVisible({ timeout: 15_000 });
+}
+
 /** Opens an operational destination without treating it as document content. */
 export async function openSettingsSection(page: Page, section: SettingsSection): Promise<void> {
-  if (!(await page.getByTestId("settings-shell").isVisible())) {
-    await closeMobileNavigation(page);
-    await page.getByTestId("toggle-security-settings").click();
-    await expect(page.getByTestId("settings-shell")).toBeVisible({ timeout: 15_000 });
-  }
+  await openSettings(page);
   const destination = page.getByTestId(`settings-nav-${section}`);
   if ((await destination.getAttribute("aria-current")) !== "page") {
     await destination.click();

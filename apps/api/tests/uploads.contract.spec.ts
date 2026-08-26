@@ -46,7 +46,11 @@ async function createUploadOf(length: number, name = "transfer.txt") {
   });
 }
 
-async function createUploadWithIdentity(length: number, itemId: string) {
+async function createUploadWithIdentity(
+  length: number,
+  itemId: string,
+  attachmentParentItemId?: string,
+) {
   return harness.built.app.inject({
     method: "POST",
     url: "/v1/uploads",
@@ -56,6 +60,7 @@ async function createUploadWithIdentity(length: number, itemId: string) {
         filename: "embedded.txt",
         mediaType: "text/plain",
         itemId,
+        ...(attachmentParentItemId === undefined ? {} : { attachmentParentItemId }),
       }),
     },
   });
@@ -88,8 +93,68 @@ describe("creating an upload", () => {
     expect(item.statusCode).toBe(200);
   });
 
+  it("finalizes an editor upload as a content attachment of its source page", async () => {
+    const page = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": generateUuidV7(),
+      },
+      payload: {
+        id: generateUuidV7(),
+        kind: "page",
+        name: "Page source",
+        placement: {
+          id: generateUuidV7(),
+          kind: "hierarchy",
+          parentItemId: null,
+          positionKey: "V",
+        },
+        pageDocument: { format: "myownnotion.document+json", formatVersion: 1, body: {} },
+      },
+    });
+    expect(page.statusCode, page.body).toBe(201);
+    const pageId = (page.json() as { item: { id: string } }).item.id;
+    const itemId = generateUuidV7();
+    const created = await createUploadWithIdentity(4, itemId, pageId);
+    expect(created.statusCode, created.body).toBe(201);
+
+    const completed = await harness.built.app.inject({
+      method: "PATCH",
+      url: created.headers["location"] as string,
+      headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
+      payload: Buffer.from("safe"),
+    });
+    expect(completed.statusCode, completed.body).toBe(201);
+
+    const item = await harness.built.app.inject({ method: "GET", url: `/v1/items/${itemId}` });
+    expect(item.statusCode, item.body).toBe(200);
+    expect(
+      (item.json() as { placements: Array<{ kind: string; parentItemId: string | null }> })
+        .placements,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "attachment", parentItemId: pageId }),
+      ]),
+    );
+
+    const roots = await harness.built.app.inject({
+      method: "GET",
+      url: "/v1/items?parentItemId=root",
+    });
+    expect(
+      (roots.json() as { items: Array<{ id: string }> }).items.map((candidate) => candidate.id),
+    ).not.toContain(itemId);
+  });
+
   it("refuses an invalid client-generated document file identity", async () => {
     const response = await createUploadWithIdentity(4, "../not-an-item");
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("refuses an invalid attachment source identity", async () => {
+    const response = await createUploadWithIdentity(4, generateUuidV7(), "not-a-page-id");
     expect(response.statusCode).toBe(400);
   });
 

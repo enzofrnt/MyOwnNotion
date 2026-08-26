@@ -22,7 +22,7 @@ import {
   pendingUploadBytes,
   schema,
 } from "@myownnotion/database";
-import { generateUuidV7 } from "@myownnotion/domain";
+import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
@@ -36,12 +36,13 @@ afterAll(async () => {
   await context?.close();
 });
 
-async function newUpload(declaredLength: number, now?: Date) {
+async function newUpload(declaredLength: number, now?: Date, attachmentParentItemId?: Uuid) {
   return createUpload(context.handle.db, {
     workspaceId: context.workspaceId,
     declaredLength,
     mediaType: "text/plain",
     originalName: "transfer.txt",
+    ...(attachmentParentItemId === undefined ? {} : { attachmentParentItemId }),
     ...(now === undefined ? {} : { now }),
   });
 }
@@ -53,6 +54,14 @@ describe("an upload in progress", () => {
     expect(read?.receivedLength).toBe(0);
     expect(read?.declaredLength).toBe(1000);
     expect(isComplete(read as NonNullable<typeof read>)).toBe(false);
+    await deleteUpload(context.handle.db, upload.id);
+  });
+
+  it("retains the source page needed to finalize an editor attachment after a restart", async () => {
+    const pageId = generateUuidV7();
+    const upload = await newUpload(12, undefined, pageId);
+    const read = await getUpload(context.handle.db, upload.id);
+    expect(read?.attachmentParentItemId).toBe(pageId);
     await deleteUpload(context.handle.db, upload.id);
   });
 

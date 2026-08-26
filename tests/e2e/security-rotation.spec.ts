@@ -20,6 +20,7 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
+import { openSettings } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import {
   clearRotationPolicies,
@@ -153,8 +154,10 @@ async function openSecurity(page: import("@playwright/test").Page): Promise<void
   await expect(page.getByTestId("workspace-shell")).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByTestId("active-item-title")).toBeVisible();
-  await page.getByTestId("toggle-security-settings").click();
+  await expect(
+    page.locator('[data-testid="active-item-title"], [data-testid="active-item-heading"]').first(),
+  ).toBeVisible();
+  await openSettings(page);
   await expect(page.getByRole("heading", { name: "Encryption keys" })).toBeVisible({
     timeout: 30_000,
   });

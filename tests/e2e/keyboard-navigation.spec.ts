@@ -329,6 +329,7 @@ test.describe("shortcuts to what matters", () => {
     await openWorkspace(page);
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
 
     await expect(page.getByTestId("favourites-empty")).toBeVisible();
     await openItemActions(page, name);
@@ -367,6 +368,7 @@ test.describe("shortcuts to what matters", () => {
     await createRootItem(page, "page", older);
     await createRootItem(page, "page", newer);
     await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
 
     const recents = page.getByTestId("recents").getByRole("button");
     await expect(recents.first()).toHaveText(newer);

@@ -38,11 +38,14 @@ describe("realtime file synchronization status", () => {
 
   it("resumes a blocked upload and accepts only a verified matching identity", async () => {
     const fileId = generateUuidV7() as Uuid;
+    const pageId = generateUuidV7() as Uuid;
     let patchAttempts = 0;
+    let creationMetadata = "";
     vi.stubGlobal(
       "fetch",
       vi.fn(async (_url: string, init: RequestInit) => {
         if (init.method === "POST") {
+          creationMetadata = new Headers(init.headers).get("upload-metadata") ?? "";
           return response({
             status: 201,
             headers: { location: `/v1/uploads/${fileId}` },
@@ -64,12 +67,13 @@ describe("realtime file synchronization status", () => {
     );
     const queue = new EditorFileTransferQueue();
     const file = new File([new Uint8Array(4)], "resume.bin");
-    queue.enqueue(fileId, file);
+    queue.enqueue(fileId, file, pageId);
 
     await queue.flush();
     expect(queue.stateFor(fileId)).toMatchObject({ kind: "blocked" });
 
     await queue.flush();
     expect(queue.stateFor(fileId)).toEqual({ kind: "synchronized" });
+    expect(creationMetadata).toContain(`attachmentParentItemId ${btoa(pageId)}`);
   });
 });
