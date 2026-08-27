@@ -132,10 +132,15 @@ test("connected devices exchange text, marks and block order without reload or r
     watchReplacements = true;
 
     const beforeText = await editorChangeSequence(page);
-    const textStartedAt = Date.now();
     const firstBlock = blocks(page).first().locator(".bn-inline-content").first();
     await firstBlock.click();
-    await editor(page).pressSequentially(" — écrit sur A");
+    await editor(page).pressSequentially(" — écrit sur ");
+    // Start at the final browser mutation rather than including Playwright's
+    // focus and multi-key driving overhead in the product's propagation
+    // budget. The measured interval still includes the editor quiet window,
+    // local durability, Bun WebSocket exchange and remote projection.
+    const textStartedAt = Date.now();
+    await editor(page).press("A");
     await waitForEditorSettled(page, { afterSequence: beforeText });
     propagationMs.push(
       await expectPropagated(second.page, textStartedAt, async () => {
