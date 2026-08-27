@@ -18,6 +18,12 @@ export type RealtimeAuthorizationDecision =
   | { readonly allowed: true; readonly owner: OwnerPrincipal }
   | RealtimeAuthorizationRefusal;
 
+/** Bun must accept a WebSocket upgrade before any asynchronous hook yields. */
+export function isWebSocketUpgradeRequest(request: FastifyRequest): boolean {
+  const upgrade = request.headers.upgrade;
+  return typeof upgrade === "string" && upgrade.toLowerCase() === "websocket";
+}
+
 export function hasExactRealtimeOrigin(request: FastifyRequest, publicOrigin: URL): boolean {
   const header = request.headers.origin;
   const presented = Array.isArray(header) ? header[0] : header;

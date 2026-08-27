@@ -50,7 +50,7 @@ const BASE_DATABASE_URL =
  * Where port allocation starts.
  *
  * Deliberately clear of the development defaults (3001 and 5173). A run that
- * borrowed those would fight `pnpm dev` for them — and worse, Playwright's
+ * borrowed those would fight `bun run dev` for them — and worse, Playwright's
  * `reuseExistingServer` is on locally, so it would quietly *reuse* whatever was
  * already listening and test that instead. A matrix that silently exercises
  * another checkout's code is the failure mode this range exists to avoid.
@@ -115,9 +115,10 @@ function containerDatabaseUrlFor(name: string): string {
   return url.toString();
 }
 
-function planStacks(): Stack[] {
+function planStacks(selectedProjects: ReadonlySet<string>): Stack[] {
   const suffix = randomBytes(3).toString("hex");
-  return BROWSER_PROJECTS.map((project, index) => {
+  return BROWSER_PROJECTS.map((project, index): Stack | null => {
+    if (!selectedProjects.has(project.name)) return null;
     const databaseName = `mon_e2e_${project.name.replaceAll("-", "_")}_${suffix}`;
     const inContainer = onMac && project.containerOnMac === true;
     const blobRoot = path.join(repoRoot, ".dev-blobs-e2e", `${project.name}-${suffix}`);
@@ -149,7 +150,44 @@ function planStacks(): Stack[] {
       viteCacheDir: path.join(repoRoot, "node_modules", ".vite-e2e", `${project.name}-${suffix}`),
       inContainer: false,
     };
-  });
+  }).filter((stack): stack is Stack => stack !== null);
+}
+
+function parseMatrixArguments(args: readonly string[]): {
+  readonly selectedProjects: ReadonlySet<string>;
+  readonly extraArgs: readonly string[];
+} {
+  const selectedProjects = new Set<string>();
+  const extraArgs: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === undefined || argument === "--") continue;
+    if (argument === "--project") {
+      const project = args[index + 1];
+      if (project === undefined) throw new Error("--project requires an exact browser project");
+      selectedProjects.add(project);
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith("--project=")) {
+      selectedProjects.add(argument.slice("--project=".length));
+      continue;
+    }
+    extraArgs.push(argument);
+  }
+
+  const knownProjects = new Set(BROWSER_PROJECTS.map((project) => project.name));
+  for (const project of selectedProjects) {
+    if (!knownProjects.has(project)) {
+      throw new Error(
+        `unknown browser project ${project}; expected one of ${[...knownProjects].join(", ")}`,
+      );
+    }
+  }
+  if (selectedProjects.size === 0) {
+    for (const project of knownProjects) selectedProjects.add(project);
+  }
+  return { selectedProjects, extraArgs };
 }
 
 /**
@@ -239,7 +277,7 @@ function run(
 }
 
 async function migrate(stack: Stack): Promise<void> {
-  const { code, output } = await run("pnpm", ["exec", "tsx", "scripts/db/migrate.ts"], {
+  const { code, output } = await run("bun", ["scripts/db/migrate.ts"], {
     DATABASE_URL: stack.databaseUrl,
     ...(stack.blobRoot === undefined ? {} : { MYOWNNOTION_BLOB_ROOT: stack.blobRoot }),
     ...(stack.backupRoot === undefined ? {} : { MYOWNNOTION_BACKUP_ROOT: stack.backupRoot }),
@@ -301,13 +339,17 @@ async function runStack(
         `--output=test-results/${stack.project}`,
         ...extraArgs,
       ],
-      { DATABASE_URL: containerDatabaseUrlFor(stack.databaseName) },
+      {
+        DATABASE_URL: containerDatabaseUrlFor(stack.databaseName),
+        MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile as string,
+      },
     );
   }
   return run(
-    "pnpm",
+    "bun",
     [
-      "exec",
+      "run",
+      "--bun",
       "playwright",
       "test",
       "--fail-on-flaky-tests",
@@ -365,8 +407,8 @@ function tail(output: string, lines = 40): string {
 }
 
 async function main(): Promise<void> {
-  const extraArgs = process.argv.slice(2).filter((argument) => argument !== "--");
-  const stacks = planStacks();
+  const { selectedProjects, extraArgs } = parseMatrixArguments(process.argv.slice(2));
+  const stacks = planStacks(selectedProjects);
 
   for (const stack of stacks) {
     if (stack.apiPort !== undefined) {

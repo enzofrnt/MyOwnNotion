@@ -21,6 +21,13 @@ export const CURRENT_PROTOCOL_HEADERS = {
   "x-myownnotion-client-protocol": String(PROTOCOL_VERSION),
 } as const;
 
+// A second isolated WebKit context loads the complete Vite module graph again.
+// On the two-core reference runner that cold boot can legitimately exceed the
+// generic assertion budget while the app is still making forward progress.
+// Keep interaction assertions strict; only the initial application boundary
+// receives the same 30-second allowance already used by authentication boots.
+const WORKSPACE_BOOT_TIMEOUT_MS = 30_000;
+
 export function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -91,7 +98,7 @@ export async function openWorkspace(page: Page): Promise<void> {
     if (!atWorkspaceRoot) await page.goto("/", { waitUntil: "domcontentloaded" });
     const shell = page.getByTestId("workspace-shell");
     try {
-      await expect(shell).toBeVisible();
+      await expect(shell).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
     } catch (error) {
       // The local matrix starts and tears down isolated browser stacks in
       // parallel. Chromium can observe that host-network transition between
@@ -102,7 +109,7 @@ export async function openWorkspace(page: Page): Promise<void> {
       // fails at the original assertion.
       if (atWorkspaceRoot || transientNetworkChanges.length === 0) throw error;
       await page.reload({ waitUntil: "domcontentloaded" });
-      await expect(shell).toBeVisible();
+      await expect(shell).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
     }
     await expect(
       page

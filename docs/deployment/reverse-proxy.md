@@ -5,6 +5,11 @@ interface and expects a reverse proxy in front of it. That is a deliberate
 boundary, not an unfinished feature, and this page explains it and then gives
 three working configurations.
 
+The API runtime is Bun and the page-sync connection uses Bun's built-in `ws`
+compatibility module behind Fastify. This changes neither the public URL nor
+the proxy contract below: the browser still reaches one same-origin WebSocket
+through the Web container.
+
 ## Why the stack has no certificate
 
 Three reasons, in order of how much they would cost you if we got them wrong.

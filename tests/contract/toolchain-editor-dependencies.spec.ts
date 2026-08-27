@@ -1,7 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 
@@ -11,8 +10,18 @@ interface PackageManifest {
 }
 
 interface LockedDependency {
-  specifier?: string;
-  version?: string;
+  readonly specifier?: string;
+  readonly version?: string;
+}
+
+interface BunLockWorkspace {
+  readonly dependencies?: Record<string, string>;
+  readonly devDependencies?: Record<string, string>;
+}
+
+interface BunLock {
+  readonly workspaces?: Record<string, BunLockWorkspace>;
+  readonly packages?: Record<string, readonly [string, ...unknown[]]>;
 }
 
 function readManifest(relativePath: string): PackageManifest {
@@ -40,25 +49,17 @@ function dependencyEntries(manifest: PackageManifest): ReadonlyArray<readonly [s
   ];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function lockedImporterDependency(
   importerName: string,
   dependencyGroup: "dependencies" | "devDependencies",
   dependencyName: string,
 ): LockedDependency | undefined {
-  const lock = parse(readFileSync(path.join(repoRoot, "pnpm-lock.yaml"), "utf8")) as unknown;
-  if (!isRecord(lock) || !isRecord(lock["importers"])) {
-    return undefined;
-  }
-  const importer = lock["importers"][importerName];
-  if (!isRecord(importer) || !isRecord(importer[dependencyGroup])) {
-    return undefined;
-  }
-  const dependency = importer[dependencyGroup][dependencyName];
-  return isRecord(dependency) ? (dependency as LockedDependency) : undefined;
+  const lock = Bun.JSONC.parse(readFileSync(path.join(repoRoot, "bun.lock"), "utf8")) as BunLock;
+  const specifier = lock.workspaces?.[importerName]?.[dependencyGroup]?.[dependencyName];
+  const resolution = lock.packages?.[dependencyName]?.[0];
+  const version = resolution?.match(/@([^@]+)$/)?.[1];
+  if (specifier === undefined) return undefined;
+  return version === undefined ? { specifier } : { specifier, version };
 }
 
 describe("the V1 editor toolchain", () => {

@@ -9,13 +9,14 @@ Le dépôt est préparé avec GitHub Spec Kit pour OpenAI Codex et Cursor. Les d
 
 ## État du développement
 
-Mise à jour du 25 août 2026 :
+Mise à jour du 27 août 2026 :
 
 | Grande étape | Fait | Reste à faire (RAF) |
 | --- | --- | --- |
 | Fondations fonctionnelles — features 001 à 008 | Implémentées et fusionnées dans `main` : sécurité mono-utilisateur, pages et dossiers, éditeur par blocs, fichiers, offline, synchronisation, sauvegarde/restauration et recherche. | Exécuter les trois protocoles humains/opérationnels encore ouverts dans la feature 002 et terminer la convergence d'interface 017 avant de déclarer la release V1 formellement validée. |
-| Convergence V1 proche de Notion — feature 017 | Fondations BlockNote Community/Loro, shell focalisé, autosauvegarde locale, modèle opérationnel, convergence et séparation des réglages déjà livrés. Le durcissement du transport est transféré à la 018. | Reprendre après la 018 : navigation et arborescence plus fluides, interactions d'édition avancées, cohérence visuelle de toutes les surfaces, accessibilité clavier/toucher/WebKit, français et références visuelles. |
-| Synchronisation temps réel durable — feature 018 | Canal WebSocket same-origin avec ACK après commit, reprise hors ligne/crash, convergence des pages fermées, auto-réparation des anciens conflits, révocation immédiate, fichiers vérifiés, identité distincte par profil et passkey complète sont implémentés. La matrice complète cinq navigateurs, le parcours HTTPS jetable à deux appareils et le gate local complet sont validés. | Ouvrir la PR, obtenir la CI distante verte puis fusionner ; aucune nouvelle UI fonctionnelle ne s'intercale avant cette validation. |
+| Convergence V1 proche de Notion — feature 017 | Éditeur BlockNote/Loro, page focalisée, blocs riches, fichiers offline, liens unifiés et arborescence interactive ont été livrés par étapes et fusionnés dans `main`. | Continuer la finition Notion-like : interactions d'édition avancées et cohérence visuelle des surfaces restantes, avec accessibilité limitée aux usages clavier/toucher/WebKit requis par le propriétaire. |
+| Synchronisation temps réel durable — feature 018 | Canal WebSocket same-origin avec ACK après commit, reprise hors ligne/crash, convergence des pages fermées, auto-réparation des anciens conflits, révocation immédiate, fichiers vérifiés, identité distincte par profil et passkey complète sont implémentés et fusionnés. | Continuer d'exercer les données réelles et conserver les régressions HAR, multi-appareils, révocation et restauration dans la gate. |
+| Chaîne d'outils Bun — feature 019 | Migration dédiée vers Bun 1.4.0 en cours : gestion des paquets, runtime, builds Web/API, tests, CI et images convergent vers une seule chaîne. | Terminer la gate locale complète, obtenir une CI distante verte et fusionner sans conserver pnpm, Node.js ou un WebSocket npm de secours. |
 | Bases structurées et tâches — feature 009 | Implémentation terminée, convergée et validée par le gate local complet ; [pull request #125](https://github.com/enzofrnt/MyOwnNotion/pull/125) ouverte. | Obtenir un gate CI distant vert, faire relire puis fusionner la pull request dans `main`. |
 | Graphe de connaissances — feature 010 | Direction et dépendances définies dans la roadmap. | Spécifier, planifier et implémenter la navigation par graphe après la 009 et la convergence V1 017. |
 | Tableaux blancs — feature 011 | Périmètre produit ordonné après le graphe. | Spécifier, planifier et implémenter les canvas sans dupliquer les données canoniques. |
@@ -30,6 +31,8 @@ feature reste dans son fichier `tasks.md`, pas dans ce résumé.
 ## Prérequis
 
 - Git ;
+- Bun `1.4.0` exactement ;
+- Docker avec Compose pour PostgreSQL, les navigateurs isolés et les images ;
 - Codex et/ou Cursor ;
 - le CLI `specify` uniquement pour installer, mettre à jour ou diagnostiquer Spec Kit.
 
@@ -39,6 +42,29 @@ Le dépôt a été généré avec Spec Kit `v0.16.0`. Pour installer la même ve
 uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.16.0
 specify version
 ```
+
+## Démarrage développeur
+
+La chaîne JavaScript/TypeScript est entièrement pilotée par Bun :
+
+```bash
+bun --version
+bun ci
+docker compose up -d --wait postgres
+bun run db:migrate
+bun run dev
+```
+
+`bun --version` doit afficher exactement `1.4.0`. Avant de pousser une
+modification de code, de dépendance, de build, de configuration ou de
+déploiement, exécuter la porte complète :
+
+```bash
+bun run checks:local
+```
+
+Les commandes ciblées, l'exécution parallèle et le chemin Firefox conteneurisé
+sur macOS sont documentés dans [`docs/development.md`](docs/development.md).
 
 ## Où se trouve la vérité du projet ?
 
@@ -103,7 +129,10 @@ Les conversations ne sont pas la mémoire du projet. Toute clarification ou déc
 
 ## Structure du produit
 
-Les dossiers de code seront créés par les plans et tâches des premières fonctionnalités, lorsqu’une architecture aura réellement été décidée. Le dépôt ne conserve donc aucun squelette vide anticipant ces choix.
+Le monorepo contient le client dans `apps/web`, l'API dans `apps/api`, les
+modèles et services partagés sous `packages/`, les scénarios transversaux sous
+`tests/` et les artefacts Spec Kit sous `specs/`. Les frontières détaillées et
+leurs invariants sont documentés dans [`docs/architecture/`](docs/architecture/).
 
 ## Mettre à jour Spec Kit
 

@@ -1,7 +1,7 @@
 import type { LocalSearchEntry } from "@myownnotion/client-core";
 import type { SearchRequestDto, SearchResponseDto } from "@myownnotion/contracts";
 import { asUuid } from "@myownnotion/domain";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createSearchWorkerRuntime,
   type SearchWorkerCommand,
@@ -11,12 +11,30 @@ import type { ApiResult } from "../src/services/content-api.ts";
 import type { LocalProjectionChange } from "../src/services/local-content.ts";
 import {
   type SearchWorkerClient,
+  searchWorkerUrl,
   type WorkspaceSearchContent,
   WorkspaceSearchService,
 } from "../src/services/search.ts";
 
 const itemId = asUuid("018f0000-0000-7000-8000-000000000501");
 const revisionId = asUuid("018f0000-0000-7000-8000-000000000502");
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("searchWorkerUrl", () => {
+  it("keeps Vite's source worker URL when no production URL was injected", () => {
+    expect(searchWorkerUrl().pathname.endsWith("/src/features/search/search.worker.ts")).toBe(true);
+  });
+
+  it("uses the emitted worker asset injected by the Bun production build", () => {
+    vi.stubGlobal("window", { location: { origin: "https://notes.test" } });
+    vi.stubGlobal("__MYOWNNOTION_SEARCH_WORKER_URL__", "/assets/search.worker-reviewed.js");
+
+    expect(searchWorkerUrl().href).toBe("https://notes.test/assets/search.worker-reviewed.js");
+  });
+});
 
 function entry(
   title: string,

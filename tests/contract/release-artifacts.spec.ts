@@ -143,7 +143,7 @@ describe("what gets published", () => {
   it("builds from pinned base digests", () => {
     // A base referenced by tag would make two builds of the same commit
     // produce different images, which defeats the point of an immutable tag.
-    expect(release).toMatch(/\.bases\.node \| "\\\(\.ref\)@\\\(\.digest\)"/);
+    expect(release).toMatch(/\.bases\.bun \| "\\\(\.ref\)@\\\(\.digest\)"/);
   });
 
   it("attaches provenance and an SBOM", () => {

@@ -2,7 +2,7 @@
 #
 # Services: `api`, `web`, `postgres`, and the durable `file-store` volume.
 # Boundary rules enforced by tests/contract/compose-security.spec.ts and
-# `pnpm compose:check`:
+# `bun run compose:check`:
 #   - every published port binds 127.0.0.1 explicitly; HTTPS termination is the
 #     hosting administrator's external reverse proxy and is NOT part of this
 #     stack (see docs/deployment/reverse-proxy.md);
@@ -44,7 +44,7 @@ services:
   # distinct operation that either succeeds or stops the rollout.
   migrate:
     image: ${MYOWNNOTION_API_IMAGE:-ghcr.io/enzofrnt/myownnotion-api:v0.1.0}
-    command: ["node", "dist/migrate.mjs"]
+    command: ["bun", "dist/migrate.js"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -118,7 +118,7 @@ services:
     ports:
       - "127.0.0.1:${MYOWNNOTION_API_PORT:-3001}:3001"
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "bun --eval \"fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 10s
       timeout: 5s
       retries: 12

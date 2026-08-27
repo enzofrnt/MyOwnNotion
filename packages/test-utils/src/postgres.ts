@@ -62,7 +62,7 @@ export async function startDisposablePostgres(): Promise<DisposablePostgres> {
  *
  * Delegates to the one runner in `@myownnotion/database`. This used to be a
  * second copy of the same loop, which meant fixtures could drift from what
- * `pnpm db:migrate` and the API image actually apply — the one thing a
+ * `bun run db:migrate` and the API image actually apply — the one thing a
  * migration fixture must not do.
  */
 export async function applyMigrations(connectionString: string): Promise<string[]> {

@@ -2,9 +2,9 @@
  * Repository toolchain policy gate.
  *
  * Enforced policies (constitution principle VII, plan "Development Toolchain"):
- * 1. pnpm is the only Node.js package manager: the exact release is pinned in
- *    root package metadata, `pnpm-lock.yaml` is committed, and foreign
- *    lockfiles (npm, Yarn, Bun) are rejected anywhere in the tree.
+ * 1. Bun is the only JavaScript/TypeScript runtime and package manager: the
+ *    exact release is pinned in root metadata, `bun.lock` is committed, and
+ *    foreign lockfiles are rejected anywhere in the tree.
  * 2. Maintained source is TypeScript only: first-party `.js`/`.jsx`/`.cjs`/
  *    `.mjs` files are rejected outside generated output and vendored trees.
  * 3. Python, when introduced, must be uv-managed: any tracked `.py` file
@@ -22,7 +22,21 @@ import process from "node:process";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 
+const EXPECTED_BUN_VERSION = "1.4.0";
 const failures: string[] = [];
+
+if (Bun.version !== EXPECTED_BUN_VERSION) {
+  failures.push(`Bun ${EXPECTED_BUN_VERSION} is required exactly (running: ${Bun.version})`);
+}
+
+if (process.argv.includes("--version-only")) {
+  if (failures.length > 0) {
+    console.error(failures[0]);
+    process.exit(1);
+  }
+  console.info(`Bun ${EXPECTED_BUN_VERSION} is active.`);
+  process.exit(0);
+}
 
 function trackedFiles(): string[] {
   const output = execFileSync("git", ["ls-files", "-z"], {
@@ -33,40 +47,62 @@ function trackedFiles(): string[] {
   return output.split("\0").filter((entry) => entry.length > 0);
 }
 
-const files = trackedFiles();
+const files = trackedFiles().filter((file) => existsSync(path.join(repoRoot, file)));
 
-// Policy 1a: exact pnpm pin in root package metadata.
+// Policy 1a: exact Bun pin in root package metadata.
 const rootPackageJson = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
   packageManager?: string;
   engines?: Record<string, string>;
   scripts?: Record<string, string>;
+  workspaces?: string[];
 };
-if (!/^pnpm@\d+\.\d+\.\d+$/.test(rootPackageJson.packageManager ?? "")) {
+if (rootPackageJson.packageManager !== `bun@${EXPECTED_BUN_VERSION}`) {
   failures.push(
-    `package.json "packageManager" must pin an exact pnpm release (found: ${String(
+    `package.json "packageManager" must be "bun@${EXPECTED_BUN_VERSION}" (found: ${String(
       rootPackageJson.packageManager,
     )})`,
   );
 }
-
-// Policy 1b: committed pnpm lockfile.
-if (!existsSync(path.join(repoRoot, "pnpm-lock.yaml"))) {
-  failures.push("pnpm-lock.yaml must be committed at the repository root");
+if (rootPackageJson.engines?.["bun"] !== EXPECTED_BUN_VERSION) {
+  failures.push(
+    `package.json "engines.bun" must be "${EXPECTED_BUN_VERSION}" (found: ${String(
+      rootPackageJson.engines?.["bun"],
+    )})`,
+  );
+}
+if (JSON.stringify(rootPackageJson.workspaces) !== JSON.stringify(["apps/*", "packages/*"])) {
+  failures.push('package.json "workspaces" must be exactly ["apps/*", "packages/*"]');
 }
 
-// Policy 1c: no foreign Node.js lockfiles anywhere.
+// Policy 1b: committed text Bun lockfile and runtime forcing.
+if (!existsSync(path.join(repoRoot, "bun.lock"))) {
+  failures.push("bun.lock must be committed at the repository root");
+}
+const bunfigPath = path.join(repoRoot, "bunfig.toml");
+if (
+  !existsSync(bunfigPath) ||
+  !/^\[run\]\s+bun\s*=\s*true\s*$/m.test(readFileSync(bunfigPath, "utf8"))
+) {
+  failures.push("bunfig.toml must force package executables to run with Bun");
+}
+
+// Policy 1c: no foreign JavaScript package-manager metadata anywhere.
 const foreignLockfiles = [
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
   "package-lock.json",
   "npm-shrinkwrap.json",
   "yarn.lock",
-  "bun.lock",
   "bun.lockb",
 ];
-for (const file of files) {
+for (const file of new Set([...files, ...foreignLockfiles])) {
   const base = path.basename(file);
-  if (foreignLockfiles.includes(base)) {
+  if (foreignLockfiles.includes(base) && existsSync(path.join(repoRoot, file))) {
     failures.push(`foreign package-manager lockfile is forbidden: ${file}`);
   }
+}
+if (existsSync(path.join(repoRoot, ".npmrc"))) {
+  failures.push("root .npmrc from the retired package-manager policy is forbidden");
 }
 
 // Policy 2: TypeScript-only first-party source.
@@ -120,17 +156,12 @@ for (const file of files) {
   }
 }
 
-// Policy 4a: exact runtime pins so every gate stage resolves one toolchain.
-const requiredEngines: Record<string, string> = {
-  node: ">=24.0.0 <25",
-  pnpm: "10.33.3",
-};
-for (const [engine, expected] of Object.entries(requiredEngines)) {
-  const actual = rootPackageJson.engines?.[engine];
-  if (actual !== expected) {
-    failures.push(
-      `package.json "engines.${engine}" must be pinned to "${expected}" (found: ${String(actual)})`,
-    );
+// Policy 4a: root scripts may orchestrate specialized tools, but never invoke
+// a retired runtime or package manager directly.
+const forbiddenCommand = /(?:^|(?:&&|\|\||;|\|)\s*)(?:node|npx|npm|pnpm|yarn|corepack|tsx)(?:\s|$)/;
+for (const [name, command] of Object.entries(rootPackageJson.scripts ?? {})) {
+  if (forbiddenCommand.test(command)) {
+    failures.push(`package.json "scripts.${name}" invokes a retired executable: ${command}`);
   }
 }
 

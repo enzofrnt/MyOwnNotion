@@ -24,7 +24,7 @@
  * origin, only a browser on this host can reach the application at the origin
  * the cookie, CSRF, and WebAuthn checks are pinned to. Confining the listener
  * on top of that is the deployment's job — `compose.yaml` publishes every port
- * on `127.0.0.1` and `pnpm compose:check` verifies it.
+ * on `127.0.0.1` and `bun run compose:check` verifies it.
  */
 
 export const PRODUCTION_SESSION_COOKIE = "__Host-mn_session" as const;

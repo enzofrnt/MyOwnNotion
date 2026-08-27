@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js `>=24.0.0 <25` and pnpm `10.33.3`;
+- Bun `1.4.0` exactement ;
 - a running MyOwnNotion API/server from the preceding features;
 - a Windows runner for Windows packaging and a macOS runner for macOS signing;
 - test certificates/secrets supplied out-of-band for release validation only.
@@ -10,9 +10,9 @@
 ## Local development
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm --filter @myownnotion/web build
-pnpm --filter @myownnotion/desktop dev
+bun ci
+bun run --filter @myownnotion/web build
+bun run --filter @myownnotion/desktop dev
 ```
 
 Expected result: one local desktop window opens, loads the local shell, asks
@@ -22,10 +22,10 @@ flow without loading server-provided code.
 ## Automated validation
 
 ```bash
-pnpm --filter @myownnotion/desktop typecheck
-pnpm test:unit -- desktop
-pnpm test:e2e --project=chromium-desktop desktop
-pnpm checks:local
+bun run --filter @myownnotion/desktop typecheck
+bun run test:unit -- desktop
+bun run test:e2e -- --project=chromium-desktop desktop
+bun run checks:local
 ```
 
 The desktop suite must include:

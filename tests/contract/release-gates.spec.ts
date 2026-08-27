@@ -23,6 +23,10 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..");
 const ci = readFileSync(path.join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
+const setupBun = readFileSync(
+  path.join(repoRoot, ".github", "actions", "setup-bun", "action.yml"),
+  "utf8",
+);
 const licensePolicy = readFileSync(
   path.join(repoRoot, "scripts", "ci", "license-policy.ts"),
   "utf8",
@@ -151,16 +155,22 @@ describe("the aggregate", () => {
 });
 
 describe("safe reusable work", () => {
-  it("uses the lockfile-aware pnpm store cache", () => {
-    expect(ci).toContain("cache: pnpm");
-    expect(ci).toContain("pnpm install --frozen-lockfile");
+  it("uses the exact Bun release and a clean frozen install", () => {
+    expect(ci).toContain("uses: ./.github/actions/setup-bun");
+    expect(setupBun).toContain("bun-version: 1.4.0");
+    expect(setupBun).not.toContain("actions/cache@");
+    expect(setupBun).not.toContain("~/.bun/install/cache");
+    expect(setupBun).not.toContain("node_modules");
+    expect(setupBun).toContain("run: bun ci");
+    expect(ci).not.toContain("actions/setup-node");
+    expect(ci).not.toContain("pnpm/action-setup");
   });
 
   it("keys Playwright browsers by runner and pinned runtime version", () => {
     expect(ci).toContain(
       `key: playwright-${gha("runner.os")}-${gha("runner.arch")}-${gha("steps.playwright-version.outputs.value")}`,
     );
-    expect(ci).toContain("pnpm exec playwright install --with-deps");
+    expect(ci).toContain("bun run --bun playwright install --with-deps");
   });
 
   it("provisions the protected-storage fixtures before migrating an E2E database", () => {
@@ -173,7 +183,7 @@ describe("safe reusable work", () => {
     expect(block).toContain('openssl rand -base64 32 > "$myownnotion_deployment_key_file"');
     expect(block).not.toContain(gha("runner.temp"));
     expect(block.indexOf("Prepare disposable protected-storage fixtures")).toBeLessThan(
-      block.indexOf("pnpm db:migrate"),
+      block.indexOf("bun run db:migrate"),
     );
   });
 
@@ -221,10 +231,10 @@ describe("affected test topology", () => {
     expect(ci).toContain(`performance_mode: ${gha("steps.plan.outputs.performance_mode")}`);
     expect(ci).toContain("No impacted integration tests");
     expect(ci).toContain("No impacted contract tests");
-    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group unit");
-    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group performance");
-    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group integration");
-    expect(ci).toContain("pnpm ci:test:affected --plan test-impact.json --group contract");
+    expect(ci).toContain("bun run ci:test:affected --plan test-impact.json --group unit");
+    expect(ci).toContain("bun run ci:test:affected --plan test-impact.json --group performance");
+    expect(ci).toContain("bun run ci:test:affected --plan test-impact.json --group integration");
+    expect(ci).toContain("bun run ci:test:affected --plan test-impact.json --group contract");
   });
 
   it("uses a dynamic E2E matrix with an explicit no-op sentinel", () => {

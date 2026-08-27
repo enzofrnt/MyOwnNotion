@@ -38,6 +38,22 @@ export interface BackupAdminContext {
   readonly confirmRestore: (scope: RestoreScope) => Promise<boolean>;
 }
 
+export interface BackupAdminCommandHandlers {
+  readonly runBackup: typeof runBackupCommand;
+  readonly verifyBackup: typeof verifyBackupCommand;
+  readonly restoreApply: typeof restoreApplyCommand;
+  readonly restoreTest: typeof restoreTestCommand;
+  readonly versionInspect: typeof versionInspectCommand;
+}
+
+const defaultHandlers: BackupAdminCommandHandlers = {
+  runBackup: runBackupCommand,
+  verifyBackup: verifyBackupCommand,
+  restoreApply: restoreApplyCommand,
+  restoreTest: restoreTestCommand,
+  versionInspect: versionInspectCommand,
+};
+
 function selector(command: ParsedCommand, requireId = false): { id?: string; latest?: boolean } {
   const id = command.options["id"];
   const latest = command.options["latest"] === true;
@@ -67,6 +83,7 @@ export const BACKUP_ADMIN_COMMANDS = [
 export async function runBackupAdminCommand(
   command: ParsedCommand,
   context: BackupAdminContext,
+  handlers: BackupAdminCommandHandlers = defaultHandlers,
 ): Promise<CommandResult> {
   const path = command.path.join(" ");
   const backupDeps: BackupCommandDeps = {
@@ -88,11 +105,11 @@ export async function runBackupAdminCommand(
 
   switch (path) {
     case "backup run":
-      return await runBackupCommand(backupDeps);
+      return await handlers.runBackup(backupDeps);
     case "backup verify":
-      return await verifyBackupCommand(backupDeps, selector(command));
+      return await handlers.verifyBackup(backupDeps, selector(command));
     case "restore test":
-      return await restoreTestCommand(
+      return await handlers.restoreTest(
         {
           ...restoreDeps,
           databaseUrl: context.databaseUrl,
@@ -101,7 +118,7 @@ export async function runBackupAdminCommand(
         selector(command),
       );
     case "restore apply":
-      return await restoreApplyCommand(
+      return await handlers.restoreApply(
         {
           ...restoreDeps,
           contentStore: context.contentStore,
@@ -110,7 +127,7 @@ export async function runBackupAdminCommand(
             ? {}
             : { pageOperationCrypto: context.pageOperationCrypto }),
           safetyBackup: async () => {
-            const result = await runBackupCommand(backupDeps, "manual");
+            const result = await handlers.runBackup(backupDeps, "manual");
             const backupId = result.data?.["backupId"];
             return result.code === 0 && typeof backupId === "string" ? backupId : null;
           },
@@ -124,7 +141,7 @@ export async function runBackupAdminCommand(
         },
       );
     case "version inspect":
-      return await versionInspectCommand({
+      return await handlers.versionInspect({
         db: context.db,
         workspaceId: context.workspaceId,
         runningVersion: context.runningVersion,

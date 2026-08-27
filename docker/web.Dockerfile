@@ -7,19 +7,14 @@
 # linux/amd64 + linux/arm64 from one definition. The build argument
 # MYOWNNOTION_API_URL is a public origin, never a credential.
 
-ARG NODE_BASE
+ARG BUN_BASE
 ARG NGINX_BASE
 
-FROM --platform=$BUILDPLATFORM ${NODE_BASE} AS builder
+FROM --platform=$BUILDPLATFORM ${BUN_BASE} AS builder
 WORKDIR /app
-ENV CI=1 \
-    PNPM_HOME=/pnpm \
-    PATH=/pnpm:$PATH \
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+ENV CI=1
 
-RUN corepack enable
-
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
+COPY bun.lock bunfig.toml package.json ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/blob-store/package.json packages/blob-store/
@@ -29,9 +24,10 @@ COPY packages/database/package.json packages/database/
 COPY packages/domain/package.json packages/domain/
 COPY packages/page-state/package.json packages/page-state/
 COPY packages/test-utils/package.json packages/test-utils/
+COPY scripts/ci/check-toolchain.ts scripts/ci/
 
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts=false
+RUN --mount=type=cache,id=bun-install,target=/root/.bun/install/cache \
+    bun ci
 
 COPY tsconfig.base.json tsconfig.json ./
 COPY packages/ packages/
@@ -39,7 +35,7 @@ COPY apps/web/ apps/web/
 
 ARG MYOWNNOTION_API_URL=/
 ENV MYOWNNOTION_API_URL=${MYOWNNOTION_API_URL}
-RUN pnpm --filter @myownnotion/web... run build
+RUN bun run --filter @myownnotion/web build
 
 
 FROM ${NGINX_BASE} AS runtime

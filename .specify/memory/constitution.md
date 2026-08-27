@@ -1,5 +1,28 @@
 <!--
 Sync Impact Report
+- Version change: 2.0.0 -> 3.0.0
+- Modified principles:
+  - VII. Reproducible Toolchains and Enforced Quality -> replaced the
+    pnpm/Node.js JavaScript toolchain contract with one exclusive, pinned Bun
+    toolchain covering dependency management, repository scripts,
+    first-party application runtime, and production bundling
+- Added sections: none
+- Removed sections: none
+- Reviewed without changes:
+  - `docs/product/product-canvas.md`; its reproducibility, local-development,
+    CI, build, image, and publication requirements remain technology-agnostic
+  - shared `.specify/` templates; none prescribe a JavaScript runtime or
+    package manager
+- Follow-up work:
+  - feature 019 must specify, plan, implement, and verify the one-way migration
+    from Node.js/pnpm/esbuild/Vite production tooling to pinned Bun 1.4 before
+    this branch can merge
+- Rationale: MAJOR. The former constitution required pnpm and explicitly
+  prohibited Bun. This amendment deliberately reverses that permanent
+  toolchain contract and makes previously compliant Node.js/pnpm-only
+  workflows non-compliant.
+
+Previous report (1.3.0 -> 2.0.0)
 - Version change: 1.3.0 -> 2.0.0
 - Modified principles:
   - VI. Accessible and Predictable Experience -> Practical and Predictable
@@ -132,7 +155,21 @@ targets MUST be measurable from the owner's perspective.
 
 ### VII. Reproducible Toolchains and Enforced Quality
 
-Node.js dependencies and repository scripts MUST use pnpm exclusively, with the pnpm release pinned in the root package metadata and `pnpm-lock.yaml` committed. npm, Yarn, and Bun lockfiles or install workflows MUST NOT be introduced. If first-party Python is introduced, its interpreter version MUST be pinned and uv MUST exclusively manage environments, dependencies, locking, and command execution; ad hoc pip, virtualenv, Poetry, Pipenv, or Conda project workflows are forbidden. Every other first-party language introduced later MUST likewise use a pinned, reproducible toolchain and committed dependency lock where its ecosystem supports one.
+The maintained TypeScript and JavaScript toolchain MUST use Bun exclusively for
+workspace dependency management, repository script execution, first-party
+application runtime, and first-party production bundling. The exact Bun
+release MUST be pinned in the root package metadata and `bun.lock` MUST be
+committed. Direct Node.js runtime workflows, npm, Yarn, pnpm, their lockfiles,
+and alternate first-party production bundlers MUST NOT be required or
+maintained after a toolchain migration reaches `main`. Third-party command-line
+tools MAY execute under Bun when they remain necessary, but they MUST NOT
+silently reintroduce a second package manager or application runtime. If
+first-party Python is introduced, its interpreter version MUST be pinned and uv
+MUST exclusively manage environments, dependencies, locking, and command
+execution; ad hoc pip, virtualenv, Poetry, Pipenv, or Conda project workflows
+are forbidden. Every other first-party language introduced later MUST likewise
+use a pinned, reproducible toolchain and committed dependency lock where its
+ecosystem supports one.
 
 Every maintained first-party language MUST have a current formatter, linter or equivalent static analyzer, and automated tests appropriate to its role. Continuous integration MUST check formatting without modifying files, lint/static analysis, types where applicable, tests, migrations where applicable, and production builds. Continuous integration MUST execute on every pull request and on every push to `main`, and MUST NOT be required on the push of a work branch. Protected branches MUST reject pull-request merges while any required quality check fails or is missing. Generated or AI-authored code is held to the same gates as human-authored code.
 
@@ -204,4 +241,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 2.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-27
+**Version**: 3.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-27

@@ -45,16 +45,16 @@
   "fullVitest": {
     "exact": [
       ".github/workflows/ci.yml",
+      "bun.lock",
+      "bunfig.toml",
       "ci/test-impact.json",
       "package.json",
-      "pnpm-lock.yaml",
-      "pnpm-workspace.yaml",
       "scripts/ci/run-affected-vitest.ts",
+      "scripts/ci/run-vitest-with-postgres.ts",
       "scripts/ci/test-impact.ts",
       "tsconfig.base.json",
       "tsconfig.json",
-      "vitest.config.ts",
-      "vitest.workspace.ts"
+      "vitest.config.ts"
     ],
     "prefixes": ["tests/fixtures/"],
     "suffixes": ["/package.json", "/tsconfig.json"]
@@ -68,14 +68,15 @@
       "apps/web/src/app.tsx",
       "apps/web/src/main.tsx",
       "apps/web/src/styles.css",
+      "bun.lock",
+      "bunfig.toml",
       "ci/test-impact.json",
       "compose.override.yaml",
       "compose.yaml",
       "package.json",
       "playwright.config.ts",
-      "pnpm-lock.yaml",
-      "pnpm-workspace.yaml",
       "scripts/ci/run-affected-vitest.ts",
+      "scripts/ci/run-vitest-with-postgres.ts",
       "scripts/ci/test-impact.ts",
       "scripts/db/migrate.ts",
       "scripts/e2e/run-local-matrix.ts",

@@ -4,13 +4,7 @@
   "compilerOptions": {
     "noEmit": true,
     "lib": ["ES2023", "DOM"],
-    "types": ["node"]
+    "types": ["bun", "node"]
   },
-  "include": [
-    "scripts/**/*.ts",
-    "tests/**/*.ts",
-    "vitest.workspace.ts",
-    "playwright.config.ts",
-    "drizzle.config.ts"
-  ]
+  "include": ["scripts/**/*.ts", "tests/**/*.ts", "playwright.config.ts", "drizzle.config.ts"]
 }

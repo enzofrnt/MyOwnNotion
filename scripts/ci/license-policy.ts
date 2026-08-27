@@ -59,7 +59,7 @@ const deniedLicenses = new Map([
   ["UNLICENSED", "proprietary, no grant"],
 ]);
 
-interface PnpmLicenseEntry {
+interface BunLicenseEntry {
   name: string;
   version?: string;
   versions?: string[];
@@ -74,13 +74,13 @@ interface Violation {
   reason: string;
 }
 
-function readLicenses(): Record<string, PnpmLicenseEntry[]> {
-  const raw = execFileSync("pnpm", ["licenses", "list", "--prod", "--json", "--recursive"], {
+function readLicenses(): Record<string, BunLicenseEntry[]> {
+  const raw = execFileSync("bun", ["pm", "licenses", "--prod", "--json"], {
     cwd: repoRoot,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
-  return JSON.parse(raw) as Record<string, PnpmLicenseEntry[]>;
+  return JSON.parse(raw) as Record<string, BunLicenseEntry[]>;
 }
 
 /**
@@ -112,7 +112,7 @@ function evaluateExpression(expression: string): { ok: boolean; offender?: strin
   return allowedLicenses.has(identifier) ? { ok: true } : { ok: false, offender: identifier };
 }
 
-let byLicense: Record<string, PnpmLicenseEntry[]>;
+let byLicense: Record<string, BunLicenseEntry[]>;
 try {
   byLicense = readLicenses();
 } catch (error) {
@@ -158,7 +158,7 @@ writeFileSync(
   `${JSON.stringify(
     {
       status: violations.length === 0 ? "pass" : "fail",
-      scope: "production dependencies (pnpm licenses list --prod --recursive)",
+      scope: "production dependencies (bun pm licenses --prod)",
       packageCount,
       licenseSummary: summary,
       violations,

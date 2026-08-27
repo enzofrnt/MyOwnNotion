@@ -12,8 +12,8 @@
  * Output artifact: `image-build.json` with the platforms and resulting digests.
  *
  * Usage:
- *   pnpm images:build              build both images for both platforms
- *   pnpm images:build --resolve    resolve and write base-image digests, then exit
+ *   bun run images:build              build both images for both platforms
+ *   bun run images:build --resolve    resolve and write base-image digests, then exit
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -64,7 +64,7 @@ const targets: Target[] = [
   {
     name: "api",
     dockerfile: "docker/api.Dockerfile",
-    baseArgs: { NODE_BASE: "node" },
+    baseArgs: { BUN_BASE: "bun" },
     buildArgs: {
       APPLICATION_VERSION: buildIdentity(),
     },
@@ -72,7 +72,7 @@ const targets: Target[] = [
   {
     name: "web",
     dockerfile: "docker/web.Dockerfile",
-    baseArgs: { NODE_BASE: "node", NGINX_BASE: "nginx" },
+    baseArgs: { BUN_BASE: "bun", NGINX_BASE: "nginx" },
   },
 ];
 
@@ -136,7 +136,7 @@ if (unpinned.length > 0) {
     console.error(`  - ${name} (${base.ref}) has no sha256 manifest-list digest`);
   }
   console.error(
-    "\nRun `pnpm images:build --resolve` on a machine with a Docker daemon and commit " +
+    "\nRun `bun run images:build --resolve` on a machine with a Docker daemon and commit " +
       "docker/base-images.json.",
   );
   process.exit(1);
@@ -279,7 +279,7 @@ writeFileSync(
         status: "pass",
         platform: nativePlatform,
         image: "api",
-        probes: ["loro-runtime", "migration-entrypoint", "server-entrypoint"],
+        probes: ["bun-runtime", "migration-entrypoint", "server-entrypoint"],
       },
     },
     null,

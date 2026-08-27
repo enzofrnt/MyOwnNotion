@@ -237,7 +237,7 @@ describe("session cookie policy", () => {
     // the Compose stack, which silently dropped the entire security surface.
     // The loopback *origin* is what bounds the cookie's reach; confining the
     // published port to 127.0.0.1 is the deployment's job, and `compose.yaml`
-    // does it under `pnpm compose:check`.
+    // does it under `bun run compose:check`.
     const config = loadSecurityConfig({
       MYOWNNOTION_PUBLIC_ORIGIN: "http://127.0.0.1:5173",
       MYOWNNOTION_API_HOST: "0.0.0.0",

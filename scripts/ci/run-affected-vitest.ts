@@ -8,7 +8,7 @@ import type { ImpactPlan, VitestGroup } from "./test-impact.js";
 export type Command = readonly [command: string, arguments_: string[]];
 
 const PROJECTS: Record<VitestGroup, string[]> = {
-  unit: ["domain", "contracts", "blob-store", "client-core", "web"],
+  unit: ["domain", "page-state", "contracts", "blob-store", "client-core", "web"],
   integration: ["database-integration"],
   contract: ["api-contract", "workspace-contract"],
   performance: ["performance"],
@@ -32,15 +32,15 @@ export function commandsForVitestGroup(plan: ImpactPlan, group: VitestGroup): Co
     return [];
   }
   if (plan.vitest.mode === "full") {
-    if (group === "unit") return [["pnpm", ["test:coverage"]]];
+    if (group === "unit") return [["bun", ["run", "test:coverage"]]];
     if (group === "integration") {
       return [
-        ["pnpm", ["test:integration"]],
-        ["pnpm", ["db:test-migrations"]],
+        ["bun", ["run", "test:integration"]],
+        ["bun", ["run", "db:test-migrations"]],
       ];
     }
-    if (group === "performance") return [["pnpm", ["test:performance"]]];
-    return [["pnpm", ["test:contract"]]];
+    if (group === "performance") return [["bun", ["run", "test:performance"]]];
+    return [["bun", ["run", "test:contract"]]];
   }
 
   const commands: Command[] = [];
@@ -48,25 +48,29 @@ export function commandsForVitestGroup(plan: ImpactPlan, group: VitestGroup): Co
     const projects = PROJECTS[group];
     if (projects === undefined) throw new Error(`No Vitest projects declared for ${group}`);
     const projectArguments = projects.flatMap((project) => ["--project", project]);
-    commands.push([
-      "pnpm",
-      [
-        "exec",
-        "vitest",
+    commands.push(
+      vitestCommand(group, [
         "related",
         "--run",
         "--passWithNoTests",
         ...projectArguments,
         ...plan.vitest.sourceFiles,
-      ],
-    ]);
+      ]),
+    );
   }
 
   const directTests = plan.vitest.testFiles.filter((file) => groupForTest(file) === group);
   if (directTests.length > 0) {
-    commands.push(["pnpm", ["exec", "vitest", "run", "--passWithNoTests", ...directTests]]);
+    commands.push(vitestCommand(group, ["run", "--passWithNoTests", ...directTests]));
   }
   return commands;
+}
+
+function vitestCommand(group: VitestGroup, arguments_: string[]): Command {
+  const boundedArguments = group === "performance" ? [...arguments_, "--maxWorkers=1"] : arguments_;
+  return group === "unit"
+    ? ["bun", ["run", "--bun", "vitest", ...boundedArguments]]
+    : ["bun", ["scripts/ci/run-vitest-with-postgres.ts", ...boundedArguments]];
 }
 
 function parseCli(argv: string[]): { planPath: string; group: VitestGroup } {

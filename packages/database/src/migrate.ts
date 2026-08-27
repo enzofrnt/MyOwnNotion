@@ -7,7 +7,7 @@
  *
  * It lives in this package rather than in `scripts/db` because the SQL files
  * live here, and because two callers need the same logic from different
- * places: the repository script (`pnpm db:migrate`), which reads the files
+ * places: the repository script (`bun run db:migrate`), which reads the files
  * from the workspace, and the API image's migration entrypoint, which reads
  * the copy baked into the image. A migration runner that existed only as a
  * repository script left the published image with the SQL files on board and

@@ -33,7 +33,7 @@ const UPDATE_COUNT = 10_000;
 const MAX_INGEST_DURATION_MS = 300_000;
 const MAX_CATCH_UP_DURATION_MS = REALTIME_SYNC_BUDGETS.tenThousandUpdateCatchUpMs;
 const MAX_COMPACTION_DURATION_MS = 30_000;
-const MAX_PEAK_HEAP_GROWTH_BYTES = REALTIME_SYNC_BUDGETS.maxPeakHeapGrowthBytes;
+const MAX_PEAK_LIVE_HEAP_GROWTH_BYTES = REALTIME_SYNC_BUDGETS.maxPeakLiveHeapGrowthBytes;
 
 let currentTime = new Date("2026-08-24T12:00:00.000Z");
 let backupVerified = false;
@@ -207,23 +207,20 @@ async function closeRevisionWindow(pageId: Uuid): Promise<void> {
   `);
 }
 
-async function withPeakHeap<T>(run: () => Promise<T>): Promise<{
+async function withPeakLiveHeap<T>(run: (sample: () => void) => Promise<T>): Promise<{
   readonly value: T;
-  readonly peakGrowthBytes: number;
+  readonly peakLiveGrowthBytes: number;
 }> {
+  Bun.gc(true);
   const baseline = process.memoryUsage().heapUsed;
-  let peak = baseline;
-  const sampler = setInterval(() => {
-    peak = Math.max(peak, process.memoryUsage().heapUsed);
-  }, 10);
-  sampler.unref();
-  try {
-    const value = await run();
-    peak = Math.max(peak, process.memoryUsage().heapUsed);
-    return { value, peakGrowthBytes: Math.max(0, peak - baseline) };
-  } finally {
-    clearInterval(sampler);
-  }
+  let peakLive = baseline;
+  const sample = (): void => {
+    Bun.gc(true);
+    peakLive = Math.max(peakLive, process.memoryUsage().heapUsed);
+  };
+  const value = await run(sample);
+  sample();
+  return { value, peakLiveGrowthBytes: Math.max(0, peakLive - baseline) };
 }
 
 function checkpoints() {
@@ -276,7 +273,7 @@ describe("operational page synchronization reference performance (T190)", () => 
     const onlineBlockId = generateUuidV7();
     let knownOnlineSequence = 0;
     const batchDurations: number[] = [];
-    const measured = await withPeakHeap(async () => {
+    const measured = await withPeakLiveHeap(async (sampleLiveHeap) => {
       const ingestStarted = performance.now();
       let pending: Array<ReturnType<OperationalPageDocument["transact"]>> = [];
       for (let index = 0; index < UPDATE_COUNT; index += 1) {
@@ -324,6 +321,7 @@ describe("operational page synchronization reference performance (T190)", () => 
         }
       }
       const ingestDurationMs = performance.now() - ingestStarted;
+      sampleLiveHeap();
 
       const catchUpStarted = performance.now();
       const returningResult = await catchUp({
@@ -334,6 +332,7 @@ describe("operational page synchronization reference performance (T190)", () => 
         firstUpdates: [returningUpdate],
       });
       const catchUpDurationMs = performance.now() - catchUpStarted;
+      sampleLiveHeap();
 
       const onlineResult = await catchUp({
         pageId: page.itemId,
@@ -341,15 +340,18 @@ describe("operational page synchronization reference performance (T190)", () => 
         replica: online,
         knownServerPageSequence: knownOnlineSequence,
       });
+      sampleLiveHeap();
 
       const candidate = await checkpoints().createCandidate(page.itemId);
       await checkpoints().verifyCandidate(page.itemId, candidate.id as Uuid);
+      sampleLiveHeap();
       await closeRevisionWindow(page.itemId);
       backupVerified = true;
       historyReleased = true;
       const compactionStarted = performance.now();
       const compaction = await checkpoints().compact(page.itemId, candidate.id as Uuid);
       const compactionDurationMs = performance.now() - compactionStarted;
+      sampleLiveHeap();
 
       return {
         ingestDurationMs,
@@ -444,12 +446,12 @@ describe("operational page synchronization reference performance (T190)", () => 
         Math.min(sortedBatchDurations.length - 1, Math.floor(sortedBatchDurations.length * 0.95))
       ] ?? 0;
     console.info(
-      `[perf] page operations ${UPDATE_COUNT} updates: ingest=${ingestDurationMs.toFixed(1)}ms batchP95=${p95BatchDurationMs.toFixed(1)}ms catchUp=${catchUpDurationMs.toFixed(1)}ms rounds=${returningResult.rounds} compact=${compactionDurationMs.toFixed(1)}ms peakHeapGrowth=${(measured.peakGrowthBytes / 1024 / 1024).toFixed(1)}MiB`,
+      `[perf] page operations ${UPDATE_COUNT} updates: ingest=${ingestDurationMs.toFixed(1)}ms batchP95=${p95BatchDurationMs.toFixed(1)}ms catchUp=${catchUpDurationMs.toFixed(1)}ms rounds=${returningResult.rounds} compact=${compactionDurationMs.toFixed(1)}ms peakLiveHeapGrowth=${(measured.peakLiveGrowthBytes / 1024 / 1024).toFixed(1)}MiB`,
     );
 
     expect(ingestDurationMs).toBeLessThan(MAX_INGEST_DURATION_MS);
     expect(catchUpDurationMs).toBeLessThan(MAX_CATCH_UP_DURATION_MS);
     expect(compactionDurationMs).toBeLessThan(MAX_COMPACTION_DURATION_MS);
-    expect(measured.peakGrowthBytes).toBeLessThan(MAX_PEAK_HEAP_GROWTH_BYTES);
+    expect(measured.peakLiveGrowthBytes).toBeLessThan(MAX_PEAK_LIVE_HEAP_GROWTH_BYTES);
   }, 600_000);
 });

@@ -53,8 +53,8 @@ that file descriptor.`;
 /**
  * Runs one invocation and returns its exit code.
  *
- * Separated from `main` so a test can drive it without a process, and so the
- * only `process.exit` in the tool is in one place.
+ * Kept as a side-effect-free command implementation so tests and the outer
+ * admin dispatcher can drive it without starting a second CLI entrypoint.
  */
 export async function runCli(
   argv: readonly string[],
@@ -128,15 +128,4 @@ export async function runCli(
     print(renderResult(failure, { json }));
     return code;
   }
-}
-
-const isDirectRun = process.argv[1] !== undefined && import.meta.filename === process.argv[1];
-if (isDirectRun) {
-  runCli(process.argv.slice(2))
-    .then((code) => {
-      process.exitCode = code;
-    })
-    .catch(() => {
-      process.exitCode = EXIT_CODES.unexpected;
-    });
 }

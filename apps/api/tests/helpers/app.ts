@@ -55,8 +55,9 @@ export async function createApiHarness(options: ApiHarnessOptions = {}): Promise
   });
   if (options.clientProtocol !== "manual") {
     const clientProtocol = String(options.clientProtocol ?? PROTOCOL_VERSION);
-    built.app.addHook("onRequest", async (request) => {
+    built.app.addHook("onRequest", (request, _reply, done) => {
       request.headers["x-myownnotion-client-protocol"] ??= clientProtocol;
+      done();
     });
   }
   return {

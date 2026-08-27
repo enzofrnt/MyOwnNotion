@@ -46,7 +46,7 @@ export default defineConfig({
   testDir: "tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
   forbidOnly: isCI,
-  // One retry absorbs genuine infrastructure noise, but `pnpm test:e2e` passes
+  // One retry absorbs genuine infrastructure noise, but `bun run test:e2e` passes
   // `--fail-on-flaky-tests`: a journey that only passes on retry still fails
   // the gate. A green run built on retries hides real defects — that is how a
   // stranded-outbox race survived several merges.
@@ -75,7 +75,7 @@ export default defineConfig({
   })),
   webServer: [
     {
-      command: "pnpm --filter @myownnotion/api run dev",
+      command: "bun run --filter @myownnotion/api dev",
       url: `http://127.0.0.1:${apiPort}/health`,
       stdout: process.env["MYOWNNOTION_E2E_SERVER_STDOUT"] === "1" ? "pipe" : "ignore",
       reuseExistingServer: !isCI,
@@ -93,7 +93,7 @@ export default defineConfig({
       },
     },
     {
-      command: "pnpm --filter @myownnotion/web run dev",
+      command: "bun run --filter @myownnotion/web dev",
       url: `http://${webHost}:${webPort}`,
       reuseExistingServer: !isCI,
       timeout: 120_000,

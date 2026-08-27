@@ -19,7 +19,11 @@ import {
   getOrCreateWorkspace,
 } from "@myownnotion/database";
 import { sessionPolicy } from "@myownnotion/domain";
-import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
+import Fastify, {
+  type FastifyBaseLogger,
+  type FastifyInstance,
+  type FastifyRequest,
+} from "fastify";
 import { restoreTestCommand } from "./admin/commands/restore-test.ts";
 import { openBackupArchive } from "./backup/archive-crypto.ts";
 import { createBackupDestination, loadBackupConfig } from "./backup/backup-config.ts";
@@ -84,10 +88,12 @@ import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
 import { ProtectedContent } from "./security/protected-content.ts";
 import { INSTALLATION_ID } from "./security/protected-content-runtime.ts";
 import { ProtectedRecordService } from "./security/protected-record-service.ts";
+import { isWebSocketUpgradeRequest } from "./security/realtime-authorization.ts";
 import { RecoveryKitService } from "./security/recovery-kit-service.ts";
 import {
   attachRequestContext,
   createRequestContext,
+  type RequestPrincipal,
   updateRequestContext,
 } from "./security/request-context.ts";
 import { RotationPolicyService } from "./security/rotation-policy-service.ts";
@@ -291,8 +297,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
   // bridge between a redacted client problem and the unredacted server log,
   // and creating it lazily would leave exactly the failures an operator most
   // needs to trace without one.
-  app.addHook("onRequest", async (request) => {
+  app.addHook("onRequest", (request, _reply, done) => {
     attachRequestContext(request, createRequestContext());
+    done();
   });
 
   registerErrorHandling(app);
@@ -372,14 +379,30 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       now,
     });
 
-    // Registered before the routes so every handler sees a resolved principal.
-    app.addHook("onRequest", async (request) => {
-      const outcome = await resolvePrincipal(request, [
-        createOwnerPrincipalResolver({ sessions: sessionService, config: securityConfig }),
-      ]);
-      if (outcome.authenticated) {
-        updateRequestContext(request, { principal: outcome.principal });
+    const ownerPrincipalResolver = createOwnerPrincipalResolver({
+      sessions: sessionService,
+      config: securityConfig,
+    });
+    const authenticateOwner = async (
+      request: FastifyRequest,
+    ): Promise<Extract<RequestPrincipal, { kind: "owner" }> | null> => {
+      const outcome = await resolvePrincipal(request, [ownerPrincipalResolver]);
+      if (!outcome.authenticated || outcome.principal.kind !== "owner") return null;
+      updateRequestContext(request, { principal: outcome.principal });
+      return outcome.principal;
+    };
+
+    // Bun's native WebSocket upgrade must be accepted before an asynchronous
+    // database lookup yields. Ordinary HTTP requests still arrive at their
+    // handlers fully resolved; the socket route pauses its connection, runs
+    // this same resolver immediately after upgrade, then attaches the protocol
+    // session before releasing any buffered frame.
+    app.addHook("onRequest", (request, _reply, done) => {
+      if (isWebSocketUpgradeRequest(request)) {
+        done();
+        return;
       }
+      void authenticateOwner(request).then(() => done(), done);
     });
 
     // Available to the content routes through the context, so a feature-001
@@ -685,7 +708,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       db: database.db,
       config: securityConfig,
       deploymentKey,
-      require: requireOwner,
+      authenticate: authenticateOwner,
       activation: pageActivation,
       operations: pageOperations,
       legacy: legacyBranches,
