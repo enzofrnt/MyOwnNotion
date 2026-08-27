@@ -42,7 +42,7 @@ surfaces (US6, P2) termine l'expérience produit.
 activer un nouveau chemin d'écriture.
 
 - [X] T001 Créer le package pur `@myownnotion/page-state` dans `packages/page-state/package.json`, `packages/page-state/tsconfig.json` et `packages/page-state/src/index.ts`
-- [X] T002 Ajouter Loro, BlockNote Community Ariakit, Tailwind Vite, Ariakit, dnd-kit et Lucide à versions exactes dans `packages/page-state/package.json`, `apps/web/package.json` et `pnpm-lock.yaml`, sans package `@blocknote/xl-*`
+- [X] T002 Ajouter Loro, BlockNote Community Ariakit, Tailwind Vite, Ariakit, dnd-kit et Lucide à versions exactes dans `packages/page-state/package.json`, `apps/web/package.json` et `bun.lock`, sans package `@blocknote/xl-*`
 - [X] T003 Ajouter le projet Vitest `page-state`, sa couverture et ses commandes aux gates dans `vitest.workspace.ts`, `package.json` et `packages/page-state/package.json`
 - [X] T004 Configurer Tailwind CSS via Vite et l'entrée CSS commune dans `apps/web/vite.config.ts`, `apps/web/src/styles.css` et `apps/web/package.json`
 - [X] T005 [P] Créer les points d'entrée des modules de page locale dans `packages/client-core/src/page-sync/index.ts` et `packages/client-core/src/index.ts`
@@ -415,7 +415,7 @@ retirer les chemins temporaires.
 - [ ] T195 Auditer chiffrement, AAD, redaction, révocation et absence de contenu dans logs dans `apps/api/tests/page-operation-security.spec.ts` et `packages/client-core/tests/page-operation-encryption.spec.ts`
 - [ ] T196 Vérifier backup pré-migration, compatibilité read-only et procédure de rollback dans `apps/api/tests/page-operation-migration.integration.spec.ts` et `docs/development.md`
 - [ ] T197 Supprimer le chemin Tiptap et `page.document.replace` actif après preuve de migration dans `apps/web/src/features/editor/tiptap-schema.ts`, `to-tiptap.ts`, `from-tiptap.ts`, `block-controls.tsx`, `apps/web/package.json` et `apps/api/src/routes/page-documents.ts`
-- [ ] T198 Supprimer dépendances Tiptap devenues inutilisées et mettre à jour le lockfile dans `apps/web/package.json` et `pnpm-lock.yaml`
+- [ ] T198 Supprimer dépendances Tiptap devenues inutilisées et mettre à jour le lockfile dans `apps/web/package.json` et `bun.lock`
 - [ ] T199 Mettre à jour architecture sync, format v3, éditeur et dépannage dans `docs/architecture/synchronization.md`, `docs/architecture/document-format.md` et `docs/development.md`
 - [ ] T200 Mettre à jour état de développement/RAF et statut 017 dans `README.md`, `docs/product/roadmap.md` et `specs/017-v1-notion-like-workspace/tasks.md`
 - [ ] T201 Vérifier liens, terminologie, références FR/SC et cohérence finale dans `specs/017-v1-notion-like-workspace/validation.md`
@@ -423,7 +423,7 @@ retirer les chemins temporaires.
 - [ ] T203 Exécuter les tests ciblés par couche en parallèle selon `docs/development.md` et consigner commandes/résultats dans `specs/017-v1-notion-like-workspace/validation.md`
 - [ ] T204 Ajouter benchmark/journey d'une hiérarchie de plusieurs milliers d'items dans `tests/performance/navigation.perf.spec.ts`, `tests/e2e/hierarchy-large.spec.ts` et `ci/test-impact.json`
 - [ ] T205 Préparer puis exécuter l'essai SC-001/SC-002 avec dix participants et consigner temps, succès et compréhension de la sauvegarde dans `specs/017-v1-notion-like-workspace/usability-validation.md`
-- [ ] T206 Exécuter `pnpm checks:local` sur le commit final et consigner le gate exact dans `specs/017-v1-notion-like-workspace/validation.md`
+- [ ] T206 Exécuter `bun run checks:local` sur le commit final et consigner le gate exact dans `specs/017-v1-notion-like-workspace/validation.md`
 - [ ] T207 Converger spec, plan, tasks, code et preuves puis marquer uniquement les exigences réellement satisfaites dans `specs/017-v1-notion-like-workspace/tasks.md` et `specs/017-v1-notion-like-workspace/validation.md`
 - [X] T208 Retirer le service Draw.io et ses variables de `compose.yaml` et `.env.example`
 - [X] T209 Supprimer l'iframe Draw.io et le fournisseur d'embed externe du code et du contrat canonique v3
@@ -661,3 +661,4 @@ d'accessibilité au-delà du clavier, du focus visible, du pointeur et du touche
 - [X] T271 [P] [US1] Verrouiller par géométrie et journey la priorité non chevauchante des zones `before|inside|after`, puis rendre le dépôt entre deux lignes tolérant et son repère évident sans modifier l'intention canonique dans `apps/web/src/features/navigation/tree-drag-drop.tsx`, `apps/web/src/features/navigation/navigation.css`, `apps/web/tests/tree-drag-drop.spec.ts` et `tests/e2e/hierarchy.spec.ts` per FR-077 (partial)
 - [X] T272 [US2] Écrire avant correction les tests du parcours unique URL ou page par nom/chemin et des conversions Web ↔ page, retirer `lien` des alias d'embed, brancher la toolbar, `/lien`, le clic droit et le dialogue sur un même contrôleur qui préserve texte et styles dans `apps/web/src/features/editor/editor-menus/formatting-toolbar.tsx`, `apps/web/src/features/editor/editor-menus/page-link-picker.tsx`, `apps/web/src/features/editor/editor-menus/link-editor-dialog.tsx`, `apps/web/src/features/editor/editor-menus/slash-menu.tsx`, `apps/web/src/features/editor/editor-links.ts`, `apps/web/tests/editor-links.spec.ts`, `apps/web/tests/slash-menu.spec.ts` et `tests/e2e/page-links.spec.ts` per FR-083 (contradicts)
 - [X] T273 [US2] Reproduire la suppression du dernier caractère lié et la ligne vide sur les moteurs pris en charge, retirer tout mark stocké avant la saisie, le collage ou la composition suivante et rendre le caret explicitement visible dans les deux thèmes dans `apps/web/src/features/editor/page-editor.tsx`, `apps/web/src/features/editor/editor-links.ts`, `apps/web/src/styles.css`, `apps/web/tests/editor-input.spec.ts` et `tests/e2e/block-editor.spec.ts` per FR-084 (partial)
+- [X] T274 [US2] [US5] Préserver les brouillons du dialogue de lien lorsqu'une adoption de synchronisation rerend l'éditeur entre la saisie et la validation, soumettre les valeurs courantes sans dépendre d'un commit React concurrent et verrouiller la course par test composant ainsi que répétitions WebKit mobile sans retry dans `apps/web/src/features/editor/editor-menus/link-editor-dialog.tsx`, `apps/web/tests/link-editor-dialog.spec.tsx` et `tests/e2e/page-links.spec.ts` per FR-026, FR-059, FR-083 et SC-025

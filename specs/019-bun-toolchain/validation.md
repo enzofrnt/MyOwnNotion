@@ -235,3 +235,13 @@ bun run checks:local
 - builds API/Web, PWA, images API/Web `linux/amd64` et `linux/arm64`, smoke API
   Bun 1.4.0 sans runtime Node autonome, audit, secrets, analyse statique,
   licences et contrat Compose : PASS.
+
+## Livraison de la PR dédiée
+
+La PR #150 a passé toutes ses gates sur le candidat Bun puis a été fusionnée
+dans `main` au commit `dff719e71b77c3e244e49794d93aed331907227a`.
+T049 est donc terminée. La CI de ce premier push `main` a ensuite échoué sur une
+course WebKit mobile du dialogue `/lien`, indépendante de la chaîne Bun et
+suivie par T274 de la feature 017. T050 reste volontairement ouverte jusqu'à ce
+que cette correction soit fusionnée, que la CI complète de `main` soit verte et
+que les images commit-addressable correspondantes soient publiées.

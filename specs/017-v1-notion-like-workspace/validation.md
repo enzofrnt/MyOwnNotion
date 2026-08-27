@@ -670,6 +670,28 @@ explicite sur une ligne vide.
 | Références visuelles | `pnpm test:e2e:local -- tests/e2e/workspace-shell-visual.spec.ts` | 5/5 profils fonctionnels, références Chromium clair/sombre inchangées dans la tolérance approuvée |
 | Statique, types et build Web | `pnpm format:check`, `pnpm lint:ci`, `pnpm typecheck`, `pnpm --filter @myownnotion/web build`, `git diff --check` | passés |
 
+## Course WebKit mobile du dialogue de lien — 2026-08-27
+
+La première CI de `main` après la migration Bun a révélé une course réelle dans
+le parcours `/lien`. WebKit avait déjà écrit la cible visible dans le champ,
+mais React n'avait pas encore commité l'état correspondant lorsqu'une projection
+de synchronisation a rerendu le parent. Le champ contrôlé reprenait alors sa
+valeur React vide et la validation ne créait aucun lien.
+
+Le dialogue garde désormais ses deux brouillons dans les champs eux-mêmes et
+lit leurs valeurs DOM courantes au moment de valider. Une actualisation de la
+liste des pages ne remplace plus la saisie visible. L'identité d'une page déjà
+choisie reste stable si son nom ou son chemin change à distance ; une saisie
+réellement modifiée dans le champ reste toutefois prioritaire. La structure DOM
+et les espacements du dialogue n'ont pas changé.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Régression déterministe | `bun run test:unit -- --project web apps/web/tests/link-editor-dialog.spec.tsx` | 1/1 test passé ; le test échouait avant correction en observant une cible redevenue vide entre la saisie DOM et le commit React |
+| Contrôleur de liens | `bun run test:unit -- --project web apps/web/tests/editor-links.spec.ts apps/web/tests/slash-menu.spec.ts apps/web/tests/link-editor-dialog.spec.tsx` | 3 fichiers et 11 tests passés |
+| Course sur les cinq profils | `MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- tests/e2e/page-links.spec.ts --grep '/lien creates a Web link' --repeat-each=10 --retries=0` | 50/50 exécutions passées en 79 s, dix par profil et sans seconde tentative |
+| Gate pré-push exécutable | `bun run checks:local` avec Bun 1.4.0 et les outils épinglés de `docs/development.md`, sur `11881e35` | passé : 302 fichiers et 3 161 tests de couverture, 18 tests de performance, 331 intégrations PostgreSQL, 11 migrations, 108 fichiers et 1 227 contrats, E2E 5/5 en 1 585 s, builds Bun, images API/Web `amd64`/`arm64`, audit, secrets, analyse statique, licences et Compose |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :
