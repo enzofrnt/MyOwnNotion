@@ -7,6 +7,8 @@ import {
   Bold,
   CalendarDays,
   Check,
+  ChevronDown,
+  ChevronRight,
   CircleAlert,
   CircleCheck,
   CircleHelp,
@@ -64,6 +66,8 @@ export const APP_ICONS = {
   bold: Bold,
   calendar: CalendarDays,
   check: Check,
+  chevronDown: ChevronDown,
+  chevronRight: ChevronRight,
   close: X,
   code: Code2,
   conflict: CircleAlert,
@@ -125,6 +129,8 @@ export const APP_ICON_LABELS: Readonly<Record<AppIconName, string>> = {
   bold: "Gras",
   calendar: "Calendrier",
   check: "Validé",
+  chevronDown: "Chevron vers le bas",
+  chevronRight: "Chevron vers la droite",
   close: "Fermer",
   code: "Code",
   conflict: "Conflit",
@@ -185,6 +191,7 @@ export const AppIcon = forwardRef<SVGSVGElement, AppIconProps>(function AppIcon(
       {...props}
       ref={ref}
       className={classNames("ui-icon", name === "loading" && "ui-icon--spinning", className)}
+      data-icon={name}
       size={APP_ICON_SIZES[size]}
       focusable="false"
       aria-hidden={accessibleLabel === undefined ? true : undefined}

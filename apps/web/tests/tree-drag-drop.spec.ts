@@ -1,11 +1,13 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { retainExpandableItemIds } from "../src/features/hierarchy/hierarchy-explorer.tsx";
 import { BranchState } from "../src/features/navigation/branch-state.tsx";
 import {
   adjacentTreeKeyboardDropTarget,
   adjacentTreeKeyboardTarget,
   parseTreeDropTargetId,
+  prioritizeTreeDropCollisions,
   resolveTreeDrop,
   type TreeDragItem,
   treeDropTargetId,
@@ -108,17 +110,47 @@ describe("tree keyboard drop targets", () => {
   });
 });
 
+describe("tree pointer drop targets", () => {
+  it("prefers an explicit edge over the overlapping inside row", () => {
+    expect(
+      prioritizeTreeDropCollisions([
+        { id: treeDropTargetId("peer", "inside") },
+        { id: treeDropTargetId("peer", "after") },
+      ]).map((collision) => collision.id),
+    ).toEqual([treeDropTargetId("peer", "after"), treeDropTargetId("peer", "inside")]);
+  });
+
+  it("keeps the middle zone when no insertion edge contains the pointer", () => {
+    expect(prioritizeTreeDropCollisions([{ id: treeDropTargetId("peer", "inside") }])).toEqual([
+      { id: treeDropTargetId("peer", "inside") },
+    ]);
+  });
+});
+
+describe("expanded tree state", () => {
+  it("turns a page whose last child moved away back into a normal leaf", () => {
+    expect([
+      ...retainExpandableItemIds(new Set(["page", "folder"]), [
+        { id: "page", kind: "page", childCount: 0 },
+        { id: "folder", kind: "folder", childCount: 0 },
+      ]),
+    ]).toEqual(["folder"]);
+  });
+
+  it("keeps an absent branch open so trash restoration and partial refreshes do not collapse it", () => {
+    expect([...retainExpandableItemIds(new Set(["temporarily-absent"]), [])]).toEqual([
+      "temporarily-absent",
+    ]);
+  });
+});
+
 describe("empty branch presentation", () => {
-  it("uses concise French copy that identifies whether the parent is a page or folder", () => {
-    const page = renderToStaticMarkup(
-      createElement(BranchState, { kind: "empty", containerKind: "page" }),
-    );
+  it("keeps concise French copy only for an explicitly empty folder", () => {
     const folder = renderToStaticMarkup(
       createElement(BranchState, { kind: "empty", containerKind: "folder" }),
     );
-    expect(page).toContain("Cette page ne contient encore aucun élément.");
     expect(folder).toContain("Ce dossier est vide.");
-    expect(page).toContain('data-state="empty"');
-    expect(page).not.toContain("Nothing in here yet");
+    expect(folder).toContain('data-state="empty"');
+    expect(folder).not.toContain("Nothing in here yet");
   });
 });

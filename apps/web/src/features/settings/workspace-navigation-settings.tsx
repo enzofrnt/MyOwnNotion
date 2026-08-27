@@ -5,6 +5,7 @@ import {
   type WorkspacePresentationState,
 } from "@myownnotion/client-core";
 import { useEffect, useState } from "react";
+import { Switch } from "../../ui/primitives/index.ts";
 
 type VisibleShortcut = "favouritesVisible" | "recentsVisible";
 
@@ -40,28 +41,28 @@ export function WorkspaceNavigationSettings({ db }: { readonly db: LocalDatabase
         Ces choix concernent uniquement cet appareil. Vos notes et leur synchronisation ne sont pas
         modifiées.
       </p>
-      <label className="settings-toggle-row">
+      <div className="settings-toggle-row">
         <span>
           <strong>Favoris</strong>
           <small>Afficher les pages marquées comme favorites.</small>
         </span>
-        <input
-          type="checkbox"
+        <Switch
+          aria-label="Afficher les favoris"
           checked={presentation.favouritesVisible}
-          onChange={(event) => setVisible("favouritesVisible", event.currentTarget.checked)}
+          onCheckedChange={(checked) => setVisible("favouritesVisible", checked)}
         />
-      </label>
-      <label className="settings-toggle-row">
+      </div>
+      <div className="settings-toggle-row">
         <span>
           <strong>Récents</strong>
           <small>Afficher les dernières pages modifiées.</small>
         </span>
-        <input
-          type="checkbox"
+        <Switch
+          aria-label="Afficher les récents"
           checked={presentation.recentsVisible}
-          onChange={(event) => setVisible("recentsVisible", event.currentTarget.checked)}
+          onCheckedChange={(checked) => setVisible("recentsVisible", checked)}
         />
-      </label>
+      </div>
     </section>
   );
 }

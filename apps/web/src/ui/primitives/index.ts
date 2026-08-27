@@ -6,3 +6,4 @@ export * from "./live-region.tsx";
 export * from "./menu.tsx";
 export * from "./popover.tsx";
 export * from "./status.tsx";
+export * from "./switch.tsx";

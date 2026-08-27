@@ -276,11 +276,12 @@ test.describe("the contextual BlockNote controls", () => {
 
     // The selected range remains active after formatting: open the shared
     // picker, then choose the target. No global form or technical ID is shown.
-    await toolbar.getByRole("button", { name: "Lien vers une page" }).click();
-    const picker = page.locator(".editor-page-link-picker");
+    await toolbar.getByRole("button", { name: "Ajouter un lien" }).click();
+    const picker = page.getByTestId("link-editor-dialog");
     await expect(picker).toBeVisible();
-    await picker.getByLabel("Lien vers une page").fill(targetName);
-    await picker.getByRole("option", { name: targetName }).click();
+    await picker.getByLabel("Page ou adresse").fill(targetName);
+    await picker.getByRole("option").filter({ hasText: targetName }).click();
+    await picker.getByTestId("save-editor-link").click();
     await expect(editor.locator('a[href^="#page="]')).toContainText("relier");
 
     // Formatting and page-link creation are two independent local gestures.

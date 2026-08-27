@@ -351,7 +351,7 @@ test.describe("workspace search freshness (US4)", () => {
     await dialog.getByRole("button", { name: "Close search" }).click();
 
     await ensureNavigationVisible(page);
-    await page.getByRole("button", { name: `Expand ${destination}` }).click();
+    await page.getByRole("button", { name: `Déplier ${destination}` }).click();
     await convertItem(page, currentName);
     const conversion = page.getByTestId("convert-confirmation");
     await expect(conversion).toBeVisible();

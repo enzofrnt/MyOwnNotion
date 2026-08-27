@@ -39,7 +39,12 @@ import {
 } from "./editor-engine.ts";
 import { editorFileTransferQueue } from "./editor-file-state.tsx";
 import { insertDroppedFiles } from "./editor-files.ts";
-import type { EditorLinkDescriptor } from "./editor-links.ts";
+import {
+  clearStaleLinkTypingState,
+  type EditorLinkDescriptor,
+  type EditorLinkDialogRequest,
+  editorLinkCreationFromSelection,
+} from "./editor-links.ts";
 import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
@@ -102,7 +107,7 @@ export function PageEditor({
 }) {
   const { resolvedTheme } = useTheme();
   const [editorError, setEditorError] = useState<string | null>(null);
-  const [linkEditor, setLinkEditor] = useState<EditorLinkDescriptor | null>(null);
+  const [linkEditor, setLinkEditor] = useState<EditorLinkDialogRequest | null>(null);
   const [, setHistoryVersion] = useState(0);
   const onOpenPageRef = useRef(onOpenPage);
   const editorHostRef = useRef<HTMLElement | null>(null);
@@ -634,7 +639,9 @@ export function PageEditor({
       onBeforeInputCapture={(event) => {
         if (!editable) return;
         markEditorActivity();
-        const action = historyActionFromInputType((event.nativeEvent as InputEvent).inputType);
+        const inputType = (event.nativeEvent as InputEvent).inputType;
+        if (inputType.startsWith("insert")) clearStaleLinkTypingState(editor);
+        const action = historyActionFromInputType(inputType);
         if (action === null) {
           // Most inputs also publish a BlockNote change, which replaces this
           // fallback after its durable commit. Inputs that make no canonical
@@ -681,31 +688,36 @@ export function PageEditor({
         slashMenu={false}
         sideMenu={false}
         formattingToolbar={false}
-        linkToolbar
+        linkToolbar={false}
         filePanel={false}
         tableHandles={false}
         emojiPicker={false}
       >
         <FrenchSlashMenu
+          onCreateLink={() => {
+            const selection = editorLinkCreationFromSelection(editor);
+            if (selection !== null) setLinkEditor({ mode: "create", selection });
+          }}
           onCreateSubpage={onCreateSubpage}
           onSubpageCreated={openCreatedSubpage}
           onError={reportEditorError}
         />
         <BlockSideMenu onError={reportEditorError} />
-        <EditorFormattingToolbar currentItemId={pageId} items={items} onEditLink={setLinkEditor} />
+        <EditorFormattingToolbar onLinkRequest={setLinkEditor} />
       </BlockNoteView>
       <BlockContextMenu
         editor={editor}
         state={shortcuts.contextMenu}
         onDismiss={shortcuts.dismissContextMenu}
-        onEditLink={setLinkEditor}
+        onEditLink={(link: EditorLinkDescriptor) => setLinkEditor({ mode: "edit", link })}
         onError={reportEditorError}
         onOpenPage={onOpenPage}
       />
       <LinkEditorDialog
+        currentItemId={pageId}
         editor={editor}
         items={items}
-        link={linkEditor}
+        request={linkEditor}
         onClose={() => setLinkEditor(null)}
         onError={reportEditorError}
         onOpenPage={onOpenPage}
