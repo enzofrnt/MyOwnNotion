@@ -12,16 +12,33 @@ if (databaseUrl === undefined) {
   throw new Error("The shared PostgreSQL test server did not provide a connection URL");
 }
 
-const child = Bun.spawn([process.execPath, "run", "--bun", "vitest", ...process.argv.slice(2)], {
-  cwd: process.cwd(),
-  env: {
-    ...process.env,
-    TEST_DATABASE_URL: databaseUrl,
+const vitestArguments = process.argv.slice(2);
+const usesPerformanceProject = vitestArguments.some(
+  (argument, index) =>
+    argument === "--project=performance" ||
+    (argument === "--project" && vitestArguments[index + 1] === "performance"),
+);
+
+const child = Bun.spawn(
+  [
+    process.execPath,
+    ...(usesPerformanceProject ? ["--smol"] : []),
+    "run",
+    "--bun",
+    "vitest",
+    ...vitestArguments,
+  ],
+  {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      TEST_DATABASE_URL: databaseUrl,
+    },
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
   },
-  stdin: "inherit",
-  stdout: "inherit",
-  stderr: "inherit",
-});
+);
 
 let interrupted = false;
 function forwardSignal(signal: NodeJS.Signals): void {

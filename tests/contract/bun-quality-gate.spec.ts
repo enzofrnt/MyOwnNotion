@@ -51,7 +51,9 @@ describe("Bun quality gate", () => {
     const wrapper = read("scripts/ci/run-vitest-with-postgres.ts");
     expect(wrapper).toContain("await startDisposablePostgres()");
     expect(wrapper).toContain("const child = Bun.spawn(");
-    expect(wrapper).toContain('"run", "--bun", "vitest"');
+    expect(wrapper).toMatch(/"run",\s+"--bun",\s+"vitest"/);
+    expect(wrapper).toContain('argument === "--project=performance"');
+    expect(wrapper).toContain('usesPerformanceProject ? ["--smol"] : []');
   });
 
   it("retains the complete local gate behind one Bun command", () => {

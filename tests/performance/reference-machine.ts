@@ -15,8 +15,10 @@ export const REALTIME_SYNC_BUDGETS = {
   tenThousandAnnouncementsMs: 2_000,
   /** Real encrypted PostgreSQL catch-up, enforced by page-operations.perf. */
   tenThousandUpdateCatchUpMs: 60_000,
-  /** Shared ceiling for catch-up and notification-storm heap growth. */
+  /** Ceiling for the in-process notification-storm heap growth. */
   maxPeakHeapGrowthBytes: 512 * 1024 * 1024,
+  /** Ceiling for post-GC live heap growth at page workload boundaries. */
+  maxPeakLiveHeapGrowthBytes: 512 * 1024 * 1024,
   /** User-visible cross-device target, measured in Playwright validation. */
   connectedVisibilityP95Ms: 2_000,
   /** Return-online to drain-start target, measured in browser journeys. */

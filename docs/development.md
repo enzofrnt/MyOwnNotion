@@ -272,7 +272,15 @@ project uses the single worker declared by `REALTIME_REFERENCE_MACHINE`: its
 seven benchmark files do not compete with one another, so the 100,000-entry
 search fixture and the 10,000-operation page/database fixtures measure the
 application instead of worker starvation. This limit does not relax a product
-budget or serialize the wider test families.
+budget or serialize the wider test families. The PostgreSQL Vitest wrapper also
+starts this project alone with Bun's `--smol` memory profile. Bun then collects
+more frequently on the reference workload, so the strict 512 MiB heap-growth
+budget is repeatable instead of depending on the host's available-memory GC
+heuristic; every other test project keeps the normal runtime profile. The page
+benchmark forces a full collection only between its timed business phases and
+applies the ceiling to the maximum live heap observed there. Those collections
+are outside the ingest, catch-up and compaction clocks. This measures retained
+working state rather than garbage whose reclamation timing depends on the host.
 
 ### Fast, safe parallel feedback
 

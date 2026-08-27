@@ -415,8 +415,14 @@ les règles usuelles de sauvegarde et de restauration continuent de s'appliquer.
 
 ## Complexity Tracking
 
-Aucune violation constitutionnelle. Les adaptations worker, couverture et
-socket sont les plus petites frontières nécessaires pour conserver le
-comportement sous JavaScriptCore, le bundler Bun et le module `ws` intégré. Le
+Aucune violation constitutionnelle. Les adaptations worker, couverture,
+profil mémoire du benchmark et socket sont les plus petites frontières
+nécessaires pour conserver le comportement sous JavaScriptCore, le bundler Bun
+et le module `ws` intégré. Le projet de performance utilise seul un worker et
+le profil Bun `--smol` afin que son plafond mémoire mesure une collecte adaptée
+à la machine minimale au lieu de l'heuristique mémoire disponible de l'hôte.
+Le benchmark de page collecte entre ses phases chronométrées et borne le pic de
+heap vivant ; les objets déjà libérables ne dépendent donc plus du moment choisi
+par JavaScriptCore pour lancer une collecte sur une machine plus grande. Le
 passage direct à `Bun.serve()` aurait remplacé le transport HTTP de Fastify et
 ses hooks ; il est volontairement écarté de cette migration ciblée.
