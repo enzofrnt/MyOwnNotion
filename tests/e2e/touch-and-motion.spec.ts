@@ -81,7 +81,11 @@ test.describe("reduced motion", () => {
     const name = uniqueName("ReducedMotion");
     await createRootItem(page, "page", name);
     await waitForSynchronized(page);
-    await selectItem(page, name);
+    // Page creation is navigation: on mobile it deliberately closes the
+    // drawer and opens the new page. Reopening the drawer to select that same
+    // row can race the asynchronous close on a slow WebKit runner, while also
+    // testing an interaction this journey does not need.
+    await expect(page.getByTestId("active-item-title")).toHaveValue(name);
     await waitForEditor(page);
 
     const undo = page.getByTestId("undo");

@@ -601,12 +601,22 @@ règle conserve désormais les largeurs de chaque composant et ne relève que
 leurs minima tactiles. Le parcours riche complet verrouille le callout, le
 toggle et la table après cette correction.
 
+La première exécution de la PR a ensuite exposé une course propre au nouveau
+journey d'animations réduites sur un runner WebKit mobile lent. La création de
+page avait déjà sélectionné la nouvelle page et engagé la fermeture normale du
+tiroir ; le test rouvrait pourtant ce tiroir pour sélectionner une seconde fois
+la même page. La trace CI montre la ligne visible, puis masquée par la fermeture
+avant le clic. Le journey vérifie désormais directement le résultat produit —
+le nouveau titre actif — avant de tester les animations, sans navigation
+redondante.
+
 | Couche | Commande | Résultat |
 | --- | --- | --- |
 | Composants clavier et états | `pnpm exec vitest run --project web apps/web/tests/tree-keyboard.spec.ts apps/web/tests/tree-drag-drop.spec.ts apps/web/tests/editor-block-interactions.spec.ts apps/web/tests/page-ambiguity-notice.spec.tsx` | 21/21 tests passés ; parent WebKit, contrôles imbriqués, cible DnD adjacente, menu de bloc et résolution explicite |
 | Matrice ciblée | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/keyboard-navigation.spec.ts tests/e2e/touch-and-motion.spec.ts tests/e2e/narrow-viewport.spec.ts` | 5/5 profils passés en 137 s, lancés en parallèle : Chromium desktop/mobile, WebKit desktop/mobile et Firefox desktop |
 | Régression DnD clavier | `MYOWNNOTION_E2E_JOBS=2 bash scripts/test-e2e-local.sh tests/e2e/keyboard-navigation.spec.ts --grep "the visible drag handle reorders siblings with the keyboard"` | 5/5 profils passés ; la cible visuelle adjacente est établie avant le dépôt |
 | Régression callout tactile | `MYOWNNOTION_E2E_JOBS=2 bash scripts/test-e2e-local.sh tests/e2e/rich-page.spec.ts` | 5/5 profils passés en 39 s ; le contenu du callout reste éditable sur WebKit mobile puis toggle et table persistent |
+| Course création → tiroir mobile | `MYOWNNOTION_E2E_JOBS=5 CI=true pnpm test:e2e:local -- tests/e2e/touch-and-motion.spec.ts --grep "motion is suppressed" --repeat-each=10` | 50/50 exécutions passées en 60 s après remplacement de la resélection redondante par l'assertion de la nouvelle page active |
 | Statique et sélection CI | `pnpm typecheck`, `pnpm lint:ci`, `pnpm format:check`, `git diff --check` et contrat `test-impact` | passés après l'alignement documentaire final ; les 34 contrats de sélection CI passent |
 
 La matrice vérifie également les cibles tactiles, l'alternative au survol, le
