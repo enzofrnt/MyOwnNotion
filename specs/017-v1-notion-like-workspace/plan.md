@@ -39,8 +39,9 @@ contenu supprimé.
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.9.3 ; Node.js 24 ; WebAssembly distribué par
-le package JavaScript Loro ; navigateurs définis par le canevas produit
+**Language/Version**: Bun 1.4.0 exactement ; TypeScript 5.9.3 ; JavaScriptCore ;
+WebAssembly distribué par le package JavaScript Loro ; navigateurs définis par
+le canevas produit
 
 **Primary Dependencies**: React 19.2, Vite 7.3, Fastify 5.7, PostgreSQL 18,
 Drizzle 0.45, Dexie 4.2, BlockNote Core/React/Ariakit 0.54.x, Loro CRDT 1.14.x,
@@ -64,7 +65,7 @@ performance dédiés
 deux dernières versions majeures de Chrome, Edge, Firefox et Safari ; écran à
 partir de 320 px et zoom 200 %
 
-**Project Type**: monorepo pnpm d'application Web local-first avec API
+**Project Type**: monorepo Bun d'application Web local-first avec API
 auto-hébergée et package partagé de modèle opérationnel
 
 **Performance Goals**: frappe visible en moins de 100 ms au p95 sur 500 blocs ;
@@ -99,7 +100,7 @@ surfaces 009 déjà présentes adoptent le système visuel commun
 | IV. Privacy and Security by Default | Mises à jour, checkpoints, projections, conflits et frontières sensibles réutilisent le chiffrement applicatif, la rotation, l'intégrité, les sauvegardes et l'expurgation existants | PASS |
 | V. Simple, Modular Architecture | Le transport SSE, l'outbox, Dexie, PostgreSQL, les appareils et les fichiers sont conservés. Un seul package partagé isole le moteur opérationnel ; l'adaptateur empêche BlockNote ou Loro d'envahir le modèle canonique | PASS |
 | VI. Practical and Predictable Experience | Alternatives clavier/toucher, focus explicite, libellés clairs, thèmes, états de synchronisation, 320 px, 200 %, WebKit et références visuelles sont des contrats et des gates pragmatiques ; aucune certification ni campagne d'assistance spécialisée n'est requise | PASS |
-| VII. Reproducible Toolchains | Dépendances TypeScript/WASM ajoutées par pnpm, versions verrouillées, licences MIT/MPL vérifiées ; aucun outil ou lockfile supplémentaire | PASS |
+| VII. Reproducible Toolchains | Bun 1.4.0, `bun.lock` et `bun ci` portent seuls le graphe TypeScript/WASM ; versions exactes et licences MIT/MPL restent vérifiées | PASS |
 | VIII. Canonical Product Direction | Le plan met en œuvre les sections 3, 6.1, 7, 9 à 21, 28 à 32 et 42 à 47 amendées dans la même change ; mono-utilisateur, V1 et exclusions restent inchangés | PASS |
 
 ### Post-design re-check

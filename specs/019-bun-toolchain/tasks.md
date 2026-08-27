@@ -185,7 +185,7 @@ avant la PR.
 - [x] T046 Exécuter intégralement `specs/019-bun-toolchain/quickstart.md`, notamment le démarrage sans Node, le build, Compose, le PWA offline et l'administration, puis compléter `specs/019-bun-toolchain/validation.md`
 - [x] T047 Exécuter `$speckit-converge`, ajouter toute tâche réellement manquante à `specs/019-bun-toolchain/tasks.md` et fermer chaque ajout
 - [x] T048 Exécuter `bun run checks:local` exactement selon `docs/development.md` et enregistrer le commit candidat et le résultat dans `specs/019-bun-toolchain/validation.md`
-- [ ] T049 Pousser `codex/019-bun-1-4-toolchain`, ouvrir la PR dédiée et vérifier toutes les gates sur le commit candidat
+- [x] T049 Pousser `codex/019-bun-1-4-toolchain`, ouvrir la PR dédiée et vérifier toutes les gates sur le commit candidat
 - [ ] T050 Corriger tout échec sans désactiver de gate, fusionner la PR verte et vérifier la CI complète ainsi que les images commit-addressable de `main`
 
 ---
