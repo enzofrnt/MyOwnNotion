@@ -22,7 +22,9 @@ describe("Bun quality gate", () => {
     const action = read(".github/actions/setup-bun/action.yml");
     expect(action).toContain("oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6");
     expect(action).toContain("bun-version: 1.4.0");
-    expect(action).toContain("hashFiles('bun.lock')");
+    expect(action).not.toContain("actions/cache@");
+    expect(action).not.toContain("~/.bun/install/cache");
+    expect(action).not.toContain("node_modules");
     expect(action.indexOf("run: bun ci")).toBeLessThan(
       action.indexOf('run: test "$(bun --version)" = "1.4.0"'),
     );
@@ -49,11 +51,15 @@ describe("Bun quality gate", () => {
     expect(config).not.toContain('provider: "v8"');
 
     const wrapper = read("scripts/ci/run-vitest-with-postgres.ts");
+    const invocationPlan = read("scripts/ci/vitest-run-plan.ts");
     expect(wrapper).toContain("await startDisposablePostgres()");
     expect(wrapper).toContain("const child = Bun.spawn(");
     expect(wrapper).toMatch(/"run",\s+"--bun",\s+"vitest"/);
-    expect(wrapper).toContain('argument === "--project=performance"');
+    expect(wrapper).toContain('usesVitestProject(vitestArguments, "performance")');
     expect(wrapper).toContain('usesPerformanceProject ? ["--smol"] : []');
+    expect(wrapper).toContain("planVitestInvocations(vitestArguments, discoveredPerformanceTests)");
+    expect(invocationPlan).toContain('usesVitestProject(arguments_, "performance")');
+    expect(invocationPlan).toContain("selectedTests.map((testPath)");
   });
 
   it("retains the complete local gate behind one Bun command", () => {

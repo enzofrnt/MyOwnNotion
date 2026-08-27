@@ -171,8 +171,8 @@ Source d'autorité : `.github/actions/setup-bun/action.yml`.
 | --- | --- |
 | setup action | `oven-sh/setup-bun` épinglé par SHA |
 | Bun version | `1.4.0` |
-| cache key | OS + architecture + hash de `bun.lock` |
-| cache content | cache de téléchargement Bun uniquement |
+| executable cache | cache interne de `setup-bun`, lié à la version exacte |
+| dependency cache | aucun cache `node_modules` ou `~/.bun/install/cache` entre runners |
 | install | `bun ci` |
 
 ### Invariants
@@ -181,7 +181,9 @@ Source d'autorité : `.github/actions/setup-bun/action.yml`.
   action ou installe explicitement le même Bun lorsqu'aucune dépendance n'est
   requise.
 - Aucun job ne prépare Node.js, pnpm, npm ou Yarn pour le projet.
-- Un cache absent ou corrompu ne contourne jamais `bun ci`.
+- Le cache interne de l'exécutable ne contourne jamais `bun ci`.
+- Un cache de dépendances partagé ne peut être réintroduit qu'après une mesure
+  montrant un gain de temps total sur la CI de ce dépôt.
 - Les jobs sans impact conservent leur no-op explicite ; les jobs impactés
   utilisent exactement le plan téléchargé.
 

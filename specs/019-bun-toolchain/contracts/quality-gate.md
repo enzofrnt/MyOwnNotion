@@ -35,13 +35,15 @@ Every job executing repository TypeScript/JavaScript MUST:
 1. check out the exact candidate;
 2. install Bun 1.4.0 through the repository's composite setup action or the
    identical pinned official action when no dependency install is needed;
-3. restore only a Bun cache compatible with runner OS, architecture and
-   `bun.lock` hash;
-4. execute `bun ci` before dependency-backed commands;
-5. call the same named root script used locally.
+3. execute `bun ci` before dependency-backed commands;
+4. call the same named root script used locally.
 
 No such job may use `actions/setup-node`, `pnpm/action-setup`, npm, Yarn, pnpm
-or a mutable Bun version selector.
+or a mutable Bun version selector. The official action's executable cache may
+remain enabled, but the repository setup action MUST NOT restore
+`node_modules` or `~/.bun/install/cache` across runners unless a repository
+benchmark first proves a lower end-to-end setup time and this contract is
+updated with that evidence.
 
 ## Impact-plan command contract
 
@@ -57,7 +59,10 @@ browser matrix and cache scopes. Its generated commands become:
 
 Related/direct selections MUST call Vitest through Bun. A no-impact group is an
 explicit successful no-op; an unknown executable path expands to the existing
-safe full plan.
+safe full plan. A complete or explicitly selected performance run MUST keep one
+worker and execute each selected benchmark file in a fresh Vitest coordinator
+process while sharing the outer disposable PostgreSQL server. No product budget
+may be raised to compensate for runner contention or retained harness state.
 
 ## Blocking job inventory
 
@@ -113,7 +118,8 @@ severity, allowlist, fixable-vulnerability or artifact requirements.
 
 ## Acceptance probes
 
-- Contract-test the setup action SHA, exact Bun version, cache key and `bun ci`.
+- Contract-test the setup action SHA, exact Bun version, absence of an external
+  dependency cache and `bun ci`.
 - Contract-test the complete job inventory and publication dependencies.
 - Generate full, affected and no-impact plans and compare selected tests to the
   pre-migration behavior.

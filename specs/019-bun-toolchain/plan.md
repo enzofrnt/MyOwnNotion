@@ -34,8 +34,9 @@ uniquement après authentification par le résolveur existant.
 
 Les images de construction et d'exécution API utilisent l'image officielle Bun
 1.4.0 multiarchitecture épinglée ; l'image Web conserve nginx comme runtime
-statique. La CI emploie l'action officielle `setup-bun` épinglée par SHA, le
-cache Bun et le verrouillage strict, sans préparer Node.js ni pnpm.
+statique. La CI emploie l'action officielle `setup-bun` épinglée par SHA et le
+verrouillage strict, sans préparer Node.js ni pnpm ni restaurer un cache externe
+de dépendances plus coûteux que l'installation directe.
 
 ## Technical Context
 
@@ -69,9 +70,9 @@ packages TypeScript partagés
 **Performance Goals**: ne régresser aucun budget produit ; installation et
 build déterministes ; garder deux piles Playwright au maximum sur un hôte
 contraint et le worker unique défini par la machine de référence pour les
-fixtures de performance lourdes ; conserver le plan d'impact CI et les caches
-par plateforme ; ne pas augmenter la latence ou les tailles protocolaires de
-l'application
+fixtures de performance lourdes, avec un coordinateur Vitest neuf par fichier ;
+conserver le plan d'impact CI et les caches mesurés utiles par plateforme ; ne
+pas augmenter la latence ou les tailles protocolaires de l'application
 
 **Constraints**: migration à sens unique et PR dédiée ; version patch exacte ;
 un seul lockfile ; aucune migration de données, aucun changement d'API, de
@@ -324,10 +325,12 @@ leur harnais dépendait du runtime supprimé.
 
 Une action composite locale utilise
 `oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6`
-avec `bun-version: 1.4.0`, restaure le cache d'installation Bun par OS,
-architecture et hash de `bun.lock`, puis exécute `bun ci`. Les jobs purement
-Docker/shell n'installent pas inutilement le workspace. Tous les jobs
-TypeScript/JavaScript retirent `setup-node` et `pnpm/action-setup`.
+avec `bun-version: 1.4.0`, conserve le cache intégré du seul exécutable Bun,
+puis exécute `bun ci`. Elle ne restaure ni `node_modules` ni
+`~/.bun/install/cache` : les mesures du dépôt montrent que le transfert du
+cache de paquets coûte plus de temps que le gain observé sur l'installation.
+Les jobs purement Docker/shell n'installent pas inutilement le workspace. Tous
+les jobs TypeScript/JavaScript retirent `setup-node` et `pnpm/action-setup`.
 
 Les commandes du plan d'impact et ses attentes contractuelles deviennent Bun.
 Playwright reste mis en cache par sa propre version et s'installe via Bun. La
@@ -418,11 +421,14 @@ les règles usuelles de sauvegarde et de restauration continuent de s'appliquer.
 Aucune violation constitutionnelle. Les adaptations worker, couverture,
 profil mémoire du benchmark et socket sont les plus petites frontières
 nécessaires pour conserver le comportement sous JavaScriptCore, le bundler Bun
-et le module `ws` intégré. Le projet de performance utilise seul un worker et
-le profil Bun `--smol` afin que son plafond mémoire mesure une collecte adaptée
-à la machine minimale au lieu de l'heuristique mémoire disponible de l'hôte.
-Le benchmark de page collecte entre ses phases chronométrées et borne le pic de
-heap vivant ; les objets déjà libérables ne dépendent donc plus du moment choisi
-par JavaScriptCore pour lancer une collecte sur une machine plus grande. Le
-passage direct à `Bun.serve()` aurait remplacé le transport HTTP de Fastify et
-ses hooks ; il est volontairement écarté de cette migration ciblée.
+et le module `ws` intégré. Le projet de performance utilise seul un worker, un
+coordinateur Vitest neuf par benchmark et le profil Bun `--smol`. Le wrapper
+extérieur conserve une seule base PostgreSQL jetable : l'isolation retire
+l'état RPC et mémoire entre gros corpus sans fausser les mesures par concurrence
+ni redémarrer leur infrastructure. Le plafond mémoire mesure ainsi une collecte
+adaptée à la machine minimale au lieu de l'heuristique mémoire disponible de
+l'hôte. Le benchmark de page collecte entre ses phases chronométrées et borne le
+pic de heap vivant ; les objets déjà libérables ne dépendent donc plus du moment
+choisi par JavaScriptCore pour lancer une collecte sur une machine plus grande.
+Le passage direct à `Bun.serve()` aurait remplacé le transport HTTP de Fastify
+et ses hooks ; il est volontairement écarté de cette migration ciblée.

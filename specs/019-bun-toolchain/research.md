@@ -301,15 +301,27 @@ ou révoquée ferme en `4401`; un dépassement ferme en `1009`.
 ## Decision 8 — Centraliser l'installation CI dans une action composite Bun
 
 **Decision**: Créer une action locale qui installe Bun 1.4.0 via l'action
-officielle épinglée, restaure le cache Bun et exécute `bun ci`. L'utiliser dans
-chaque job TypeScript/JavaScript. Les jobs purement Docker ou shell ne paient
-pas une installation inutile.
+officielle épinglée et exécute `bun ci`. L'action officielle conserve son cache
+interne du binaire, mais l'action locale ne restaure ni `node_modules` ni le
+cache global de paquets Bun. L'utiliser dans chaque job TypeScript/JavaScript.
+Les jobs purement Docker ou shell ne paient pas une installation inutile.
 
 **Rationale**: La CI actuelle répète trois étapes Node/pnpm dans de nombreux
-jobs. Une action locale garde version, cache et mode gelé identiques et rend
-les tests de contrat plus simples. L'action officielle lit aussi
+jobs. Une action locale garde version et mode gelé identiques et rend les tests
+de contrat plus simples. L'action officielle lit aussi
 `packageManager`, mais la version est fournie explicitement pour que la CI soit
 auto-descriptive.
+
+Le cache intégré de `setup-bun` porte seulement sur l'exécutable téléchargé.
+Le projet a également évalué un cache GitHub Actions de
+`~/.bun/install/cache`. Sur la CI de référence, sa restauration transférait
+environ 196 Mio et prenait 4,97 s dans chacun d'environ quinze jobs, avant un
+`bun ci` de 10,60 s. Un essai isolé sous l'image Bun 1.4.0 exacte a mesuré
+18,98 s à froid et 16,14 s avec le cache déjà local : le gain de 2,84 s reste
+inférieur au seul coût de restauration GitHub. L'issue officielle #14 rapporte
+la même variabilité et un mainteneur y explique que le cache de dépendances
+n'a pas été intégré parce que les premiers essais rendaient l'installation
+directe plus rapide.
 
 Le tag `v2` de `oven-sh/setup-bun` résolvait le 27 août 2026 vers le commit
 `0c5077e51419868618aeaa5fe8019c62421857d6` (release 2.2.0). Le workflow
@@ -317,17 +329,22 @@ utilisera ce SHA immuable.
 
 **Alternatives considered**:
 
-- **Répéter les trois étapes dans chaque job**: possible, mais plus exposé à la
+- **Répéter les étapes dans chaque job**: possible, mais plus exposé à la
   dérive et aux oublis.
 - **Mettre `node_modules` en artefact**: rejeté pour sa taille, sa portabilité
   et son coût disque sur les runners contraints.
-- **Ne rien cacher**: fonctionnel, mais inutilement lent ; seul le cache de
-  téléchargements Bun est partagé, jamais un lockfile modifié.
+- **Persister `~/.bun/install/cache` avec `actions/cache`**: rejeté après mesure
+  parce que la restauration du cache de paquets est plus lente que le gain
+  observé et multiplie les transferts dans la matrice. Cette décision pourra
+  être revue si une mesure future du temps total démontre l'inverse.
 
 **Sources**:
 
 - Action officielle `setup-bun` : https://github.com/oven-sh/setup-bun
-- Installation CI gelée : https://bun.sh/docs/pm/cli/install#ci-cd
+- Discussion officielle sur le cache de dépendances :
+  https://github.com/oven-sh/setup-bun/issues/14
+- Installation CI gelée : https://bun.com/docs/pm/cli/install#ci-cd
+- Cache global des paquets : https://bun.com/docs/pm/global-cache
 
 ## Decision 9 — Utiliser l'image officielle Bun épinglée et garder nginx pour le Web
 

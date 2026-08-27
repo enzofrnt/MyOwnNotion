@@ -271,16 +271,20 @@ the complete local gate; CI starts their jobs concurrently. The performance
 project uses the single worker declared by `REALTIME_REFERENCE_MACHINE`: its
 seven benchmark files do not compete with one another, so the 100,000-entry
 search fixture and the 10,000-operation page/database fixtures measure the
-application instead of worker starvation. This limit does not relax a product
-budget or serialize the wider test families. The PostgreSQL Vitest wrapper also
-starts this project alone with Bun's `--smol` memory profile. Bun then collects
-more frequently on the reference workload, so the strict 512 MiB heap-growth
-budget is repeatable instead of depending on the host's available-memory GC
-heuristic; every other test project keeps the normal runtime profile. The page
-benchmark forces a full collection only between its timed business phases and
-applies the ceiling to the maximum live heap observed there. Those collections
-are outside the ingest, catch-up and compaction clocks. This measures retained
-working state rather than garbage whose reclamation timing depends on the host.
+application instead of worker starvation. Each benchmark file also gets a
+fresh Vitest coordinator process while the outer wrapper keeps one disposable
+PostgreSQL server for the whole project. This prevents a large completed
+fixture from retaining worker/RPC state that distorts or aborts the next file.
+This limit does not relax a product budget or serialize the wider test
+families. The PostgreSQL Vitest wrapper also starts this project alone with
+Bun's `--smol` memory profile. Bun then collects more frequently on the
+reference workload, so the strict 512 MiB heap-growth budget is repeatable
+instead of depending on the host's available-memory GC heuristic; every other
+test project keeps the normal runtime profile. The page benchmark forces a full
+collection only between its timed business phases and applies the ceiling to
+the maximum live heap observed there. Those collections are outside the
+ingest, catch-up and compaction clocks. This measures retained working state
+rather than garbage whose reclamation timing depends on the host.
 
 ### Fast, safe parallel feedback
 
@@ -680,12 +684,15 @@ journey is missing, duplicated, ownerless, or points to a nonexistent consumer.
 ### CI cache boundaries
 
 Every JavaScript/TypeScript job uses the repository's pinned Bun setup action.
-It caches only Bun downloads by runner OS, architecture and `bun.lock` hash,
-then still executes `bun ci`: a hit avoids downloads but never replaces frozen
-lock validation or workspace materialization. E2E jobs separately cache
-Playwright browser binaries by runner OS, architecture, and the installed
-Playwright version; the system dependency check still runs on every selected
-browser job.
+The official action keeps its own exact Bun executable cache enabled, then the
+repository action always executes `bun ci`. It deliberately does not persist
+`node_modules` or `~/.bun/install/cache` between runners. On the reference CI,
+restoring that package cache transferred about 196 MiB and took about five
+seconds per job while a warm cache saved less time than it cost to restore.
+Reintroducing a cross-run dependency cache therefore requires a measured win on
+this repository. E2E jobs separately cache Playwright browser binaries by
+runner OS, architecture, and the installed Playwright version; the system
+dependency check still runs on every selected browser job.
 
 Container jobs use BuildKit's GitHub Actions backend in `mode=max`, with
 separate `api-…` and `web-…` scopes. Pull requests use a scope owned by their PR

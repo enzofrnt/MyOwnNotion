@@ -271,8 +271,10 @@ qu'aucune procédure active ne dépend du système retiré.
   des portes requises avant push, avec la stratégie de parallélisation et les
   limites de ressources documentées.
 - **FR-013**: Tous les jobs CI TypeScript/JavaScript MUST installer la version
-  exacte de Bun, restaurer uniquement des caches Bun compatibles et effectuer
-  une installation strictement verrouillée.
+  exacte de Bun et effectuer une installation strictement verrouillée. Ils ne
+  MUST pas restaurer `node_modules` ni le cache de paquets Bun entre runners
+  sans démontrer par une mesure propre au dépôt que cette restauration réduit
+  le temps total.
 - **FR-014**: Les images Web et API MUST être construites pour les architectures
   prises en charge, ne MUST pas contenir Node.js comme runtime applicatif et
   MUST conserver leurs utilisateurs non privilégiés, secrets, santé et

@@ -130,7 +130,7 @@ vrai code d'échec.
 
 ### Tests for User Story 3
 
-- [x] T027 [P] [US3] Écrire les contrats en échec de l'action Bun, du cache, de `bun ci`, des 18 jobs et des dépendances de publication dans `tests/contract/bun-quality-gate.spec.ts` et `tests/contract/release-gates.spec.ts`
+- [x] T027 [P] [US3] Écrire les contrats en échec de l'action Bun, de l'absence de cache externe de dépendances, de `bun ci`, des 18 jobs et des dépendances de publication dans `tests/contract/bun-quality-gate.spec.ts` et `tests/contract/release-gates.spec.ts`
 - [x] T028 [P] [US3] Étendre les tests full/affected/no-impact aux commandes Bun sans changer les sélections dans `tests/contract/test-impact.spec.ts`
 - [x] T029 [P] [US3] Créer un helper de vrai listener/socket éphémère et ses tests de fermeture dans `apps/api/tests/helpers/real-websocket.ts` et `apps/api/tests/helpers/real-websocket.spec.ts`
 
@@ -139,12 +139,12 @@ vrai code d'échec.
 - [x] T030 [US3] Remplacer la couverture V8 par Istanbul sans changer le périmètre de fichiers et traduire les pourcentages incomparables en budget absolu de non-régression documenté dans `vitest.config.ts`, `package.json`, `docs/development.md` et `specs/019-bun-toolchain/plan.md`
 - [x] T031 [US3] Remplacer `app.injectWS()` par le helper réseau réel et adapter le cycle upgrade/authentification au module `ws` intégré à Bun avec file pré-authentification bornée dans `apps/api/src/app.ts`, `apps/api/src/routes/installation.ts`, `apps/api/src/routes/page-sync-socket.ts`, `apps/api/src/realtime/pending-authentication-frames.ts`, `apps/api/tests/pending-authentication-frames.spec.ts`, `apps/api/tests/realtime-page-sync.contract.spec.ts`, `apps/api/tests/realtime-page-sync-security.contract.spec.ts` et `apps/api/tests/realtime-device-revocation.integration.spec.ts`
 - [x] T032 [US3] Convertir le plan d'impact et l'exécution Vitest sélectionnée vers Bun dans `ci/test-impact.json`, `scripts/ci/test-impact.ts` et `scripts/ci/run-affected-vitest.ts`
-- [x] T033 [P] [US3] Ajouter l'action composite Bun exacte avec cache verrouillé et installation `bun ci` dans `.github/actions/setup-bun/action.yml`
+- [x] T033 [P] [US3] Ajouter l'action composite Bun exacte avec cache intégré du binaire seulement et installation `bun ci` dans `.github/actions/setup-bun/action.yml`
 - [x] T034 [US3] Migrer chaque job JavaScript de PR vers l'action Bun, sans affaiblir concurrence, timeouts, artefacts ni inventaire, dans `.github/workflows/ci.yml`
 - [x] T035 [US3] Migrer publication et preuve de commit exact vers Bun dans `.github/workflows/release.yml`
 - [x] T036 [P] [US3] Adapter l'audit de production et la politique de licences aux sorties Bun dans `package.json` et `scripts/ci/license-policy.ts`
 - [x] T037 [US3] Faire de `bun run checks:local` l'unique porte complète, bornée et bloquante dans `package.json`, `scripts/e2e/run-local-matrix.ts` et `docs/development.md`
-- [x] T038 [US3] Exécuter en parallèle les familles indépendantes format/lint/types, unités-couverture, intégration, contrats et performance ; corriger toute incompatibilité Bun sans changer les attentes et consigner les preuves dans `specs/019-bun-toolchain/validation.md`
+- [x] T038 [US3] Exécuter en parallèle les familles indépendantes format/lint/types, unités-couverture, intégration, contrats et performance ; isoler les gros benchmarks par coordinateur Vitest neuf sans relever leurs budgets ; corriger toute incompatibilité Bun sans changer les attentes et consigner les preuves dans `specs/019-bun-toolchain/validation.md`
 
 **Checkpoint**: La nouvelle chaîne donne au minimum les mêmes preuves qu'avant
 et aucune étape absente, sautée ou annulée ne peut rendre le gate vert.

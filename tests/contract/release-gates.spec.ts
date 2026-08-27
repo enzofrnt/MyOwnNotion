@@ -155,10 +155,12 @@ describe("the aggregate", () => {
 });
 
 describe("safe reusable work", () => {
-  it("uses the exact Bun release and a lockfile-aware download cache", () => {
+  it("uses the exact Bun release and a clean frozen install", () => {
     expect(ci).toContain("uses: ./.github/actions/setup-bun");
     expect(setupBun).toContain("bun-version: 1.4.0");
-    expect(setupBun).toContain("hashFiles('bun.lock')");
+    expect(setupBun).not.toContain("actions/cache@");
+    expect(setupBun).not.toContain("~/.bun/install/cache");
+    expect(setupBun).not.toContain("node_modules");
     expect(setupBun).toContain("run: bun ci");
     expect(ci).not.toContain("actions/setup-node");
     expect(ci).not.toContain("pnpm/action-setup");
