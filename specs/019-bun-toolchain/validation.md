@@ -6,7 +6,7 @@
 
 **Runtime validé**: Bun `1.4.0` exactement
 
-**Commit candidat**: à renseigner après la porte T048
+**Commit exécutable candidat**: `2a1acf93a98030c7abbf1cb84e11613f9a55c81c`
 
 Ce journal rassemble les preuves reproductibles de la migration. Les données,
 le schéma PostgreSQL et le protocole de synchronisation restent inchangés.
@@ -54,6 +54,7 @@ officielle est accepté uniquement lorsqu'il résout vers le même exécutable q
 | Preuve | Résultat |
 | --- | --- |
 | Deux builds API | réussite ; `server.js`, `migrate.js`, `admin/admin-cli.js`, sources maps et Loro Wasm relogeable |
+| Entrée administration bundlée | l'aide s'exécute une seule fois ; 42 tests CLI/administration et le contrat d'artefact réussissent |
 | Deux builds Web | réussite ; HTML, React, CSS, chunks, worker de recherche, Loro Wasm, manifeste et service worker produits |
 | Contrats d'artefacts Bun | 18/18 tests ciblés réussis, dont proxy HTTP/WebSocket |
 | PWA hors ligne | première charge, worker prêt, coupure réseau puis rechargement réussis dans la matrice navigateur |
@@ -124,11 +125,19 @@ ajoutée.
 
 ## Porte candidate
 
-À compléter après l'exécution, sur le commit candidat exact, de :
+Le commit exécutable candidat est
+`2a1acf93a98030c7abbf1cb84e11613f9a55c81c`. Le seul diff préparé après ce
+commit est ce résultat de validation et la fermeture de T048 ; il ne modifie
+aucun fichier exécutable. La porte est exécutée sur cet arbre final avant de
+créer le commit de preuve.
+
+Commande lancée le 2026-08-27 à 16:32 CEST :
 
 ```sh
 bun run checks:local
 ```
 
-La PR ne doit pas être poussée tant que cette section ne contient pas un
-résultat vert et que le diff candidat n'a pas été revu.
+**Résultat**: PASS — toutes les étapes obligatoires de `docs/development.md`,
+y compris la matrice complète des cinq profils navigateur et les images
+multiarchitecture, ont terminé avec un code nul. Aucun gate n'a été ignoré ou
+désactivé.
