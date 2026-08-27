@@ -46,16 +46,29 @@ export type DialogContentProps = Omit<AriakitDialogProps, "className"> & {
 };
 
 export const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(function DialogContent(
-  { backdrop, className, modal = true, portal = true, size = "medium", ...props },
+  {
+    autoFocusOnHide = true,
+    autoFocusOnShow = true,
+    backdrop,
+    className,
+    hideOnEscape = true,
+    modal = true,
+    portal = true,
+    size = "medium",
+    ...props
+  },
   ref,
 ) {
   return (
     <AriakitDialog
       {...props}
       ref={ref}
+      autoFocusOnHide={autoFocusOnHide}
+      autoFocusOnShow={autoFocusOnShow}
       className={classNames("ui-dialog", className)}
       data-size={size}
       backdrop={backdrop ?? <div className="ui-dialog__backdrop" />}
+      hideOnEscape={hideOnEscape}
       modal={modal}
       portal={portal}
       aria-modal={modal || undefined}

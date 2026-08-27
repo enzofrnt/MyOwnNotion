@@ -32,6 +32,20 @@ export interface TreeKeyboardActions {
   readonly remove: (id: string) => void;
 }
 
+export interface TreeKeyboardInput {
+  readonly key: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly altKey: boolean;
+}
+
+export type TreeKeyboardIntent =
+  | { readonly type: "select"; readonly id: string }
+  | { readonly type: "set-expanded"; readonly id: string; readonly expanded: boolean }
+  | { readonly type: "open"; readonly id: string }
+  | { readonly type: "rename"; readonly id: string }
+  | { readonly type: "remove"; readonly id: string };
+
 /** Matches the first item after `from` whose name starts with `prefix`. */
 export function findByPrefix(
   nodes: readonly TreeKeyboardNode[],
@@ -50,6 +64,65 @@ export function findByPrefix(
   return undefined;
 }
 
+/**
+ * Resolves the ARIA tree gesture without depending on React or the DOM.
+ *
+ * Keeping this decision pure makes the WebKit parent case testable separately
+ * from the browser-specific focus hand-off. The caller performs the intent
+ * synchronously before React updates the roving tabindex, which is what keeps
+ * Safari from declining focus on the parent row.
+ */
+export function resolveTreeKeyboardIntent(
+  nodes: readonly TreeKeyboardNode[],
+  selectedId: string | null,
+  input: TreeKeyboardInput,
+): TreeKeyboardIntent | null {
+  if (nodes.length === 0) return null;
+  const index = nodes.findIndex((node) => node.id === selectedId);
+  const current = index >= 0 ? nodes[index] : nodes[0];
+  if (current === undefined) return null;
+
+  const select = (target: TreeKeyboardNode | undefined): TreeKeyboardIntent | null =>
+    target === undefined ? null : { type: "select", id: target.id };
+
+  switch (input.key) {
+    case "ArrowDown":
+      return select(nodes[Math.min(Math.max(index, 0) + 1, nodes.length - 1)]);
+    case "ArrowUp":
+      return select(nodes[Math.max(Math.max(index, 0) - 1, 0)]);
+    case "ArrowRight":
+      if (current.hasChildren && !current.expanded) {
+        return { type: "set-expanded", id: current.id, expanded: true };
+      }
+      return current.hasChildren ? select(nodes[index + 1]) : null;
+    case "ArrowLeft":
+      if (current.hasChildren && current.expanded) {
+        return { type: "set-expanded", id: current.id, expanded: false };
+      }
+      return current.parentId === null
+        ? null
+        : select(nodes.find((node) => node.id === current.parentId));
+    case "Home":
+      return select(nodes[0]);
+    case "End":
+      return select(nodes[nodes.length - 1]);
+    case "Enter":
+    case " ":
+      return { type: "open", id: current.id };
+    case "F2":
+      return { type: "rename", id: current.id };
+    case "Delete":
+      return { type: "remove", id: current.id };
+    default:
+      break;
+  }
+
+  if (input.key.length === 1 && !input.ctrlKey && !input.metaKey && !input.altKey) {
+    return select(findByPrefix(nodes, input.key, Math.max(index, 0)));
+  }
+  return null;
+}
+
 export function useTreeKeyboard(
   nodes: readonly TreeKeyboardNode[],
   selectedId: string | null,
@@ -57,87 +130,36 @@ export function useTreeKeyboard(
 ): (event: React.KeyboardEvent) => void {
   return useCallback(
     (event: React.KeyboardEvent) => {
-      if (nodes.length === 0) {
+      // Buttons inside a tree row own their own keyboard contract. Letting
+      // Enter/Space bubble into the tree opens the page and unmounts a menu or
+      // drag handle before it can act, which is especially visible in the
+      // mobile drawer. Only a key whose focused target is the treeitem itself
+      // belongs to roving-tree navigation.
+      if (
+        event.target instanceof Element &&
+        event.target.closest<HTMLElement>('[role="treeitem"]') !== event.target
+      ) {
         return;
       }
-      const index = nodes.findIndex((node) => node.id === selectedId);
-      const current = index >= 0 ? nodes[index] : nodes[0];
-      if (current === undefined) {
-        return;
-      }
-
-      const move = (target: TreeKeyboardNode | undefined): void => {
-        if (target !== undefined) {
-          event.preventDefault();
-          actions.select(target.id);
-        }
-      };
-
-      switch (event.key) {
-        case "ArrowDown":
-          move(nodes[Math.min(Math.max(index, 0) + 1, nodes.length - 1)]);
+      const intent = resolveTreeKeyboardIntent(nodes, selectedId, event);
+      if (intent === null) return;
+      event.preventDefault();
+      switch (intent.type) {
+        case "select":
+          actions.select(intent.id);
           return;
-
-        case "ArrowUp":
-          move(nodes[Math.max(Math.max(index, 0) - 1, 0)]);
+        case "set-expanded":
+          actions.setExpanded(intent.id, intent.expanded);
           return;
-
-        case "ArrowRight":
-          // Expand, or descend into an already-open branch. A leaf does
-          // nothing rather than swallowing the key.
-          if (current.hasChildren && !current.expanded) {
-            event.preventDefault();
-            actions.setExpanded(current.id, true);
-          } else if (current.hasChildren) {
-            move(nodes[index + 1]);
-          }
+        case "open":
+          actions.open(intent.id);
           return;
-
-        case "ArrowLeft":
-          // Collapse, or rise to the parent. At the root of a closed branch
-          // there is nowhere to go, and the key is left alone.
-          if (current.hasChildren && current.expanded) {
-            event.preventDefault();
-            actions.setExpanded(current.id, false);
-          } else if (current.parentId !== null) {
-            move(nodes.find((node) => node.id === current.parentId));
-          }
+        case "rename":
+          actions.rename(intent.id);
           return;
-
-        case "Home":
-          move(nodes[0]);
+        case "remove":
+          actions.remove(intent.id);
           return;
-
-        case "End":
-          move(nodes[nodes.length - 1]);
-          return;
-
-        case "Enter":
-        case " ":
-          event.preventDefault();
-          actions.open(current.id);
-          return;
-
-        case "F2":
-          event.preventDefault();
-          actions.rename(current.id);
-          return;
-
-        case "Delete":
-          event.preventDefault();
-          actions.remove(current.id);
-          return;
-
-        default:
-          break;
-      }
-
-      // Type-ahead. Single printable characters only: modifiers belong to the
-      // browser and the application, and swallowing them here would break
-      // everything from Ctrl+F to the browser's own shortcuts.
-      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-        const match = findByPrefix(nodes, event.key, Math.max(index, 0));
-        move(match);
       }
     },
     [nodes, selectedId, actions],

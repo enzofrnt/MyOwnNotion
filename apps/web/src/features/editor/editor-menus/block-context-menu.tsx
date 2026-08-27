@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import {
   MenuContent,
   MenuItem,
@@ -28,6 +29,7 @@ export function BlockContextMenu({
   readonly onDismiss: () => void;
   readonly onError: (message: string) => void;
 }) {
+  const firstItem = useRef<HTMLDivElement | null>(null);
   const execute = (action: () => void): void => {
     try {
       // Ariakit moves focus into the menu before dispatching its action. Some
@@ -72,9 +74,13 @@ export function BlockContextMenu({
         data-testid="block-context-menu"
         data-block-id={state?.blockId}
         aria-label="Actions du bloc"
+        autoFocusOnHide={false}
+        autoFocusOnShow={state?.openedBy === "keyboard"}
+        initialFocus={state?.openedBy === "keyboard" ? firstItem : null}
       >
         <MenuLabel>Bloc</MenuLabel>
         <MenuItem
+          ref={firstItem}
           data-testid="context-insert-after"
           onClick={() => execute(() => void insertParagraphAfterSelection(editor))}
           shortcut="⌥⌘↵"

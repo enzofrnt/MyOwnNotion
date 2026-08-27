@@ -2,6 +2,7 @@ import {
   closestCenter,
   DndContext,
   type DragEndEvent,
+  type KeyboardCoordinateGetter,
   KeyboardSensor,
   PointerSensor,
   useDraggable,
@@ -9,7 +10,6 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { ReactNode, RefCallback } from "react";
 import { useMemo } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
@@ -38,6 +38,52 @@ export type TreeDropIntent =
       readonly targetId: string;
       readonly reason: "cycle";
     };
+
+export interface TreeKeyboardRow {
+  readonly id: string;
+  readonly top: number;
+}
+
+/** Returns the adjacent row in visual order, never the row being moved. */
+export function adjacentTreeKeyboardTarget(
+  rows: readonly TreeKeyboardRow[],
+  currentId: string,
+  direction: "up" | "down",
+): string | null {
+  const ordered = [...rows].sort(
+    (left, right) => left.top - right.top || left.id.localeCompare(right.id),
+  );
+  const currentIndex = ordered.findIndex((row) => row.id === currentId);
+  if (currentIndex < 0) return null;
+  const targetIndex = currentIndex + (direction === "up" ? -1 : 1);
+  return ordered[targetIndex]?.id ?? null;
+}
+
+const treeKeyboardCoordinates: KeyboardCoordinateGetter = (
+  event,
+  { active, currentCoordinates, context },
+) => {
+  if (event.code !== "ArrowUp" && event.code !== "ArrowDown") return undefined;
+  event.preventDefault();
+
+  const rows = context.droppableContainers.getEnabled().flatMap((container) => {
+    const rect = context.droppableRects.get(container.id);
+    return rect === undefined ? [] : [{ id: String(container.id), top: rect.top }];
+  });
+  const targetId = adjacentTreeKeyboardTarget(
+    rows,
+    String(context.over?.id ?? active),
+    event.code === "ArrowUp" ? "up" : "down",
+  );
+  if (targetId === null || context.collisionRect === null) return undefined;
+  const targetRect = context.droppableRects.get(targetId);
+  if (targetRect === undefined) return undefined;
+
+  return {
+    x: currentCoordinates.x,
+    y: targetRect.top + targetRect.height / 2 - context.collisionRect.height / 2,
+  };
+};
 
 function isBelow(
   byId: ReadonlyMap<string, TreeDragItem>,
@@ -107,7 +153,7 @@ export function TreeDragDropProvider({
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, { coordinateGetter: treeKeyboardCoordinates }),
   );
   const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const itemName = (id: string): string => byId.get(id)?.name ?? "l’élément";

@@ -229,6 +229,16 @@ select {
   color: var(--danger);
 }
 
+.ambiguity-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
 .empty-state,
 .loading-state {
   color: var(--muted);
@@ -2252,6 +2262,20 @@ code,
   .editor-file-download {
     grid-column: 2;
     justify-self: start;
+  }
+}
+
+@media (pointer: coarse) {
+  .editor-history-controls .ui-button,
+  .page-editor .bn-ak-button,
+  .editor-code-toolbar select,
+  .editor-code-toolbar button,
+  .editor-table-toolbar button,
+  .editor-callout-controls input,
+  .editor-callout-controls select,
+  .editor-page-link-results > button {
+    min-width: var(--ui-target);
+    min-height: var(--ui-target);
   }
 }
 

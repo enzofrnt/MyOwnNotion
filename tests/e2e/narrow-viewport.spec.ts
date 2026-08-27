@@ -110,7 +110,7 @@ test.describe("at 320 pixels", () => {
     await expectNoHorizontalOverflow(page);
   });
 
-  test("controls stay big enough to hit with a thumb", async ({ page }) => {
+  test("controls stay big enough to hit with a thumb", async ({ page, isMobile }) => {
     // 44 pixels is the usual floor, and the reason is physical rather than
     // aesthetic: a smaller target is one an owner misses, and missing a
     // "trash" button is worse than missing a "save" one.
@@ -121,7 +121,68 @@ test.describe("at 320 pixels", () => {
     await waitForSynchronized(page);
 
     const box = await page.getByTestId(`convert-${name}`).boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(isMobile === true ? 44 : 24);
+  });
+
+  test("wide tables and inline media stay inside the page canvas", async ({ page }) => {
+    await page.setViewportSize(NARROW);
+    await openNarrowWorkspace(page);
+    const name = uniqueName("NarrowRichContent");
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    const editor = page.getByTestId("block-editor").locator(".ProseMirror");
+    await expect(editor).toBeVisible({ timeout: 30_000 });
+
+    // Insert media while the initial paragraph still owns the cursor. WebKit
+    // cannot derive a text insertion point from a synthetic file drop whose
+    // current block is a table, even though the durable file path itself is
+    // supported there.
+    await editor.click();
+    await editor.evaluate((surface) => {
+      const bytes = Uint8Array.from(
+        atob(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        ),
+        (character) => character.charCodeAt(0),
+      );
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([bytes], "pixel.png", { type: "image/png" }));
+      surface.dispatchEvent(
+        new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }),
+      );
+    });
+    await expect(editor.locator(".editor-image-block")).toBeVisible({ timeout: 30_000 });
+    await expectNoHorizontalOverflow(page);
+
+    // Keep a fresh paragraph after the image and turn it into a real table.
+    // Both intrinsically wide block types must be contained by the canvas.
+    await editor.click();
+    await editor.press("ControlOrMeta+Alt+Enter");
+    await editor.pressSequentially("/tab");
+    const tableMenu = page.getByRole("listbox");
+    await tableMenu.getByRole("option", { name: /^Tableau simple/u }).click();
+    await expect(editor.locator(".editor-table-toolbar")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+});
+
+test.describe("at 200 percent zoom", () => {
+  test("the core writing surface keeps every control reachable", async ({ page }) => {
+    // CSS zoom gives every engine the same deterministic effective 320px
+    // content width from a 640px viewport. Browser-native zoom is unavailable
+    // through a cross-engine Playwright API, while deviceScaleFactor does not
+    // change layout and therefore would not exercise this requirement.
+    await page.setViewportSize({ width: 640, height: 800 });
+    await openWorkspace(page);
+    await page.evaluate(() => document.documentElement.style.setProperty("zoom", "2"));
+    const name = uniqueName("ZoomedPage");
+    await createRootItem(page, "page", name);
+    await waitForSynchronized(page);
+    await selectItem(page, name);
+    await expect(page.getByTestId("active-item-title")).toBeVisible();
+    await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
+    await expectNoHorizontalOverflow(page);
   });
 });
 

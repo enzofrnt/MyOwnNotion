@@ -1,5 +1,21 @@
 <!--
 Sync Impact Report
+- Version change: 1.3.0 -> 2.0.0
+- Modified principles:
+  - VI. Accessible and Predictable Experience -> Practical and Predictable
+    Experience; retained keyboard, visible focus, clear labels and predictable
+    pointer/touch behavior while removing mandatory assistive-technology
+    support and formal WCAG certification from the permanent product contract
+- Added sections: none
+- Removed sections: none
+- Follow-up TODOs: none; `docs/product/product-canvas.md` and the active
+  feature 017 artifacts are aligned in the same change
+- Rationale: MAJOR. This deliberately removes previously mandatory
+  assistive-technology acceptance and formal accessibility-conformance scope.
+  Features that complied only because they included those gates remain valid,
+  but future features are no longer required to provide them.
+
+Previous report (1.2.0 -> 1.3.0)
 - Version change: 1.2.0 -> 1.3.0
 - Modified principles:
   - III. Incremental, Verifiable Delivery -> removed the branch-CI step from the
@@ -103,9 +119,16 @@ application-level encryption.
 
 The system MUST start with the smallest architecture that satisfies the approved specification. Domain boundaries such as editing, knowledge graph, databases, storage, and external integrations SHOULD remain explicit, but services and abstractions MUST NOT be introduced without a current requirement. Irreversible coupling and vendor lock-in require written justification in the plan.
 
-### VI. Accessible and Predictable Experience
+### VI. Practical and Predictable Experience
 
-Keyboard use, readable focus states, semantic structure, and assistive-technology support MUST be acceptance concerns for interactive features. Editing, navigation, saving, and synchronization states MUST be understandable and must avoid silent data loss. Performance targets MUST be measurable from a user's perspective.
+Core interactive features MUST support coherent keyboard operation, readable
+focus states, clear control labels, and predictable mouse and touch behavior.
+The product is a personal single-owner application and does not target formal
+accessibility certification, specialized assistive-technology support, or
+exhaustive WCAG conformance unless the owner explicitly adds that scope in a
+later constitution amendment. Editing, navigation, saving, and synchronization
+states MUST remain understandable and MUST avoid silent data loss. Performance
+targets MUST be measurable from the owner's perspective.
 
 ### VII. Reproducible Toolchains and Enforced Quality
 
@@ -181,4 +204,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 1.3.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-10
+**Version**: 2.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-27

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveTreeDrop, type TreeDragItem } from "../src/features/navigation/tree-drag-drop.tsx";
+import {
+  adjacentTreeKeyboardTarget,
+  resolveTreeDrop,
+  type TreeDragItem,
+} from "../src/features/navigation/tree-drag-drop.tsx";
 
 const items = [
   { id: "root", name: "Racine", parentId: null, siblingIndex: 0, canContainChildren: true },
@@ -52,5 +56,24 @@ describe("tree drag and drop intent", () => {
       targetId: "child",
       reason: "cycle",
     });
+  });
+});
+
+describe("tree keyboard drop targets", () => {
+  const rows = [
+    { id: "third", top: 80 },
+    { id: "first", top: 0 },
+    { id: "second", top: 40 },
+  ] as const;
+
+  it("moves to the visually adjacent row instead of retaining the active row", () => {
+    expect(adjacentTreeKeyboardTarget(rows, "second", "up")).toBe("first");
+    expect(adjacentTreeKeyboardTarget(rows, "second", "down")).toBe("third");
+  });
+
+  it("stops at the visible boundaries and rejects an unknown current row", () => {
+    expect(adjacentTreeKeyboardTarget(rows, "first", "up")).toBeNull();
+    expect(adjacentTreeKeyboardTarget(rows, "third", "down")).toBeNull();
+    expect(adjacentTreeKeyboardTarget(rows, "missing", "down")).toBeNull();
   });
 });
