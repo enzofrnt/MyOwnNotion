@@ -242,6 +242,26 @@ La PR #150 a passé toutes ses gates sur le candidat Bun puis a été fusionnée
 dans `main` au commit `dff719e71b77c3e244e49794d93aed331907227a`.
 T049 est donc terminée. La CI de ce premier push `main` a ensuite échoué sur une
 course WebKit mobile du dialogue `/lien`, indépendante de la chaîne Bun et
-suivie par T274 de la feature 017. T050 reste volontairement ouverte jusqu'à ce
-que cette correction soit fusionnée, que la CI complète de `main` soit verte et
-que les images commit-addressable correspondantes soient publiées.
+suivie par T274 de la feature 017. T050 est restée volontairement ouverte
+jusqu'à ce que cette correction soit fusionnée, que la CI complète de `main`
+soit verte et que les images commit-addressable correspondantes soient
+publiées ; cette condition est satisfaite par la livraison ci-dessous.
+
+La PR #151 a corrigé cette course sans désactiver ni assouplir aucune gate et a
+été fusionnée dans `main` au commit
+`b0a7aacb4e2bc8c0af675a573df6bd21bfd978a2`. La
+[CI complète de ce push `main`](https://github.com/enzofrnt/MyOwnNotion/actions/runs/33120551083)
+a terminé avec succès : 24 jobs sur 24, dont les cinq profils Playwright, la
+porte qualité et la publication. Les index OCI publiés et relus sont :
+
+- API `sha-b0a7aacb4e2bc8c0af675a573df6bd21bfd978a2`, digest
+  `sha256:362ff02b2aa25c05a916c46d592d54450e0b2ffc8bc1ade1932f0ac59f0fd451` ;
+- Web `sha-b0a7aacb4e2bc8c0af675a573df6bd21bfd978a2`, digest
+  `sha256:56054786788b3696f3132c7650b7c190a922c7e543afe8ad36deb258a4ed069d`.
+
+Chaque index contient les manifestes `linux/amd64` et `linux/arm64` attendus
+ainsi que ses attestations. Un déploiement local vierge a ensuite exécuté les
+12 migrations avec `bun dist/migrate.js`, démarré l'API et le Web depuis ces
+deux tags exacts, passé leurs healthchecks et répondu en HTTPS avec l'état
+`uninitialized` et les comptes `0/0`. T050 est terminée : la migration Bun ne
+conserve plus aucune preuve de livraison ouverte.
