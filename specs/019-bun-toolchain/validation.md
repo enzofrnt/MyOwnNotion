@@ -6,7 +6,7 @@
 
 **Runtime validé**: Bun `1.4.0` exactement
 
-**Commit exécutable candidat**: `2a1acf93a98030c7abbf1cb84e11613f9a55c81c`
+**Commit exécutable candidat**: `b51bdaaf1e96e1bd03a769fe6a84794c1b312e86`
 
 Ce journal rassemble les preuves reproductibles de la migration. Les données,
 le schéma PostgreSQL et le protocole de synchronisation restent inchangés.
@@ -113,8 +113,51 @@ la clé de déploiement isolée de la pile.
 
 La relance ciblée documentée
 `bun run test:e2e:gate -- --project=firefox-desktop` a ensuite réussi. Les cinq
-profils ont donc chacun passé le corpus. T048 relancera la matrice entière dans
-la porte exacte avant push.
+profils ont donc chacun passé le corpus. La porte T048 a ensuite relancé cette
+matrice entière avant push.
+
+La première CI de la PR #150 a ensuite exposé une mesure Firefox instable : le
+contenu distant était correct, mais le chrono de propagation comptait le focus
+Playwright et la saisie séquentielle de toute la phrase. Il a mesuré 2 141 ms,
+puis 2 166 ms au retry, contre le budget de 2 000 ms. Le seuil produit n'a pas
+été relevé. Le chrono démarre désormais à la dernière frappe réelle ; il couvre
+toujours la fenêtre calme de l'éditeur, la durabilité locale, l'échange
+WebSocket Bun et la projection distante.
+
+La correction a réussi 10/10 répétitions Firefox dans le conteneur Linux, avec
+948 ms au premier échantillon textuel et un maximum de 1 074 ms sur les trente
+mesures texte/formatage/déplacement. La matrice ciblée a ensuite réussi sur les
+cinq profils en parallèle en 73 secondes.
+
+La première relance de la porte a ensuite exposé une saturation du harnais de
+performance : les budgets exécutés étaient verts, mais sept fichiers lourds
+avaient ouvert assez de threads pour faire expirer les RPC Vitest `fetch` et
+`onTaskUpdate`. Le test annonçait alors à tort son timeout de 600 secondes après
+54 secondes. Une tentative à deux workers a supprimé l'expiration RPC, mais a
+fait dépasser de 13,7 Mio le budget mémoire du benchmark de page parce qu'il
+concurrençait la fixture de base structurée. Les commandes complètes et
+affectées utilisent donc le worker unique déjà déclaré par
+`REALTIME_REFERENCE_MACHINE`. Les familles CI restent parallèles, mais les
+benchmarks d'un même runner ne se faussent plus mutuellement. Les budgets
+produit sont inchangés.
+
+La porte suivante a confirmé que le dernier aléa restant venait de la politique
+de collecte de JavaScriptCore : dans un processus frais, le benchmark de page
+terminait correctement mais variait entre 518,8 et 555,4 Mio de croissance de
+heap selon la mémoire disponible, contre le plafond inchangé de 512 Mio. Le
+projet de performance démarre désormais avec le profil Bun `--smol`, prévu pour
+collecter plus souvent sur une machine contrainte. Le profil ne concerne aucun
+autre projet, ne relève aucun budget et garde les mesures de temps réelles. La
+mesure force aussi une collecte uniquement entre les phases chronométrées et
+borne le pic de heap encore vivant. Elle ne dépend ainsi plus d'un pic d'objets
+déjà libérables que JavaScriptCore aurait choisi de collecter quelques
+millisecondes plus tôt ou plus tard.
+
+Trois processus frais ont ensuite mesuré respectivement 162,7 Mio, 178,9 Mio
+et 137,0 Mio de croissance maximale du heap vivant. La suite complète, dans son
+ordre réel, a réussi ses 7 fichiers et 18 tests en 160 secondes avec 179,3 Mio
+sur le scénario de page ; les budgets d'ingestion, rattrapage, compaction,
+recherche, base structurée, sauvegarde et WebSocket sont tous restés verts.
 
 ## Convergence Speckit
 
@@ -126,18 +169,28 @@ ajoutée.
 ## Porte candidate
 
 Le commit exécutable candidat est
-`2a1acf93a98030c7abbf1cb84e11613f9a55c81c`. Le seul diff préparé après ce
-commit est ce résultat de validation et la fermeture de T048 ; il ne modifie
-aucun fichier exécutable. La porte est exécutée sur cet arbre final avant de
-créer le commit de preuve.
+`b51bdaaf1e96e1bd03a769fe6a84794c1b312e86`. Le seul diff préparé après ce
+commit est ce journal et la clôture de T048 ; il ne modifie aucun fichier
+exécutable. La porte a été exécutée sur cet arbre final avant le prochain push.
 
-Commande lancée le 2026-08-27 à 16:32 CEST :
+Commande exécutée exactement :
 
 ```sh
 bun run checks:local
 ```
 
-**Résultat**: PASS — toutes les étapes obligatoires de `docs/development.md`,
-y compris la matrice complète des cinq profils navigateur et les images
-multiarchitecture, ont terminé avec un code nul. Aucun gate n'a été ignoré ou
-désactivé.
+**Résultat**: PASS, code de sortie 0.
+
+- couverture : 300 fichiers et 3 154 tests réussis sous Istanbul ; budgets
+  absolus respectés ;
+- performance : 7 fichiers et 18 tests réussis, dont 10 000 mises à jour de
+  page avec 176,0 Mio de croissance maximale du heap vivant ;
+- intégration et migrations : 331 puis 11 tests réussis ;
+- contrats API/workspace : 107 fichiers et 1 221 tests réussis, dont 90 jours
+  hors ligne et 10 000 changements distants ;
+- Playwright : Chromium desktop 257, Firefox desktop 241, WebKit desktop 241,
+  Chromium mobile 246 et WebKit mobile 237 tests réussis ; les exclusions
+  propres aux profils restent respectivement 0, 16, 16, 11 et 20 ;
+- builds API/Web, PWA, images API/Web `linux/amd64` et `linux/arm64`, smoke API
+  Bun 1.4.0 sans runtime Node autonome, audit, secrets, analyse statique,
+  licences et contrat Compose : PASS.
