@@ -38,9 +38,15 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
   await expect(page.getByTestId("operational-editor")).not.toHaveClass(/\bpanel\b/u);
   const compactEditorStatus = page.getByTestId("editor-sync-status");
   await expect(compactEditorStatus).toBeVisible();
-  await expect
-    .poll(() => compactEditorStatus.evaluate((node) => getComputedStyle(node).opacity))
-    .toBe("0");
+  const hiddenLabelBox = await compactEditorStatus.boundingBox();
+  expect(hiddenLabelBox).not.toBeNull();
+  expect(hiddenLabelBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+  expect(hiddenLabelBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+  const syncControl = page.getByTestId("editor-sync-control");
+  await expect(syncControl).toHaveAttribute("data-placement", "viewport-bottom");
+  const syncBox = await syncControl.boundingBox();
+  expect(syncBox).not.toBeNull();
+  expect(VIEWPORT.height - ((syncBox?.y ?? 0) + (syncBox?.height ?? 0))).toBeLessThanOrEqual(20);
   const pageTop = await page.getByTestId("active-item-title").boundingBox();
   const editorTop = await page.getByTestId("block-editor").boundingBox();
   expect(pageTop).not.toBeNull();

@@ -29,6 +29,14 @@ export interface PageScrollAnchor {
 export interface WorkspacePresentationState {
   readonly sidebarOpen: boolean;
   readonly sidebarWidth: number;
+  /** Whether the favourite shortcuts are rendered on this device. */
+  readonly favouritesVisible: boolean;
+  /** Whether the favourite shortcut rows are currently revealed. */
+  readonly favouritesExpanded: boolean;
+  /** Whether the recent shortcuts are rendered on this device. */
+  readonly recentsVisible: boolean;
+  /** Whether the recent shortcut rows are currently revealed. */
+  readonly recentsExpanded: boolean;
   /** Branches the owner has opened, by item id. */
   readonly expandedItemIds: string[];
   readonly lastVisitedItemId: string | null;
@@ -44,6 +52,10 @@ export type NavigationState = WorkspacePresentationState;
 export const DEFAULT_WORKSPACE_PRESENTATION_STATE: WorkspacePresentationState = {
   sidebarOpen: true,
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+  favouritesVisible: true,
+  favouritesExpanded: true,
+  recentsVisible: true,
+  recentsExpanded: true,
   expandedItemIds: [],
   lastVisitedItemId: null,
   scrollPositions: [],
@@ -115,6 +127,13 @@ export function normalizeWorkspacePresentationState(value: unknown): WorkspacePr
       typeof candidate.sidebarWidth === "number"
         ? clampSidebarWidth(candidate.sidebarWidth)
         : DEFAULT_SIDEBAR_WIDTH,
+    favouritesVisible:
+      typeof candidate.favouritesVisible === "boolean" ? candidate.favouritesVisible : true,
+    favouritesExpanded:
+      typeof candidate.favouritesExpanded === "boolean" ? candidate.favouritesExpanded : true,
+    recentsVisible: typeof candidate.recentsVisible === "boolean" ? candidate.recentsVisible : true,
+    recentsExpanded:
+      typeof candidate.recentsExpanded === "boolean" ? candidate.recentsExpanded : true,
     expandedItemIds,
     lastVisitedItemId:
       typeof candidate.lastVisitedItemId === "string" ? candidate.lastVisitedItemId : null,

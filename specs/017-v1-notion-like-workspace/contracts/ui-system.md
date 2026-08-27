@@ -90,12 +90,12 @@ seule.
 
 ~~~text
 ┌──────────── navigation 240–360 px ────────────┬──────── page ────────┐
-│ workspace / actions                           │ fil d'Ariane / état  │
+│ workspace / actions                           │ fil d'Ariane         │
 │ recherche                                     │                      │
-│ arbre pages & bases                           │ titre                │
-│ favoris / corbeille                           │ propriétés           │
+│ Favoris / Récents (facultatifs)               │ titre                │
+│ Notes : arbre pages & bases                   │ propriétés           │
 │                                               │ éditeur              │
-│ réglages / état sync compact                  │                      │
+│ réglages                                      │ état sync épinglé    │
 └───────────────────────────────────────────────┴──────────────────────┘
 ~~~
 
@@ -113,6 +113,19 @@ L'arbre conserve sélection, focus et branches ouvertes. Le DnD montre parent,
 position et action refusée ; l'équivalent clavier permet déplacer avant/après
 ou dans une page.
 
+Les sections `Favoris` et `Récents` ont chacune un contrôle discret de
+repli/dépli indépendant. Leur visibilité est réglable dans la destination
+Réglages et ces choix de présentation restent locaux à l'appareil. La
+hiérarchie principale s'appelle `Notes`. Ses descendants sont rapprochés du
+bord gauche tout en conservant une indentation et un guide visuel assez nets
+pour rendre le parent immédiatement identifiable.
+
+Chaque ligne de hiérarchie expose trois destinations de déplacement : avant,
+dans et après. Avant/après affichent une ligne entre les éléments ; dans met en
+évidence la ligne parent. Un état vide est rendu en français sous le parent
+concerné, avec la même indentation, sans donner l'impression d'une nouvelle
+section globale.
+
 ### 5.1 Frontière du workspace
 
 La colonne principale ne rend que le contenu ou une vue de connaissance :
@@ -122,10 +135,13 @@ sauvegardes, corbeille administrative, révisions techniques, outbox ou
 diagnostics.
 
 Ces fonctions ouvrent une destination dédiée depuis la sidebar ou une action
-contextuelle. Le header peut conserver un état court tel que « Hors ligne »,
-« Enregistré sur cet appareil », « Synchronisation… », « Synchronisé » ou
-« Action requise ». Ouvrir son détail quitte la surface de contenu ; revenir
-restaure item actif, focus utile, sélection et ancre de scroll.
+contextuelle. La page conserve seulement un bouton d'information compact
+épinglé au bord inférieur visible, hors du flux du document. Il résume
+« Hors ligne », « Enregistré sur cet appareil », « Synchronisation… »,
+« Synchronisé » ou « Action requise » et révèle les détails au survol, au
+focus ou au clic, sans déplacer le titre ni l'éditeur. Revenir d'une
+destination dédiée restaure item actif, focus utile, sélection et ancre de
+scroll.
 
 ## 6. Responsive
 
@@ -154,6 +170,16 @@ espacement équivalent. Le DnD n'est jamais l'unique méthode.
 - largeur de code/table/média contrôlée sans casser la colonne de lecture ;
 - état local/sync toujours accessible mais visuellement secondaire ;
 - ambiguïté présentée près du bloc et dans un centre d'attention global.
+
+Le titre est la première grande ligne éditable du canevas. Il peut rester vide
+tant que le propriétaire le modifie ; `Sans titre` n'est affiché qu'après la
+sortie du champ, une validation explicite ou le départ de la page.
+
+Un lien interne ou externe déjà présent est reconnaissable au pointeur et
+offre les actions ouvrir, modifier la cible, modifier le texte et retirer le
+lien. Retirer le lien conserve son texte et ne supprime jamais la page cible.
+Ces actions existent dans la barre contextuelle, au clic droit et par un
+chemin clavier simple.
 
 Le focus ne saute pas lors d'une update distante. Une suppression distante du
 bloc actif place le focus sur le voisin logique et affiche un retour d'état
@@ -236,6 +262,11 @@ en masse sans expliquer le changement n'est pas une validation.
   distincts et compréhensibles ;
 - aucun panneau de configuration ou diagnostic détaillé n'est rendu sous le
   document courant ; les destinations dédiées restaurent le contexte au retour ;
+- Favoris/Récents sont configurables localement et Notes présente une
+  hiérarchie lisible avec trois cibles de déplacement explicites ;
+- le statut de page reste épinglé en bas sans modifier la géométrie du document ;
+- les liens internes et externes offrent le même cycle ouvrir/modifier/retirer,
+  sans destruction de leur cible ;
 - les parcours principaux passent Chromium, Firefox et WebKit ;
 - aucune fonction essentielle n'est accessible uniquement par drag, hover ou
   couleur.

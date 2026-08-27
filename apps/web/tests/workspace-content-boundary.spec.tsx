@@ -39,6 +39,7 @@ describe("workspace content boundary", () => {
     expect(shell?.querySelector("main")?.id).toBe("settings-main");
     expect(shell?.querySelector('[aria-label="Sections des réglages"]')).not.toBeNull();
     expect(shell?.querySelector('[data-testid="settings-nav-security"]')).not.toBeNull();
+    expect(shell?.querySelector('[data-testid="settings-nav-navigation"]')).not.toBeNull();
     expect(shell?.querySelector('[data-testid="settings-nav-backups"]')).not.toBeNull();
     expect(
       shell?.querySelector('[data-testid="settings-nav-local-data"]')?.getAttribute("aria-current"),

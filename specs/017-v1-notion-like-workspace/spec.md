@@ -121,6 +121,27 @@ responsabilité explicite de ces comportements dans son propre périmètre.
   si la page possède déjà des gestes hors ligne à préserver ou si le serveur
   est réellement indisponible.
 
+### Session 2026-08-27
+
+- Q: Favoris et Récents doivent-ils rester affichés en permanence ? → R: Non.
+  Chaque section peut être repliée depuis la barre latérale et masquée ou
+  réaffichée depuis les réglages ; ces choix de présentation restent locaux à
+  l'appareil et ne modifient pas les contenus concernés.
+- Q: Comment un dépôt dans l'arborescence choisit-il entre réordonner et
+  imbriquer ? → R: La position visée fait autorité : avant, à l'intérieur ou
+  après. Un repère entre les lignes matérialise un réordonnancement, tandis que
+  la ligne entière matérialise une imbrication possible.
+- Q: Quand une page sans titre reçoit-elle son libellé de repli ? → R:
+  Seulement après avoir quitté l'édition du titre. Un champ ciblé peut rester
+  vide sans qu'un délai réinjecte « Sans titre » pendant la frappe.
+- Q: Quelles actions sont obligatoires sur un lien existant ? → R: Ouvrir,
+  modifier et retirer le lien, pour une cible interne comme externe, depuis un
+  outil contextuel et le clic droit. Retirer la référence conserve son texte et
+  ne touche jamais à la page cible.
+- Q: Où placer l'état compact de synchronisation ? → R: Au bord inférieur du
+  contenu visible, hors du flux du document, avec un détail au survol, au focus
+  ou au clic et sans déplacement du texte lorsque son état change.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Entrer dans un espace de travail focalisé (Priority: P1)
@@ -161,6 +182,21 @@ une page sur ordinateur puis sur un écran de 320 pixels.
    sauvegarde, appareil, file de mutations ou diagnostic détaillé n'est rendu
    sous ce contenu ; son accès dédié restaure la même page et la même position
    au retour.
+7. **Given** les sections Favoris et Récents, **When** le propriétaire les
+   replie ou change leur visibilité dans les réglages, **Then** chacune répond
+   indépendamment, le choix revient sur cet appareil et la hiérarchie Notes ne
+   change pas.
+8. **Given** une branche comprenant plusieurs niveaux, **When** le propriétaire
+   vise l'espace avant une ligne, son centre ou l'espace après elle, **Then** le
+   repère indique respectivement avant, à l'intérieur ou après et le résultat
+   suit exactement ce repère sans cycle.
+9. **Given** le titre « Sans titre » ciblé, **When** le propriétaire l'efface
+   puis commence un autre titre, **Then** le champ reste vide entre ses gestes
+   et le libellé de repli ne revient que s'il quitte le champ encore vide.
+10. **Given** une page longue en cours d'édition, **When** son état de
+    synchronisation change, **Then** le bouton d'information reste au bord
+    inférieur visible sans déplacer le titre, les blocs ni la position de
+    lecture.
 
 ---
 
@@ -197,6 +233,10 @@ annuler, rétablir, recharger et comparer le document obtenu.
 5. **Given** une destination interdite ou devenue indisponible, **When** un
    déplacement est tenté, **Then** le document reste inchangé et le refus est
    compréhensible.
+6. **Given** un lien interne ou externe existant, **When** le propriétaire le
+   survole, le cible ou ouvre son menu contextuel, **Then** il peut l'ouvrir,
+   modifier sa cible ou son libellé, ou retirer seulement le lien en conservant
+   le texte et toute page cible.
 
 ---
 
@@ -471,6 +511,23 @@ en charge, une fois sans pointeur puis une fois au toucher.
   active et éditable, sa branche MUST être révélée et, pour `/page`, le lien
   MUST rester présent lorsque le propriétaire revient à la page source ou la
   recharge.
+- **FR-076**: La hiérarchie principale MUST porter le libellé « Notes ».
+  Favoris et Récents MUST posséder chacun un contrôle de repli distinct des
+  contrôles de branche, une préférence de visibilité dans les réglages et un
+  état de présentation restauré localement sans modifier les données métier.
+- **FR-077**: La relation parent-enfant et l'état d'une branche vide MUST être
+  visuellement rattachés à leur niveau. Un dépôt au pointeur MUST distinguer
+  avant, à l'intérieur et après par des repères différents, et le placement
+  produit MUST dépendre de la zone visée plutôt que de la position d'origine.
+- **FR-078**: Le titre ciblé MUST accepter un brouillon vide sans substitution
+  différée. Si le brouillon reste vide lorsque le propriétaire quitte le champ,
+  le valide explicitement ou ferme la page, il MUST alors être engagé et
+  présenté comme « Sans titre » sans changer l'identité de l'élément.
+- **FR-079**: L'indicateur compact de synchronisation d'une page MUST rester
+  ancré au bord inférieur du contenu visible, hors du flux du document, sans
+  déplacement de contenu. Son détail MUST être disponible au survol, au focus
+  et au clic ; un état nécessitant une action MUST rester visible sans ouvrir
+  automatiquement un panneau qui recouvre l'édition.
 
 #### Block editing
 
@@ -507,6 +564,12 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **FR-022**: Les liens internes MUST conserver l'identité canonique de leur
   cible et distinguer visuellement une cible active, supprimée, indisponible ou
   inconnue.
+- **FR-080**: Un lien interne ou externe existant MUST être reconnaissable comme
+  cliquable et permettre de l'ouvrir, modifier sa cible ou son libellé, et
+  retirer la référence depuis un outil contextuel ainsi que par clic droit.
+  Retirer un lien MUST conserver son texte et ne MUST ni supprimer, ni déplacer
+  une page interne cible. Remplacer une cible interne MUST conserver une
+  identité canonique plutôt qu'un titre copié.
 - **FR-023**: Images et fichiers insérés dans une page MUST réutiliser le cycle
   de vie, la sécurité, les limites, la déduplication et la disponibilité locale
   définis par la feature 005.
@@ -813,6 +876,24 @@ en charge, une fois sans pointeur puis une fois au toucher.
   fermeture brutale suivie d'un nouveau lancement hors ligne retrouve les deux
   blocs et leurs octets ; la reconnexion reprend les transferts sous les mêmes
   identités, les vérifie une seule fois et ne crée aucun fichier dupliqué.
+- **SC-023**: Sur cent déplacements couvrant les trois zones de chaque ligne,
+  cent pour cent des résultats correspondent au repère avant, intérieur ou
+  après affiché, sans cycle, changement de parent implicite ni ordre inversé.
+- **SC-024**: Sur les cinq profils navigateur, effacer « Sans titre », attendre
+  au moins deux secondes puis saisir un nouveau titre ne réinjecte jamais le
+  libellé de repli ; quitter un champ encore vide l'affiche une seule fois dans
+  la page et la navigation.
+- **SC-025**: Les parcours créer, ouvrir, modifier la cible et le libellé, puis
+  retirer un lien réussissent pour un lien interne et externe au pointeur, au
+  clic droit et au clavier ; le texte ainsi que toute page cible restent
+  intacts après retrait.
+- **SC-026**: Masquer, afficher, replier et déplier indépendamment Favoris et
+  Récents survit à un rechargement sur l'appareil dans cent pour cent des cas,
+  sans modifier le nombre de favoris ni l'ordre de la hiérarchie Notes.
+- **SC-027**: Sur une page courte ou longue, dix changements successifs d'état
+  de synchronisation déplacent le titre, les blocs et la position de lecture de
+  moins d'un pixel et laissent le détail atteignable sans rejoindre la fin du
+  document.
 
 ## Assumptions
 
@@ -842,6 +923,9 @@ en charge, une fois sans pointeur puis une fois au toucher.
   remplacer.
 - Les anciens blocs inconnus et documents hérités restent conservés même si
   leur apparence ne peut pas bénéficier de toutes les nouvelles interactions.
+- Les préférences de visibilité et de repli de la barre latérale sont propres à
+  l'appareil, comme sa largeur et ses branches ouvertes ; elles ne sont pas des
+  données éditoriales synchronisées.
 
 ## Out of Scope
 

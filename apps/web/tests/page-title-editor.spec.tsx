@@ -23,6 +23,7 @@ describe("page title editor", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -63,5 +64,31 @@ describe("page title editor", () => {
 
     expect(title.value).toBe("Brouillon local");
     expect(title.selectionStart).toBe(9);
+  });
+
+  it("keeps a focused empty draft blank until the owner leaves the field", async () => {
+    vi.useFakeTimers();
+    const onCommit = vi.fn(async () => undefined);
+    await act(async () => {
+      root.render(<PageTitleEditor title="Projet" onCommit={onCommit} />);
+    });
+    const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
+    if (title === null) throw new Error("title editor missing");
+
+    await act(async () => {
+      title.focus();
+      typeInto(title, "");
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(title.value).toBe("");
+    expect(onCommit).not.toHaveBeenCalled();
+
+    await act(async () => {
+      title.blur();
+      await Promise.resolve();
+    });
+    expect(onCommit).toHaveBeenCalledWith("Sans titre");
+    expect(title.value).toBe("Sans titre");
   });
 });

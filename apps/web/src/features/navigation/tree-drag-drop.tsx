@@ -1,10 +1,12 @@
 import {
+  type CollisionDetection,
   closestCenter,
   DndContext,
   type DragEndEvent,
   type KeyboardCoordinateGetter,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
@@ -21,6 +23,30 @@ export interface TreeDragItem {
   readonly parentId: string | null;
   readonly siblingIndex: number;
   readonly canContainChildren: boolean;
+}
+
+export type TreeDropZone = "before" | "inside" | "after";
+
+const TREE_DROP_TARGET_PREFIX = "tree-drop:";
+
+export function treeDropTargetId(itemId: string, zone: TreeDropZone): string {
+  return `${TREE_DROP_TARGET_PREFIX}${zone}:${encodeURIComponent(itemId)}`;
+}
+
+export function parseTreeDropTargetId(
+  targetId: string,
+): { readonly itemId: string; readonly zone: TreeDropZone } | null {
+  if (!targetId.startsWith(TREE_DROP_TARGET_PREFIX)) return null;
+  const encoded = targetId.slice(TREE_DROP_TARGET_PREFIX.length);
+  const separator = encoded.indexOf(":");
+  if (separator < 0) return null;
+  const zone = encoded.slice(0, separator);
+  if (zone !== "before" && zone !== "inside" && zone !== "after") return null;
+  try {
+    return { itemId: decodeURIComponent(encoded.slice(separator + 1)), zone };
+  } catch {
+    return null;
+  }
 }
 
 export type TreeDropIntent =
@@ -59,22 +85,50 @@ export function adjacentTreeKeyboardTarget(
   return ordered[targetIndex]?.id ?? null;
 }
 
+export function adjacentTreeKeyboardDropTarget(
+  rows: readonly TreeKeyboardRow[],
+  currentId: string,
+  direction: "up" | "down",
+): string | null {
+  const itemId = adjacentTreeKeyboardTarget(rows, currentId, direction);
+  return itemId === null ? null : treeDropTargetId(itemId, direction === "up" ? "before" : "after");
+}
+
 const treeKeyboardCoordinates: KeyboardCoordinateGetter = (
   event,
   { active, currentCoordinates, context },
 ) => {
-  if (event.code !== "ArrowUp" && event.code !== "ArrowDown") return undefined;
+  if (
+    event.code !== "ArrowUp" &&
+    event.code !== "ArrowDown" &&
+    event.code !== "ArrowLeft" &&
+    event.code !== "ArrowRight"
+  ) {
+    return undefined;
+  }
   event.preventDefault();
 
   const rows = context.droppableContainers.getEnabled().flatMap((container) => {
+    const target = parseTreeDropTargetId(String(container.id));
+    if (target?.zone !== "before") return [];
     const rect = context.droppableRects.get(container.id);
-    return rect === undefined ? [] : [{ id: String(container.id), top: rect.top }];
+    return rect === undefined ? [] : [{ id: target.itemId, top: rect.top }];
   });
-  const targetId = adjacentTreeKeyboardTarget(
-    rows,
-    String(context.over?.id ?? active),
-    event.code === "ArrowUp" ? "up" : "down",
-  );
+  const currentDropTarget = parseTreeDropTargetId(String(context.over?.id ?? ""));
+  const currentItemId = currentDropTarget?.itemId ?? String(active);
+  const targetId =
+    event.code === "ArrowUp" || event.code === "ArrowDown"
+      ? adjacentTreeKeyboardDropTarget(
+          rows,
+          currentItemId,
+          event.code === "ArrowUp" ? "up" : "down",
+        )
+      : currentDropTarget === null || currentDropTarget.itemId === String(active)
+        ? null
+        : treeDropTargetId(
+            currentDropTarget.itemId,
+            event.code === "ArrowRight" ? "inside" : "before",
+          );
   if (targetId === null || context.collisionRect === null) return undefined;
   const targetRect = context.droppableRects.get(targetId);
   if (targetRect === undefined) return undefined;
@@ -105,8 +159,11 @@ function isBelow(
 export function resolveTreeDrop(
   items: readonly TreeDragItem[],
   activeId: string,
-  targetId: string,
+  dropTargetId: string,
 ): TreeDropIntent | null {
+  const dropTarget = parseTreeDropTargetId(dropTargetId);
+  if (dropTarget === null) return null;
+  const { itemId: targetId, zone } = dropTarget;
   if (activeId === targetId) return null;
   const byId = new Map(items.map((item) => [item.id, item]));
   const active = byId.get(activeId);
@@ -117,17 +174,8 @@ export function resolveTreeDrop(
     return { kind: "rejected", itemId: active.id, targetId: target.id, reason: "cycle" };
   }
 
-  if (active.parentId === target.parentId) {
-    return {
-      kind: "place",
-      itemId: active.id,
-      targetId: target.id,
-      parentId: target.parentId,
-      edge: active.siblingIndex < target.siblingIndex ? "after" : "before",
-    };
-  }
-
-  if (target.canContainChildren) {
+  if (zone === "inside") {
+    if (!target.canContainChildren) return null;
     return { kind: "nest", itemId: active.id, parentId: target.id };
   }
 
@@ -136,8 +184,24 @@ export function resolveTreeDrop(
     itemId: active.id,
     targetId: target.id,
     parentId: target.parentId,
-    edge: "after",
+    edge: zone,
   };
+}
+
+const treeCollisionDetection: CollisionDetection = (input) => {
+  const pointerCollisions = pointerWithin(input);
+  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(input);
+};
+
+function dropTargetName(byId: ReadonlyMap<string, TreeDragItem>, dropTargetId: string): string {
+  const target = parseTreeDropTargetId(dropTargetId);
+  if (target === null) return "la cible";
+  const name = byId.get(target.itemId)?.name ?? "l’élément";
+  return target.zone === "inside"
+    ? `dans ${name}`
+    : target.zone === "before"
+      ? `avant ${name}`
+      : `après ${name}`;
 }
 
 export function TreeDragDropProvider({
@@ -172,7 +236,7 @@ export function TreeDragDropProvider({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={treeCollisionDetection}
       autoScroll
       onDragEnd={finishDrag}
       accessibility={{
@@ -185,11 +249,11 @@ export function TreeDragDropProvider({
           onDragOver: ({ active, over }) =>
             over === null
               ? `${itemName(String(active.id))} n’est au-dessus d’aucune cible.`
-              : `${itemName(String(active.id))} au-dessus de ${itemName(String(over.id))}.`,
+              : `${itemName(String(active.id))} ${dropTargetName(byId, String(over.id))}.`,
           onDragEnd: ({ active, over }) =>
             over === null
               ? `Déplacement de ${itemName(String(active.id))} annulé.`
-              : `${itemName(String(active.id))} déposé sur ${itemName(String(over.id))}.`,
+              : `${itemName(String(active.id))} déposé ${dropTargetName(byId, String(over.id))}.`,
           onDragCancel: ({ active }) => `Déplacement de ${itemName(String(active.id))} annulé.`,
         },
       }}
@@ -200,19 +264,40 @@ export function TreeDragDropProvider({
 }
 
 export function TreeDropTarget({
+  canContainChildren,
   children,
   itemId,
 }: {
+  readonly canContainChildren: boolean;
   readonly itemId: string;
   readonly children: (state: {
-    readonly isDropTarget: boolean;
-    readonly setNodeRef: RefCallback<HTMLElement>;
+    readonly activeZone: TreeDropZone | null;
+    readonly setBeforeRef: RefCallback<HTMLElement>;
+    readonly setInsideRef: RefCallback<HTMLElement>;
+    readonly setAfterRef: RefCallback<HTMLElement>;
   }) => ReactNode;
 }) {
-  const { active, isOver, setNodeRef } = useDroppable({ id: itemId });
+  const before = useDroppable({ id: treeDropTargetId(itemId, "before") });
+  const inside = useDroppable({
+    id: treeDropTargetId(itemId, "inside"),
+    disabled: !canContainChildren,
+  });
+  const after = useDroppable({ id: treeDropTargetId(itemId, "after") });
+  const active = before.active ?? inside.active ?? after.active;
+  const draggingAnotherItem = active !== null && String(active.id) !== itemId;
   return children({
-    isDropTarget: isOver && active !== null && String(active.id) !== itemId,
-    setNodeRef,
+    activeZone: !draggingAnotherItem
+      ? null
+      : before.isOver
+        ? "before"
+        : inside.isOver
+          ? "inside"
+          : after.isOver
+            ? "after"
+            : null,
+    setBeforeRef: before.setNodeRef,
+    setInsideRef: inside.setNodeRef,
+    setAfterRef: after.setNodeRef,
   });
 }
 

@@ -16,18 +16,23 @@ import {
   transformSelectedBlocks,
 } from "../block-selection.ts";
 import type { EditorInstance } from "../blocknote-schema.ts";
+import { type EditorLinkDescriptor, openEditorLink, removeEditorLink } from "../editor-links.ts";
 import type { EditorContextMenuState } from "../editor-shortcuts.ts";
 
 export function BlockContextMenu({
   editor,
   state,
   onDismiss,
+  onEditLink,
   onError,
+  onOpenPage,
 }: {
   readonly editor: EditorInstance;
   readonly state: EditorContextMenuState | null;
   readonly onDismiss: () => void;
+  readonly onEditLink: (link: EditorLinkDescriptor) => void;
   readonly onError: (message: string) => void;
+  readonly onOpenPage?: ((itemId: string) => void) | undefined;
 }) {
   const firstItem = useRef<HTMLDivElement | null>(null);
   const execute = (action: () => void): void => {
@@ -78,9 +83,46 @@ export function BlockContextMenu({
         autoFocusOnShow={state?.openedBy === "keyboard"}
         initialFocus={state?.openedBy === "keyboard" ? firstItem : null}
       >
+        {state?.link === null || state?.link === undefined ? null : (
+          <>
+            <MenuLabel>{state.link.kind === "page" ? "Lien vers une page" : "Lien Web"}</MenuLabel>
+            <MenuItem
+              ref={firstItem}
+              data-testid="context-open-link"
+              onClick={() => {
+                openEditorLink(state.link as EditorLinkDescriptor, onOpenPage);
+                onDismiss();
+              }}
+            >
+              Ouvrir le lien
+            </MenuItem>
+            <MenuItem
+              data-testid="context-edit-link"
+              onClick={() => {
+                onEditLink(state.link as EditorLinkDescriptor);
+                onDismiss();
+              }}
+            >
+              Modifier le lien…
+            </MenuItem>
+            <MenuItem
+              data-testid="context-remove-link"
+              onClick={() => {
+                if (!removeEditorLink(editor, state.link as EditorLinkDescriptor)) {
+                  onError("Ce lien a changé avant sa suppression. Réessayez depuis le texte.");
+                  return;
+                }
+                onDismiss();
+              }}
+            >
+              Retirer le lien
+            </MenuItem>
+            <MenuSeparator />
+          </>
+        )}
         <MenuLabel>Bloc</MenuLabel>
         <MenuItem
-          ref={firstItem}
+          ref={state?.link === null || state?.link === undefined ? firstItem : undefined}
           data-testid="context-insert-after"
           onClick={() => execute(() => void insertParagraphAfterSelection(editor))}
           shortcut="⌥⌘↵"

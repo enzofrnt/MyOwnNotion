@@ -19,8 +19,10 @@ import {
   writeWorkspacePresentationState,
 } from "@myownnotion/client-core";
 import { generateUuidV7 } from "@myownnotion/domain";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
-import { favouritesOf, recentsOf } from "../src/features/navigation/sidebar.tsx";
+import { favouritesOf, recentsOf, Sidebar } from "../src/features/navigation/sidebar.tsx";
 
 function item(name: string, favourite: boolean, revisionId = generateUuidV7()): ProjectedItem {
   return {
@@ -80,6 +82,47 @@ describe("recents", () => {
   });
 });
 
+describe("shortcut presentation", () => {
+  const renderSidebar = (overrides: {
+    favouritesVisible?: boolean;
+    favouritesExpanded?: boolean;
+    recentsVisible?: boolean;
+    recentsExpanded?: boolean;
+  }) =>
+    renderToStaticMarkup(
+      createElement(Sidebar, {
+        items: [item("Favori", true), item("Récent", false)],
+        tree: createElement("div", null, "Arbre"),
+        creationControls: createElement("button", { type: "button" }, "Nouveau"),
+        shortcutPreferences: {
+          favouritesVisible: overrides.favouritesVisible ?? true,
+          favouritesExpanded: overrides.favouritesExpanded ?? true,
+          recentsVisible: overrides.recentsVisible ?? true,
+          recentsExpanded: overrides.recentsExpanded ?? true,
+        },
+        onShortcutExpandedChange: () => undefined,
+        onOpen: () => undefined,
+        onOpenSearch: () => undefined,
+        onOpenSettings: () => undefined,
+      }),
+    );
+
+  it("names the main hierarchy Notes and keeps shortcut sections independent", () => {
+    const markup = renderSidebar({ favouritesExpanded: false, recentsExpanded: true });
+    expect(markup).toContain(">Notes<");
+    expect(markup).not.toContain("Espace privé");
+    expect(markup).toContain('aria-label="Déplier les favoris"');
+    expect(markup).toContain('data-testid="recents"');
+    expect(markup).not.toContain('data-testid="favourites"');
+  });
+
+  it("does not render a shortcut section disabled in settings", () => {
+    const markup = renderSidebar({ favouritesVisible: false, recentsVisible: true });
+    expect(markup).not.toContain('id="sidebar-favourites-heading"');
+    expect(markup).toContain('id="sidebar-recents-heading"');
+  });
+});
+
 describe("workspace presentation persistence", () => {
   const databases: ReturnType<typeof openLocalDatabase>[] = [];
 
@@ -107,6 +150,10 @@ describe("workspace presentation persistence", () => {
     await expect(readWorkspacePresentationState(db)).resolves.toMatchObject({
       sidebarOpen: true,
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+      favouritesVisible: true,
+      favouritesExpanded: true,
+      recentsVisible: true,
+      recentsExpanded: true,
       expandedItemIds: ["branch-a"],
       lastVisitedItemId: "page-a",
     });
@@ -117,6 +164,10 @@ describe("workspace presentation persistence", () => {
     await writeWorkspacePresentationState(db, {
       sidebarOpen: false,
       sidebarWidth: MAX_SIDEBAR_WIDTH + 200,
+      favouritesVisible: true,
+      favouritesExpanded: false,
+      recentsVisible: false,
+      recentsExpanded: true,
       expandedItemIds: ["branch-a", "branch-b"],
       lastVisitedItemId: "page-b",
       scrollPositions: [],
@@ -126,6 +177,8 @@ describe("workspace presentation persistence", () => {
     await expect(readWorkspacePresentationState(db)).resolves.toMatchObject({
       sidebarOpen: false,
       sidebarWidth: MAX_SIDEBAR_WIDTH,
+      favouritesExpanded: false,
+      recentsVisible: false,
       expandedItemIds: ["branch-a", "branch-b"],
       lastVisitedItemId: "page-b",
     });

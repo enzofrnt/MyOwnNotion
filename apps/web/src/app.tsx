@@ -23,6 +23,7 @@ import { HierarchyExplorer } from "./features/hierarchy/hierarchy-explorer.tsx";
 import { SecuritySettings } from "./features/security/security-settings.tsx";
 import { type SettingsSection, SettingsShell } from "./features/settings/settings-shell.tsx";
 import { WorkspaceManagementSettings } from "./features/settings/workspace-management-settings.tsx";
+import { WorkspaceNavigationSettings } from "./features/settings/workspace-navigation-settings.tsx";
 import { ContentApi } from "./services/content-api.ts";
 import { localContent } from "./services/local-content.ts";
 import { SecurityApi } from "./services/security-api.ts";
@@ -238,6 +239,8 @@ export function App(props: AppProps = {}) {
             </>
           ) : view === "backups" ? (
             <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />
+          ) : view === "navigation" ? (
+            <WorkspaceNavigationSettings db={contentService.db} />
           ) : (
             <WorkspaceManagementSettings
               activeItem={activeItem}

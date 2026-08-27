@@ -113,6 +113,24 @@ la migration d'une surface.
 Capturer clair/sombre, desktop/mobile et tester zoom 200 %, focus, reduced
 motion et clavier avant de supprimer les styles historiques.
 
+Pour la convergence d'interface courante, vérifier dans cet ordre :
+
+1. les préférences locales et indépendantes de `Favoris`/`Récents`, puis le
+   libellé `Notes` ;
+2. les trois zones avant/dans/après sur plusieurs niveaux de l'arbre, avec
+   indicateur avant la mutation ;
+3. un titre vidé pendant plus de deux secondes qui reste vide jusqu'à la
+   sortie du champ ;
+4. le témoin de synchronisation épinglé en bas qui ne change jamais la position
+   du titre ou du premier bloc ;
+5. un lien interne puis externe créé, ouvert, retargeté, renommé et retiré par
+   toolbar, clic droit et clavier ; le texte et toute page cible doivent
+   survivre au retrait du lien.
+
+Ces parcours visent l'ergonomie personnelle de base : clavier, focus visible,
+pointeur et toucher. Ils n'ouvrent pas de campagne VoiceOver ou de conformité
+formelle.
+
 ## 3. Scénario manuel multi-appareils minimal
 
 Utiliser deux profils navigateur isolés A et B, pas deux onglets du même profil :

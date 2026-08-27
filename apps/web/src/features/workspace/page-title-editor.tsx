@@ -91,6 +91,12 @@ export function PageTitleEditor({
   const scheduleCommit = useCallback(
     (value: string) => {
       if (timer.current !== null) clearTimeout(timer.current);
+      // An empty title is a valid focused draft. Its display fallback is a
+      // validation boundary, not an autosave value that may race the next key.
+      if (value.trim().length === 0) {
+        timer.current = null;
+        return;
+      }
       timer.current = setTimeout(() => {
         timer.current = null;
         void commit(value).catch(() => undefined);

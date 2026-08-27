@@ -340,7 +340,13 @@ export async function convertItem(page: Page, itemName: string): Promise<void> {
   await page.getByTestId(`convert-${itemName}`).click();
 }
 
-type SettingsSection = "security" | "backups" | "local-data" | "trash" | "page-details";
+type SettingsSection =
+  | "security"
+  | "navigation"
+  | "backups"
+  | "local-data"
+  | "trash"
+  | "page-details";
 
 /** Opens the settings destination from its only workspace entry point. */
 export async function openSettings(page: Page): Promise<void> {

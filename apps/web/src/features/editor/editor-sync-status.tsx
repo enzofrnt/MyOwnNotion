@@ -90,8 +90,13 @@ export function EditorSyncStatus({
   const requiresAction = displayedSynchronizationKind === "blocked" || sync.kind === "attention";
 
   return (
-    <div className="editor-sync-status" data-requires-action={requiresAction || undefined}>
-      <details {...(requiresAction ? { open: true } : {})}>
+    <div
+      className="editor-sync-status"
+      data-testid="editor-sync-control"
+      data-placement="viewport-bottom"
+      data-requires-action={requiresAction || undefined}
+    >
+      <details>
         <summary title={`${label} — afficher les détails`}>
           <AppIcon name={requiresAction ? "conflict" : "info"} size="small" />
           <span

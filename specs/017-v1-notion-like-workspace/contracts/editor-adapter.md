@@ -214,6 +214,25 @@ Les actions de drag ont une alternative clavier. Le menu `/` n'affiche pas une
 fonction XL indisponible. Tables, embeds et fichiers indiquent clairement leur
 état hors ligne.
 
+### 8.1 Liens externes et liens de page
+
+Les liens Web standards restent des marques BlockNote et utilisent sa toolbar
+communautaire Ariakit restylée. Le nœud inline `pageLink` conserve pour sa part
+l'UUID canonique de la page cible ; il n'est jamais dégradé en simple URL ou
+résolu par son titre.
+
+Les deux familles partagent les actions produit suivantes :
+
+- ouvrir la cible, avec navigation interne sans rechargement pour `pageLink` ;
+- modifier le texte visible ;
+- modifier la cible avec le sélecteur canonique de pages ou un champ URL ;
+- retirer seulement la relation de lien en conservant le texte visible.
+
+Pour un `pageLink`, retirer ou retargeter le lien ne supprime, ne déplace et ne
+renomme jamais la page cible. Le contrôleur contextuel détecte le lien sous la
+sélection ou le pointeur, fonctionne depuis la toolbar, le clic droit et le
+clavier, et ferme ses menus avec `Escape` sans perdre la sélection.
+
 ## 9. Undo/redo
 
 L'undo vise les transactions produites par la session locale courante. Il

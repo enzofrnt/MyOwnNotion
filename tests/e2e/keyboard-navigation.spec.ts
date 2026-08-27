@@ -249,7 +249,7 @@ test.describe("acting on an item from the keyboard", () => {
     await page.keyboard.press("Space");
     await expect(handle).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("ArrowUp");
-    await expect(row(page, first)).toHaveAttribute("data-drop-target", "true");
+    await expect(page.getByTestId(`drop-before-${first}`)).toHaveAttribute("data-active", "true");
     await page.keyboard.press("Space");
 
     await expectTreeOrder(page, second, first);

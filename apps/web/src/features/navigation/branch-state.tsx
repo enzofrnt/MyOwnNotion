@@ -20,18 +20,20 @@
 export type BranchStateKind = "loading" | "empty" | "offline" | "error";
 
 const MESSAGES: Record<BranchStateKind, string> = {
-  loading: "Loading…",
-  empty: "Nothing in here yet.",
+  loading: "Chargement…",
+  empty: "Aucun élément ici.",
   // Names the situation and its remedy in one line: the content exists, this
   // device simply has not seen it.
-  offline: "Not available on this device yet — reconnect to load what is in here.",
-  error: "This could not be loaded.",
+  offline: "Contenu indisponible sur cet appareil — reconnectez-vous pour le charger.",
+  error: "Ce contenu n’a pas pu être chargé.",
 };
 
 export function BranchState({
+  containerKind,
   kind,
   detail,
 }: {
+  readonly containerKind?: "folder" | "page";
   readonly kind: BranchStateKind;
   /** For `error`, what went wrong, when there is something useful to say. */
   readonly detail?: string;
@@ -46,7 +48,11 @@ export function BranchState({
       {...(kind === "loading" ? { "aria-busy": true } : {})}
       role={kind === "error" ? "alert" : "status"}
     >
-      {MESSAGES[kind]}
+      {kind === "empty" && containerKind === "folder"
+        ? "Ce dossier est vide."
+        : kind === "empty" && containerKind === "page"
+          ? "Cette page ne contient encore aucun élément."
+          : MESSAGES[kind]}
       {kind === "error" && detail !== undefined ? ` ${detail}` : null}
     </p>
   );
