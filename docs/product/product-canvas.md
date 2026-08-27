@@ -384,6 +384,13 @@ pas tant qu'il reste un dossier.
 Une page possède en plus un contenu éditorial : du texte, des blocs, des
 tâches, des relations et des propriétés.
 
+Le titre est la première grande ligne de ce contenu et se modifie directement
+dans la page. Pendant que le propriétaire l'édite, cette ligne peut rester
+vide afin qu'il puisse effacer puis retaper sans que l'interface réinjecte un
+libellé sous son curseur. Si le titre est encore vide lorsqu'il quitte le
+champ, l'élément est alors présenté comme « Sans titre » sans changer
+d'identité.
+
 Elle porte de ce fait **deux relations distinctes**, qu'il ne faut pas
 confondre :
 
@@ -461,6 +468,14 @@ La barre latérale gauche doit permettre :
 
 Elle peut afficher au même niveau des pages, dossiers et fichiers autonomes.
 
+La hiérarchie principale porte le libellé « Notes ». Les raccourcis Favoris et
+Récents ne font pas partie de cette hiérarchie : chacun peut être replié ou
+déplié indépendamment depuis la barre latérale, avec un contrôle de section qui
+ne se confond pas avec le dépliage d'une page ou d'un dossier. Les réglages de
+présentation permettent également de masquer ou réafficher chacune de ces deux
+sections. Ces choix sont propres à la présentation de l'appareil et ne
+modifient ni les favoris, ni l'historique récent, ni le contenu canonique.
+
 Conformément à 11.2, une page expose **deux dépliages distincts** : ses enfants
 dans la hiérarchie, comme un dossier, et un bouton discret pour ses pièces
 jointes de contenu. Un dossier n'a que le premier. Confondre les deux ferait
@@ -485,7 +500,22 @@ Les actions d'une ligne sont contextuelles : elles apparaissent lorsque la
 ligne est ciblée, survolée ou ouverte, sans imposer une rangée permanente de
 boutons. Créer, renommer, déplacer, convertir et supprimer reste néanmoins
 possible au clavier et au toucher. La largeur de la barre, son état ouvert ou
-fermé et les branches dépliées sont restaurés sur l'appareil.
+fermé, les sections de raccourcis visibles ou repliées et les branches
+dépliées sont restaurés sur l'appareil.
+
+L'arborescence rend visuellement le lien entre un parent et ses descendants par
+une indentation et un guide sobres. Lorsqu'une branche ouverte est vide, son
+état apparaît sous cette branche, dans la même indentation et dans la langue
+de l'interface ; il ne ressemble ni à une ligne racine ni à un message sans
+rapport avec son parent.
+
+Un déplacement au pointeur distingue trois destinations sur une ligne : avant
+la ligne, à l'intérieur de l'élément s'il peut contenir des enfants, et après
+la ligne. Les destinations avant/après sont représentées par un repère entre
+les lignes ; la destination intérieure met en évidence le conteneur. Le
+résultat ne dépend jamais de la position d'origine de l'élément déplacé. Les
+mêmes opérations de réorganisation et d'imbrication restent disponibles par
+les actions clavier de base.
 
 La navigation doit préserver le contexte lors d'un retour en arrière, prendre en charge le clavier et afficher des états explicites de chargement, de contenu vide, d'indisponibilité locale et d'erreur.
 
@@ -505,6 +535,12 @@ immédiate du propriétaire — hors ligne, enregistrement local, synchronisatio
 conflit, sauvegarde en retard — sans afficher les détails techniques. L'action
 associée mène à la surface secondaire pertinente et le retour restaure la page,
 la sélection et la position de lecture.
+
+Pour une page en cours d'édition, cet état compact reste ancré au bord inférieur
+du contenu visible et ne participe pas au calcul de hauteur du document. Il ne
+doit donc ni faire descendre le texte lorsque son libellé change, ni obliger à
+atteindre la fin du document. Son détail s'ouvre au survol, au focus ou au clic
+et les situations nécessitant une décision restent immédiatement repérables.
 
 ---
 
@@ -541,6 +577,14 @@ sa cible, affiche son libellé dans le contenu et ouvre la cible sans créer de
 placement hiérarchique. Les références internes doivent rester intactes après
 un renommage, un déplacement ou une conversion de la cible ; leurs relations
 inverses peuvent ensuite alimenter les backlinks.
+
+Un lien existant, interne ou externe, est reconnaissable comme une cible
+cliquable et expose des actions pour l'ouvrir, modifier sa cible ou son
+libellé, et retirer le lien. Ces actions sont disponibles depuis l'outil
+contextuel du lien et depuis le clic droit. Retirer un lien conserve son texte
+et, pour un lien interne, ne supprime ni ne déplace jamais la page cible. Créer
+ou remplacer un lien interne passe par le même sélecteur de pages afin de ne
+jamais stocker un titre comme identité.
 
 Les blocs peuvent être sélectionnés, déplacés, transformés, dupliqués, regroupés et supprimés. Le bloc actif expose une poignée contextuelle, les déplacements affichent leur destination et les actions associées restent disponibles au clavier. Une sélection de plusieurs blocs conserve leur ordre lorsqu'elle est déplacée ou dupliquée. Les actions d'édition courantes doivent être annulables et rétablissables.
 

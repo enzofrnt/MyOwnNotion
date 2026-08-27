@@ -624,6 +624,26 @@ menu contextuel, le mode animations réduites, les popovers près des bords, les
 médias et tables à 320 px/zoom 200 %, ainsi que l'absence de skip fonctionnel
 propre à WebKit.
 
+## Navigation, titre, statut et liens — 2026-08-27
+
+Cette tranche reste volontairement limitée à l'ergonomie personnelle demandée :
+clavier, focus visible, pointeur, toucher et navigateurs pris en charge. Elle ne
+comprend ni campagne VoiceOver, ni certification WCAG, ni validation spécialisée
+de technologies d'assistance.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Présentation locale, arbre, titre, statut et liens | matrice Vitest ciblée `navigation-state`, `sidebar`, `tree-drag-drop`, `page-title-editor`, `editor-sync-status`, `editor-links`, `editor-block-interactions`, réglages de navigation et frontière du workspace | 9 fichiers et 51 tests passés ; valeurs legacy normalisées, préférences locales indépendantes, trois zones de dépôt, brouillon vide, panneau fermé et retrait de lien conservateur |
+| Liens internes et références visuelles | `pnpm test:e2e:local -- tests/e2e/page-links.spec.ts tests/e2e/workspace-shell-visual.spec.ts` | 5/5 profils passés en 72 s ; retargeting et retrait sans perte, statut épinglé, desktop clair/sombre contrôlé |
+| Lien Web complet | `pnpm test:e2e:local -- tests/e2e/page-links.spec.ts --grep "external link"` | 5/5 profils passés en 34 s ; création BlockNote Community, édition clic droit et retrait conservant le texte après rechargement |
+| Menu de lien au clavier | `pnpm test:e2e:local -- tests/e2e/page-links.spec.ts --grep "page link from its context menu"` | 5/5 profils passés en 37 s ; `Shift+F10`, clic droit, changement d'identité canonique et conservation des deux pages cibles |
+| Réorganisation au clavier | `pnpm test:e2e:local -- tests/e2e/keyboard-navigation.spec.ts --grep "visible drag handle reorders siblings"` | 5/5 profils passés en 27 s ; haut/bas visent explicitement avant/après et ne produisent pas d'imbrication involontaire |
+| Réglages de la barre latérale | `pnpm test:e2e:local -- tests/e2e/workspace-shell.spec.ts --grep "shortcut visibility"` | 5/5 profils passés en 26 s ; Favoris et Récents repliés indépendamment, section masquée puis réaffichée, état conservé après rechargement desktop/mobile |
+| Brouillon structuré pendant une projection | `MYOWNNOTION_E2E_JOBS=2 bash scripts/test-e2e-local.sh tests/e2e/databases-offline-sync.spec.ts` | 5/5 profils passés en 65 s ; un chargement de l'ancienne sélection devenu obsolète ne peut plus remonter le panneau et effacer le premier champ pendant une notification de synchronisation WebKit mobile |
+| Reset sécurité sous activité serveur | `MYOWNNOTION_E2E_JOBS=2 bash scripts/test-e2e-local.sh tests/e2e/security-recovery.spec.ts --grep "says so, in those words" --repeat-each=20` | 100/100 exécutions passées en 126 s, soit 20 par profil ; une victime PostgreSQL `40P01`/`40001` est annulée puis rejouée de façon bornée au lieu de rendre la matrice aléatoirement rouge |
+| Menu de ligne après clic droit | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/hierarchy.spec.ts --grep "opens the same item actions" --repeat-each=20` | 100/100 exécutions passées en 144 s, soit 20 par profil ; l'activation différée après `Shift+F10` empêche WebKit mobile de refermer dans le même événement le menu déjà ouvert par clic droit |
+| Gate pré-push exact | `pnpm checks:local` | passé sur le commit poussé : politique d'outillage, format/lint, types, couverture, performance, PostgreSQL/migrations/contrats, matrice complète des cinq profils à concurrence bornée, builds, images multi-architecture, sécurité, licences et Compose |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :

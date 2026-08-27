@@ -69,9 +69,18 @@ export interface SidebarProps {
   readonly tree: ReactNode;
   readonly creationControls: ReactNode;
   readonly footerStatus?: ReactNode;
+  readonly shortcutPreferences: SidebarShortcutPreferences;
+  readonly onShortcutExpandedChange: (section: "favourites" | "recents", expanded: boolean) => void;
   readonly onOpen: (itemId: ProjectedItem["id"]) => void;
   readonly onOpenSettings: () => void;
   readonly onOpenSearch: () => void;
+}
+
+export interface SidebarShortcutPreferences {
+  readonly favouritesVisible: boolean;
+  readonly favouritesExpanded: boolean;
+  readonly recentsVisible: boolean;
+  readonly recentsExpanded: boolean;
 }
 
 export function Sidebar({
@@ -81,6 +90,8 @@ export function Sidebar({
   onOpen,
   onOpenSearch,
   onOpenSettings,
+  onShortcutExpandedChange,
+  shortcutPreferences,
   tree,
 }: SidebarProps) {
   const favourites = favouritesOf(items);
@@ -101,35 +112,89 @@ export function Sidebar({
         <kbd>⌘ K</kbd>
       </Button>
 
-      <section
-        className="workspace-navigation__section"
-        aria-labelledby="sidebar-favourites-heading"
-      >
-        <h3 id="sidebar-favourites-heading">Favoris</h3>
-        <ShortcutList
-          items={favourites}
-          testId="favourites"
-          emptyMessage="Aucun favori pour le moment."
-          onOpen={onOpen}
-        />
-      </section>
+      {shortcutPreferences.favouritesVisible ? (
+        <section
+          className="workspace-navigation__section workspace-navigation__shortcuts-section"
+          aria-labelledby="sidebar-favourites-heading"
+        >
+          <div className="workspace-navigation__section-heading">
+            <h3 id="sidebar-favourites-heading">Favoris</h3>
+            <Button
+              size="square"
+              variant="ghost"
+              className="workspace-navigation__section-toggle"
+              aria-label={
+                shortcutPreferences.favouritesExpanded
+                  ? "Replier les favoris"
+                  : "Déplier les favoris"
+              }
+              aria-expanded={shortcutPreferences.favouritesExpanded}
+              aria-controls="sidebar-favourites-list"
+              onClick={() =>
+                onShortcutExpandedChange("favourites", !shortcutPreferences.favouritesExpanded)
+              }
+            >
+              <AppIcon
+                name={shortcutPreferences.favouritesExpanded ? "arrowDown" : "arrowRight"}
+                size="small"
+              />
+            </Button>
+          </div>
+          {shortcutPreferences.favouritesExpanded ? (
+            <div id="sidebar-favourites-list">
+              <ShortcutList
+                items={favourites}
+                testId="favourites"
+                emptyMessage="Aucun favori pour le moment."
+                onOpen={onOpen}
+              />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
-      <section className="workspace-navigation__section" aria-labelledby="sidebar-recents-heading">
-        <h3 id="sidebar-recents-heading">Récents</h3>
-        <ShortcutList
-          items={recents}
-          testId="recents"
-          emptyMessage="Aucune modification récente."
-          onOpen={onOpen}
-        />
-      </section>
+      {shortcutPreferences.recentsVisible ? (
+        <section
+          className="workspace-navigation__section workspace-navigation__shortcuts-section"
+          aria-labelledby="sidebar-recents-heading"
+        >
+          <div className="workspace-navigation__section-heading">
+            <h3 id="sidebar-recents-heading">Récents</h3>
+            <Button
+              size="square"
+              variant="ghost"
+              className="workspace-navigation__section-toggle"
+              aria-label={
+                shortcutPreferences.recentsExpanded ? "Replier les récents" : "Déplier les récents"
+              }
+              aria-expanded={shortcutPreferences.recentsExpanded}
+              aria-controls="sidebar-recents-list"
+              onClick={() =>
+                onShortcutExpandedChange("recents", !shortcutPreferences.recentsExpanded)
+              }
+            >
+              <AppIcon
+                name={shortcutPreferences.recentsExpanded ? "arrowDown" : "arrowRight"}
+                size="small"
+              />
+            </Button>
+          </div>
+          {shortcutPreferences.recentsExpanded ? (
+            <div id="sidebar-recents-list">
+              <ShortcutList
+                items={recents}
+                testId="recents"
+                emptyMessage="Aucune modification récente."
+                onOpen={onOpen}
+              />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
-      <section
-        className="workspace-navigation__section workspace-navigation__tree"
-        aria-labelledby="sidebar-tree-heading"
-      >
+      <section className="workspace-navigation__section workspace-navigation__tree">
         <div className="workspace-navigation__section-heading">
-          <h3 id="sidebar-tree-heading">Espace privé</h3>
+          <h3 id="sidebar-tree-heading">Notes</h3>
         </div>
         {creationControls}
         {tree}

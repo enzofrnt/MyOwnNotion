@@ -54,7 +54,7 @@ import { EditorView } from "../editor/editor-view.tsx";
 import { BranchState } from "../navigation/branch-state.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
 import { NavigationItemMenu } from "../navigation/navigation-item-menu.tsx";
-import { Sidebar } from "../navigation/sidebar.tsx";
+import { Sidebar, type SidebarShortcutPreferences } from "../navigation/sidebar.tsx";
 import {
   TreeDragDropProvider,
   TreeDragHandle,
@@ -227,6 +227,18 @@ export function HierarchyExplorer({
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [noticesOpen, setNoticesOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  // A passive effect can still be finishing the previous database read after
+  // the owner has opened an entry. The synchronous generation makes that old
+  // result stale immediately, before React gets a chance to run its cleanup;
+  // otherwise a sync notification can remount the form and erase typed drafts.
+  const selectedIdRef = useRef<Uuid | null>(null);
+  const selectionGeneration = useRef(0);
+  const selectItemById = useCallback((itemId: Uuid | null): void => {
+    if (selectedIdRef.current === itemId) return;
+    selectedIdRef.current = itemId;
+    selectionGeneration.current += 1;
+    setSelectedId(itemId);
+  }, []);
   /** Device-local scroll anchors, kept beside the rest of the ergonomics. */
   const presentationRef = useRef<WorkspacePresentationState | null>(null);
   const onCaptureScrollAnchor = useCallback(
@@ -274,6 +286,12 @@ export function HierarchyExplorer({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const [shortcutPreferences, setShortcutPreferences] = useState<SidebarShortcutPreferences>({
+    favouritesVisible: true,
+    favouritesExpanded: true,
+    recentsVisible: true,
+    recentsExpanded: true,
+  });
   const [searchOpen, setSearchOpen] = useState(false);
   const searchReturnFocus = useRef<HTMLElement | null>(null);
 
@@ -314,10 +332,13 @@ export function HierarchyExplorer({
     });
   }, []);
 
-  const openItem = useCallback((itemId: Uuid) => {
-    setSelectedId(itemId);
-    setMobileNavigationOpen(false);
-  }, []);
+  const openItem = useCallback(
+    (itemId: Uuid) => {
+      selectItemById(itemId);
+      setMobileNavigationOpen(false);
+    },
+    [selectItemById],
+  );
 
   const openDatabaseCreation = useCallback((parentItemId: Uuid | null) => {
     if (parentItemId === null) setRootCreationOpen(false);
@@ -392,12 +413,18 @@ export function HierarchyExplorer({
       setExpanded(new Set(navigation.expandedItemIds));
       setSidebarOpen(navigation.sidebarOpen);
       setSidebarWidth(navigation.sidebarWidth);
+      setShortcutPreferences({
+        favouritesVisible: navigation.favouritesVisible,
+        favouritesExpanded: navigation.favouritesExpanded,
+        recentsVisible: navigation.recentsVisible,
+        recentsExpanded: navigation.recentsExpanded,
+      });
       presentationRef.current = navigation;
       setNavigationLoaded(true);
       setLoadPhase("refreshing");
       const activeItems = await refresh();
       if (!cancelled) {
-        setSelectedId(
+        selectItemById(
           navigation.lastVisitedItemId !== null &&
             activeItems.some((item) => item.id === navigation.lastVisitedItemId)
             ? (navigation.lastVisitedItemId as Uuid)
@@ -417,7 +444,25 @@ export function HierarchyExplorer({
       cancelled = true;
       unsubscribe();
     };
-  }, [service, refresh]);
+  }, [service, refresh, selectItemById]);
+
+  useEffect(() => {
+    if (!active || !navigationLoaded) return;
+    let cancelled = false;
+    void readNavigationState(service.db).then((navigation) => {
+      if (cancelled) return;
+      presentationRef.current = navigation;
+      setShortcutPreferences({
+        favouritesVisible: navigation.favouritesVisible,
+        favouritesExpanded: navigation.favouritesExpanded,
+        recentsVisible: navigation.recentsVisible,
+        recentsExpanded: navigation.recentsExpanded,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, navigationLoaded, service]);
 
   useEffect(() => {
     // Written on change rather than on unload: a tab closed abruptly never
@@ -427,15 +472,25 @@ export function HierarchyExplorer({
       return;
     }
     void (async () => {
-      await updateWorkspacePresentationState(service.db, (current) => ({
+      const next = await updateWorkspacePresentationState(service.db, (current) => ({
         ...current,
         sidebarOpen,
         sidebarWidth,
+        ...shortcutPreferences,
         expandedItemIds: [...expanded],
         lastVisitedItemId: selectedId,
       }));
+      presentationRef.current = next;
     })();
-  }, [service, expanded, selectedId, navigationLoaded, sidebarOpen, sidebarWidth]);
+  }, [
+    service,
+    expanded,
+    selectedId,
+    navigationLoaded,
+    shortcutPreferences,
+    sidebarOpen,
+    sidebarWidth,
+  ]);
 
   const tree = useMemo(() => buildTree(items), [items]);
   const searchBranches = useMemo(() => searchBranchOptions(tree), [tree]);
@@ -469,6 +524,8 @@ export function HierarchyExplorer({
 
   useEffect(() => {
     let cancelled = false;
+    const selection = selectionGeneration.current;
+    const selectionChanged = (): boolean => cancelled || selection !== selectionGeneration.current;
     const clearStructuredSelection = (): void => {
       setSelectedDatabase(null);
       setDatabaseEntries([]);
@@ -487,7 +544,7 @@ export function HierarchyExplorer({
     }
     void (async () => {
       const databaseRow = await service.getDatabase(selectedItem.id);
-      if (cancelled) return;
+      if (selectionChanged()) return;
       if (databaseRow !== null) {
         const rows = await service.listDatabaseEntries(selectedItem.id);
         const entries = await Promise.all(
@@ -510,7 +567,7 @@ export function HierarchyExplorer({
                 } as unknown as DatabaseEntryDto);
           }),
         );
-        if (cancelled) return;
+        if (selectionChanged()) return;
         const optimistic =
           optimisticDatabaseDefinition.current?.databaseId === selectedItem.id
             ? optimisticDatabaseDefinition.current.definition
@@ -557,7 +614,7 @@ export function HierarchyExplorer({
         service.getDatabase(entryRow.databaseId),
         service.getDatabaseEntryRelationTargets(entryRow.databaseId, selectedItem.id),
       ]);
-      if (cancelled) return;
+      if (selectionChanged()) return;
       if (ownerDatabase === null) {
         clearStructuredSelection();
         setStructuredSelectionLoading(false);
@@ -595,7 +652,7 @@ export function HierarchyExplorer({
         return;
       }
       if (items.some((item) => item.id === rawItemId)) {
-        setSelectedId(rawItemId);
+        selectItemById(rawItemId);
         return;
       }
       if (trashedItems.some((item) => item.id === rawItemId)) {
@@ -610,7 +667,7 @@ export function HierarchyExplorer({
         title: "This internal page link target is unavailable on this device",
       });
     },
-    [items, trashedItems],
+    [items, selectItemById, trashedItems],
   );
 
   const selectedDatabaseId = selectedDatabase?.databaseId as Uuid | undefined;
@@ -711,7 +768,7 @@ export function HierarchyExplorer({
         setSelectedEntry(visibleEntry);
         setEntryDefinition(definition);
         structuredSelectionItemId.current = entryId;
-        setSelectedId(entryId);
+        selectItemById(entryId);
         return;
       }
       void (async () => {
@@ -724,10 +781,10 @@ export function HierarchyExplorer({
             };
           }
         }
-        setSelectedId(entryId);
+        selectItemById(entryId);
       })();
     },
-    [databaseEntries, selectedDatabase, service],
+    [databaseEntries, selectItemById, selectedDatabase, service],
   );
   const clearEntryReturnFocus = useCallback(() => setEntryReturnFocusId(null), []);
 
@@ -941,14 +998,14 @@ export function HierarchyExplorer({
         throw new Error(result.error.title);
       }
       setDatabaseFormParent(undefined);
-      setSelectedId(request.id as Uuid);
+      selectItemById(request.id as Uuid);
       setMobileNavigationOpen(false);
       if (request.placement.parentItemId !== null) {
         setExpanded((current) => new Set(current).add(request.placement.parentItemId as Uuid));
       }
       await refresh();
     },
-    [service, refresh],
+    [service, refresh, selectItemById],
   );
 
   const renameItem = useCallback(
@@ -1124,7 +1181,7 @@ export function HierarchyExplorer({
         row.tabIndex = 0;
         row.focus();
       }
-      setSelectedId(id as Uuid);
+      selectItemById(id as Uuid);
     },
     setExpanded: toggleBranch,
     open: (id: string) => openItem(id as Uuid),
@@ -1148,148 +1205,182 @@ export function HierarchyExplorer({
     const attachmentsOpen = expandedAttachments.has(node.item.id);
     return (
       <li key={node.item.id} role="none">
-        <TreeDropTarget itemId={node.item.id}>
-          {({ isDropTarget, setNodeRef }) => (
-            /* biome-ignore lint/a11y/useKeyWithClickEvents: the ARIA tree pattern
-               puts one handler on the tree, not one per row. A row-level handler
-               would need every row in the tab order to receive its own key events,
-               which is the arrangement the pattern exists to avoid. Keyboard
-               operation is covered by useTreeKeyboard on the container and
-               asserted in keyboard-navigation.spec.ts. */
-            <div
-              ref={setNodeRef}
-              role="treeitem"
-              aria-level={level}
-              aria-selected={isSelected}
-              {...(isBranch(node) ? { "aria-expanded": expanded.has(node.item.id) } : {})}
-              tabIndex={isSelected || (selectedId === null && level === 1) ? 0 : -1}
-              className="tree-row"
-              data-testid={`tree-item-${node.item.name}`}
-              data-item-id={node.item.id}
-              data-drop-target={isDropTarget || undefined}
-              onClick={() => openItem(node.item.id)}
-            >
-              <TreeDragHandle itemId={node.item.id} itemName={node.item.name} />
-              {isBranch(node) ? (
-                <button
-                  type="button"
-                  className="tree-twisty"
-                  aria-label={
-                    expanded.has(node.item.id)
-                      ? `Collapse ${node.item.name}`
-                      : `Expand ${node.item.name}`
-                  }
-                  data-testid={`toggle-${node.item.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleBranch(node.item.id, !expanded.has(node.item.id));
-                  }}
-                >
-                  {expanded.has(node.item.id) ? "▾" : "▸"}
-                </button>
-              ) : (
-                // Reserves the same width so names line up whether or not a row has
-                // children; hidden from assistive technology because it says
-                // nothing.
-                <span className="tree-twisty tree-twisty--leaf" aria-hidden="true" />
-              )}
-              <AppIcon
-                className="workspace-tree-item-icon"
-                name={
-                  node.item.kind === "folder"
-                    ? "folder"
-                    : node.item.kind === "file"
-                      ? "file"
-                      : "fileText"
-                }
-                size="small"
+        <TreeDropTarget itemId={node.item.id} canContainChildren={node.item.kind !== "file"}>
+          {({ activeZone, setAfterRef, setBeforeRef, setInsideRef }) => (
+            <div className="tree-drop-target" data-active-zone={activeZone ?? undefined}>
+              <span
+                ref={setBeforeRef}
+                className="tree-drop-zone tree-drop-zone--before"
+                data-testid={`drop-before-${node.item.name}`}
+                data-active={activeZone === "before" || undefined}
+                aria-hidden="true"
               />
-              <span className="tree-name">{node.item.name}</span>
-              {/* Marked, never as "missing" (FR-018). Content the server holds is
+              <div
+                ref={setInsideRef}
+                role="treeitem"
+                aria-level={level}
+                aria-selected={isSelected}
+                {...(isBranch(node) ? { "aria-expanded": expanded.has(node.item.id) } : {})}
+                tabIndex={isSelected || (selectedId === null && level === 1) ? 0 : -1}
+                className="tree-row"
+                data-testid={`tree-item-${node.item.name}`}
+                data-item-id={node.item.id}
+                data-drop-target={activeZone === "inside" || undefined}
+                onClick={() => openItem(node.item.id)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.currentTarget
+                    .querySelector<HTMLButtonElement>(".navigation-item-menu__trigger")
+                    ?.click();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) {
+                    return;
+                  }
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const trigger = event.currentTarget.querySelector<HTMLButtonElement>(
+                    ".navigation-item-menu__trigger",
+                  );
+                  // Let the shortcut's key event finish before activating the
+                  // menu button. WebKit on a touch viewport otherwise restores
+                  // focus to the trigger and immediately hides the menu that the
+                  // synchronous click just opened.
+                  requestAnimationFrame(() => {
+                    if (trigger?.isConnected === true) trigger.click();
+                  });
+                }}
+              >
+                <TreeDragHandle itemId={node.item.id} itemName={node.item.name} />
+                {isBranch(node) ? (
+                  <button
+                    type="button"
+                    className="tree-twisty"
+                    aria-label={
+                      expanded.has(node.item.id)
+                        ? `Collapse ${node.item.name}`
+                        : `Expand ${node.item.name}`
+                    }
+                    data-testid={`toggle-${node.item.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleBranch(node.item.id, !expanded.has(node.item.id));
+                    }}
+                  >
+                    {expanded.has(node.item.id) ? "▾" : "▸"}
+                  </button>
+                ) : (
+                  // Reserves the same width so names line up whether or not a row has
+                  // children; hidden from assistive technology because it says
+                  // nothing.
+                  <span className="tree-twisty tree-twisty--leaf" aria-hidden="true" />
+                )}
+                <AppIcon
+                  className="workspace-tree-item-icon"
+                  name={
+                    node.item.kind === "folder"
+                      ? "folder"
+                      : node.item.kind === "file"
+                        ? "file"
+                        : "fileText"
+                  }
+                  size="small"
+                />
+                <span className="tree-name">{node.item.name}</span>
+                {/* Marked, never as "missing" (FR-018). Content the server holds is
               not lost because this device released it or has not fetched it, and
               the two are distinguished because they mean different things to an
               owner deciding whether something is safe. */}
-              {node.item.localAvailability !== "present" ? (
-                <span
-                  className="muted"
-                  data-testid={`availability-${node.item.name}`}
-                  data-availability={node.item.localAvailability}
-                >
-                  {node.item.localAvailability === "offloaded"
-                    ? "not on this device"
-                    : "not fetched yet"}
-                </span>
-              ) : null}
-              {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
-              {node.item.kind === "page" ? (
-                <Button
-                  size="square"
-                  variant="ghost"
-                  className="workspace-page-attachments-trigger"
-                  aria-label={`Pièces jointes de ${node.item.name}`}
-                  aria-expanded={attachmentsOpen}
-                  aria-controls={`page-attachments-${node.item.id}`}
-                  data-testid={`toggle-attachments-${node.item.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setExpandedAttachments((current) => {
-                      const next = new Set(current);
-                      if (next.has(node.item.id)) next.delete(node.item.id);
-                      else next.add(node.item.id);
-                      return next;
-                    });
+                {node.item.localAvailability !== "present" ? (
+                  <span
+                    className="muted"
+                    data-testid={`availability-${node.item.name}`}
+                    data-availability={node.item.localAvailability}
+                  >
+                    {node.item.localAvailability === "offloaded"
+                      ? "not on this device"
+                      : "not fetched yet"}
+                  </span>
+                ) : null}
+                {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
+                {node.item.kind === "page" ? (
+                  <Button
+                    size="square"
+                    variant="ghost"
+                    className="workspace-page-attachments-trigger"
+                    aria-label={`Pièces jointes de ${node.item.name}`}
+                    aria-expanded={attachmentsOpen}
+                    aria-controls={`page-attachments-${node.item.id}`}
+                    data-testid={`toggle-attachments-${node.item.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setExpandedAttachments((current) => {
+                        const next = new Set(current);
+                        if (next.has(node.item.id)) next.delete(node.item.id);
+                        else next.add(node.item.id);
+                        return next;
+                      });
+                    }}
+                  >
+                    <AppIcon name="file" size="small" />
+                    {attachmentCount > 0 ? (
+                      <span className="workspace-page-attachments-count">{attachmentCount}</span>
+                    ) : null}
+                  </Button>
+                ) : null}
+                <NavigationItemMenu
+                  itemName={node.item.name}
+                  canContainChildren={node.item.kind !== "file"}
+                  canMoveToRoot={parentId !== null}
+                  canMoveSelectedInside={selectedId !== null && selectedId !== node.item.id}
+                  favourite={node.item.favourite}
+                  keptOffline={node.item.offlineIntent}
+                  conversion={
+                    node.item.kind === "file" ? undefined : (
+                      <ConvertItemControl
+                        itemId={node.item.id}
+                        itemName={node.item.name}
+                        kind={node.item.kind as ConvertibleKind}
+                        convert={convertItem}
+                      />
+                    )
+                  }
+                  onCreatePage={() => void createItem("page", node.item.id)}
+                  onCreateFolder={() => void createItem("folder", node.item.id)}
+                  onCreateDatabase={() => openDatabaseCreation(node.item.id)}
+                  onImportFile={(file) => void importHierarchyFile(node.item.id, file)}
+                  onRename={() => void renameItem(node)}
+                  onMoveUp={() => void reorder(node, -1)}
+                  onMoveDown={() => void reorder(node, 1)}
+                  onMoveToRoot={() => void moveInto(node, null)}
+                  onMoveSelectedInside={() => {
+                    const selected = visibleNodes.find(
+                      (candidate) => candidate.item.id === selectedId,
+                    );
+                    if (selected !== undefined) void moveInto(selected, node.item.id);
                   }}
-                >
-                  <AppIcon name="file" size="small" />
-                  {attachmentCount > 0 ? (
-                    <span className="workspace-page-attachments-count">{attachmentCount}</span>
-                  ) : null}
-                </Button>
-              ) : null}
-              <NavigationItemMenu
-                itemName={node.item.name}
-                canContainChildren={node.item.kind !== "file"}
-                canMoveToRoot={parentId !== null}
-                canMoveSelectedInside={selectedId !== null && selectedId !== node.item.id}
-                favourite={node.item.favourite}
-                keptOffline={node.item.offlineIntent}
-                conversion={
-                  node.item.kind === "file" ? undefined : (
-                    <ConvertItemControl
-                      itemId={node.item.id}
-                      itemName={node.item.name}
-                      kind={node.item.kind as ConvertibleKind}
-                      convert={convertItem}
-                    />
-                  )
-                }
-                onCreatePage={() => void createItem("page", node.item.id)}
-                onCreateFolder={() => void createItem("folder", node.item.id)}
-                onCreateDatabase={() => openDatabaseCreation(node.item.id)}
-                onImportFile={(file) => void importHierarchyFile(node.item.id, file)}
-                onRename={() => void renameItem(node)}
-                onMoveUp={() => void reorder(node, -1)}
-                onMoveDown={() => void reorder(node, 1)}
-                onMoveToRoot={() => void moveInto(node, null)}
-                onMoveSelectedInside={() => {
-                  const selected = visibleNodes.find(
-                    (candidate) => candidate.item.id === selectedId,
-                  );
-                  if (selected !== undefined) void moveInto(selected, node.item.id);
-                }}
-                onToggleFavourite={() =>
-                  void runCommand("item.favourite", {
-                    itemId: node.item.id,
-                    favourite: !node.item.favourite,
-                  })
-                }
-                onToggleOffline={() =>
-                  void runCommand("item.offline", {
-                    itemId: node.item.id,
-                    offline: !node.item.offlineIntent,
-                  })
-                }
-                onTrash={() => void trashItem(node)}
+                  onToggleFavourite={() =>
+                    void runCommand("item.favourite", {
+                      itemId: node.item.id,
+                      favourite: !node.item.favourite,
+                    })
+                  }
+                  onToggleOffline={() =>
+                    void runCommand("item.offline", {
+                      itemId: node.item.id,
+                      offline: !node.item.offlineIntent,
+                    })
+                  }
+                  onTrash={() => void trashItem(node)}
+                />
+              </div>
+              <span
+                ref={setAfterRef}
+                className="tree-drop-zone tree-drop-zone--after"
+                data-testid={`drop-after-${node.item.name}`}
+                data-active={activeZone === "after" || undefined}
+                aria-hidden="true"
               />
             </div>
           )}
@@ -1331,6 +1422,7 @@ export function HierarchyExplorer({
             // wrong costs something: an owner who reads "not on this device"
             // as "empty" concludes their notes are gone.
             <BranchState
+              containerKind={node.item.kind === "folder" ? "folder" : "page"}
               kind={problem !== null ? "error" : navigator.onLine ? "empty" : "offline"}
             />
           )
@@ -1452,6 +1544,13 @@ export function HierarchyExplorer({
           tree={navigationTree}
           creationControls={creationControls}
           footerStatus={<SyncStatus service={service} />}
+          shortcutPreferences={shortcutPreferences}
+          onShortcutExpandedChange={(section, expanded) => {
+            setShortcutPreferences((current) => ({
+              ...current,
+              [section === "favourites" ? "favouritesExpanded" : "recentsExpanded"]: expanded,
+            }));
+          }}
           onOpen={openItem}
           onOpenSettings={() => {
             setMobileNavigationOpen(false);
@@ -1793,7 +1892,7 @@ export function HierarchyExplorer({
             const url = new URL(window.location.href);
             url.searchParams.delete("entry");
             window.history.replaceState(window.history.state, "", url);
-            setSelectedId(databaseId);
+            selectItemById(databaseId);
             remotelyOpenedEntry.current = null;
           }}
           pageContent={

@@ -152,6 +152,27 @@
   letter-spacing: 0.02em;
 }
 
+.workspace-navigation__section-heading {
+  display: flex;
+  min-width: 0;
+  min-height: var(--ui-target-compact);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workspace-navigation__section-heading h3 {
+  min-width: 0;
+  flex: 1;
+}
+
+.workspace-navigation__section-toggle[data-size="square"] {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  padding: var(--space-1);
+  color: var(--color-text-muted);
+}
+
 .workspace-navigation__tree {
   flex: 1;
   align-content: start;
@@ -249,11 +270,55 @@
 }
 
 .workspace-navigation .tree ul {
-  padding-left: var(--space-4);
-  border-left-color: var(--color-border);
+  margin-left: var(--space-2);
+  padding-left: var(--space-2);
+  border-left-color: color-mix(in srgb, var(--color-border) 78%, transparent);
+}
+
+.tree-drop-target {
+  position: relative;
+  min-width: 0;
+}
+
+.tree-drop-zone {
+  position: absolute;
+  right: var(--space-1);
+  left: var(--space-1);
+  z-index: 2;
+  display: block;
+  height: 30%;
+  pointer-events: none;
+}
+
+.tree-drop-zone--before {
+  top: -0.125rem;
+}
+
+.tree-drop-zone--after {
+  bottom: -0.125rem;
+}
+
+.tree-drop-zone[data-active="true"]::after {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-accent);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 2px var(--ui-color-accent-soft);
+  content: "";
+}
+
+.tree-drop-zone--before[data-active="true"]::after {
+  top: 0;
+}
+
+.tree-drop-zone--after[data-active="true"]::after {
+  bottom: 0;
 }
 
 .workspace-navigation .tree-row {
+  position: relative;
   width: 100%;
   max-width: 100%;
   min-height: 2.125rem;
@@ -277,8 +342,15 @@
 
 .workspace-navigation .tree-row[data-drop-target="true"] {
   background: var(--ui-color-accent-soft);
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.workspace-navigation .tree li > .branch-state {
+  margin: 0 0 var(--space-1) calc(var(--ui-target-compact) + var(--space-2));
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text-muted);
+  border-left: 1px solid var(--color-border);
+  font-size: var(--text-xs);
 }
 
 /* The mobile navigation is a modal drawer. This menu is portaled so it can
@@ -439,6 +511,15 @@
   .navigation-item-actions > button {
     opacity: 0;
     pointer-events: none;
+  }
+
+  .workspace-navigation .tree-row .tree-drag-handle[data-size="square"] {
+    position: absolute;
+    left: -1.125rem;
+    z-index: 3;
+    width: 1.5rem;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
   }
 
   .workspace-navigation .tree-row:hover .tree-drag-handle,

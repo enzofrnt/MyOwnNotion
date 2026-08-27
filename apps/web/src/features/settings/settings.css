@@ -122,6 +122,45 @@
   gap: var(--space-5);
 }
 
+.settings-navigation-preferences {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.settings-navigation-preferences h2,
+.settings-navigation-preferences p {
+  margin: 0;
+}
+
+.settings-toggle-row {
+  display: flex;
+  min-height: var(--ui-target);
+  padding: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.settings-toggle-row > span {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.settings-toggle-row small {
+  color: var(--color-text-muted);
+}
+
+.settings-toggle-row input {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 auto;
+}
+
 .settings-trash__list {
   display: grid;
   margin: var(--space-4) 0 0;

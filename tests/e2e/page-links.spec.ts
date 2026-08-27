@@ -26,6 +26,10 @@ function pageLinks(page: Page): Locator {
   return editorSurface(page).locator(`a[href^="${PAGE_LINK_PREFIX}"]`);
 }
 
+function externalLinks(page: Page): Locator {
+  return editorSurface(page).locator('a[href^="https://"]');
+}
+
 async function linkSelectionToPage(page: Page, targetName: string): Promise<void> {
   const toolbar = page.locator(".bn-formatting-toolbar");
   await expect(toolbar).toBeVisible();
@@ -44,7 +48,12 @@ async function selectPreviousWord(page: Page, expected: string): Promise<void> {
   // caret and no formatting toolbar. Start the selection only after the typed
   // word has crossed the local durability boundary.
   await saveDocument(page);
-  await page.keyboard.press("Shift+ControlOrMeta+ArrowLeft");
+  // Word-navigation modifiers differ between macOS and the Linux browser
+  // container. Select the exact suffix character by character so this setup
+  // exercises the same editor selection on every supported engine.
+  for (const _character of expected) {
+    await page.keyboard.press("Shift+ArrowLeft");
+  }
   await expect
     .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""), {
       message: `the editor did not select ${expected}`,
@@ -160,6 +169,118 @@ test("links to another page without nesting it, including a descendant", async (
     "true",
   );
   await page.unroute("**/v1/**");
+});
+
+test("edits and removes a page link from its context menu without deleting text or targets", async ({
+  page,
+}) => {
+  await openWorkspace(page);
+  const source = uniqueName("Link lifecycle source");
+  const firstTarget = uniqueName("Link lifecycle first");
+  const secondTarget = uniqueName("Link lifecycle second");
+  await createRootItem(page, "page", source);
+  await createRootItem(page, "page", firstTarget);
+  await createRootItem(page, "page", secondTarget);
+  await waitForSynchronized(page);
+  await selectItem(page, source);
+
+  const editor = editorSurface(page);
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await editor.pressSequentially("Référence initiale");
+  await selectPreviousWord(page, "initiale");
+  await linkSelectionToPage(page, firstTarget);
+  await saveDocument(page);
+
+  await editor.press("Shift+F10");
+  await expect(page.getByTestId("context-edit-link")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  const link = pageLinks(page).first();
+  await link.click({ button: "right" });
+  await page.getByTestId("context-edit-link").click();
+  const dialog = page.getByTestId("link-editor-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Texte affiché").fill("seconde cible");
+  await dialog.getByLabel("Page cible").selectOption({ label: secondTarget });
+  await dialog.getByTestId("save-editor-link").click();
+
+  const secondTargetId = await page
+    .getByTestId(`tree-item-${secondTarget}`)
+    .getAttribute("data-item-id");
+  if (secondTargetId === null) throw new Error("La seconde cible doit garder son identité.");
+  await expect(pageLinks(page).first()).toHaveAttribute(
+    "href",
+    `${PAGE_LINK_PREFIX}${secondTargetId}`,
+  );
+  await expect(pageLinks(page).first()).toHaveText("seconde cible");
+
+  await pageLinks(page).first().click({ button: "right" });
+  await page.getByTestId("context-remove-link").click();
+  await expect(pageLinks(page)).toHaveCount(0);
+  await expect(editor).toContainText("seconde cible");
+  await expect(page.getByTestId(`tree-item-${firstTarget}`)).toHaveCount(1);
+  await expect(page.getByTestId(`tree-item-${secondTarget}`)).toHaveCount(1);
+
+  await saveDocument(page, { until: "synced" });
+  await page.reload();
+  await openWorkspace(page);
+  await selectItem(page, source);
+  await expect(pageLinks(page)).toHaveCount(0);
+  await expect(editorSurface(page)).toContainText("seconde cible");
+});
+
+test("edits and removes an external link from its context menu without deleting its text", async ({
+  page,
+}) => {
+  await openWorkspace(page);
+  const source = uniqueName("External link lifecycle");
+  await createRootItem(page, "page", source);
+  await waitForSynchronized(page);
+  await selectItem(page, source);
+
+  const editor = editorSurface(page);
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await editor.pressSequentially("Site initial");
+  await selectPreviousWord(page, "initial");
+
+  const toolbar = page.locator(".bn-formatting-toolbar");
+  await expect(toolbar).toBeVisible();
+  await toolbar.getByRole("button", { name: "Créer un lien" }).click();
+  const createLink = page.locator(".bn-form-popover");
+  await expect(createLink).toBeVisible();
+  await createLink.getByPlaceholder("Modifier l'URL").fill("https://example.com/initial");
+  await createLink.getByPlaceholder("Modifier l'URL").press("Enter");
+  await saveDocument(page);
+
+  await externalLinks(page).first().click({ button: "right" });
+  await page.getByTestId("context-edit-link").click();
+  const dialog = page.getByTestId("link-editor-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Texte affiché").fill("documentation");
+  await dialog.getByLabel("Adresse").fill("https://example.com/documentation");
+  await dialog.getByTestId("save-editor-link").click();
+
+  await expect(externalLinks(page).first()).toHaveAttribute(
+    "href",
+    "https://example.com/documentation",
+  );
+  await expect(externalLinks(page).first()).toHaveText("documentation");
+
+  await externalLinks(page).first().click({ button: "right" });
+  await page.getByTestId("context-remove-link").click();
+  await expect(externalLinks(page)).toHaveCount(0);
+  await expect(editor).toContainText("documentation");
+
+  await saveDocument(page, { until: "synced" });
+  await page.reload();
+  await openWorkspace(page);
+  await selectItem(page, source);
+  await expect(externalLinks(page)).toHaveCount(0);
+  await expect(editorSurface(page)).toContainText("documentation");
 });
 
 test("/page creates one linked subpage under the current page", async ({ page }) => {

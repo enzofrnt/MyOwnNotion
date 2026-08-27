@@ -54,6 +54,14 @@ const SECURITY_TABLES = [
   "owners",
 ] as const;
 
+const MAX_RESET_ATTEMPTS = 5;
+const RETRYABLE_TRANSACTION_CODES = new Set(["40P01", "40001"]);
+
+function postgresErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
 function connectionString(): string {
   return (
     process.env["DATABASE_URL"] ??
@@ -61,7 +69,7 @@ function connectionString(): string {
   );
 }
 
-export async function resetSecurityInstallation(): Promise<void> {
+async function resetSecurityInstallationOnce(): Promise<void> {
   const client = new pg.Client({ connectionString: connectionString() });
   await client.connect();
   try {
@@ -97,8 +105,24 @@ export async function resetSecurityInstallation(): Promise<void> {
       `TRUNCATE ${SECURITY_TABLES.map((table) => `"${table}"`).join(", ")} CASCADE`,
     );
     await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
   } finally {
     await client.end();
+  }
+}
+
+export async function resetSecurityInstallation(): Promise<void> {
+  for (let attempt = 1; attempt <= MAX_RESET_ATTEMPTS; attempt += 1) {
+    try {
+      await resetSecurityInstallationOnce();
+      return;
+    } catch (error) {
+      const retryable = RETRYABLE_TRANSACTION_CODES.has(postgresErrorCode(error) ?? "");
+      if (!retryable || attempt === MAX_RESET_ATTEMPTS) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, attempt * 50));
+    }
   }
 }
 

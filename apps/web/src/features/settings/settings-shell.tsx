@@ -2,7 +2,13 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { AppIcon, type AppIconName } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/index.ts";
 
-export type SettingsSection = "security" | "backups" | "local-data" | "trash" | "page-details";
+export type SettingsSection =
+  | "security"
+  | "navigation"
+  | "backups"
+  | "local-data"
+  | "trash"
+  | "page-details";
 
 interface SettingsSectionDefinition {
   readonly id: SettingsSection;
@@ -17,6 +23,12 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
     label: "Sécurité et appareils",
     description: "Accès, sessions, appareils et récupération",
     icon: "lock",
+  },
+  {
+    id: "navigation",
+    label: "Navigation",
+    description: "Sections visibles dans la barre latérale de cet appareil",
+    icon: "panel",
   },
   {
     id: "backups",

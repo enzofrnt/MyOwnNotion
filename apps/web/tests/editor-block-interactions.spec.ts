@@ -198,6 +198,15 @@ describe("keyboard alternatives", () => {
         shiftKey: false,
       }),
     ).toBe("insert-after");
+    expect(
+      editorShortcutAction({
+        key: "F10",
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        shiftKey: true,
+      }),
+    ).toBe("context-menu");
     expect(historyActionFromInputType("historyUndo")).toBe("undo");
     expect(MARKDOWN_INSERTION_SHORTCUTS).toContain("# ");
   });

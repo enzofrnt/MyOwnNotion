@@ -107,6 +107,10 @@ describe("workspace presentation normalization", () => {
       normalizeWorkspacePresentationState({
         sidebarOpen: "yes",
         sidebarWidth: Number.NaN,
+        favouritesVisible: "yes",
+        favouritesExpanded: null,
+        recentsVisible: 1,
+        recentsExpanded: [],
         expandedItemIds: ["one", 2, "one"],
         lastVisitedItemId: false,
         scrollPositions: [
@@ -147,6 +151,10 @@ describe("workspace presentation normalization", () => {
     const state = normalizeWorkspacePresentationState({
       sidebarOpen: false,
       sidebarWidth: 300,
+      favouritesVisible: false,
+      favouritesExpanded: false,
+      recentsVisible: true,
+      recentsExpanded: false,
       expandedItemIds: ["branch"],
       lastVisitedItemId: "page",
       scrollPositions: oversized,
@@ -158,6 +166,12 @@ describe("workspace presentation normalization", () => {
 
     expect(state.sidebarOpen).toBe(false);
     expect(state.sidebarWidth).toBe(300);
+    expect(state).toMatchObject({
+      favouritesVisible: false,
+      favouritesExpanded: false,
+      recentsVisible: true,
+      recentsExpanded: false,
+    });
     expect(state.scrollPositions).toHaveLength(MAX_REMEMBERED_SCROLL_POSITIONS);
     expect(state.scrollAnchors).toHaveLength(MAX_REMEMBERED_SCROLL_POSITIONS);
     expect(state.scrollPositions[0]?.[0]).toBe("item-2");

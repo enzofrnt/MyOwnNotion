@@ -105,7 +105,7 @@ test.describe("hierarchy organization (US1)", () => {
     const sourceRow = page.getByTestId(`tree-item-${second}`);
     await sourceRow.hover();
     const handle = page.getByTestId(`drag-${second}`);
-    const target = page.getByTestId(`tree-item-${first}`);
+    const target = page.getByTestId(`drop-before-${first}`);
     const sourceBox = await handle.boundingBox();
     const targetBox = await target.boundingBox();
     expect(sourceBox).not.toBeNull();
@@ -126,6 +126,7 @@ test.describe("hierarchy organization (US1)", () => {
       (targetBox?.y ?? 0) + (targetBox?.height ?? 0) / 2,
       { steps: 8 },
     );
+    await expect(target).toHaveAttribute("data-active", "true");
     await page.mouse.up();
 
     await expectTreeOrder(page, second, first);
@@ -186,5 +187,22 @@ test.describe("hierarchy organization (US1)", () => {
     await expect(selected).toHaveCount(1);
     await page.keyboard.press("ArrowUp");
     await expect(page.getByTestId(`tree-item-${a}`)).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("opens the same item actions from right click and the keyboard", async ({ page }) => {
+    await openWorkspace(page);
+    const item = uniqueName("Context actions");
+    await createRootItem(page, "page", item);
+    await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
+
+    const row = page.getByTestId(`tree-item-${item}`);
+    await row.click({ button: "right" });
+    await expect(page.getByTestId(`rename-${item}`)).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await row.focus();
+    await page.keyboard.press("Shift+F10");
+    await expect(page.getByTestId(`rename-${item}`)).toBeVisible();
   });
 });

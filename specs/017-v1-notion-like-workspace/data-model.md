@@ -399,12 +399,17 @@ Préférences locales non canoniques :
 
 - thème `system|light|dark` ;
 - sidebar ouverte/fermée et largeur bornée ;
+- visibilité et état déplié indépendants des raccourcis `Favoris` et
+  `Récents` ;
 - branches ouvertes ;
 - dernier item ;
 - ancre de scroll par page (`blockId`, offset interne, fallback pixel) ;
 - préférences de densité autorisées.
 
-Ces valeurs ne rejoignent pas le CRDT du document.
+Ces valeurs ne rejoignent pas le CRDT du document et ne sont pas synchronisées
+entre appareils. Une ligne locale créée avant l'ajout des préférences de
+raccourcis est normalisée avec les quatre valeurs à `true`, sans migration
+destructive ni nouveau store IndexedDB.
 
 ## 7. État visible de synchronisation
 

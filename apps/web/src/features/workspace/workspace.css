@@ -223,7 +223,7 @@
 .workspace-notices {
   position: fixed;
   right: var(--space-4);
-  bottom: var(--space-4);
+  bottom: calc(var(--space-4) + var(--ui-target) + var(--space-2));
   z-index: var(--layer-toast);
   width: max-content;
   max-width: calc(100vw - 2 * var(--space-4));

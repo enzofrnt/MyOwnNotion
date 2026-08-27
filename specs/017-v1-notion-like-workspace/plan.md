@@ -1,6 +1,6 @@
 # Implementation Plan: Expérience V1 proche de Notion et convergence locale
 
-**Branch**: `codex/017-v1-notion-like-workspace` | **Date**: 2026-08-20 |
+**Branch**: `codex/017-workspace-interactions` | **Date**: 2026-08-27 |
 **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from
@@ -206,6 +206,9 @@ apps/web/src/
 │   ├── editor-sync-status.tsx
 │   └── legacy-tiptap/
 ├── features/navigation/
+├── features/hierarchy/
+├── features/settings/
+├── features/workspace/
 ├── features/sync/
 └── styles.css
 
@@ -594,6 +597,22 @@ puis chaque feature visible. Les anciens sélecteurs CSS sont supprimés
 seulement après couverture visuelle des deux thèmes, largeurs et zooms ; aucune
 deuxième bibliothèque de composants générale n'est introduite.
 
+La tranche de convergence UI étend le record de présentation local avec la
+visibilité et le repli indépendants de `Favoris` et `Récents`; les anciennes
+lignes sont complétées par normalisation. Le tree dnd-kit encode désormais
+l'intention dans trois zones droppables `before`, `inside` et `after`, puis
+traduit cette zone en une seule commande de placement. Le rendu montre la ligne
+d'insertion ou le parent avant d'exécuter la commande.
+
+Le titre ne matérialise `Sans titre` qu'à une frontière de validation, jamais
+pendant la saisie focalisée. Le témoin de synchronisation devient une petite
+surface épinglée au bord inférieur du viewport éditorial et ne s'ouvre pas de
+lui-même. Les liens Web gardent le contrôleur BlockNote Community ; les
+`pageLink` reçoivent un contrôleur Ariakit adjacent qui modifie l'identité
+canonique ou retire le lien en conservant son texte. Les mêmes commandes sont
+exposées par toolbar, clic droit et clavier sans chantier de technologie
+d'assistance spécialisé.
+
 ### 10. Validation et ordre de livraison
 
 Les tranches d'implémentation sont :
@@ -607,9 +626,11 @@ Les tranches d'implémentation sont :
 7. contrats/stockage serveur, matérialisation, protocole, migration lazy,
    sauvegarde, historique, compaction et matrice multi-appareils ;
 8. scroll final, WebKit, clavier, toucher et ergonomie de base ;
-9. migration de toutes les surfaces V1, français, thèmes, visuels et
-   performance ;
-10. suppression du chemin éditorial legacy après preuve de migration.
+9. convergence du workspace : préférences de raccourcis, arbre à trois zones,
+   titre vide pendant l'édition, statut épinglé et cycle complet des liens ;
+10. migration de toutes les surfaces V1, français, thèmes, visuels et
+    performance ;
+11. suppression du chemin éditorial legacy après preuve de migration.
 
 Chaque tranche garde l'application lisible et fournit un test indépendant. Le
 chemin legacy reste derrière une frontière de compatibilité jusqu'à ce que les

@@ -13,7 +13,9 @@ import {
 } from "@blocknote/react";
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { AppIcon } from "../../../ui/icons.tsx";
 import type { EditorInstance } from "../blocknote-schema.ts";
+import { type EditorLinkDescriptor, selectedEditorLink } from "../editor-links.ts";
 import {
   PageLinkPickerButton,
   PageLinkPickerContent,
@@ -25,6 +27,7 @@ interface ToolbarInputs {
   readonly items: readonly ProjectedItem[];
   readonly pageLinkOpen: boolean;
   readonly setPageLinkOpen: (open: boolean) => void;
+  readonly onEditLink: (link: EditorLinkDescriptor) => void;
 }
 
 interface ToolbarInputStore {
@@ -47,7 +50,8 @@ function createToolbarInputStore(initial: ToolbarInputs): ToolbarInputStore {
         next.currentItemId === snapshot.currentItemId &&
         next.items === snapshot.items &&
         next.pageLinkOpen === snapshot.pageLinkOpen &&
-        next.setPageLinkOpen === snapshot.setPageLinkOpen
+        next.setPageLinkOpen === snapshot.setPageLinkOpen &&
+        next.onEditLink === snapshot.onEditLink
       )
         return;
       snapshot = next;
@@ -57,11 +61,15 @@ function createToolbarInputStore(initial: ToolbarInputs): ToolbarInputStore {
 }
 
 function MyOwnNotionFormattingToolbar({ inputs }: { readonly inputs: ToolbarInputStore }) {
-  const { pageLinkOpen, setPageLinkOpen } = useSyncExternalStore(
+  const editor = useBlockNoteEditor() as unknown as EditorInstance;
+  const { onEditLink, pageLinkOpen, setPageLinkOpen } = useSyncExternalStore(
     inputs.subscribe,
     inputs.getSnapshot,
     inputs.getSnapshot,
   );
+  const selectedLink = selectedEditorLink(editor);
+  const components = useComponentsContext();
+  const Toolbar = components?.FormattingToolbar;
   return (
     <FormattingToolbar>
       <BasicTextStyleButton basicTextStyle="bold" />
@@ -70,7 +78,18 @@ function MyOwnNotionFormattingToolbar({ inputs }: { readonly inputs: ToolbarInpu
       <BasicTextStyleButton basicTextStyle="strike" />
       <BasicTextStyleButton basicTextStyle="code" />
       <CreateLinkButton />
-      <PageLinkPickerButton open={pageLinkOpen} onOpenChange={setPageLinkOpen} />
+      {selectedLink?.kind === "page" && Toolbar !== undefined ? (
+        <Toolbar.Button
+          className="bn-button"
+          data-testid="edit-selected-page-link"
+          label="Modifier le lien vers une page"
+          mainTooltip="Modifier le lien vers une page"
+          icon={<AppIcon name="link" />}
+          onClick={() => onEditLink(selectedLink)}
+        />
+      ) : (
+        <PageLinkPickerButton open={pageLinkOpen} onOpenChange={setPageLinkOpen} />
+      )}
       <ColorStyleButton />
       <NestBlockButton />
       <UnnestBlockButton />
@@ -82,9 +101,11 @@ function MyOwnNotionFormattingToolbar({ inputs }: { readonly inputs: ToolbarInpu
 export function EditorFormattingToolbar({
   currentItemId,
   items,
+  onEditLink,
 }: {
   readonly currentItemId: string;
   readonly items: readonly ProjectedItem[];
+  readonly onEditLink: (link: EditorLinkDescriptor) => void;
 }) {
   const editor = useBlockNoteEditor() as unknown as EditorInstance;
   const components = useComponentsContext();
@@ -109,11 +130,17 @@ export function EditorFormattingToolbar({
     [editor, formattingToolbar.store],
   );
   const [inputs] = useState(() =>
-    createToolbarInputStore({ currentItemId, items, pageLinkOpen, setPageLinkOpen }),
+    createToolbarInputStore({
+      currentItemId,
+      items,
+      onEditLink,
+      pageLinkOpen,
+      setPageLinkOpen,
+    }),
   );
   useEffect(
-    () => inputs.update({ currentItemId, items, pageLinkOpen, setPageLinkOpen }),
-    [currentItemId, inputs, items, pageLinkOpen, setPageLinkOpen],
+    () => inputs.update({ currentItemId, items, onEditLink, pageLinkOpen, setPageLinkOpen }),
+    [currentItemId, inputs, items, onEditLink, pageLinkOpen, setPageLinkOpen],
   );
 
   useEffect(() => {

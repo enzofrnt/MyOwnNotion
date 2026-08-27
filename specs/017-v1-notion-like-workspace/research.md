@@ -429,6 +429,38 @@ différents, nested, moves distincts, move du même bloc, move+edit, delete+edit
 delete+move, crash après chaque transaction, 10 000 updates, longue absence,
 fichier hors ligne, sauvegarde/restauration et client v2 en attente.
 
+## Decision 13 — Interactions de workspace explicites sans nouveau framework
+
+**Decision**: Étendre l'état de présentation IndexedDB existant pour les
+préférences locales de `Favoris` et `Récents`; modéliser chaque cible dnd-kit
+par une identité `before|inside|after`; conserver la toolbar BlockNote
+Community pour les liens Web et ajouter un contrôleur équivalent pour le nœud
+canonique `pageLink`. Les menus contextuels réutilisent les primitives Ariakit
+et les commandes métier existantes.
+
+**Rationale**: Les défauts observés viennent d'états et de cibles implicites,
+pas d'une capacité manquante des bibliothèques. Déduire avant/après depuis
+l'ancien index échoue dès qu'un élément change de parent. Une zone explicite
+décrit directement l'intention et peut être montrée avant la mutation. De même,
+BlockNote sait déjà éditer les liens Web, mais son contrôleur standard ne peut
+pas deviner qu'un nœud inline MyOwnNotion contient l'identité stable d'une
+page. Un petit contrôleur d'adaptation conserve cette identité sans doubler le
+système visuel.
+
+Les quatre préférences de raccourcis sont des choix de présentation par
+appareil. Elles reçoivent des valeurs par défaut lors de la normalisation d'une
+ancienne ligne locale et n'exigent ni migration serveur, ni outbox, ni CRDT.
+
+**Alternatives considered**:
+
+- synchroniser les préférences de sidebar : bruit opérationnel sans valeur
+  éditoriale et comportement mobile/desktop potentiellement contradictoire ;
+- conserver une seule zone de drop : impossible de distinguer fiablement
+  insertion voisine et imbrication ;
+- convertir `pageLink` en URL : perd l'identité après renommage ou déplacement ;
+- ajouter une autre bibliothèque de menus ou de tree : dépendance et apparence
+  supplémentaires pour des primitives déjà présentes.
+
 ## Resolved unknowns
 
 | Question | Réponse |
@@ -445,3 +477,6 @@ fichier hors ligne, sauvegarde/restauration et client v2 en attente.
 | Migration | Paresseuse au premier edit, protocole v3, ancien client read-only |
 | Historique | Oplog technique + révisions visibles consolidées |
 | Système visuel | Tailwind 4, tokens CSS, Ariakit, dnd-kit, Lucide |
+| Préférences de raccourcis | état de présentation IndexedDB local à l'appareil |
+| Cible de déplacement | zones dnd-kit explicites `before`, `inside`, `after` |
+| Liens | toolbar BlockNote pour URL, contrôleur Ariakit MyOwnNotion pour `pageLink` |

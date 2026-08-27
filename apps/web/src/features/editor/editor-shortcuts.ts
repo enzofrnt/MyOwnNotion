@@ -6,6 +6,11 @@ import {
   resolveContiguousBlockSelection,
 } from "./block-selection.ts";
 import type { EditorInstance } from "./blocknote-schema.ts";
+import {
+  type EditorLinkDescriptor,
+  editorLinkFromDomTarget,
+  selectedEditorLink,
+} from "./editor-links.ts";
 
 export type EditorShortcutAction =
   | "undo"
@@ -22,6 +27,7 @@ export interface EditorContextMenuState {
   /** Stable target retained while the menu takes focus away from the editor. */
   readonly blockId: string;
   readonly openedBy: "keyboard" | "pointer";
+  readonly link: EditorLinkDescriptor | null;
 }
 
 export const MARKDOWN_INSERTION_SHORTCUTS = [
@@ -80,12 +86,14 @@ function menuPointForSelection(editor: EditorInstance): EditorContextMenuState {
         y: window.innerHeight / 2,
         blockId: first.id,
         openedBy: "keyboard",
+        link: selectedEditorLink(editor),
       }
     : {
         x: rect.left + Math.min(32, rect.width / 2),
         y: rect.top + Math.min(24, rect.height),
         blockId: first.id,
         openedBy: "keyboard",
+        link: selectedEditorLink(editor),
       };
 }
 
@@ -167,6 +175,7 @@ export function useEditorShortcuts(input: {
         y: event.clientY,
         blockId,
         openedBy: "pointer",
+        link: editorLinkFromDomTarget(input.editor, event.target),
       });
     },
     [input],

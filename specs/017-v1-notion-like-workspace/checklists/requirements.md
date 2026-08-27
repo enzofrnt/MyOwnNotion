@@ -41,3 +41,6 @@
   practical keyboard, focus, labels, pointer and touch behavior; formal WCAG
   certification and specialized assistive-technology validation are out of
   scope unless the product direction is explicitly amended again.
+- The 2026-08-27 refinement makes sidebar preferences, three-zone hierarchy
+  drops, title fallback timing, compact sync placement, and the complete
+  internal/external link lifecycle observable and independently testable.

@@ -1,8 +1,14 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { BranchState } from "../src/features/navigation/branch-state.tsx";
 import {
+  adjacentTreeKeyboardDropTarget,
   adjacentTreeKeyboardTarget,
+  parseTreeDropTargetId,
   resolveTreeDrop,
   type TreeDragItem,
+  treeDropTargetId,
 } from "../src/features/navigation/tree-drag-drop.tsx";
 
 const items = [
@@ -13,33 +19,41 @@ const items = [
 ] as const satisfies readonly TreeDragItem[];
 
 describe("tree drag and drop intent", () => {
-  it("reorders siblings on the side from which the dragged row arrives", () => {
-    expect(resolveTreeDrop(items, "root", "peer")).toEqual({
+  it("uses the explicit edge selected by the pointer instead of the old order", () => {
+    expect(resolveTreeDrop(items, "root", treeDropTargetId("peer", "before"))).toEqual({
       kind: "place",
       itemId: "root",
       targetId: "peer",
       parentId: null,
-      edge: "after",
+      edge: "before",
     });
-    expect(resolveTreeDrop(items, "peer", "root")).toEqual({
+    expect(resolveTreeDrop(items, "peer", treeDropTargetId("root", "after"))).toEqual({
       kind: "place",
       itemId: "peer",
       targetId: "root",
       parentId: null,
-      edge: "before",
+      edge: "after",
     });
   });
 
-  it("nests an item dropped over a container in another branch", () => {
-    expect(resolveTreeDrop(items, "peer", "child")).toEqual({
+  it("nests only through the explicit inside zone", () => {
+    expect(resolveTreeDrop(items, "peer", treeDropTargetId("child", "inside"))).toEqual({
       kind: "nest",
       itemId: "peer",
       parentId: "child",
     });
+    expect(resolveTreeDrop(items, "peer", treeDropTargetId("child", "before"))).toEqual({
+      kind: "place",
+      itemId: "peer",
+      targetId: "child",
+      parentId: "root",
+      edge: "before",
+    });
   });
 
-  it("places an item beside a leaf because a file cannot contain children", () => {
-    expect(resolveTreeDrop(items, "peer", "file")).toEqual({
+  it("refuses an inside zone for a leaf instead of silently choosing another intent", () => {
+    expect(resolveTreeDrop(items, "peer", treeDropTargetId("file", "inside"))).toBeNull();
+    expect(resolveTreeDrop(items, "peer", treeDropTargetId("file", "after"))).toEqual({
       kind: "place",
       itemId: "peer",
       targetId: "file",
@@ -49,13 +63,23 @@ describe("tree drag and drop intent", () => {
   });
 
   it("refuses self drops and containment cycles before any mutation", () => {
-    expect(resolveTreeDrop(items, "root", "root")).toBeNull();
-    expect(resolveTreeDrop(items, "root", "child")).toEqual({
+    expect(resolveTreeDrop(items, "root", treeDropTargetId("root", "inside"))).toBeNull();
+    expect(resolveTreeDrop(items, "root", treeDropTargetId("child", "inside"))).toEqual({
       kind: "rejected",
       itemId: "root",
       targetId: "child",
       reason: "cycle",
     });
+  });
+
+  it("round-trips target identities without confusing item ids and zones", () => {
+    for (const zone of ["before", "inside", "after"] as const) {
+      expect(parseTreeDropTargetId(treeDropTargetId("item:with:separator", zone))).toEqual({
+        itemId: "item:with:separator",
+        zone,
+      });
+    }
+    expect(parseTreeDropTargetId("plain-item-id")).toBeNull();
   });
 });
 
@@ -69,11 +93,32 @@ describe("tree keyboard drop targets", () => {
   it("moves to the visually adjacent row instead of retaining the active row", () => {
     expect(adjacentTreeKeyboardTarget(rows, "second", "up")).toBe("first");
     expect(adjacentTreeKeyboardTarget(rows, "second", "down")).toBe("third");
+    expect(adjacentTreeKeyboardDropTarget(rows, "second", "up")).toBe(
+      treeDropTargetId("first", "before"),
+    );
+    expect(adjacentTreeKeyboardDropTarget(rows, "second", "down")).toBe(
+      treeDropTargetId("third", "after"),
+    );
   });
 
   it("stops at the visible boundaries and rejects an unknown current row", () => {
     expect(adjacentTreeKeyboardTarget(rows, "first", "up")).toBeNull();
     expect(adjacentTreeKeyboardTarget(rows, "third", "down")).toBeNull();
     expect(adjacentTreeKeyboardTarget(rows, "missing", "down")).toBeNull();
+  });
+});
+
+describe("empty branch presentation", () => {
+  it("uses concise French copy that identifies whether the parent is a page or folder", () => {
+    const page = renderToStaticMarkup(
+      createElement(BranchState, { kind: "empty", containerKind: "page" }),
+    );
+    const folder = renderToStaticMarkup(
+      createElement(BranchState, { kind: "empty", containerKind: "folder" }),
+    );
+    expect(page).toContain("Cette page ne contient encore aucun élément.");
+    expect(folder).toContain("Ce dossier est vide.");
+    expect(page).toContain('data-state="empty"');
+    expect(page).not.toContain("Nothing in here yet");
   });
 });

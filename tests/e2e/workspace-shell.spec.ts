@@ -7,9 +7,12 @@ import { expect, test } from "./fixtures.ts";
 import {
   createChildItem,
   createRootItem,
+  ensureNavigationVisible,
   moveSelectedItemInto,
+  openSettingsSection,
   openWorkspace,
   renameItem,
+  returnToWorkspace,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -17,6 +20,10 @@ import {
 interface StoredPresentationState {
   readonly sidebarOpen?: boolean;
   readonly sidebarWidth?: number;
+  readonly favouritesVisible?: boolean;
+  readonly favouritesExpanded?: boolean;
+  readonly recentsVisible?: boolean;
+  readonly recentsExpanded?: boolean;
   readonly expandedItemIds?: string[];
   readonly lastVisitedItemId?: string | null;
 }
@@ -136,6 +143,52 @@ test.describe("focused workspace shell", () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(horizontalOverflow).toBeLessThanOrEqual(1);
+  });
+
+  test("restores local shortcut visibility and collapse preferences after reload", async ({
+    page,
+  }) => {
+    await openWorkspace(page);
+    await ensureNavigationVisible(page);
+    await expect(page.getByRole("heading", { level: 3, name: "Notes" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Replier les favoris" }).click();
+    await page.getByRole("button", { name: "Replier les récents" }).click();
+    await expect(page.getByRole("button", { name: "Déplier les favoris" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Déplier les récents" })).toBeVisible();
+
+    await openSettingsSection(page, "navigation");
+    const favourites = page.getByRole("checkbox", { name: /Favoris/u });
+    await expect(favourites).toBeChecked();
+    await favourites.uncheck();
+    await expect(favourites).not.toBeChecked();
+    await returnToWorkspace(page);
+    await ensureNavigationVisible(page);
+
+    await expect(page.getByRole("heading", { level: 3, name: "Favoris" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 3, name: "Récents" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Déplier les récents" })).toBeVisible();
+    await expect
+      .poll(async () => await storedPresentationState(page))
+      .toMatchObject({
+        favouritesVisible: false,
+        favouritesExpanded: false,
+        recentsVisible: true,
+        recentsExpanded: false,
+      });
+
+    await page.reload();
+    await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 15_000 });
+    await ensureNavigationVisible(page);
+    await expect(page.getByRole("heading", { level: 3, name: "Favoris" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Déplier les récents" })).toBeVisible();
+
+    await openSettingsSection(page, "navigation");
+    await page.getByRole("checkbox", { name: /Favoris/u }).check();
+    await returnToWorkspace(page);
+    await ensureNavigationVisible(page);
+    await expect(page.getByRole("heading", { level: 3, name: "Favoris" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Déplier les favoris" })).toBeVisible();
   });
 
   test("edits the page title in the document without remounting the editor", async ({ page }) => {
