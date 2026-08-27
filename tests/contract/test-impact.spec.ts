@@ -69,7 +69,7 @@ describe("impact policy", () => {
     ["none", ["README.md"]],
     ["related", ["packages/domain/src/document/block.ts"]],
     ["direct", ["apps/web/tests/sidebar.spec.ts"]],
-    ["full", ["pnpm-lock.yaml"]],
+    ["full", ["bun.lock"]],
   ])("validates a generated %s plan against the versioned schema", (_name, changedPaths) => {
     const valid = validatePlanSchema(pullRequestPlan(changedPaths));
     expect(validatePlanSchema.errors).toEqual(null);
@@ -141,8 +141,13 @@ describe("pull-request selection", () => {
       expect.arrayContaining(["tests/e2e/search.spec.ts", "tests/e2e/search-offline.spec.ts"]),
     );
     expect(commandsForVitestGroup(plan, "performance")).toContainEqual([
-      "pnpm",
-      ["exec", "vitest", "run", "--passWithNoTests", "tests/performance/search.perf.spec.ts"],
+      "bun",
+      [
+        "scripts/ci/run-vitest-with-postgres.ts",
+        "run",
+        "--passWithNoTests",
+        "tests/performance/search.perf.spec.ts",
+      ],
     ]);
   });
 
@@ -180,8 +185,13 @@ describe("pull-request selection", () => {
     expect(plan.vitest.groups).toEqual(["performance"]);
     expect(commandsForVitestGroup(plan, "performance")).toEqual([
       [
-        "pnpm",
-        ["exec", "vitest", "run", "--passWithNoTests", "tests/performance/databases.perf.spec.ts"],
+        "bun",
+        [
+          "scripts/ci/run-vitest-with-postgres.ts",
+          "run",
+          "--passWithNoTests",
+          "tests/performance/databases.perf.spec.ts",
+        ],
       ],
     ]);
     expect(commandsForVitestGroup(plan, "unit")).toEqual([]);
@@ -199,7 +209,7 @@ describe("pull-request selection", () => {
     expect(plan.e2e.mode).toBe("none");
   });
 
-  it.each(["pnpm-lock.yaml", "unknown-runtime.config.ts"])(
+  it.each(["bun.lock", "unknown-runtime.config.ts"])(
     "fails closed for broad or unknown input %s",
     (changedPath) => {
       const plan = pullRequestPlan([changedPath]);
@@ -267,21 +277,23 @@ describe("plan consumers", () => {
   });
 
   it("preserves the existing complete commands for a full plan", () => {
-    const plan = pullRequestPlan(["pnpm-lock.yaml"]);
-    expect(commandsForVitestGroup(plan, "unit")).toEqual([["pnpm", ["test:coverage"]]]);
-    expect(commandsForVitestGroup(plan, "performance")).toEqual([["pnpm", ["test:performance"]]]);
-    expect(commandsForVitestGroup(plan, "integration")).toEqual([
-      ["pnpm", ["test:integration"]],
-      ["pnpm", ["db:test-migrations"]],
+    const plan = pullRequestPlan(["bun.lock"]);
+    expect(commandsForVitestGroup(plan, "unit")).toEqual([["bun", ["run", "test:coverage"]]]);
+    expect(commandsForVitestGroup(plan, "performance")).toEqual([
+      ["bun", ["run", "test:performance"]],
     ]);
-    expect(commandsForVitestGroup(plan, "contract")).toEqual([["pnpm", ["test:contract"]]]);
+    expect(commandsForVitestGroup(plan, "integration")).toEqual([
+      ["bun", ["run", "test:integration"]],
+      ["bun", ["run", "db:test-migrations"]],
+    ]);
+    expect(commandsForVitestGroup(plan, "contract")).toEqual([["bun", ["run", "test:contract"]]]);
   });
 
   it("turns an affected source into a project-scoped Vitest related command", () => {
     const plan = pullRequestPlan(["packages/domain/src/document/block.ts"]);
     const commands = commandsForVitestGroup(plan, "unit");
     expect(commands).toHaveLength(1);
-    expect(commands[0]?.[0]).toBe("pnpm");
+    expect(commands[0]?.[0]).toBe("bun");
     expect(commands[0]?.[1]).toEqual(
       expect.arrayContaining([
         "related",
@@ -293,10 +305,9 @@ describe("plan consumers", () => {
     );
     expect(commandsForVitestGroup(plan, "performance")).toEqual([
       [
-        "pnpm",
+        "bun",
         [
-          "exec",
-          "vitest",
+          "scripts/ci/run-vitest-with-postgres.ts",
           "related",
           "--run",
           "--passWithNoTests",
@@ -312,7 +323,10 @@ describe("plan consumers", () => {
     expect(
       commandsForVitestGroup(pullRequestPlan(["apps/web/tests/sidebar.spec.ts"]), "unit"),
     ).toEqual([
-      ["pnpm", ["exec", "vitest", "run", "--passWithNoTests", "apps/web/tests/sidebar.spec.ts"]],
+      [
+        "bun",
+        ["run", "--bun", "vitest", "run", "--passWithNoTests", "apps/web/tests/sidebar.spec.ts"],
+      ],
     ]);
   });
 

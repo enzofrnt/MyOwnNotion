@@ -71,7 +71,10 @@ describe("durable encrypted file staging", () => {
         fileItemId,
         attachmentParentItemId: pageId,
         fileName: "secret-notes.txt",
-        mediaType: "text/plain",
+        // Bun normalises a text File to `text/plain;charset=utf-8`; the
+        // contract is exact metadata preservation, not a host-specific MIME
+        // spelling.
+        mediaType: file.type,
         byteLength: file.size,
       }),
     ]);

@@ -15,6 +15,16 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import type { SearchWorkerCommand, SearchWorkerResult } from "../features/search/search.worker.ts";
+
+declare const __MYOWNNOTION_SEARCH_WORKER_URL__: string | undefined;
+
+export function searchWorkerUrl(): URL {
+  if (typeof __MYOWNNOTION_SEARCH_WORKER_URL__ === "string") {
+    return new URL(__MYOWNNOTION_SEARCH_WORKER_URL__, window.location.origin);
+  }
+  return new URL("../features/search/search.worker.ts", import.meta.url);
+}
+
 import type { ContentApi } from "./content-api.ts";
 import type { LocalContentService, LocalProjectionChange } from "./local-content.ts";
 
@@ -39,7 +49,7 @@ export interface WorkspaceSearchContent {
 type LocalSearchReader = Pick<LocalSearchSource, "list" | "read" | "activeDescendantIds">;
 
 class BrowserSearchWorkerClient implements SearchWorkerClient {
-  readonly #worker = new Worker(new URL("../features/search/search.worker.ts", import.meta.url), {
+  readonly #worker = new Worker(searchWorkerUrl(), {
     type: "module",
   });
   readonly #pending = new Map<

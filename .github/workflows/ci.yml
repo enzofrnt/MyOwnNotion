@@ -66,9 +66,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.1.3
         with:
-          node-version: 24
+          bun-version: 1.4.0
       - name: Calculate and validate the exact candidate impact
         id: plan
         env:
@@ -78,7 +78,7 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
           PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
         run: |
-          node scripts/ci/test-impact.ts \
+          bun scripts/ci/test-impact.ts \
             --event "$EVENT_NAME" \
             --ref "$EVENT_REF" \
             --base "$BASE_SHA" \
@@ -97,13 +97,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm toolchain:check
+      - uses: ./.github/actions/setup-bun
+      - run: bun run toolchain:check
 
   lint:
     name: Biome format & lint
@@ -111,13 +106,8 @@ jobs:
     needs: install
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint:ci
+      - uses: ./.github/actions/setup-bun
+      - run: bun run lint:ci
 
   shell:
     name: ShellCheck & shfmt
@@ -125,11 +115,7 @@ jobs:
     needs: install
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
+      - uses: ./.github/actions/setup-bun
       - name: Install pinned ShellCheck and shfmt
         run: |
           curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
@@ -137,8 +123,7 @@ jobs:
           sudo install "/tmp/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
           curl -fsSL -o /tmp/shfmt "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64"
           sudo install /tmp/shfmt /usr/local/bin/shfmt
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm shell:check
+      - run: bun run shell:check
 
   typecheck:
     name: Strict TypeScript
@@ -146,13 +131,8 @@ jobs:
     needs: install
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
+      - uses: ./.github/actions/setup-bun
+      - run: bun run typecheck
 
   unit:
     name: Unit, property & coverage
@@ -164,21 +144,14 @@ jobs:
         run: echo "No unit tests are impacted; recording a successful no-op."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.impact.outputs.unit_mode != 'none'
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: ./.github/actions/setup-bun
         if: needs.impact.outputs.unit_mode != 'none'
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: needs.impact.outputs.unit_mode != 'none'
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: needs.impact.outputs.unit_mode != 'none'
-        run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.impact.outputs.unit_mode != 'none'
         with:
           name: test-impact-plan
       - if: needs.impact.outputs.unit_mode != 'none'
-        run: pnpm ci:test:affected --plan test-impact.json --group unit
+        run: bun run ci:test:affected --plan test-impact.json --group unit
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() && needs.impact.outputs.unit_mode == 'full'
         with:
@@ -196,21 +169,14 @@ jobs:
         run: echo "No performance tests are impacted; recording a successful no-op."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.impact.outputs.performance_mode != 'none'
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: ./.github/actions/setup-bun
         if: needs.impact.outputs.performance_mode != 'none'
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: needs.impact.outputs.performance_mode != 'none'
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: needs.impact.outputs.performance_mode != 'none'
-        run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.impact.outputs.performance_mode != 'none'
         with:
           name: test-impact-plan
       - if: needs.impact.outputs.performance_mode != 'none'
-        run: pnpm ci:test:affected --plan test-impact.json --group performance
+        run: bun run ci:test:affected --plan test-impact.json --group performance
 
   integration:
     name: Database integration & migrations
@@ -222,21 +188,14 @@ jobs:
         run: echo "No integration tests are impacted; recording a successful no-op."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.impact.outputs.integration_mode != 'none'
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: ./.github/actions/setup-bun
         if: needs.impact.outputs.integration_mode != 'none'
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: needs.impact.outputs.integration_mode != 'none'
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: needs.impact.outputs.integration_mode != 'none'
-        run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.impact.outputs.integration_mode != 'none'
         with:
           name: test-impact-plan
       - if: needs.impact.outputs.integration_mode != 'none'
-        run: pnpm ci:test:affected --plan test-impact.json --group integration
+        run: bun run ci:test:affected --plan test-impact.json --group integration
 
   reference-backups:
     name: Restore every supported reference backup
@@ -244,16 +203,11 @@ jobs:
     needs: install
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       # This is intentionally not impact-filtered. A committed reference
       # archive is compatibility evidence for every candidate, including one
       # whose apparent source impact does not reach the restore code.
-      - run: pnpm test:reference-backups
+      - run: bun run test:reference-backups
 
   contract:
     name: API & workspace contract tests
@@ -265,21 +219,14 @@ jobs:
         run: echo "No contract tests are impacted; recording a successful no-op."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.impact.outputs.contract_mode != 'none'
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: ./.github/actions/setup-bun
         if: needs.impact.outputs.contract_mode != 'none'
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: needs.impact.outputs.contract_mode != 'none'
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: needs.impact.outputs.contract_mode != 'none'
-        run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.impact.outputs.contract_mode != 'none'
         with:
           name: test-impact-plan
       - if: needs.impact.outputs.contract_mode != 'none'
-        run: pnpm ci:test:affected --plan test-impact.json --group contract
+        run: bun run ci:test:affected --plan test-impact.json --group contract
 
   e2e:
     name: Playwright journeys (${{ matrix.project }})
@@ -295,13 +242,8 @@ jobs:
         run: echo "No E2E journeys are impacted; recording a successful no-op."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: matrix.project != 'none'
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: ./.github/actions/setup-bun
         if: matrix.project != 'none'
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: matrix.project != 'none'
-        with:
-          node-version: 24
-          cache: pnpm
       - name: Prepare disposable protected-storage fixtures
         if: matrix.project != 'none'
         run: |
@@ -319,8 +261,6 @@ jobs:
           mkdir -p "$myownnotion_e2e_root" "$myownnotion_blob_root" "$myownnotion_backup_root"
           openssl rand -base64 32 > "$myownnotion_deployment_key_file"
           chmod 600 "$myownnotion_deployment_key_file"
-      - if: matrix.project != 'none'
-        run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: matrix.project != 'none'
         with:
@@ -332,7 +272,7 @@ jobs:
       # Playwright that cannot drive them.
       - id: playwright-version
         if: matrix.project != 'none'
-        run: echo "value=$(pnpm exec playwright --version | tr -d ' ')" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(bun run --bun playwright --version | tr -d ' ')" >> "$GITHUB_OUTPUT"
       - id: playwright-cache
         if: matrix.project != 'none'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -344,7 +284,7 @@ jobs:
         # `--with-deps` still runs on a hit: the system libraries live outside
         # the cached directory, and a cached browser without them fails at
         # launch with an error that says nothing about the cause.
-        run: pnpm exec playwright install --with-deps
+        run: bun run --bun playwright install --with-deps
       - name: Start disposable PostgreSQL and migrate
         if: matrix.project != 'none'
         run: |
@@ -354,7 +294,7 @@ jobs:
             echo "::endgroup::"
             exit 1
           }
-          pnpm db:migrate
+          bun run db:migrate
         env:
           DATABASE_URL: postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion
       - name: Run selected journeys in this isolated project
@@ -368,7 +308,7 @@ jobs:
             echo "Impact plan selected no journeys for $PLAYWRIGHT_PROJECT."
             exit 1
           fi
-          pnpm exec playwright test --fail-on-flaky-tests \
+          bun run --bun playwright test --fail-on-flaky-tests \
             --project="$PLAYWRIGHT_PROJECT" "${journeys[@]}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() && matrix.project != 'none'
@@ -385,13 +325,8 @@ jobs:
     needs: install
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - uses: ./.github/actions/setup-bun
+      - run: bun run build
 
   build-images:
     name: Multi-architecture image build
@@ -409,13 +344,13 @@ jobs:
         id: bases
         run: |
           set -euo pipefail
-          node=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)
+          bun=$(jq -r '.bases.bun | "\(.ref)@\(.digest)"' docker/base-images.json)
           nginx=$(jq -r '.bases.nginx | "\(.ref)@\(.digest)"' docker/base-images.json)
           platforms=$(jq -r '.platforms | join(",")' docker/base-images.json)
-          [[ "$node" =~ ^[^@]+@sha256:[0-9a-f]{64}$ ]]
+          [[ "$bun" =~ ^[^@]+@sha256:[0-9a-f]{64}$ ]]
           [[ "$nginx" =~ ^[^@]+@sha256:[0-9a-f]{64}$ ]]
           test -n "$platforms"
-          echo "node=$node" >> "$GITHUB_OUTPUT"
+          echo "bun=$bun" >> "$GITHUB_OUTPUT"
           echo "nginx=$nginx" >> "$GITHUB_OUTPUT"
           echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
       - name: Build API for every pinned platform
@@ -429,7 +364,7 @@ jobs:
           provenance: true
           sbom: true
           build-args: |
-            NODE_BASE=${{ steps.bases.outputs.node }}
+            BUN_BASE=${{ steps.bases.outputs.bun }}
             APPLICATION_VERSION=sha-${{ github.sha }}
           cache-from: type=gha,scope=api-${{ needs.impact.outputs.cache_scope }}
           cache-to: type=gha,mode=max,scope=api-${{ needs.impact.outputs.cache_scope }},ignore-error=true
@@ -444,7 +379,7 @@ jobs:
           provenance: true
           sbom: true
           build-args: |
-            NODE_BASE=${{ steps.bases.outputs.node }}
+            BUN_BASE=${{ steps.bases.outputs.bun }}
             NGINX_BASE=${{ steps.bases.outputs.nginx }}
           cache-from: type=gha,scope=web-${{ needs.impact.outputs.cache_scope }}
           cache-to: type=gha,mode=max,scope=web-${{ needs.impact.outputs.cache_scope }},ignore-error=true
@@ -495,17 +430,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun
       - name: Audit production dependencies
         # Written whatever the outcome: an audit that produced no artifact
         # because it failed is indistinguishable, to the aggregate, from one
         # that never ran.
-        run: pnpm security:audit --json > dependency-audit.json || (cat dependency-audit.json; exit 1)
+        run: bun run security:audit --json > dependency-audit.json || (cat dependency-audit.json; exit 1)
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -527,13 +457,8 @@ jobs:
           # The full history, because a secret committed and then removed is
           # still a leaked secret: the object stays reachable in the repository.
           fetch-depth: 0
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm security:secrets
+      - uses: ./.github/actions/setup-bun
+      - run: bun run security:secrets
       - name: Publish the findings to GitHub
         # Same reasoning as the container scan: GitHub's Security tab already
         # renders SARIF, tracks which alerts are new since the base branch, and
@@ -563,13 +488,8 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm security:static
+      - uses: ./.github/actions/setup-bun
+      - run: bun run security:static
       - name: Publish the findings to GitHub
         # `always()` because a blocked run is the one worth reading.
         if: always()
@@ -608,7 +528,7 @@ jobs:
         # That is the right design — an unpinned base would make two builds of
         # one commit produce different images — and it means every caller has
         # to supply the digest, including this one.
-        run: echo "node=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)" >> "$GITHUB_OUTPUT"
+        run: echo "bun=$(jq -r '.bases.bun | "\(.ref)@\(.digest)"' docker/base-images.json)" >> "$GITHUB_OUTPUT"
       - name: Build the API image for scanning
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -617,13 +537,13 @@ jobs:
           push: false
           load: true
           build-args: |
-            NODE_BASE=${{ steps.bases.outputs.node }}
+            BUN_BASE=${{ steps.bases.outputs.bun }}
             APPLICATION_VERSION=sha-${{ github.sha }}
           tags: myownnotion-api:scan
           cache-from: type=gha,scope=api-${{ needs.impact.outputs.cache_scope }}
           cache-to: type=gha,mode=max,scope=api-${{ needs.impact.outputs.cache_scope }},ignore-error=true
       - name: Exercise the packaged API runtime
-        # A successful Docker build does not prove that Node can load the
+        # A successful Docker build does not prove that Bun can load the
         # resulting entrypoints. Keep this on the already-loaded scan image so
         # the runtime check costs no additional runner or image build.
         run: scripts/ci/smoke-api-image.sh myownnotion-api:scan
@@ -700,13 +620,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm security:licenses
+      - uses: ./.github/actions/setup-bun
+      - run: bun run security:licenses
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -793,12 +708,12 @@ jobs:
           repo=$(printf '%s' "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')
           registry="ghcr.io/${owner}/${repo}"
           source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
-          node_base=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)
+          bun_base=$(jq -r '.bases.bun | "\(.ref)@\(.digest)"' docker/base-images.json)
           nginx_base=$(jq -r '.bases.nginx | "\(.ref)@\(.digest)"' docker/base-images.json)
           platforms=$(jq -r '.platforms | join(",")' docker/base-images.json)
           echo "registry=$registry" >> "$GITHUB_OUTPUT"
           echo "source_url=$source_url" >> "$GITHUB_OUTPUT"
-          echo "node=$node_base" >> "$GITHUB_OUTPUT"
+          echo "bun=$bun_base" >> "$GITHUB_OUTPUT"
           echo "nginx=$nginx_base" >> "$GITHUB_OUTPUT"
           echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
       - name: Publish immutable API image
@@ -812,7 +727,7 @@ jobs:
           provenance: true
           sbom: true
           build-args: |
-            NODE_BASE=${{ steps.publish-meta.outputs.node }}
+            BUN_BASE=${{ steps.publish-meta.outputs.bun }}
             APPLICATION_VERSION=sha-${{ github.sha }}
           tags: ${{ steps.publish-meta.outputs.registry }}-api:sha-${{ github.sha }}
           labels: |
@@ -837,7 +752,7 @@ jobs:
           provenance: true
           sbom: true
           build-args: |
-            NODE_BASE=${{ steps.publish-meta.outputs.node }}
+            BUN_BASE=${{ steps.publish-meta.outputs.bun }}
             NGINX_BASE=${{ steps.publish-meta.outputs.nginx }}
           tags: ${{ steps.publish-meta.outputs.registry }}-web:sha-${{ github.sha }}
           labels: |

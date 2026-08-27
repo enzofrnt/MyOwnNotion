@@ -26,3 +26,9 @@ if (window.location.pathname === "/__ui-lab") {
   // The normal workspace remains a separate chunk and is loaded only here.
   void import("./app.tsx").then(({ App }) => render(<App />));
 }
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/service-worker.js");
+  });
+}

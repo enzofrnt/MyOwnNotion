@@ -19,11 +19,14 @@ Les décisions transversales validées seront consignées ici sous forme de docu
   restauration et garde de mise à jour.
 - [`search.md`](search.md) : index transitoires, générations atomiques,
   reconstruction, diagnostics, confidentialité et volume de référence.
+- [`feature 019 plan`](../../specs/019-bun-toolchain/plan.md) : chaîne Bun
+  unique, artefacts Web/API, module WebSocket intégré, CI et images de
+  production sans runtime Node.js de secours.
 
 ## Frontières envisagées
 
 - `apps/web` : expérience utilisateur web et orchestration côté client.
-- `apps/api` : API, authentification, partage et synchronisation distante éventuelle.
+- `apps/api` : API, authentification, partage et synchronisation distante sous Bun.
 - `packages/editor` : modèle et interface d’édition par blocs, avec Tiptap comme candidat initial.
 - `packages/graph` : liens, backlinks, index et projections du graphe.
 - `packages/database` : schémas, migrations et accès à la persistance.

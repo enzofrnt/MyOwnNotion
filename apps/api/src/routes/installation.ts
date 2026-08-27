@@ -22,6 +22,7 @@ import {
 } from "@myownnotion/database";
 import type { FastifyInstance } from "fastify";
 import { checkDeploymentKey } from "../security/deployment-key.ts";
+import { isWebSocketUpgradeRequest } from "../security/realtime-authorization.ts";
 import { requestContext, updateRequestContext } from "../security/request-context.ts";
 import type { SecurityConfig } from "../security/security-config.ts";
 
@@ -39,22 +40,28 @@ export function registerInstallationRoutes(
    * context, before any route runs. Every guard downstream reads it from
    * there, so two handlers can never disagree about what state they are in.
    */
-  app.addHook("onRequest", async (request) => {
-    const record = await findInstallation(deps.db);
-    const key = checkDeploymentKey(deps.config.deploymentKeyFile);
-    updateRequestContext(request, {
-      installationState: record?.state ?? null,
-      installationId: record?.id ?? null,
-      workspaceId: record?.workspaceId ?? null,
-      deploymentKeyAvailable: key.available,
-    });
-    if (!key.available) {
-      // The path is operator information and belongs only in the server log.
-      request.log.warn(
-        { correlationId: requestContext(request).correlationId, problem: key.problem },
-        "deployment wrapping key is unavailable; protected operations will fail closed",
-      );
+  app.addHook("onRequest", (request, _reply, done) => {
+    if (isWebSocketUpgradeRequest(request)) {
+      done();
+      return;
     }
+    void findInstallation(deps.db).then((record) => {
+      const key = checkDeploymentKey(deps.config.deploymentKeyFile);
+      updateRequestContext(request, {
+        installationState: record?.state ?? null,
+        installationId: record?.id ?? null,
+        workspaceId: record?.workspaceId ?? null,
+        deploymentKeyAvailable: key.available,
+      });
+      if (!key.available) {
+        // The path is operator information and belongs only in the server log.
+        request.log.warn(
+          { correlationId: requestContext(request).correlationId, problem: key.problem },
+          "deployment wrapping key is unavailable; protected operations will fail closed",
+        );
+      }
+      done();
+    }, done);
   });
 
   app.get(

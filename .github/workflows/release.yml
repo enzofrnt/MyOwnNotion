@@ -100,13 +100,13 @@ jobs:
           registry="ghcr.io/${owner}/${repo}"
           source_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
           version="${GITHUB_REF_NAME}"
-          node_base=$(jq -r '.bases.node | "\(.ref)@\(.digest)"' docker/base-images.json)
+          bun_base=$(jq -r '.bases.bun | "\(.ref)@\(.digest)"' docker/base-images.json)
           nginx_base=$(jq -r '.bases.nginx | "\(.ref)@\(.digest)"' docker/base-images.json)
           platforms=$(jq -r '.platforms | join(",")' docker/base-images.json)
           echo "registry=$registry" >> "$GITHUB_OUTPUT"
           echo "source_url=$source_url" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "node=$node_base" >> "$GITHUB_OUTPUT"
+          echo "bun=$bun_base" >> "$GITHUB_OUTPUT"
           echo "nginx=$nginx_base" >> "$GITHUB_OUTPUT"
           echo "platforms=$platforms" >> "$GITHUB_OUTPUT"
       - name: Publish immutable version-tagged API image
@@ -120,7 +120,7 @@ jobs:
           provenance: true
           sbom: true
           build-args: |
-            NODE_BASE=${{ steps.release-meta.outputs.node }}
+            BUN_BASE=${{ steps.release-meta.outputs.bun }}
             APPLICATION_VERSION=sha-${{ github.sha }}
           tags: |
             ${{ steps.release-meta.outputs.registry }}-api:${{ steps.release-meta.outputs.version }}
@@ -149,7 +149,7 @@ jobs:
           provenance: true
           sbom: true
           build-args: |
-            NODE_BASE=${{ steps.release-meta.outputs.node }}
+            BUN_BASE=${{ steps.release-meta.outputs.bun }}
             NGINX_BASE=${{ steps.release-meta.outputs.nginx }}
           tags: |
             ${{ steps.release-meta.outputs.registry }}-web:${{ steps.release-meta.outputs.version }}

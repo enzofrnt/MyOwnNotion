@@ -92,7 +92,7 @@ describe("compose security (loopback only)", () => {
     const migrate = compose.services?.["migrate"] as { restart?: string; command?: string[] };
     expect(migrate).toBeDefined();
     expect(migrate.restart).toBe("no");
-    expect(migrate.command).toContain("dist/migrate.mjs");
+    expect(migrate.command).toEqual(["bun", "dist/migrate.js"]);
 
     const api = compose.services?.["api"] as {
       depends_on?: Record<string, { condition?: string }>;

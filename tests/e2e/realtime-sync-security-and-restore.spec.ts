@@ -39,24 +39,20 @@ async function admin(args: readonly string[]): Promise<Record<string, unknown>> 
   const backupRoot = process.env["MYOWNNOTION_BACKUP_ROOT"] ?? path.resolve(".dev-backups-e2e");
   const deploymentKey =
     process.env["MYOWNNOTION_DEPLOYMENT_KEY_FILE"] ?? path.resolve("secrets", "deployment-key.e2e");
-  const { stdout } = await run(
-    "pnpm",
-    ["exec", "tsx", "apps/api/src/admin/admin-cli.ts", ...args, "--json"],
-    {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        DATABASE_URL:
-          process.env["DATABASE_URL"] ??
-          "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
-        MYOWNNOTION_BLOB_ROOT: process.env["MYOWNNOTION_BLOB_ROOT"] ?? ".dev-blobs",
-        MYOWNNOTION_BACKUP_ROOT: backupRoot,
-        MYOWNNOTION_BACKUP_DESTINATION: "filesystem",
-        MYOWNNOTION_DEPLOYMENT_KEY_FILE: deploymentKey,
-      },
-      maxBuffer: 4 * 1024 * 1024,
+  const { stdout } = await run("bun", ["apps/api/src/admin/admin-cli.ts", ...args, "--json"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DATABASE_URL:
+        process.env["DATABASE_URL"] ??
+        "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion",
+      MYOWNNOTION_BLOB_ROOT: process.env["MYOWNNOTION_BLOB_ROOT"] ?? ".dev-blobs",
+      MYOWNNOTION_BACKUP_ROOT: backupRoot,
+      MYOWNNOTION_BACKUP_DESTINATION: "filesystem",
+      MYOWNNOTION_DEPLOYMENT_KEY_FILE: deploymentKey,
     },
-  );
+    maxBuffer: 4 * 1024 * 1024,
+  });
   const line = stdout
     .trim()
     .split("\n")

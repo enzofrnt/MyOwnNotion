@@ -9,8 +9,22 @@ set -euo pipefail
 repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 playwright_image="${MYOWNNOTION_PLAYWRIGHT_IMAGE:-mcr.microsoft.com/playwright:v1.62.1-noble}"
 database_url="${DATABASE_URL:-postgres://myownnotion:myownnotion-dev@host.docker.internal:5432/myownnotion}"
+deployment_key_file="${MYOWNNOTION_DEPLOYMENT_KEY_FILE:-${repo_root}/secrets/deployment-key}"
 
-# pnpm includes the conventional separator when forwarding script arguments.
+# The repository is mounted at /work, so translate an isolated host-side key
+# created by the matrix runner to the path seen by the container. Refuse keys
+# outside that mount instead of silently starting with a missing secret.
+case "${deployment_key_file}" in
+    "${repo_root}"/*)
+        container_deployment_key_file="/work/${deployment_key_file#"${repo_root}"/}"
+        ;;
+    *)
+        echo "MYOWNNOTION_DEPLOYMENT_KEY_FILE must be inside ${repo_root}" >&2
+        exit 1
+        ;;
+esac
+
+# Bun accepts the conventional separator when forwarding script arguments.
 # Remove it so Playwright receives the actual options (`--project`, `--grep`, …).
 if [[ "${1:-}" == "--" ]]; then
     shift
@@ -25,6 +39,7 @@ docker run --rm --ipc=host \
     --env DATABASE_URL="${database_url}" \
     --env MYOWNNOTION_BLOB_ROOT=/tmp/myownnotion-blobs \
     --env MYOWNNOTION_BACKUP_ROOT=/tmp/myownnotion-backups \
+    --env MYOWNNOTION_DEPLOYMENT_KEY_FILE="${container_deployment_key_file}" \
     "${playwright_image}" \
-    bash -lc 'corepack enable pnpm && pnpm install --frozen-lockfile && exec pnpm exec playwright test --fail-on-flaky-tests "$@"' \
+    bash -lc 'if ! command -v unzip >/dev/null; then apt-get update -qq && apt-get install -y --no-install-recommends unzip >/dev/null && rm -rf /var/lib/apt/lists/*; fi && curl --fail --silent --show-error --location https://bun.sh/install | bash -s "bun-v1.4.0" >/dev/null && export PATH="${HOME}/.bun/bin:${PATH}" && test "$(bun --version)" = "1.4.0" && bun ci && exec bun run --bun playwright test --fail-on-flaky-tests "$@"' \
     -- "$@"

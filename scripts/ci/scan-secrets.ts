@@ -94,10 +94,10 @@ const rules: Rule[] = [
 /** Files whose content is expected to contain secret-shaped test material. */
 const allowedPaths = new Set<string>([
   "scripts/ci/scan-secrets.ts",
-  "pnpm-lock.yaml", // integrity hashes, not credentials
+  "bun.lock", // integrity hashes, not credentials
 ]);
 
-const skippedPrefixes = ["node_modules/", "dist/", "build/", "coverage/", ".pnpm-store/"];
+const skippedPrefixes = ["node_modules/", "dist/", "build/", "coverage/"];
 const binaryExtensions = new Set([
   ".png",
   ".jpg",

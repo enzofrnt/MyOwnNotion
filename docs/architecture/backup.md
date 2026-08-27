@@ -46,7 +46,7 @@ disposable environment. Destructive restoration remains a host-local command.
 ## Where the update guard lives
 
 The guard wraps the migration runner, before pending migration SQL is read. The
-Compose one-shot migration job and `pnpm db:migrate` both use that wrapper, so a
+Compose one-shot migration job and `bun run db:migrate` both use that wrapper, so a
 second entrypoint cannot silently bypass it.
 
 Migration `0006_installation_application_version` bootstraps the columns and

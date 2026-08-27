@@ -7,13 +7,12 @@ commands you run locally, and what blocks a merge.
 
 | Concern | Tool | Where it is pinned |
 | --- | --- | --- |
-| Node.js | 24 LTS (`>=24.0.0 <25`) | `engines.node` in `package.json` |
-| Package manager | pnpm, exact release | `packageManager` in `package.json` |
-| Dependency lock | `pnpm-lock.yaml` | committed; installs use `--frozen-lockfile` |
+| Runtime, package manager and bundler | Bun 1.4.0 exactly | `packageManager` and `engines.bun` in `package.json` |
+| Dependency lock | `bun.lock` | committed; installations use `bun ci` |
 | Format + lint (TS/TSX/JSON/CSS) | Biome | `biome.jsonc` |
 | Types | TypeScript strict | `tsconfig.base.json` |
 | Shell | ShellCheck + shfmt, pinned versions | `scripts/ci/check-shell.ts`, `.github/workflows/ci.yml` |
-| Tests | Vitest + fast-check + Playwright | `vitest.config.ts`, `vitest.workspace.ts`, `playwright.config.ts` |
+| Tests | Vitest + fast-check + Playwright | `vitest.config.ts`, `playwright.config.ts` |
 | Database | PostgreSQL 18 | `compose.yaml` |
 | Sync protocol | version 3 | `packages/domain/src/sync/protocol-version.ts` |
 
@@ -50,23 +49,32 @@ version header, remains readable but is read-only. Protocol 2 can still perform
 compatible non-editorial writes, while the page-operation routes require
 protocol 3 through their capability-specific gate.
 
-### pnpm is the only Node.js package manager
+### Bun is the only JavaScript/TypeScript toolchain
 
-Use `pnpm` for every dependency and script operation. `npm`, Yarn, and Bun
-lockfiles or install workflows must not be introduced — `pnpm toolchain:check`
-fails the build if a foreign lockfile appears.
+Use Bun 1.4.0 for dependency, workspace, script, runtime and production-build
+operations. Node.js, npm, pnpm and Yarn workflows or lockfiles must not be
+introduced — `bun run toolchain:check` fails on a different Bun patch, a
+foreign lockfile or an active command from the retired toolchain.
 
 ```bash
-corepack enable          # once, to get the pinned pnpm release
-pnpm install --frozen-lockfile
+bun --version            # must print exactly 1.4.0
+bun ci
+bun run toolchain:check
 ```
+
+`bun ci` is the canonical frozen installation. It fails when a manifest and
+`bun.lock` differ, and running it twice must leave the lock byte-identical.
+JavaScript tools such as TypeScript, Vitest, Vite development server and
+Playwright remain specialized dependencies, but Bun installs and launches
+them. Imports from `node:*` use Bun's compatibility APIs and do not imply a
+Node.js process.
 
 ### Python (not used yet)
 
 This feature ships no first-party Python. If a later feature introduces it,
 it must use **uv exclusively**: a `pyproject.toml`, a pinned `.python-version`,
 and a committed `uv.lock`. Ad hoc `pip`, `virtualenv`, Poetry, Pipenv, and
-Conda project workflows are forbidden and `pnpm toolchain:check` rejects them.
+Conda project workflows are forbidden and `bun run toolchain:check` rejects them.
 
 ### TypeScript only
 
@@ -77,8 +85,8 @@ Maintained application and test source is TypeScript. CI rejects first-party
 
 ```bash
 docker compose up -d --wait postgres
-pnpm db:migrate
-pnpm dev
+bun run db:migrate
+bun run dev
 ```
 
 Every published port binds to `127.0.0.1` only.
@@ -92,11 +100,11 @@ Administrative recovery runs locally, with the same mounted deployment key as
 the API. It is not exposed as a destructive HTTP endpoint.
 
 ```bash
-pnpm admin backup run --json
-pnpm admin backup verify --latest --json
-pnpm admin restore test --latest --json
-pnpm admin restore apply --id <backup-id> --dry-run
-pnpm admin version inspect --json
+bun run admin -- backup run --json
+bun run admin -- backup verify --latest --json
+bun run admin -- restore test --latest --json
+bun run admin -- restore apply --id <backup-id> --dry-run
+bun run admin -- version inspect --json
 ```
 
 `restore test` creates and migrates a disposable PostgreSQL database, writes the
@@ -116,10 +124,10 @@ If `/health` reports `restoration-incomplete`, do not treat the installation as
 ready. Re-run the same `restore apply --id …` command after fixing the cause, or
 deploy the safety backup recorded immediately before the attempt.
 
-Both `pnpm db:migrate` and the Compose migration job run the update guard. On a
+Both `bun run db:migrate` and the Compose migration job run the update guard. On a
 version change, it produces and re-reads a `pre-update` backup before any pending
 migration. A failed verification stops the process with the previous schema
-untouched. `pnpm admin version inspect` shows the running and recorded versions,
+untouched. `bun run admin -- version inspect` shows the running and recorded versions,
 pending migrations, and whether a verified backup exists for the version being
 left. After an update it also names the exact previous `sha-…` image tag, the
 matching backup, and the previous schema and encrypted-record format versions.
@@ -177,7 +185,7 @@ it with `docker compose logs migrate`.
 
 Three settings decide whether this works, and each fails quietly on its own:
 
-- **the ports must be free.** `pnpm dev` already holds 3001; Compose then
+- **the ports must be free.** `bun run dev` already holds 3001; Compose then
   leaves the containers `Created` and prints no container logs at all;
 - **`MYOWNNOTION_PUBLIC_ORIGIN` must be the origin you open**, port included.
   It defaults to the published web port;
@@ -205,16 +213,16 @@ substitutes for the behavioral layers.
 
 | Command | Layer | Needs Docker |
 | --- | --- | --- |
-| `pnpm test:unit` | Domain rules, client-core, contracts, blob store | no¹ |
-| `pnpm test:property` | Randomized invariants (fast-check) | no |
-| `pnpm test:integration` | PostgreSQL constraints, transactions, migrations | **yes** |
-| `pnpm test:contract` | OpenAPI conformance, export round-trips, compose security | **yes**¹ |
-| `pnpm test:migration` | Empty-database and forward-fixture migrations | **yes** |
-| `pnpm test:security` | Owner security foundation suites across every project | **yes** |
-| `pnpm test:e2e` | Playwright journeys, 5 browser/viewport projects | **yes** |
-| `pnpm test:coverage` | Maintained unit/integration/contract code under coverage thresholds | **yes** |
-| `pnpm test:performance` | 10,000-item / 1,000-operation suites | **yes** |
-| `pnpm db:test-migrations` | Alias of `test:migration`, kept for existing scripts | **yes** |
+| `bun run test:unit` | Domain rules, client-core, contracts, blob store | **yes**¹ |
+| `bun run test:property` | Randomized invariants (fast-check) | no |
+| `bun run test:integration` | PostgreSQL constraints, transactions, migrations | **yes** |
+| `bun run test:contract` | OpenAPI conformance, export round-trips, compose security | **yes**¹ |
+| `bun run test:migration` | Empty-database and forward-fixture migrations | **yes** |
+| `bun run test:security` | Owner security foundation suites across every project | **yes** |
+| `bun run test:e2e` | Playwright journeys, 5 browser/viewport projects | **yes** |
+| `bun run test:coverage` | Maintained unit/integration/contract code under coverage thresholds | **yes** |
+| `bun run test:performance` | 10,000-item / 1,000-operation suites | **yes** |
+| `bun run db:test-migrations` | Alias of `test:migration`, kept for existing scripts | **yes** |
 
 ¹ `tests/contract/export.spec.ts` needs PostgreSQL, so it fails inside
 `test:unit` when Docker is unavailable. Everything else in that command runs
@@ -223,10 +231,10 @@ without it.
 ### The browser matrix locally
 
 ```bash
-pnpm test:e2e:local                       # fast feedback: two projects at a time
-pnpm test:e2e:gate                        # pre-push: complete matrix, two at a time
-pnpm test:e2e:local -- --grep "live sync" # arguments pass through
-MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/databases-views.spec.ts
+bun run test:e2e:local                       # fast feedback: two projects at a time
+bun run test:e2e:gate                        # pre-push: complete matrix, two at a time
+bun run test:e2e:local -- --grep "live sync" # arguments pass through
+MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- tests/e2e/databases-views.spec.ts
 ```
 
 **Two commands, because they answer different questions.** Both use isolated
@@ -278,11 +286,11 @@ files with the available worker pool. When several database lanes run, set
 creates its own random database, while avoiding one container per process.
 
 Do not run two raw Playwright commands concurrently. They share the default
-database and reset fixtures. `pnpm test:e2e:local` is the parallel-safe browser
+database and reset fixtures. `bun run test:e2e:local` is the parallel-safe browser
 entry point because it allocates a database, ports, blob root, deployment key
 and Vite cache per project. Keep its default width of two on a small runner.
 
-This parallel feedback does not replace `pnpm checks:local`. The full gate owns
+This parallel feedback does not replace `bun run checks:local`. The full gate owns
 its resource ordering and must run once, without a competing test process,
 against the exact commit that will be pushed.
 
@@ -339,7 +347,7 @@ That project starts its servers inside the container and reaches PostgreSQL
 through `host.docker.internal`, so it needs a database of its own and nothing
 else. It runs alongside the others rather than after them.
 
-`pnpm test:e2e` remains the single-stack command CI uses, and the one to reach
+`bun run test:e2e` remains the single-stack command CI uses, and the one to reach
 for when debugging one journey.
 
 ### Security test harness
@@ -387,17 +395,17 @@ Use deterministic seams for faults; do not add sleeps or production-only
 failure switches. The focused matrix is:
 
 ```bash
-pnpm exec vitest run --project client-core \
+bun run --bun vitest run --project client-core \
   packages/client-core/tests/page-operation-atomicity.spec.ts \
   packages/client-core/tests/page-reconciler.property.spec.ts
-pnpm exec vitest run --project api-contract \
+bun run --bun vitest run --project api-contract \
   apps/api/tests/realtime-page-sync.contract.spec.ts \
   apps/api/tests/page-sync-session.spec.ts \
   apps/api/tests/realtime-device-revocation.integration.spec.ts
-pnpm exec vitest run --project web \
+bun run --bun vitest run --project web \
   apps/web/tests/realtime-page-sync-transport.spec.ts \
   apps/web/tests/local-content-realtime-sync.spec.ts
-pnpm test:e2e:local -- \
+bun run test:e2e:local -- \
   tests/e2e/page-multi-tab-convergence.spec.ts \
   tests/e2e/realtime-sync-security-and-restore.spec.ts
 ```
@@ -411,28 +419,28 @@ identity and converge without a whole-document replacement.
 
 Search spans the shared domain engine, canonical source reads, the API, the
 local worker and browser journeys. These commands give focused feedback while
-working on that feature; they do not replace `pnpm checks:local` before a push.
+working on that feature; they do not replace `bun run checks:local` before a push.
 
 ```bash
-pnpm exec vitest run --project domain \
+bun run --bun vitest run --project domain \
   tests/search-normalise.spec.ts tests/search-document-text.spec.ts \
   tests/search-index.spec.ts tests/search.property.spec.ts
-pnpm exec vitest run --project database-integration \
+bun run --bun vitest run --project database-integration \
   tests/search-source.integration.spec.ts tests/reference-backups.integration.spec.ts
-pnpm exec vitest run --project api-contract \
+bun run --bun vitest run --project api-contract \
   tests/search-service.spec.ts tests/search.contract.spec.ts \
   tests/search-rebuild.spec.ts tests/search-security.spec.ts
-pnpm exec vitest run --project client-core \
+bun run --bun vitest run --project client-core \
   tests/local-search-source.spec.ts tests/search-merge.spec.ts
-pnpm exec vitest run --project web \
+bun run --bun vitest run --project web \
   tests/search-dialog.spec.ts tests/search-worker.spec.ts
-pnpm test:e2e:local -- --grep "workspace search|search dialog"
+bun run test:e2e:local -- --grep "workspace search|search dialog"
 ```
 
 The dedicated benchmark is:
 
 ```bash
-pnpm exec vitest run --project performance tests/performance/search.perf.spec.ts
+bun run --bun vitest run --project performance tests/performance/search.perf.spec.ts
 ```
 
 It models 100,000 pages, one million flattened visible blocks and 50,000 file
@@ -448,30 +456,30 @@ local projection and five browser views. Use these focused commands while
 editing; they do not replace the full pre-push gate:
 
 ```bash
-pnpm exec vitest run --project domain packages/domain/tests/databases
-pnpm exec vitest run --project client-core packages/client-core/tests/database-query.spec.ts \
+bun run --bun vitest run --project domain packages/domain/tests/databases
+bun run --bun vitest run --project client-core packages/client-core/tests/database-query.spec.ts \
   packages/client-core/tests/database-local-mutation.spec.ts \
   packages/client-core/tests/database-reconciliation.spec.ts
-pnpm exec vitest run --project database-integration packages/database/tests/database.integration.spec.ts \
+bun run --bun vitest run --project database-integration packages/database/tests/database.integration.spec.ts \
   packages/database/tests/database-lifecycle.integration.spec.ts
-pnpm exec vitest run --project api-contract apps/api/tests/database.contract.spec.ts \
+bun run --bun vitest run --project api-contract apps/api/tests/database.contract.spec.ts \
   apps/api/tests/database-security.spec.ts
-pnpm test:e2e:local -- --grep "database|structured"
+bun run test:e2e:local -- --grep "database|structured"
 ```
 
 Migration `0007_databases.sql` creates only the structural database and
 membership tables, their integrity triggers and indexes. Apply it through
-`pnpm db:migrate`; do not create definitions or values directly in those
+`bun run db:migrate`; do not create definitions or values directly in those
 tables. Test both an empty database and the forward fixture with:
 
 ```bash
-pnpm db:test-migrations
+bun run db:test-migrations
 ```
 
 The dedicated benchmark is:
 
 ```bash
-pnpm exec vitest run --project performance tests/performance/databases.perf.spec.ts
+bun run --bun vitest run --project performance tests/performance/databases.perf.spec.ts
 ```
 
 It measures the first 100 results from 100,000 entries in all five views,
@@ -541,7 +549,7 @@ For code, dependency, migration, build, deployment, configuration,
 executable-schema, or mixed changes, run:
 
 ```bash
-pnpm checks:local
+bun run checks:local
 ```
 
 This is the hard pre-push gate for executable or potentially executable
@@ -576,7 +584,7 @@ modes, before the first page is created. The symptom is a Firefox process at
 100% CPU with a `RenderCompositorSWGL failed mapping default framebuffer` log.
 This is a browser/runtime issue, not an application-test failure.
 
-`pnpm checks:local` invokes `pnpm test:e2e:gate`. On macOS that wrapper runs
+`bun run checks:local` invokes `bun run test:e2e:gate`. On macOS that wrapper runs
 Chromium and WebKit directly, then runs Firefox in the official Playwright
 Linux container. The
 container uses the same Playwright version as the repository and reaches the
@@ -584,24 +592,31 @@ host PostgreSQL service through `host.docker.internal`:
 
 ```bash
 docker compose up -d --wait postgres
-pnpm db:migrate
-pnpm test:e2e:firefox-container -- --project=firefox-desktop
+bun run db:migrate
+bun run test:e2e:firefox-container -- --project=firefox-desktop
+```
+
+To rerun one lane with the same isolated database and deployment-key lifecycle
+as the complete local gate, select the exact project on the matrix command:
+
+```bash
+bun run test:e2e:gate -- --project=firefox-desktop
 ```
 
 Additional Playwright arguments are forwarded after `--`, for example:
 
 ```bash
-pnpm test:e2e:firefox-container -- --project=firefox-desktop --grep "first-run gate"
+bun run test:e2e:firefox-container -- --project=firefox-desktop --grep "first-run gate"
 ```
 
 This is the required local path for Firefox on macOS. Chromium and WebKit may
 still run directly on the host. The container is headless by default; failed
 journeys retain the usual Playwright traces and screenshots for debugging.
 
-When invoking the raw `pnpm test:e2e` and
-`pnpm test:e2e:firefox-container` commands yourself, run them one after the
+When invoking the raw `bun run test:e2e` and
+`bun run test:e2e:firefox-container` commands yourself, run them one after the
 other. Those commands use the default PostgreSQL database, and concurrent
-journeys can delete each other's fixtures. `pnpm test:e2e:local` is the safe
+journeys can delete each other's fixtures. `bun run test:e2e:local` is the safe
 parallel exception: its matrix runner allocates an isolated database, ports,
 temporary directories, and Vite dependency cache to every browser project.
 
@@ -631,18 +646,18 @@ present when their selection is empty and report a successful explicit no-op;
 branch protection therefore never relies on a skipped or missing check.
 
 Selection is intentionally limited to pull requests. Pushes to `main`, version
-tags through the reusable gate, manual diagnostics, and `pnpm checks:local`
+tags through the reusable gate, manual diagnostics, and `bun run checks:local`
 always run the full corpus. Documentation-only work branches use the targeted
 local policy above; executable or mixed work branches still run
-`pnpm checks:local` in full before push. Full runs are both release evidence and
+`bun run checks:local` in full before push. Full runs are both release evidence and
 the safety net that exposes an incomplete ownership map.
 
 Useful local diagnostics:
 
 ```bash
-pnpm ci:test-impact --event pull_request --ref refs/pull/1/merge \
+bun run ci:test-impact --event pull_request --ref refs/pull/1/merge \
   --base HEAD~1 --head HEAD --pr-number 1 --changed docs/development.md
-pnpm ci:test:affected --plan test-impact.json --group unit
+bun run ci:test:affected --plan test-impact.json --group unit
 ```
 
 When adding or renaming a Playwright `tests/e2e/*.spec.ts` journey, add it to
@@ -651,9 +666,10 @@ journey is missing, duplicated, ownerless, or points to a nonexistent consumer.
 
 ### CI cache boundaries
 
-Every Node job uses `actions/setup-node`'s pnpm store cache. Installs remain
-`--frozen-lockfile`: a hit avoids package downloads but does not replace
-lockfile validation or pnpm's materialization step. E2E jobs separately cache
+Every JavaScript/TypeScript job uses the repository's pinned Bun setup action.
+It caches only Bun downloads by runner OS, architecture and `bun.lock` hash,
+then still executes `bun ci`: a hit avoids downloads but never replaces frozen
+lock validation or workspace materialization. E2E jobs separately cache
 Playwright browser binaries by runner OS, architecture, and the installed
 Playwright version; the system dependency check still runs on every selected
 browser job.
@@ -670,8 +686,8 @@ Superseded runs for the same pull request are cancelled automatically. Main,
 release, manual, and unrelated pull-request runs use distinct concurrency
 groups and cannot cancel one another.
 
-Write mode for formatting is separate on purpose: `pnpm format:write` and
-`pnpm lint --write` change files, the `:check`/`ci` variants never do.
+Write mode for formatting is separate on purpose: `bun run format:write` and
+`bun run lint --write` change files, the `:check`/`ci` variants never do.
 
 ### Delivery gate inventory
 
@@ -698,8 +714,8 @@ fails when any complete or selective entry point is missing from
 | `release:gate` | tag | Missing, stale, foreign-commit, or artifact-less gate evidence blocks publication | — |
 
 Base images are pinned by manifest-list digest in `docker/base-images.json`.
-`pnpm images:build` refuses to build while a digest is empty; run
-`pnpm images:build --resolve` on a machine with a Docker daemon and commit the
+`bun run images:build` refuses to build while a digest is empty; run
+`bun run images:build --resolve` on a machine with a Docker daemon and commit the
 result.
 
 Secrets never live in the repository, an image, a log, or `.env.example`. A
@@ -718,8 +734,13 @@ them. Findings in every first-party script do fail the gate.
 
 ## Coverage thresholds
 
-`vitest.config.ts` enforces 90% statements, lines, and functions and 85%
-branches over `packages/*/src` and `apps/api/src`.
+`vitest.config.ts` uses Istanbul under Bun and enforces an absolute
+no-regression budget over `packages/*/src` and `apps/api/src`: at most 2,216
+uncovered statements, 1,866 uncovered lines, 337 uncovered functions, and
+2,465 uncovered branches. Vitest interprets negative thresholds as maximum
+uncovered counts. These values are the first complete Bun/Istanbul baseline,
+recorded in `specs/019-bun-toolchain/plan.md`; adding covered code cannot hide
+new untested code by diluting a percentage.
 
 Excluded, with the reason:
 
@@ -731,8 +752,9 @@ Excluded, with the reason:
   `listen()`/`process.exit()`). Recorded as an explicit exception in
   `specs/001-content-foundations/plan.md`.
 
-Lowering a threshold or excluding executable first-party code requires a
-recorded exception in the active feature's plan.
+Increasing an uncovered-item budget or excluding executable first-party code
+requires a recorded exception in the active feature's plan. A future reduction
+of any budget is an improvement and should be kept.
 
 ## What blocks a merge
 

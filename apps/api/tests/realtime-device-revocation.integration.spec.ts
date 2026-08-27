@@ -15,6 +15,7 @@ import {
   PAGE_OPERATION_DEVICE_ID,
   PAGE_OPERATION_OWNER_ID,
 } from "./helpers/authenticated-page-operations.ts";
+import { connectRealWebSocket } from "./helpers/real-websocket.ts";
 
 let harness: AuthenticatedPageOperationHarness;
 const sockets = new Set<WebSocket>();
@@ -69,8 +70,9 @@ afterEach(() => {
 });
 
 async function connect(headers: Record<string, string>) {
-  const socket = await harness.api.built.app.injectWS("/v1/page-sync/socket", {
-    headers: { cookie: headers["cookie"], origin: "http://127.0.0.1:5173" },
+  const socket = await connectRealWebSocket(harness.api.built.app, "/v1/page-sync/socket", {
+    cookie: headers["cookie"],
+    origin: "http://127.0.0.1:5173",
   });
   sockets.add(socket);
   return { socket, messages: new MessageQueue(socket) };

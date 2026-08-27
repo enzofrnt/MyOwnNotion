@@ -1,31 +1,22 @@
 import type { Uuid } from "@myownnotion/domain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BackupAdminContext } from "../src/admin/backup-admin-commands.ts";
+import type {
+  BackupAdminCommandHandlers,
+  BackupAdminContext,
+} from "../src/admin/backup-admin-commands.ts";
 import { runBackupAdminCommand } from "../src/admin/backup-admin-commands.ts";
 import { EXIT_CODES } from "../src/admin/command-output.ts";
 import { CommandUsageError, parseCommand } from "../src/admin/command-parser.ts";
 
-const commandMocks = vi.hoisted(() => ({
+const commandMocks = {
   runBackup: vi.fn(),
   verifyBackup: vi.fn(),
   restoreApply: vi.fn(),
   restoreTest: vi.fn(),
   versionInspect: vi.fn(),
-}));
+};
 
-vi.mock("../src/admin/commands/backup-commands.ts", () => ({
-  runBackupCommand: commandMocks.runBackup,
-  verifyBackupCommand: commandMocks.verifyBackup,
-}));
-vi.mock("../src/admin/commands/restore-apply.ts", () => ({
-  restoreApplyCommand: commandMocks.restoreApply,
-}));
-vi.mock("../src/admin/commands/restore-test.ts", () => ({
-  restoreTestCommand: commandMocks.restoreTest,
-}));
-vi.mock("../src/admin/commands/version-inspect.ts", () => ({
-  versionInspectCommand: commandMocks.versionInspect,
-}));
+const commandHandlers = commandMocks as unknown as BackupAdminCommandHandlers;
 
 const success = { code: EXIT_CODES.ok, message: "ok" } as const;
 const context: BackupAdminContext = {
@@ -54,7 +45,9 @@ beforeEach(() => {
 
 describe("backup administration command routing", () => {
   it("routes backup creation through the shared command dependencies", async () => {
-    expect(await runBackupAdminCommand(parseCommand(["backup", "run"]), context)).toBe(success);
+    expect(
+      await runBackupAdminCommand(parseCommand(["backup", "run"]), context, commandHandlers),
+    ).toBe(success);
     expect(commandMocks.runBackup).toHaveBeenCalledWith(
       expect.objectContaining({
         db: context.db,
@@ -66,19 +59,31 @@ describe("backup administration command routing", () => {
   });
 
   it("supports both explicit and latest verification selectors", async () => {
-    await runBackupAdminCommand(parseCommand(["backup", "verify", "--id", "backup-id"]), context);
+    await runBackupAdminCommand(
+      parseCommand(["backup", "verify", "--id", "backup-id"]),
+      context,
+      commandHandlers,
+    );
     expect(commandMocks.verifyBackup).toHaveBeenLastCalledWith(expect.anything(), {
       id: "backup-id",
     });
 
-    await runBackupAdminCommand(parseCommand(["backup", "verify", "--latest"]), context);
+    await runBackupAdminCommand(
+      parseCommand(["backup", "verify", "--latest"]),
+      context,
+      commandHandlers,
+    );
     expect(commandMocks.verifyBackup).toHaveBeenLastCalledWith(expect.anything(), {
       latest: true,
     });
   });
 
   it("routes a rehearsal with the database URL and installation versions", async () => {
-    await runBackupAdminCommand(parseCommand(["restore", "test", "--latest"]), context);
+    await runBackupAdminCommand(
+      parseCommand(["restore", "test", "--latest"]),
+      context,
+      commandHandlers,
+    );
     expect(commandMocks.restoreTest).toHaveBeenCalledWith(
       expect.objectContaining({
         databaseUrl: context.databaseUrl,
@@ -96,6 +101,7 @@ describe("backup administration command routing", () => {
     await runBackupAdminCommand(
       parseCommand(["restore", "apply", "--id", "backup-id", "--dry-run", "--yes"]),
       context,
+      commandHandlers,
     );
 
     const [deps, options] = commandMocks.restoreApply.mock.calls[0] as [
@@ -115,7 +121,7 @@ describe("backup administration command routing", () => {
   });
 
   it("routes version inspection with immutable build and migration context", async () => {
-    await runBackupAdminCommand(parseCommand(["version", "inspect"]), context);
+    await runBackupAdminCommand(parseCommand(["version", "inspect"]), context, commandHandlers);
     expect(commandMocks.versionInspect).toHaveBeenCalledWith({
       db: context.db,
       workspaceId: context.workspaceId,
@@ -126,19 +132,31 @@ describe("backup administration command routing", () => {
 
   it("refuses ambiguous, absent, malformed and unsupported selectors", async () => {
     await expect(
-      runBackupAdminCommand(parseCommand(["backup", "verify", "--id", "one", "--latest"]), context),
+      runBackupAdminCommand(
+        parseCommand(["backup", "verify", "--id", "one", "--latest"]),
+        context,
+        commandHandlers,
+      ),
     ).rejects.toThrow(/either --id or --latest/);
     await expect(
-      runBackupAdminCommand(parseCommand(["backup", "verify"]), context),
+      runBackupAdminCommand(parseCommand(["backup", "verify"]), context, commandHandlers),
     ).rejects.toThrow(/choose --id or --latest/);
     await expect(
-      runBackupAdminCommand({ path: ["backup", "verify"], options: { id: true } }, context),
+      runBackupAdminCommand(
+        { path: ["backup", "verify"], options: { id: true } },
+        context,
+        commandHandlers,
+      ),
     ).rejects.toThrow(/--id requires a value/);
     await expect(
-      runBackupAdminCommand(parseCommand(["restore", "apply", "--latest"]), context),
+      runBackupAdminCommand(
+        parseCommand(["restore", "apply", "--latest"]),
+        context,
+        commandHandlers,
+      ),
     ).rejects.toThrow(/--id is required/);
     await expect(
-      runBackupAdminCommand(parseCommand(["backup", "explode"]), context),
+      runBackupAdminCommand(parseCommand(["backup", "explode"]), context, commandHandlers),
     ).rejects.toThrow(CommandUsageError);
   });
 });

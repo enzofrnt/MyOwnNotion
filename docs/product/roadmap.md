@@ -165,6 +165,32 @@ fichiers et les sauvegardes existants sont étendus plutôt que reconstruits.
 La validation formelle de la V1 reste bloquée tant que cette convergence et les
 protocoles ouverts de la feature 002 ne sont pas terminés.
 
+### 018 — Durable realtime synchronization
+
+**État** : implémentée, convergée et fusionnée
+**Dépendance** : 002, 006, 017
+**Dossier** : [`specs/018-durable-realtime-sync`](../../specs/018-durable-realtime-sync/)
+**Canevas** : sections 9, 17 à 20, 28 à 35, 40, 42 et 43
+
+Cette feature remplace le remplacement de document entier par des opérations
+Loro durables, un canal WebSocket same-origin avec ACK après commit et une
+reprise automatique hors ligne, après crash ou longue absence. Elle couvre
+aussi les fichiers, la révocation d'appareil, les branches historiques, la
+restauration et les régressions issues d'un HAR réel.
+
+### 019 — Unified Bun 1.4 toolchain
+
+**État** : implémentation en cours sur une pull request dédiée
+**Dépendance** : 002, 016, 017, 018
+**Dossier** : [`specs/019-bun-toolchain`](../../specs/019-bun-toolchain/)
+**Canevas** : sections 38 à 47
+
+Cette maintenance pré-V1 remplace en une fois pnpm, le runtime Node.js et les
+builds de production historiques par Bun 1.4.0 exactement épinglé. Elle couvre
+workspaces, lockfile, scripts, tests, CI, builds Web/API et images, sans changer
+les données ni le protocole produit. Le temps réel conserve Fastify et utilise
+le module `ws` intégré à Bun avec les mêmes protections de session.
+
 ### 016 — CI cache and selective tests
 
 **État** : implémentée et validée localement ; prête pour la pull request

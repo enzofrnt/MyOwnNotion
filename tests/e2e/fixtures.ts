@@ -37,7 +37,7 @@ import { seedCommittedOwner, seedSession } from "./reset-installation.ts";
 function assertBrowserRunsHere(projectName: string): void {
   if (projectName === "firefox-desktop" && process.platform === "darwin") {
     throw new Error(
-      "firefox-desktop cannot run on a macOS host: Playwright's Firefox hangs before opening a page and then burns a core indefinitely. Run `pnpm test:e2e:local` (which routes it to the pinned Linux image) or `pnpm test:e2e:firefox-container` to run it alone.",
+      "firefox-desktop cannot run on a macOS host: Playwright's Firefox hangs before opening a page and then burns a core indefinitely. Run `bun run test:e2e:local` (which routes it to the pinned Linux image) or `bun run test:e2e:firefox-container` to run it alone.",
     );
   }
 }

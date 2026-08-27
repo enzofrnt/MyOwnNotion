@@ -1490,6 +1490,14 @@ En développement :
 
 Les commandes utilisées localement et en CI doivent appeler les mêmes scripts de projet afin d'éviter deux comportements divergents.
 
+La chaîne JavaScript/TypeScript doit rester unique et reproductible. Elle
+utilise une version patch exacte de Bun — `1.4.0` lors de la feature 019 — pour
+les workspaces, l'installation verrouillée, les scripts, le runtime et les
+builds de production. Un seul `bun.lock` est versionné ; Node.js, npm, pnpm et
+Yarn ne sont pas maintenus comme chemins de secours. Les outils spécialisés
+peuvent rester lorsqu'ils sont exécutés et orchestrés par Bun et ne créent pas
+une seconde chaîne applicative.
+
 La documentation de démarrage doit partir d'une machine propre et décrire :
 
 1. les prérequis ;
@@ -1878,7 +1886,8 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 
 ### Phase 0 — Fondations de livraison
 
-1. environnement de développement reproductible ;
+1. environnement de développement reproductible avec runtime, gestionnaire,
+   build et verrouillage Bun uniques ;
 2. Compose initial et configuration validée ;
 3. processus Git, CI et publication GHCR ;
 4. observabilité minimale et documentation de démarrage.

@@ -17,4 +17,4 @@ cd "${repo_root}"
 
 docker compose up -d --wait postgres
 
-exec pnpm exec tsx scripts/e2e/run-local-matrix.ts "$@"
+exec bun scripts/e2e/run-local-matrix.ts "$@"
