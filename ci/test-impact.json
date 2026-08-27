@@ -517,7 +517,8 @@
         "exact": ["apps/web/src/features/navigation/use-tree-keyboard.ts"],
         "prefixes": [
           "apps/web/src/features/hierarchy/",
-          "apps/web/src/features/navigation/sidebar"
+          "apps/web/src/features/navigation/",
+          "apps/web/src/ui/primitives/"
         ],
         "suffixes": []
       }
@@ -563,7 +564,29 @@
       "test": "tests/e2e/narrow-viewport.spec.ts",
       "owners": {
         "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css"],
-        "prefixes": ["apps/web/src/features/hierarchy/", "apps/web/src/features/navigation/"],
+        "prefixes": [
+          "apps/web/src/features/attachments/",
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/files/",
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/workspace/",
+          "apps/web/src/ui/primitives/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/touch-and-motion.spec.ts",
+      "owners": {
+        "exact": ["apps/web/src/app.tsx", "apps/web/src/styles.css", "apps/web/src/ui/tokens.css"],
+        "prefixes": [
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/workspace/",
+          "apps/web/src/ui/primitives/"
+        ],
         "suffixes": []
       }
     },

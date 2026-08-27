@@ -18,16 +18,29 @@ export type DrawerContentProps = Omit<AriakitDialogProps, "className"> & {
 };
 
 export const DrawerContent = forwardRef<HTMLDivElement, DrawerContentProps>(function DrawerContent(
-  { backdrop, className, modal = true, portal = true, side = "left", ...props },
+  {
+    autoFocusOnHide = true,
+    autoFocusOnShow = true,
+    backdrop,
+    className,
+    hideOnEscape = true,
+    modal = true,
+    portal = true,
+    side = "left",
+    ...props
+  },
   ref,
 ) {
   return (
     <AriakitDialog
       {...props}
       ref={ref}
+      autoFocusOnHide={autoFocusOnHide}
+      autoFocusOnShow={autoFocusOnShow}
       className={classNames("ui-drawer", className)}
       data-side={side}
       backdrop={backdrop ?? <div className="ui-dialog__backdrop" />}
+      hideOnEscape={hideOnEscape}
       modal={modal}
       portal={portal}
       aria-modal={modal || undefined}

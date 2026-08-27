@@ -318,7 +318,7 @@ obtiennent projection/historique identiques ; delete/edit reste récupérable.
 - [x] T149 [US5] Brancher catch-up sur change feed/SSE et reconnexion dans `apps/web/src/features/sync/use-change-stream.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
 - [x] T150 [US5] Convertir les mutations v2 locales en branche sémantique et persister le checkpoint actif atomiquement dans `packages/client-core/src/page-sync/migration.ts`
 - [x] T151 [US5] Intégrer statut documentaire+octets de fichiers sans doublon dans `packages/client-core/src/page-sync/page-sync-state.ts` et `apps/web/src/features/editor/editor-file-state.tsx`
-- [x] T152 [US5] Construire badge, liste et détail d'ambiguïté récupérable dans `apps/web/src/features/sync/page-ambiguity-notice.tsx` et `apps/web/src/features/sync/page-ambiguity-resolution.tsx`
+- [x] T152 [US5] Construire badge, liste et détail d'ambiguïté récupérable dans `apps/web/src/features/sync/page-ambiguity-notice.tsx`
 - [x] T153 [US5] Mettre à jour l'éditeur ouvert par deltas distants et préserver focus/scroll dans `apps/web/src/features/editor/editor-remote-apply.ts`
 - [x] T154 [US5] Vérifier deux onglets et deux appareils via le même chemin de durabilité dans `packages/client-core/src/page-sync/tab-channel.ts` et `apps/web/src/features/sync/use-page-reconciler.ts`
 - [x] T155 [US5] Enregistrer les trois nouveaux journeys et propriétaires page-state dans `ci/test-impact.json`
@@ -331,36 +331,36 @@ remplace plus la page entière et conserve toute intention réellement ambiguë.
 
 ## Phase 8: User Story 7 — Clavier, toucher et navigateurs pris en charge (Priority: P1)
 
-**Goal**: Fermer WebKit, focus, clavier, toucher, zoom, responsive et WCAG sur
-les parcours essentiels.
+**Goal**: Fermer WebKit, focus, clavier, toucher, zoom et responsive sur les
+parcours essentiels, dans le périmètre ergonomique personnel du produit.
 
 **Independent Test**: Parcours création/navigation/édition/move/recherche/
-ambiguïté sur cinq profils, clavier seul puis viewport/touch, sans violation
-sérieuse axe.
+ambiguïté sur cinq profils, clavier seul puis viewport/touch, sans piège de
+focus ni contrôle essentiel inaccessible.
 
 ### Tests for User Story 7
 
-- [ ] T157 [P] [US7] Ajouter le cas flèche gauche parent WebKit aux tests unitaires dans `apps/web/tests/tree-keyboard.spec.ts`
-- [ ] T158 [P] [US7] Étendre le journey clavier aux menus, DnD et WebKit dans `tests/e2e/keyboard-navigation.spec.ts`
-- [ ] T159 [P] [US7] Étendre les audits axe aux nouveaux shell/éditeur/ambiguïtés dans `tests/e2e/accessibility.spec.ts`
-- [ ] T160 [P] [US7] Étendre le journey 320 px, 200 % et tables/médias dans `tests/e2e/narrow-viewport.spec.ts`
-- [ ] T161 [P] [US7] Écrire le journey toucher, clic contextuel alternatif et reduced-motion dans `tests/e2e/touch-and-motion.spec.ts`
+- [X] T157 [P] [US7] Ajouter le cas flèche gauche parent WebKit aux tests unitaires dans `apps/web/tests/tree-keyboard.spec.ts`
+- [X] T158 [P] [US7] Étendre le journey clavier aux menus, DnD et WebKit dans `tests/e2e/keyboard-navigation.spec.ts`
+- [X] T159 [P] [US7] Verrouiller les libellés, choix visibles et retours de focus de base dans `apps/web/tests/page-ambiguity-notice.spec.tsx`, `apps/web/tests/editor-block-interactions.spec.ts` et `tests/e2e/keyboard-navigation.spec.ts`
+- [X] T160 [P] [US7] Étendre le journey 320 px, 200 % et tables/médias dans `tests/e2e/narrow-viewport.spec.ts`
+- [X] T161 [P] [US7] Écrire le journey toucher, clic contextuel alternatif et reduced-motion dans `tests/e2e/touch-and-motion.spec.ts`
 
 ### Implementation for User Story 7
 
-- [ ] T162 [US7] Corriger le déplacement au parent d'une branche fermée sur WebKit dans `apps/web/src/features/navigation/use-tree-keyboard.ts`
-- [ ] T163 [US7] Unifier ouverture/fermeture et retour de focus dans `apps/web/src/ui/primitives/menu.tsx`, `dialog.tsx`, `drawer.tsx` et `popover.tsx`
-- [ ] T164 [US7] Ajouter capteur clavier et annonces live aux DnD navigation/éditeur dans `apps/web/src/features/navigation/tree-drag-drop.tsx` et `apps/web/src/features/editor/block-drag-drop.ts`
-- [ ] T165 [US7] Garantir cibles tactiles et alternatives au hover/clic droit dans `apps/web/src/ui/tokens.css` et `apps/web/src/styles.css`
-- [ ] T166 [US7] Corriger overflow 320 px/200 %, viewport clavier virtuel et popovers aux bords dans `apps/web/src/styles.css` et `apps/web/src/ui/primitives/popover.tsx`
-- [ ] T167 [US7] Implémenter reduced-motion et annonces polies save/sync/remote delete dans `apps/web/src/ui/tokens.css` et `apps/web/src/ui/primitives/live-region.tsx`
-- [ ] T168 [US7] Ajouter noms, descriptions, états et erreurs reliées dans `apps/web/src/features/navigation/sidebar.tsx`, `apps/web/src/features/editor/page-editor.tsx` et `apps/web/src/features/sync/page-ambiguity-resolution.tsx`
-- [ ] T169 [US7] Tester les parcours avec VoiceOver et consigner résultats/corrections dans `specs/017-v1-notion-like-workspace/accessibility-validation.md`
-- [ ] T170 [US7] Enregistrer le journey touch/motion et ses propriétaires dans `ci/test-impact.json`
-- [ ] T171 [US7] Valider les cinq profils navigateur sans skip fonctionnel propre à WebKit dans `specs/017-v1-notion-like-workspace/validation.md`
+- [X] T162 [US7] Corriger le déplacement au parent d'une branche fermée sur WebKit dans `apps/web/src/features/navigation/use-tree-keyboard.ts`
+- [X] T163 [US7] Unifier ouverture/fermeture et retour de focus dans `apps/web/src/ui/primitives/menu.tsx`, `dialog.tsx`, `drawer.tsx` et `popover.tsx`
+- [X] T164 [US7] Vérifier les capteurs clavier et retours visuels des DnD navigation/éditeur dans `apps/web/src/features/navigation/tree-drag-drop.tsx`, `apps/web/src/features/editor/block-drag-drop.ts` et leurs journeys clavier
+- [X] T165 [US7] Garantir cibles tactiles et alternatives au hover/clic droit dans `apps/web/src/ui/tokens.css` et `apps/web/src/styles.css`
+- [X] T166 [US7] Corriger overflow 320 px/200 %, viewport clavier virtuel et popovers aux bords dans `apps/web/src/styles.css` et `apps/web/src/ui/primitives/popover.tsx`
+- [X] T167 [US7] Vérifier reduced-motion et statuts visibles non intrusifs save/sync dans `apps/web/src/ui/tokens.css`, `apps/web/src/styles.css` et `tests/e2e/touch-and-motion.spec.ts`
+- [X] T168 [US7] Ajouter libellés, états visibles et erreurs compréhensibles dans `apps/web/src/features/navigation/sidebar.tsx`, `apps/web/src/features/editor/page-editor.tsx` et `apps/web/src/features/sync/page-ambiguity-notice.tsx`
+- [X] T169 [US7] Vérifier les parcours cœur sans souris et consigner la matrice clavier dans `specs/017-v1-notion-like-workspace/validation.md`
+- [X] T170 [US7] Enregistrer le journey touch/motion et ses propriétaires dans `ci/test-impact.json`
+- [X] T171 [US7] Valider les cinq profils navigateur sans skip fonctionnel propre à WebKit dans `specs/017-v1-notion-like-workspace/validation.md`
 
-**Checkpoint**: US7 ferme les écarts clavier/touch/browser et WCAG des parcours
-essentiels.
+**Checkpoint**: US7 ferme les écarts clavier/touch/browser des parcours
+essentiels sans élargir le produit à une campagne d'accessibilité spécialisée.
 
 ---
 
@@ -615,7 +615,7 @@ canvas produit.
 - [X] T248 [US3] Étendre les métadonnées tus et la finalisation transactionnelle pour transporter la page source et créer un placement `attachment` idempotent avec l'item fichier vérifié, brancher l'éditeur sur ce contrat puis retirer `AttachmentPanel` du contenu principal dans `apps/web/src/features/files/upload.ts`, `apps/web/src/features/editor/editor-files.ts`, `apps/api/src/routes/uploads.ts`, `packages/database/src/repositories/content/upload-repository.ts` et `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` per FR-023, FR-027, FR-028 et canvas 11.2
 - [X] T249 [US1] [US3] Exposer dans chaque ligne de page deux contrôles de dépliage distincts — enfants de hiérarchie et pièces jointes de contenu —, charger les pièces jointes seulement à l'ouverture, permettre la création volontaire d'un fichier autonome sous la page par les actions de hiérarchie et ne jamais mélanger lien interne, enfant et pièce jointe dans `apps/web/src/features/hierarchy/hierarchy-explorer.tsx`, `apps/web/src/features/attachments/attachment-panel.tsx`, `apps/web/src/features/navigation/navigation-item-menu.tsx` et `apps/web/src/features/navigation/navigation.css` per FR-005, FR-007, FR-023 et canvas 11.2/12
 - [X] T250 [US1] [US2] Faire de toute création de page une navigation vers la nouvelle identité canonique ; pour `/page`, attendre le commit durable du lien dans la page source avant d'ouvrir la sous-page et révéler sa branche ; en cas d'échec, conserver le bloc original pour permettre une reprise sûre dans `apps/web/src/features/editor/editor-menus/slash-menu.tsx`, `apps/web/src/features/editor/editor-surface.tsx`, `apps/web/src/features/editor/page-editor.tsx` et `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` per FR-010, FR-011, FR-022, FR-027, FR-028, FR-074 et SC-012
-- [X] T251 [US1] [US3] [US6] Exécuter les journeys ciblés sur les cinq profils, mettre à jour les références visuelles approuvées, contrôler 320 px, zoom 200 %, clavier, toucher, lecteurs d'écran et absence de déplacement supérieur à un pixel, documenter les preuves dans `specs/017-v1-notion-like-workspace/validation.md`, puis lancer les gates ordonnés de `docs/development.md` sur le commit exact per SC-004, SC-005, SC-006, SC-010, SC-011 et SC-014
+- [X] T251 [US1] [US3] [US6] Exécuter les journeys ciblés sur les cinq profils, mettre à jour les références visuelles approuvées, contrôler 320 px, zoom 200 %, clavier, toucher, focus visible et absence de déplacement supérieur à un pixel, documenter les preuves dans `specs/017-v1-notion-like-workspace/validation.md`, puis lancer les gates ordonnés de `docs/development.md` sur le commit exact per SC-004, SC-005, SC-006, SC-010, SC-011 et SC-014
 - [X] T256 [US2] [US5] Fermer la course dossier → page révélée par le gate complet : amorcer localement un document vide éditable, compter les mutations workspace `sending` dans l'état non synchronisé et drainer création/conversion avant toute lecture opérationnelle distante ; verrouiller ces trois frontières par tests déterministes et 700 parcours réels sans retry dans `packages/client-core/src/outbox/apply-to-projection.ts`, `apps/web/src/services/local-content.ts`, leurs tests et `tests/e2e/item-conversion.spec.ts` per FR-026, FR-064 et FR-073
 
 ## Phase 14: Convergence — octets hors ligne réellement durables

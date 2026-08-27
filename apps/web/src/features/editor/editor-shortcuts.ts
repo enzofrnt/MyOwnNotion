@@ -21,6 +21,7 @@ export interface EditorContextMenuState {
   readonly y: number;
   /** Stable target retained while the menu takes focus away from the editor. */
   readonly blockId: string;
+  readonly openedBy: "keyboard" | "pointer";
 }
 
 export const MARKDOWN_INSERTION_SHORTCUTS = [
@@ -74,11 +75,17 @@ function menuPointForSelection(editor: EditorInstance): EditorContextMenuState {
   const element = [...candidates].find((candidate) => candidate.dataset["id"] === first.id);
   const rect = element?.getBoundingClientRect();
   return rect === undefined
-    ? { x: window.innerWidth / 2, y: window.innerHeight / 2, blockId: first.id }
+    ? {
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+        blockId: first.id,
+        openedBy: "keyboard",
+      }
     : {
         x: rect.left + Math.min(32, rect.width / 2),
         y: rect.top + Math.min(24, rect.height),
         blockId: first.id,
+        openedBy: "keyboard",
       };
 }
 
@@ -155,14 +162,24 @@ export function useEditorShortcuts(input: {
       const blockId = blockIdFromTarget(event.target);
       if (blockId === null || input.editor.getBlock(blockId) === undefined) return;
       event.preventDefault();
-      setContextMenu({ x: event.clientX, y: event.clientY, blockId });
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        blockId,
+        openedBy: "pointer",
+      });
     },
     [input],
   );
 
+  const dismissContextMenu = useCallback(() => {
+    setContextMenu(null);
+    queueMicrotask(() => input.editor.domElement?.focus());
+  }, [input.editor]);
+
   return {
     contextMenu,
-    dismissContextMenu: () => setContextMenu(null),
+    dismissContextMenu,
     onContextMenu,
     onKeyDown,
     run,

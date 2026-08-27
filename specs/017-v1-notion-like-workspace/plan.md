@@ -56,7 +56,7 @@ existant
 **Testing**: Vitest et fast-check pour modèle opérationnel, projection,
 convergence, conflits et migrations ; tests d'intégration PostgreSQL ; contrats
 API ; tests navigateur React ; Playwright multi-contextes pour édition,
-offline, deux appareils, responsive, WebKit et accessibilité ; comparaisons
+offline, deux appareils, responsive, WebKit et ergonomie clavier ; comparaisons
 visuelles Playwright ; scénarios de sauvegarde/restauration ; tests de
 performance dédiés
 
@@ -79,7 +79,8 @@ plusieurs onglets ; aucune perte silencieuse ; tous les contenus et journaux
 opérationnels chiffrés au repos ; modèle canonique indépendant de l'éditeur ;
 pas de remplacement complet sur le chemin de frappe ; migration paresseuse et
 retour arrière ; aucune expiration causée uniquement par une longue absence ;
-WCAG 2.2 AA ; français initial ; aucun compte, licence ou service tiers requis
+parcours essentiels utilisables au clavier avec focus visible ; français
+initial ; aucun compte, licence ou service tiers requis
 
 **Scale/Scope**: 100 000 pages, 1 000 000 blocs, pages interactives de 500 blocs,
 10 appareils autorisés, suites de 10 000 changements distants et plusieurs
@@ -97,7 +98,7 @@ surfaces 009 déjà présentes adoptent le système visuel commun
 | III. Incremental, Verifiable Delivery | Le travail est découpé en fondation opérationnelle, autosauvegarde, serveur, migration, éditeur, shell, surfaces puis convergence ; chaque tranche possède des tests autonomes | PASS |
 | IV. Privacy and Security by Default | Mises à jour, checkpoints, projections, conflits et frontières sensibles réutilisent le chiffrement applicatif, la rotation, l'intégrité, les sauvegardes et l'expurgation existants | PASS |
 | V. Simple, Modular Architecture | Le transport SSE, l'outbox, Dexie, PostgreSQL, les appareils et les fichiers sont conservés. Un seul package partagé isole le moteur opérationnel ; l'adaptateur empêche BlockNote ou Loro d'envahir le modèle canonique | PASS |
-| VI. Accessible and Predictable Experience | Ariakit, alternatives clavier/toucher, focus explicite, thèmes, états de synchronisation, WCAG, 320 px, 200 %, WebKit et références visuelles sont des contrats et des gates | PASS |
+| VI. Practical and Predictable Experience | Alternatives clavier/toucher, focus explicite, libellés clairs, thèmes, états de synchronisation, 320 px, 200 %, WebKit et références visuelles sont des contrats et des gates pragmatiques ; aucune certification ni campagne d'assistance spécialisée n'est requise | PASS |
 | VII. Reproducible Toolchains | Dépendances TypeScript/WASM ajoutées par pnpm, versions verrouillées, licences MIT/MPL vérifiées ; aucun outil ou lockfile supplémentaire | PASS |
 | VIII. Canonical Product Direction | Le plan met en œuvre les sections 3, 6.1, 7, 9 à 21, 28 à 32 et 42 à 47 amendées dans la même change ; mono-utilisateur, V1 et exclusions restent inchangés | PASS |
 
@@ -605,7 +606,7 @@ Les tranches d'implémentation sont :
 6. autosauvegarde, reprise et restauration de position ;
 7. contrats/stockage serveur, matérialisation, protocole, migration lazy,
    sauvegarde, historique, compaction et matrice multi-appareils ;
-8. scroll final, WebKit, clavier, toucher et accessibilité ;
+8. scroll final, WebKit, clavier, toucher et ergonomie de base ;
 9. migration de toutes les surfaces V1, français, thèmes, visuels et
    performance ;
 10. suppression du chemin éditorial legacy après preuve de migration.

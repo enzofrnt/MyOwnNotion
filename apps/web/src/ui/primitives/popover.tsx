@@ -45,14 +45,35 @@ export type PopoverContentProps = Omit<AriakitPopoverProps, "className"> & {
 };
 
 export const PopoverContent = forwardRef<HTMLDivElement, PopoverContentProps>(
-  function PopoverContent({ className, gutter = 8, portal = true, ...props }, ref) {
+  function PopoverContent(
+    {
+      autoFocusOnHide = true,
+      autoFocusOnShow = true,
+      className,
+      fitViewport = true,
+      gutter = 8,
+      hideOnEscape = true,
+      portal = true,
+      wrapperProps,
+      ...props
+    },
+    ref,
+  ) {
     return (
       <AriakitPopover
         {...props}
         ref={ref}
+        autoFocusOnHide={autoFocusOnHide}
+        autoFocusOnShow={autoFocusOnShow}
         className={classNames("ui-popover", className)}
+        fitViewport={fitViewport}
         gutter={gutter}
+        hideOnEscape={hideOnEscape}
         portal={portal}
+        wrapperProps={{
+          ...wrapperProps,
+          className: classNames("ui-popover__positioner", wrapperProps?.className),
+        }}
       />
     );
   },

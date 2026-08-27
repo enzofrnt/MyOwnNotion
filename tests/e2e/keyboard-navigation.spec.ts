@@ -17,6 +17,7 @@ import {
   createChildItem,
   createRootItem,
   ensureNavigationVisible,
+  expectTreeOrder,
   moveSelectedItemInto,
   openItemActions,
   openWorkspace,
@@ -143,18 +144,34 @@ test.describe("expanding and collapsing", () => {
     await expect(row(page, parent)).toHaveAttribute("aria-expanded", "true");
   });
 
-  // MISSING COVERAGE, deliberately left as a gap rather than a passing test.
-  //
-  // "ArrowLeft on a closed child moves to its parent" is specified in
-  // contracts/ui-semantics.md and implemented in useTreeKeyboard. It works on
-  // chromium and on both mobile projects; on webkit-desktop the selection does
-  // not move at all — aria-selected stays false on the parent — while
-  // ArrowLeft on an *open* branch collapses it correctly on the same engine.
-  //
-  // That asymmetry says the key reaches the handler and one branch of it does
-  // not take effect there, which is a real defect for Safari users rather than
-  // a test artefact. It is tracked instead of being skipped quietly, because a
-  // skipped test reads as "not applicable" and this is "not working".
+  test("left on a closed child branch moves focus and selection to its parent", async ({
+    page,
+  }) => {
+    // This is the historical WebKit gap. The child must be a real closed
+    // branch, not a leaf: Safari used to run the collapse branch correctly but
+    // decline focus on the parent row while React still exposed tabindex=-1.
+    await openWorkspace(page);
+    const parent = uniqueName("ArrowParent");
+    const child = uniqueName("ArrowChild");
+    const grandchild = uniqueName("ArrowGrandchild");
+    await createRootItem(page, "folder", parent);
+    await createChildItem(page, parent, "folder", child);
+    await createChildItem(page, child, "page", grandchild);
+    await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
+
+    if ((await row(page, child).getAttribute("aria-expanded")) === "true") {
+      await page.getByTestId(`toggle-${child}`).click();
+    }
+    await expect(row(page, child)).toHaveAttribute("aria-expanded", "false");
+    await focusTree(page, child);
+
+    await page.keyboard.press("ArrowLeft");
+
+    await expect(row(page, parent)).toBeFocused();
+    await expect(row(page, parent)).toHaveAttribute("aria-selected", "true");
+    await expect(row(page, child)).toHaveAttribute("aria-selected", "false");
+  });
 
   test("a leaf declares no expanded state at all", async ({ page }) => {
     // `aria-expanded="false"` on a leaf announces a branch that will never
@@ -195,6 +212,50 @@ test.describe("the tree as one tab stop", () => {
 });
 
 test.describe("acting on an item from the keyboard", () => {
+  test("a menu opens, moves and closes with focus returned to its trigger", async ({ page }) => {
+    await openWorkspace(page);
+    const name = uniqueName("MenuKeyboard");
+    await createRootItem(page, "folder", name);
+    await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
+
+    const trigger = page.getByTestId(`item-actions-${name}`);
+    await trigger.focus();
+    await trigger.press("Enter");
+    const menu = page.getByRole("menu", { name: `Actions pour ${name}` });
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitem").first()).toBeFocused();
+
+    await page.keyboard.press("ArrowDown");
+    await expect(menu.getByRole("menuitem").nth(1)).toBeFocused();
+    await page.keyboard.press("Escape");
+
+    await expect(menu).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
+  test("the visible drag handle reorders siblings with the keyboard", async ({ page }) => {
+    await openWorkspace(page);
+    const first = uniqueName("KeyboardDragFirst");
+    const second = uniqueName("KeyboardDragSecond");
+    await createRootItem(page, "page", first);
+    await createRootItem(page, "page", second);
+    await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
+    await expectTreeOrder(page, first, second);
+
+    const handle = page.getByTestId(`drag-${second}`);
+    await handle.focus();
+    await page.keyboard.press("Space");
+    await expect(handle).toHaveAttribute("aria-pressed", "true");
+    await page.keyboard.press("ArrowUp");
+    await expect(row(page, first)).toHaveAttribute("data-drop-target", "true");
+    await page.keyboard.press("Space");
+
+    await expectTreeOrder(page, second, first);
+    await waitForSynchronized(page);
+  });
+
   test("F2 starts a rename", async ({ page, isMobile }) => {
     // Desktop engines only. F2 is a physical-keyboard key that a touch keyboard
     // does not offer, so the assertion says nothing about the mobile

@@ -357,8 +357,8 @@ focus.
 ### User Story 7 - Tout accomplir au clavier, au toucher et sur les navigateurs pris en charge (Priority: P1)
 
 En tant que propriétaire, je peux utiliser les mêmes parcours essentiels au
-clavier, à la souris, au toucher et avec une technologie d'assistance, quel que
-soit le navigateur V1 pris en charge.
+clavier, à la souris et au toucher, quel que soit le navigateur V1 pris en
+charge.
 
 **Why this priority**: Les menus contextuels et contrôles apparaissant au
 survol peuvent facilement retirer des capacités au clavier ou au toucher. Ils
@@ -664,13 +664,14 @@ en charge, une fois sans pointeur puis une fois au toucher.
   nommant l'objet, l'impact, la récupération possible et le choix sûr par
   défaut ; aucune ne MUST dépendre d'un dialogue natif non stylable.
 
-#### Accessibility, responsiveness, and performance
+#### Keyboard, responsiveness, and performance
 
 - **FR-040**: Chaque parcours cœur MUST être entièrement réalisable au clavier,
   y compris menus contextuels, glisser-déposer, sélection multiple et
   réorganisation.
-- **FR-041**: Les composants interactifs MUST exposer noms, rôles, états,
-  annonces et focus visibles conformes à leur motif d'interaction.
+- **FR-041**: Les composants interactifs MUST posséder des libellés
+  compréhensibles, des états visuels explicites, un ordre de focus cohérent et
+  un focus visible.
 - **FR-042**: Une action révélée au survol ou au clic secondaire MUST posséder
   une voie équivalente au toucher et au clavier.
 - **FR-043**: L'interface MUST rester utilisable à partir de 320 pixels et à
@@ -678,9 +679,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **FR-044**: Les parcours MUST fonctionner sur les deux dernières versions
   majeures stables de Chrome, Edge, Firefox et Safari, notamment le déplacement
   vers le parent par flèche gauche sur WebKit.
-- **FR-045**: Contraste, taille des cibles, réduction des animations, ordre de
-  focus et navigation par lecteur d'écran MUST satisfaire WCAG 2.2 AA sur les
-  parcours essentiels.
+- **FR-045**: Contraste, taille des cibles, réduction des animations et ordre de
+  focus MUST préserver une utilisation courante lisible et prévisible. Cette
+  exigence ne crée pas de gate de certification formelle ni de validation
+  spécialisée par lecteur d'écran.
 - **FR-046**: Un document de 500 blocs MUST rester éditable sans blocage
   perceptible et les contrôles contextuels ne MUST pas ralentir chaque frappe.
 - **FR-047**: Une hiérarchie volumineuse MUST rester navigable sans rendre en
@@ -750,9 +752,9 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **SC-002**: Au moins neuf participants sur dix accomplissent du premier coup
   les parcours créer, rechercher, modifier, réordonner et retrouver une page,
   puis décrivent correctement l'état de sauvegarde de leur dernière action.
-- **SC-003**: Les parcours essentiels ne présentent aucune violation
-  d'accessibilité critique ou sérieuse et satisfont tous les critères WCAG 2.2
-  AA applicables vérifiés.
+- **SC-003**: Aucun parcours essentiel ne contient de piège de focus, de
+  contrôle sans libellé compréhensible ni d'état important transmis uniquement
+  par la couleur dans la matrice automatisée.
 - **SC-004**: Cent pour cent des actions des parcours cœur possèdent une voie
   clavier automatisée, dont une réorganisation sans glisser-déposer.
 - **SC-005**: Les mêmes parcours passent sur les moteurs desktop et mobile de

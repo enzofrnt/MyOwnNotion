@@ -406,6 +406,34 @@
   padding: var(--space-1);
 }
 
+@media (pointer: coarse) {
+  .workspace-navigation .tree-row {
+    /* Keep the label as the primary touch target. The four adjacent controls
+       cannot share a 280 px drawer at 44 px each without collapsing the name
+       to zero, so action controls wrap onto a second line when necessary. */
+    flex-wrap: wrap;
+  }
+
+  .workspace-navigation .tree-name {
+    min-width: 6rem;
+    flex-basis: 6rem;
+  }
+
+  .workspace-navigation .tree-drag-handle[data-size="square"],
+  .workspace-page-attachments-trigger[data-size="square"],
+  .navigation-item-actions > .ui-button[data-size="square"] {
+    width: var(--ui-target);
+    min-width: var(--ui-target);
+    min-height: var(--ui-target);
+    flex-basis: var(--ui-target);
+  }
+
+  .navigation-item-actions {
+    min-width: calc(2 * var(--ui-target));
+    flex-basis: calc(2 * var(--ui-target));
+  }
+}
+
 @media (pointer: fine) {
   .tree-drag-handle,
   .navigation-item-actions > button {

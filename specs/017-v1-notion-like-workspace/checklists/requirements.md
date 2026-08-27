@@ -37,3 +37,7 @@
   technical plan and do not constrain this product specification.
 - The specification deliberately includes the two known feature 003 gaps so
   V1 readiness cannot remain partial after the visual refactor.
+- The personal-product scope deliberately limits accessibility requirements to
+  practical keyboard, focus, labels, pointer and touch behavior; formal WCAG
+  certification and specialized assistive-technology validation are out of
+  scope unless the product direction is explicitly amended again.

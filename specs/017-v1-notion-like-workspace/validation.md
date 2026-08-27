@@ -1,7 +1,7 @@
 # Validation — Feature 017
 
-Dernière mise à jour : 2026-08-26
-Tranches validées : US3, US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222
+Dernière mise à jour : 2026-08-27
+Tranches validées : US3, US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222 ; ergonomie clavier/toucher US7
 
 Ce document consigne les preuves exécutées. Il ne remplace ni les critères de
 `spec.md`, ni les tâches encore ouvertes dans `tasks.md`, ni le gate avant push
@@ -577,6 +577,52 @@ Les preuves exécutées pour fermer T252 à T255 sont :
 | Fermeture hors ligne multi-navigateurs | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/editor-offline-media.spec.ts` | 5/5 profils passés en 28 s ; image et fichier restaurés depuis IndexedDB chiffré, aucun plaintext, exactement deux créations distantes uniques, aucun fichier racine ni panneau de pièces jointes parasite |
 | Régression Firefox du gate | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/databases-schema.spec.ts` | 5/5 profils passés en 37 s ; les champs de propriété sont ciblés exactement et ne collisionnent plus avec un nom aléatoire contenant « tags » |
 | Gate pré-push exact | `MYOWNNOTION_E2E_JOBS=5 pnpm checks:local` avec les outils imposés par `docs/development.md` | passé ; 290 fichiers et 3 103 tests de couverture (90,17 % lignes, 85,13 % branches), 18 tests de performance, 331 intégrations PostgreSQL, 1 198 contrats, E2E 5/5 en 1 098 s, builds de production et images API/web `amd64`/`arm64`, sécurité, licences et contrat Compose |
+
+## Clavier, toucher et navigateurs — 2026-08-27
+
+La portée de cette tranche suit la constitution 2.0.0 : elle protège les
+parcours personnels au clavier, la visibilité du focus, les libellés utiles,
+le toucher, le responsive et les navigateurs pris en charge. Elle n'inclut ni
+campagne VoiceOver, ni certification WCAG, ni validation spécialisée des
+technologies d'assistance.
+
+Les parcours sans souris couvrent l'ouverture et la fermeture des menus, le
+retour du focus, la navigation de l'arbre, le déplacement des blocs et la
+résolution d'une ambiguïté. Le cas WebKit où `ArrowLeft` doit rejoindre le
+parent d'une branche fermée est verrouillé indépendamment. Les contrôles
+imbriqués dans une ligne d'arbre conservent leurs propres touches Entrée et
+Espace au lieu d'être interceptés par l'arbre.
+
+Le gate complet a aussi exposé un défaut responsive réel dans un callout sur
+WebKit mobile. La règle destinée aux cibles tactiles remplaçait la largeur
+spécifique du champ d'icône par la largeur native d'un champ texte ; les
+contrôles pouvaient alors réduire la zone éditable voisine à zéro pixel. La
+règle conserve désormais les largeurs de chaque composant et ne relève que
+leurs minima tactiles. Le parcours riche complet verrouille le callout, le
+toggle et la table après cette correction.
+
+La première exécution de la PR a ensuite exposé une course propre au nouveau
+journey d'animations réduites sur un runner WebKit mobile lent. La création de
+page avait déjà sélectionné la nouvelle page et engagé la fermeture normale du
+tiroir ; le test rouvrait pourtant ce tiroir pour sélectionner une seconde fois
+la même page. La trace CI montre la ligne visible, puis masquée par la fermeture
+avant le clic. Le journey vérifie désormais directement le résultat produit —
+le nouveau titre actif — avant de tester les animations, sans navigation
+redondante.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composants clavier et états | `pnpm exec vitest run --project web apps/web/tests/tree-keyboard.spec.ts apps/web/tests/tree-drag-drop.spec.ts apps/web/tests/editor-block-interactions.spec.ts apps/web/tests/page-ambiguity-notice.spec.tsx` | 21/21 tests passés ; parent WebKit, contrôles imbriqués, cible DnD adjacente, menu de bloc et résolution explicite |
+| Matrice ciblée | `MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- tests/e2e/keyboard-navigation.spec.ts tests/e2e/touch-and-motion.spec.ts tests/e2e/narrow-viewport.spec.ts` | 5/5 profils passés en 137 s, lancés en parallèle : Chromium desktop/mobile, WebKit desktop/mobile et Firefox desktop |
+| Régression DnD clavier | `MYOWNNOTION_E2E_JOBS=2 bash scripts/test-e2e-local.sh tests/e2e/keyboard-navigation.spec.ts --grep "the visible drag handle reorders siblings with the keyboard"` | 5/5 profils passés ; la cible visuelle adjacente est établie avant le dépôt |
+| Régression callout tactile | `MYOWNNOTION_E2E_JOBS=2 bash scripts/test-e2e-local.sh tests/e2e/rich-page.spec.ts` | 5/5 profils passés en 39 s ; le contenu du callout reste éditable sur WebKit mobile puis toggle et table persistent |
+| Course création → tiroir mobile | `MYOWNNOTION_E2E_JOBS=5 CI=true pnpm test:e2e:local -- tests/e2e/touch-and-motion.spec.ts --grep "motion is suppressed" --repeat-each=10` | 50/50 exécutions passées en 60 s après remplacement de la resélection redondante par l'assertion de la nouvelle page active |
+| Statique et sélection CI | `pnpm typecheck`, `pnpm lint:ci`, `pnpm format:check`, `git diff --check` et contrat `test-impact` | passés après l'alignement documentaire final ; les 34 contrats de sélection CI passent |
+
+La matrice vérifie également les cibles tactiles, l'alternative au survol, le
+menu contextuel, le mode animations réduites, les popovers près des bords, les
+médias et tables à 320 px/zoom 200 %, ainsi que l'absence de skip fonctionnel
+propre à WebKit.
 
 ## Limites encore ouvertes
 

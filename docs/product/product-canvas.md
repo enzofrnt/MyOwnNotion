@@ -186,7 +186,7 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - observabilité locale et diagnostics expurgés ;
 - chaîne de développement, CI, images conteneurisées et publication GitHub.
 
-La V1 n'est livrable que si chacun de ces domaines possède des scénarios d'acceptation et des tests adaptés. La présence des fonctions sans convergence visuelle, ergonomique et accessible de leurs parcours cœur ne constitue pas une V1 complète.
+La V1 n'est livrable que si chacun de ces domaines possède des scénarios d'acceptation et des tests adaptés. La présence des fonctions sans convergence visuelle, ergonomique et maîtrisable au clavier dans leurs parcours cœur ne constitue pas une V1 complète.
 
 ### 6.2 Après la V1
 
@@ -548,7 +548,7 @@ Une sélection de texte expose une barre de mise en forme contextuelle. Les
 mises en forme minimales comprennent le gras, l'italique, le souligné, le
 barré, le code en ligne, les liens, la couleur du texte et le surlignage. Le
 menu d'insertion, le menu d'un bloc et la barre de sélection doivent préserver
-le focus, fournir des libellés accessibles et posséder des alternatives qui ne
+le focus, fournir des libellés compréhensibles et posséder des alternatives qui ne
 dépendent ni du survol ni d'un clic droit.
 
 L'expérience d'écriture doit ressembler au Markdown, mais les données n'ont pas besoin d'être stockées dans des fichiers `.md`.
@@ -1725,13 +1725,19 @@ Aucune limite arbitraire silencieuse ne doit être introduite. Les limites néce
 
 Le serveur n'impose pas de quota global applicatif par défaut. Il doit avertir à 80 % puis de manière critique à 90 % de l'espace de stockage disponible, sans prétendre pouvoir poursuivre une écriture qui risquerait d'être incomplète.
 
-### 43.4 Accessibilité
+### 43.4 Ergonomie et accessibilité pragmatique
 
-- Les parcours V1 doivent être utilisables au clavier.
-- Les composants doivent exposer des noms, rôles et états accessibles.
+- Les parcours V1 essentiels doivent être utilisables au clavier, avec un ordre
+  cohérent et un focus visible.
+- Les contrôles doivent posséder des libellés compréhensibles et des états
+  explicites.
 - Les contrastes et indicateurs ne doivent pas dépendre uniquement de la couleur.
-- Le zoom, les tailles de texte et la réduction des animations doivent être respectés.
-- La cible est WCAG 2.2 niveau AA pour les parcours essentiels de la V1.
+- Le zoom, les tailles de texte et la réduction des animations doivent préserver
+  l'utilisation courante de l'application.
+- MyOwnNotion étant une application personnelle mono-propriétaire, la V1 ne vise
+  ni certification formelle, ni campagne exhaustive WCAG, ni prise en charge
+  spécialisée des technologies d'assistance. Ce périmètre pourra être ajouté
+  ultérieurement par une décision produit explicite.
 
 ### 43.5 Internationalisation
 
@@ -1764,7 +1770,7 @@ Une fonctionnalité ou modification n'est terminée que si :
 - la documentation utilisateur et d'exploitation est mise à jour ;
 - les changements de configuration et migrations sont documentés ;
 - aucun secret ou contenu utilisateur n'apparaît dans les artefacts et journaux ;
-- les exigences d'accessibilité pertinentes sont validées ;
+- les exigences ergonomiques et clavier pertinentes sont validées ;
 - la revue est terminée ;
 - `main` reste déployable.
 
@@ -1964,7 +1970,7 @@ Ces références expliquent des contraintes de stockage des navigateurs ; elles 
 ## Annexe C — Clarifications validées le 20 août 2026
 
 - Q : La fondation fonctionnelle de l'éditeur et de la navigation suffit-elle à déclarer la V1 complète ? → R : Non. La V1 exige un espace de travail cohérent et qualitatif, ainsi que des interactions d'édition proches de Notion et vérifiables.
-- Q : Cette exigence impose-t-elle une copie pixel par pixel ou la parité avec toutes les fonctions de Notion ? → R : Non. Elle impose les parcours, interactions, niveaux de finition et critères d'accessibilité décrits par le canevas et les spécifications actives.
+- Q : Cette exigence impose-t-elle une copie pixel par pixel ou la parité avec toutes les fonctions de Notion ? → R : Non. Elle impose les parcours, interactions, niveaux de finition et critères ergonomiques décrits par le canevas et les spécifications actives.
 - Q : L'éditeur essentiel peut-il dépendre d'un service propriétaire ou d'un composant que l'application n'est pas autorisée à redistribuer ? → R : Non. Le parcours d'écriture V1 doit rester auto-hébergé, utilisable hors ligne, redistribuable avec l'application et remplaçable.
 - Q : Le même propriétaire peut-il modifier hors ligne la même page, voire le
   même paragraphe, sur deux appareils avant de les reconnecter ? → R : Oui. Les

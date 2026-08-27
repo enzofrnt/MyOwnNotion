@@ -8,8 +8,9 @@ le shell, l'éditeur et toutes les surfaces fonctionnelles déjà livrées. Une
 page « finie » entourée d'écrans provisoires ne satisfait pas ce contrat.
 
 Tailwind CSS fournit la grammaire de composition ; les variables CSS portent
-les décisions de thème ; Ariakit porte les comportements accessibles ; les
-composants MyOwnNotion portent apparence, variantes et copie.
+les décisions de thème ; Ariakit porte les comportements de focus et
+d'interaction ; les composants MyOwnNotion portent apparence, variantes et
+copie.
 
 ## 2. Dépendances et limites
 
@@ -77,11 +78,11 @@ VisuallyHidden, FocusBoundary
 ~~~
 
 Chaque primitive documente : variantes, taille, états normal/hover/active,
-focus-visible, disabled, busy, destructive, thème sombre, 200 % et nom
-accessible. Les composants composés ne réimplémentent pas le focus ou les
+focus-visible, disabled, busy, destructive, thème sombre, 200 % et libellé
+compréhensible. Les composants composés ne réimplémentent pas le focus ou les
 raccourcis d'une primitive Ariakit.
 
-Les boutons icône seuls ont toujours un nom accessible et un tooltip non
+Les boutons icône seuls ont toujours un libellé explicite et un tooltip non
 indispensable à la compréhension. Un état n'est jamais transmis par la couleur
 seule.
 
@@ -140,7 +141,7 @@ de zoom, le layout adopte la variante étroite selon la place disponible, pas
 seulement selon la largeur physique.
 
 Les cibles tactiles essentielles font au moins 44×44 CSS px ou possèdent un
-espacement équivalent conforme à WCAG. Le DnD n'est jamais l'unique méthode.
+espacement équivalent. Le DnD n'est jamais l'unique méthode.
 
 ## 7. Éditeur
 
@@ -155,8 +156,8 @@ espacement équivalent conforme à WCAG. Le DnD n'est jamais l'unique méthode.
 - ambiguïté présentée près du bloc et dans un centre d'attention global.
 
 Le focus ne saute pas lors d'une update distante. Une suppression distante du
-bloc actif place le focus sur le voisin logique et annonce le changement dans
-une région `aria-live` polie.
+bloc actif place le focus sur le voisin logique et affiche un retour d'état
+compréhensible.
 
 ## 8. États communs et copie
 
@@ -174,21 +175,20 @@ Le français est la langue V1. Les chaînes visibles viennent du catalogue de
 copie, y compris BlockNote. Aucun message technique brut, code d'erreur ou nom
 de table n'est montré à l'utilisateur.
 
-## 9. Accessibilité
+## 9. Ergonomie clavier et basiques d'interface
 
-Le niveau cible est WCAG 2.2 AA :
+Le contrat vise le besoin personnel du propriétaire, sans certification
+formelle ni campagne de technologies d'assistance :
 
 - ordre de tabulation logique et focus visible ;
-- landmarks, titres et noms accessibles ;
-- contraste texte, icônes et focus ;
+- titres et libellés compréhensibles ;
+- contraste lisible pour le texte, les icônes et le focus ;
 - menus/dialogues fermables par `Escape` sans perte de saisie ;
-- gestion correcte du focus à l'ouverture/fermeture ;
+- retour du focus utile à l'ouverture et à la fermeture ;
 - `prefers-reduced-motion` réduit transitions et déplacements ;
-- annonces polies des statuts de sauvegarde/synchronisation ;
-- erreurs reliées à leur champ ;
-- alternatives clavier à tous les gestes ;
-- test lecteurs d'écran des parcours création, édition, fichier, base,
-  paramètres, restauration et conflit.
+- statuts de sauvegarde/synchronisation visibles sans déplacer le contenu ;
+- erreurs visibles près du contrôle concerné ;
+- alternatives clavier à tous les gestes essentiels.
 
 Les raccourcis affichent la variante macOS ou Windows/Linux et ne détournent
 pas un raccourci navigateur essentiel sans alternative.
