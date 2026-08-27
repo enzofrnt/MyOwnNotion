@@ -6,7 +6,7 @@
 
 **Runtime validé**: Bun `1.4.0` exactement
 
-**Commit exécutable candidat**: `b51bdaaf1e96e1bd03a769fe6a84794c1b312e86`
+**Commit exécutable candidat**: `de22b00e244fcc7a16ba651d4476a558fb7caa7d`
 
 Ce journal rassemble les preuves reproductibles de la migration. Les données,
 le schéma PostgreSQL et le protocole de synchronisation restent inchangés.
@@ -18,7 +18,7 @@ le schéma PostgreSQL et le protocole de synchronisation restent inchangés.
 | `bun --version` | `1.4.0` |
 | Deux installations `bun ci` consécutives | réussite ; aucun changement du verrouillage |
 | SHA-256 de `bun.lock` après chaque installation | `9dce3d6e335a1e5d280f8f037f8743b0fa76d1fd11f269ee76d22efa58ff9c44` |
-| `bun run toolchain:check` | réussite ; 1 122 fichiers suivis contrôlés |
+| `bun run toolchain:check` | réussite ; 1 124 fichiers suivis contrôlés |
 | Lockfiles actifs | `bun.lock` uniquement |
 | Workspaces vérifiés par TypeScript | 9/9 |
 | Runtime autonome dans l'image API | Bun `1.4.0`; aucun Node.js autonome |
@@ -28,6 +28,23 @@ les scripts avec Bun. La présence éventuelle de Node ou pnpm sur l'hôte n'est
 pas utilisée par les commandes du dépôt. L'alias `node` fourni par l'image Bun
 officielle est accepté uniquement lorsqu'il résout vers le même exécutable que
 `bun`.
+
+### Frontière du cache CI
+
+`oven-sh/setup-bun` garde par défaut son cache du binaire téléchargé
+(`no-cache: false`). Le cache GitHub Actions ajouté par le dépôt visait une
+autre donnée, `~/.bun/install/cache`, c'est-à-dire les archives des dépendances.
+Il n'était donc pas strictement dupliqué, mais sa valeur devait être mesurée
+séparément.
+
+Sur la CI de la PR, restaurer ce cache de paquets a transféré environ 196 Mio en
+4,97 s par job, puis `bun ci` a encore pris 10,60 s. Sous l'image Bun 1.4.0
+exacte, une installation froide a pris 18,98 s et une installation avec cache
+local chaud 16,14 s : le gain de 2,84 s est inférieur au seul coût de
+restauration GitHub. L'action locale conserve donc le cache intégré du binaire,
+ne restaure ni `node_modules` ni le cache de paquets, et exécute toujours
+`bun ci`. Toute réintroduction demande une nouvelle mesure du temps total du
+dépôt.
 
 ## WebSocket Bun
 
@@ -78,12 +95,12 @@ de code non couvert :
 
 | Mesure | Budget maximal non couvert | Dernier résultat | Statut |
 | --- | ---: | ---: | --- |
-| Statements | 2 216 | 2 211 / 17 751, soit 87,54 % | PASS |
-| Branches | 2 465 | 2 462 / 12 183, soit 79,79 % | PASS |
-| Fonctions | 337 | 337 / 3 321, soit 89,85 % | PASS |
-| Lignes | 1 866 | 1 862 / 16 714, soit 88,85 % | PASS |
+| Statements | 2 216 | 2 207 / 17 746, soit 87,56 % | PASS |
+| Branches | 2 465 | 2 460 / 12 179, soit 79,80 % | PASS |
+| Fonctions | 337 | 335 / 3 319, soit 89,90 % | PASS |
+| Lignes | 1 866 | 1 858 / 16 709, soit 88,88 % | PASS |
 
-Le corpus complet de couverture a exécuté 300 fichiers et 3 154 tests avec
+Le corpus complet de couverture a exécuté 301 fichiers et 3 160 tests avec
 succès. Une augmentation d'un budget non couvert fait échouer la gate.
 
 ### Suites spécialisées
@@ -93,7 +110,7 @@ succès. Une augmentation d'un budget non couvert fait échouer la gate.
 | Performance sans instrumentation | 7 fichiers, 18 tests réussis et budgets respectés |
 | Intégration PostgreSQL | 331 tests réussis |
 | Migrations | 11 tests réussis |
-| Contrats API/workspace | 1 217 tests réussis avant l'ajout des 4 cas déterministes de route ; relance ciblée Bun 18/18 réussie |
+| Contrats API/workspace | 108 fichiers et 1 227 tests réussis |
 | Sauvegarde historique `v1-schema1.tar` | 1/1 : contrôles de compatibilité et restauration de tout le contenu canonique réussis |
 | Format, lint, types et shell | réussite ; 9 workspaces typés |
 | Audit, secrets, analyse statique, licences et Compose | réussite |
@@ -159,6 +176,29 @@ ordre réel, a réussi ses 7 fichiers et 18 tests en 160 secondes avec 179,3 Mio
 sur le scénario de page ; les budgets d'ingestion, rattrapage, compaction,
 recherche, base structurée, sauvegarde et WebSocket sont tous restés verts.
 
+La CI suivante a exposé deux limites supplémentaires du harnais, sans régression
+du produit :
+
+- dans WebKit mobile, le second contexte isolé rechargeait le graphe Vite à
+  froid et franchissait le délai générique de 10 secondes quelques instants
+  avant l'apparition réelle de `workspace-shell`. La trace montrait le shell
+  présent et en phase `initializing`, sans 404 ni échec d'API. Seule l'attente
+  initiale du shell dispose désormais de 30 secondes ; toutes les assertions
+  fonctionnelles restent à 10 secondes. Le scénario exact de révocation a
+  réussi 3/3 répétitions, puis les 237 parcours WebKit mobile ont réussi dans la
+  matrice complète ;
+- après la grosse fixture de base structurée, Vitest pouvait encore annoncer à
+  tort le timeout de 600 secondes du benchmark de page après environ 69
+  secondes, sur une expiration RPC du worker. Le même fichier dans un processus
+  neuf terminait en 36 secondes. Le wrapper conserve donc un seul PostgreSQL
+  jetable, mais lance un coordinateur Vitest neuf pour chacun des sept fichiers.
+  Les budgets et le worker unique sont inchangés.
+
+Trois suites complètes successives avec cette isolation ont réussi leurs 7
+fichiers et 18 tests. Le benchmark de 10 000 mises à jour de page a mesuré
+respectivement 127,9 Mio, 137,5 Mio puis 155,3 Mio de croissance maximale du
+heap vivant, toujours très sous le plafond inchangé de 512 Mio.
+
 ## Convergence Speckit
 
 `$speckit-converge` n'a trouvé aucune exigence fonctionnelle ou technique sans
@@ -169,9 +209,9 @@ ajoutée.
 ## Porte candidate
 
 Le commit exécutable candidat est
-`b51bdaaf1e96e1bd03a769fe6a84794c1b312e86`. Le seul diff préparé après ce
-commit est ce journal et la clôture de T048 ; il ne modifie aucun fichier
-exécutable. La porte a été exécutée sur cet arbre final avant le prochain push.
+`de22b00e244fcc7a16ba651d4476a558fb7caa7d`. Le seul diff préparé après ce
+commit est ce journal ; il ne modifie aucun fichier exécutable. La porte a été
+exécutée sur cet arbre final avant le prochain push.
 
 Commande exécutée exactement :
 
@@ -181,16 +221,17 @@ bun run checks:local
 
 **Résultat**: PASS, code de sortie 0.
 
-- couverture : 300 fichiers et 3 154 tests réussis sous Istanbul ; budgets
+- couverture : 301 fichiers et 3 160 tests réussis sous Istanbul ; budgets
   absolus respectés ;
 - performance : 7 fichiers et 18 tests réussis, dont 10 000 mises à jour de
-  page avec 176,0 Mio de croissance maximale du heap vivant ;
+  page avec 155,3 Mio de croissance maximale du heap vivant ;
 - intégration et migrations : 331 puis 11 tests réussis ;
-- contrats API/workspace : 107 fichiers et 1 221 tests réussis, dont 90 jours
+- contrats API/workspace : 108 fichiers et 1 227 tests réussis, dont 90 jours
   hors ligne et 10 000 changements distants ;
 - Playwright : Chromium desktop 257, Firefox desktop 241, WebKit desktop 241,
   Chromium mobile 246 et WebKit mobile 237 tests réussis ; les exclusions
-  propres aux profils restent respectivement 0, 16, 16, 11 et 20 ;
+  propres aux profils restent respectivement 0, 16, 16, 11 et 20 ; 5/5 profils
+  réussis en 1 614 secondes avec deux piles simultanées ;
 - builds API/Web, PWA, images API/Web `linux/amd64` et `linux/arm64`, smoke API
   Bun 1.4.0 sans runtime Node autonome, audit, secrets, analyse statique,
   licences et contrat Compose : PASS.
