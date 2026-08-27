@@ -133,6 +133,22 @@ test.describe("hierarchy organization (US1)", () => {
     await waitForSynchronized(page);
   });
 
+  test("turns a page back into a leaf after its last child moves away", async ({ page }) => {
+    await openWorkspace(page);
+    const parent = uniqueName("Leaf parent");
+    const child = uniqueName("Moved child");
+    await createRootItem(page, "page", parent);
+    await createChildItem(page, parent, "page", child);
+    await waitForSynchronized(page);
+
+    await moveItemToRoot(page, child);
+    const parentRow = page.getByTestId(`tree-item-${parent}`);
+    await expect(parentRow).not.toHaveAttribute("aria-expanded", /.+/u);
+    await expect(page.getByTestId(`toggle-${parent}`)).toHaveCount(0);
+    await expect(page.getByText("Cette page ne contient encore aucun élément.")).toHaveCount(0);
+    await waitForSynchronized(page);
+  });
+
   test("trashes a branch into the 30-day trash and restores it", async ({ page }) => {
     await openWorkspace(page);
     const root = uniqueName("TrashRoot");

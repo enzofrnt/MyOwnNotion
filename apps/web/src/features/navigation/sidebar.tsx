@@ -118,7 +118,6 @@ export function Sidebar({
           aria-labelledby="sidebar-favourites-heading"
         >
           <div className="workspace-navigation__section-heading">
-            <h3 id="sidebar-favourites-heading">Favoris</h3>
             <Button
               size="square"
               variant="ghost"
@@ -135,10 +134,11 @@ export function Sidebar({
               }
             >
               <AppIcon
-                name={shortcutPreferences.favouritesExpanded ? "arrowDown" : "arrowRight"}
+                name={shortcutPreferences.favouritesExpanded ? "chevronDown" : "chevronRight"}
                 size="small"
               />
             </Button>
+            <h3 id="sidebar-favourites-heading">Favoris</h3>
           </div>
           {shortcutPreferences.favouritesExpanded ? (
             <div id="sidebar-favourites-list">
@@ -159,7 +159,6 @@ export function Sidebar({
           aria-labelledby="sidebar-recents-heading"
         >
           <div className="workspace-navigation__section-heading">
-            <h3 id="sidebar-recents-heading">Récents</h3>
             <Button
               size="square"
               variant="ghost"
@@ -174,10 +173,11 @@ export function Sidebar({
               }
             >
               <AppIcon
-                name={shortcutPreferences.recentsExpanded ? "arrowDown" : "arrowRight"}
+                name={shortcutPreferences.recentsExpanded ? "chevronDown" : "chevronRight"}
                 size="small"
               />
             </Button>
+            <h3 id="sidebar-recents-heading">Récents</h3>
           </div>
           {shortcutPreferences.recentsExpanded ? (
             <div id="sidebar-recents-list">

@@ -44,3 +44,7 @@
 - The 2026-08-27 refinement makes sidebar preferences, three-zone hierarchy
   drops, title fallback timing, compact sync placement, and the complete
   internal/external link lifecycle observable and independently testable.
+- The follow-up refinement fixes the exact placement and visual contract of
+  disclosure controls and switches, removes stale empty-page branches and
+  accent rails, and makes `/lien`, page targets, Web targets, unlinking and the
+  empty-line caret one measurable lifecycle without turning embeds into links.

@@ -32,6 +32,7 @@ interface SlashEditor {
   insertBlocks(blocks: unknown[], reference: string, placement: "before" | "after"): unknown;
   removeBlocks(blockIds: string[]): unknown;
   updateBlock(blockId: string, update: unknown): unknown;
+  setTextCursorPosition(blockId: string, placement: "start" | "end"): unknown;
 }
 
 export interface CreateSubpageRequest {
@@ -68,6 +69,17 @@ export async function createSubpageFromSlash(
   await onCreated?.(child);
 }
 
+/** Turns `/lien` back into an empty paragraph before opening the shared target chooser. */
+export function prepareLinkFromSlash(
+  editor: Pick<SlashEditor, "getTextCursorPosition" | "setTextCursorPosition" | "updateBlock">,
+  openLinkFlow: () => void,
+): void {
+  const current = editor.getTextCursorPosition().block;
+  editor.updateBlock(current.id, { type: "paragraph", content: [] });
+  editor.setTextCursorPosition(current.id, "start");
+  openLinkFlow();
+}
+
 /**
  * Tables enter as a new block rather than a type change: their row/column
  * structure has no empty-transform semantics in the operational model, so the
@@ -87,10 +99,12 @@ function insertTableAfterCurrent(editor: SlashEditor): void {
 
 /** French, filtered Community menu: no XL or not-yet-durable block leaks into V1. */
 export function FrenchSlashMenu({
+  onCreateLink,
   onCreateSubpage,
   onSubpageCreated,
   onError,
 }: {
+  readonly onCreateLink?: (() => void) | undefined;
   readonly onCreateSubpage?: CreateSubpage | undefined;
   readonly onSubpageCreated?:
     | ((child: { readonly id: string; readonly title: string }) => void | Promise<void>)
@@ -127,8 +141,8 @@ export function FrenchSlashMenu({
     },
     {
       title: "Contenu intégré",
-      subtext: "Ajouter un lien ou un aperçu tiers avec votre accord",
-      aliases: ["embed", "vidéo", "figma", "github", "lien"],
+      subtext: "Ajouter explicitement un aperçu tiers avec votre accord",
+      aliases: ["embed", "intégration", "vidéo", "figma", "github"],
       group: "Blocs avancés",
       onItemClick: () =>
         insertRichBlock(editor, {
@@ -141,8 +155,19 @@ export function FrenchSlashMenu({
         }),
     },
   ];
-  const navigationItems =
-    onCreateSubpage === undefined
+  const navigationItems = [
+    ...(onCreateLink === undefined
+      ? []
+      : [
+          {
+            title: "Lien",
+            subtext: "Créer un lien vers une page ou une adresse Web",
+            aliases: ["lien", "link", "url", "web", "page"],
+            group: "Navigation",
+            onItemClick: () => prepareLinkFromSlash(editor as unknown as SlashEditor, onCreateLink),
+          },
+        ]),
+    ...(onCreateSubpage === undefined
       ? []
       : [
           {
@@ -162,7 +187,8 @@ export function FrenchSlashMenu({
               });
             },
           },
-        ];
+        ]),
+  ];
   return (
     <SuggestionMenuController
       triggerCharacter="/"

@@ -461,6 +461,47 @@ ancienne ligne locale et n'exigent ni migration serveur, ni outbox, ni CRDT.
 - ajouter une autre bibliothèque de menus ou de tree : dépendance et apparence
   supplémentaires pour des primitives déjà présentes.
 
+## Decision 14 — Une interaction de lien, deux représentations canoniques
+
+**Decision**: Remplacer les deux points d'entrée visibles de la décision 13 par
+un contrôleur MyOwnNotion unique. Son champ cible recherche les pages actives
+par nom ou chemin et accepte aussi `http:`, `https:` ou `mailto:`. Il crée ou
+convertit ensuite la représentation canonique appropriée : marque `link` pour
+le Web, nœud `pageLink` avec UUID pour une page. `/lien`, la toolbar et la
+modification contextuelle ouvrent ce contrôleur ; les embeds restent une
+commande explicite séparée.
+
+La navigation conserve des chevrons compacts avant le libellé, élimine une
+page de l'ensemble local des branches ouvertes dès qu'elle perd son dernier
+enfant et privilégie une cible `before|after` lorsqu'elle recouvre la cible
+`inside`. La sélection utilise un fond neutre de ligne complète, sans rail
+accentué. Les liens non inclusifs retirent enfin toute marque ProseMirror
+stockée à leur borne avant une nouvelle saisie.
+
+**Rationale**: Les aides officielles de Notion distinguent bien trois objets
+sous-jacents — mention/lien de page, lien Web et embed — mais l'utilisateur
+cherche une cible ou colle une adresse sans avoir à comprendre le schéma de
+l'éditeur. Le défaut courant associait même l'alias « lien » à un bookmark : il
+ouvrait donc le mauvais objet et pouvait disparaître après validation. Un flux
+commun résout l'ambiguïté d'usage tout en conservant l'UUID stable nécessaire
+aux renommages et backlinks. Le nettoyage de marque applique la politique
+canonique déjà décidée : un lien ne s'étend pas après sa borne droite.
+
+**Sources**:
+
+- Notion, liens et backlinks : https://www.notion.com/help/create-links-and-backlinks
+- Notion, sous-pages et navigation : https://www.notion.com/help/create-a-subpage
+
+**Alternatives considered**:
+
+- conserver deux boutons « lien Web » et « page » : expose une distinction de
+  stockage qui n'aide pas à choisir la cible ;
+- traiter toute URL comme embed : charge du contenu tiers et change la mise en
+  page alors qu'un lien simple était demandé ;
+- stocker les pages comme URL : casse l'identité après renommage ou déplacement ;
+- laisser ProseMirror étendre une ancienne marque après suppression : recrée
+  silencieusement un lien que le propriétaire vient d'enlever.
+
 ## Resolved unknowns
 
 | Question | Réponse |
@@ -479,4 +520,4 @@ ancienne ligne locale et n'exigent ni migration serveur, ni outbox, ni CRDT.
 | Système visuel | Tailwind 4, tokens CSS, Ariakit, dnd-kit, Lucide |
 | Préférences de raccourcis | état de présentation IndexedDB local à l'appareil |
 | Cible de déplacement | zones dnd-kit explicites `before`, `inside`, `after` |
-| Liens | toolbar BlockNote pour URL, contrôleur Ariakit MyOwnNotion pour `pageLink` |
+| Liens | contrôleur unique pour URL ou page, représentations `link`/`pageLink` distinctes |

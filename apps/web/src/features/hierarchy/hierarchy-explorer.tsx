@@ -142,6 +142,29 @@ function isBranch(node: TreeNode): boolean {
   return node.item.kind === "folder" || node.children.length > 0;
 }
 
+export interface ExpandableTreeItem {
+  readonly id: string;
+  readonly kind: ProjectedItem["kind"];
+  readonly childCount: number;
+}
+
+/** Removes stale open-page IDs while retaining folders, which remain containers when empty. */
+export function retainExpandableItemIds(
+  expanded: ReadonlySet<string>,
+  items: readonly ExpandableTreeItem[],
+): ReadonlySet<string> {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const retained = [...expanded].filter((id) => {
+    const item = byId.get(id);
+    // A temporarily absent item may be restored from trash or a partial local
+    // projection. Only a page known to be present and childless loses its open
+    // state; folders stay expandable even when empty.
+    return item === undefined || item.kind === "folder" || item.childCount > 0;
+  });
+  if (retained.length === expanded.size) return expanded;
+  return new Set(retained);
+}
+
 /**
  * The rows an owner can currently see, in the order they appear.
  *
@@ -509,6 +532,16 @@ export function HierarchyExplorer({
     return counts;
   }, [items]);
   const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
+
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    const expandableItems = allNodes.map((node) => ({
+      id: node.item.id,
+      kind: node.item.kind,
+      childCount: node.children.length,
+    }));
+    setExpanded((current) => retainExpandableItemIds(current, expandableItems));
+  }, [allNodes, loadState]);
 
   useEffect(() => {
     onActiveItemChange(selectedItem);
@@ -951,8 +984,11 @@ export function HierarchyExplorer({
         setProblem(result.error);
         throw new Error(result.error.title);
       }
-      setExpanded((current) => new Set(current).add(parentItemId));
       await refresh();
+      // Expand only once the refreshed projection contains the child. Opening
+      // the page before that refresh lets the stale-branch cleanup observe a
+      // childless page and immediately collapse it again.
+      setExpanded((current) => new Set(current).add(parentItemId));
       return { id: itemId, title: request.title.trim() || "Sans titre" };
     },
     [items, refresh, service],
@@ -982,9 +1018,12 @@ export function HierarchyExplorer({
         });
         return;
       }
-      setExpanded((current) => new Set(current).add(parentItemId));
       await service.synchronize();
       await refresh();
+      // `importFile` writes through the API, so the local tree still sees a
+      // childless page until synchronization and refresh finish. Expanding
+      // earlier races the stale-branch cleanup and hides the imported file.
+      setExpanded((current) => new Set(current).add(parentItemId));
     },
     [items, refresh, service],
   );
@@ -1000,10 +1039,10 @@ export function HierarchyExplorer({
       setDatabaseFormParent(undefined);
       selectItemById(request.id as Uuid);
       setMobileNavigationOpen(false);
+      await refresh();
       if (request.placement.parentItemId !== null) {
         setExpanded((current) => new Set(current).add(request.placement.parentItemId as Uuid));
       }
-      await refresh();
     },
     [service, refresh, selectItemById],
   );
@@ -1199,6 +1238,8 @@ export function HierarchyExplorer({
 
   const renderNode = (node: TreeNode, level: number): React.ReactElement => {
     const isSelected = selectedId === node.item.id;
+    const branch = isBranch(node);
+    const branchOpen = branch && expanded.has(node.item.id);
     const parentPlacement = node.item.placements.find((entry) => entry.kind === "hierarchy");
     const parentId = parentPlacement?.parentItemId ?? null;
     const attachmentCount = attachmentCountByPage.get(node.item.id) ?? 0;
@@ -1220,7 +1261,7 @@ export function HierarchyExplorer({
                 role="treeitem"
                 aria-level={level}
                 aria-selected={isSelected}
-                {...(isBranch(node) ? { "aria-expanded": expanded.has(node.item.id) } : {})}
+                {...(branch ? { "aria-expanded": branchOpen } : {})}
                 tabIndex={isSelected || (selectedId === null && level === 1) ? 0 : -1}
                 className="tree-row"
                 data-testid={`tree-item-${node.item.name}`}
@@ -1253,22 +1294,20 @@ export function HierarchyExplorer({
                 }}
               >
                 <TreeDragHandle itemId={node.item.id} itemName={node.item.name} />
-                {isBranch(node) ? (
+                {branch ? (
                   <button
                     type="button"
                     className="tree-twisty"
                     aria-label={
-                      expanded.has(node.item.id)
-                        ? `Collapse ${node.item.name}`
-                        : `Expand ${node.item.name}`
+                      branchOpen ? `Replier ${node.item.name}` : `Déplier ${node.item.name}`
                     }
                     data-testid={`toggle-${node.item.name}`}
                     onClick={(event) => {
                       event.stopPropagation();
-                      toggleBranch(node.item.id, !expanded.has(node.item.id));
+                      toggleBranch(node.item.id, !branchOpen);
                     }}
                   >
-                    {expanded.has(node.item.id) ? "▾" : "▸"}
+                    <AppIcon name={branchOpen ? "chevronDown" : "chevronRight"} size="small" />
                   </button>
                 ) : (
                   // Reserves the same width so names line up whether or not a row has
@@ -1411,7 +1450,7 @@ export function HierarchyExplorer({
             leave its rows in the accessibility tree and in the tab order, so a
             screen reader would announce children of a folder the owner has
             closed. */}
-        {expanded.has(node.item.id) ? (
+        {branchOpen ? (
           node.children.length > 0 ? (
             // biome-ignore lint/a11y/useSemanticElements: role="group" on ul is the canonical ARIA tree substructure
             <ul role="group">{node.children.map((child) => renderNode(child, level + 1))}</ul>

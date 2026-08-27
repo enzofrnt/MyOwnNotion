@@ -142,7 +142,6 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  cursor: pointer;
 }
 
 .settings-toggle-row > span {
@@ -153,12 +152,6 @@
 
 .settings-toggle-row small {
   color: var(--color-text-muted);
-}
-
-.settings-toggle-row input {
-  width: 1.125rem;
-  height: 1.125rem;
-  flex: 0 0 auto;
 }
 
 .settings-trash__list {

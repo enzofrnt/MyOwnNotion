@@ -644,6 +644,32 @@ de technologies d'assistance.
 | Menu de ligne après clic droit | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/hierarchy.spec.ts --grep "opens the same item actions" --repeat-each=20` | 100/100 exécutions passées en 144 s, soit 20 par profil ; l'activation différée après `Shift+F10` empêche WebKit mobile de refermer dans le même événement le menu déjà ouvert par clic droit |
 | Gate pré-push exact | `pnpm checks:local` | passé sur le commit poussé : politique d'outillage, format/lint, types, couverture, performance, PostgreSQL/migrations/contrats, matrice complète des cinq profils à concurrence bornée, builds, images multi-architecture, sécurité, licences et Compose |
 
+## Chevrons, feuilles et liens unifiés — 2026-08-27
+
+Favoris et Récents utilisent maintenant le même ordre visuel
+`chevron + libellé`; les réglages emploient la primitive `Switch` commune. Une
+page qui perd son dernier enfant redevient une feuille sans message vide, tandis
+qu'un dossier temporairement absent puis restauré conserve son état ouvert. Les
+cibles de bord gagnent sur la zone d'imbrication lorsqu'elles se recouvrent et
+la sélection de ligne n'affiche plus de rail accentué.
+
+Le flux de lien ne demande plus de choisir d'abord entre le schéma Web et le
+schéma page. Le même dialogue recherche une page par nom/chemin ou valide une
+URL, puis sait convertir les deux représentations. `/lien` ouvre ce dialogue ;
+`/embed` reste distinct. Une actualisation reçue pendant la saisie ne remet plus
+le brouillon du dialogue à zéro. La suppression complète d'un lien retire enfin
+la marque stockée avant la frappe suivante et le caret possède une couleur
+explicite sur une ligne vide.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Régressions ciblées | matrice Vitest `sidebar`, réglages de navigation, arbre/DnD, liens et slash menu | 5 fichiers, 33 tests passés ; ordre des chevrons, switch local, feuille normalisée, priorité des bords, conversions et borne de marque |
+| Régression Web complète | `pnpm exec vitest run --project web` | 58 fichiers, 365 tests passés |
+| Journeys concernés complets | `MYOWNNOTION_E2E_JOBS=2 pnpm test:e2e:local -- tests/e2e/page-links.spec.ts tests/e2e/block-editor.spec.ts tests/e2e/hierarchy.spec.ts` | 5/5 profils passés en 242 s, soit 115 parcours : Chromium/Firefox/WebKit, desktop/mobile |
+| Courses ciblées après première passe | même matrice avec `--grep "formats a selection|turns a page back|trashes a branch|/lien creates"` | 5/5 profils passés en 59 s ; brouillon de lien conservé pendant sync et branche restaurée encore ouverte |
+| Références visuelles | `pnpm test:e2e:local -- tests/e2e/workspace-shell-visual.spec.ts` | 5/5 profils fonctionnels, références Chromium clair/sombre inchangées dans la tolérance approuvée |
+| Statique, types et build Web | `pnpm format:check`, `pnpm lint:ci`, `pnpm typecheck`, `pnpm --filter @myownnotion/web build`, `git diff --check` | passés |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches suivantes :

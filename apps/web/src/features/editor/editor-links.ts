@@ -1,5 +1,5 @@
 import { isUuid } from "@myownnotion/domain";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { Fragment, type Mark, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorInstance } from "./blocknote-schema.ts";
 
 interface EditorLinkBase {
@@ -8,13 +8,40 @@ interface EditorLinkBase {
   readonly text: string;
 }
 
-export type EditorLinkDescriptor =
-  | (EditorLinkBase & { readonly kind: "page"; readonly target: string })
-  | (EditorLinkBase & { readonly kind: "external"; readonly target: string });
+export type EditorLinkTarget =
+  | { readonly kind: "page"; readonly target: string }
+  | { readonly kind: "external"; readonly target: string };
+
+export type EditorLinkDescriptor = EditorLinkBase & EditorLinkTarget;
+
+export interface EditorLinkSelectionRange {
+  readonly from: number;
+  readonly to: number;
+}
+
+export interface EditorLinkCreation extends EditorLinkSelectionRange {
+  readonly text: string;
+}
+
+export type EditorLinkDialogRequest =
+  | { readonly mode: "create"; readonly selection: EditorLinkCreation }
+  | { readonly mode: "edit"; readonly link: EditorLinkDescriptor };
+
+export interface EditorPageLinkOption {
+  readonly id: string;
+  readonly name: string;
+  readonly path: string;
+}
 
 interface PageLinkNode {
   readonly from: number;
   readonly node: ProseMirrorNode;
+}
+
+interface CurrentEditorLink {
+  readonly from: number;
+  readonly to: number;
+  readonly content: Fragment;
 }
 
 function pageLinkNodeAtPosition(editor: EditorInstance, position: number): PageLinkNode | null {
@@ -115,71 +142,207 @@ function currentPageLinkNode(
   return matching;
 }
 
-export function updateEditorLink(
+function currentEditorLink(
   editor: EditorInstance,
   link: EditorLinkDescriptor,
-  update: { readonly target: string; readonly text: string },
+): CurrentEditorLink | null {
+  if (link.kind === "page") {
+    const current = currentPageLinkNode(editor, link);
+    return current === null
+      ? null
+      : {
+          from: current.from,
+          to: current.from + current.node.nodeSize,
+          content: current.node.content,
+        };
+  }
+  const current = editor.getLinkMarkAtPos(link.from + 1);
+  return current === undefined
+    ? null
+    : {
+        from: current.from,
+        to: current.to,
+        content: editor.prosemirrorState.doc.slice(current.from, current.to).content,
+      };
+}
+
+function mapInlineMarks(
+  content: Fragment,
+  mapMarks: (marks: readonly Mark[]) => readonly Mark[],
+): Fragment {
+  const children: ProseMirrorNode[] = [];
+  content.forEach((node) => {
+    const mappedContent =
+      node.content.size === 0 ? node.content : mapInlineMarks(node.content, mapMarks);
+    const mapped = node.content.size === 0 ? node : node.copy(mappedContent);
+    children.push(mapped.mark(mapMarks(mapped.marks)));
+  });
+  return Fragment.fromArray(children);
+}
+
+function firstTextMarks(content: Fragment): readonly Mark[] {
+  let marks: readonly Mark[] = [];
+  content.forEach((node) => {
+    if (marks.length === 0 && node.isText) marks = node.marks;
+  });
+  return marks;
+}
+
+function replacementForTarget(
+  editor: EditorInstance,
+  content: Fragment,
+  originalText: string,
+  text: string,
+  target: EditorLinkTarget,
+): ProseMirrorNode | Fragment | null {
+  const linkMark = editor.pmSchema.marks["link"];
+  const pageLink = editor.pmSchema.nodes["pageLink"];
+  if (linkMark === undefined || pageLink === undefined) return null;
+  const withoutLinks = (marks: readonly Mark[]) => marks.filter((mark) => mark.type !== linkMark);
+  const baseContent =
+    text === originalText && content.size > 0
+      ? mapInlineMarks(content, withoutLinks)
+      : Fragment.from(editor.pmSchema.text(text, withoutLinks(firstTextMarks(content)) as Mark[]));
+  if (target.kind === "page") {
+    if (!isUuid(target.target) || !pageLink.validContent(baseContent)) return null;
+    return pageLink.create({ targetItemId: target.target }, baseContent);
+  }
+  const href = normalizeExternalLinkTarget(target.target);
+  if (href === null) return null;
+  return mapInlineMarks(baseContent, (marks) => [
+    ...withoutLinks(marks),
+    linkMark.create({ href }),
+  ]);
+}
+
+export function editorLinkCreationFromSelection(editor: EditorInstance): EditorLinkCreation | null {
+  const { from, to, $from, $to } = editor.prosemirrorState.selection;
+  if (!$from.sameParent($to) || !$from.parent.inlineContent) return null;
+  return {
+    from,
+    to,
+    text: editor.prosemirrorState.doc.textBetween(from, to, " "),
+  };
+}
+
+export function createEditorLink(
+  editor: EditorInstance,
+  range: EditorLinkSelectionRange,
+  update: EditorLinkTarget & { readonly text: string },
 ): boolean {
   const text = update.text.trim();
   if (text.length === 0) return false;
-  if (link.kind === "external") {
-    if (!/^(?:https?|mailto):/u.test(update.target)) return false;
-    const current = editor.getLinkMarkAtPos(link.from + 1);
-    const linkMark = editor.pmSchema.marks["link"];
-    if (current === undefined || linkMark === undefined) return false;
-    editor.transact((transaction) => {
-      if (current.text === text) {
-        transaction.removeMark(current.from, current.to, linkMark);
-        transaction.addMark(current.from, current.to, linkMark.create({ href: update.target }));
-        return;
-      }
-      const existingMarks =
-        transaction.doc
-          .resolve(current.from)
-          .nodeAfter?.marks.filter((mark) => mark.type !== linkMark) ?? [];
-      transaction.replaceWith(
-        current.from,
-        current.to,
-        editor.pmSchema.text(text, [...existingMarks, linkMark.create({ href: update.target })]),
-      );
-    });
-    return true;
-  }
-  if (!isUuid(update.target)) return false;
-  const current = currentPageLinkNode(editor, link);
-  if (current === null) return false;
+  const { from, to } = range;
+  const state = editor.prosemirrorState;
+  if (from < 0 || to < from || to > state.doc.content.size) return false;
+  const $from = state.doc.resolve(from);
+  const $to = state.doc.resolve(to);
+  if (!$from.sameParent($to) || !$from.parent.inlineContent) return false;
+  const content = state.doc.slice(from, to).content;
+  const originalText = state.doc.textBetween(from, to, " ");
+  const replacement = replacementForTarget(editor, content, originalText, text, update);
+  if (replacement === null) return false;
   editor.transact((transaction) => {
-    const to = current.from + current.node.nodeSize;
-    transaction.setNodeMarkup(current.from, undefined, {
-      ...current.node.attrs,
-      targetItemId: update.target,
-    });
-    if (current.node.textContent !== text) {
-      const marks = current.node.firstChild?.marks ?? [];
-      transaction.replaceWith(current.from + 1, to - 1, editor.pmSchema.text(text, marks));
-    }
+    transaction.replaceWith(from, to, replacement);
+    return true;
+  });
+  return true;
+}
+
+export function updateEditorLink(
+  editor: EditorInstance,
+  link: EditorLinkDescriptor,
+  update: {
+    readonly kind?: EditorLinkTarget["kind"];
+    readonly target: string;
+    readonly text: string;
+  },
+): boolean {
+  const text = update.text.trim();
+  if (text.length === 0) return false;
+  const current = currentEditorLink(editor, link);
+  if (current === null) return false;
+  const target = { kind: update.kind ?? link.kind, target: update.target } as EditorLinkTarget;
+  const replacement = replacementForTarget(editor, current.content, link.text, text, target);
+  if (replacement === null) return false;
+  editor.transact((transaction) => {
+    transaction.replaceWith(current.from, current.to, replacement);
+    return true;
   });
   return true;
 }
 
 export function removeEditorLink(editor: EditorInstance, link: EditorLinkDescriptor): boolean {
-  if (link.kind === "external") {
-    const current = editor.getLinkMarkAtPos(link.from + 1);
-    const linkMark = editor.pmSchema.marks["link"];
-    if (current === undefined || linkMark === undefined) return false;
-    editor.transact((transaction) => {
-      transaction.removeMark(current.from, current.to, linkMark);
-    });
-    return true;
-  }
-  const current = currentPageLinkNode(editor, link);
+  const current = currentEditorLink(editor, link);
   if (current === null) return false;
+  const linkMark = editor.pmSchema.marks["link"];
+  if (linkMark === undefined) return false;
+  const text = mapInlineMarks(current.content, (marks) =>
+    marks.filter((mark) => mark.type !== linkMark),
+  );
   editor.transact((transaction) => {
-    transaction.replaceWith(
-      current.from,
-      current.from + current.node.nodeSize,
-      current.node.content,
-    );
+    transaction.replaceWith(current.from, current.to, text);
+    transaction.removeStoredMark(linkMark);
+    return true;
+  });
+  return true;
+}
+
+export function normalizeExternalLinkTarget(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || /\s/u.test(trimmed)) return null;
+  const candidate = /^[a-z][a-z\d+.-]*:/iu.test(trimmed)
+    ? trimmed
+    : /^(?:localhost|(?:[\p{L}\d-]+\.)+[\p{L}]{2,})(?::\d+)?(?:[/#?].*)?$/iu.test(trimmed)
+      ? `https://${trimmed}`
+      : null;
+  if (candidate === null) return null;
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === "http:" ||
+      parsed.protocol === "https:" ||
+      parsed.protocol === "mailto:"
+      ? parsed.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeLookup(value: string): string {
+  return value
+    .trim()
+    .replaceAll(/\s*\/\s*/gu, " / ")
+    .toLocaleLowerCase("fr");
+}
+
+export function resolveEditorLinkTarget(
+  value: string,
+  pages: readonly EditorPageLinkOption[],
+): EditorLinkTarget | null {
+  const lookup = normalizeLookup(value);
+  const matches = pages.filter(
+    (page) => normalizeLookup(page.path) === lookup || normalizeLookup(page.name) === lookup,
+  );
+  if (matches.length === 1) return { kind: "page", target: matches[0]?.id ?? "" };
+  const external = normalizeExternalLinkTarget(value);
+  return external === null ? null : { kind: "external", target: external };
+}
+
+/** Enforces the canonical non-inclusive right boundary for links before fresh input. */
+export function clearStaleLinkTypingState(editor: EditorInstance): boolean {
+  const state = editor.prosemirrorState;
+  if (!state.selection.empty) return false;
+  const linkMark = editor.pmSchema.marks["link"];
+  if (linkMark === undefined) return false;
+  const activeMarks = state.storedMarks ?? state.selection.$from.marks();
+  if (!activeMarks.some((mark) => mark.type === linkMark)) return false;
+  const anchor = state.selection.anchor;
+  const link = editorLinkAtPosition(editor, anchor);
+  if (link?.kind === "external" && anchor > link.from && anchor < link.to) return false;
+  editor.transact((transaction) => {
+    transaction.removeStoredMark(linkMark);
+    return true;
   });
   return true;
 }

@@ -33,12 +33,13 @@ function externalLinks(page: Page): Locator {
 async function linkSelectionToPage(page: Page, targetName: string): Promise<void> {
   const toolbar = page.locator(".bn-formatting-toolbar");
   await expect(toolbar).toBeVisible();
-  await toolbar.getByRole("button", { name: "Lien vers une page" }).click();
-  const picker = page.locator(".editor-page-link-picker");
-  await expect(picker).toBeVisible();
-  await picker.getByLabel("Lien vers une page").fill(targetName);
-  await picker.getByRole("option", { name: targetName, exact: true }).click();
-  await expect(picker).toBeHidden();
+  await toolbar.getByRole("button", { name: "Ajouter un lien" }).click();
+  const dialog = page.getByTestId("link-editor-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Page ou adresse").fill(targetName);
+  await dialog.getByRole("option").filter({ hasText: targetName }).click();
+  await dialog.getByTestId("save-editor-link").click();
+  await expect(dialog).toBeHidden();
 }
 
 async function selectPreviousWord(page: Page, expected: string): Promise<void> {
@@ -112,7 +113,7 @@ test("links to another page without nesting it, including a descendant", async (
   // collapsed. Expand it before asserting placement: absence from a collapsed
   // DOM branch is not absence from the hierarchy.
   if ((await childRow.count()) === 0) {
-    await page.getByRole("button", { name: `Expand ${source}` }).click();
+    await page.getByRole("button", { name: `Déplier ${source}` }).click();
   }
   await expect(childRow).toHaveCount(1);
   await expect(page.getByTestId(`tree-item-${reference}`)).toHaveCount(1);
@@ -135,7 +136,7 @@ test("links to another page without nesting it, including a descendant", async (
   await ensureNavigationVisible(page);
   const destinationRow = page.getByTestId(`tree-item-${destination}`);
   if ((await destinationRow.getAttribute("aria-expanded")) !== "true") {
-    await page.getByRole("button", { name: `Expand ${destination}` }).click();
+    await page.getByRole("button", { name: `Déplier ${destination}` }).click();
   }
   await ensureNavigationRowVisible(page, reference);
 
@@ -203,7 +204,8 @@ test("edits and removes a page link from its context menu without deleting text 
   const dialog = page.getByTestId("link-editor-dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Texte affiché").fill("seconde cible");
-  await dialog.getByLabel("Page cible").selectOption({ label: secondTarget });
+  await dialog.getByLabel("Page ou adresse").fill(secondTarget);
+  await dialog.getByRole("option").filter({ hasText: secondTarget }).click();
   await dialog.getByTestId("save-editor-link").click();
 
   const secondTargetId = await page
@@ -249,11 +251,11 @@ test("edits and removes an external link from its context menu without deleting 
 
   const toolbar = page.locator(".bn-formatting-toolbar");
   await expect(toolbar).toBeVisible();
-  await toolbar.getByRole("button", { name: "Créer un lien" }).click();
-  const createLink = page.locator(".bn-form-popover");
+  await toolbar.getByRole("button", { name: "Ajouter un lien" }).click();
+  const createLink = page.getByTestId("link-editor-dialog");
   await expect(createLink).toBeVisible();
-  await createLink.getByPlaceholder("Modifier l'URL").fill("https://example.com/initial");
-  await createLink.getByPlaceholder("Modifier l'URL").press("Enter");
+  await createLink.getByLabel("Page ou adresse").fill("https://example.com/initial");
+  await createLink.getByTestId("save-editor-link").click();
   await saveDocument(page);
 
   await externalLinks(page).first().click({ button: "right" });
@@ -261,7 +263,7 @@ test("edits and removes an external link from its context menu without deleting 
   const dialog = page.getByTestId("link-editor-dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Texte affiché").fill("documentation");
-  await dialog.getByLabel("Adresse").fill("https://example.com/documentation");
+  await dialog.getByLabel("Page ou adresse").fill("https://example.com/documentation");
   await dialog.getByTestId("save-editor-link").click();
 
   await expect(externalLinks(page).first()).toHaveAttribute(
@@ -281,6 +283,41 @@ test("edits and removes an external link from its context menu without deleting 
   await selectItem(page, source);
   await expect(externalLinks(page)).toHaveCount(0);
   await expect(editorSurface(page)).toContainText("documentation");
+});
+
+test("/lien creates a Web link and fresh typing stays plain after deleting it", async ({
+  page,
+}) => {
+  await openWorkspace(page);
+  const source = uniqueName("Slash link boundary");
+  await createRootItem(page, "page", source);
+  await waitForSynchronized(page);
+  await selectItem(page, source);
+
+  const editor = editorSurface(page);
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await editor.pressSequentially("/lien");
+  const slashMenu = page.getByRole("listbox");
+  await slashMenu.getByRole("option", { name: /^Lien/u }).click();
+
+  const dialog = page.getByTestId("link-editor-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Texte affiché").fill("Documentation");
+  await dialog.getByLabel("Page ou adresse").fill("example.com/docs");
+  await dialog.getByTestId("save-editor-link").click();
+  const link = externalLinks(page).first();
+  await expect(link).toHaveAttribute("href", "https://example.com/docs");
+
+  await link.selectText();
+  await page.keyboard.press("Delete");
+  await editor.pressSequentially("Nouveau texte");
+  await expect(externalLinks(page)).toHaveCount(0);
+  await expect(editor).toContainText("Nouveau texte");
+  await expect
+    .poll(() => editor.evaluate((surface) => getComputedStyle(surface as HTMLElement).caretColor))
+    .not.toBe("rgba(0, 0, 0, 0)");
 });
 
 test("/page creates one linked subpage under the current page", async ({ page }) => {
@@ -320,7 +357,7 @@ test("/page creates one linked subpage under the current page", async ({ page })
   expect(childId).toBe(sourceBlockId);
   const parentRow = page.getByTestId(`tree-item-${parent}`);
   if ((await parentRow.getAttribute("aria-expanded")) !== "true") {
-    await page.getByRole("button", { name: `Expand ${parent}` }).click();
+    await page.getByRole("button", { name: `Déplier ${parent}` }).click();
   }
   await expect(child).toHaveCount(1);
   await expect(child).toContainText("Sans titre");

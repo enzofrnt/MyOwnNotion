@@ -188,8 +188,27 @@ export function resolveTreeDrop(
   };
 }
 
+/**
+ * The edge hit areas overlap the full-row "inside" target on purpose so they
+ * remain easy to acquire. dnd-kit otherwise returns the row first and turns a
+ * clear between-row gesture into nesting. Keep the geometric order, but put an
+ * explicit insertion edge before the overlapping row.
+ */
+export function prioritizeTreeDropCollisions<T extends { readonly id: string | number }>(
+  collisions: readonly T[],
+): T[] {
+  return collisions
+    .map((collision, index) => ({
+      collision,
+      index,
+      priority: parseTreeDropTargetId(String(collision.id))?.zone === "inside" ? 1 : 0,
+    }))
+    .toSorted((left, right) => left.priority - right.priority || left.index - right.index)
+    .map(({ collision }) => collision);
+}
+
 const treeCollisionDetection: CollisionDetection = (input) => {
-  const pointerCollisions = pointerWithin(input);
+  const pointerCollisions = prioritizeTreeDropCollisions(pointerWithin(input));
   return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(input);
 };
 

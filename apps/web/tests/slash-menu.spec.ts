@@ -1,6 +1,9 @@
 import { generateUuidV7 } from "@myownnotion/domain";
 import { describe, expect, it, vi } from "vitest";
-import { createSubpageFromSlash } from "../src/features/editor/editor-menus/slash-menu.tsx";
+import {
+  createSubpageFromSlash,
+  prepareLinkFromSlash,
+} from "../src/features/editor/editor-menus/slash-menu.tsx";
 
 describe("the /page command", () => {
   it("uses the current block identity for an idempotent child and turns it into its link", async () => {
@@ -46,5 +49,29 @@ describe("the /page command", () => {
       }),
     ).rejects.toThrow("création refusée");
     expect(editor.updateBlock).not.toHaveBeenCalled();
+  });
+});
+
+describe("/lien", () => {
+  it("clears the slash query and opens the unified link flow instead of an embed", () => {
+    const calls: unknown[] = [];
+    const editor = {
+      getTextCursorPosition: () => ({
+        block: { id: "block-id", type: "paragraph", content: [{ type: "text", text: "/lien" }] },
+      }),
+      updateBlock: (...args: unknown[]) => calls.push(["update", ...args]),
+      setTextCursorPosition: (...args: unknown[]) => calls.push(["cursor", ...args]),
+    };
+    let opened = false;
+
+    prepareLinkFromSlash(editor, () => {
+      opened = true;
+    });
+
+    expect(calls).toEqual([
+      ["update", "block-id", { type: "paragraph", content: [] }],
+      ["cursor", "block-id", "start"],
+    ]);
+    expect(opened).toBe(true);
   });
 });

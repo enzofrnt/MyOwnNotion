@@ -45,10 +45,12 @@ describe("workspace navigation settings", () => {
         expect(container.querySelector('[data-testid="navigation-settings"]')).not.toBeNull();
       });
     });
-    const favourites = [
-      ...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
-    ].find((input) => input.closest("label")?.textContent?.includes("Favoris"));
+    const favourites = [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')].find(
+      (input) => input.getAttribute("aria-label") === "Afficher les favoris",
+    );
     if (favourites === undefined) throw new Error("favourites setting missing");
+    expect(favourites.getAttribute("aria-checked")).toBe("true");
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
 
     await act(async () => {
       favourites.click();
@@ -59,5 +61,6 @@ describe("workspace navigation settings", () => {
         expect(state.recentsVisible).toBe(true);
       });
     });
+    expect(favourites.getAttribute("aria-checked")).toBe("false");
   });
 });

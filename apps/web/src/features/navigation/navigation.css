@@ -157,12 +157,13 @@
   min-width: 0;
   min-height: var(--ui-target-compact);
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .workspace-navigation__section-heading h3 {
   min-width: 0;
   flex: 1;
+  margin-left: 0;
 }
 
 .workspace-navigation__section-toggle[data-size="square"] {
@@ -171,6 +172,7 @@
   min-height: var(--ui-target-compact);
   padding: var(--space-1);
   color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
 }
 
 .workspace-navigation__tree {
@@ -335,9 +337,9 @@
 }
 
 .workspace-navigation .tree-row[aria-selected="true"] {
-  background: var(--ui-color-accent-soft);
+  background: var(--ui-color-surface-active);
   border: 0;
-  box-shadow: inset 2px 0 var(--color-accent);
+  box-shadow: none;
 }
 
 .workspace-navigation .tree-row[data-drop-target="true"] {

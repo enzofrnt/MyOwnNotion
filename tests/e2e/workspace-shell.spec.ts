@@ -158,10 +158,10 @@ test.describe("focused workspace shell", () => {
     await expect(page.getByRole("button", { name: "Déplier les récents" })).toBeVisible();
 
     await openSettingsSection(page, "navigation");
-    const favourites = page.getByRole("checkbox", { name: /Favoris/u });
-    await expect(favourites).toBeChecked();
-    await favourites.uncheck();
-    await expect(favourites).not.toBeChecked();
+    const favourites = page.getByRole("switch", { name: /favoris/iu });
+    await expect(favourites).toHaveAttribute("aria-checked", "true");
+    await favourites.click();
+    await expect(favourites).toHaveAttribute("aria-checked", "false");
     await returnToWorkspace(page);
     await ensureNavigationVisible(page);
 
@@ -184,7 +184,10 @@ test.describe("focused workspace shell", () => {
     await expect(page.getByRole("button", { name: "Déplier les récents" })).toBeVisible();
 
     await openSettingsSection(page, "navigation");
-    await page.getByRole("checkbox", { name: /Favoris/u }).check();
+    const restoredFavourites = page.getByRole("switch", { name: /favoris/iu });
+    await expect(restoredFavourites).toHaveAttribute("aria-checked", "false");
+    await restoredFavourites.click();
+    await expect(restoredFavourites).toHaveAttribute("aria-checked", "true");
     await returnToWorkspace(page);
     await ensureNavigationVisible(page);
     await expect(page.getByRole("heading", { level: 3, name: "Favoris" })).toBeVisible();

@@ -112,6 +112,48 @@
   animation: ui-spin 0.9s linear infinite;
 }
 
+.ui-switch {
+  position: relative;
+  width: 2.25rem;
+  height: 1.25rem;
+  flex: 0 0 2.25rem;
+  padding: 0.125rem;
+  background: var(--ui-color-border-strong);
+  border: 0;
+  border-radius: var(--ui-radius-round);
+  cursor: pointer;
+  transition: background-color var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.ui-switch[aria-checked="true"] {
+  background: var(--ui-color-accent);
+}
+
+.ui-switch__thumb {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  background: var(--ui-color-surface);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ui-color-text) 20%, transparent);
+  transition: transform var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.ui-switch[aria-checked="true"] .ui-switch__thumb {
+  transform: translateX(1rem);
+}
+
+.ui-switch:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.ui-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @keyframes ui-spin {
   to {
     transform: rotate(1turn);

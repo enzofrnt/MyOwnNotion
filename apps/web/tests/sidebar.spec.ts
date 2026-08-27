@@ -121,6 +121,20 @@ describe("shortcut presentation", () => {
     expect(markup).not.toContain('id="sidebar-favourites-heading"');
     expect(markup).toContain('id="sidebar-recents-heading"');
   });
+
+  it("places each compact disclosure immediately before its section label", () => {
+    const markup = renderSidebar({});
+    const favouritesToggle = markup.indexOf('aria-label="Replier les favoris"');
+    const favouritesLabel = markup.indexOf('id="sidebar-favourites-heading"');
+    const recentsToggle = markup.indexOf('aria-label="Replier les récents"');
+    const recentsLabel = markup.indexOf('id="sidebar-recents-heading"');
+
+    expect(favouritesToggle).toBeGreaterThanOrEqual(0);
+    expect(favouritesToggle).toBeLessThan(favouritesLabel);
+    expect(recentsToggle).toBeGreaterThanOrEqual(0);
+    expect(recentsToggle).toBeLessThan(recentsLabel);
+    expect(markup).toContain('data-icon="chevronDown"');
+  });
 });
 
 describe("workspace presentation persistence", () => {

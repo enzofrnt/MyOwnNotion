@@ -453,7 +453,7 @@ test.describe("structured offline convergence (US5)", () => {
       // not pretend to be available while the server cannot fill the gap.
       await ensureNavigationVisible(second.page);
       const expandDatabase = second.page.getByRole("button", {
-        name: `Expand ${databaseName}`,
+        name: `Déplier ${databaseName}`,
         exact: true,
       });
       if (await expandDatabase.isVisible()) await expandDatabase.click();

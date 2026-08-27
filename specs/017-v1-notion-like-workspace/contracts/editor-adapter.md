@@ -203,7 +203,7 @@ Chaque bloc éditable fournit, au clavier comme au pointeur/toucher :
 - poignée de bloc, sélection et menu d'actions ;
 - glisser-déposer avec cible visible et annulation ;
 - duplication, suppression, conversion et déplacement ;
-- barre flottante pour texte, lien, page-link et couleurs ;
+- barre flottante pour texte, cible de lien unifiée et couleurs ;
 - indentation/désindentation des structures compatibles ;
 - undo/redo de la session locale sans annuler silencieusement une update
   distante ;
@@ -216,10 +216,16 @@ fonction XL indisponible. Tables, embeds et fichiers indiquent clairement leur
 
 ### 8.1 Liens externes et liens de page
 
-Les liens Web standards restent des marques BlockNote et utilisent sa toolbar
-communautaire Ariakit restylée. Le nœud inline `pageLink` conserve pour sa part
-l'UUID canonique de la page cible ; il n'est jamais dégradé en simple URL ou
-résolu par son titre.
+Les liens Web standards restent des marques BlockNote. Le nœud inline
+`pageLink` conserve pour sa part l'UUID canonique de la page cible ; il n'est
+jamais dégradé en simple URL ou résolu par son titre. Ces deux représentations
+partagent toutefois un seul contrôleur Ariakit MyOwnNotion : le champ cible
+accepte une URL ou recherche une page par nom et chemin, et peut convertir un
+lien de l'une à l'autre sans perdre le texte ni ses styles compatibles.
+
+La commande `/lien`, la barre flottante, le clic droit et le clavier ouvrent ce
+même contrôleur. `/embed` reste une commande séparée et explicite : saisir
+« lien » ne crée jamais un bookmark, une iframe ou un aperçu tiers.
 
 Les deux familles partagent les actions produit suivantes :
 
@@ -232,6 +238,11 @@ Pour un `pageLink`, retirer ou retargeter le lien ne supprime, ne déplace et ne
 renomme jamais la page cible. Le contrôleur contextuel détecte le lien sous la
 sélection ou le pointeur, fonctionne depuis la toolbar, le clic droit et le
 clavier, et ferme ses menus avec `Escape` sans perdre la sélection.
+
+Après suppression de tout le texte lié, la marque `link` stockée par
+ProseMirror est retirée avant la prochaine insertion à la borne. Une nouvelle
+saisie redevient donc du texte normal ; à l'intérieur d'un lien conservé, la
+saisie continue de porter la relation.
 
 ## 9. Undo/redo
 

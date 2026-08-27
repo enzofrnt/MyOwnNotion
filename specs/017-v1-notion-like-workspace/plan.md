@@ -613,6 +613,28 @@ canonique ou retire le lien en conservant son texte. Les mêmes commandes sont
 exposées par toolbar, clic droit et clavier sans chantier de technologie
 d'assistance spécialisé.
 
+La finition suivante remplace les titres de section dissociés par un contrôle
+compact `chevron + libellé`, identique pour Favoris et Récents, et introduit une
+primitive `Switch` contrôlée portée par un bouton natif `role=switch`, donc
+activable par Entrée ou Espace sans logique clavier parallèle. Le rendu de l'arbre
+normalise l'ensemble des branches ouvertes après chaque projection : une page
+qui n'a plus d'enfant redevient une feuille et ne rend pas `BranchState`; un
+dossier explicitement ouvert conserve son état vide utile. La sélection utilise
+la surface neutre active du design system, sans bordure ni ombre latérale, et
+les niveaux restent décrits par indentation et guides sobres. Les chevrons sont
+des icônes Lucide, pas des caractères typographiques dépendant de la police.
+
+La création de liens cesse de juxtaposer `CreateLinkButton` et un sélecteur de
+page. Un contrôleur Ariakit unique conserve la sélection ProseMirror et résout
+explicitement une cible comme URL autorisée ou identité canonique choisie dans
+une liste filtrée par nom et chemin. Il sert la toolbar et `/lien`; `/embed`
+reste la seule entrée vers le bloc `embed`. Le dialogue d'édition réutilise ce
+modèle et sait remplacer atomiquement un mark Web par un inline node `pageLink`,
+ou l'inverse, sans aplatir les autres styles du texte. Après retrait du dernier
+caractère lié, une garde ProseMirror supprime le mark stocké avant le prochain
+`beforeinput`; le caret reçoit une couleur explicite et les blocs vides gardent
+une boîte de ligne mesurable dans les deux thèmes.
+
 ### 10. Validation et ordre de livraison
 
 Les tranches d'implémentation sont :
@@ -628,9 +650,11 @@ Les tranches d'implémentation sont :
 8. scroll final, WebKit, clavier, toucher et ergonomie de base ;
 9. convergence du workspace : préférences de raccourcis, arbre à trois zones,
    titre vide pendant l'édition, statut épinglé et cycle complet des liens ;
-10. migration de toutes les surfaces V1, français, thèmes, visuels et
+10. finition de la navigation et des liens : chevrons cohérents, switches,
+    feuilles normalisées, sélection sans rail, cible de lien unifiée et caret ;
+11. migration de toutes les surfaces V1, français, thèmes, visuels et
     performance ;
-11. suppression du chemin éditorial legacy après preuve de migration.
+12. suppression du chemin éditorial legacy après preuve de migration.
 
 Chaque tranche garde l'application lisible et fournit un test indépendant. Le
 chemin legacy reste derrière une frontière de compatibilité jusqu'à ce que les

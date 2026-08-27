@@ -141,6 +141,23 @@ responsabilité explicite de ces comportements dans son propre périmètre.
 - Q: Où placer l'état compact de synchronisation ? → R: Au bord inférieur du
   contenu visible, hors du flux du document, avec un détail au survol, au focus
   ou au clic et sans déplacement du texte lorsque son état change.
+- Q: Comment présenter les contrôles de repli des raccourcis et de l'arbre ? →
+  R: Un chevron compact précède immédiatement le libellé qu'il contrôle. Le
+  même modèle visuel s'applique à Favoris, Récents et aux branches, sans glyphe
+  textuel isolé ni commande rejetée à l'autre extrémité du titre.
+- Q: Que devient une page dont le dernier enfant vient d'être déplacé ? → R:
+  Elle redevient immédiatement une feuille normale : son ancien état ouvert ne
+  rend aucun message vide. Un dossier explicitement ouvert peut encore
+  expliquer qu'il est vide.
+- Q: Liens Web, liens de page et contenus intégrés partagent-ils la commande
+  `/lien` ? → R: Liens Web et liens de page partagent un sélecteur de cible
+  cohérent qui accepte une adresse ou une recherche de page par nom/chemin.
+  Les contenus intégrés restent une commande distincte et explicite ; choisir
+  « lien » ne peut jamais créer un bookmark ou un embed.
+- Q: Que doit-il se passer après avoir supprimé tout le texte d'un lien ? → R:
+  Le lien disparaît avec son dernier caractère et la saisie suivante est du
+  texte normal. Le curseur reste visiblement clignotant sur tout bloc vide ou
+  nouvelle ligne active.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -197,6 +214,14 @@ une page sur ordinateur puis sur un écran de 320 pixels.
     synchronisation change, **Then** le bouton d'information reste au bord
     inférieur visible sans déplacer le titre, les blocs ni la position de
     lecture.
+11. **Given** les sections Favoris et Récents visibles, **When** le propriétaire
+    les parcourt, **Then** chacune présente le même chevron immédiatement à
+    gauche de son libellé et les réglages utilisent des interrupteurs visuels
+    indiquant clairement leur état activé ou désactivé.
+12. **Given** une page ouverte dans l'arborescence qui perd son dernier enfant,
+    **When** le déplacement est confirmé, **Then** elle redevient une ligne
+    feuille sans chevron ni message vide sous elle, et sa sélection reste
+    lisible sans barre d'accent verticale.
 
 ---
 
@@ -237,6 +262,13 @@ annuler, rétablir, recharger et comparer le document obtenu.
    survole, le cible ou ouvre son menu contextuel, **Then** il peut l'ouvrir,
    modifier sa cible ou son libellé, ou retirer seulement le lien en conservant
    le texte et toute page cible.
+7. **Given** une sélection ou un curseur dans le texte, **When** le propriétaire
+   choisit la commande de lien ou saisit `/lien`, **Then** un même parcours lui
+   permet de choisir une page par nom ou chemin, ou de saisir une adresse Web,
+   sans créer de contenu intégré.
+8. **Given** un lien dont tout le texte vient d'être effacé, **When** le
+   propriétaire continue à écrire sur cette ligne, **Then** le nouveau texte
+   n'hérite pas de l'ancien lien et le curseur reste visible sur la ligne vide.
 
 ---
 
@@ -465,6 +497,14 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - Une table ou une vue structurée est plus large que le contenu principal sur
   un téléphone.
 - Le thème change pendant qu'un menu ou un dialogue est ouvert.
+- Une page ouverte perd son dernier enfant à la suite d'un déplacement local ou
+  distant ; un identifiant encore présent dans l'état de repli ne doit pas
+  matérialiser une branche qui n'existe plus.
+- Une requête de lien correspond à la fois à un nom de page et à une chaîne qui
+  ressemble à une adresse ; aucune navigation ni conversion ne se produit tant
+  que le propriétaire n'a pas choisi explicitement la cible.
+- Tout le texte portant un lien est supprimé, puis une composition IME, un
+  collage ou une frappe commence au même emplacement.
 
 ## Requirements *(mandatory)*
 
@@ -570,6 +610,28 @@ en charge, une fois sans pointeur puis une fois au toucher.
   Retirer un lien MUST conserver son texte et ne MUST ni supprimer, ni déplacer
   une page interne cible. Remplacer une cible interne MUST conserver une
   identité canonique plutôt qu'un titre copié.
+- **FR-081**: Favoris, Récents et chaque branche de la hiérarchie MUST placer un
+  chevron compact immédiatement avant le libellé contrôlé et employer un même
+  langage visuel de repli. Les préférences de visibilité MUST se présenter
+  comme des interrupteurs dont les états activé et désactivé restent explicites
+  au pointeur et au clavier.
+- **FR-082**: Une page sans enfant MUST être rendue comme une feuille, y compris
+  si elle était ouverte avant le déplacement de son dernier enfant, et ne MUST
+  afficher aucun état vide sous sa ligne. La sélection courante MUST être
+  indiquée par la surface complète de la ligne sans barre, arc ou bordure
+  d'accent latérale ; l'indentation et les guides discrets MUST suffire à
+  expliquer les niveaux parent-enfant.
+- **FR-083**: La création et la modification d'un lien MUST utiliser un parcours
+  unifié acceptant soit une adresse Web autorisée, soit une page choisie par
+  son nom ou son chemin. Ce parcours MUST permettre de passer d'un type de cible
+  à l'autre en conservant le libellé. La commande `/lien` MUST ouvrir ce
+  parcours ; l'insertion d'un contenu intégré MUST rester une action distincte
+  et explicite.
+- **FR-084**: Un bloc vide ou une nouvelle ligne ciblée MUST toujours montrer
+  un curseur de saisie visible. Lorsque le dernier caractère d'un lien est
+  supprimé, son état de lien MUST être retiré avant la frappe, le collage ou la
+  composition suivante afin qu'aucun texte nouveau n'hérite d'une cible
+  supprimée.
 - **FR-023**: Images et fichiers insérés dans une page MUST réutiliser le cycle
   de vie, la sécurité, les limites, la déduplication et la disponibilité locale
   définis par la feature 005.
@@ -894,6 +956,18 @@ en charge, une fois sans pointeur puis une fois au toucher.
   de synchronisation déplacent le titre, les blocs et la position de lecture de
   moins d'un pixel et laissent le détail atteignable sans rejoindre la fin du
   document.
+- **SC-028**: Sur les profils desktop et mobile, Favoris et Récents exposent
+  chacun exactement un chevron avant leur libellé et cent changements de
+  visibilité par interrupteur conservent la préférence attendue après
+  rechargement.
+- **SC-029**: Après cent déplacements retirant le dernier enfant d'une page,
+  aucune ligne vide, aucun chevron résiduel et aucune barre d'accent latérale
+  n'apparaissent ; les zones avant, intérieur et après restent identifiables
+  avant le dépôt.
+- **SC-030**: Les parcours créer puis convertir un lien page vers Web et Web vers
+  page réussissent par sélection, clic droit, clavier et `/lien`; dans cent
+  suppressions du dernier caractère lié suivies d'une frappe, aucun caractère
+  nouveau ne porte l'ancienne cible et le curseur demeure visible.
 
 ## Assumptions
 
@@ -946,3 +1020,6 @@ en charge, une fois sans pointeur puis une fois au toucher.
   synchronisation.
 - Dépendance obligatoire à un service hébergé ou à une licence individuelle
   pour utiliser les parcours essentiels de l'application auto-hébergée.
+- Certification formelle WCAG, campagne VoiceOver ou prise en charge spécialisée
+  des technologies d'assistance au-delà de l'ergonomie personnelle demandée :
+  clavier, focus visible, pointeur et toucher restent obligatoires.
