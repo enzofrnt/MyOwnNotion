@@ -67,9 +67,10 @@ export function commandsForVitestGroup(plan: ImpactPlan, group: VitestGroup): Co
 }
 
 function vitestCommand(group: VitestGroup, arguments_: string[]): Command {
+  const boundedArguments = group === "performance" ? [...arguments_, "--maxWorkers=1"] : arguments_;
   return group === "unit"
-    ? ["bun", ["run", "--bun", "vitest", ...arguments_]]
-    : ["bun", ["scripts/ci/run-vitest-with-postgres.ts", ...arguments_]];
+    ? ["bun", ["run", "--bun", "vitest", ...boundedArguments]]
+    : ["bun", ["scripts/ci/run-vitest-with-postgres.ts", ...boundedArguments]];
 }
 
 function parseCli(argv: string[]): { planPath: string; group: VitestGroup } {

@@ -58,6 +58,7 @@ describe("Bun quality gate", () => {
     const manifest = JSON.parse(read("package.json")) as {
       scripts: Record<string, string>;
     };
+    expect(manifest.scripts["test:performance"]).toContain("--maxWorkers=1");
     const gate = manifest.scripts["checks:local"] ?? "";
     for (const command of [
       "toolchain:check",

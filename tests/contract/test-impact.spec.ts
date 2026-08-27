@@ -147,6 +147,7 @@ describe("pull-request selection", () => {
         "run",
         "--passWithNoTests",
         "tests/performance/search.perf.spec.ts",
+        "--maxWorkers=1",
       ],
     ]);
   });
@@ -191,6 +192,7 @@ describe("pull-request selection", () => {
           "run",
           "--passWithNoTests",
           "tests/performance/databases.perf.spec.ts",
+          "--maxWorkers=1",
         ],
       ],
     ]);
@@ -314,6 +316,7 @@ describe("plan consumers", () => {
           "--project",
           "performance",
           "packages/domain/src/document/block.ts",
+          "--maxWorkers=1",
         ],
       ],
     ]);

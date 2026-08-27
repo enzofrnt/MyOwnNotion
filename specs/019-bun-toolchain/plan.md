@@ -68,8 +68,10 @@ packages TypeScript partagés
 
 **Performance Goals**: ne régresser aucun budget produit ; installation et
 build déterministes ; garder deux piles Playwright au maximum sur un hôte
-contraint ; conserver le plan d'impact CI et les caches par plateforme ; ne pas
-augmenter la latence ou les tailles protocolaires de l'application
+contraint et le worker unique défini par la machine de référence pour les
+fixtures de performance lourdes ; conserver le plan d'impact CI et les caches
+par plateforme ; ne pas augmenter la latence ou les tailles protocolaires de
+l'application
 
 **Constraints**: migration à sens unique et PR dédiée ; version patch exacte ;
 un seul lockfile ; aucune migration de données, aucun changement d'API, de

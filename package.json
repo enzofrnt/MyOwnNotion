@@ -33,7 +33,7 @@
     "test:e2e:local": "bash scripts/test-e2e-local.sh",
     "test:e2e:gate": "MYOWNNOTION_E2E_JOBS=${MYOWNNOTION_E2E_JOBS:-2} bash scripts/test-e2e-local.sh",
     "test:e2e:firefox-container": "bash scripts/test-e2e-firefox-container.sh",
-    "test:performance": "bun scripts/ci/run-vitest-with-postgres.ts run --project performance",
+    "test:performance": "bun scripts/ci/run-vitest-with-postgres.ts run --project performance --maxWorkers=1",
     "test:reference-backups": "bun scripts/ci/run-vitest-with-postgres.ts run --project database-integration packages/database/tests/reference-backups.integration.spec.ts",
     "test:security": "bun scripts/ci/run-vitest-with-postgres.ts run --project domain --project contracts --project database-integration --project api-contract --project workspace-contract security",
     "security:audit": "bun audit --audit-level=high --prod",

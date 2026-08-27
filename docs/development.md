@@ -267,7 +267,12 @@ Performance budgets run in their own Vitest project and their own CI job. They
 must never run under V8 coverage instrumentation: instrumentation changes the
 timings being measured, so a red budget would describe the profiler rather than
 the application. `test:coverage` and `test:performance` are both mandatory in
-the complete local gate; CI starts their jobs concurrently.
+the complete local gate; CI starts their jobs concurrently. The performance
+project uses the single worker declared by `REALTIME_REFERENCE_MACHINE`: its
+seven benchmark files do not compete with one another, so the 100,000-entry
+search fixture and the 10,000-operation page/database fixtures measure the
+application instead of worker starvation. This limit does not relax a product
+budget or serialize the wider test families.
 
 ### Fast, safe parallel feedback
 
