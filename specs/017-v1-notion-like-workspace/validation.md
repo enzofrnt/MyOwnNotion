@@ -870,6 +870,23 @@ la saisie.
 
 Le nouveau gate complet est exécuté sur le commit exact destiné au push.
 
+### Stabilité du focus dans le sélecteur emoji
+
+La première CI de la PR a classé comme flaky le journey d'identité emoji sous
+Chromium mobile : le bouton filtré recevait le focus, puis un rerender parent
+renouvelait `onSelect`, recréait toute l'instance Emoji Mart et remplaçait le
+nœud focalisé. Le panneau garde désormais la même instance tant qu'il reste
+ouvert et transmet chaque sélection au callback React courant par une référence
+stable. Le test composant verrouille à la fois l'identité du nœud, le focus et
+l'appel du callback le plus récent.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Répétition Chromium mobile | journey d'identité emoji avec `--repeat-each=20` | 20/20 passés sans retry ; focus conservé pendant les rerenders hors ligne |
+| Matrice ciblée finale | même journey, cinq profils lancés en parallèle | Chromium desktop/mobile, Firefox desktop et WebKit desktop/mobile passés en 28 s |
+
+Le gate complet est exécuté sur le nouveau commit exact avant le prochain push.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

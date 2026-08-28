@@ -54,6 +54,8 @@ export function EmojiPickerPanel({
   value,
 }: EmojiPickerPanelProps) {
   const mount = useRef<HTMLDivElement | null>(null);
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     const host = mount.current;
@@ -67,11 +69,11 @@ export function EmojiPickerPanel({
       dynamicWidth: true,
       previewPosition: "none",
       searchPosition: "sticky",
-      onEmojiSelect: ({ native }) => onSelect(native),
+      onEmojiSelect: ({ native }) => onSelectRef.current(native),
     });
     host.replaceChildren(picker);
     return () => host.replaceChildren();
-  }, [factory, onSelect]);
+  }, [factory]);
 
   return (
     <div className="emoji-picker-panel" data-testid="emoji-picker-panel">
