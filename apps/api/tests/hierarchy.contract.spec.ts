@@ -276,6 +276,47 @@ describe("hierarchy operations contract", () => {
     expect(body.currentRevisionId).not.toBe(page.revisionId);
   });
 
+  it("creates, synchronizes and removes a canonical item emoji", async () => {
+    const itemId = generateUuidV7();
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: idempotencyHeaders(),
+      payload: {
+        id: itemId,
+        kind: "page",
+        name: "Travel",
+        icon: "🧳",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "Vicon" },
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const createdBody = created.json() as { item: { icon: string; currentRevisionId: string } };
+    expect(createdBody.item.icon).toBe("🧳");
+
+    const removed = await harness.built.app.inject({
+      method: "PATCH",
+      url: `/v1/items/${itemId}`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: createdBody.item.currentRevisionId, icon: null },
+    });
+    expect(removed.statusCode, removed.body).toBe(200);
+    expect((removed.json() as { item: { icon: null } }).item.icon).toBeNull();
+
+    const invalid = await harness.built.app.inject({
+      method: "PATCH",
+      url: `/v1/items/${itemId}`,
+      headers: idempotencyHeaders(),
+      payload: {
+        baseRevisionId: (removed.json() as { item: { currentRevisionId: string } }).item
+          .currentRevisionId,
+        icon: "not an emoji",
+      },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect((invalid.json() as { code: string }).code).toBe("validation.invalid-icon");
+  });
+
   it("trashes and restores a branch atomically", async () => {
     const root = await createItemViaApi(harness, { kind: "folder", name: "TrashRoot" });
     const child = await createItemViaApi(harness, {

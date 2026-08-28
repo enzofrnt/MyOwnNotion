@@ -23,14 +23,13 @@ export interface EditorLinkCreation extends EditorLinkSelectionRange {
   readonly text: string;
 }
 
-export type EditorLinkDialogRequest =
-  | { readonly mode: "create"; readonly selection: EditorLinkCreation }
-  | { readonly mode: "edit"; readonly link: EditorLinkDescriptor };
-
 export interface EditorPageLinkOption {
   readonly id: string;
   readonly name: string;
   readonly path: string;
+  readonly kind?: "page" | "folder";
+  readonly icon?: string | null;
+  readonly parentItemId?: string | null;
 }
 
 interface PageLinkNode {
@@ -307,26 +306,6 @@ export function normalizeExternalLinkTarget(value: string): string | null {
   } catch {
     return null;
   }
-}
-
-function normalizeLookup(value: string): string {
-  return value
-    .trim()
-    .replaceAll(/\s*\/\s*/gu, " / ")
-    .toLocaleLowerCase("fr");
-}
-
-export function resolveEditorLinkTarget(
-  value: string,
-  pages: readonly EditorPageLinkOption[],
-): EditorLinkTarget | null {
-  const lookup = normalizeLookup(value);
-  const matches = pages.filter(
-    (page) => normalizeLookup(page.path) === lookup || normalizeLookup(page.name) === lookup,
-  );
-  if (matches.length === 1) return { kind: "page", target: matches[0]?.id ?? "" };
-  const external = normalizeExternalLinkTarget(value);
-  return external === null ? null : { kind: "external", target: external };
 }
 
 /** Enforces the canonical non-inclusive right boundary for links before fresh input. */

@@ -73,15 +73,15 @@ export async function createSubpageFromSlash(
   await onCreated?.(child);
 }
 
-/** Turns `/lien` back into an empty paragraph before opening the shared target chooser. */
+/** Clears a slash query before opening one of the two explicit link pickers. */
 export function prepareLinkFromSlash(
   editor: Pick<SlashEditor, "getTextCursorPosition" | "setTextCursorPosition" | "updateBlock">,
-  openLinkFlow: () => void,
+  openLinkFlow: (blockId: string) => void,
 ): void {
   const current = editor.getTextCursorPosition().block;
   editor.updateBlock(current.id, { type: "paragraph", content: [] });
   editor.setTextCursorPosition(current.id, "start");
-  openLinkFlow();
+  openLinkFlow(current.id);
 }
 
 /**
@@ -103,12 +103,14 @@ function insertTableAfterCurrent(editor: SlashEditor): void {
 
 /** French, filtered Community menu: no XL or not-yet-durable block leaks into V1. */
 export function FrenchSlashMenu({
-  onCreateLink,
+  onCreatePageLink,
+  onCreateWebBookmark,
   onCreateSubpage,
   onSubpageCreated,
   onError,
 }: {
-  readonly onCreateLink?: (() => void) | undefined;
+  readonly onCreatePageLink?: (() => void) | undefined;
+  readonly onCreateWebBookmark?: ((blockId: string) => void) | undefined;
   readonly onCreateSubpage?: CreateSubpage | undefined;
   readonly onSubpageCreated?:
     | ((child: { readonly id: string; readonly title: string }) => void | Promise<void>)
@@ -152,23 +154,36 @@ export function FrenchSlashMenu({
         insertRichBlock(editor, {
           type: "embed",
           props: {
-            provider: "bookmark",
-            sourceUrl: "https://example.org/",
+            provider: "youtube",
+            sourceUrl: "https://www.youtube.com/watch?v=",
             caption: "",
           },
         }),
     },
   ];
   const navigationItems = [
-    ...(onCreateLink === undefined
+    ...(onCreatePageLink === undefined
       ? []
       : [
           {
-            title: FR_COPY.editor.slashMenu.link.title,
-            subtext: FR_COPY.editor.slashMenu.link.description,
-            aliases: ["lien", "link", "url", "web", "page"],
+            title: FR_COPY.editor.slashMenu.pageLink.title,
+            subtext: FR_COPY.editor.slashMenu.pageLink.description,
+            aliases: ["lien page", "page-link", "référence", "interne"],
             group: FR_COPY.editor.slashMenu.navigationGroup,
-            onItemClick: () => prepareLinkFromSlash(editor as unknown as SlashEditor, onCreateLink),
+            onItemClick: () =>
+              prepareLinkFromSlash(editor as unknown as SlashEditor, onCreatePageLink),
+          },
+        ]),
+    ...(onCreateWebBookmark === undefined
+      ? []
+      : [
+          {
+            title: FR_COPY.editor.slashMenu.webBookmark.title,
+            subtext: FR_COPY.editor.slashMenu.webBookmark.description,
+            aliases: ["lien web", "url", "bookmark", "site"],
+            group: FR_COPY.editor.slashMenu.navigationGroup,
+            onItemClick: () =>
+              prepareLinkFromSlash(editor as unknown as SlashEditor, onCreateWebBookmark),
           },
         ]),
     ...(onCreateSubpage === undefined

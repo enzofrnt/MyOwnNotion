@@ -142,18 +142,36 @@ responsabilité explicite de ces comportements dans son propre périmètre.
   contenu visible, hors du flux du document, avec un détail au survol, au focus
   ou au clic et sans déplacement du texte lorsque son état change.
 - Q: Comment présenter les contrôles de repli des raccourcis et de l'arbre ? →
-  R: Un chevron compact précède immédiatement le libellé qu'il contrôle. Le
-  même modèle visuel s'applique à Favoris, Récents et aux branches, sans glyphe
-  textuel isolé ni commande rejetée à l'autre extrémité du titre.
+  R: Favoris et Récents utilisent un chevron compact immédiatement avant leur
+  libellé. Une branche utilise le même symbole mais dans l'emplacement de son
+  emoji ou de son icône, sans glyphe textuel isolé ni commande rejetée à
+  l'autre extrémité du titre.
 - Q: Que devient une page dont le dernier enfant vient d'être déplacé ? → R:
   Elle redevient immédiatement une feuille normale : son ancien état ouvert ne
   rend aucun message vide. Un dossier explicitement ouvert peut encore
   expliquer qu'il est vide.
-- Q: Liens Web, liens de page et contenus intégrés partagent-ils la commande
-  `/lien` ? → R: Liens Web et liens de page partagent un sélecteur de cible
-  cohérent qui accepte une adresse ou une recherche de page par nom/chemin.
-  Les contenus intégrés restent une commande distincte et explicite ; choisir
-  « lien » ne peut jamais créer un bookmark ou un embed.
+- Q: Liens Web, liens de page et contenus intégrés partagent-ils la même
+  action ? → R: Non. « Lien vers une page » ouvre une recherche compacte de
+  pages et dossiers ; « Lien Web » ouvre une saisie compacte d'adresse et
+  produit un bookmark pleine largeur. Les contenus intégrés interactifs
+  restent une troisième action explicite. Aucun parcours ne demande au
+  propriétaire de deviner quel type sera créé après validation.
+- Q: Un lien interne possède-t-il un texte ou une icône indépendants de sa
+  cible ? → R: Non. Il conserve l'identité canonique de la page ou du dossier,
+  affiche toujours son titre courant et reprend son emoji ou son icône par
+  défaut. Son libellé n'est pas éditable. Une référence explicite porte un
+  petit indicateur de lien ; la référence créée par `/page` vers l'enfant
+  direct de la page courante n'en porte pas.
+- Q: À quel objet appartient l'emoji affiché dans l'interface ? → R: À la page
+  ou au dossier lui-même, jamais au lien qui le représente. Cette propriété
+  canonique facultative contient un seul grapheme emoji Unicode et se retrouve
+  dans l'arborescence, l'en-tête de page, la recherche et toutes les
+  représentations de cette identité. L'absence d'emoji utilise l'icône de type
+  existante.
+- Q: Où le chevron d'une branche apparaît-il par rapport à son icône ? → R:
+  Dans le même emplacement fixe. Lorsqu'une branche est ciblée au pointeur ou
+  au clavier, le chevron remplace visuellement l'emoji ou l'icône sans ajouter
+  de colonne ni déplacer le libellé. Une feuille ne matérialise aucun chevron.
 - Q: Que doit-il se passer après avoir supprimé tout le texte d'un lien ? → R:
   Le lien disparaît avec son dernier caractère et la saisie suivante est du
   texte normal. Le curseur reste visiblement clignotant sur tout bloc vide ou
@@ -258,15 +276,19 @@ annuler, rétablir, recharger et comparer le document obtenu.
 5. **Given** une destination interdite ou devenue indisponible, **When** un
    déplacement est tenté, **Then** le document reste inchangé et le refus est
    compréhensible.
-6. **Given** un lien interne ou externe existant, **When** le propriétaire le
-   survole, le cible ou ouvre son menu contextuel, **Then** il peut l'ouvrir,
-   modifier sa cible ou son libellé, ou retirer seulement le lien en conservant
-   le texte et toute page cible.
-7. **Given** une sélection ou un curseur dans le texte, **When** le propriétaire
-   choisit la commande de lien ou saisit `/lien`, **Then** un même parcours lui
-   permet de choisir une page par nom ou chemin, ou de saisir une adresse Web,
-   sans créer de contenu intégré.
-8. **Given** un lien dont tout le texte vient d'être effacé, **When** le
+6. **Given** un lien interne existant, **When** le propriétaire le survole, le
+   cible ou ouvre son menu contextuel, **Then** il peut l'ouvrir, choisir une
+   autre page ou retirer seulement la référence ; son libellé et son icône
+   restent ceux de la cible et ne sont pas éditables indépendamment.
+7. **Given** un curseur dans le document, **When** le propriétaire choisit
+   « Lien vers une page », **Then** une petite recherche ciblée lui permet de
+   filtrer par nom ou chemin et de choisir au clic ou avec les flèches puis
+   Entrée, sans afficher de champ Web ni créer de contenu intégré.
+8. **Given** un curseur dans le document, **When** le propriétaire choisit
+   « Lien Web », **Then** une petite saisie refuse toute adresse invalide et
+   crée après validation un bookmark stable occupant sa propre ligne, sans
+   proposer de cible interne.
+9. **Given** un lien dont tout le texte vient d'être effacé, **When** le
    propriétaire continue à écrire sur cette ligne, **Then** le nouveau texte
    n'hérite pas de l'ancien lien et le curseur reste visible sur la ligne vide.
 
@@ -500,9 +522,12 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - Une page ouverte perd son dernier enfant à la suite d'un déplacement local ou
   distant ; un identifiant encore présent dans l'état de repli ne doit pas
   matérialiser une branche qui n'existe plus.
-- Une requête de lien correspond à la fois à un nom de page et à une chaîne qui
-  ressemble à une adresse ; aucune navigation ni conversion ne se produit tant
-  que le propriétaire n'a pas choisi explicitement la cible.
+- Une page et un site portent le même nom : chaque action conserve sa famille
+  de cible et ne propose ni conversion implicite ni résultat de l'autre type.
+- Une page cible est renommée, déplacée, convertie, mise à la corbeille ou
+  dépourvue d'emoji pendant qu'un lien vers elle est visible.
+- Une page perd son dernier enfant pendant que son icône est remplacée par un
+  chevron au pointeur ou au clavier.
 - Tout le texte portant un lien est supprimé, puis une composition IME, un
   collage ou une frappe commence au même emplacement.
 
@@ -604,34 +629,60 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **FR-022**: Les liens internes MUST conserver l'identité canonique de leur
   cible et distinguer visuellement une cible active, supprimée, indisponible ou
   inconnue.
-- **FR-080**: Un lien interne ou externe existant MUST être reconnaissable comme
-  cliquable et permettre de l'ouvrir, modifier sa cible ou son libellé, et
+- **FR-080**: Un lien interne ou un bookmark Web existant MUST être
+  reconnaissable comme cliquable et permettre de l'ouvrir, modifier sa cible et
   retirer la référence depuis un outil contextuel ainsi que par clic droit.
-  Retirer un lien MUST conserver son texte et ne MUST ni supprimer, ni déplacer
-  une page interne cible. Remplacer une cible interne MUST conserver une
-  identité canonique plutôt qu'un titre copié.
-- **FR-081**: Favoris, Récents et chaque branche de la hiérarchie MUST placer un
-  chevron compact immédiatement avant le libellé contrôlé et employer un même
-  langage visuel de repli. Les préférences de visibilité MUST se présenter
-  comme des interrupteurs dont les états activé et désactivé restent explicites
-  au pointeur et au clavier.
+  Retirer une référence interne MUST ne jamais supprimer, déplacer ou renommer
+  sa page cible. Remplacer une cible interne MUST conserver une identité
+  canonique plutôt qu'un titre copié.
+- **FR-081**: Favoris et Récents MUST placer un chevron compact immédiatement
+  avant le libellé contrôlé. Les branches MUST employer le même symbole selon
+  la règle d'emplacement stable de FR-086. Les préférences de visibilité MUST
+  se présenter comme des interrupteurs dont les états activé et désactivé
+  restent explicites au pointeur et au clavier.
 - **FR-082**: Une page sans enfant MUST être rendue comme une feuille, y compris
   si elle était ouverte avant le déplacement de son dernier enfant, et ne MUST
   afficher aucun état vide sous sa ligne. La sélection courante MUST être
   indiquée par la surface complète de la ligne sans barre, arc ou bordure
   d'accent latérale ; l'indentation et les guides discrets MUST suffire à
   expliquer les niveaux parent-enfant.
-- **FR-083**: La création et la modification d'un lien MUST utiliser un parcours
-  unifié acceptant soit une adresse Web autorisée, soit une page choisie par
-  son nom ou son chemin. Ce parcours MUST permettre de passer d'un type de cible
-  à l'autre en conservant le libellé. La commande `/lien` MUST ouvrir ce
-  parcours ; l'insertion d'un contenu intégré MUST rester une action distincte
-  et explicite.
+- **FR-083**: La création d'une référence interne et celle d'un lien Web MUST
+  utiliser deux actions nommées et deux outils compacts distincts. Le premier
+  MUST rechercher uniquement une page ou un dossier par nom ou chemin ; le
+  second MUST accepter uniquement une adresse Web autorisée. Les contenus
+  intégrés interactifs MUST rester une action distincte et explicite.
 - **FR-084**: Un bloc vide ou une nouvelle ligne ciblée MUST toujours montrer
   un curseur de saisie visible. Lorsque le dernier caractère d'un lien est
   supprimé, son état de lien MUST être retiré avant la frappe, le collage ou la
   composition suivante afin qu'aucun texte nouveau n'hérite d'une cible
   supprimée.
+- **FR-085**: Chaque page ou dossier MUST posséder une icône canonique
+  facultative contenant au plus un grapheme emoji Unicode ou `null`. Cette
+  icône MUST être modifiable et retirable depuis la page et les actions de
+  l'élément, converger entre appareils, rester disponible hors ligne et être
+  conservée par export, sauvegarde et restauration. Aucun lien ne MUST posséder
+  une copie indépendante de cette icône.
+- **FR-086**: L'arborescence MUST réserver un seul emplacement stable à
+  l'emoji, l'icône de type et au chevron de branche. Pour un élément ayant des
+  enfants, le chevron MUST remplacer visuellement l'icône lorsque la commande
+  de repli est ciblée au pointeur ou au clavier, sans déplacer le libellé. Une
+  feuille MUST ne rendre aucun chevron ni espace supplémentaire propre au
+  dépliage.
+- **FR-087**: Une référence interne MUST afficher dynamiquement le titre et
+  l'icône actuels de sa cible et MUST interdire leur édition indépendante. Une
+  référence explicite vers un autre emplacement MUST porter un indicateur de
+  lien superposé à l'icône ; une référence créée par `/page` vers l'enfant
+  hiérarchique direct de la page source MUST ne pas porter cet indicateur.
+- **FR-088**: Un lien Web créé par l'action dédiée MUST produire un bookmark
+  occupant une ligne entière. Une adresse invalide MUST être refusée avant
+  création. L'indisponibilité des métadonnées distantes MUST conserver un bloc
+  stable affichant au minimum l'adresse et le domaine, sans iframe ni exécution
+  de contenu tiers dans le contexte de l'application.
+- **FR-089**: Les sélecteurs de page, d'emoji et d'adresse Web MUST être
+  entièrement utilisables au clavier avec focus initial, filtrage, flèches,
+  Entrée et Échap selon le contexte. Ils MUST rester compacts, ne pas masquer
+  durablement le document et préserver leur brouillon pendant une adoption de
+  synchronisation.
 - **FR-023**: Images et fichiers insérés dans une page MUST réutiliser le cycle
   de vie, la sécurité, les limites, la déduplication et la disponibilité locale
   définis par la feature 005.
@@ -945,10 +996,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   au moins deux secondes puis saisir un nouveau titre ne réinjecte jamais le
   libellé de repli ; quitter un champ encore vide l'affiche une seule fois dans
   la page et la navigation.
-- **SC-025**: Les parcours créer, ouvrir, modifier la cible et le libellé, puis
-  retirer un lien réussissent pour un lien interne et externe au pointeur, au
-  clic droit et au clavier ; le texte ainsi que toute page cible restent
-  intacts après retrait.
+- **SC-025**: Les parcours créer, ouvrir, modifier la cible puis retirer une
+  référence réussissent pour une page et un bookmark Web au pointeur, au clic
+  droit et au clavier ; le titre d'une référence interne reste celui de sa
+  cible et aucune page cible n'est modifiée après retrait.
 - **SC-026**: Masquer, afficher, replier et déplier indépendamment Favoris et
   Récents survit à un rechargement sur l'appareil dans cent pour cent des cas,
   sans modifier le nombre de favoris ni l'ordre de la hiérarchie Notes.
@@ -964,10 +1015,22 @@ en charge, une fois sans pointeur puis une fois au toucher.
   aucune ligne vide, aucun chevron résiduel et aucune barre d'accent latérale
   n'apparaissent ; les zones avant, intérieur et après restent identifiables
   avant le dépôt.
-- **SC-030**: Les parcours créer puis convertir un lien page vers Web et Web vers
-  page réussissent par sélection, clic droit, clavier et `/lien`; dans cent
-  suppressions du dernier caractère lié suivies d'une frappe, aucun caractère
-  nouveau ne porte l'ancienne cible et le curseur demeure visible.
+- **SC-030**: Les parcours distincts « Lien vers une page » et « Lien Web »
+  réussissent chacun au clic et au clavier sans résultat de l'autre famille ;
+  dans cent suppressions du dernier caractère lié suivies d'une frappe, aucun
+  caractère nouveau ne porte l'ancienne cible et le curseur demeure visible.
+- **SC-031**: Après cent renommages, déplacements et changements d'emoji d'une
+  cible, toutes ses références visibles affichent son titre et son icône
+  courants sans réécriture manuelle ni identité cassée.
+- **SC-032**: Sur cent ouvertures du sélecteur de page, le propriétaire peut
+  choisir une cible par saisie, flèches et Entrée en moins de cinq actions après
+  avoir tapé son filtre ; Échap ferme l'outil sans modifier le document.
+- **SC-033**: Sur les profils desktop et mobile, clair et sombre, l'apparition
+  du chevron d'une branche déplace son libellé de moins d'un pixel et aucune
+  feuille ne réserve une colonne de dépliage supplémentaire.
+- **SC-034**: Cent adresses invalides ne créent aucun bloc ; cent adresses
+  valides créent chacune un bookmark pleine largeur qui reste visible avec son
+  URL lorsque la récupération d'aperçu échoue.
 
 ## Assumptions
 

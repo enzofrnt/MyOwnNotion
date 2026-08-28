@@ -274,28 +274,30 @@ test.describe("the contextual BlockNote controls", () => {
     await toolbar.getByRole("button", { name: "Gras" }).click();
     await expect(editor.locator("strong")).toContainText("relier");
 
-    // The selected range remains active after formatting: open the shared
-    // picker, then choose the target. No global form or technical ID is shown.
-    await toolbar.getByRole("button", { name: "Ajouter un lien" }).click();
-    const picker = page.getByTestId("link-editor-dialog");
+    // The selected range remains active after formatting: open the dedicated
+    // internal-page picker, then choose the target with the keyboard. Web
+    // bookmarks deliberately use a separate full-line action.
+    await toolbar.getByTestId("open-page-link-picker").click();
+    const picker = page.getByTestId("page-link-picker");
     await expect(picker).toBeVisible();
-    await picker.getByLabel("Page ou adresse").fill(targetName);
-    await picker.getByRole("option").filter({ hasText: targetName }).click();
-    await picker.getByTestId("save-editor-link").click();
-    await expect(editor.locator('a[href^="#page="]')).toContainText("relier");
+    const search = picker.getByLabel("Rechercher une page");
+    await search.fill(targetName);
+    await expect(picker.getByRole("option").filter({ hasText: targetName })).toHaveCount(1);
+    await search.press("Enter");
+    await expect(picker).toBeHidden();
+    await expect(editor.locator('a[href^="#page="] .page-link__label')).toHaveText(targetName);
 
-    // Formatting and page-link creation are two independent local gestures.
-    // Undo removes only the latest one, then the preceding style; redo restores
-    // both without touching unrelated content.
-    await applyEditorHistory(page, "undo");
-    await expect(editor.locator('a[href^="#page="]')).toHaveCount(0);
-    await expect(editor.locator("strong")).toContainText("relier");
-    await applyEditorHistory(page, "undo");
-    await expect(editor.locator("strong")).toHaveCount(0);
-    await applyEditorHistory(page, "redo");
-    await applyEditorHistory(page, "redo");
-    await expect(editor.locator("strong")).toContainText("relier");
-    await expect(editor.locator('a[href^="#page="]')).toContainText("relier");
+    // The internal reference becomes target-owned content and survives the
+    // complete operational persistence path. Formatting history itself is
+    // covered independently below; it must not dictate an editable alias for
+    // a canonical page reference.
+    await saveDocument(page, { until: "synced" });
+    await page.reload();
+    await openWorkspace(page);
+    await selectItem(page, sourceName);
+    await expect(surface(page).locator('a[href^="#page="] .page-link__label')).toHaveText(
+      targetName,
+    );
   });
 });
 

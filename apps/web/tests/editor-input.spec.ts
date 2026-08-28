@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { Uuid } from "@myownnotion/domain";
 import { describe, expect, it, vi } from "vitest";
 import type { EditorBlock, EditorBlocksChanged } from "../src/features/editor/blocknote-schema.ts";
@@ -42,6 +43,13 @@ function callout(text: string): EditorBlock {
 }
 
 describe("editor input boundaries", () => {
+  it("gives empty ProseMirror lines a visible caret box in every theme", () => {
+    const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+    expect(css).toContain('.page-editor [contenteditable="true"]');
+    expect(css).toContain("caret-color: var(--ui-color-text)");
+    expect(css).toContain("br.ProseMirror-trailingBreak:only-child");
+    expect(css).toContain("min-width: 0.125rem");
+  });
   it("recovers a leading character omitted after a slash-menu transform", () => {
     const durable = callout("");
     const reportedBefore = callout("I");

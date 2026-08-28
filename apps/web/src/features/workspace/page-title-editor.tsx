@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ItemEmojiPicker } from "../../ui/emoji-picker.tsx";
 
 const UNTITLED_PAGE = "Sans titre";
 const TITLE_COMMIT_DELAY_MS = 450;
@@ -16,12 +17,16 @@ function committedTitle(value: string): string {
  * page adoption.
  */
 export function PageTitleEditor({
+  icon,
   title,
   onCommit,
+  onIconChange,
   onMoveToContent,
 }: {
+  readonly icon?: string | null;
   readonly title: string;
   readonly onCommit: (title: string) => Promise<void>;
+  readonly onIconChange?: (icon: string | null) => void;
   readonly onMoveToContent?: () => void;
 }) {
   const [draft, setDraft] = useState(title || UNTITLED_PAGE);
@@ -117,6 +122,15 @@ export function PageTitleEditor({
 
   return (
     <div className="workspace-page-title">
+      {onIconChange === undefined ? null : (
+        <ItemEmojiPicker
+          kind="page"
+          label={title || UNTITLED_PAGE}
+          value={icon ?? null}
+          variant="page"
+          onChange={onIconChange}
+        />
+      )}
       <textarea
         ref={textarea}
         rows={1}

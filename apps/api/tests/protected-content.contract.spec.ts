@@ -15,9 +15,11 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { SCRUBBED_PLACEHOLDER } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { ProtectedContent } from "../src/security/protected-content.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
 
@@ -218,6 +220,143 @@ describe("writing content through the ordinary routes", () => {
     );
     expect((rows as unknown as { rows: { n: number }[] }).rows[0]?.n).toBe(1);
     expect(await envelopeText()).not.toContain(SECRET_TITLE);
+  });
+
+  it("seals the item emoji with its title and preserves explicit removal", async () => {
+    const pageId = generateUuidV7();
+    const created = await harness.built.app.inject({
+      method: "POST",
+      url: "/v1/items",
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        id: pageId,
+        kind: "page",
+        name: "Private identity",
+        icon: "🕵️",
+        placement: { kind: "hierarchy", parentItemId: null, positionKey: "Vicon" },
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const content = harness.built.context.protectedContent;
+    expect(await content?.readItemPresentation(harness.built.database.db, pageId)).toEqual({
+      name: "Private identity",
+      icon: "🕵️",
+    });
+    expect(await envelopeText()).not.toContain("🕵️");
+
+    const removed = await harness.built.app.inject({
+      method: "PATCH",
+      url: `/v1/items/${pageId}`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        baseRevisionId: (created.json() as { item: { currentRevisionId: string } }).item
+          .currentRevisionId,
+        icon: null,
+      },
+    });
+    expect(removed.statusCode, removed.body).toBe(200);
+    expect(await content?.readItemPresentation(harness.built.database.db, pageId)).toEqual({
+      name: "Private identity",
+      icon: null,
+    });
+  });
+
+  it("keeps the sealed title when an icon changes after plaintext cutover", async () => {
+    const pageId = await createPage("Title kept only in its envelope");
+    const before = await harness.built.app.inject({ method: "GET", url: `/v1/items/${pageId}` });
+    await harness.built.database.db.execute(
+      sql`UPDATE items SET name = ${SCRUBBED_PLACEHOLDER} WHERE id = ${pageId}::uuid`,
+    );
+
+    const changed = await harness.built.app.inject({
+      method: "PATCH",
+      url: `/v1/items/${pageId}`,
+      headers: { "idempotency-key": randomUUID() },
+      payload: {
+        baseRevisionId: (before.json() as { currentRevisionId: string }).currentRevisionId,
+        icon: "🔐",
+      },
+    });
+
+    expect(changed.statusCode, changed.body).toBe(200);
+    expect(changed.json().item).toMatchObject({
+      name: "Title kept only in its envelope",
+      icon: "🔐",
+    });
+    expect(
+      await harness.built.context.protectedContent?.readItemPresentation(
+        harness.built.database.db,
+        pageId,
+      ),
+    ).toEqual({ name: "Title kept only in its envelope", icon: "🔐" });
+  });
+});
+
+describe("protected item presentation compatibility", () => {
+  it("opens legacy title envelopes and preserves an icon across title-only writes", async () => {
+    const encoded = (value: unknown) => new Uint8Array(Buffer.from(JSON.stringify(value), "utf8"));
+    let current: Uint8Array | null = encoded("Legacy title");
+    let many = new Map<string, Uint8Array>([
+      ["legacy", encoded("Legacy title")],
+      ["modern", encoded({ name: "Modern title", icon: "🧭" })],
+    ]);
+    const records = {
+      read: async () => current,
+      readMany: async () => many,
+      write: async (_executor: unknown, input: { payload: Uint8Array }) => {
+        current = input.payload;
+      },
+    };
+    const content = new ProtectedContent({ records: records as never });
+    const executor = {} as never;
+
+    await expect(content.readItemPresentation(executor, "legacy")).resolves.toEqual({
+      name: "Legacy title",
+      icon: null,
+    });
+    await expect(content.readItemNames(executor, ["legacy", "modern"])).resolves.toEqual(
+      new Map([
+        ["legacy", "Legacy title"],
+        ["modern", "Modern title"],
+      ]),
+    );
+
+    current = encoded({ name: "Current title", icon: "📌" });
+    await content.writeItemName(executor, {
+      itemId: "item",
+      recordVersion: 1,
+      name: "Renamed title",
+    });
+    expect(JSON.parse(Buffer.from(current ?? []).toString("utf8"))).toEqual({
+      name: "Renamed title",
+      icon: "📌",
+    });
+
+    current = null;
+    await content.writeItemName(executor, {
+      itemId: "fresh",
+      recordVersion: 1,
+      name: "Fresh title",
+    });
+    expect(JSON.parse(Buffer.from(current ?? []).toString("utf8"))).toEqual({
+      name: "Fresh title",
+      icon: null,
+    });
+
+    current = null;
+    await expect(content.readItemName(executor, "missing")).resolves.toBeNull();
+    many = new Map();
+    await expect(content.readItemNames(executor, [])).resolves.toEqual(new Map());
+    await content.writeItemName(executor, {
+      itemId: "explicit",
+      recordVersion: 1,
+      name: "Explicit icon",
+      icon: "🗺️",
+    });
+    expect(JSON.parse(Buffer.from(current ?? []).toString("utf8"))).toEqual({
+      name: "Explicit icon",
+      icon: "🗺️",
+    });
   });
 });
 

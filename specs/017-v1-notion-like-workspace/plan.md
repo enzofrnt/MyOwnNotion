@@ -625,16 +625,37 @@ la surface neutre active du design system, sans bordure ni ombre latérale, et
 les niveaux restent décrits par indentation et guides sobres. Les chevrons sont
 des icônes Lucide, pas des caractères typographiques dépendant de la police.
 
-La création de liens cesse de juxtaposer `CreateLinkButton` et un sélecteur de
-page. Un contrôleur Ariakit unique conserve la sélection ProseMirror et résout
-explicitement une cible comme URL autorisée ou identité canonique choisie dans
-une liste filtrée par nom et chemin. Il sert la toolbar et `/lien`; `/embed`
-reste la seule entrée vers le bloc `embed`. Le dialogue d'édition réutilise ce
-modèle et sait remplacer atomiquement un mark Web par un inline node `pageLink`,
-ou l'inverse, sans aplatir les autres styles du texte. Après retrait du dernier
-caractère lié, une garde ProseMirror supprime le mark stocké avant le prochain
-`beforeinput`; le caret reçoit une couleur explicite et les blocs vides gardent
-une boîte de ligne mesurable dans les deux thèmes.
+La correction de convergence suivante remplace le contrôleur de lien unifié
+par deux outils Ariakit compacts. `PageLinkPicker` ne recherche que les pages
+et dossiers actifs et rend sa liste navigable par flèches/Entrée ;
+`WebBookmarkDialog` ne valide qu'une URL autorisée et insère un bloc `embed`
+`provider=bookmark` sur sa propre ligne. `/embed` reste l'entrée séparée vers
+les fournisseurs interactifs. La toolbar, le menu `/` et le clic droit nomment
+explicitement ces deux actions au lieu de deviner un type depuis une chaîne.
+
+Le `pageLink` conserve l'UUID et un texte fallback dans la projection canonique,
+mais son node view visible résout `name`, `icon`, `kind` et parenté depuis la
+projection d'items. Le titre et l'icône rendus sont non éditables ; un badge est
+ajouté seulement lorsque la cible n'est pas un enfant hiérarchique direct de la
+page source. Le retrait conserve un fallback texte sans toucher la cible.
+
+L'item canonique gagne `icon: string | null`. La colonne serveur, le contrat
+HTTP, les mutations idempotentes, la projection Dexie et l'export la
+transportent. Côté local, `name` et `icon` partagent la même enveloppe chiffrée
+version-compatible afin de ne pas créer un index lisible ni une migration
+Dexie destructive. Les anciennes enveloppes contenant une simple chaîne sont
+lues comme `{ name, icon: null }`. Le serveur applique la même compatibilité à
+la présentation protégée et garde le champ nullable pour les installations
+antérieures.
+
+Le sélecteur d'emoji utilise `emoji-mart` et `@emoji-mart/data` comme
+dépendances directes, avec les données embarquées pour fonctionner hors ligne.
+Il vit dans un popover du design system au-dessus du titre et dans l'action de
+ligne. `ItemIcon` centralise emoji, fallback de type et badge ; l'arbre place
+`ItemIcon` et `tree-twisty` dans une même boîte de taille fixe afin que le
+chevron ne modifie jamais la géométrie. Après retrait du dernier caractère lié,
+la garde ProseMirror existante reste active avant `beforeinput`; le caret garde
+une couleur explicite et une boîte de ligne mesurable dans tous les moteurs.
 
 ### 10. Validation et ordre de livraison
 
@@ -652,10 +673,12 @@ Les tranches d'implémentation sont :
 9. convergence du workspace : préférences de raccourcis, arbre à trois zones,
    titre vide pendant l'édition, statut épinglé et cycle complet des liens ;
 10. finition de la navigation et des liens : chevrons cohérents, switches,
-    feuilles normalisées, sélection sans rail, cible de lien unifiée et caret ;
-11. migration de toutes les surfaces V1, français, thèmes, visuels et
+    feuilles normalisées, sélection sans rail et caret ;
+11. identité visuelle et références : emoji canonique d'item, chevron dans le
+    même emplacement, sélecteur de page compact et bookmark Web séparé ;
+12. migration de toutes les surfaces V1, français, thèmes, visuels et
     performance ;
-12. suppression du chemin éditorial legacy après preuve de migration.
+13. suppression du chemin éditorial legacy après preuve de migration.
 
 Chaque tranche garde l'application lisible et fournit un test indépendant. Le
 chemin legacy reste derrière une frontière de compatibilité jusqu'à ce que les

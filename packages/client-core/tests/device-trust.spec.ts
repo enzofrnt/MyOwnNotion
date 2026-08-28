@@ -52,6 +52,7 @@ async function seedLocalWork(): Promise<void> {
       id: itemId,
       kind: "page",
       name: "Offline draft",
+      icon: null,
       lifecycle: "active",
       currentRevisionId: generateUuidV7(),
       trashedAt: null,

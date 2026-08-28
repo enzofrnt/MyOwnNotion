@@ -17,9 +17,10 @@ import {
   readDatabaseEntryRecord,
   readDatabaseRecord,
   readItem,
-  readItemName,
+  readItemPresentation,
   readRelationshipMetadata,
   readRevisionSnapshots,
+  SCRUBBED_PLACEHOLDER,
   submitMutation,
   type Transaction,
 } from "@myownnotion/database";
@@ -27,6 +28,7 @@ import { isUuid, type MutationCommand, type SafeError, type Uuid } from "@myownn
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { DatabaseQueryService } from "../databases/database-query-service.ts";
 import type { SearchService } from "../search/search-service.ts";
+import { resolveProtectedContent } from "../security/content-resolution.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import { requestContext } from "../security/request-context.ts";
 import type { RotationPolicyService } from "../security/rotation-policy-service.ts";
@@ -169,14 +171,30 @@ async function sealPayloads(
   // creation are handled by one branch and a command shape that carries the
   // name differently cannot slip past.
   if (primaryItemId !== undefined) {
-    const name = await readItemName(tx, primaryItemId);
-    if (name !== null) {
-      await protectedContent.writeItemName(tx, {
-        itemId: primaryItemId,
-        recordVersion: 1,
-        name,
-      });
-    }
+    // A successful command returning a primary item id has just written that
+    // row in this transaction. Treating a missing row as a recoverable branch
+    // would let accepted content escape sealing; a broken invariant must throw
+    // and roll the transaction back instead.
+    const presentation = (await readItemPresentation(tx, primaryItemId)) as {
+      readonly name: string;
+      readonly icon: string | null;
+    };
+    // After encryption cutover the relational title is deliberately replaced
+    // by U+FFFD. Presentation-neutral writes (favourite, offline intent) and
+    // icon-only writes must not seal that marker over the real title. Read
+    // the current envelope in the same transaction and retain its title;
+    // an actual rename has already written a non-placeholder title and takes
+    // the ordinary branch.
+    const current =
+      presentation.name === SCRUBBED_PLACEHOLDER
+        ? await protectedContent.readItemPresentation(tx, primaryItemId)
+        : null;
+    await protectedContent.writeItemPresentation(tx, {
+      itemId: primaryItemId,
+      recordVersion: 1,
+      name: current?.name ?? presentation.name,
+      icon: presentation.icon,
+    });
   }
 }
 
@@ -348,7 +366,12 @@ export async function handleMutation(input: {
   if (result.status === "accepted" || result.status === "already-accepted") {
     const revisionIds = result.revisionIds ?? [];
     const primaryItemId = outcome.primaryItemId;
-    const item = primaryItemId === undefined ? null : await readItem(input.db, primaryItemId);
+    const storedItem = primaryItemId === undefined ? null : await readItem(input.db, primaryItemId);
+    const item =
+      storedItem === null
+        ? null
+        : ((await resolveProtectedContent(input.db, [storedItem], input.protectedContent))[0] ??
+          null);
 
     const body =
       input.successBody === undefined

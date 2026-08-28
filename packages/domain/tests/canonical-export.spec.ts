@@ -45,6 +45,7 @@ function item(overrides: Partial<ExportedItem> = {}): ExportedItem {
     workspaceId,
     kind: "page",
     name: "Page",
+    icon: null,
     lifecycle: "active",
     trashedAt: null,
     purgeAfter: null,

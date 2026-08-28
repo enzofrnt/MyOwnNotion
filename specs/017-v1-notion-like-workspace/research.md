@@ -520,4 +520,54 @@ canonique déjà décidée : un lien ne s'étend pas après sa borne droite.
 | Système visuel | Tailwind 4, tokens CSS, Ariakit, dnd-kit, Lucide |
 | Préférences de raccourcis | état de présentation IndexedDB local à l'appareil |
 | Cible de déplacement | zones dnd-kit explicites `before`, `inside`, `after` |
-| Liens | contrôleur unique pour URL ou page, représentations `link`/`pageLink` distinctes |
+| Liens | deux contrôleurs compacts : identité canonique de page ou bookmark Web pleine largeur |
+| Icône d'item | un grapheme emoji canonique nullable sur page/dossier, réutilisé par toutes ses représentations |
+
+## Decision 15 — Icône portée par l'item et deux outils de référence explicites
+
+**Decision**: Superséder la décision 14 pour l'interface visible. Une page ou
+un dossier porte une propriété `icon` nullable, validée comme un grapheme emoji
+Unicode. L'API canonique, la projection locale chiffrée, les snapshots, exports
+et sauvegardes transportent cette propriété une seule fois. Le shell résout
+ensuite l'icône de l'identité cible pour l'arbre, l'en-tête, la recherche et les
+références internes.
+
+Le lien interne reste un `pageLink` identifié par UUID. Son texte canonique
+reste un fallback portable, mais le node view visible résout toujours le titre
+et l'icône de la cible courante et empêche leur édition indépendante. Le
+contexte de rendu compare la cible à la parenté hiérarchique de la page source
+pour distinguer une sous-page directe d'une référence explicite.
+
+Le Web n'utilise plus le même dialogue. Une action dédiée valide l'URL puis
+insère un bloc `embed` de fournisseur `bookmark` sur une ligne entière. Son
+rendu statique et sûr montre au minimum origine et URL ; les fournisseurs
+interactifs restent dans `/embed` et gardent leur consentement/sandbox.
+
+Le choix d'emoji réutilise les données Emoji Mart déjà nécessaires à
+BlockNote, mais les déclare comme dépendances directes du client Web. Les
+données sont embarquées afin que le sélecteur reste disponible hors ligne ; le
+composant est placé dans un popover MyOwnNotion et n'introduit pas une seconde
+bibliothèque générale d'interface.
+
+**Rationale**: L'ancienne décision mélangeait une adresse et une identité de
+page dans un champ lourd, autorisait un libellé interne divergent et rendait
+l'emoji impossible à partager correctement entre l'arbre et le document. Les
+deux intentions sont différentes pour le propriétaire et produisent déjà deux
+représentations canoniques différentes. Les exposer séparément supprime
+l'ambiguïté, réduit chaque outil et permet un parcours clavier prévisible.
+
+**Evidence**: L'application Notion desktop observée le 2026-08-28 place
+l'emoji sur l'identité de page, le réutilise dans la barre latérale et
+l'en-tête, puis remplace l'emplacement de l'icône par le contrôle de branche au
+survol. Les captures produit fournies montrent séparément la recherche de page
+et la création d'un bookmark Web pleine largeur.
+
+**Alternatives considered**:
+
+- conserver le contrôleur unique de la décision 14 : reproduit l'ambiguïté
+  constatée et maintient un dialogue plus lourd que chaque besoin ;
+- stocker emoji et titre dans chaque `pageLink` : duplique des données et les
+  rend obsolètes après renommage ;
+- utiliser le sélecteur emoji distant : casse le parcours hors ligne ;
+- transformer tout lien Web en iframe : augmente les risques de confidentialité
+  et d'exécution tierce alors qu'un bookmark statique suffit.

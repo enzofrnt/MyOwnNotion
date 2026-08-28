@@ -1,6 +1,7 @@
 import type { SearchClientResult } from "@myownnotion/client-core";
 import type { ItemKind, Uuid } from "@myownnotion/domain";
 import { Button, FR_COPY } from "../../ui/index.ts";
+import { ItemIcon } from "../../ui/item-icon.tsx";
 
 const KIND_LABELS: Readonly<Record<ItemKind, string>> = {
   page: FR_COPY.search.pages,
@@ -15,6 +16,7 @@ export function SearchResults({
   onSelectionChange,
   onReturnToQuery,
   onLoadMore,
+  iconByItemId = new Map(),
   loadingMore = false,
 }: {
   readonly results: readonly SearchClientResult[];
@@ -24,6 +26,7 @@ export function SearchResults({
   readonly onReturnToQuery: () => void;
   readonly onLoadMore?: () => void;
   readonly loadingMore?: boolean;
+  readonly iconByItemId?: ReadonlyMap<string, string | null>;
 }) {
   const focusResult = (itemId: Uuid): void => {
     const target = document.getElementById(`search-result-${itemId}`);
@@ -75,6 +78,11 @@ export function SearchResults({
                 }
               }}
             >
+              <ItemIcon
+                className="search-result__icon"
+                kind={result.kind}
+                icon={iconByItemId.get(result.itemId) ?? null}
+              />
               <span className="search-result__heading">
                 <span className="search-result__title">{result.title}</span>
                 <span className="search-result__kind">{KIND_LABELS[result.kind]}</span>

@@ -35,6 +35,7 @@ async function seedHost(db: LocalDatabase, databaseId: Uuid, offlineIntent = fal
       id: databaseId,
       kind: "page",
       name: "Private database",
+      icon: null,
       lifecycle: "active",
       currentRevisionId: generateUuidV7(),
       trashedAt: null,

@@ -24,6 +24,7 @@ export interface LocalItemRow {
   readonly id: Uuid;
   readonly kind: "page" | "folder" | "file";
   readonly name: string;
+  readonly icon: string | null;
   readonly lifecycle: "active" | "trashed" | "purged";
   readonly currentRevisionId: Uuid;
   readonly trashedAt: string | null;
@@ -254,7 +255,8 @@ export const META_KEYS = {
  * exists because "does this page have a body" has to be answerable without
  * opening anything, and a null check on a sealed field cannot answer it.
  */
-export interface SealedLocalItemRow extends Omit<LocalItemRow, "name" | "pageDocument" | "file"> {
+export interface SealedLocalItemRow
+  extends Omit<LocalItemRow, "name" | "icon" | "pageDocument" | "file"> {
   readonly sealedName: LocalEnvelope;
   readonly sealedPageBody: LocalEnvelope | null;
   readonly sealedFile: LocalEnvelope | null;

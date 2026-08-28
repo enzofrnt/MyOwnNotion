@@ -567,9 +567,13 @@ export const FR_COPY = {
         title: "Contenu intégré",
         description: "Ajouter explicitement un aperçu tiers avec votre accord",
       },
-      link: {
-        title: "Lien",
-        description: "Créer un lien vers une page ou une adresse Web",
+      pageLink: {
+        title: "Lien vers une page",
+        description: "Rechercher une page de vos notes et insérer sa référence",
+      },
+      webBookmark: {
+        title: "Lien Web",
+        description: "Ajouter une adresse Web sur une ligne dédiée",
       },
       subpage: {
         title: "Sous-page",

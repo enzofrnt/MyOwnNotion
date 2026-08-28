@@ -745,6 +745,48 @@ Le périmètre d'ergonomie personnelle validé reste le clavier, le focus visibl
 le pointeur et le toucher ; il n'inclut ni campagne VoiceOver, ni certification
 WCAG, ni prise en charge spécialisée des technologies d'assistance.
 
+## Identité emoji et deux familles de liens — 2026-08-28
+
+Cette tranche remplace explicitement le dialogue de lien unifié décrit dans la
+phase 16. Le composant et ses tests ont été supprimés : « Lien vers une page »
+recherche uniquement une identité interne, tandis que « Lien Web » valide une
+adresse et crée un bookmark pleine ligne. Les contenus intégrés interactifs
+restent une troisième commande.
+
+L'emoji appartient au modèle canonique de la page ou du dossier. Il traverse la
+commande idempotente, PostgreSQL, la présentation protégée, la projection
+IndexedDB chiffrée, l'outbox, les exports et la restauration. Le même rendu
+`ItemIcon` est utilisé dans l'en-tête, l'arbre, la recherche et les références.
+Un lien conserve uniquement l'UUID de sa cible et résout titre, type et emoji
+depuis la projection courante. Le badge de référence est absent pour l'enfant
+direct créé par `/page` et présent pour une référence située ailleurs.
+
+Le journey d'identité choisit l'emoji pendant une coupure réseau complète,
+vérifie immédiatement sa présence locale, rétablit la connexion sans recharger,
+attend le drainage de l'outbox, puis contrôle recherche et rechargement durable.
+Il mesure également le centre commun de l'icône et du chevron et un déplacement
+du libellé inférieur ou égal à un pixel. La portée reste celle convenue pour
+l'application personnelle : clavier et focus visibles, pointeur, toucher et
+navigateurs pris en charge, sans campagne VoiceOver.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Domaine, contrats, projection locale et composants | une invocation Vitest parallèle sur les projets `domain`, `contracts`, `client-core` et `web` ciblant l'icône, le codec, les deux sélecteurs, les liens, le bookmark et le caret | 17 fichiers et 139 tests passés |
+| PostgreSQL et API protégée | une invocation Vitest sur `database-integration` et `api-contract` avec base jetable | 4 fichiers et 52 tests passés ; migration 0013, restore, ancienne enveloppe compatible, validation emoji, retrait explicite et conservation du titre chiffré après cutover |
+| Types | `bun run typecheck` | les neuf workspaces et le projet racine passent en parallèle |
+| Régression Web complète | `bun run --bun vitest run --project web` | 68 fichiers et 397 tests passés ; les anciens composants de lien ne sont plus présents |
+| Liens page/Web complets | `MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- tests/e2e/page-links.spec.ts` | 5/5 profils passés ; création séparée, validation URL, clic droit, clavier, retarget, retrait, reload et caret |
+| Identité dynamique d'une référence | matrice ciblée `page-links` + `block-editor`, cinq profils en parallèle | 5/5 profils passés en 58 s ; emoji, renommage, conversion et persistance sans alias éditable |
+| Emoji hors ligne et géométrie | `MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- tests/e2e/hierarchy.spec.ts --grep "one emoji identity"` | 5/5 profils passés en 37 s ; sélection locale hors ligne, reprise automatique, recherche, reload et déplacement du libellé ≤ 1 px |
+| Chevron et états de branche | `bun run test:e2e:local -- tests/e2e/keyboard-navigation.spec.ts --grep "what a branch says when it has nothing to show"` | 5/5 profils passés en 47 s ; la zone du chevron reçoit le pointeur avant son apparition et l'icône superposée ne l'intercepte jamais |
+| Références visuelles macOS | `bun run test:e2e:local -- tests/e2e/v1-surface-visuals.spec.ts --project=chromium-desktop` | recherche claire et base sombre passées après inspection et mise à jour intentionnelle ; les deux références mobiles sont ignorées sur ce projet par conception |
+| Références visuelles Linux | image épinglée `mcr.microsoft.com/playwright:v1.62.1-noble`, Chromium desktop, base jetable migrée | recherche claire et base sombre régénérées puis rejouées sans mode mise à jour dans leur environnement natif |
+| Statique | `bun x biome ci . --reporter=github` et `git diff --check` | passés ; aucune référence exécutable à l'ancien dialogue unifié |
+| Gate pré-push exact | `bun run checks:local` | passé sur le commit destiné à la branche : outillage, shell, format/lint, types, couverture, performance, PostgreSQL/migrations/contrats, matrice navigateur complète, builds, images, sécurité, licences et Compose |
+
+Le gate complet et les suites ciblées ferment T287 sans substituer une preuve CI
+à la validation locale exigée par `docs/development.md`.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

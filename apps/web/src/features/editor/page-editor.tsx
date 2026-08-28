@@ -41,17 +41,17 @@ import {
 } from "./editor-engine.ts";
 import { editorFileTransferQueue } from "./editor-file-state.tsx";
 import { insertDroppedFiles } from "./editor-files.ts";
-import {
-  clearStaleLinkTypingState,
-  type EditorLinkDescriptor,
-  type EditorLinkDialogRequest,
-  editorLinkCreationFromSelection,
-} from "./editor-links.ts";
+import { clearStaleLinkTypingState, editorLinkCreationFromSelection } from "./editor-links.ts";
 import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
-import { LinkEditorDialog } from "./editor-menus/link-editor-dialog.tsx";
+import { PageLinkPicker, type PageLinkPickerRequest } from "./editor-menus/page-link-picker.tsx";
 import { type CreateSubpage, FrenchSlashMenu } from "./editor-menus/slash-menu.tsx";
+import {
+  WebBookmarkDialog,
+  type WebBookmarkEditor,
+  type WebBookmarkRequest,
+} from "./editor-menus/web-bookmark-dialog.tsx";
 import {
   applyRemoteEditorProjection,
   type EditorChangeOrigin,
@@ -109,7 +109,8 @@ export function PageEditor({
 }) {
   const { resolvedTheme } = useTheme();
   const [editorError, setEditorError] = useState<string | null>(null);
-  const [linkEditor, setLinkEditor] = useState<EditorLinkDialogRequest | null>(null);
+  const [pageLinkPicker, setPageLinkPicker] = useState<PageLinkPickerRequest | null>(null);
+  const [webBookmarkDialog, setWebBookmarkDialog] = useState<WebBookmarkRequest | null>(null);
   const [, setHistoryVersion] = useState(0);
   const onOpenPageRef = useRef(onOpenPage);
   const editorHostRef = useRef<HTMLElement | null>(null);
@@ -480,8 +481,8 @@ export function PageEditor({
   }, [editable, editor]);
 
   useEffect(() => {
-    updatePageLinkPresentations(editor, items, onOpenPage);
-  }, [editor, items, onOpenPage]);
+    updatePageLinkPresentations(editor, items, pageId, onOpenPage);
+  }, [editor, items, onOpenPage, pageId]);
 
   const applyHistory = useCallback(
     (direction: "undo" | "redo") => {
@@ -617,9 +618,26 @@ export function PageEditor({
       className="page-editor"
       data-testid="block-editor"
       aria-label={FR_COPY.editor.surface.label}
-      onCompositionStart={() => batcher.beginComposition()}
-      onCompositionEnd={() => batcher.endComposition()}
-      onKeyDownCapture={shortcuts.onKeyDown}
+      onCompositionStart={() => {
+        clearStaleLinkTypingState(editor);
+        batcher.beginComposition();
+      }}
+      onCompositionEnd={() => {
+        batcher.endComposition();
+        clearStaleLinkTypingState(editor);
+      }}
+      onKeyDownCapture={(event) => {
+        if (
+          editable &&
+          event.key.length === 1 &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.altKey
+        ) {
+          clearStaleLinkTypingState(editor);
+        }
+        shortcuts.onKeyDown(event);
+      }}
       onContextMenu={shortcuts.onContextMenu}
       // Capture before BlockNote sees the native drop. Handling this while the
       // event bubbled let BlockNote insert its own image first on touch-sized
@@ -633,7 +651,10 @@ export function PageEditor({
       }}
       onPasteCapture={(event) => {
         const files = [...event.clipboardData.files];
-        if (files.length === 0) return;
+        if (files.length === 0) {
+          clearStaleLinkTypingState(editor);
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         acceptFiles(files);
@@ -643,6 +664,11 @@ export function PageEditor({
         markEditorActivity();
         const inputType = (event.nativeEvent as InputEvent).inputType;
         if (inputType.startsWith("insert")) clearStaleLinkTypingState(editor);
+        if (inputType.startsWith("delete")) {
+          // The deletion itself changes the boundary. Clear after BlockNote's
+          // handler has applied it so the next key cannot inherit the old mark.
+          queueMicrotask(() => clearStaleLinkTypingState(editor));
+        }
         const action = historyActionFromInputType(inputType);
         if (action === null) {
           // Most inputs also publish a BlockNote change, which replaces this
@@ -700,33 +726,48 @@ export function PageEditor({
         emojiPicker={false}
       >
         <FrenchSlashMenu
-          onCreateLink={() => {
+          onCreatePageLink={() => {
             const selection = editorLinkCreationFromSelection(editor);
-            if (selection !== null) setLinkEditor({ mode: "create", selection });
+            if (selection !== null) setPageLinkPicker({ mode: "create", selection });
           }}
+          onCreateWebBookmark={(blockId) =>
+            setWebBookmarkDialog({ mode: "create", anchorBlockId: blockId })
+          }
           onCreateSubpage={onCreateSubpage}
           onSubpageCreated={openCreatedSubpage}
           onError={reportEditorError}
         />
         <BlockSideMenu onError={reportEditorError} />
-        <EditorFormattingToolbar onLinkRequest={setLinkEditor} />
+        <EditorFormattingToolbar
+          onPageLinkRequest={setPageLinkPicker}
+          onWebBookmarkRequest={() => {
+            const anchorBlockId = editor.getTextCursorPosition().block.id;
+            setWebBookmarkDialog({ mode: "create", anchorBlockId });
+          }}
+        />
       </BlockNoteView>
       <BlockContextMenu
         editor={editor}
         state={shortcuts.contextMenu}
         onDismiss={shortcuts.dismissContextMenu}
-        onEditLink={(link: EditorLinkDescriptor) => setLinkEditor({ mode: "edit", link })}
+        onEditPageLink={setPageLinkPicker}
+        onEditWebBookmark={setWebBookmarkDialog}
         onError={reportEditorError}
         onOpenPage={onOpenPage}
       />
-      <LinkEditorDialog
+      <PageLinkPicker
         currentItemId={pageId}
         editor={editor}
         items={items}
-        request={linkEditor}
-        onClose={() => setLinkEditor(null)}
+        request={pageLinkPicker}
+        onClose={() => setPageLinkPicker(null)}
         onError={reportEditorError}
         onOpenPage={onOpenPage}
+      />
+      <WebBookmarkDialog
+        editor={editor as unknown as WebBookmarkEditor}
+        request={webBookmarkDialog}
+        onClose={() => setWebBookmarkDialog(null)}
       />
       {editorError === null ? null : (
         <AsyncState compact description={editorError} kind="error" testId="editor-error" />

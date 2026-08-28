@@ -71,7 +71,7 @@ export async function resolveProtectedContent(
 
   const resolved: ItemReadModel[] = [];
   for (const model of models) {
-    const sealedName = await content.readItemName(executor, model.id);
+    const sealedPresentation = await content.readItemPresentation(executor, model.id);
     // What is sealed is the document's *body*, not the envelope around it.
     // The format and its version are structural — they say how to parse the
     // body, not what it says — and they stay readable for the same reason the
@@ -84,7 +84,7 @@ export async function resolveProtectedContent(
         ? null
         : await content.readPageBody<Record<string, unknown>>(executor, model.id);
 
-    if (sealedName === null && model.name === SCRUBBED_PLACEHOLDER) {
+    if (sealedPresentation === null && model.name === SCRUBBED_PLACEHOLDER) {
       // The plaintext was scrubbed and the envelope is gone. Serving the
       // placeholder would present an empty title as content; this is the one
       // case where refusing is the honest answer.
@@ -93,7 +93,8 @@ export async function resolveProtectedContent(
 
     resolved.push({
       ...model,
-      name: sealedName ?? model.name,
+      name: sealedPresentation?.name ?? model.name,
+      icon: sealedPresentation === null ? model.icon : sealedPresentation.icon,
       pageDocument:
         model.pageDocument === null || sealedBody === null
           ? model.pageDocument

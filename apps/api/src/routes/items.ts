@@ -95,6 +95,7 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
           id: body.id as Uuid,
           kind: body.kind,
           name: body.name,
+          ...(body.icon !== undefined ? { icon: body.icon } : {}),
           placement: {
             kind: body.placement.kind,
             parentItemId: body.placement.parentItemId as Uuid | null,
@@ -145,10 +146,11 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
     async (request, reply) => {
       const { itemId } = request.params as { itemId: string };
       const body = request.body as UpdateItemDto;
-      if (body.name === undefined) {
+      const updates = Number(body.name !== undefined) + Number(body.icon !== undefined);
+      if (updates !== 1) {
         return sendProblem(reply, {
           code: "validation.invalid-payload",
-          title: "No supported update field provided",
+          title: "Provide exactly one supported update field",
         });
       }
       return handleMutation({
@@ -160,7 +162,10 @@ export function registerItemRoutes(app: FastifyInstance, context: AppContext): v
         structuredQueries: context.structuredQueries,
         request,
         reply,
-        command: { type: "item.rename", itemId: itemId as Uuid, name: body.name },
+        command:
+          body.name !== undefined
+            ? { type: "item.rename", itemId: itemId as Uuid, name: body.name }
+            : { type: "item.icon", itemId: itemId as Uuid, icon: body.icon ?? null },
       });
     },
   );

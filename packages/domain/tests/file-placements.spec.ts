@@ -471,6 +471,7 @@ describe("endpointAvailability", () => {
       workspaceId: generateUuidV7(),
       kind: "page",
       name: "Endpoint",
+      icon: null,
       lifecycle,
       trashedAt: null,
       purgeAfter: null,

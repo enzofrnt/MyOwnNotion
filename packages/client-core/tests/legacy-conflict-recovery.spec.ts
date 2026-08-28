@@ -80,6 +80,7 @@ async function storePage(pageId: Uuid, document: BlockDocument | BlockDocumentV3
       id: pageId,
       kind: "page",
       name: "Recovered page",
+      icon: null,
       lifecycle: "active",
       currentRevisionId: generateUuidV7(),
       trashedAt: null,

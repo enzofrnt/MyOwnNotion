@@ -11,16 +11,15 @@ import {
 import { useCallback } from "react";
 import { AppIcon } from "../../../ui/icons.tsx";
 import type { EditorInstance } from "../blocknote-schema.ts";
-import {
-  type EditorLinkDialogRequest,
-  editorLinkCreationFromSelection,
-  selectedEditorLink,
-} from "../editor-links.ts";
+import { editorLinkCreationFromSelection, selectedEditorLink } from "../editor-links.ts";
+import type { PageLinkPickerRequest } from "./page-link-picker.tsx";
 
 function MyOwnNotionFormattingToolbar({
-  onLinkRequest,
+  onPageLinkRequest,
+  onWebBookmarkRequest,
 }: {
-  readonly onLinkRequest: (request: EditorLinkDialogRequest) => void;
+  readonly onPageLinkRequest: (request: PageLinkPickerRequest) => void;
+  readonly onWebBookmarkRequest: () => void;
 }) {
   const editor = useBlockNoteEditor() as unknown as EditorInstance;
   const selectedLink = selectedEditorLink(editor);
@@ -28,13 +27,13 @@ function MyOwnNotionFormattingToolbar({
   const Toolbar = components?.FormattingToolbar;
   if (Toolbar === undefined) return null;
 
-  const openLinkFlow = (): void => {
-    if (selectedLink !== null) {
-      onLinkRequest({ mode: "edit", link: selectedLink });
+  const openPageLinkFlow = (): void => {
+    if (selectedLink?.kind === "page") {
+      onPageLinkRequest({ mode: "edit", link: selectedLink });
       return;
     }
     const selection = editorLinkCreationFromSelection(editor);
-    if (selection !== null) onLinkRequest({ mode: "create", selection });
+    if (selection !== null) onPageLinkRequest({ mode: "create", selection });
   };
 
   return (
@@ -46,12 +45,23 @@ function MyOwnNotionFormattingToolbar({
       <BasicTextStyleButton basicTextStyle="code" />
       <Toolbar.Button
         className="bn-button"
-        data-testid="open-link-dialog"
-        label={selectedLink === null ? "Ajouter un lien" : "Modifier le lien"}
-        mainTooltip={selectedLink === null ? "Ajouter un lien" : "Modifier le lien"}
+        data-testid="open-page-link-picker"
+        label={
+          selectedLink?.kind === "page" ? "Modifier le lien vers la page" : "Lien vers une page"
+        }
+        mainTooltip="Lien vers une page"
+        icon={<AppIcon name="fileText" />}
+        isSelected={selectedLink?.kind === "page"}
+        onClick={openPageLinkFlow}
+      />
+      <Toolbar.Button
+        className="bn-button"
+        data-testid="open-web-bookmark-dialog"
+        label="Lien Web"
+        mainTooltip="Lien Web"
         icon={<AppIcon name="link" />}
-        isSelected={selectedLink !== null}
-        onClick={openLinkFlow}
+        isSelected={false}
+        onClick={onWebBookmarkRequest}
       />
       <ColorStyleButton />
       <NestBlockButton />
@@ -60,16 +70,23 @@ function MyOwnNotionFormattingToolbar({
   );
 }
 
-/** Floating toolbar with one coherent entry point for page and Web links. */
+/** Floating toolbar with two explicit interactions: internal page or Web card. */
 export function EditorFormattingToolbar({
-  onLinkRequest,
+  onPageLinkRequest,
+  onWebBookmarkRequest,
 }: {
-  readonly onLinkRequest: (request: EditorLinkDialogRequest) => void;
+  readonly onPageLinkRequest: (request: PageLinkPickerRequest) => void;
+  readonly onWebBookmarkRequest: () => void;
 }) {
   const components = useComponentsContext();
   const toolbar = useCallback(
-    () => <MyOwnNotionFormattingToolbar onLinkRequest={onLinkRequest} />,
-    [onLinkRequest],
+    () => (
+      <MyOwnNotionFormattingToolbar
+        onPageLinkRequest={onPageLinkRequest}
+        onWebBookmarkRequest={onWebBookmarkRequest}
+      />
+    ),
+    [onPageLinkRequest, onWebBookmarkRequest],
   );
   if (components === undefined) return null;
   return <FormattingToolbarController formattingToolbar={toolbar} />;

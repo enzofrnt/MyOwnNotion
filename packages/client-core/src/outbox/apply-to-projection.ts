@@ -86,6 +86,7 @@ async function loadView(db: LocalDatabase): Promise<HierarchyView> {
             // failing to compile. That is the risk, and it is why the reason
             // is written down rather than assumed obvious.
             name: "",
+            icon: null,
             lifecycle: row.lifecycle,
             trashedAt: row.trashedAt,
             purgeAfter: row.purgeAfter,
@@ -314,6 +315,7 @@ export async function prepareProjectionWrite(
           id: command.id,
           kind: "page",
           name: command.name,
+          icon: null,
           lifecycle: "active",
           currentRevisionId: revisionId,
           trashedAt: null,
@@ -420,6 +422,7 @@ export async function prepareProjectionWrite(
           id: command.id,
           kind: "page",
           name: command.title,
+          icon: null,
           lifecycle: "active",
           currentRevisionId: revisionId,
           trashedAt: null,
@@ -504,6 +507,7 @@ export async function prepareProjectionWrite(
           id: command.id,
           kind: command.kind,
           name: command.name.trim(),
+          icon: command.icon ?? null,
           lifecycle: "active",
           currentRevisionId: revisionId,
           trashedAt: null,
@@ -526,6 +530,7 @@ export async function prepareProjectionWrite(
     }
 
     case "item.rename":
+    case "item.icon":
     case "item.convert":
     case "item.favourite":
     case "item.offline":
@@ -587,6 +592,11 @@ export async function prepareProjectionWrite(
         switch (command.type) {
           case "item.rename":
             return { ...opened, name: command.name.trim(), currentRevisionId: revisionId };
+          case "item.icon":
+            if (opened.kind === "file") {
+              throw new LocalValidationError("item.wrong-kind", "Files do not carry a custom icon");
+            }
+            return { ...opened, icon: command.icon, currentRevisionId: revisionId };
           case "item.favourite":
             return { ...opened, favourite: command.favourite, currentRevisionId: revisionId };
           case "item.offline":
@@ -851,7 +861,8 @@ export async function applyCommandToProjection(
     case "item.convert":
     case "item.favourite":
     case "item.offline":
-    case "item.rename": {
+    case "item.rename":
+    case "item.icon": {
       const item = await db.items.get(command.itemId);
       if (item === undefined) {
         throw new LocalValidationError("item.not-found", "Item is not available locally");

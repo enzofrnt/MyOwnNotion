@@ -23,6 +23,7 @@ import {
   type Uuid,
   validateCreateItem,
   validateFavouriteItem,
+  validateItemIcon,
   validateOfflineIntent,
   validateRenameItem,
   validateReplacePageDocument,
@@ -158,6 +159,7 @@ async function executeCreateItem(
     id: command.id,
     kind: command.kind,
     name: command.name,
+    ...(command.icon !== undefined ? { icon: command.icon } : {}),
     placement: command.placement,
     ...(command.pageDocument !== undefined ? { pageDocument: command.pageDocument } : {}),
   });
@@ -171,6 +173,7 @@ async function executeCreateItem(
     workspaceId: context.workspaceId,
     kind: plan.value.item.kind,
     name: plan.value.item.name,
+    icon: plan.value.item.icon,
     lifecycle: "active",
     currentRevisionId: revisionId,
     createdAt: context.acceptedAt,
@@ -234,6 +237,38 @@ async function executeRenameItem(
   await tx
     .update(items)
     .set({ name: plan.value.name, currentRevisionId: revisionId, updatedAt: context.acceptedAt })
+    .where(eq(items.id, plan.value.item.id));
+  const snapshot = await buildItemSnapshot(tx, plan.value.item.id);
+  await insertRevision(tx, {
+    id: revisionId,
+    itemId: plan.value.item.id,
+    mutationId: context.mutationId,
+    parentRevisionIds: [plan.value.item.currentRevisionId],
+    snapshot,
+    acceptedAt: context.acceptedAt,
+  });
+  await supersedeRevision(tx, plan.value.item.currentRevisionId, context.acceptedAt);
+  return ok({
+    revisionIds: [revisionId],
+    changedItemIds: [plan.value.item.id],
+    primaryItemId: plan.value.item.id,
+  });
+}
+
+async function executeSetItemIcon(
+  tx: Transaction,
+  context: MutationContext,
+  command: Extract<MutationCommand, { type: "item.icon" }>,
+): Promise<DomainResult<CommandExecution>> {
+  const item = await getItem(tx, command.itemId);
+  const plan = validateItemIcon({ getItem: () => item }, command);
+  if (!plan.ok) {
+    return plan as DomainResult<CommandExecution>;
+  }
+  const revisionId = generateUuidV7();
+  await tx
+    .update(items)
+    .set({ icon: plan.value.icon, currentRevisionId: revisionId, updatedAt: context.acceptedAt })
     .where(eq(items.id, plan.value.item.id));
   const snapshot = await buildItemSnapshot(tx, plan.value.item.id);
   await insertRevision(tx, {
@@ -611,6 +646,8 @@ export async function executeCommand(
       return executeCreateItem(tx, context, command);
     case "item.rename":
       return executeRenameItem(tx, context, command);
+    case "item.icon":
+      return executeSetItemIcon(tx, context, command);
     case "item.favourite":
       return executeFavouriteItem(tx, context, command);
     case "item.offline":

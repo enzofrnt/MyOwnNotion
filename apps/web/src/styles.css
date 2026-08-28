@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./ui/tokens.css";
 @import "./ui/primitives/primitives.css";
+@import "./ui/item-icon.css";
 @import "./ui/ui-lab.css";
 @import "./features/navigation/navigation.css";
 @import "./features/workspace/workspace.css";
@@ -1135,9 +1136,24 @@ textarea {
 
 .search-result__button {
   width: 100%;
-  display: grid;
-  gap: 0.25rem;
   text-align: left;
+}
+
+.search-result__button > .ui-button__label {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  gap: 0.25rem;
+}
+
+.search-result__icon {
+  grid-row: 1 / -1;
+  align-self: start;
+  margin-top: 0.125rem;
+}
+
+.search-result__button > .ui-button__label > :not(.search-result__icon) {
+  grid-column: 2;
 }
 
 .search-result__button[aria-current="true"] {
@@ -1625,6 +1641,22 @@ textarea {
   caret-color: var(--ui-color-text);
 }
 
+.page-editor .ProseMirror,
+.page-editor .ProseMirror-focused,
+.page-editor [contenteditable="true"] {
+  caret-color: var(--ui-color-text);
+}
+
+/* Chromium, Firefox and WebKit disagree on the width of a line whose only DOM
+   child is ProseMirror's trailing break. Give that line a real caret box while
+   keeping it visually empty. */
+.page-editor .bn-inline-content:empty,
+.page-editor .bn-inline-content:has(> br.ProseMirror-trailingBreak:only-child) {
+  display: inline-block;
+  min-width: 0.125rem;
+  min-height: 1.5em;
+}
+
 .page-editor a[href] {
   cursor: pointer;
 }
@@ -1777,7 +1809,10 @@ code,
 }
 
 .page-editor a.page-link {
+  display: inline-flex;
   padding-inline: 0.12em;
+  align-items: center;
+  gap: 0.3em;
   color: var(--ui-color-info);
   background: var(--ui-color-info-soft);
   border-radius: var(--ui-radius-xs);
@@ -1788,20 +1823,23 @@ code,
   cursor: pointer;
 }
 
-.editor-link-dialog {
+.page-link__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.page-link__label {
+  pointer-events: none;
+}
+
+.page-link-picker,
+.web-bookmark-dialog {
   display: grid;
   gap: var(--ui-space-3);
 }
 
-.editor-link-dialog__target {
-  display: grid;
-  gap: var(--ui-space-1);
-  color: var(--ui-color-text);
-  font-size: var(--ui-text-sm);
-  font-weight: 620;
-}
-
-.editor-link-dialog__target select {
+.page-link-picker__query,
+.web-bookmark-dialog input {
   width: 100%;
   min-height: var(--ui-target);
   padding: 0 var(--ui-space-3);
@@ -1809,27 +1847,28 @@ code,
   background: var(--ui-color-surface);
   border: 1px solid var(--ui-color-border);
   border-radius: var(--ui-radius-sm);
+  outline: 0;
 }
 
-.editor-link-dialog__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--ui-space-2);
+.page-link-picker__query:focus-visible,
+.web-bookmark-dialog input:focus-visible {
+  border-color: var(--ui-color-focus);
+  box-shadow: var(--ui-focus-ring);
 }
 
-.editor-link-dialog__results {
+.page-link-picker__results {
   display: grid;
-  max-height: 14rem;
+  max-height: min(20rem, 48vh);
   gap: 1px;
   overflow-y: auto;
 }
 
-.editor-link-dialog__results > button {
-  display: flex;
+.page-link-picker__results > button {
+  display: grid;
   width: 100%;
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   padding: var(--ui-space-2);
+  grid-template-columns: 1.5rem minmax(0, 1fr);
   align-items: center;
   gap: var(--ui-space-2);
   color: var(--ui-color-text);
@@ -1839,26 +1878,46 @@ code,
   text-align: left;
 }
 
-.editor-link-dialog__results > button:hover,
-.editor-link-dialog__results > button:focus-visible,
-.editor-link-dialog__results > button[aria-selected="true"] {
+.page-link-picker__results > button:hover,
+.page-link-picker__results > button[aria-selected="true"] {
   background: var(--ui-color-surface-hover);
 }
 
-.editor-link-dialog__results > button:focus-visible {
+.page-link-picker__results > button:focus-visible {
   outline: 2px solid var(--ui-color-focus);
   outline-offset: -2px;
 }
 
-.editor-link-dialog__web-target {
-  display: flex;
-  margin: 0;
-  padding: var(--ui-space-2);
-  align-items: center;
-  gap: var(--ui-space-2);
+.page-link-picker__results > button > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.page-link-picker__results small {
+  overflow: hidden;
   color: var(--ui-color-text-muted);
   font-size: var(--ui-text-xs);
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-link-picker__results > p,
+.page-link-picker__error,
+.web-bookmark-dialog__error {
+  margin: 0;
+  color: var(--ui-color-text-muted);
+  font-size: var(--ui-text-sm);
+}
+
+.page-link-picker__error,
+.web-bookmark-dialog__error {
+  color: var(--ui-color-danger);
+}
+
+.page-link-picker__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ui-space-1);
 }
 
 .page-editor a.page-link-deleted,
@@ -2124,6 +2183,106 @@ code,
   margin-block: var(--ui-space-2);
 }
 
+.editor-web-bookmark {
+  width: 100%;
+  margin-block: var(--ui-space-2);
+}
+
+.web-bookmark-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  background: var(--ui-color-surface-sunken);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+}
+
+.web-bookmark-context-menu {
+  position: fixed;
+  display: grid;
+  width: 13.5rem;
+}
+
+.web-bookmark-context-menu .ui-menu__item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.web-bookmark-context-menu .ui-menu__item:focus-visible {
+  background: var(--ui-color-surface-hover);
+  outline: none;
+}
+
+.web-bookmark-card > a {
+  display: grid;
+  min-width: 0;
+  min-height: 4.25rem;
+  padding: var(--ui-space-3);
+  flex: 1;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-3);
+  color: var(--ui-color-text);
+  text-decoration: none;
+}
+
+.web-bookmark-card > a:hover {
+  background: var(--ui-color-surface-hover);
+}
+
+.web-bookmark-card__mark {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--ui-color-text-muted);
+  background: var(--ui-color-surface);
+  border-radius: var(--ui-radius-sm);
+  place-items: center;
+}
+
+.web-bookmark-card__content {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.web-bookmark-card__content strong,
+.web-bookmark-card__content small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.web-bookmark-card__content small {
+  color: var(--ui-color-text-muted);
+}
+
+.web-bookmark-card__actions {
+  position: absolute;
+  top: var(--ui-space-2);
+  right: var(--ui-space-2);
+  display: flex;
+  padding: var(--ui-space-1);
+  gap: var(--ui-space-1);
+  background: var(--ui-color-surface-raised);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--ui-shadow-menu);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.web-bookmark-card:hover .web-bookmark-card__actions,
+.web-bookmark-card:focus-within .web-bookmark-card__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .editor-image-block {
   display: grid;
   justify-items: center;
@@ -2298,10 +2457,14 @@ code,
   .editor-code-toolbar button,
   .editor-table-toolbar button,
   .editor-callout-controls input,
-  .editor-callout-controls select,
-  .editor-link-dialog__results > button {
+  .editor-callout-controls select {
     min-width: var(--ui-target);
     min-height: var(--ui-target);
+  }
+
+  .web-bookmark-card__actions {
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 
@@ -2410,26 +2573,6 @@ input[type="file"] {
 .save-state[data-state="blocked"] {
   border-left-color: var(--danger);
   color: var(--danger);
-}
-
-/* The expand/collapse control. A leaf gets an empty span of the same width so
-   names line up regardless of whether a row has children — a tree whose labels
-   jitter as branches open is harder to scan than one that does not. */
-.tree-twisty {
-  flex: 0 0 auto;
-  width: 1.5rem;
-  min-height: 1.5rem;
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: 0.8rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.tree-twisty--leaf {
-  cursor: default;
 }
 
 /* ---------------------------------------------------------------------------

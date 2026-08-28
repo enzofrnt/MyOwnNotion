@@ -60,6 +60,8 @@ export const items = pgTable(
       .references(() => workspaces.id),
     kind: text("kind").notNull(),
     name: text("name").notNull(),
+    /** Nullable Unicode emoji grapheme; application validation owns grapheme semantics. */
+    icon: text("icon"),
     lifecycle: text("lifecycle").notNull().default("active"),
     trashedAt: timestamp("trashed_at", { withTimezone: true }),
     purgeAfter: timestamp("purge_after", { withTimezone: true }),
@@ -91,6 +93,11 @@ export const items = pgTable(
     check("items_kind_check", sql`${table.kind} IN ('page', 'folder', 'file')`),
     check("items_lifecycle_check", sql`${table.lifecycle} IN ('active', 'trashed', 'purged')`),
     check("items_name_check", sql`length(${table.name}) BETWEEN 1 AND 512`),
+    check(
+      "items_icon_length_check",
+      sql`${table.icon} IS NULL OR length(${table.icon}) BETWEEN 1 AND 64`,
+    ),
+    check("items_file_icon_check", sql`${table.kind} <> 'file' OR ${table.icon} IS NULL`),
     check(
       "items_trash_metadata_check",
       sql`(${table.lifecycle} <> 'trashed') OR (${table.trashedAt} IS NOT NULL AND ${table.purgeAfter} IS NOT NULL)`,

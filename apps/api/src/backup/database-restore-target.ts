@@ -161,6 +161,7 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         workspaceId: options.workspaceId,
         kind: item.kind,
         name: item.name,
+        icon: item.icon ?? null,
         lifecycle: item.lifecycle,
         trashedAt: item.trashedAt === null ? null : new Date(item.trashedAt),
         purgeAfter: item.purgeAfter === null ? null : new Date(item.purgeAfter),
@@ -172,6 +173,7 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
         itemId: item.id,
         recordVersion: 1,
         name: item.name,
+        icon: item.icon ?? null,
       });
 
       if (item.pageDocument !== null) {

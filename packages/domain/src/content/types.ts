@@ -36,6 +36,8 @@ export interface CanonicalItem {
   readonly workspaceId: Uuid;
   readonly kind: ItemKind;
   readonly name: string;
+  /** One optional Unicode emoji grapheme used consistently as this item's icon. */
+  readonly icon: string | null;
   readonly lifecycle: Lifecycle;
   readonly trashedAt: string | null;
   readonly purgeAfter: string | null;
@@ -79,6 +81,7 @@ export interface Relationship {
 export const SAFE_ERROR_CODES = [
   "validation.invalid-identifier",
   "validation.invalid-name",
+  "validation.invalid-icon",
   "validation.invalid-kind",
   "validation.invalid-payload",
   "validation.unknown-format-version",
@@ -177,6 +180,29 @@ export function normalizeDisplayName(raw: string): DomainResult<string> {
     return err("validation.invalid-name", "Display name exceeds 512 characters");
   }
   return ok(trimmed);
+}
+
+/**
+ * Validates the owner-selected icon without depending on an emoji vendor.
+ *
+ * Unicode grapheme segmentation keeps joined families, skin tones, flags and
+ * keycaps as one visible icon. The property checks then reject ordinary text,
+ * lone regional indicators and plain digits that merely participate in some
+ * emoji sequences.
+ */
+export function normalizeItemIcon(raw: string | null): DomainResult<string | null> {
+  if (raw === null) {
+    return ok(null);
+  }
+  const icon = raw.trim();
+  const graphemes = [...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(icon)];
+  const isFlag = /^\p{Regional_Indicator}{2}$/u.test(icon);
+  const isKeycap = /^[0-9#*]\uFE0F?\u20E3$/u.test(icon);
+  const isPictograph = /\p{Extended_Pictographic}/u.test(icon);
+  if (graphemes.length !== 1 || (!isFlag && !isKeycap && !isPictograph)) {
+    return err("validation.invalid-icon", "Item icon must be one Unicode emoji");
+  }
+  return ok(icon);
 }
 
 /**

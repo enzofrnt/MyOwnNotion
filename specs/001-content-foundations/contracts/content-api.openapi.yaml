@@ -102,9 +102,12 @@ paths:
             schema:
               type: object
               required: [baseRevisionId]
+              minProperties: 2
+              maxProperties: 2
               properties:
                 baseRevisionId: { $ref: '#/components/schemas/Uuid' }
                 name: { $ref: '#/components/schemas/DisplayName' }
+                icon: { $ref: '#/components/schemas/ItemIcon' }
               additionalProperties: false
       responses:
         '200':
@@ -916,6 +919,10 @@ components:
       type: string
       minLength: 1
       maxLength: 512
+    ItemIcon:
+      oneOf:
+        - { type: string, minLength: 1, maxLength: 64 }
+        - { type: 'null' }
     ItemKind:
       enum: [page, folder, file]
     Lifecycle:
@@ -966,6 +973,7 @@ components:
         id: { $ref: '#/components/schemas/Uuid' }
         kind: { $ref: '#/components/schemas/ItemKind' }
         name: { $ref: '#/components/schemas/DisplayName' }
+        icon: { $ref: '#/components/schemas/ItemIcon' }
         lifecycle: { $ref: '#/components/schemas/Lifecycle' }
         currentRevisionId: { $ref: '#/components/schemas/Uuid' }
         trashedAt: { type: [string, 'null'], format: date-time }
@@ -1010,6 +1018,7 @@ components:
         id: { $ref: '#/components/schemas/Uuid' }
         kind: { enum: [page, folder] }
         name: { $ref: '#/components/schemas/DisplayName' }
+        icon: { $ref: '#/components/schemas/ItemIcon' }
         placement: { $ref: '#/components/schemas/CreatePlacement' }
         pageDocument: { $ref: '#/components/schemas/PageDocument' }
       additionalProperties: false

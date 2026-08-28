@@ -18,6 +18,7 @@ import {
   type DomainResult,
   err,
   isSafeErrorCode,
+  normalizeItemIcon,
   ok,
   type PageDocument,
   type PlacementKind,
@@ -26,6 +27,7 @@ import {
 export const COMMAND_TYPES = [
   "item.create",
   "item.rename",
+  "item.icon",
   "item.convert",
   "item.favourite",
   "item.offline",
@@ -50,6 +52,7 @@ export type MutationCommand =
       readonly id: Uuid;
       readonly kind: "page" | "folder";
       readonly name: string;
+      readonly icon?: string | null;
       readonly placement: {
         readonly id?: Uuid;
         readonly kind: PlacementKind;
@@ -59,6 +62,7 @@ export type MutationCommand =
       readonly pageDocument?: PageDocument;
     }
   | { readonly type: "item.rename"; readonly itemId: Uuid; readonly name: string }
+  | { readonly type: "item.icon"; readonly itemId: Uuid; readonly icon: string | null }
   | {
       readonly type: "item.convert";
       readonly itemId: Uuid;
@@ -241,6 +245,7 @@ export function parseMutationCommand(
       const id = requireUuid(payload, "id");
       const kind = payload["kind"];
       const name = payload["name"];
+      const rawIcon = payload["icon"];
       const placement = parsePlacementSpec(payload["placement"]);
       if (
         id === null ||
@@ -250,14 +255,30 @@ export function parseMutationCommand(
       ) {
         return invalid();
       }
+      if (rawIcon !== undefined && rawIcon !== null && typeof rawIcon !== "string") {
+        return invalid();
+      }
+      const icon = normalizeItemIcon(rawIcon === undefined ? null : rawIcon);
+      if (!icon.ok) {
+        return icon as DomainResult<MutationCommand>;
+      }
+      const iconField = rawIcon === undefined ? {} : { icon: icon.value };
       if ("pageDocument" in payload && payload["pageDocument"] !== undefined) {
         const document = parsePageDocument(payload["pageDocument"]);
         if (document === null) {
           return invalid();
         }
-        return ok({ type: "item.create", id, kind, name, placement, pageDocument: document });
+        return ok({
+          type: "item.create",
+          id,
+          kind,
+          name,
+          ...iconField,
+          placement,
+          pageDocument: document,
+        });
       }
-      return ok({ type: "item.create", id, kind, name, placement });
+      return ok({ type: "item.create", id, kind, name, ...iconField, placement });
     }
     case "item.rename": {
       const itemId = requireUuid(payload, "itemId");
@@ -266,6 +287,17 @@ export function parseMutationCommand(
         return invalid();
       }
       return ok({ type: "item.rename", itemId, name });
+    }
+    case "item.icon": {
+      const itemId = requireUuid(payload, "itemId");
+      const rawIcon = payload["icon"];
+      if (itemId === null || (rawIcon !== null && typeof rawIcon !== "string")) {
+        return invalid();
+      }
+      const icon = normalizeItemIcon(rawIcon);
+      return icon.ok
+        ? ok({ type: "item.icon", itemId, icon: icon.value })
+        : (icon as DomainResult<MutationCommand>);
     }
     case "item.convert": {
       const itemId = requireUuid(payload, "itemId");

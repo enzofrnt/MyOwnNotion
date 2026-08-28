@@ -48,3 +48,6 @@
   disclosure controls and switches, removes stale empty-page branches and
   accent rails, and makes `/lien`, page targets, Web targets, unlinking and the
   empty-line caret one measurable lifecycle without turning embeds into links.
+- The 2026-08-28 correction supersedes the unified target picker: page
+  references and Web bookmarks now have distinct compact keyboard flows, while
+  emoji are canonical page/folder properties reused by every representation.
