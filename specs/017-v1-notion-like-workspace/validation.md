@@ -900,12 +900,12 @@ les deux thèmes sans mise à jour opportuniste des captures de référence.
 | Statique et types | `bunx biome check .` puis `bun run typecheck` | 896 fichiers sans diagnostic ; 9 workspaces et le projet racine typés |
 | Premier gate pré-push | `PATH=/tmp/myownnotion-ci-tools:$PATH bun run checks:local` sur `f35181e2` | interrompu volontairement pendant les performances dès réception du retour visuel ; ce commit n'est pas publiable |
 | Deuxième gate pré-push | même commande sur `c5fa48da` | interrompu volontairement pendant les performances dès réception du retour sur l’enveloppe absente ; ce commit n’est pas publiable |
-| Gate pré-push exact | même commande sur le futur commit corrigé | en attente après validation de la troisième capture et de la matrice ciblée |
+| Gate pré-push exact | `PATH=/tmp/myownnotion-ci-tools:$PATH bun run checks:local` sur `d70ec9ca` | passé avec code nul : politique d’outillage et shell, format/lint/types, 315 fichiers et 3 232 tests de couverture, 7 suites de performance, 332 intégrations PostgreSQL, migrations, 108 fichiers et 1 232 contrats, matrice Playwright 5/5 en 1 373 s à concurrence bornée, builds Bun, images API/Web `amd64`/`arm64`, audit, secrets, analyse statique, licences et contrat Compose |
 
-La ligne du gate et la clôture de T303 ne sont valides que si cette commande
-termine avec un code nul sur le commit exact destiné à la branche. En cas
-d'échec, le commit candidat n'est pas publié, la correction est intégrée et le
-gate repart intégralement depuis le début.
+La commande a terminé avec un code nul sur `d70ec9ca`, le commit exact qui porte
+le code destiné à la branche. La clôture documentaire de T303 est isolée dans un
+commit sans consommateur exécutable ; elle suit donc le gate documentaire défini
+dans `docs/development.md` sans invalider la preuve applicative du commit testé.
 
 ### Stabilisation du menu de pièce jointe après merge
 
