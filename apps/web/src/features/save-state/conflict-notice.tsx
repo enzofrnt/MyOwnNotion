@@ -28,6 +28,7 @@ import type { ConflictRecordRow } from "@myownnotion/client-core";
 import { exportMarkdown, readDocumentBody, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { ConflictResolution } from "../sync/conflict-resolution.tsx";
 
 /** The conflicts that concern one item, and that carry a readable document. */
@@ -142,62 +143,57 @@ export function ConflictNotice({
   }
 
   return (
-    <section
-      className="status-banner"
-      data-state="conflict"
-      data-testid="conflict-notice"
-      role="alert"
-      aria-label="This page was changed in two places"
-    >
-      <p>
-        <strong>This page was changed in two places.</strong> Nothing has been thrown away — both
-        versions are below, and the one you keep is your choice.
-      </p>
+    <AsyncState
+      kind="conflict"
+      testId="conflict-notice"
+      title="Cette page a été modifiée à deux endroits"
+      description={
+        <>
+          <p>Rien n’a été supprimé : les deux versions sont conservées et le choix vous revient.</p>
+          {conflicts.map((row) => {
+            const mine = documentFromPayload(row.payload);
+            const unreadable = "Cette version ne peut pas être lue sur cet appareil.";
+            return (
+              <div key={row.mutationId} data-testid={`conflict-versions-${row.mutationId}`}>
+                <h3>Sur le serveur</h3>
+                <pre data-testid="conflict-server-version">{serverText ?? unreadable}</pre>
 
-      {conflicts.map((row) => {
-        const mine = documentFromPayload(row.payload);
-        return (
-          <div key={row.mutationId} data-testid={`conflict-versions-${row.mutationId}`}>
-            <h3>On the server</h3>
-            <pre data-testid="conflict-server-version">
-              {serverText ?? "This version could not be read on this device."}
-            </pre>
+                <h3>Version enregistrée par cet appareil</h3>
+                <pre data-testid="conflict-local-version">{mine ?? unreadable}</pre>
 
-            <h3>What this device tried to save</h3>
-            <pre data-testid="conflict-local-version">
-              {mine ?? "This version could not be read on this device."}
-            </pre>
-
-            <div className="tree-actions">
-              {/* The route out of an all-or-nothing choice. Without this, an
-                  owner whose two devices each changed a different paragraph has
-                  to discard one of them wholesale — which is the outcome FR-014
-                  exists to avoid. */}
-              <button
-                type="button"
-                data-testid={`conflict-compare-${row.mutationId}`}
-                onClick={() => setComparing(true)}
-              >
-                Compare part by part
-              </button>
-              <button
-                type="button"
-                data-testid={`conflict-keep-mine-${row.mutationId}`}
-                onClick={() => void keepMine(row)}
-              >
-                Keep this device's version
-              </button>
-              <button
-                type="button"
-                data-testid={`conflict-keep-server-${row.mutationId}`}
-                onClick={() => void discardMine(row)}
-              >
-                Keep the server's version
-              </button>
-            </div>
-          </div>
-        );
-      })}
-    </section>
+                <div className="tree-actions">
+                  <Button
+                    type="button"
+                    size="compact"
+                    data-testid={`conflict-compare-${row.mutationId}`}
+                    onClick={() => setComparing(true)}
+                  >
+                    Comparer partie par partie
+                  </Button>
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="secondary"
+                    data-testid={`conflict-keep-mine-${row.mutationId}`}
+                    onClick={() => void keepMine(row)}
+                  >
+                    Conserver la version de cet appareil
+                  </Button>
+                  <Button
+                    type="button"
+                    size="compact"
+                    variant="ghost"
+                    data-testid={`conflict-keep-server-${row.mutationId}`}
+                    onClick={() => void discardMine(row)}
+                  >
+                    Conserver la version du serveur
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </>
+      }
+    />
   );
 }

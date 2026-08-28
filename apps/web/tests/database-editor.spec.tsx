@@ -74,8 +74,8 @@ const database: DatabaseDto = {
 
 describe("database editor surfaces (T022)", () => {
   it("keeps localized copy and arbitrary-size decimal formatting outside canonical values", () => {
-    expect(DATABASE_COPY.create.initialTitlePropertyName).toBe("Title");
-    expect(formatDatabaseDecimal("12345678901234567890.50")).toBe("12,345,678,901,234,567,890.50");
+    expect(DATABASE_COPY.create.initialTitlePropertyName).toBe("Titre");
+    expect(formatDatabaseDecimal("12345678901234567890.50")).toBe("12 345 678 901 234 567 890,50");
   });
 
   it("renders an explicit page-backed database creation form", () => {
@@ -85,9 +85,9 @@ describe("database editor surfaces (T022)", () => {
         onCreate: vi.fn(),
       }),
     );
-    expect(markup).toContain("Create a database");
+    expect(markup).toContain("Créer une base de données");
     expect(markup).toContain('name="database-name"');
-    expect(markup).toContain("Create database");
+    expect(markup).toContain("Créer la base de données");
   });
 
   it("validates a property draft without discarding the owner's input", () => {
@@ -129,10 +129,10 @@ describe("database editor surfaces (T022)", () => {
         onOpenEntry: vi.fn(),
       }),
     );
-    expect(markup).toContain("Database contents");
+    expect(markup).toContain("Contenu de la base de données");
     expect(markup).toContain("Estimate");
-    expect(markup).toContain("Add property");
-    expect(markup).toContain("New entry");
+    expect(markup).toContain("Ajouter une propriété");
+    expect(markup).toContain("Nouvelle entrée");
     expect(markup).not.toContain("kind=database");
   });
 
@@ -148,7 +148,7 @@ describe("database editor surfaces (T022)", () => {
       }),
     );
     expect(markup).toContain('value="12,5"');
-    expect(markup).toContain("Use a dot as the decimal separator");
+    expect(markup).toContain("Utilisez un point comme séparateur décimal");
   });
 
   it("accepts an intentionally missing date so calendar entries can remain unscheduled", () => {
@@ -185,6 +185,6 @@ describe("database editor surfaces (T022)", () => {
     expect(markup).toContain("Alpha");
     expect(markup).toContain("Estimate");
     expect(markup).toContain('value="12.5"');
-    expect(markup).toContain("Page content");
+    expect(markup).toContain("Contenu de la page");
   });
 });

@@ -100,7 +100,7 @@ describe("database page interaction durability", () => {
     });
 
     const options = container.querySelector<HTMLInputElement>(
-      '.property-editor input[placeholder="Planned, In progress, Done"]',
+      '.property-editor input[placeholder="Prévu, En cours, Terminé"]',
     );
     const save = container.querySelector<HTMLButtonElement>(
       '.property-editor button[type="submit"]',

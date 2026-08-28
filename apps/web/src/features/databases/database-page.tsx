@@ -7,6 +7,7 @@ import {
 } from "@myownnotion/domain";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewResult } from "../../services/databases.ts";
+import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { BoardView } from "./board-view.tsx";
 import { CalendarView } from "./calendar-view.tsx";
@@ -415,11 +416,16 @@ export function DatabasePage({
       <header className="database-page__header">
         <div>
           <p className="muted">{DATABASE_COPY.page.eyebrow}</p>
-          <h2 id={`database-heading-${database.databaseId}`}>Database contents</h2>
+          <h2 id={`database-heading-${database.databaseId}`}>{DATABASE_COPY.page.contents}</h2>
         </div>
-        <button type="button" disabled={savingProperty} onClick={() => setEditingProperty(true)}>
+        <Button
+          type="button"
+          size="compact"
+          disabled={savingProperty}
+          onClick={() => setEditingProperty(true)}
+        >
           {DATABASE_COPY.page.addProperty}
-        </button>
+        </Button>
       </header>
 
       {editingProperty ? (
@@ -438,7 +444,7 @@ export function DatabasePage({
       ) : null}
 
       {activeView === undefined ? (
-        <p role="alert">{DATABASE_COPY.common.noUsableView}</p>
+        <AsyncState compact kind="error" description={DATABASE_COPY.common.noUsableView} />
       ) : (
         <>
           <DatabaseToolbar
@@ -470,13 +476,14 @@ export function DatabasePage({
               <span>{property.name}</span>
               <span className="muted">{DATABASE_COPY.property.typeLabels[property.type]}</span>
               {property.type !== "title" ? (
-                <button
+                <Button
                   type="button"
-                  className="link"
+                  size="compact"
+                  variant="ghost"
                   onClick={() => void retireProperty(property.id)}
                 >
                   {DATABASE_COPY.common.remove}
-                </button>
+                </Button>
               ) : null}
             </li>
           ))}
@@ -494,8 +501,9 @@ export function DatabasePage({
           <h3>{DATABASE_COPY.page.schemaImpactHeading}</h3>
           <p>{DATABASE_COPY.page.impact(impact.affectedValueCount, impact.affectedEntryCount)}</p>
           <div className="field-row">
-            <button
+            <Button
               type="button"
+              size="compact"
               onClick={() => {
                 void replaceDefinition(pendingDefinition, {
                   digest: impact.impactDigest,
@@ -506,10 +514,11 @@ export function DatabasePage({
               }}
             >
               {DATABASE_COPY.common.preserveIncompatible}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="danger"
+              size="compact"
+              variant="danger"
               onClick={() => {
                 void replaceDefinition(pendingDefinition, {
                   digest: impact.impactDigest,
@@ -520,27 +529,29 @@ export function DatabasePage({
               }}
             >
               {DATABASE_COPY.common.discardAffected}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="link"
+              size="compact"
+              variant="ghost"
               onClick={() => {
                 setImpact(null);
                 setPendingDefinition(null);
               }}
             >
               {DATABASE_COPY.common.cancel}
-            </button>
+            </Button>
           </div>
         </section>
       ) : null}
 
       <form className="database-entry-create" onSubmit={createEntry}>
-        <label htmlFor={`new-entry-${database.databaseId}`}>{DATABASE_COPY.page.newEntry}</label>
         <div className="field-row">
-          <input
+          <Field
             ref={entryInputRef}
             id={`new-entry-${database.databaseId}`}
+            label={DATABASE_COPY.page.newEntry}
+            error={entryError ?? undefined}
             defaultValue=""
             placeholder={DATABASE_COPY.page.untitledPage}
             disabled={savingEntry}
@@ -551,28 +562,41 @@ export function DatabasePage({
           />
           <StableActionButton
             type="submit"
+            variant="primary"
+            busy={savingEntry}
             disabled={savingEntry}
             onActivate={() => void submitEntry()}
           >
             {DATABASE_COPY.page.newEntry}
           </StableActionButton>
         </div>
-        {entryError !== null ? <p role="alert">{entryError}</p> : null}
       </form>
 
       <div className="database-view-status" aria-live="polite">
-        {effectiveQueryState === "loading" ? <p>{DATABASE_COPY.page.loadingView}</p> : null}
+        {effectiveQueryState === "loading" ? (
+          <AsyncState compact kind="loading" description={DATABASE_COPY.page.loadingView} />
+        ) : null}
         {effectiveQueryState === "invalid" ? (
-          <p role="alert">{DATABASE_COPY.page.invalidView}</p>
+          <AsyncState compact kind="error" description={DATABASE_COPY.page.invalidView} />
         ) : null}
         {effectiveQueryState === "degraded" ? (
-          <p role="alert">{DATABASE_COPY.page.rebuildingView}</p>
+          <AsyncState compact kind="offline" description={DATABASE_COPY.page.rebuildingView} />
         ) : null}
-        {page?.staleCursorRecovered ? <p>{DATABASE_COPY.page.staleView}</p> : null}
+        {page?.staleCursorRecovered ? (
+          <AsyncState compact kind="info" description={DATABASE_COPY.page.staleView} />
+        ) : null}
         {page === null ? null : page.coverage === "complete" ? (
-          <p>{DATABASE_COPY.page.completeResult(page.expectedCount)}</p>
+          <AsyncState
+            compact
+            kind="success"
+            description={DATABASE_COPY.page.completeResult(page.expectedCount)}
+          />
         ) : (
-          <p>{DATABASE_COPY.page.partialResult(page.availableCount, page.expectedCount)}</p>
+          <AsyncState
+            compact
+            kind="offline"
+            description={DATABASE_COPY.page.partialResult(page.availableCount, page.expectedCount)}
+          />
         )}
       </div>
 

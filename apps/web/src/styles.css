@@ -196,40 +196,6 @@ select {
   font-size: 0.75rem;
 }
 
-.status-banner {
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-}
-
-.status-banner[data-state="error"] {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.status-banner[data-state="offline"] {
-  border-color: var(--warn);
-  color: var(--warn);
-}
-
-.status-banner[data-state="synced"] {
-  border-color: var(--ok);
-  color: var(--ok);
-}
-
-.status-banner[data-state="pending"],
-.status-banner[data-state="syncing"] {
-  border-color: var(--warn);
-  color: var(--warn);
-}
-
-.status-banner[data-state="conflict"] {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
 .ambiguity-actions {
   display: flex;
   min-width: 0;
@@ -238,15 +204,6 @@ select {
   padding: 0;
   margin: 0;
   border: 0;
-}
-
-.empty-state,
-.loading-state {
-  color: var(--muted);
-  padding: 1.5rem;
-  text-align: center;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
 }
 
 .panel {
@@ -423,9 +380,6 @@ select {
 }
 
 .database-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 3;
   display: grid;
   gap: 0.6rem;
   margin-top: 1rem;
@@ -920,7 +874,9 @@ select {
 }
 
 .database-calendar__day {
+  min-width: 0;
   min-height: 8rem;
+  overflow: hidden;
   padding: 0.45rem;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -931,6 +887,9 @@ select {
 }
 
 .database-calendar__card {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 0.45rem;
 }
 
@@ -939,9 +898,15 @@ select {
   width: 100%;
 }
 
-.database-calendar__move-actions,
 .database-card__move-actions {
   display: flex;
+  gap: 0.25rem;
+}
+
+.database-calendar__move-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 0.25rem;
 }
 
@@ -950,6 +915,16 @@ select {
   min-width: 0;
   padding: 0.25rem;
   font-size: 0.75rem;
+}
+
+.database-calendar__move-actions button {
+  width: 100%;
+  max-width: 100%;
+}
+
+.database-calendar__move-actions .ui-button__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .database-calendar__unscheduled {

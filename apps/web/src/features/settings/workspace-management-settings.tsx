@@ -2,7 +2,7 @@ import type { ProjectedItem } from "@myownnotion/client-core";
 import type { SafeError } from "@myownnotion/domain";
 import { useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
-import { Button } from "../../ui/primitives/index.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { DiagnosticsPanel } from "../diagnostics/diagnostics-panel.tsx";
 import { ItemDetails } from "../hierarchy/item-details.tsx";
 import { RevisionRestore } from "../history/revision-restore.tsx";
@@ -25,7 +25,10 @@ export function WorkspaceManagementSettings({
   service,
   trashedItems,
 }: WorkspaceManagementSettingsProps) {
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    readonly kind: "error" | "success";
+    readonly message: string;
+  } | null>(null);
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
   if (section === "local-data") {
@@ -40,11 +43,11 @@ export function WorkspaceManagementSettings({
         item.currentRevisionId,
       ]);
       if (!result.ok) {
-        setFeedback(`« ${item.name} » n’a pas pu être restauré.`);
+        setFeedback({ kind: "error", message: `« ${item.name} » n’a pas pu être restauré.` });
         setRestoringId(null);
         return;
       }
-      setFeedback(`« ${item.name} » a été restauré.`);
+      setFeedback({ kind: "success", message: `« ${item.name} » a été restauré.` });
       await service.synchronize();
       setRestoringId(null);
     };
@@ -57,9 +60,7 @@ export function WorkspaceManagementSettings({
           affiché dans le workspace tant qu’ils sont dans la corbeille.
         </p>
         {feedback === null ? null : (
-          <p role="status" className="status-banner" data-state="synced">
-            {feedback}
-          </p>
+          <AsyncState compact kind={feedback.kind} description={feedback.message} />
         )}
         {trashedItems.length === 0 ? (
           <p className="muted" data-testid="trash-empty">

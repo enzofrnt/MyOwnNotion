@@ -1,7 +1,7 @@
 # Validation — Feature 017
 
-Dernière mise à jour : 2026-08-27
-Tranches validées : US3, US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222 ; ergonomie clavier/toucher US7
+Dernière mise à jour : 2026-08-28
+Tranches validées : US3, US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222 ; ergonomie clavier/toucher US7 ; cohérence multi-surfaces US6
 
 Ce document consigne les preuves exécutées. Il ne remplace ni les critères de
 `spec.md`, ni les tâches encore ouvertes dans `tasks.md`, ni le gate avant push
@@ -692,11 +692,65 @@ et les espacements du dialogue n'ont pas changé.
 | Course sur les cinq profils | `MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- tests/e2e/page-links.spec.ts --grep '/lien creates a Web link' --repeat-each=10 --retries=0` | 50/50 exécutions passées en 79 s, dix par profil et sans seconde tentative |
 | Gate pré-push exécutable | `bun run checks:local` avec Bun 1.4.0 et les outils épinglés de `docs/development.md`, sur `11881e35` | passé : 302 fichiers et 3 161 tests de couverture, 18 tests de performance, 331 intégrations PostgreSQL, 11 migrations, 108 fichiers et 1 227 contrats, E2E 5/5 en 1 585 s, builds Bun, images API/Web `amd64`/`arm64`, audit, secrets, analyse statique, licences et Compose |
 
+## Cohérence visuelle multi-surfaces — 2026-08-28
+
+La phase US6 est fermée sur les surfaces V1 livrées. Les actions, champs,
+confirmations et états asynchrones passent par les primitives communes ; la
+copie courante est française ; BlockNote utilise son catalogue officiel
+français avec ses styles natifs désactivés et les thèmes de l'application. Les
+informations d'exploitation restent dans les réglages ou diagnostics, tandis
+que le workspace conserve le contenu, la navigation et des états compacts.
+
+L'ancien composant global `components/sync-status.tsx` et les variantes CSS
+`status-banner`, `empty-state` et `loading-state` ont été retirés. Le résumé
+workspace conserve ses contrats métier (`offline`, `pending`, `syncing`,
+`synced`, `conflict`, `quota-failure`) dans la feature de synchronisation, mais
+sa présentation repose maintenant sur le même composant `Status` que les autres
+surfaces.
+
+| Surface | États représentatifs | Thèmes / largeur | Preuve |
+| --- | --- | --- | --- |
+| Installation et connexion | vérification, indisponible, saisie, confirmation, erreur | clair/sombre, desktop/mobile via tokens communs | audit `french-copy.spec.ts`, matrice `v1-surface-consistency.spec.tsx`, journeys `bootstrap.spec.ts` et `authentication.spec.ts` |
+| Workspace et éditeur | page vide/active, erreur d'ouverture, enregistrement local, synchronisation, ambiguïté | clair/sombre desktop ; comportement responsive cinq profils | références `workspace-shell-visual.spec.ts`, états communs et `editor-sync-status.spec.tsx` |
+| Recherche | initial, chargement, résultats, vide, hors ligne, erreur | clair desktop 1280 × 800 | `v1-search-light` macOS/Linux et journeys `search.spec.ts` / `search-offline.spec.ts` |
+| Fichiers et pièces jointes | chargement, local, transfert, indisponible, aperçu, suppression | tokens communs et cinq profils fonctionnels | tests Web ciblés, `files.spec.ts`, `file-preview.spec.ts`, `editor-offline-media.spec.ts` |
+| Bases structurées | base vide, toolbar, propriétés, table/liste/Kanban/galerie/calendrier, conflit | sombre desktop 1280 × 800 ; responsive cinq profils | `v1-database-dark`, matrice des composants base et journeys `databases-*.spec.ts` |
+| Réglages de navigation | interrupteurs Favoris/Récents et destination séparée | clair mobile 412 × 915 | `v1-navigation-light-mobile` macOS/Linux et `workspace-shell.spec.ts` |
+| Sécurité et appareils | connexion, passkeys, mot de passe, sessions, appareils, récupération, rotation | sombre mobile 412 × 915 | `v1-security-dark-mobile` macOS/Linux, tests composants sécurité et journeys dédiés |
+| Sauvegardes, historique, corbeille et diagnostics | loading, empty, success, stale/error, restauration | destinations dédiées clair/sombre et responsive | matrice US6, `workspace-settings-boundary.spec.ts`, `backup.spec.ts`, `revision-restore.spec.ts` |
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| États, copie et éditeur | matrice Vitest ciblée `french-copy`, `v1-surface-consistency`, bases, synchronisation, ambiguïtés et échecs locaux | tests ciblés passés ; aucune ancienne classe d'état ni confirmation native dans `apps/web/src` |
+| Typage Web | `bun run --filter @myownnotion/web typecheck` | passé après migration des primitives et du statut workspace |
+| Références hôte | `MYOWNNOTION_E2E_JOBS=2 bun run test:e2e:local -- tests/e2e/v1-surface-visuals.spec.ts` | 5/5 profils passés en 62 s ; 4 références Chromium propriétaires et skips de pixels explicites sur les autres moteurs |
+| Références Linux CI | image épinglée `mcr.microsoft.com/playwright:v1.62.1-noble`, projets Chromium desktop/mobile | 4/4 références Linux générées et rejouables sur base jetable dédiée |
+| Sélection CI | `bun run test:contract -- tests/contract/test-impact.spec.ts` | 34/34 contrats passés ; le journey multi-surfaces et le nouveau propriétaire du statut sync sont enregistrés |
+| Régression Chromium complète | `bun run test:e2e:local -- --project=chromium-desktop` | 252 tests passés et 2 scénarios visuels mobiles ignorés par conception, sans échec, en 5,5 min |
+| Confirmation de corbeille mobile | quatre parcours ciblés sur Chromium mobile et WebKit mobile | 8/8 exécutions passées ; le tiroir modal cède la place à la confirmation et se rouvre après annulation |
+
+Les huit images approuvées vivent sous
+`tests/e2e/v1-surface-visuals.spec.ts-snapshots/`. Elles couvrent deux thèmes,
+deux largeurs et plusieurs destinations sans dates ou alertes dépendant de
+l'ordre de la suite. Les interactions et états non représentés par un pixel
+restent couverts par les tests de composants et les journeys fonctionnels de la
+matrice complète.
+
+Le passage complet a également corrigé deux défauts fonctionnels découverts par
+la matrice : l'ouverture de la recherche place désormais réellement le focus
+dans son champ, et la barre des bases ne recouvre plus les cellules du calendrier
+pendant le défilement. La recherche visuelle utilise une référence unique afin
+de rester indépendante de l'ordre d'exécution et de l'index conservé en mémoire.
+Le périmètre d'ergonomie personnelle validé reste le clavier, le focus visible,
+le pointeur et le toucher ; il n'inclut ni campagne VoiceOver, ni certification
+WCAG, ni prise en charge spécialisée des technologies d'assistance.
+
 ## Limites encore ouvertes
 
-Cette validation ne clôt pas les tâches suivantes :
-
-- la finition et les surfaces restantes en US6/US7.
+Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de
+performance restants, compatibilité avant, fuzz/limites, audit de sécurité,
+rollback de migration, retrait définitif du chemin Tiptap/replace, documentation
+d'architecture, scénarios manuels et essai d'utilisabilité.
 
 La tranche prouve donc le parcours de synchronisation implémenté aujourd'hui ;
-elle ne prétend pas encore que toute la V1 est terminée.
+elle ferme US6 mais ne prétend pas encore que toute la V1 est terminée.

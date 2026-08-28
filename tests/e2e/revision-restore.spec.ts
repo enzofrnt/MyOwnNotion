@@ -44,9 +44,12 @@ test.describe("revision history (US5)", () => {
     await expect(page.getByTestId("revision-snapshot")).toContainText(pageName);
 
     await page.getByTestId("restore-revision").click();
-    await expect(page.getByTestId("restore-feedback")).toContainText("history unchanged", {
-      timeout: 15_000,
-    });
+    await expect(page.getByTestId("restore-feedback")).toContainText(
+      "historique existant reste inchangé",
+      {
+        timeout: 15_000,
+      },
+    );
   });
 
   test("a stale head yields an explicit conflict instead of silent overwrite", async ({
@@ -97,9 +100,12 @@ test.describe("revision history (US5)", () => {
 
       // Restore now conflicts explicitly (the first UI's head is stale).
       await page.getByTestId("restore-revision").click();
-      await expect(page.getByTestId("restore-feedback")).toContainText("current head changed", {
-        timeout: 15_000,
-      });
+      await expect(page.getByTestId("restore-feedback")).toContainText(
+        "version actuelle a changé",
+        {
+          timeout: 15_000,
+        },
+      );
     } finally {
       await second.context.close();
     }

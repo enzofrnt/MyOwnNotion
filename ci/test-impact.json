@@ -528,7 +528,7 @@
       "test": "tests/e2e/legacy-sync-self-healing.spec.ts",
       "owners": {
         "exact": [
-          "apps/web/src/components/sync-status.tsx",
+          "apps/web/src/features/sync/workspace-sync-status.tsx",
           "apps/web/src/features/settings/storage-diagnostics.tsx",
           "apps/web/src/services/local-content.ts",
           "packages/client-core/src/local-store/schema.ts",
@@ -585,6 +585,32 @@
           "apps/web/src/features/editor/",
           "apps/web/src/features/hierarchy/",
           "apps/web/src/features/navigation/",
+          "apps/web/src/features/workspace/",
+          "apps/web/src/ui/primitives/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/v1-surface-visuals.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/app.tsx",
+          "apps/web/src/styles.css",
+          "apps/web/src/ui/copy/fr.ts",
+          "apps/web/src/ui/primitives/primitives.css",
+          "apps/web/src/ui/tokens.css"
+        ],
+        "prefixes": [
+          "apps/web/src/features/auth/",
+          "apps/web/src/features/backup/",
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/editor/",
+          "apps/web/src/features/files/",
+          "apps/web/src/features/navigation/",
+          "apps/web/src/features/search/",
+          "apps/web/src/features/security/",
+          "apps/web/src/features/settings/",
           "apps/web/src/features/workspace/",
           "apps/web/src/ui/primitives/"
         ],

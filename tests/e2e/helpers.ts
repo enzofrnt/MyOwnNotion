@@ -376,8 +376,17 @@ export async function renameItem(page: Page, itemName: string, nextName: string)
   await expect(page.getByTestId(`tree-item-${nextName}`)).toBeVisible({ timeout: 15_000 });
 }
 
-export async function trashItem(page: Page, itemName: string): Promise<void> {
+export async function trashItem(
+  page: Page,
+  itemName: string,
+  options: { readonly confirm?: boolean } = {},
+): Promise<void> {
   await clickItemAction(page, itemName, `trash-${itemName}`);
+  const confirmation = page.getByTestId("trash-confirmation");
+  await expect(confirmation).toBeVisible();
+  if (options.confirm === false) return;
+  await confirmation.getByTestId("confirm-trash").click();
+  await expect(confirmation).toBeHidden();
 }
 
 export async function moveItemToRoot(page: Page, itemName: string): Promise<void> {
@@ -449,8 +458,8 @@ export async function selectItem(page: Page, name: string): Promise<void> {
 /** Creates one database entry and waits for the form handler to finish. */
 export async function createDatabaseEntry(page: Page, title: string): Promise<Locator> {
   const form = page.locator(".database-entry-create");
-  const input = form.getByLabel("New entry");
-  const submit = form.getByRole("button", { name: "New entry" });
+  const input = form.getByLabel("Nouvelle entrée");
+  const submit = form.getByRole("button", { name: "Nouvelle entrée" });
   await expect(input).toBeEnabled({ timeout: 15_000 });
   await input.fill(title);
   await expect(input).toHaveValue(title);
@@ -468,13 +477,13 @@ export async function createDatabaseEntry(page: Page, title: string): Promise<Lo
 /** Saves structured values only after the local mutation is observably accepted. */
 export async function saveEntryProperties(page: Page): Promise<void> {
   const panel = page.locator(".entry-panel");
-  await panel.getByRole("button", { name: "Save properties" }).click();
+  await panel.getByRole("button", { name: "Enregistrer les propriétés" }).click();
   // Waiting for an empty queue immediately after the click can return before
   // the async handler has enqueued anything. This acknowledgement proves the
   // local write happened, so the synchronization wait below cannot race ahead
   // of the action it is meant to observe.
   await expect(panel.getByTestId("entry-properties-saved")).toHaveText(
-    "Properties saved locally.",
+    "Propriétés enregistrées localement.",
     { timeout: 15_000 },
   );
   await waitForSynchronized(page);

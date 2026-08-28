@@ -88,7 +88,7 @@ test.describe("a revoked device (FR-021)", () => {
         "revoked",
         { timeout: 60_000 },
       );
-      await expect(second.page.getByTestId("live-connection-state")).toContainText("withdrawn");
+      await expect(second.page.getByTestId("live-connection-state")).toContainText(/révoqué/i);
 
       // The first device is unaffected: revoking one device is not signing out.
       const stillWorks = uniqueName("AfterRevocation");

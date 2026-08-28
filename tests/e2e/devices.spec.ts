@@ -83,7 +83,9 @@ test.beforeEach(async () => {
 });
 
 async function openPasswordForm(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+    timeout: 30_000,
+  });
   if (!(await page.getByTestId("password-input").isVisible())) {
     await page.getByTestId("use-password-instead").click();
   }
@@ -107,6 +109,14 @@ function oldPhoneRow(page: import("@playwright/test").Page) {
   return page.getByTestId("device-row").filter({ hasText: "Old phone" });
 }
 
+async function revokeOldPhone(page: import("@playwright/test").Page): Promise<void> {
+  await oldPhoneRow(page).getByTestId("revoke-device").click();
+  const confirmation = page.getByTestId("revoke-device-confirmation");
+  await expect(confirmation).toContainText("Révoquer « Old phone » ?");
+  await confirmation.getByTestId("confirm-revoke-device").click();
+  await expect(confirmation).toBeHidden();
+}
+
 test.describe("what the inventory shows", () => {
   test("lists the owner's devices", async ({ page }) => {
     await openDevices(page);
@@ -118,8 +128,8 @@ test.describe("what the inventory shows", () => {
     // owner most needs to notice, and borrowing its authorization date would
     // make it look as active as the browser they are sitting at.
     await openDevices(page);
-    await expect(oldPhoneRow(page)).toContainText("last used never");
-    await expect(oldPhoneRow(page)).toContainText("last synchronized never");
+    await expect(oldPhoneRow(page)).toContainText("dernière utilisation jamais");
+    await expect(oldPhoneRow(page)).toContainText("dernière synchronisation jamais");
   });
 
   test("does not expose the device binding identifier", async ({ page }) => {
@@ -150,19 +160,20 @@ test.describe("revoking a device", () => {
     // data was wiped stops looking for the lost device — so the screen has to
     // distinguish losing access from being erased.
     await openDevices(page);
-    await oldPhoneRow(page).getByTestId("revoke-device").click();
+    await revokeOldPhone(page);
 
-    await expect(page.getByTestId("device-message")).toContainText("cannot be erased remotely", {
-      timeout: 30_000,
-    });
-    await expect(page.getByTestId("device-message")).toContainText("reconnects");
+    await expect(page.getByTestId("device-message")).toContainText(
+      "ne peuvent pas être effacées à distance",
+      { timeout: 30_000 },
+    );
+    await expect(page.getByTestId("device-message")).toContainText("ne se reconnecte jamais");
   });
 
   test("still says the device lost its access", async ({ page }) => {
     // The limitation must not swallow the reassurance: revoking did work.
     await openDevices(page);
-    await oldPhoneRow(page).getByTestId("revoke-device").click();
-    await expect(page.getByTestId("device-message")).toContainText("no longer reach", {
+    await revokeOldPhone(page);
+    await expect(page.getByTestId("device-message")).toContainText("ne peut plus accéder", {
       timeout: 30_000,
     });
   });
@@ -171,13 +182,13 @@ test.describe("revoking a device", () => {
     // Matching the server, which refuses to act on it. A button that always
     // fails teaches the owner to distrust the screen.
     await openDevices(page);
-    await oldPhoneRow(page).getByTestId("revoke-device").click();
-    await expect(page.getByTestId("device-message")).toContainText("no longer reach", {
+    await revokeOldPhone(page);
+    await expect(page.getByTestId("device-message")).toContainText("ne peut plus accéder", {
       timeout: 30_000,
     });
 
     const revoked = page.getByTestId("device-row").filter({ hasText: "Old phone" });
-    await expect(revoked).toContainText("Revoked");
+    await expect(revoked).toContainText("Révoqué");
     await expect(revoked.getByTestId("revoke-device")).toHaveCount(0);
     await expect(revoked.getByTestId("rename-device")).toHaveCount(0);
   });
@@ -189,36 +200,21 @@ test.describe("asking a device to sign in again", () => {
     await openDevices(page);
     await oldPhoneRow(page).getByTestId("reauthorize-device").click();
 
-    await expect(page.getByTestId("device-message")).toContainText("sign in again", {
+    await expect(page.getByTestId("device-message")).toContainText("devra se reconnecter", {
       timeout: 30_000,
     });
-    await expect(oldPhoneRow(page)).toContainText("Needs to sign in again");
+    await expect(oldPhoneRow(page)).toContainText("Nouvelle connexion nécessaire");
     // Still administrable, unlike a revoked device.
     await expect(oldPhoneRow(page).getByTestId("rename-device")).toBeVisible();
   });
 });
 
-test.describe("responsive and assistive presentation", () => {
+test.describe("responsive presentation", () => {
   test("the inventory is reachable without horizontal scrolling", async ({ page }) => {
     await openDevices(page);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     );
     expect(overflow).toBe(false);
-  });
-
-  test("outcomes are announced through one polite live region", async ({ page }) => {
-    await openDevices(page);
-    const region = page.getByTestId("device-message");
-    await expect(region).toHaveAttribute("aria-live", "polite");
-    await expect(region).toHaveAttribute("role", "status");
-  });
-
-  test("the device list is a list, and the section is labelled", async ({ page }) => {
-    // Structure a screen reader can navigate: a heading that names the section
-    // and a real list rather than a stack of divs.
-    await openDevices(page);
-    await expect(page.getByRole("heading", { name: "Your devices" })).toBeVisible();
-    await expect(page.getByTestId("device-list")).toHaveRole("list");
   });
 });

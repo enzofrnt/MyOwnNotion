@@ -228,7 +228,7 @@ export function SearchDialog({
         if (!openState) onClose();
       }}
     >
-      <DialogContent ref={dialog} className="search-dialog" size="large">
+      <DialogContent ref={dialog} className="search-dialog" size="large" initialFocus={input}>
         <header className="search-dialog__header">
           <DialogHeading id="workspace-search-title">{FR_COPY.search.title}</DialogHeading>
           <DialogDismiss aria-label={FR_COPY.search.close} />

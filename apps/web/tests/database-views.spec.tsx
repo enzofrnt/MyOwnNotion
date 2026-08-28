@@ -115,13 +115,13 @@ describe("saved database views (T041)", () => {
     );
     expect(markup).toContain('role="tablist"');
     expect(markup).toContain('aria-selected="true"');
-    expect(markup).toContain("New table view");
-    expect(markup).toContain("New list view");
-    expect(markup).toContain("Duplicate view");
-    expect(markup).toContain("Rename view");
-    expect(markup).toContain("Move view later");
-    expect(markup).toContain("Visible properties");
-    expect(markup).toContain("Move Status column earlier");
+    expect(markup).toContain("Nouvelle vue tableau");
+    expect(markup).toContain("Nouvelle vue liste");
+    expect(markup).toContain("Dupliquer la vue");
+    expect(markup).toContain("Renommer la vue");
+    expect(markup).toContain("Déplacer la vue vers la droite");
+    expect(markup).toContain("Propriétés visibles");
+    expect(markup).toContain("Déplacer la colonne Status vers la gauche");
   });
 
   it("keeps ALL/ANY, typed rules, sort order and grouping readable", () => {
@@ -143,12 +143,12 @@ describe("saved database views (T041)", () => {
         }),
       ),
     );
-    expect(markup).toContain("At least one rule");
+    expect(markup).toContain("Au moins une règle");
     expect(markup).toContain("Status");
-    expect(markup).toContain("equals");
-    expect(markup).toContain("Ascending");
-    expect(markup).toContain("Move sort earlier");
-    expect(markup).toContain("Group by");
+    expect(markup).toContain("est égal à");
+    expect(markup).toContain("Croissant");
+    expect(markup).toContain("Remonter le tri");
+    expect(markup).toContain("Regrouper par");
   });
 
   it("edits both bounds of a readable date period", () => {
@@ -184,9 +184,9 @@ describe("saved database views (T041)", () => {
         onChange: vi.fn(),
       }),
     );
-    expect(markup).toContain("Period for Due date");
-    expect(markup).toContain('aria-label="From for Due date"');
-    expect(markup).toContain('aria-label="To for Due date"');
+    expect(markup).toContain("Période pour Due date");
+    expect(markup).toContain('aria-label="Début pour Due date"');
+    expect(markup).toContain('aria-label="Fin pour Due date"');
     expect(markup.match(/type="date"/g)).toHaveLength(2);
   });
 
@@ -246,7 +246,7 @@ describe("saved database views (T041)", () => {
         onOpenEntry: vi.fn(),
       }),
     );
-    expect(markup).toContain("Complete result · 1 entries");
+    expect(markup).toContain("Résultat complet · 1 entrée");
     expect(markup).toContain("database-list");
     expect(markup).toContain("Alpha");
     expect(markup).toContain("Status");

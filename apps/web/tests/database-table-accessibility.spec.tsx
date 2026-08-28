@@ -94,8 +94,8 @@ describe("database table accessibility (T042)", () => {
     expect(markup).toContain('aria-rowindex="2"');
     expect(markup.match(/tabindex="0"/g)).toHaveLength(1);
     expect(markup).toContain('data-grid-mode="navigation"');
-    expect(markup).toContain("Narrow Title");
-    expect(markup).toContain("Widen Notes");
+    expect(markup).toContain("Réduire la largeur de Title");
+    expect(markup).toContain("Augmenter la largeur de Notes");
     expect(markup).toContain('aria-live="polite"');
   });
 });

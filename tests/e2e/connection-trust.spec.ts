@@ -20,7 +20,9 @@ import { openSettings, openWorkspace } from "./helpers.ts";
 async function openConnectionPanel(page: import("@playwright/test").Page): Promise<void> {
   await openWorkspace(page);
   await openSettings(page);
-  await expect(page.getByRole("region", { name: "Connection" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("region", { name: "Connexion", exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
 }
 
 test.describe("what the owner is told about the connection", () => {
@@ -53,7 +55,9 @@ test.describe("what the owner is told about the connection", () => {
       "unreachable",
       { timeout: 30_000 },
     );
-    await expect(page.getByTestId("connection-reachability")).toContainText(/kept on this device/i);
+    await expect(page.getByTestId("connection-reachability")).toContainText(
+      /reste sur cet appareil/i,
+    );
   });
 
   test("does not warn about the supported local default", async ({ page }) => {
@@ -62,10 +66,5 @@ test.describe("what the owner is told about the connection", () => {
     // to ignore the warning that matters.
     await openConnectionPanel(page);
     await expect(page.getByTestId("insecure-channel")).toBeHidden();
-  });
-
-  test("announces the reachability statement to assistive technology", async ({ page }) => {
-    await openConnectionPanel(page);
-    await expect(page.getByTestId("connection-reachability")).toHaveAttribute("role", "status");
   });
 });

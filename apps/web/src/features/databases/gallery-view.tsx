@@ -2,6 +2,7 @@ import type { DatabaseProperty, DatabaseView, Uuid } from "@myownnotion/domain";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { type CSSProperties, useLayoutEffect, useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { AsyncState } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
@@ -305,11 +306,14 @@ export function GalleryView({
         </fieldset>
       </details>
       {page.rows.length === 0 ? (
-        <p className="empty-state">
-          {page.coverage === "partial"
-            ? DATABASE_COPY.common.noCardsAvailable
-            : DATABASE_COPY.common.noCards}
-        </p>
+        <AsyncState
+          kind={page.coverage === "partial" ? "offline" : "empty"}
+          description={
+            page.coverage === "partial"
+              ? DATABASE_COPY.common.noCardsAvailable
+              : DATABASE_COPY.common.noCards
+          }
+        />
       ) : (
         <GalleryCards
           page={page}

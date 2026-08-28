@@ -11,6 +11,14 @@ const V1_SURFACES = [
   "../src/features/files/storage-panel.tsx",
   "../src/features/files/transfer-state.tsx",
   "../src/features/attachments/attachment-panel.tsx",
+  "../src/features/databases/database-copy.ts",
+  "../src/features/databases/database-page.tsx",
+  "../src/features/databases/database-toolbar.tsx",
+  "../src/features/databases/table-view.tsx",
+  "../src/features/databases/board-view.tsx",
+  "../src/features/databases/calendar-view.tsx",
+  "../src/features/databases/gallery-view.tsx",
+  "../src/features/databases/list-view.tsx",
   "../src/features/backup/backup-panel.tsx",
   "../src/features/backup/restore-rehearsal.tsx",
   "../src/features/history/revision-restore.tsx",
@@ -19,6 +27,8 @@ const V1_SURFACES = [
   "../src/features/security/session-panel.tsx",
   "../src/features/security/key-rotation-panel.tsx",
   "../src/features/security/recovery-kit-panel.tsx",
+  "../src/features/editor/page-editor.tsx",
+  "../src/features/editor/editor-menus/slash-menu.tsx",
 ] as const;
 
 const FORBIDDEN_VISIBLE_COPY = [
@@ -40,6 +50,14 @@ const FORBIDDEN_VISIBLE_COPY = [
   "Save name",
   "Active sessions",
   "Recovery kit",
+  "Create a database",
+  "Database contents",
+  "Add property",
+  "New entry",
+  "New table view",
+  "New board view",
+  "Previous month",
+  "No entries in this view",
 ] as const;
 
 function executableSource(path: string): string {

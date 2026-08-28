@@ -13,24 +13,24 @@
  * two would make one indicator answer two questions with one word.
  */
 
+import { FR_COPY } from "../../ui/copy/fr.ts";
+import { Status } from "../../ui/primitives/status.tsx";
 import type { ChangeStreamStatus } from "./use-change-stream.ts";
 
 const LABELS: Record<ChangeStreamStatus["state"], string> = {
-  connecting: "Connecting to live updates…",
-  live: "Live — changes from your other devices appear here",
-  local: "Keeping your changes on this device until the connection returns",
-  // Both of these are situations an owner has to act on, so they say what to do.
-  // "Not connected" would be true and useless: nothing they could do with it.
-  revoked: "This device's access was withdrawn. It can no longer synchronize.",
-  "needs-update": "This device needs an update before it can synchronize again.",
+  connecting: FR_COPY.synchronization.realtime.connecting,
+  live: FR_COPY.synchronization.realtime.live,
+  local: FR_COPY.synchronization.realtime.local,
+  revoked: FR_COPY.synchronization.realtime.revoked,
+  "needs-update": FR_COPY.synchronization.realtime.needsUpdate,
 };
 
 const COMPACT_LABELS: Record<ChangeStreamStatus["state"], string> = {
-  connecting: "Connecting live updates…",
-  live: "Live updates",
-  local: "Live updates paused",
-  revoked: "Device access revoked",
-  "needs-update": "Device update required",
+  connecting: FR_COPY.synchronization.realtime.compactConnecting,
+  live: FR_COPY.synchronization.realtime.compactLive,
+  local: FR_COPY.synchronization.realtime.compactLocal,
+  revoked: FR_COPY.synchronization.realtime.compactRevoked,
+  "needs-update": FR_COPY.synchronization.realtime.compactNeedsUpdate,
 };
 
 /** The two states that will not clear on their own. */
@@ -42,21 +42,19 @@ export function ConnectionState({ status }: { readonly status: ChangeStreamStatu
   const refused = isRefusal(status.state);
   const detailedLabel = `${LABELS[status.state]}${refused && status.refusal !== null ? ` ${status.refusal}` : ""}`;
   return (
-    <p
-      className={refused ? "status-banner" : "muted"}
+    <Status
+      className="workspace-connection-state"
+      kind={refused ? "error" : "info"}
+      state={status.state}
       data-testid="live-connection-state"
-      data-state={status.state}
-      // `alert` only for the two states that need acting on, and `status`
-      // otherwise. A live region that interrupts on every reconnection would
-      // announce a routine proxy timeout in the same voice as a withdrawn
-      // device, and an owner would learn to ignore both.
-      role={refused ? "alert" : "status"}
-      title={detailedLabel}
-    >
-      <span className="workspace-status__full">{detailedLabel}</span>
-      <span className="workspace-status__compact" aria-hidden="true">
-        {COMPACT_LABELS[status.state]}
-      </span>
-    </p>
+      title={
+        <>
+          <span className="workspace-status__full">{detailedLabel}</span>
+          <span className="workspace-status__compact" aria-hidden="true">
+            {COMPACT_LABELS[status.state]}
+          </span>
+        </>
+      }
+    />
   );
 }

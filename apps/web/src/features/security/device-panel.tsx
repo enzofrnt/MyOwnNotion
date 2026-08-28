@@ -20,7 +20,7 @@ import type { DeviceDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
 import { FR_COPY, formatDateTime } from "../../ui/copy/index.ts";
-import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
+import { AsyncState, Button, ConfirmDialog, Field } from "../../ui/primitives/index.ts";
 
 export interface DevicePanelProps {
   readonly api: SecurityApi;
@@ -80,6 +80,7 @@ export function DevicePanel(props: DevicePanelProps) {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [pendingRevocation, setPendingRevocation] = useState<DeviceDto | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -278,7 +279,7 @@ export function DevicePanel(props: DevicePanelProps) {
                       size="compact"
                       variant="danger"
                       onClick={() => {
-                        void revoke(device.deviceId);
+                        setPendingRevocation(device);
                       }}
                       disabled={busy}
                       // Says what it costs before the owner commits, rather than
@@ -295,6 +296,21 @@ export function DevicePanel(props: DevicePanelProps) {
           })}
         </ul>
       )}
+      <ConfirmDialog
+        open={pendingRevocation !== null}
+        busy={busy}
+        title={FR_COPY.security.devices.revokeDialogTitle(pendingRevocation?.name ?? "")}
+        description={FR_COPY.security.devices.revokeDialogDescription}
+        confirmLabel={FR_COPY.security.devices.revokeDialogConfirm}
+        testId="revoke-device-confirmation"
+        confirmTestId="confirm-revoke-device"
+        cancelTestId="cancel-revoke-device"
+        onCancel={() => setPendingRevocation(null)}
+        onConfirm={() => {
+          if (pendingRevocation === null) return;
+          void revoke(pendingRevocation.deviceId).finally(() => setPendingRevocation(null));
+        }}
+      />
     </section>
   );
 }

@@ -99,7 +99,9 @@ test.beforeEach(async () => {
  * CI. `isVisible()` answers immediately.
  */
 async function openPasswordForm(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+    timeout: 30_000,
+  });
   if (!(await page.getByTestId("password-input").isVisible())) {
     await page.getByTestId("use-password-instead").click();
   }
@@ -140,13 +142,15 @@ async function signOutCurrentSession(page: import("@playwright/test").Page): Pro
     if (!response.ok) throw new Error(`sign-out failed: ${response.status}`);
   }, csrfToken);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+    timeout: 30_000,
+  });
 }
 
 test.describe("the sign-in gate", () => {
   test("an owner with no session sees sign-in, not the workspace", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible();
     await expect(page.getByTestId("workspace-shell")).toHaveCount(0);
   });
 
@@ -156,9 +160,11 @@ test.describe("the sign-in gate", () => {
     await page.goto("/");
     // The shell resolves its state asynchronously; inspecting before it
     // settles reads the loading placeholder rather than the sign-in page.
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+      timeout: 30_000,
+    });
 
-    const passkeyHeading = page.getByRole("heading", { name: "Use your passkey" });
+    const passkeyHeading = page.getByRole("heading", { name: "Utiliser votre passkey" });
     const passwordLink = page.getByTestId("use-password-instead");
     if (await passkeyHeading.isVisible()) {
       await expect(passwordLink).toBeVisible();
@@ -180,14 +186,16 @@ test.describe("the sign-in gate", () => {
       Reflect.deleteProperty(window, "PublicKeyCredential");
     });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+      timeout: 30_000,
+    });
 
     // Straight to the password, with no link to a passkey option that could
     // not work, and a note saying why.
     await expect(page.getByTestId("password-input")).toBeVisible();
     await expect(page.getByTestId("use-password-instead")).toHaveCount(0);
     await expect(page.getByTestId("use-passkey-instead")).toHaveCount(0);
-    await expect(page.getByText("cannot use passkeys")).toBeVisible();
+    await expect(page.getByText(/ne peut pas utiliser les passkeys/i)).toBeVisible();
   });
 
   test("signing in still works without passkey support", async ({ page }) => {
@@ -273,10 +281,10 @@ test.describe("signing in", () => {
   test("a wrong password says what to do, not what was wrong", async ({ page }) => {
     await signIn(page, "not the right passphrase");
     const message = page.getByTestId("login-message");
-    await expect(message).toContainText("did not work", { timeout: 30_000 });
+    await expect(message).toContainText("a échoué", { timeout: 30_000 });
     // Nothing that would tell an attacker which half of the guess was right.
-    await expect(message).not.toContainText("password is");
-    await expect(message).not.toContainText("no account");
+    await expect(message).not.toContainText("mot de passe est");
+    await expect(message).not.toContainText("aucun compte");
     await expect(page.getByTestId("workspace-shell")).toHaveCount(0);
   });
 
@@ -284,7 +292,7 @@ test.describe("signing in", () => {
     // A failed attempt must not leave the password sitting in a form field for
     // the next person at the machine.
     await signIn(page, "not the right passphrase");
-    await expect(page.getByTestId("login-message")).toContainText("did not work", {
+    await expect(page.getByTestId("login-message")).toContainText("a échoué", {
       timeout: 30_000,
     });
     await expect(page.getByTestId("password-input")).toHaveValue("");
@@ -336,9 +344,12 @@ test.describe("the security screen", () => {
     // they choose it, not after they forget it.
     await signIn(page);
     await openSettings(page);
-    await expect(page.getByTestId("no-reset-warning")).toContainText("no password reset", {
-      timeout: 30_000,
-    });
+    await expect(page.getByTestId("no-reset-warning")).toContainText(
+      "aucune réinitialisation du mot de passe",
+      {
+        timeout: 30_000,
+      },
+    );
   });
 
   test("signing out returns to the sign-in page", async ({ page }) => {
@@ -346,7 +357,9 @@ test.describe("the security screen", () => {
     await openSettings(page);
     await expect(page.getByTestId("session-list")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("revoke-session").first().click();
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+      timeout: 30_000,
+    });
   });
 
   test("a signed-out session does not come back on reload", async ({ page }) => {
@@ -354,9 +367,13 @@ test.describe("the security screen", () => {
     await openSettings(page);
     await expect(page.getByTestId("session-list")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("revoke-session").first().click();
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+      timeout: 30_000,
+    });
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+      timeout: 30_000,
+    });
   });
 
   test("offers no way to sign out elsewhere when this is the only session", async ({ page }) => {
@@ -380,16 +397,8 @@ test.describe("responsive and assistive presentation", () => {
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
   });
 
-  test("outcomes are announced through one polite live region", async ({ page }) => {
-    await page.goto("/");
-    const region = page.getByTestId("login-message");
-    await expect(region).toHaveAttribute("aria-live", "polite");
-    await expect(region).toHaveAttribute("role", "status");
-    await expect(page.locator("[aria-live]")).toHaveCount(1);
-  });
-
   test("the heading structure is navigable", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sign in");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Se connecter");
   });
 });

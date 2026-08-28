@@ -26,6 +26,7 @@ import type { Uuid } from "@myownnotion/domain";
 import { useCallback, useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
+  AsyncState,
   Button,
   DialogContent,
   DialogDescription,
@@ -86,7 +87,7 @@ export function ConvertItemControl({
         setConfirming(true);
         return;
       }
-      setError(outcome.message ?? "The conversion did not complete.");
+      setError(outcome.message ?? "La conversion n’a pas abouti.");
     },
     [convert, itemId, target],
   );
@@ -107,7 +108,7 @@ export function ConvertItemControl({
         disabled={pending}
         data-testid={`convert-${itemName}`}
         aria-label={
-          kind === "page" ? `Turn ${itemName} into a folder` : `Turn ${itemName} into a page`
+          kind === "page" ? `Transformer ${itemName} en dossier` : `Transformer ${itemName} en page`
         }
         onClick={(event) => {
           // The control lives inside a clickable tree row. Letting this click
@@ -119,7 +120,7 @@ export function ConvertItemControl({
         }}
       >
         <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
-        <span className="ui-visually-hidden">{kind === "page" ? "to folder" : "to page"}</span>
+        <span className="ui-visually-hidden">{kind === "page" ? "en dossier" : "en page"}</span>
       </button>
 
       {confirming ? (
@@ -131,20 +132,20 @@ export function ConvertItemControl({
           data-testid="convert-confirmation"
         >
           <DialogHeading id={`convert-title-${itemId}`}>
-            Turn “{itemName}” into a folder?
+            Transformer « {itemName} » en dossier ?
           </DialogHeading>
           <DialogDescription id={`convert-body-${itemId}`}>
-            A folder has nowhere to keep text, so{" "}
-            <strong>everything written on this page will be deleted</strong>, along with the files
-            attached to that text.
+            Un dossier ne contient pas de texte :{" "}
+            <strong>tout le contenu de cette page sera supprimé</strong>, ainsi que les fichiers
+            attachés à ce contenu.
           </DialogDescription>
           <p>
-            Everything filed <em>underneath</em> this page — sub-pages, sub-folders and files —
-            stays exactly where it is.
+            Tout ce qui est classé <em>sous</em> cette page — sous-pages, sous-dossiers et fichiers
+            — reste exactement à sa place.
           </p>
           <p className="muted" data-testid="convert-retention-notice">
-            You can undo this from the page’s history, but only for as long as superseded revisions
-            are kept. After that the text is gone for good.
+            Cette conversion peut être annulée depuis l’historique tant que les anciennes révisions
+            sont conservées. Après cette période, le texte sera définitivement supprimé.
           </p>
           <div className="convert-dialog__actions">
             <Button
@@ -153,20 +154,16 @@ export function ConvertItemControl({
               data-testid="confirm-convert"
               onClick={() => void run(true)}
             >
-              Delete the content and convert
+              Supprimer le contenu et convertir
             </Button>
             <Button data-testid="cancel-convert" onClick={close}>
-              Keep this page as it is
+              Conserver cette page
             </Button>
           </div>
         </DialogContent>
       ) : null}
 
-      {error !== null ? (
-        <span className="status-banner" data-state="error" role="alert">
-          {error}
-        </span>
-      ) : null}
+      {error !== null ? <AsyncState compact kind="error" description={error} /> : null}
     </DialogRoot>
   );
 }

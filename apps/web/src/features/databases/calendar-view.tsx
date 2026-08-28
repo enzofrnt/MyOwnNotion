@@ -6,6 +6,7 @@ import type {
 } from "@myownnotion/domain";
 import { useRef, useState } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY, DATABASE_LOCALE } from "./database-copy.ts";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
@@ -215,7 +216,7 @@ export function CalendarView({
   if (property === undefined) {
     return (
       <section className="database-view" aria-label={DATABASE_COPY.calendar.viewLabel(view.name)}>
-        <p role="alert">{DATABASE_COPY.calendar.needsProperty}</p>
+        <AsyncState kind="unavailable" description={DATABASE_COPY.calendar.needsProperty} />
       </section>
     );
   }
@@ -266,22 +267,26 @@ export function CalendarView({
       />
       {scheduledDate === null ? null : (
         <div className="database-calendar__move-actions">
-          <button
+          <Button
             type="button"
+            size="compact"
+            variant="ghost"
             aria-label={DATABASE_COPY.calendar.movePrevious(row.title)}
             disabled={onUpdateEntry === undefined}
             onClick={() => void move(row, shiftDate(scheduledDate, -1))}
           >
             {DATABASE_COPY.calendar.previousDay}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            size="compact"
+            variant="ghost"
             aria-label={DATABASE_COPY.calendar.moveNext(row.title)}
             disabled={onUpdateEntry === undefined}
             onClick={() => void move(row, shiftDate(scheduledDate, 1))}
           >
             {DATABASE_COPY.calendar.nextDay}
-          </button>
+          </Button>
         </div>
       )}
     </li>
@@ -315,13 +320,23 @@ export function CalendarView({
           </select>
         </label>
         <div className="database-calendar__navigation">
-          <button type="button" onClick={() => setVisibleMonth(shiftMonth(visibleMonth, -1))}>
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            onClick={() => setVisibleMonth(shiftMonth(visibleMonth, -1))}
+          >
             {DATABASE_COPY.calendar.previousMonth}
-          </button>
+          </Button>
           <h3 aria-live="polite">{monthLabel(visibleMonth, timeZone)}</h3>
-          <button type="button" onClick={() => setVisibleMonth(shiftMonth(visibleMonth, 1))}>
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            onClick={() => setVisibleMonth(shiftMonth(visibleMonth, 1))}
+          >
             {DATABASE_COPY.calendar.nextMonth}
-          </button>
+          </Button>
         </div>
       </div>
       <div className="database-calendar__month-scroll">
@@ -365,7 +380,7 @@ export function CalendarView({
           {DATABASE_COPY.calendar.unscheduled} · {grouped.unscheduled.length}
         </h3>
         {grouped.unscheduled.length === 0 ? (
-          <p className="muted">{DATABASE_COPY.calendar.allScheduled}</p>
+          <AsyncState compact kind="empty" description={DATABASE_COPY.calendar.allScheduled} />
         ) : (
           <ul>{grouped.unscheduled.map((row) => card(row, null))}</ul>
         )}

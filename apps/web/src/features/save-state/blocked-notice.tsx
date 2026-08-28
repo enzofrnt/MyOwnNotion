@@ -21,6 +21,7 @@ import type { OutboxMutationRow, SaveState } from "@myownnotion/client-core";
 import { deriveSaveState, rowsForItem } from "@myownnotion/client-core";
 import { useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { AsyncState } from "../../ui/primitives/async-state.tsx";
 
 export function BlockedNotice({
   service,
@@ -47,24 +48,21 @@ export function BlockedNotice({
   }
 
   return (
-    <section
-      className="status-banner"
-      data-state="blocked"
-      data-testid="blocked-notice"
-      // Assertive, unlike the save indicator: this appears once, when
-      // something the owner was doing stopped working, and it is exactly the
-      // kind of change FR-020 says must be announced rather than only shown.
-      role="alert"
-      aria-label="This change was refused"
-    >
-      <p data-testid="blocked-what">
-        <strong>Refused by the server.</strong> {state.reason}
-      </p>
-      <p data-testid="blocked-readable">
-        Everything already saved is still here and still readable. This affects the change you just
-        made, not the page you can see.
-      </p>
-      <p data-testid="blocked-resolution">{state.resolution}</p>
-    </section>
+    <AsyncState
+      kind="error"
+      state="blocked"
+      testId="blocked-notice"
+      title="Modification refusée par le serveur"
+      description={
+        <>
+          <p data-testid="blocked-what">{state.reason}</p>
+          <p data-testid="blocked-readable">
+            Tout le contenu déjà enregistré reste présent et lisible. Seule la dernière modification
+            est concernée.
+          </p>
+          <p data-testid="blocked-resolution">{state.resolution}</p>
+        </>
+      }
+    />
   );
 }

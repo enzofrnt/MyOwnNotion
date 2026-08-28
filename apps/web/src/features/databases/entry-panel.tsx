@@ -7,6 +7,7 @@ import type {
   Uuid,
 } from "@myownnotion/domain";
 import { type ReactNode, useMemo, useRef, useState } from "react";
+import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import {
@@ -170,7 +171,7 @@ export function EntryPanel({
 
       <div className="entry-properties">
         {editableProperties.length === 0 ? (
-          <p className="empty-state">{DATABASE_COPY.entry.noProperties}</p>
+          <AsyncState compact kind="empty" description={DATABASE_COPY.entry.noProperties} />
         ) : (
           <>
             {taskProperties.length === 0 ? null : (

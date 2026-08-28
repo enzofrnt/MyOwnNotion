@@ -16,7 +16,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { FR_COPY } from "../../ui/copy/fr.ts";
 import { AppIcon } from "../../ui/icons.tsx";
+import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
 import { useTheme } from "../../ui/theme-provider.tsx";
 import { validateBlockDrop } from "./block-drag-drop.ts";
@@ -152,7 +154,7 @@ export function PageEditor({
         editor: {
           class: "editor-surface",
           role: "textbox",
-          "aria-label": "Contenu de la page",
+          "aria-label": FR_COPY.editor.surface.contentLabel,
           "aria-multiline": "true",
         },
       },
@@ -267,8 +269,8 @@ export function PageEditor({
         .catch((error: unknown) => {
           setEditorError(
             error instanceof Error
-              ? `La mise à jour distante n’a pas pu être appliquée : ${error.message}`
-              : "La mise à jour distante n’a pas pu être appliquée.",
+              ? FR_COPY.editor.errors.remoteUpdateFailedWithDetail(error.message)
+              : FR_COPY.editor.errors.remoteUpdateFailed,
           );
         })
         .finally(() => {
@@ -383,8 +385,8 @@ export function PageEditor({
         recoverVisibleProjection();
         setEditorError(
           error instanceof Error
-            ? `Cette modification n’a pas été appliquée : ${error.message}`
-            : "Cette modification n’a pas été appliquée.",
+            ? FR_COPY.editor.errors.notAppliedWithDetail(error.message)
+            : FR_COPY.editor.errors.notApplied,
         );
         scheduleProjectionSettlement();
         return;
@@ -415,8 +417,8 @@ export function PageEditor({
         recoverVisibleProjection();
         setEditorError(
           error instanceof Error
-            ? `Cette modification n’a pas été appliquée : ${error.message}`
-            : "Cette modification n’a pas été appliquée.",
+            ? FR_COPY.editor.errors.notAppliedWithDetail(error.message)
+            : FR_COPY.editor.errors.notApplied,
         );
         scheduleProjectionSettlement();
       }
@@ -504,8 +506,8 @@ export function PageEditor({
           }
           setEditorError(
             error instanceof Error
-              ? `Impossible de ${direction === "undo" ? "revenir en arrière" : "rétablir"} : ${error.message}`
-              : "L’historique local n’a pas pu être appliqué.",
+              ? FR_COPY.editor.errors.historyActionFailed(direction, error.message)
+              : FR_COPY.editor.errors.historyFailed,
           );
           scheduleProjectionSettlement();
         });
@@ -576,8 +578,8 @@ export function PageEditor({
         .catch((error: unknown) => {
           setEditorError(
             error instanceof Error
-              ? `Ce fichier n’a pas pu être inséré : ${error.message}`
-              : "Ce fichier n’a pas pu être inséré.",
+              ? FR_COPY.editor.errors.fileInsertionFailedWithDetail(error.message)
+              : FR_COPY.editor.errors.fileInsertionFailed,
           );
         });
     },
@@ -614,7 +616,7 @@ export function PageEditor({
       }}
       className="page-editor"
       data-testid="block-editor"
-      aria-label="Éditeur de page"
+      aria-label={FR_COPY.editor.surface.label}
       onCompositionStart={() => batcher.beginComposition()}
       onCompositionEnd={() => batcher.endComposition()}
       onKeyDownCapture={shortcuts.onKeyDown}
@@ -655,14 +657,18 @@ export function PageEditor({
         else redo();
       }}
     >
-      <div className="editor-history-controls" role="toolbar" aria-label="Historique local">
+      <div
+        className="editor-history-controls"
+        role="toolbar"
+        aria-label={FR_COPY.editor.surface.historyLabel}
+      >
         <Button
           type="button"
           size="square"
           variant="ghost"
           data-testid="undo"
-          aria-label="Annuler"
-          title="Annuler (⌘Z)"
+          aria-label={FR_COPY.editor.surface.undo}
+          title={FR_COPY.editor.surface.undoTitle}
           disabled={!editable || !engine.canUndo}
           onClick={undo}
         >
@@ -673,8 +679,8 @@ export function PageEditor({
           size="square"
           variant="ghost"
           data-testid="redo"
-          aria-label="Rétablir"
-          title="Rétablir (⇧⌘Z)"
+          aria-label={FR_COPY.editor.surface.redo}
+          title={FR_COPY.editor.surface.redoTitle}
           disabled={!editable || !engine.canRedo}
           onClick={redo}
         >
@@ -723,9 +729,7 @@ export function PageEditor({
         onOpenPage={onOpenPage}
       />
       {editorError === null ? null : (
-        <p className="status-banner" data-state="error" role="alert" data-testid="editor-error">
-          {editorError}
-        </p>
+        <AsyncState compact description={editorError} kind="error" testId="editor-error" />
       )}
     </section>
   );

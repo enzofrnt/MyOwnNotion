@@ -83,7 +83,7 @@ describe("database board view (T088)", () => {
     ).toEqual([
       [ids.done, "Done", []],
       [ids.todo, "To do", ["Alpha"]],
-      ["missing", "No status", []],
+      ["missing", "Sans status", []],
     ]);
   });
 
@@ -110,14 +110,14 @@ describe("database board view (T088)", () => {
         onChangeView: vi.fn(),
       }),
     );
-    expect(markup).toContain('aria-label="Delivery board board view"');
+    expect(markup).toContain('aria-label="Vue Kanban Delivery board"');
     expect(markup).toContain("Done · 0");
     expect(markup).toContain("To do · 1");
-    expect(markup).toContain("No status · 0");
+    expect(markup).toContain("Sans status · 0");
     expect(markup).toContain('draggable="true"');
     expect(markup).toContain('aria-posinset="1"');
     expect(markup).toContain('aria-setsize="1"');
-    expect(markup).toContain('aria-label="Move Alpha to another column"');
+    expect(markup).toContain('aria-label="Déplacer Alpha dans une autre colonne"');
     expect(markup).toContain(`data-entry-trigger="${ids.alpha}"`);
     expect(markup).not.toContain('role="grid"');
   });

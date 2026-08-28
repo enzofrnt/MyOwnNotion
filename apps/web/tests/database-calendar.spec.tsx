@@ -126,13 +126,13 @@ describe("database calendar view (T090)", () => {
         onChangeView: vi.fn(),
       }),
     );
-    expect(markup).toContain('aria-label="Delivery calendar calendar view"');
-    expect(markup).toContain("Previous month");
-    expect(markup).toContain("Next month");
-    expect(markup).toContain("Unscheduled · 1");
+    expect(markup).toContain('aria-label="Vue calendrier Delivery calendar"');
+    expect(markup).toContain("Mois précédent");
+    expect(markup).toContain("Mois suivant");
+    expect(markup).toContain("Non planifiées · 1");
     expect(markup).toContain("Alpha");
     expect(markup).toContain("Beta");
-    expect(markup).toContain('aria-label="Schedule Alpha"');
+    expect(markup).toContain('aria-label="Planifier Alpha"');
     expect(markup).not.toContain('role="grid"');
   });
 });

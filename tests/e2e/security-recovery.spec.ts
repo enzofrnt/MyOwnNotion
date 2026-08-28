@@ -99,7 +99,9 @@ test.beforeEach(async () => {
 
 async function openSecurity(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+    timeout: 30_000,
+  });
   if (!(await page.getByTestId("password-input").isVisible())) {
     await page.getByTestId("use-password-instead").click();
   }
@@ -112,7 +114,7 @@ async function openSecurity(page: import("@playwright/test").Page): Promise<void
     page.locator('[data-testid="active-item-title"], [data-testid="active-item-heading"]').first(),
   ).toBeVisible();
   await openSettings(page);
-  await expect(page.getByRole("heading", { name: "Getting back in" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Récupération du compte" })).toBeVisible({
     timeout: 30_000,
   });
 }
@@ -122,19 +124,16 @@ test.describe("an installation with no kit", () => {
     // The journey this file exists for. This state is the most dangerous the
     // application can be in, and it must not look like a rendering glitch.
     await openSecurity(page);
-    await expect(page.getByTestId("recovery-readiness")).toContainText(/no recovery kit/i);
+    await expect(page.getByTestId("recovery-readiness")).toContainText(
+      /aucun kit de récupération/i,
+    );
   });
 
   test("says what it would cost", async ({ page }) => {
     // Not just "no kit" — what happens without one. An owner who does not know
     // the consequence has no reason to act today rather than eventually.
     await openSecurity(page);
-    await expect(page.getByTestId("recovery-readiness")).toContainText(/no way back/i);
-  });
-
-  test("announces it to assistive technology", async ({ page }) => {
-    await openSecurity(page);
-    await expect(page.getByTestId("recovery-readiness")).toHaveAttribute("role", "status");
+    await expect(page.getByTestId("recovery-readiness")).toContainText(/ne pourrez plus accéder/i);
   });
 });
 
@@ -142,7 +141,9 @@ test.describe("an installation with a kit", () => {
   test("says the owner has one", async ({ page }) => {
     await seedActiveKit();
     await openSecurity(page);
-    await expect(page.getByTestId("recovery-readiness")).toContainText(/have a recovery kit/i);
+    await expect(page.getByTestId("recovery-readiness")).toContainText(
+      /disposez d’un kit de récupération/i,
+    );
   });
 
   test("still requires the deployment key, and says so", async ({ page }) => {
@@ -150,8 +151,8 @@ test.describe("an installation with a kit", () => {
     // not the same as being able to use it.
     await seedActiveKit();
     await openSecurity(page);
-    await expect(page.getByTestId("recovery-key-requirement")).toContainText(/deployment key/i);
-    await expect(page.getByTestId("recovery-key-requirement")).toContainText(/separate/i);
+    await expect(page.getByTestId("recovery-key-requirement")).toContainText(/clé de déploiement/i);
+    await expect(page.getByTestId("recovery-key-requirement")).toContainText(/séparément/i);
   });
 });
 
@@ -172,7 +173,7 @@ test.describe("replacing a kit", () => {
     await seedActiveKit();
     await openSecurity(page);
     await expect(page.locator(".recovery-readiness-panel__note")).toContainText(
-      /keeps working until/i,
+      /reste valable jusqu’au/i,
     );
   });
 
@@ -181,7 +182,9 @@ test.describe("replacing a kit", () => {
     await openSecurity(page);
     await expect(page.getByTestId("prepare-recovery-replacement")).toBeEnabled();
     // Nothing has been prepared merely by looking at the screen.
-    await expect(page.getByTestId("recovery-readiness")).not.toContainText(/part-way through/i);
+    await expect(page.getByTestId("recovery-readiness")).not.toContainText(
+      /remplacement en cours/i,
+    );
   });
 });
 

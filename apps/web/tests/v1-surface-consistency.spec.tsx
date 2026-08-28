@@ -16,6 +16,11 @@ const MIGRATED_SURFACES = [
   "../src/features/attachments/attachment-panel.tsx",
   "../src/features/databases/database-page.tsx",
   "../src/features/databases/database-toolbar.tsx",
+  "../src/features/databases/table-view.tsx",
+  "../src/features/databases/board-view.tsx",
+  "../src/features/databases/calendar-view.tsx",
+  "../src/features/databases/gallery-view.tsx",
+  "../src/features/databases/list-view.tsx",
   "../src/features/backup/backup-panel.tsx",
   "../src/features/backup/restore-rehearsal.tsx",
   "../src/features/history/revision-restore.tsx",
@@ -24,6 +29,7 @@ const MIGRATED_SURFACES = [
   "../src/features/security/session-panel.tsx",
   "../src/features/security/key-rotation-panel.tsx",
   "../src/features/security/recovery-kit-panel.tsx",
+  "../src/features/editor/page-editor.tsx",
 ] as const;
 
 describe("V1 surface consistency", () => {
@@ -59,5 +65,32 @@ describe("V1 surface consistency", () => {
       expect(source, relativePath).not.toMatch(/className="(?:status-banner|empty-state)"/u);
       expect(source, relativePath).not.toMatch(/className=\{[^}]*"status-banner"/u);
     }
+  });
+
+  it("routes destructive confirmations through the shared dialog", () => {
+    const confirmationSurfaces = [
+      "../src/features/hierarchy/hierarchy-explorer.tsx",
+      "../src/features/files/delete-file.tsx",
+      "../src/features/security/device-panel.tsx",
+    ] as const;
+
+    for (const relativePath of confirmationSurfaces) {
+      const source = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+      expect(source, relativePath).toContain("<ConfirmDialog");
+      expect(source, relativePath).not.toContain("window.confirm");
+    }
+  });
+
+  it("uses the official French BlockNote catalog with application-owned styling", () => {
+    const source = readFileSync(
+      new URL("../src/features/editor/page-editor.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(source).toContain("dictionary: fr");
+    expect(source).toContain("defaultStyles: false");
+    expect(source).toContain("theme={resolvedTheme}");
+    expect(source).toContain("<AsyncState");
+    expect(source).not.toContain('className="status-banner"');
   });
 });

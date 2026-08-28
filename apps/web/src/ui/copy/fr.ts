@@ -34,6 +34,7 @@ export const FR_COPY = {
     info: "Information",
   },
   synchronization: {
+    workspaceLabel: "Synchronisation de l’espace de travail",
     offline: "Enregistré sur cet appareil — synchronisation à la reconnexion",
     pending: "Enregistré sur cet appareil — changements en attente de synchronisation",
     syncing: "Synchronisation…",
@@ -51,6 +52,51 @@ export const FR_COPY = {
     pendingPlural: "changements à synchroniser",
     filePendingSingular: "fichier à transférer",
     filePendingPlural: "fichiers à transférer",
+    compact: {
+      localSaved: "Enregistré sur cet appareil",
+      syncing: "Synchronisation…",
+      synced: "Synchronisé",
+      attention: "Intervention nécessaire",
+      notSaved: "Non enregistré",
+      storageNotPersistent: "Stockage local non garanti",
+    },
+    quotaWarning: (percentage: number) =>
+      `Le stockage local est rempli à ${percentage} % — l’enregistrement pourrait bientôt échouer.`,
+    realtime: {
+      connecting: "Connexion aux mises à jour en direct…",
+      live: "En direct — les changements de vos autres appareils apparaissent ici",
+      local: "Les changements restent sur cet appareil jusqu’au retour de la connexion",
+      revoked: "L’accès de cet appareil a été révoqué. Il ne peut plus se synchroniser.",
+      needsUpdate:
+        "Cette application doit être mise à jour avant que cet appareil puisse se synchroniser.",
+      revokedRefusal: "Reconnectez-vous ou autorisez de nouveau cet appareil.",
+      updateRefusal: "Mettez l’application à jour, puis rechargez cette page.",
+      compactConnecting: "Connexion en direct…",
+      compactLive: "Mises à jour en direct",
+      compactLocal: "Mises à jour en pause",
+      compactRevoked: "Accès révoqué",
+      compactNeedsUpdate: "Mise à jour requise",
+    },
+  },
+  navigation: {
+    trashTitle: "Placer cet élément dans la corbeille ?",
+    trashDescription: (name: string) =>
+      `« ${name} » sera placé dans la corbeille et pourra être restauré depuis les réglages.`,
+    trashConfirm: "Placer dans la corbeille",
+  },
+  connection: {
+    label: "Connexion",
+    connectedTo: "Connecté à",
+    checking: "Vérification de la disponibilité du serveur…",
+    reachable: "Le serveur est disponible.",
+    unreachable:
+      "Le serveur n’est pas disponible. Votre travail reste sur cet appareil jusqu’au retour de la connexion.",
+    insecureTitle: "Cette connexion n’est pas sécurisée.",
+    insecureDescription:
+      "Cette adresse HTTP ne désigne pas cet appareil : les données échangées pourraient être lues ou modifiées sur le réseau. Placez le serveur derrière HTTPS avant d’y conserver de vraies notes.",
+    versionMismatchTitle: "Versions incompatibles",
+    versionMismatch: (serverVersion: number | string, clientVersion: number) =>
+      `Le serveur utilise la version de schéma ${serverVersion}, tandis que cette application attend la version ${clientVersion}. Mettez à jour le composant le plus ancien avant de continuer.`,
   },
   auth: {
     bootstrap: {
@@ -356,6 +402,10 @@ export const FR_COPY = {
       reauthorize: "Demander une nouvelle connexion",
       revoke: "Révoquer",
       revokeTitle: "Une confirmation avec votre passkey ou votre mot de passe sera demandée",
+      revokeDialogTitle: (name: string) => `Révoquer « ${name} » ?`,
+      revokeDialogDescription:
+        "Cet appareil perdra immédiatement son accès. Une confirmation récente avec votre passkey ou votre mot de passe peut être demandée.",
+      revokeDialogConfirm: "Révoquer l’appareil",
       lastUsed: "dernière utilisation",
       lastSynchronized: "dernière synchronisation",
       never: "jamais",
@@ -483,6 +533,51 @@ export const FR_COPY = {
     required: "obligatoire",
   },
   editor: {
+    surface: {
+      label: "Éditeur de page",
+      contentLabel: "Contenu de la page",
+      loading: "Chargement de cette page…",
+      offlineUnavailable:
+        "Cette page ne peut pas être ouverte hors ligne sur un appareil qui ne peut pas enregistrer localement.",
+      unavailable: "Cette page n’a pas pu être ouverte en toute sécurité.",
+      unavailableWithDetail: (detail: string) =>
+        `Cette page n’a pas pu être ouverte en toute sécurité : ${detail}`,
+      historyLabel: "Historique local",
+      undo: "Annuler",
+      undoTitle: "Annuler (⌘Z)",
+      redo: "Rétablir",
+      redoTitle: "Rétablir (⇧⌘Z)",
+    },
+    slashMenu: {
+      advancedGroup: "Blocs avancés",
+      navigationGroup: "Navigation",
+      toggle: {
+        title: "Liste dépliable",
+        description: "Masquer ou afficher des blocs imbriqués",
+      },
+      callout: {
+        title: "Encadré",
+        description: "Mettre une information en évidence",
+      },
+      table: {
+        title: "Tableau simple",
+        description: "Créer un tableau à identités stables",
+      },
+      embed: {
+        title: "Contenu intégré",
+        description: "Ajouter explicitement un aperçu tiers avec votre accord",
+      },
+      link: {
+        title: "Lien",
+        description: "Créer un lien vers une page ou une adresse Web",
+      },
+      subpage: {
+        title: "Sous-page",
+        description: "Créer une page imbriquée et insérer son lien",
+        defaultTitle: "Sans titre",
+        creationFailed: "La sous-page n’a pas pu être créée.",
+      },
+    },
     blocks: {
       paragraph: "Texte",
       heading1: "Titre 1",
@@ -503,6 +598,17 @@ export const FR_COPY = {
     },
     errors: {
       notApplied: "Cette modification n’a pas été appliquée.",
+      notAppliedWithDetail: (detail: string) =>
+        `Cette modification n’a pas été appliquée : ${detail}`,
+      remoteUpdateFailed: "La mise à jour distante n’a pas pu être appliquée.",
+      remoteUpdateFailedWithDetail: (detail: string) =>
+        `La mise à jour distante n’a pas pu être appliquée : ${detail}`,
+      historyFailed: "L’historique local n’a pas pu être appliqué.",
+      historyActionFailed: (action: "undo" | "redo", detail: string) =>
+        `${action === "undo" ? "Impossible de revenir en arrière" : "Impossible de rétablir"} : ${detail}`,
+      fileInsertionFailed: "Ce fichier n’a pas pu être inséré.",
+      fileInsertionFailedWithDetail: (detail: string) =>
+        `Ce fichier n’a pas pu être inséré : ${detail}`,
       projectionDrift:
         "L’affichage ne correspondait plus au contenu enregistré ; il a été réaligné.",
       unknownTransform:

@@ -3,8 +3,11 @@ import { generateUuidV7 } from "@myownnotion/domain";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { SyncStatus, syncStatusDetails } from "../src/components/sync-status.tsx";
 import { legacyDraftExport } from "../src/features/sync/legacy-recovery-list.tsx";
+import {
+  syncStatusDetails,
+  WorkspaceSyncStatus,
+} from "../src/features/sync/workspace-sync-status.tsx";
 import type { LocalContentService, LocalContentSnapshot } from "../src/services/local-content.ts";
 
 function snapshot(overrides: Partial<LocalContentSnapshot> = {}): LocalContentSnapshot {
@@ -55,7 +58,7 @@ describe("workspace synchronization status", () => {
 
   it("renders denied persistent storage as a neutral advisory, never as a conflict", () => {
     const html = renderToStaticMarkup(
-      createElement(SyncStatus, {
+      createElement(WorkspaceSyncStatus, {
         service: serviceFor(snapshot({ storagePersisted: false })),
       }),
     );
@@ -71,7 +74,7 @@ describe("workspace synchronization status", () => {
 
   it("labels a quarantined historical draft as attention without calling it a live conflict", () => {
     const html = renderToStaticMarkup(
-      createElement(SyncStatus, {
+      createElement(WorkspaceSyncStatus, {
         service: serviceFor(
           snapshot({
             syncState: "conflict",

@@ -11,6 +11,7 @@ import type {
 import { jsonValuesEqual } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import type { ConflictSide } from "../sync/conflict-resolution.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 
@@ -352,11 +353,7 @@ export function StructuredConflictCard({
           </button>
         </section>
       ) : null}
-      {failure === null ? null : (
-        <p className="status-banner" data-state="error" role="alert">
-          {failure}
-        </p>
-      )}
+      {failure === null ? null : <AsyncState compact kind="error" description={failure} />}
       <button type="button" disabled={saving} onClick={() => void finish()}>
         {saving ? DATABASE_COPY.common.saving : DATABASE_COPY.conflict.save}
       </button>

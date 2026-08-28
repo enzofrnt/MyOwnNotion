@@ -289,9 +289,12 @@ test.describe("acting on an item from the keyboard", () => {
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
 
-    page.once("dialog", (dialog) => void dialog.dismiss());
     await focusTree(page, name);
     await page.keyboard.press("Delete");
+    const confirmation = page.getByTestId("trash-confirmation");
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByTestId("cancel-trash").click();
+    await expect(confirmation).toBeHidden();
 
     await expect(row(page, name)).toBeVisible();
   });

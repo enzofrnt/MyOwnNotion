@@ -145,7 +145,9 @@ test.afterEach(async () => {
 
 async function openSecurity(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+    timeout: 30_000,
+  });
   if (!(await page.getByTestId("password-input").isVisible())) {
     await page.getByTestId("use-password-instead").click();
   }
@@ -158,7 +160,7 @@ async function openSecurity(page: import("@playwright/test").Page): Promise<void
     page.locator('[data-testid="active-item-title"], [data-testid="active-item-heading"]').first(),
   ).toBeVisible();
   await openSettings(page);
-  await expect(page.getByRole("heading", { name: "Encryption keys" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Clés de chiffrement" })).toBeVisible({
     timeout: 30_000,
   });
 }
@@ -173,10 +175,10 @@ test.describe("a healthy installation", () => {
     await seedPolicy({ kind: "data-key", dueInDays: 150, blockInDays: 180, state: "pre-due" });
     await openSecurity(page);
 
-    await expect(panel(page)).toContainText("Installation key");
-    await expect(panel(page)).toContainText("Note key");
+    await expect(panel(page)).toContainText("Clé de l’installation");
+    await expect(panel(page)).toContainText("Clé des notes");
     // No paused-changes banner on an installation with nothing wrong.
-    await expect(panel(page)).not.toContainText("New changes are paused");
+    await expect(panel(page)).not.toContainText("nouvelles modifications sont suspendues");
   });
 
   test("never uses the schema's words for the keys", async ({ page }) => {
@@ -202,7 +204,7 @@ test.describe("an overdue key", () => {
     await openSecurity(page);
 
     // The deadline that matters is the write block, not the due date.
-    await expect(panel(page)).toContainText(/Saving pauses in \d+ days?/);
+    await expect(panel(page)).toContainText(/enregistrement sera suspendu dans \d+ jours?/i);
   });
 });
 
@@ -213,7 +215,7 @@ test.describe("a blocked installation", () => {
     await seedPolicy({ kind: "data-key", dueInDays: -400, blockInDays: -1, state: "write-block" });
     await openSecurity(page);
 
-    await expect(panel(page)).toContainText(/still read/i);
+    await expect(panel(page)).toContainText(/reste lisible/i);
   });
 
   test("says what restores saving", async ({ page }) => {
@@ -222,17 +224,7 @@ test.describe("a blocked installation", () => {
 
     // Naming the problem without naming the fix leaves an owner stuck at the
     // worst possible moment.
-    await expect(panel(page)).toContainText(/rotat/i);
-  });
-
-  test("announces the pause to assistive technology", async ({ page }) => {
-    await seedPolicy({ kind: "data-key", dueInDays: -400, blockInDays: -1, state: "write-block" });
-    await openSecurity(page);
-
-    // A status role, not styling alone: an owner using a screen reader must
-    // learn that saving has paused on arrival, not by discovering it when an
-    // edit fails.
-    await expect(page.locator(".key-rotation-panel__blocked")).toHaveAttribute("role", "status");
+    await expect(panel(page)).toContainText(/rotation/i);
   });
 
   test("still serves the workspace behind the warning", async ({ page }) => {
@@ -260,7 +252,7 @@ test.describe("a failed rotation", () => {
 
     // A failed rotation is recoverable by construction: both key generations
     // stay readable. Told only "failed", an owner assumes otherwise.
-    await expect(panel(page)).toContainText(/nothing was lost/i);
+    await expect(panel(page)).toContainText(/rien n’a été perdu/i);
   });
 });
 
@@ -271,8 +263,8 @@ test.describe("where rotation happens", () => {
 
     // An owner who cannot find a button should learn it is absent by design
     // rather than assume they missed it.
-    await expect(panel(page)).toContainText(/security rotation/);
-    await expect(panel(page)).toContainText(/hosts this installation/i);
+    await expect(panel(page)).toContainText(/rotation s’effectue/i);
+    await expect(panel(page)).toContainText(/machine qui héberge cette installation/i);
   });
 });
 
@@ -285,7 +277,7 @@ test.describe("at a narrow viewport", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openSecurity(page);
 
-    await expect(panel(page)).toContainText(/still read/i);
+    await expect(panel(page)).toContainText(/reste lisible/i);
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
     );

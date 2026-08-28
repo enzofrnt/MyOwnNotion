@@ -21,6 +21,8 @@
 
 import { useEffect, useState } from "react";
 import type { ContentApi } from "../../services/content-api.ts";
+import { FR_COPY } from "../../ui/copy/fr.ts";
+import { AsyncState } from "../../ui/primitives/async-state.tsx";
 
 /** The schema version this client was built against. */
 export const EXPECTED_SCHEMA_VERSION = 1;
@@ -78,28 +80,30 @@ export function ConnectionStatus({ api }: { readonly api: ContentApi }) {
     reachability.kind === "reachable" && reachability.schemaVersion !== EXPECTED_SCHEMA_VERSION;
 
   return (
-    <section className="connection-status" aria-label="Connection">
+    <section className="connection-status" aria-label={FR_COPY.connection.label}>
       <p data-testid="connection-server" className="muted">
-        Connected to <code>{window.location.host}</code>
+        {FR_COPY.connection.connectedTo} <code>{window.location.host}</code>
       </p>
 
       <p data-testid="connection-reachability" data-state={reachability.kind} role="status">
         {reachability.kind === "checking"
-          ? "Checking whether the server is reachable…"
+          ? FR_COPY.connection.checking
           : reachability.kind === "reachable"
-            ? "The server is reachable."
-            : "The server is not reachable. Your work is kept on this device until it is."}
+            ? FR_COPY.connection.reachable
+            : FR_COPY.connection.unreachable}
       </p>
 
       {insecure ? (
         // Not a badge. Everything written here travels in clear text over a
         // network the owner does not control, and that has to read as a
         // warning rather than as a status.
-        <p className="status-banner" data-state="error" role="alert" data-testid="insecure-channel">
-          <strong>This connection is not secure.</strong> You are using a plain HTTP address that is
-          not on this machine, so anything you read or write can be seen and changed by anyone on
-          the network in between. Put the server behind HTTPS before using it for real notes.
-        </p>
+        <AsyncState
+          compact
+          kind="error"
+          testId="insecure-channel"
+          title={FR_COPY.connection.insecureTitle}
+          description={FR_COPY.connection.insecureDescription}
+        />
       ) : null}
 
       {mismatch ? (
@@ -107,12 +111,16 @@ export function ConnectionStatus({ api }: { readonly api: ContentApi }) {
         // version mismatch surfaces as strange, specific breakage otherwise —
         // one screen empty, one save refused — and an owner has no way to
         // connect that back to the cause.
-        <p className="status-banner" data-state="error" role="alert" data-testid="version-mismatch">
-          This server speaks schema version{" "}
-          {reachability.kind === "reachable" ? reachability.schemaVersion : "?"} and this client
-          expects {EXPECTED_SCHEMA_VERSION}. Update whichever is older before continuing; until
-          then, saving may fail in ways that look unrelated.
-        </p>
+        <AsyncState
+          compact
+          kind="error"
+          testId="version-mismatch"
+          title={FR_COPY.connection.versionMismatchTitle}
+          description={FR_COPY.connection.versionMismatch(
+            reachability.kind === "reachable" ? reachability.schemaVersion : "?",
+            EXPECTED_SCHEMA_VERSION,
+          )}
+        />
       ) : null}
     </section>
   );

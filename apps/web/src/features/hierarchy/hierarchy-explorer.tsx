@@ -34,13 +34,13 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SyncStatus } from "../../components/sync-status.tsx";
 import { DatabaseViewService } from "../../services/databases.ts";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { WorkspaceSearchService } from "../../services/search.ts";
+import { FR_COPY } from "../../ui/copy/index.ts";
 import { AppIcon } from "../../ui/icons.tsx";
-import { Button, Field } from "../../ui/primitives/index.ts";
+import { AsyncState, Button, ConfirmDialog, Field } from "../../ui/primitives/index.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
 import { DatabaseConflictResolution } from "../databases/database-conflict-resolution.tsx";
@@ -66,6 +66,7 @@ import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
 import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
+import { WorkspaceSyncStatus } from "../sync/workspace-sync-status.tsx";
 import { PageHeader } from "../workspace/page-header.tsx";
 import { PageTitleEditor } from "../workspace/page-title-editor.tsx";
 import { useActiveItem } from "../workspace/use-active-item.ts";
@@ -81,6 +82,12 @@ interface TreeNode {
   readonly placementId: Uuid;
   readonly positionKey: string;
   readonly children: TreeNode[];
+}
+
+interface TrashConfirmation {
+  readonly node: TreeNode;
+  readonly description: string;
+  readonly returnToMobileNavigation: boolean;
 }
 
 function buildTree(items: ProjectedItem[]): TreeNode[] {
@@ -316,6 +323,8 @@ export function HierarchyExplorer({
     recentsExpanded: true,
   });
   const [searchOpen, setSearchOpen] = useState(false);
+  const [trashConfirmation, setTrashConfirmation] = useState<TrashConfirmation | null>(null);
+  const [trashing, setTrashing] = useState(false);
   const searchReturnFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -878,22 +887,37 @@ export function HierarchyExplorer({
     [visibleNodes],
   );
 
-  const trashItem = useCallback(
-    async (node: TreeNode, confirmOrdinaryItem = false) => {
+  const requestTrash = useCallback(
+    async (node: TreeNode) => {
+      // A destructive confirmation replaces the mobile navigation drawer; it
+      // must not be portalled beside an open modal drawer, whose body lock
+      // would correctly reject pointer interaction outside that drawer.
+      const returnToMobileNavigation = mobileNavigationOpen;
+      setMobileNavigationOpen(false);
       const impact = await service.previewTrashImpact(node.item.id);
-      if (impact.isDatabase) {
-        const message = DATABASE_COPY.hierarchy.trashImpact(
-          node.item.name,
-          impact.activeEntryCount,
-        );
-        if (!window.confirm(message)) return;
-      } else if (confirmOrdinaryItem && !window.confirm(`Move “${node.item.name}” to the trash?`)) {
-        return;
-      }
-      await runCommand("item.trash", { itemId: node.item.id }, [node.item.currentRevisionId]);
+      setTrashConfirmation({
+        node,
+        returnToMobileNavigation,
+        description: impact.isDatabase
+          ? DATABASE_COPY.hierarchy.trashImpact(node.item.name, impact.activeEntryCount)
+          : FR_COPY.navigation.trashDescription(node.item.name),
+      });
     },
-    [runCommand, service],
+    [mobileNavigationOpen, service],
   );
+
+  const confirmTrash = useCallback(async () => {
+    if (trashConfirmation === null) return;
+    setTrashing(true);
+    try {
+      await runCommand("item.trash", { itemId: trashConfirmation.node.item.id }, [
+        trashConfirmation.node.item.currentRevisionId,
+      ]);
+      setTrashConfirmation(null);
+    } finally {
+      setTrashing(false);
+    }
+  }, [runCommand, trashConfirmation]);
 
   const createItem = useCallback(
     async (kind: "page" | "folder", parentItemId: Uuid | null) => {
@@ -1232,7 +1256,7 @@ export function HierarchyExplorer({
     },
     remove: (id: string) => {
       const node = visibleNodes.find((entry) => entry.item.id === id);
-      if (node !== undefined) void trashItem(node, true);
+      if (node !== undefined) void requestTrash(node);
     },
   });
 
@@ -1411,7 +1435,7 @@ export function HierarchyExplorer({
                       offline: !node.item.offlineIntent,
                     })
                   }
-                  onTrash={() => void trashItem(node)}
+                  onRequestTrash={() => void requestTrash(node)}
                 />
               </div>
               <span
@@ -1582,7 +1606,7 @@ export function HierarchyExplorer({
           items={items}
           tree={navigationTree}
           creationControls={creationControls}
-          footerStatus={<SyncStatus service={service} />}
+          footerStatus={<WorkspaceSyncStatus service={service} />}
           shortcutPreferences={shortcutPreferences}
           onShortcutExpandedChange={(section, expanded) => {
             setShortcutPreferences((current) => ({
@@ -1610,6 +1634,22 @@ export function HierarchyExplorer({
         />
       }
     >
+      <ConfirmDialog
+        open={trashConfirmation !== null}
+        busy={trashing}
+        title={FR_COPY.navigation.trashTitle}
+        description={trashConfirmation?.description ?? ""}
+        confirmLabel={FR_COPY.navigation.trashConfirm}
+        testId="trash-confirmation"
+        confirmTestId="confirm-trash"
+        cancelTestId="cancel-trash"
+        onCancel={() => {
+          const returnToMobileNavigation = trashConfirmation?.returnToMobileNavigation === true;
+          setTrashConfirmation(null);
+          if (returnToMobileNavigation) setMobileNavigationOpen(true);
+        }}
+        onConfirm={() => void confirmTrash()}
+      />
       {searchOpen && search !== null ? (
         <SearchDialog
           search={search}
@@ -1638,30 +1678,30 @@ export function HierarchyExplorer({
           </summary>
           <div className="workspace-notices__panel">
             {backupStale ? (
-              <p
-                className="status-banner"
-                data-state="error"
-                role="alert"
-                data-testid="workspace-backup-stale"
-              >
-                <strong>Aucune sauvegarde vérifiée depuis plus d’un jour.</strong>{" "}
-                <Button size="compact" variant="ghost" onClick={onOpenBackups}>
-                  Vérifier les sauvegardes
-                </Button>
-              </p>
+              <AsyncState
+                compact
+                kind="error"
+                testId="workspace-backup-stale"
+                title="Aucune sauvegarde vérifiée depuis plus d’un jour."
+                action={
+                  <Button size="compact" variant="ghost" onClick={onOpenBackups}>
+                    Vérifier les sauvegardes
+                  </Button>
+                }
+              />
             ) : null}
             {problem !== null ? (
-              <div
-                className="status-banner"
-                data-state="error"
-                role="alert"
-                data-testid="problem-banner"
-              >
-                <strong>{problem.title}</strong>
-                <Button size="compact" variant="ghost" onClick={onOpenDiagnostics}>
-                  Voir les détails
-                </Button>
-              </div>
+              <AsyncState
+                compact
+                kind="error"
+                testId="problem-banner"
+                title={problem.title}
+                action={
+                  <Button size="compact" variant="ghost" onClick={onOpenDiagnostics}>
+                    Voir les détails
+                  </Button>
+                }
+              />
             ) : null}
           </div>
         </details>
@@ -1689,9 +1729,7 @@ export function HierarchyExplorer({
       ) : null}
 
       {selectedItem !== null && selectedItem.kind === "page" && structuredSelectionLoading ? (
-        <p className="loading-state" role="status">
-          Opening structured page…
-        </p>
+        <AsyncState compact kind="loading" description="Ouverture de la page structurée…" />
       ) : selectedItem !== null &&
         selectedDatabase !== null &&
         selectedDatabase.databaseId === selectedItem.id ? (

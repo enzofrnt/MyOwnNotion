@@ -25,6 +25,8 @@ import type { Uuid } from "@myownnotion/domain";
 import { emptyDocument, generateUuidV7 } from "@myownnotion/domain";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { FR_COPY } from "../../ui/copy/fr.ts";
+import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { PageAmbiguityNotice } from "../sync/page-ambiguity-notice.tsx";
 import { usePageReconciler } from "../sync/use-page-reconciler.ts";
 import type { CreateSubpage } from "./editor-menus/slash-menu.tsx";
@@ -206,7 +208,7 @@ export function EditorView({
           kind: "unavailable",
           reason:
             opened.offline && !editingAllowed
-              ? "This page cannot be opened while offline on a device that cannot write locally."
+              ? FR_COPY.editor.surface.offlineUnavailable
               : opened.message,
         });
       })
@@ -216,8 +218,8 @@ export function EditorView({
           kind: "unavailable",
           reason:
             error instanceof Error
-              ? `This page could not be opened safely: ${error.message}`
-              : "This page could not be opened safely.",
+              ? FR_COPY.editor.surface.unavailableWithDetail(error.message)
+              : FR_COPY.editor.surface.unavailable,
         });
       });
     return () => {
@@ -248,25 +250,16 @@ export function EditorView({
 
   if (state.kind === "loading") {
     return (
-      <section className="workspace-page-editor" aria-label="Page content" aria-busy="true">
-        <p className="muted" role="status">
-          Loading this page…
-        </p>
+      <section className="workspace-page-editor" aria-label={FR_COPY.editor.surface.contentLabel}>
+        <AsyncState compact kind="loading" description={FR_COPY.editor.surface.loading} />
       </section>
     );
   }
 
   if (state.kind === "unavailable") {
     return (
-      <section className="workspace-page-editor" aria-label="Page content">
-        <p
-          className="status-banner"
-          data-state="error"
-          role="alert"
-          data-testid="editor-unavailable"
-        >
-          {state.reason}
-        </p>
+      <section className="workspace-page-editor" aria-label={FR_COPY.editor.surface.contentLabel}>
+        <AsyncState compact kind="error" description={state.reason} testId="editor-unavailable" />
       </section>
     );
   }
@@ -274,7 +267,7 @@ export function EditorView({
   return (
     <section
       className="workspace-page-editor"
-      aria-label="Page content"
+      aria-label={FR_COPY.editor.surface.contentLabel}
       data-testid="operational-editor"
     >
       <PageAmbiguityNotice records={ambiguities} onResolve={resolveAmbiguity} />

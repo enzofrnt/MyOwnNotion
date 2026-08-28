@@ -8,6 +8,7 @@ export interface AsyncStateProps {
   readonly compact?: boolean;
   readonly description?: ReactNode;
   readonly kind: StatusKind;
+  readonly state?: string;
   readonly title?: ReactNode;
   readonly testId?: string;
 }
@@ -23,6 +24,7 @@ export function AsyncState({
   compact = false,
   description,
   kind,
+  state,
   testId,
   title,
 }: AsyncStateProps) {
@@ -32,12 +34,13 @@ export function AsyncState({
       data-compact={compact || undefined}
       data-testid={testId}
       kind={kind}
+      {...(state === undefined ? {} : { state })}
       title={title}
     >
       {description === undefined ? null : (
-        <span className="ui-async-state__description">{description}</span>
+        <div className="ui-async-state__description">{description}</div>
       )}
-      {action === undefined ? null : <span className="ui-async-state__action">{action}</span>}
+      {action === undefined ? null : <div className="ui-async-state__action">{action}</div>}
     </Status>
   );
 }

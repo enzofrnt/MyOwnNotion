@@ -48,9 +48,9 @@ async function createDatabase(page: Page, name: string): Promise<void> {
   await ensureNavigationVisible(page);
   await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
-  const form = page.getByRole("form", { name: "Create a database" });
-  await form.getByLabel("Create a database").fill(name);
-  await form.getByRole("button", { name: "Create database" }).click();
+  const form = page.getByRole("form", { name: "Créer une base de données" });
+  await form.getByLabel("Créer une base de données").fill(name);
+  await form.getByRole("button", { name: "Créer la base de données" }).click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(name, { timeout: 15_000 });
   await waitForSynchronized(page);
 }
@@ -60,11 +60,11 @@ async function addTextProperty(
   name: string,
   options: { readonly online?: boolean } = {},
 ): Promise<void> {
-  await page.getByRole("button", { name: "Add property" }).click();
-  const editor = page.getByRole("form", { name: "Property editor" });
-  await editor.getByLabel("Name").fill(name);
+  await page.getByRole("button", { name: "Ajouter une propriété" }).click();
+  const editor = page.getByRole("form", { name: "Éditeur de propriété" });
+  await editor.getByLabel("Nom").fill(name);
   await editor.getByLabel("Type").selectOption("text");
-  await editor.getByRole("button", { name: "Save property" }).click();
+  await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
   await expect(editor).toBeHidden({ timeout: 15_000 });
   await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
   if (options.online === false) await waitForDatabaseDefinitionIdle(page);
@@ -73,10 +73,10 @@ async function addTextProperty(
 
 async function createEntry(page: Page, title: string): Promise<void> {
   const form = page.locator(".database-entry-create");
-  const titleInput = form.getByLabel("New entry");
+  const titleInput = form.getByLabel("Nouvelle entrée");
   await titleInput.fill(title);
   await expect(titleInput).toHaveValue(title);
-  await form.getByRole("button", { name: "New entry" }).click();
+  await form.getByRole("button", { name: "Nouvelle entrée" }).click();
   await expect(page.locator("[data-entry-trigger]").filter({ hasText: title }).first()).toBeVisible(
     {
       timeout: 15_000,
@@ -103,7 +103,7 @@ async function saveEntryValues(
 }
 
 async function closeEntry(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Close entry" }).click();
+  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
 }
 
 async function updateTextCell(
@@ -119,7 +119,9 @@ async function updateTextCell(
   await cell.focus();
   await cell.press("F2");
   await cell.getByLabel(propertyName, { exact: true }).fill(value);
-  await cell.getByRole("button", { name: `Save ${propertyName} for ${entryTitle}` }).click();
+  await cell
+    .getByRole("button", { name: `Enregistrer ${propertyName} pour ${entryTitle}` })
+    .click();
   await expect(cell).toHaveAttribute("aria-label", `${propertyName}, ${value}`, {
     timeout: 15_000,
   });
@@ -315,7 +317,7 @@ test.describe("structured offline convergence (US5)", () => {
         );
       }
       await expect(
-        second.page.getByRole("heading", { name: "Resolve database conflict" }),
+        second.page.getByRole("heading", { name: "Résoudre le conflit de base de données" }),
       ).toHaveCount(0);
       await openEntry(second.page, entryName);
       await expect(second.page.getByLabel("Notes", { exact: true })).toHaveValue(
@@ -351,7 +353,7 @@ test.describe("structured offline convergence (US5)", () => {
       await second.page.reload();
       await openDatabaseAfterReload(second.page, databaseName);
       const resolver = second.page.getByRole("region", {
-        name: "Resolve structured database conflict",
+        name: "Résoudre un conflit structuré de base de données",
       });
       await expect(resolver).toBeVisible({ timeout: 30_000 });
       const row = resolver
@@ -367,11 +369,11 @@ test.describe("structured offline convergence (US5)", () => {
       await expect(row.locator('[data-testid^="database-conflict-remote-"]')).toContainText(
         "remote divergent note",
       );
-      await row.getByRole("radio", { name: "Other device" }).check();
+      await row.getByRole("radio", { name: "Autre appareil" }).check();
       await expect(second.page.getByTestId("database-conflict-review")).toContainText(
         "remote divergent note",
       );
-      await resolver.getByRole("button", { name: "Save this resolution" }).click();
+      await resolver.getByRole("button", { name: "Enregistrer cette résolution" }).click();
       await expect(resolver).toHaveCount(0, { timeout: 20_000 });
       await waitForSynchronized(second.page);
 
@@ -432,7 +434,9 @@ test.describe("structured offline convergence (US5)", () => {
       await editingCell.press("F2");
       await editingCell.getByLabel("Details", { exact: true }).fill("propagated value");
       const startedAt = Date.now();
-      await editingCell.getByRole("button", { name: `Save Details for ${entryName}` }).click();
+      await editingCell
+        .getByRole("button", { name: `Enregistrer Details pour ${entryName}` })
+        .click();
       await expect(watchingCell).toHaveAttribute("aria-label", "Details, propagated value", {
         timeout: 15_000,
       });
@@ -459,9 +463,9 @@ test.describe("structured offline convergence (US5)", () => {
       if (await expandDatabase.isVisible()) await expandDatabase.click();
       await expect(second.page.getByTestId(`tree-item-${entryName}`)).toBeVisible();
       await closeMobileNavigation(second.page);
-      await expect(second.page.getByText("Local data partial: 0 of 1")).toBeVisible();
+      await expect(second.page.getByText("Données locales partielles : 0 sur 1")).toBeVisible();
       await expect(
-        second.page.getByText("No entries in the data available on this device."),
+        second.page.getByText("Aucune entrée dans les données disponibles sur cet appareil."),
       ).toBeVisible();
     } finally {
       await second.context.close();

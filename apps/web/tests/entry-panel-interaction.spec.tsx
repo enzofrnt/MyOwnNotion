@@ -94,7 +94,7 @@ describe("entry panel interaction durability", () => {
     const notes = container.querySelector<HTMLInputElement>(`#database-value-${notesId}`);
     const owner = container.querySelector<HTMLInputElement>(`#database-value-${ownerId}`);
     const save = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
-      (button) => button.textContent === "Save properties",
+      (button) => button.textContent === "Enregistrer les propriétés",
     );
     expect(notes).not.toBeNull();
     expect(owner).not.toBeNull();
