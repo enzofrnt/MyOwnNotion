@@ -132,6 +132,27 @@ describe("best-effort writes", () => {
     expect(await events()).toHaveLength(0);
   });
 
+  it("logs empty redacted metadata when a failed audit has no metadata", async () => {
+    const logged: unknown[] = [];
+    const logging = new AuditService(harness.built.database.db, {
+      logger: {
+        error: (payload: unknown) => {
+          logged.push(payload);
+        },
+      } as never,
+    });
+
+    await expect(
+      logging.record(context, {
+        eventType: "not.a.real.event" as never,
+        outcome: "failure",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ metadata: {} });
+  });
+
   it("swallows the failure silently when no logger is configured", async () => {
     await expect(
       service.record(context, { eventType: "not.a.real.event" as never, outcome: "failure" }),
