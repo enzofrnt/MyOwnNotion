@@ -154,6 +154,86 @@
   cursor: not-allowed;
 }
 
+.ui-async-state {
+  width: 100%;
+}
+
+.ui-async-state__description {
+  display: block;
+  color: var(--ui-color-text-muted);
+  font-weight: 400;
+}
+
+.ui-async-state__paragraph {
+  display: block;
+  margin-top: var(--ui-space-2);
+}
+
+.ui-async-state__action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.ui-async-state[data-compact="true"] {
+  padding: var(--ui-space-2) var(--ui-space-3);
+}
+
+.ui-confirm-dialog__content {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-4);
+}
+
+.ui-confirm-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+  margin-top: var(--ui-space-5);
+}
+
+.ui-settings-panel,
+.ui-auth-card {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  padding: var(--ui-space-5);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-lg);
+}
+
+.ui-settings-panel > :first-child,
+.ui-auth-card > :first-child {
+  margin-top: 0;
+}
+
+.ui-settings-panel > :last-child,
+.ui-auth-card > :last-child {
+  margin-bottom: 0;
+}
+
+.ui-select {
+  min-height: var(--ui-target);
+  padding: 0.5rem 2rem 0.5rem 0.625rem;
+  color: var(--ui-color-text);
+  background: var(--ui-color-surface);
+  border: 1px solid var(--ui-color-border);
+  border-radius: var(--ui-radius-md);
+  font: inherit;
+}
+
+.ui-select:hover:not(:disabled) {
+  border-color: var(--ui-color-border-strong);
+}
+
+.ui-select:focus-visible {
+  outline: 2px solid var(--ui-color-focus);
+  outline-offset: 2px;
+  box-shadow: var(--ui-focus-ring);
+}
+
 @keyframes ui-spin {
   to {
     transform: rotate(1turn);
@@ -442,6 +522,11 @@
 
 .ui-status__detail {
   color: var(--ui-color-text);
+}
+
+.ui-async-state .ui-status__detail {
+  display: grid;
+  gap: var(--ui-space-3);
 }
 
 .ui-visually-hidden {

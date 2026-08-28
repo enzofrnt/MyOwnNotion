@@ -13,6 +13,8 @@
  */
 
 import { useCallback, useId, useState } from "react";
+import { FR_COPY, formatDateTime } from "../../ui/copy/index.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 
 export type KitDelivery = "downloadable" | "download-consumed";
 
@@ -28,8 +30,7 @@ export type KitDelivery = "downloadable" | "download-consumed";
  * be fixed. So it is not a footnote and not a tooltip: it sits next to the
  * download button, in the same weight as the instruction to store the file.
  */
-export const DEPLOYMENT_KEY_REQUIREMENT =
-  "Back up your deployment key file as well, somewhere separate. This kit is unlocked by that key — on its own it cannot restore anything.";
+export const DEPLOYMENT_KEY_REQUIREMENT = FR_COPY.security.recoveryKit.deploymentKeyRequirement;
 
 export interface RecoveryKitPanelProps {
   readonly kitId: string;
@@ -44,9 +45,9 @@ export interface RecoveryKitPanelProps {
 function expiryLabel(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) {
-    return "soon";
+    return FR_COPY.security.recoveryKit.soon;
   }
-  return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return formatDateTime(at, { hour: "2-digit", minute: "2-digit" });
 }
 
 export function RecoveryKitPanel(props: RecoveryKitPanelProps) {
@@ -59,13 +60,12 @@ export function RecoveryKitPanel(props: RecoveryKitPanelProps) {
   }, [props.onDownload]);
 
   return (
-    <section className="recovery-kit-panel" aria-labelledby="recovery-kit-heading">
-      <h2 id="recovery-kit-heading">Save your recovery kit</h2>
-      <p>
-        This is the only copy. It is downloaded once, and it is what gets you back into this
-        installation if you lose your passkey. Store it offline — a printout or an encrypted drive,
-        not this device's downloads folder.
-      </p>
+    <section
+      className="recovery-kit-panel ui-settings-panel"
+      aria-labelledby="recovery-kit-heading"
+    >
+      <h2 id="recovery-kit-heading">{FR_COPY.security.recoveryKit.title}</h2>
+      <p>{FR_COPY.security.recoveryKit.introduction}</p>
       <p className="recovery-kit-panel__deployment-key" data-testid="deployment-key-requirement">
         {/* Beside the download, not below the fold: this is the half of the
             answer that an owner cannot infer from the file they are given. */}
@@ -74,46 +74,49 @@ export function RecoveryKitPanel(props: RecoveryKitPanelProps) {
 
       <dl className="recovery-kit-facts">
         <div>
-          <dt>Kit</dt>
+          <dt>{FR_COPY.security.recoveryKit.kit}</dt>
           <dd data-testid="recovery-kit-id">{props.kitId}</dd>
         </div>
         <div>
-          <dt>Download closes</dt>
+          <dt>{FR_COPY.security.recoveryKit.downloadExpires}</dt>
           <dd data-testid="recovery-kit-expiry">{expiryLabel(props.downloadExpiresAt)}</dd>
         </div>
       </dl>
 
       <div className="recovery-kit-actions">
-        <button
-          type="button"
+        <Button
+          variant="primary"
           onClick={download}
-          disabled={props.busy || consumed}
+          busy={props.busy}
+          disabled={consumed}
           data-testid="download-recovery-kit"
         >
-          {consumed ? "Downloaded" : "Download recovery kit"}
-        </button>
-        <button
-          type="button"
-          className="secondary"
+          {consumed
+            ? FR_COPY.security.recoveryKit.downloaded
+            : FR_COPY.security.recoveryKit.download}
+        </Button>
+        <Button
+          variant="secondary"
           onClick={() => {
             void props.onRegenerate();
           }}
-          disabled={props.busy}
+          busy={props.busy}
           data-testid="regenerate-recovery-kit"
         >
-          Generate a new kit
-        </button>
+          {FR_COPY.security.recoveryKit.regenerate}
+        </Button>
       </div>
 
       {consumed ? (
-        <p className="recovery-kit-note" role="status" data-testid="download-consumed-note">
-          The download is spent. If the file did not save, generate a new kit — the old one stops
-          working the moment a new one is created.
-        </p>
+        <AsyncState
+          compact
+          className="recovery-kit-note"
+          kind="info"
+          title={FR_COPY.security.recoveryKit.consumed}
+          testId="download-consumed-note"
+        />
       ) : (
-        <p className="recovery-kit-note">
-          You can download this kit once. Generating a new kit invalidates this one.
-        </p>
+        <p className="recovery-kit-note">{FR_COPY.security.recoveryKit.oneDownload}</p>
       )}
 
       <div className="recovery-kit-confirm">
@@ -125,25 +128,22 @@ export function RecoveryKitPanel(props: RecoveryKitPanelProps) {
           onChange={(event) => setAcknowledged(event.target.checked)}
           data-testid="acknowledge-offline-storage"
         />
-        <label htmlFor={acknowledgeId}>
-          I have stored this recovery kit, and a copy of the deployment key, somewhere offline that
-          I can reach without this device.
-        </label>
+        <label htmlFor={acknowledgeId}>{FR_COPY.security.recoveryKit.acknowledge}</label>
       </div>
 
-      <button
-        type="button"
-        className="primary"
+      <Button
+        variant="primary"
         onClick={() => {
           void props.onConfirm();
         }}
         // Three conditions, each independent: the download must have happened,
         // the owner must have said so, and no request may be in flight.
-        disabled={!consumed || !acknowledged || props.busy}
+        disabled={!consumed || !acknowledged}
+        busy={props.busy}
         data-testid="confirm-offline-storage"
       >
-        Finish setup
-      </button>
+        {FR_COPY.security.recoveryKit.finish}
+      </Button>
     </section>
   );
 }

@@ -15,6 +15,8 @@
 import type { SessionViewDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
+import { FR_COPY, formatDateTime } from "../../ui/copy/index.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 
 export interface SessionPanelProps {
   readonly api: SecurityApi;
@@ -25,21 +27,34 @@ export interface SessionPanelProps {
 
 function when(iso: string): string {
   const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? "unknown" : at.toLocaleString();
+  return Number.isNaN(at.getTime()) ? FR_COPY.security.devices.unknown : formatDateTime(at);
+}
+
+function describeSessionState(state: SessionViewDto["state"]): string {
+  return FR_COPY.security.sessions.states[state];
+}
+
+interface SessionNotice {
+  readonly kind: "error" | "success";
+  readonly message: string;
 }
 
 export function SessionPanel(props: SessionPanelProps) {
   const [sessions, setSessions] = useState<readonly SessionViewDto[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<SessionNotice | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     const result = await props.api.listSessions();
     if (!result.ok) {
-      setMessage("The session list could not be loaded.");
+      setNotice({ kind: "error", message: FR_COPY.security.sessions.loadFailed });
+      setLoading(false);
       return;
     }
     setSessions(result.value.sessions);
+    setLoading(false);
   }, [props.api]);
 
   useEffect(() => {
@@ -49,10 +64,10 @@ export function SessionPanel(props: SessionPanelProps) {
   const revoke = useCallback(
     async (sessionId: string) => {
       setBusy(true);
-      setMessage(null);
+      setNotice(null);
       const result = await props.api.revokeSession(sessionId);
       if (!result.ok) {
-        setMessage("That session could not be signed out.");
+        setNotice({ kind: "error", message: FR_COPY.security.sessions.revokeFailed });
         setBusy(false);
         return;
       }
@@ -68,64 +83,90 @@ export function SessionPanel(props: SessionPanelProps) {
 
   const revokeOthers = useCallback(async () => {
     setBusy(true);
-    setMessage(null);
+    setNotice(null);
     const result = await props.api.revokeOtherSessions();
     if (!result.ok) {
-      setMessage(
-        result.problem.code === "recent_authentication_required"
-          ? "Confirm your passkey or password again before signing out everywhere else."
-          : "Those sessions could not be signed out.",
-      );
+      setNotice({
+        kind: "error",
+        message:
+          result.problem.code === "recent_authentication_required"
+            ? FR_COPY.security.sessions.revokeOthersAuthentication
+            : FR_COPY.security.sessions.revokeOthersFailed,
+      });
       setBusy(false);
       return;
     }
     await refresh();
-    setMessage("Every other session has been signed out.");
+    setNotice({ kind: "success", message: FR_COPY.security.sessions.revokeOthersDone });
     setBusy(false);
   }, [props.api, refresh]);
 
   const active = sessions.filter((session) => session.state === "active");
 
   return (
-    <section className="session-panel" aria-labelledby="sessions-heading">
-      <h2 id="sessions-heading">Where you are signed in</h2>
-      <p className="session-message" role="status" aria-live="polite" data-testid="session-message">
-        {message ?? ""}
-      </p>
+    <section className="session-panel ui-settings-panel" aria-labelledby="sessions-heading">
+      <h2 id="sessions-heading">{FR_COPY.security.sessions.title}</h2>
+      {notice === null ? null : (
+        <AsyncState
+          compact
+          className="session-message"
+          kind={notice.kind}
+          title={notice.message}
+          testId="session-message"
+        />
+      )}
 
-      <ul className="session-list" data-testid="session-list">
-        {sessions.map((session) => {
-          const isCurrent = session.sessionId === props.currentSessionId;
-          return (
-            <li key={session.sessionId} data-testid="session-row">
-              <div>
-                <strong>{session.authMethod === "passkey" ? "Passkey" : "Password"}</strong>
-                {isCurrent ? <span data-testid="current-session"> — this browser</span> : null}
-              </div>
-              <div className="session-detail">
-                Last seen {when(session.lastSeenAt)} · started {when(session.issuedAt)} ·{" "}
-                {session.state}
-              </div>
-              {session.state === "active" ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void revoke(session.sessionId);
-                  }}
-                  disabled={busy}
-                  data-testid="revoke-session"
-                >
-                  {isCurrent ? "Sign out here" : "Sign out"}
-                </button>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+      {loading ? (
+        <AsyncState compact kind="loading" title={FR_COPY.security.sessions.loading} />
+      ) : sessions.length === 0 ? (
+        <AsyncState compact kind="empty" title={FR_COPY.security.sessions.empty} />
+      ) : (
+        <ul className="session-list" data-testid="session-list">
+          {sessions.map((session) => {
+            const isCurrent = session.sessionId === props.currentSessionId;
+            return (
+              <li key={session.sessionId} data-testid="session-row">
+                <div>
+                  <strong>
+                    {session.authMethod === "passkey"
+                      ? FR_COPY.security.sessions.passkey
+                      : FR_COPY.security.sessions.password}
+                  </strong>
+                  {isCurrent ? (
+                    <span data-testid="current-session">
+                      {" "}
+                      — {FR_COPY.security.sessions.current}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="session-detail">
+                  {FR_COPY.security.sessions.lastSeen} {when(session.lastSeenAt)} ·{" "}
+                  {FR_COPY.security.sessions.started} {when(session.issuedAt)} ·{" "}
+                  {describeSessionState(session.state)}
+                </div>
+                {session.state === "active" ? (
+                  <Button
+                    size="compact"
+                    variant={isCurrent ? "danger" : "secondary"}
+                    onClick={() => {
+                      void revoke(session.sessionId);
+                    }}
+                    disabled={busy}
+                    data-testid="revoke-session"
+                  >
+                    {isCurrent
+                      ? FR_COPY.security.sessions.signOutHere
+                      : FR_COPY.security.sessions.signOut}
+                  </Button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
-      <button
-        type="button"
-        className="secondary"
+      <Button
+        variant="secondary"
         onClick={() => {
           void revokeOthers();
         }}
@@ -134,8 +175,8 @@ export function SessionPanel(props: SessionPanelProps) {
         disabled={busy || active.length <= 1}
         data-testid="revoke-other-sessions"
       >
-        Sign out everywhere else
-      </button>
+        {FR_COPY.security.sessions.signOutOthers}
+      </Button>
     </section>
   );
 }

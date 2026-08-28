@@ -9,6 +9,7 @@
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { useCallback, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
+import { AsyncState, FR_COPY } from "../../ui/index.ts";
 
 export function ReplaceFileContent({
   itemId,
@@ -40,15 +41,15 @@ export function ReplaceFileContent({
       if (!result.ok) {
         if (result.problem.code === "revision.stale-base") {
           setStatus("conflict");
-          setMessage("The file changed elsewhere; reload to update from the accepted revision");
+          setMessage(FR_COPY.files.replacement.stale);
         } else {
           setStatus("error");
-          setMessage(`${result.problem.code}: ${result.problem.title}`);
+          setMessage(FR_COPY.files.replacement.failed);
         }
         return;
       }
       setStatus("done");
-      setMessage("Content replaced — every placement of this file now shows the new content");
+      setMessage(FR_COPY.files.replacement.done);
       onReplaced?.();
     },
     [itemId, currentRevisionId, onReplaced],
@@ -57,7 +58,7 @@ export function ReplaceFileContent({
   return (
     <span className="field-row">
       <label htmlFor={`replace-content-${itemId}`} className="muted">
-        Replace content
+        {FR_COPY.files.replacement.label}
       </label>
       <input
         id={`replace-content-${itemId}`}
@@ -67,14 +68,12 @@ export function ReplaceFileContent({
         onChange={(event) => void replace(event.target.files)}
       />
       {message !== null ? (
-        <span
-          className={status === "done" ? "muted" : "status-banner"}
-          data-state={status === "conflict" ? "conflict" : status === "error" ? "error" : "synced"}
-          role={status === "done" ? "status" : "alert"}
-          data-testid="replace-feedback"
-        >
-          {message}
-        </span>
+        <AsyncState
+          compact
+          kind={status === "done" ? "success" : status === "conflict" ? "conflict" : "error"}
+          description={message}
+          testId="replace-feedback"
+        />
       ) : null}
     </span>
   );

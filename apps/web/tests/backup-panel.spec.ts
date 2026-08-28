@@ -69,8 +69,8 @@ describe("what the owner reads", () => {
 
   it("states plainly when the remote copy is stale", () => {
     const html = render(status({ stale: true }));
-    expect(html).toContain("No verified backup in more than a day");
-    expect(html).toContain("not currently protected against losing this machine");
+    expect(html).toContain("Aucune sauvegarde vérifiée depuis plus d’une journée");
+    expect(html).toContain("n’est actuellement pas protégé contre la perte de cette machine");
     expect(html).toContain('role="alert"');
   });
 
@@ -81,9 +81,9 @@ describe("what the owner reads", () => {
         latestTransferVerification: "failed",
       }),
     );
-    expect(html).toContain("latest backup was not verified after transfer");
-    expect(html).toContain("verified on this machine");
-    expect(html).toContain("configured backup destination");
+    expect(html).toContain("dernière sauvegarde n’a pas été vérifiée après son transfert");
+    expect(html).toContain("copie locale est valide");
+    expect(html).toContain("à destination");
     expect(html).toContain('role="alert"');
   });
 
@@ -94,21 +94,21 @@ describe("what the owner reads", () => {
         latestTransferVerification: null,
       }),
     );
-    expect(html).toContain("failed verification on this machine");
-    expect(html).toContain("was not sent to the destination");
-    expect(html).not.toContain("latest backup was not verified after transfer");
+    expect(html).toContain("a échoué à la vérification locale");
+    expect(html).toContain("n’a pas été envoyée vers la destination");
+    expect(html).not.toContain("n’a pas été vérifiée après son transfert");
   });
 
   it("shows an ordinary verified backup without calling it a rehearsed restore", () => {
     const html = render(status({ lastRehearsalAt: null, lastRehearsalOutcome: null }));
-    expect(html).toContain("Last verified backup:");
-    expect(html).toContain("Last test restoration: never");
+    expect(html).toContain("Dernière sauvegarde vérifiée :");
+    expect(html).toContain("Dernier test de restauration : jamais");
   });
 
   it("invites a rehearsal after a month and explains that the live workspace is untouched", () => {
     const html = render(status({ rehearsalDue: true }));
-    expect(html).toContain("more than a month");
-    expect(html).toContain("separate place");
-    expect(html).toContain("leaves this workspace untouched");
+    expect(html).toContain("plus d’un mois");
+    expect(html).toContain("emplacement séparé");
+    expect(html).toContain("ne modifie pas cet espace de travail");
   });
 });

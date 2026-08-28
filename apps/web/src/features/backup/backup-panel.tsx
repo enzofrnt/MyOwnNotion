@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { AsyncState, FR_COPY, formatDateTime } from "../../ui/index.ts";
 import { type RehearsalRunState, RestoreRehearsal } from "./restore-rehearsal.tsx";
 
 export interface BackupStatus {
@@ -34,10 +35,10 @@ export interface BackupStatus {
 
 function formatMoment(iso: string | null): string {
   if (iso === null) {
-    return "never";
+    return FR_COPY.backup.never;
   }
   const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? "never" : at.toLocaleString();
+  return Number.isNaN(at.getTime()) ? FR_COPY.backup.never : formatDateTime(at);
 }
 
 export function BackupPanel({
@@ -92,23 +93,26 @@ export function BackupPanel({
 
   if (status === null && failed) {
     return (
-      <section className="panel" aria-label="Backups" data-testid="backup-panel">
-        <h2>Backups</h2>
-        <p className="status-banner" data-state="error" role="alert">
-          Backup status could not be loaded. This does not mean your backups are healthy or
-          unhealthy; check again when the server is reachable.
-        </p>
+      <section
+        className="ui-settings-panel"
+        aria-label={FR_COPY.backup.title}
+        data-testid="backup-panel"
+      >
+        <h2>{FR_COPY.backup.title}</h2>
+        <AsyncState kind="error" description={FR_COPY.backup.loadFailed} />
       </section>
     );
   }
 
   if (status === null) {
     return (
-      <section className="panel" aria-label="Backups" data-testid="backup-panel" aria-busy="true">
-        <h2>Backups</h2>
-        <p className="muted" role="status">
-          Checking when your workspace was last backed up…
-        </p>
+      <section
+        className="ui-settings-panel"
+        aria-label={FR_COPY.backup.title}
+        data-testid="backup-panel"
+      >
+        <h2>{FR_COPY.backup.title}</h2>
+        <AsyncState kind="loading" title={FR_COPY.backup.loading} />
       </section>
     );
   }
@@ -133,46 +137,43 @@ export function BackupStatusSummary({
   readonly runState?: RehearsalRunState;
 }) {
   return (
-    <section className="panel" aria-label="Backups" data-testid="backup-panel">
-      <h2>Backups</h2>
+    <section
+      className="ui-settings-panel"
+      aria-label={FR_COPY.backup.title}
+      data-testid="backup-panel"
+    >
+      <h2>{FR_COPY.backup.title}</h2>
 
       {status.latestCreationVerification === "failed" ? (
-        <p
-          className="status-banner"
-          data-state="error"
-          role="alert"
-          data-testid="backup-creation-failed"
-        >
-          <strong>The latest backup failed verification on this machine.</strong> It was not sent to
-          the destination. The attempt was made {formatMoment(status.latestBackupAt)}; check the
-          administrative backup command for details.
-        </p>
+        <AsyncState
+          kind="error"
+          title={FR_COPY.backup.creationFailedTitle}
+          description={`${FR_COPY.backup.creationFailed} ${formatMoment(status.latestBackupAt)}.`}
+          testId="backup-creation-failed"
+        />
       ) : status.latestCreationVerification === "passed" &&
         status.latestTransferVerification !== "passed" ? (
-        <p
-          className="status-banner"
-          data-state="error"
-          role="alert"
-          data-testid="backup-transfer-failed"
-        >
-          <strong>The latest backup was not verified after transfer.</strong> It was verified on
-          this machine {formatMoment(status.latestBackupAt)}, but no verified copy was confirmed at
-          the destination. Check the configured backup destination.
-        </p>
+        <AsyncState
+          kind="error"
+          title={FR_COPY.backup.transferFailedTitle}
+          description={`${FR_COPY.backup.transferFailed} ${formatMoment(status.latestBackupAt)}.`}
+          testId="backup-transfer-failed"
+        />
       ) : null}
 
       {status.stale ? (
         // An alert, and worded as one. This says the workspace is currently
         // unprotected, which is a different claim from "a job failed" — and the
         // owner is the only person who can act on it.
-        <p className="status-banner" data-state="error" role="alert" data-testid="backup-stale">
-          <strong>No verified backup in more than a day.</strong> Your workspace is not currently
-          protected against losing this machine. The last verified backup was{" "}
-          {formatMoment(status.lastVerifiedAt)}.
-        </p>
+        <AsyncState
+          kind="error"
+          title={FR_COPY.backup.staleTitle}
+          description={`${FR_COPY.backup.stale} ${FR_COPY.backup.lastVerified} : ${formatMoment(status.lastVerifiedAt)}.`}
+          testId="backup-stale"
+        />
       ) : (
         <p className="muted" role="status" data-testid="backup-last-verified">
-          Last verified backup: {formatMoment(status.lastVerifiedAt)}.
+          {FR_COPY.backup.lastVerified} : {formatMoment(status.lastVerifiedAt)}.
         </p>
       )}
 

@@ -12,9 +12,10 @@
  */
 
 import type { FileUsageDto } from "@myownnotion/contracts";
-import { describeUsages, type NamedUsage, planFileDeletion, type Uuid } from "@myownnotion/domain";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { type NamedUsage, planFileDeletion, type Uuid } from "@myownnotion/domain";
+import { useCallback, useRef, useState } from "react";
 import type { ContentApi } from "../../services/content-api.ts";
+import { AsyncState, Button, ConfirmDialog, FR_COPY, formatNumber } from "../../ui/index.ts";
 
 type Stage =
   | { readonly kind: "idle" }
@@ -34,18 +35,7 @@ export function DeleteFile({
   readonly onDeleted: () => void;
 }) {
   const [stage, setStage] = useState<Stage>({ kind: "idle" });
-  const dialog = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
-  const titleId = useId();
-  const bodyId = useId();
-
-  useEffect(() => {
-    if (stage.kind === "confirming") {
-      // Focus moves into the dialogue, so a keyboard owner is where the
-      // decision is rather than somewhere behind it.
-      dialog.current?.focus();
-    }
-  }, [stage.kind]);
 
   /**
    * Removes every placement, which is how a file is deleted here.
@@ -59,7 +49,7 @@ export function DeleteFile({
   const destroy = useCallback(async () => {
     const item = await api.getItem(fileItemId);
     if (!item.ok) {
-      setStage({ kind: "failed", message: `${item.problem.code}: ${item.problem.title}` });
+      setStage({ kind: "failed", message: FR_COPY.files.deletion.deleteFailed });
       return;
     }
     for (const placement of item.value.placements) {
@@ -67,7 +57,7 @@ export function DeleteFile({
       if (!removed.ok) {
         setStage({
           kind: "failed",
-          message: `${removed.problem.code}: ${removed.problem.title}`,
+          message: FR_COPY.files.deletion.deleteFailed,
         });
         return;
       }
@@ -86,7 +76,7 @@ export function DeleteFile({
       // to act on.
       setStage({
         kind: "failed",
-        message: "What uses this file could not be checked, so it has not been deleted.",
+        message: FR_COPY.files.deletion.checkFailed,
       });
       return;
     }
@@ -106,65 +96,58 @@ export function DeleteFile({
 
   return (
     <>
-      <button
+      <Button
         type="button"
         ref={trigger}
-        aria-label={`Delete ${fileName}`}
+        size="compact"
+        variant="danger"
+        aria-label={`${FR_COPY.files.deletion.action} : ${fileName}`}
         data-testid={`delete-file-${fileName}`}
-        disabled={stage.kind === "checking"}
+        busy={stage.kind === "checking"}
         onClick={() => void ask()}
       >
-        delete
-      </button>
+        {FR_COPY.actions.delete}
+      </Button>
 
       {stage.kind === "failed" ? (
-        <span className="status-banner" data-state="error" role="alert">
-          {stage.message}
-        </span>
+        <AsyncState compact kind="error" description={stage.message} />
       ) : null}
 
-      {stage.kind === "confirming" ? (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          aria-describedby={bodyId}
-          tabIndex={-1}
-          ref={dialog}
-          className="convert-dialog"
-          data-testid="delete-file-confirmation"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              dismiss();
-            }
-          }}
-        >
-          <h3 id={titleId}>Delete {fileName}?</h3>
-          <p id={bodyId} data-testid="delete-file-usages">
-            {describeUsages(stage.usages)}
-          </p>
-          <ul className="tree" data-testid="delete-file-usage-list">
-            {stage.usages.map((usage, index) => (
-              <li key={`${usage.usedByItemId}-${usage.blockId ?? index}`} className="tree-row">
-                <span className="tree-kind">{usage.usageKind}</span>
-                <span className="tree-name">{usage.usedByName}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="muted">
-            It goes to the trash and can be restored for 30 days, like anything else.
-          </p>
-          <div className="field-row">
-            <button type="button" data-testid="delete-file-cancel" onClick={dismiss}>
-              Keep the file
-            </button>
-            <button type="button" data-testid="delete-file-confirm" onClick={() => void destroy()}>
-              Delete it anyway
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <ConfirmDialog
+        open={stage.kind === "confirming"}
+        title={
+          <>
+            {FR_COPY.files.deletion.title} <span className="ui-muted-inline">{fileName}</span>
+          </>
+        }
+        description={FR_COPY.files.deletion.description}
+        confirmLabel={FR_COPY.files.deletion.confirm}
+        confirmTestId="delete-file-confirm"
+        cancelLabel={FR_COPY.files.deletion.keep}
+        cancelTestId="delete-file-cancel"
+        onCancel={dismiss}
+        onConfirm={() => void destroy()}
+        testId="delete-file-confirmation"
+      >
+        {stage.kind === "confirming" ? (
+          <>
+            <p data-testid="delete-file-usages">
+              {formatNumber(stage.usages.length)}{" "}
+              {stage.usages.length === 1
+                ? FR_COPY.files.deletion.usageSingular
+                : FR_COPY.files.deletion.usagePlural}
+            </p>
+            <ul className="tree" data-testid="delete-file-usage-list">
+              {stage.usages.map((usage, index) => (
+                <li key={`${usage.usedByItemId}-${usage.blockId ?? index}`} className="tree-row">
+                  <span className="tree-kind">{usage.usageKind}</span>
+                  <span className="tree-name">{usage.usedByName}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </ConfirmDialog>
     </>
   );
 }

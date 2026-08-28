@@ -1,13 +1,15 @@
 /** The separate fact that a backup has actually been restored (T033). */
 
+import { AsyncState, Button, FR_COPY, formatDateTime } from "../../ui/index.ts";
+
 export type RehearsalRunState = "idle" | "running" | "succeeded" | "failed";
 
 function formatMoment(iso: string | null): string {
   if (iso === null) {
-    return "never";
+    return FR_COPY.backup.never;
   }
   const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? "never" : at.toLocaleString();
+  return Number.isNaN(at.getTime()) ? FR_COPY.backup.never : formatDateTime(at);
 }
 
 export function RestoreRehearsal({
@@ -25,50 +27,49 @@ export function RestoreRehearsal({
 }) {
   return (
     <section aria-labelledby="restore-rehearsal-title" data-testid="restore-rehearsal">
-      <h3 id="restore-rehearsal-title">Test restoration</h3>
+      <h3 id="restore-rehearsal-title">{FR_COPY.backup.rehearsalTitle}</h3>
       <p className="muted" data-testid="backup-last-rehearsal">
-        Last test restoration: {formatMoment(lastRehearsalAt)}
-        {lastRehearsalOutcome === null ? "" : ` (${lastRehearsalOutcome})`}.
+        {FR_COPY.backup.lastRehearsal} : {formatMoment(lastRehearsalAt)}
+        {lastRehearsalOutcome === null
+          ? ""
+          : ` (${lastRehearsalOutcome === "succeeded" ? FR_COPY.backup.succeeded : FR_COPY.backup.failed})`}
+        .
       </p>
 
       {rehearsalDue ? (
-        <p
-          className="status-banner"
-          data-state="conflict"
-          role="status"
-          data-testid="rehearsal-due"
-        >
-          It has been more than a month since you last tested restoring a backup. A test restores
-          into a separate place and leaves this workspace untouched.
-          {onRun === undefined ? null : (
-            <>
-              {" "}
-              <button
+        <AsyncState
+          kind="pending"
+          description={FR_COPY.backup.rehearsalDue}
+          action={
+            onRun === undefined ? undefined : (
+              <Button
                 type="button"
                 data-testid="run-rehearsal"
                 onClick={onRun}
-                disabled={runState === "running"}
+                busy={runState === "running"}
               >
-                {runState === "running" ? "Testing restoration…" : "Test a restoration"}
-              </button>
-            </>
-          )}
-        </p>
+                {runState === "running"
+                  ? FR_COPY.backup.runningRehearsal
+                  : FR_COPY.backup.runRehearsal}
+              </Button>
+            )
+          }
+          testId="rehearsal-due"
+        />
       ) : null}
 
       {runState === "succeeded" ? (
-        <p
-          role="status"
-          className="status-banner"
-          data-state="success"
-          data-testid="rehearsal-result"
-        >
-          The backup restored successfully in isolation. This workspace was left untouched.
-        </p>
+        <AsyncState
+          kind="success"
+          description={FR_COPY.backup.rehearsalSucceeded}
+          testId="rehearsal-result"
+        />
       ) : runState === "failed" ? (
-        <p role="alert" className="status-banner" data-state="error" data-testid="rehearsal-result">
-          The test restoration did not complete. Your live workspace was left untouched.
-        </p>
+        <AsyncState
+          kind="error"
+          description={FR_COPY.backup.rehearsalFailed}
+          testId="rehearsal-result"
+        />
       ) : null}
     </section>
   );

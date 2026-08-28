@@ -20,6 +20,8 @@
  */
 
 import type { RecoveryStatusView } from "../../services/security-api.ts";
+import { FR_COPY, formatDate } from "../../ui/copy/index.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 
 export interface RecoveryReadinessPanelProps {
   readonly status: RecoveryStatusView | null;
@@ -42,84 +44,79 @@ export function describeReadiness(status: RecoveryStatusView | null): {
     // cannot support, and rendering nothing at all would read as fine.
     return {
       ready: false,
-      message: "Recovery status could not be loaded, so this screen cannot tell you either way.",
+      message: FR_COPY.security.recovery.unknown,
     };
   }
   if (status.active === null) {
     return {
       ready: false,
-      message:
-        "You have no recovery kit. If you lose your passkey and this machine, there is no way back into this workspace.",
+      message: FR_COPY.security.recovery.missing,
     };
   }
   if (status.pending !== null) {
     return {
       ready: true,
-      message:
-        "You have a usable recovery kit, and a replacement is part-way through. The old kit keeps working until you confirm the new one.",
+      message: FR_COPY.security.recovery.replacementPending,
     };
   }
-  return { ready: true, message: "You have a recovery kit." };
+  return { ready: true, message: FR_COPY.security.recovery.ready };
 }
 
 export function RecoveryReadinessPanel(props: RecoveryReadinessPanelProps) {
   const readiness = describeReadiness(props.status);
 
   return (
-    <section className="recovery-readiness-panel" aria-labelledby="recovery-readiness-heading">
-      <h2 id="recovery-readiness-heading">Getting back in</h2>
+    <section
+      className="recovery-readiness-panel ui-settings-panel"
+      aria-labelledby="recovery-readiness-heading"
+    >
+      <h2 id="recovery-readiness-heading">{FR_COPY.security.recovery.title}</h2>
 
-      <p
+      <AsyncState
         className={`recovery-readiness-panel__state is-${readiness.ready ? "ready" : "not-ready"}`}
-        // Announced rather than only coloured: "you have no way back in" is
-        // not a detail to discover by noticing a shade of red.
-        role="status"
-        data-testid="recovery-readiness"
-      >
-        {readiness.message}
-      </p>
+        compact
+        kind={readiness.ready ? "success" : "error"}
+        title={readiness.message}
+        testId="recovery-readiness"
+      />
 
       <p className="recovery-readiness-panel__key" data-testid="recovery-key-requirement">
-        <strong>
-          Your recovery kit is unlocked by this installation's deployment key file. Keep a backup of
-          that key somewhere separate — the kit on its own cannot restore anything.
-        </strong>
+        <strong>{FR_COPY.security.recovery.keyRequirement}</strong>
       </p>
 
       {props.status?.active !== null && props.status !== null && (
         <dl className="recovery-readiness-panel__facts">
           <div>
-            <dt>Kit</dt>
+            <dt>{FR_COPY.security.recovery.kit}</dt>
             <dd data-testid="recovery-kit-id">{props.status.active?.kitId}</dd>
           </div>
           <div>
-            <dt>Confirmed</dt>
+            <dt>{FR_COPY.security.recovery.confirmed}</dt>
             <dd data-testid="recovery-confirmed-at">
               {props.status.active?.confirmedAt === null
-                ? "not yet"
-                : new Date(props.status.active?.confirmedAt ?? "").toLocaleDateString()}
+                ? FR_COPY.security.recovery.notYet
+                : formatDate(props.status.active?.confirmedAt ?? "")}
             </dd>
           </div>
         </dl>
       )}
 
-      <button
-        type="button"
+      <Button
+        variant="secondary"
         onClick={() => {
           void props.onPrepareReplacement();
         }}
-        disabled={props.busy}
+        busy={props.busy}
         data-testid="prepare-recovery-replacement"
       >
-        Generate a new recovery kit
-      </button>
+        {FR_COPY.security.recovery.generate}
+      </Button>
 
       <p className="recovery-readiness-panel__note">
         {/* Said before they start, not after. An owner who thinks generating a
             kit invalidates the old one immediately will hesitate to do it at
             all — which leaves them on a kit they may have lost. */}
-        Your current kit keeps working until you download the new one and confirm you have stored
-        it.
+        {FR_COPY.security.recovery.replacementSafety}
       </p>
     </section>
   );

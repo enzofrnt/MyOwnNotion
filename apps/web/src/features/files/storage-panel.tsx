@@ -19,6 +19,7 @@ import {
 } from "@myownnotion/client-core";
 import { useCallback, useEffect, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { AsyncState, Button, FR_COPY } from "../../ui/index.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 
 export function StoragePanel({ service }: { readonly service: LocalContentService }) {
@@ -45,41 +46,43 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
 
   if (measurement === null) {
     return (
-      <section className="panel" aria-label="Device storage">
-        <p className="muted" role="status" aria-busy="true">
-          Measuring what this device is holding…
-        </p>
+      <section className="ui-settings-panel" aria-label={FR_COPY.files.storage.label}>
+        <AsyncState kind="loading" title={FR_COPY.files.storage.loading} />
       </section>
     );
   }
 
   const limit = measurement.limitBytes;
   return (
-    <section className="panel" aria-label="Device storage" data-testid="storage-panel">
-      <h2>This device</h2>
+    <section
+      className="ui-settings-panel"
+      aria-label={FR_COPY.files.storage.label}
+      data-testid="storage-panel"
+    >
+      <h2>{FR_COPY.files.storage.title}</h2>
 
       <p data-testid="storage-usage">
-        <strong>{formatByteLength(measurement.usedBytes)}</strong> in use
-        {limit === null ? " — no limit set" : ` of ${formatByteLength(limit)}`}
+        <strong>{formatByteLength(measurement.usedBytes)}</strong> {FR_COPY.files.storage.used}
+        {limit === null
+          ? ` — ${FR_COPY.files.storage.noLimitSet}`
+          : ` ${FR_COPY.files.storage.ofLimit} ${formatByteLength(limit)}`}
       </p>
 
       <p className="muted" data-testid="storage-durability">
-        {measurement.persisted
-          ? "This browser has agreed to keep your data."
-          : "This browser has not promised to keep your data. Unsent changes could be cleared if the device runs short of space."}
+        {measurement.persisted ? FR_COPY.files.storage.durable : FR_COPY.files.storage.notDurable}
       </p>
       {!measurement.persisted ? (
-        <button
+        <Button
           type="button"
           data-testid="storage-request-durability"
-          disabled={busy}
+          busy={busy}
           onClick={() => void requestDurability().then(() => refresh())}
         >
-          Ask this browser to keep it
-        </button>
+          {FR_COPY.files.storage.requestDurability}
+        </Button>
       ) : null}
 
-      <h3>What is holding the space</h3>
+      <h3>{FR_COPY.files.storage.breakdown}</h3>
       <ul className="tree" data-testid="storage-breakdown">
         {measurement.breakdown.map((entry) => (
           <li key={entry.label} className="tree-row">
@@ -91,10 +94,11 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
 
       <div className="field-row">
         <label htmlFor="storage-limit" className="muted">
-          Limit for this device
+          {FR_COPY.files.storage.limit}
         </label>
         <select
           id="storage-limit"
+          className="ui-select"
           data-testid="storage-limit"
           value={limit === null ? "unlimited" : String(limit)}
           disabled={busy}
@@ -107,15 +111,11 @@ export function StoragePanel({ service }: { readonly service: LocalContentServic
           <option value={String(20 * 1024 * 1024 * 1024)}>20 GB</option>
           {/* Unlimited is the absence of a limit, offered as its own choice
               rather than as an implausibly large number. */}
-          <option value="unlimited">No limit</option>
+          <option value="unlimited">{FR_COPY.files.storage.unlimited}</option>
         </select>
       </div>
 
-      <p className="muted">
-        When the limit is reached, this device releases content the server can return, oldest and
-        largest first. Unsent changes, unresolved conflicts, and anything you marked to keep offline
-        are never released.
-      </p>
+      <p className="muted">{FR_COPY.files.storage.explanation}</p>
     </section>
   );
 }

@@ -30,16 +30,16 @@ describe("what each state says", () => {
     // the honest answer is "not yet" — and an interface with no word for that
     // moment fills it with an optimistic one.
     expect(described.label).not.toMatch(/stored|synchronis|complete/i);
-    expect(described.detail).toMatch(/confirm/i);
+    expect(described.detail).toMatch(/vérifie/i);
   });
 
   it("says stored only for the verified state", () => {
-    expect(describeTransfer({ kind: "synchronized", itemId: "x" }).label).toBe("Stored");
+    expect(describeTransfer({ kind: "synchronized", itemId: "x" }).label).toBe("Stocké");
     for (const state of [
       { kind: "uploading", sent: 2048, total: 2048 } as const,
       { kind: "verifying" } as const,
     ]) {
-      expect(describeTransfer(state).label).not.toBe("Stored");
+      expect(describeTransfer(state).label).not.toBe("Stocké");
     }
   });
 
@@ -56,8 +56,8 @@ describe("what each state says", () => {
 
   it("still explains a refusal that carries no limit", () => {
     const described = describeTransfer({ kind: "blocked", reason: "The transfer stopped." });
-    expect(described.label).toBe("Not stored");
-    expect(described.detail).toBe("The transfer stopped.");
+    expect(described.label).toBe("Non stocké");
+    expect(described.detail).toContain("Le transfert s’est arrêté");
   });
 
   it("says nothing at all when there is nothing happening", () => {

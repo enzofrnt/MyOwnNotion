@@ -14,6 +14,7 @@
 
 import { useCallback, useId, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
+import { AsyncState, Button, Field, FR_COPY } from "../../ui/index.ts";
 import { passkeysAvailable, requestOwnerPasskey } from "./passkey-client.ts";
 
 export interface LoginPageProps {
@@ -30,7 +31,7 @@ type Mode = "passkey" | "password";
  * would confirm whether an installation is set up; this says nothing an
  * attacker did not already know, and still tells the owner what to try.
  */
-const REFUSED = "That did not work. Check your passkey or password and try again.";
+const REFUSED = FR_COPY.auth.login.refused;
 
 export function LoginPage(props: LoginPageProps) {
   const [mode, setMode] = useState<Mode>(passkeysAvailable() ? "passkey" : "password");
@@ -50,9 +51,7 @@ export function LoginPage(props: LoginPageProps) {
       setPassword("");
       if (!result.ok) {
         setMessage(
-          result.problem.code === "rate_limited"
-            ? "Too many attempts. Wait a few minutes before trying again."
-            : REFUSED,
+          result.problem.code === "rate_limited" ? FR_COPY.auth.login.rateLimited : REFUSED,
         );
         setBusy(false);
         return;
@@ -75,7 +74,7 @@ export function LoginPage(props: LoginPageProps) {
     // The ceremony itself lives in the browser; a failure here is
     // indistinguishable to us from a refused credential, and is reported the
     // same way.
-    setMessage("Waiting for your device…");
+    setMessage(FR_COPY.auth.login.waiting);
     const assertion = await requestOwnerPasskey(options.value);
     if (!assertion.ok) {
       setMessage(REFUSED);
@@ -84,11 +83,7 @@ export function LoginPage(props: LoginPageProps) {
     }
     const result = await props.api.loginWithPasskey(assertion.credential);
     if (!result.ok) {
-      setMessage(
-        result.problem.code === "rate_limited"
-          ? "Too many attempts. Wait a few minutes before trying again."
-          : REFUSED,
-      );
+      setMessage(result.problem.code === "rate_limited" ? FR_COPY.auth.login.rateLimited : REFUSED);
       setBusy(false);
       return;
     }
@@ -97,47 +92,52 @@ export function LoginPage(props: LoginPageProps) {
   }, [props.api, props.onSignedIn]);
 
   return (
-    <main className="login-page" aria-labelledby="login-heading">
-      <h1 id="login-heading">Sign in</h1>
+    <main className="login-page ui-auth-surface" aria-labelledby="login-heading">
+      <h1 id="login-heading">{FR_COPY.auth.login.title}</h1>
 
-      <p className="login-message" role="status" aria-live="polite" data-testid="login-message">
-        {message ?? ""}
-      </p>
+      {message === null ? null : (
+        <AsyncState
+          compact
+          kind={busy ? "loading" : "error"}
+          title={message}
+          testId="login-message"
+        />
+      )}
 
       {mode === "passkey" ? (
-        <section aria-labelledby="passkey-heading">
-          <h2 id="passkey-heading">Use your passkey</h2>
-          <p>Your device will ask you to confirm.</p>
-          <button
+        <section className="ui-auth-card" aria-labelledby="passkey-heading">
+          <h2 id="passkey-heading">{FR_COPY.auth.login.passkeyTitle}</h2>
+          <p>{FR_COPY.auth.login.passkeyDescription}</p>
+          <Button
             type="button"
-            className="primary"
+            variant="primary"
+            busy={busy}
             onClick={() => {
               void signInWithPasskey();
             }}
-            disabled={busy}
             data-testid="sign-in-passkey"
           >
-            Sign in with a passkey
-          </button>
-          <button
+            {FR_COPY.auth.login.passkeyAction}
+          </Button>
+          <Button
             type="button"
-            className="link"
+            variant="ghost"
             onClick={() => {
               setMode("password");
               setMessage(null);
             }}
             data-testid="use-password-instead"
           >
-            Use your password instead
-          </button>
+            {FR_COPY.auth.login.usePassword}
+          </Button>
         </section>
       ) : (
-        <section aria-labelledby="password-heading">
-          <h2 id="password-heading">Use your password</h2>
+        <section className="ui-auth-card" aria-labelledby="password-heading">
+          <h2 id="password-heading">{FR_COPY.auth.login.passwordTitle}</h2>
           <form onSubmit={signInWithPassword}>
-            <label htmlFor={passwordId}>Password</label>
-            <input
+            <Field
               id={passwordId}
+              label={FR_COPY.auth.login.passwordLabel}
               type="password"
               // The browser's own manager is the right place for this, and
               // `current-password` is what tells it so.
@@ -147,31 +147,24 @@ export function LoginPage(props: LoginPageProps) {
               disabled={busy}
               data-testid="password-input"
             />
-            <button
-              type="submit"
-              className="primary"
-              disabled={busy}
-              data-testid="sign-in-password"
-            >
-              Sign in
-            </button>
+            <Button type="submit" variant="primary" busy={busy} data-testid="sign-in-password">
+              {FR_COPY.auth.login.passwordAction}
+            </Button>
           </form>
           {passkeysAvailable() ? (
-            <button
+            <Button
               type="button"
-              className="link"
+              variant="ghost"
               onClick={() => {
                 setMode("passkey");
                 setMessage(null);
               }}
               data-testid="use-passkey-instead"
             >
-              Use your passkey instead
-            </button>
+              {FR_COPY.auth.login.usePasskey}
+            </Button>
           ) : (
-            <p className="login-note">
-              This browser cannot use passkeys, so the password is the way in here.
-            </p>
+            <p className="login-note">{FR_COPY.auth.login.passwordOnly}</p>
           )}
         </section>
       )}

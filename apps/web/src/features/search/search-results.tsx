@@ -1,5 +1,12 @@
 import type { SearchClientResult } from "@myownnotion/client-core";
-import type { Uuid } from "@myownnotion/domain";
+import type { ItemKind, Uuid } from "@myownnotion/domain";
+import { Button, FR_COPY } from "../../ui/index.ts";
+
+const KIND_LABELS: Readonly<Record<ItemKind, string>> = {
+  page: FR_COPY.search.pages,
+  folder: FR_COPY.search.folders,
+  file: FR_COPY.search.files,
+};
 
 export function SearchResults({
   results,
@@ -27,13 +34,14 @@ export function SearchResults({
 
   return (
     <>
-      <ul className="search-results" aria-label="Search results">
+      <ul className="search-results" aria-label={FR_COPY.search.resultsLabel}>
         {results.map((result, index) => (
           <li key={result.itemId} className="search-result">
-            <button
+            <Button
               id={`search-result-${result.itemId}`}
               type="button"
               className="search-result__button"
+              variant="ghost"
               data-search-result="true"
               aria-current={selectedItemId === result.itemId ? "true" : undefined}
               tabIndex={
@@ -69,7 +77,7 @@ export function SearchResults({
             >
               <span className="search-result__heading">
                 <span className="search-result__title">{result.title}</span>
-                <span className="search-result__kind">{result.kind}</span>
+                <span className="search-result__kind">{KIND_LABELS[result.kind]}</span>
               </span>
               {result.path.length > 0 ? (
                 <span className="search-result__path">
@@ -81,32 +89,33 @@ export function SearchResults({
               ) : null}
               {result.matchedField === "property" && result.propertyName !== null ? (
                 <span className="search-result__property">
-                  Matched property: {result.propertyName}
+                  {FR_COPY.search.matchedProperty} : {result.propertyName}
                 </span>
               ) : null}
               {result.localAvailability !== undefined && result.localAvailability !== "present" ? (
                 <span className="search-result__availability">
                   {result.localAvailability === "offloaded"
-                    ? "Content released from this device"
-                    : "Content not downloaded on this device"}
+                    ? FR_COPY.search.released
+                    : FR_COPY.search.notDownloaded}
                 </span>
               ) : null}
               {result.conflict ? (
-                <span className="search-result__conflict">Unresolved conflict</span>
+                <span className="search-result__conflict">{FR_COPY.search.unresolvedConflict}</span>
               ) : null}
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
       {onLoadMore === undefined ? null : (
-        <button
+        <Button
           type="button"
           className="search-results__more"
+          variant="secondary"
           disabled={loadingMore}
           onClick={onLoadMore}
         >
-          {loadingMore ? "Loading more…" : "Load more results"}
-        </button>
+          {loadingMore ? FR_COPY.search.loadingMore : FR_COPY.search.loadMore}
+        </Button>
       )}
     </>
   );

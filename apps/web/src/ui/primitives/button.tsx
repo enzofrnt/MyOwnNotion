@@ -1,5 +1,5 @@
 import { Button as AriakitButton, type ButtonProps as AriakitButtonProps } from "@ariakit/react";
-import { forwardRef, type ReactNode } from "react";
+import { type AnchorHTMLAttributes, forwardRef, type ReactNode } from "react";
 import { classNames } from "../class-names.ts";
 import { AppIcon } from "../icons.tsx";
 
@@ -41,5 +41,28 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {busy ? <AppIcon name="loading" size="small" /> : null}
       <span className="ui-button__label">{children}</span>
     </AriakitButton>
+  );
+});
+
+export type LinkButtonProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+  readonly children: ReactNode;
+  readonly size?: ButtonSize;
+  readonly variant?: ButtonVariant;
+};
+
+export const LinkButton = forwardRef<HTMLAnchorElement, LinkButtonProps>(function LinkButton(
+  { children, className, size = "default", variant = "secondary", ...props },
+  ref,
+) {
+  return (
+    <a
+      {...props}
+      ref={ref}
+      className={classNames("ui-button", className)}
+      data-size={size}
+      data-variant={variant}
+    >
+      <span className="ui-button__label">{children}</span>
+    </a>
   );
 });

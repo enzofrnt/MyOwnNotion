@@ -69,7 +69,7 @@ describe("search dialog states", () => {
   it("counts the 512-character query limit as Unicode code points", () => {
     expect(searchQueryProblem("🧠".repeat(512))).toBeNull();
     expect(searchQueryProblem("🧠".repeat(513))).toBe(
-      "Search queries are limited to 512 Unicode characters.",
+      "La recherche est limitée à 512 caractères Unicode.",
     );
   });
 
@@ -101,12 +101,12 @@ describe("search dialog states", () => {
       }),
     );
 
-    expect(markup).toContain("Filter by type");
+    expect(markup).toContain("Filtrer par type");
     expect(markup).toContain("Pages");
-    expect(markup).toContain("Folders");
-    expect(markup).toContain("Files");
+    expect(markup).toContain("Dossiers");
+    expect(markup).toContain("Fichiers");
     expect(markup).toContain("Projects / Architecture");
-    expect(markup).toContain("Reset filters");
+    expect(markup).toContain("Réinitialiser les filtres");
   });
 
   it("keeps a stable keyboard selection and merges later pages without duplicates", () => {
@@ -125,7 +125,7 @@ describe("search dialog states", () => {
       secondResult.itemId,
     ]);
     expect(searchAnnouncement(merged, secondResult.itemId)).toContain(
-      "2 results in the complete workspace. Selected Architecture archive.",
+      "2 résultats dans tout l’espace de travail. Sélection : Architecture archive.",
     );
   });
 
@@ -135,7 +135,9 @@ describe("search dialog states", () => {
       page([secondResult], { state: "cursor-stale", generation: 2 }),
     );
     expect(refreshed.results).toEqual([secondResult]);
-    expect(searchAnnouncement(refreshed, null)).toContain("Content changed; results refreshed.");
+    expect(searchAnnouncement(refreshed, null)).toContain(
+      "Le contenu a changé ; les résultats ont été actualisés.",
+    );
   });
 
   it("renders private snippets as escaped text, never interpreted markup", () => {
@@ -150,8 +152,8 @@ describe("search dialog states", () => {
     );
     expect(markup).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
     expect(markup).not.toContain("<img");
-    expect(markup).toContain("Content released from this device");
-    expect(markup).toContain("Unresolved conflict");
+    expect(markup).toContain("Contenu retiré de cet appareil");
+    expect(markup).toContain("Décision en attente");
   });
 
   it("identifies the structured property responsible for a search match", () => {
@@ -172,7 +174,7 @@ describe("search dialog states", () => {
       }),
     );
 
-    expect(markup).toContain("Matched property: Workflow");
+    expect(markup).toContain("Propriété correspondante : Workflow");
   });
 
   it("sends search text only in a JSON POST body", async () => {
