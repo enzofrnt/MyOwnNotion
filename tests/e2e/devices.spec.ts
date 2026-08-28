@@ -15,7 +15,7 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
-import { openSettings } from "./helpers.ts";
+import { expectNoHorizontalOverflow, openSettings } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { resetSecurityInstallation, seedCommittedOwner } from "./reset-installation.ts";
 
@@ -212,9 +212,6 @@ test.describe("asking a device to sign in again", () => {
 test.describe("responsive presentation", () => {
   test("the inventory is reachable without horizontal scrolling", async ({ page }) => {
     await openDevices(page);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(overflow).toBe(false);
+    await expectNoHorizontalOverflow(page);
   });
 });

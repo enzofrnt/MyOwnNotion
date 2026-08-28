@@ -20,7 +20,7 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
-import { openSettings } from "./helpers.ts";
+import { expectNoHorizontalOverflow, openSettings } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { resetSecurityInstallation, seedCommittedOwner } from "./reset-installation.ts";
 
@@ -194,9 +194,6 @@ test.describe("at a narrow viewport", () => {
     await openSecurity(page);
 
     await expect(page.getByTestId("recovery-readiness")).toBeVisible();
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-    );
-    expect(overflows).toBe(false);
+    await expectNoHorizontalOverflow(page);
   });
 });

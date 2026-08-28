@@ -1384,25 +1384,26 @@ textarea {
   overflow-wrap: anywhere;
 }
 
-/* React does not insert text nodes between adjacent Button components. Firefox
-   and WebKit therefore keep the three device actions on one unbreakable inline
-   line unless the layout defines its own wrapping boundary. Keep the actions
-   explicit so an inventory row below the fold cannot widen every settings
-   screen on a phone. */
+/* Security controls carry deliberately explicit French labels. Linux Firefox
+   renders some of them wider than macOS, so every button must be allowed to
+   wrap inside its card; otherwise an off-screen recovery action widens the
+   whole settings document even while the visible content looks correct. */
+.security-settings .ui-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.security-settings .ui-button__label {
+  overflow-wrap: anywhere;
+}
+
+/* React does not insert text nodes between adjacent Button components. Keep a
+   real wrapping boundary around the three actions in each device row. */
 .device-actions {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
   gap: var(--ui-space-2);
-}
-
-.device-actions .ui-button {
-  max-width: 100%;
-  white-space: normal;
-}
-
-.device-actions .ui-button__label {
-  overflow-wrap: anywhere;
 }
 
 /* Every control stays reachable by thumb: these screens are used under
