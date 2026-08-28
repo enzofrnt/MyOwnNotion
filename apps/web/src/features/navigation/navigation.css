@@ -329,6 +329,8 @@
   gap: var(--space-1);
   border: 0;
   border-radius: var(--radius-sm);
+  cursor: default;
+  touch-action: pan-y;
 }
 
 .workspace-navigation .tree-row:hover,
@@ -342,11 +344,22 @@
   box-shadow: none;
 }
 
+.workspace-navigation .tree-row[aria-selected="true"][data-attachments-open="true"] {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.workspace-navigation .tree-row[data-dragging="true"] {
+  cursor: grabbing;
+  opacity: 0.52;
+}
+
 .workspace-navigation .tree-row[data-drop-target="true"] {
   background: var(--ui-color-accent-soft);
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
+.workspace-navigation .workspace-tree-children .branch-state,
 .workspace-navigation .tree li > .branch-state {
   margin: 0 0 var(--space-1) calc(var(--ui-target-compact) + var(--space-2));
   padding: var(--space-1) var(--space-2);
@@ -359,17 +372,15 @@
    escape the drawer's scrolling boundary, and therefore needs to sit above
    that drawer rather than at the ordinary page-menu layer. */
 .navigation-item-menu__content {
+  min-width: min(17rem, calc(100vw - 2 * var(--space-3)));
   z-index: calc(var(--ui-layer-drawer) + 1);
 }
 
-.workspace-navigation .tree-drag-handle[data-size="square"] {
-  width: var(--ui-target-compact);
-  flex: 0 0 var(--ui-target-compact);
-  min-width: var(--ui-target-compact);
-  min-height: var(--ui-target-compact);
-  padding: var(--space-1);
-  cursor: grab;
-  touch-action: none;
+.navigation-item-menu__content .ui-menu__item-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
 }
 
 .tree-item-identity-slot {
@@ -433,12 +444,102 @@
 }
 
 .navigation-item-actions {
+  position: relative;
   display: flex;
-  flex: 0 0 calc(2 * var(--ui-target-compact));
-  min-width: calc(2 * var(--ui-target-compact));
+  min-width: 0;
+  flex: 0 0 auto;
   margin-left: auto;
   align-items: center;
   justify-content: flex-end;
+  gap: 0;
+  isolation: isolate;
+}
+
+.navigation-item-menu {
+  display: inline-flex;
+  width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  flex: 0 0 var(--ui-target-compact);
+}
+
+.navigation-inline-create {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  width: var(--ui-target-compact);
+  height: var(--ui-target-compact);
+  flex: 0 0 var(--ui-target-compact);
+  overflow: visible;
+}
+
+.navigation-inline-create__surface {
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  display: flex;
+  width: calc(var(--ui-target-compact) + 4px);
+  height: calc(var(--ui-target-compact) + 4px);
+  padding: 2px;
+  overflow: hidden;
+  align-items: center;
+  justify-content: flex-end;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  transform: translateY(-50%);
+  transition:
+    width var(--ui-duration-normal) var(--ui-ease-standard),
+    background-color var(--ui-duration-fast) var(--ui-ease-standard),
+    border-color var(--ui-duration-fast) var(--ui-ease-standard),
+    box-shadow var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.navigation-inline-create[data-open="true"] {
+  z-index: 4;
+}
+
+.navigation-inline-create[data-open="true"] .navigation-inline-create__surface {
+  width: calc(3 * var(--ui-target-compact) + 8px);
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-popover);
+}
+
+.navigation-inline-create__choices {
+  display: flex;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(0.5rem);
+  transition:
+    width var(--ui-duration-normal) var(--ui-ease-standard),
+    opacity var(--ui-duration-fast) var(--ui-ease-standard),
+    transform var(--ui-duration-normal) var(--ui-ease-standard);
+}
+
+.navigation-inline-create__choices[data-visible="true"] {
+  width: calc(2 * var(--ui-target-compact));
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.navigation-inline-create .ui-button[data-size="square"],
+.navigation-item-menu__trigger[data-size="square"] {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  flex: 0 0 var(--ui-target-compact);
+  padding: var(--space-1);
+}
+
+.navigation-inline-create__toggle .ui-icon {
+  transition: transform var(--ui-duration-normal) var(--ui-ease-standard);
+}
+
+.navigation-inline-create[data-open="true"] .navigation-inline-create__toggle .ui-icon {
+  transform: rotate(45deg);
 }
 
 .workspace-page-attachments-trigger[data-size="square"] {
@@ -465,22 +566,52 @@
 }
 
 .workspace-page-attachments {
-  margin: var(--space-1) var(--space-1) var(--space-2) calc(var(--space-6) + var(--space-2));
-  padding-left: var(--space-2);
-  border-left: 1px solid var(--color-border);
+  width: 100%;
+  margin: 0;
 }
 
 .workspace-attachment-panel {
   display: grid;
   min-width: 0;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  background: color-mix(in srgb, var(--ui-color-surface-active) 72%, var(--color-surface));
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.workspace-attachment-panel__header {
+  display: flex;
+  min-height: var(--ui-target-compact);
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .workspace-attachment-panel h2 {
+  min-width: 0;
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.workspace-attachment-panel__count {
+  min-width: 1.25rem;
+  padding-inline: var(--space-1);
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.workspace-attachment-panel__upload {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  margin-left: auto;
+  padding: var(--space-1);
 }
 
 .workspace-attachment-panel .field-row {
@@ -509,16 +640,122 @@
   gap: var(--space-1);
 }
 
-@media (pointer: fine) {
-  .workspace-page-attachments-trigger {
-    opacity: 0;
-  }
+.workspace-attachment-empty {
+  min-height: 1.75rem;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-surface-subtle) 64%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  line-height: 1.25rem;
+}
 
-  .workspace-navigation .tree-row:hover .workspace-page-attachments-trigger,
-  .workspace-navigation .tree-row:focus-within .workspace-page-attachments-trigger,
-  .workspace-page-attachments-trigger[aria-expanded="true"] {
-    opacity: 1;
-  }
+.workspace-attachment-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 2px;
+  list-style: none;
+}
+
+.workspace-attachment-file {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 1.875rem;
+  padding: var(--space-1);
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.workspace-attachment-file:hover,
+.workspace-attachment-file:focus-within {
+  background: var(--color-surface-subtle);
+}
+
+.workspace-attachment-file__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-attachment-file__size {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.workspace-attachment-file__details {
+  position: relative;
+  flex: 0 0 var(--ui-target-compact);
+}
+
+.workspace-attachment-file__details > summary {
+  display: grid;
+  width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  list-style: none;
+  place-items: center;
+}
+
+.workspace-attachment-file__details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.workspace-attachment-file__details > summary:hover,
+.workspace-attachment-file__details > summary:focus-visible {
+  background: var(--ui-color-surface-hover);
+  outline: none;
+}
+
+.workspace-attachment-file__details-panel {
+  display: grid;
+  min-width: 14rem;
+  margin-top: var(--space-1);
+  padding: var(--space-2);
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-xs);
+}
+
+.workspace-attachment-file__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.collapsible-region {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--ui-duration-normal) var(--ui-ease-standard),
+    opacity var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.collapsible-region[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.collapsible-region__inner {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .navigation-item-actions > .ui-button[data-size="square"] {
@@ -529,62 +766,70 @@
 }
 
 @media (pointer: coarse) {
-  .workspace-navigation .tree-row {
-    /* Keep the label as the primary touch target. The four adjacent controls
-       cannot share a 280 px drawer at 44 px each without collapsing the name
-       to zero, so action controls wrap onto a second line when necessary. */
-    flex-wrap: wrap;
-  }
-
   .workspace-navigation .tree-name {
     min-width: 6rem;
     flex-basis: 6rem;
   }
 
-  .workspace-navigation .tree-drag-handle[data-size="square"],
   .workspace-page-attachments-trigger[data-size="square"],
-  .navigation-item-actions > .ui-button[data-size="square"] {
+  .navigation-inline-create,
+  .navigation-item-menu,
+  .navigation-inline-create .ui-button[data-size="square"],
+  .navigation-item-menu__trigger[data-size="square"] {
     width: var(--ui-target);
     min-width: var(--ui-target);
     min-height: var(--ui-target);
     flex-basis: var(--ui-target);
   }
 
-  .navigation-item-actions {
-    min-width: calc(2 * var(--ui-target));
-    flex-basis: calc(2 * var(--ui-target));
+  .navigation-inline-create {
+    height: var(--ui-target);
+  }
+
+  .navigation-inline-create__surface {
+    width: calc(var(--ui-target) + 4px);
+    height: calc(var(--ui-target) + 4px);
+  }
+
+  .navigation-inline-create[data-open="true"] .navigation-inline-create__surface {
+    width: calc(3 * var(--ui-target) + 8px);
+  }
+
+  .navigation-inline-create__choices[data-visible="true"] {
+    width: calc(2 * var(--ui-target));
   }
 }
 
 @media (pointer: fine) {
-  .tree-drag-handle,
-  .navigation-item-actions > button {
+  .workspace-page-attachments-trigger,
+  .navigation-inline-create,
+  .navigation-item-menu__trigger {
     opacity: 0;
     pointer-events: none;
+    transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
   }
 
-  .workspace-navigation .tree-row .tree-drag-handle[data-size="square"] {
-    position: absolute;
-    left: -1.125rem;
-    z-index: 3;
-    width: 1.5rem;
-    min-width: 1.5rem;
-    min-height: 1.5rem;
-  }
-
-  .workspace-navigation .tree-row:hover .tree-drag-handle,
-  .workspace-navigation .tree-row:focus-within .tree-drag-handle,
-  .workspace-navigation .tree-row:hover .navigation-item-actions > button,
-  .workspace-navigation .tree-row:focus-within .navigation-item-actions > button,
-  .workspace-navigation .tree-row .navigation-item-actions > button[aria-expanded="true"] {
+  .workspace-navigation .tree-row:hover .workspace-page-attachments-trigger,
+  .workspace-navigation .tree-row:focus-within .workspace-page-attachments-trigger,
+  .workspace-navigation .tree-row:hover .navigation-inline-create,
+  .workspace-navigation .tree-row:focus-within .navigation-inline-create,
+  .workspace-navigation .tree-row:hover .navigation-item-menu__trigger,
+  .workspace-navigation .tree-row:focus-within .navigation-item-menu__trigger,
+  .workspace-page-attachments-trigger[aria-expanded="true"],
+  .navigation-inline-create[data-open="true"],
+  .navigation-item-menu__trigger[aria-expanded="true"] {
     opacity: 1;
     pointer-events: auto;
   }
 }
 
-.workspace-navigation .tree-row .tree-drag-handle[data-dragging="true"] {
-  opacity: 0.45;
-  cursor: grabbing;
+@media (prefers-reduced-motion: reduce) {
+  .collapsible-region,
+  .navigation-inline-create__surface,
+  .navigation-inline-create__choices,
+  .navigation-inline-create__toggle .ui-icon {
+    transition: none;
+  }
 }
 
 .workspace-navigation__footer {

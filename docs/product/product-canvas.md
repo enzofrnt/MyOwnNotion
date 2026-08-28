@@ -509,6 +509,14 @@ possible au clavier et au toucher. La largeur de la barre, son état ouvert ou
 fermé, les sections de raccourcis visibles ou repliées et les branches
 dépliées sont restaurés sur l'appareil.
 
+La surface complète d'une ligne sert de prise de déplacement au pointeur ; la
+barre latérale n'ajoute pas de poignée à six points devant l'identité. Un geste
+court ouvre l'élément et un glissement révèle les destinations avant, dans et
+après. Les actions à droite restent compactes : pièces jointes lorsqu'elles
+existent, création d'un enfant, puis menu complémentaire. La création d'une
+page ou d'un dossier enfant se choisit dans une surface intégrée à la ligne qui
+ne décale ni son titre ni ses voisines.
+
 L'arborescence rend visuellement le lien entre un parent et ses descendants par
 une indentation et un guide sobres. Lorsqu'une branche ouverte est vide, son
 état apparaît sous cette branche, dans la même indentation et dans la langue
@@ -520,6 +528,14 @@ emplacement fixe. Au survol ou au focus d'une branche, le chevron remplace
 visuellement l'icône sans ajouter une colonne ni déplacer le libellé. Une
 feuille ne rend aucun chevron. L'emoji de la page ouverte apparaît aussi dans
 le canevas, au-dessus de son titre, et peut y être modifié ou retiré.
+
+Une page révèle ses pièces jointes dans une continuation compacte de sa ligne,
+distincte de ses enfants hiérarchiques. Cette continuation ne redimensionne
+pas la ligne sélectionnée ; elle affiche un nombre, des lignes nom/taille ou un
+seul état vide. Sous-éléments et surfaces contextuelles s'ouvrent et se ferment
+progressivement sans laisser d'espace résiduel. Un dossier ouvert présente
+dans la zone principale son emoji et son titre modifiables avec les mêmes
+composants d'identité qu'une page.
 
 Un déplacement au pointeur distingue trois destinations sur une ligne : avant
 la ligne, à l'intérieur de l'élément s'il peut contenir des enfants, et après

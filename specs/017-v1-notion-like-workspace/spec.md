@@ -177,6 +177,32 @@ responsabilité explicite de ces comportements dans son propre périmètre.
   texte normal. Le curseur reste visiblement clignotant sur tout bloc vide ou
   nouvelle ligne active.
 
+### Session 2026-08-28 — navigation validée
+
+- Q: Faut-il conserver une poignée à six points devant chaque élément de
+  l'arborescence ? → R: Non. Toute la ligne d'une page ou d'un dossier sert de
+  prise au pointeur, tandis qu'un clic sans déplacement ouvre l'élément. Les
+  poignées des blocs à l'intérieur de l'éditeur ne sont pas concernées.
+- Q: Dans quel ordre apparaissent les actions contextuelles d'une page ? → R:
+  De gauche à droite : la commande discrète des pièces jointes, `+`, puis `…`.
+  Un dossier omet seulement la première commande. `+` ouvre, dans la ligne et
+  sans en modifier la géométrie, les deux choix explicites « nouvelle page » et
+  « nouveau dossier » ; il tourne alors en croix et appartient à la même
+  surface arrondie que ces choix.
+- Q: Comment les pièces jointes se déplient-elles depuis l'arborescence ? → R:
+  Comme une continuation compacte de la ligne sélectionnée, de même largeur et
+  sans changer sa hauteur ni sa position. La surface affiche son titre et son
+  nombre, puis soit des lignes de fichiers compactes, soit une unique ligne
+  « Aucune pièce jointe ».
+- Q: Quel mouvement est attendu pour les sous-éléments et les panneaux en
+  ligne ? → R: Ouverture et fermeture utilisent la même transition courte et
+  progressive. Une surface repliée ne conserve ni espace résiduel ni contenu
+  interactif accessible.
+- Q: L'identité d'un dossier doit-elle être modifiable uniquement depuis son
+  menu ? → R: Non. Ouvrir un dossier affiche dans la zone principale le même
+  éditeur d'identité que pour une page : emoji canonique et grand titre
+  modifiable, sans créer un deuxième modèle de données.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Entrer dans un espace de travail focalisé (Priority: P1)
@@ -683,6 +709,32 @@ en charge, une fois sans pointeur puis une fois au toucher.
   Entrée et Échap selon le contexte. Ils MUST rester compacts, ne pas masquer
   durablement le document et préserver leur brouillon pendant une adoption de
   synchronisation.
+- **FR-090**: Une ligne de page ou de dossier dans l'arborescence MUST être
+  déplaçable au pointeur depuis sa surface, sans poignée de déplacement
+  permanente. Le seuil de geste MUST distinguer un clic d'un glisser-déposer,
+  les commandes imbriquées MUST rester activables et les alternatives clavier
+  de réorganisation MUST rester disponibles.
+- **FR-091**: Les actions contextuelles d'une page MUST apparaître dans l'ordre
+  pièces jointes, création enfant, menu complémentaire ; un dossier MUST
+  conserver l'ordre création enfant, menu complémentaire. La création enfant
+  MUST révéler dans la ligne des choix explicites page et dossier, sans déplacer
+  le titre ni modifier la taille de la ligne, et son bouton `+` MUST devenir la
+  commande de fermeture dans la même surface visuelle.
+- **FR-092**: Le panneau de pièces jointes ouvert depuis une page MUST prolonger
+  visuellement sa ligne sélectionnée avec la même largeur, sans modifier la
+  hauteur, la largeur ou la position de cette ligne. Il MUST afficher un en-tête
+  compact avec le nombre de fichiers puis des lignes nom/taille, ou exactement
+  un état vide compact ; il MUST conserver l'import et l'accès aux actions de
+  fichier sans transformer l'arborescence en panneau de gestion complet.
+- **FR-093**: Les descendants, la création en ligne et les pièces jointes MUST
+  s'ouvrir et se fermer avec des transitions courtes symétriques, désactivées
+  lorsque la réduction de mouvement est demandée. Une surface fermée MUST ne
+  conserver ni hauteur, ni marge, ni contrôle atteignable.
+- **FR-094**: L'ouverture d'un dossier MUST rendre dans la zone principale son
+  emoji canonique et son titre au moyen du même composant d'identité et des
+  mêmes règles de validation que pour une page. La modification MUST utiliser
+  les mutations d'item existantes et se refléter immédiatement dans toutes les
+  représentations de cet item.
 - **FR-023**: Images et fichiers insérés dans une page MUST réutiliser le cycle
   de vie, la sécurité, les limites, la déduplication et la disponibilité locale
   définis par la feature 005.

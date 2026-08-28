@@ -5,6 +5,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   ensureNavigationRowVisible,
+  openAttachmentDetails,
   openItemActions,
   openPageAttachments,
   openSettingsSection,
@@ -36,6 +37,8 @@ test.describe("canonical files (US2)", () => {
       buffer: Buffer.from("original attachment bytes"),
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 15_000 });
+
+    await openAttachmentDetails(page, fileName);
 
     // The attachment does not appear in the hierarchy tree (FR-006).
     await expect(page.getByTestId(`tree-item-${fileName}`)).toHaveCount(0);
@@ -95,6 +98,8 @@ test.describe("canonical files (US2)", () => {
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 15_000 });
 
+    await openAttachmentDetails(page, fileName);
+
     await page.getByRole("button", { name: `Retirer ce fichier de la page : ${fileName}` }).click();
     await expect(page.getByTestId(`attachment-${fileName}`)).toHaveCount(0);
 
@@ -137,6 +142,8 @@ test.describe("what a page says about its files (US1)", () => {
     const fileName = `${uniqueName("fields")}.txt`;
     await attach(page, fileName, "some bytes");
 
+    await openAttachmentDetails(page, fileName);
+
     await expect(page.getByTestId(`attachment-type-${fileName}`)).toContainText("text/plain");
     await expect(page.getByTestId(`attachment-size-${fileName}`)).not.toBeEmpty();
     await expect(page.getByTestId(`attachment-location-${fileName}`)).not.toBeEmpty();
@@ -163,6 +170,8 @@ test.describe("what a page says about its files (US1)", () => {
     await attach(page, fileName, "shared bytes");
     await waitForSynchronized(page);
 
+    await openAttachmentDetails(page, fileName);
+
     const usages = page.getByTestId(`attachment-usages-${fileName}`);
     await expect(usages).toBeVisible();
     await expect(usages).toContainText(first);
@@ -181,6 +190,30 @@ test.describe("what a page says about its files (US1)", () => {
 
     // Blank space would read as "loading" just as easily as "empty".
     await expect(page.getByTestId("attachments-empty")).toBeVisible();
+  });
+
+  test("continues the selected row without resizing it", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const pageName = uniqueName("StableFiles");
+    await openWorkspace(page);
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    const row = await ensureNavigationRowVisible(page, pageName);
+    const before = await row.boundingBox();
+
+    await openPageAttachments(page, pageName);
+    const after = await row.boundingBox();
+    const continuation = await page.getByTestId(`page-attachments-${pageName}`).boundingBox();
+    expect(before).not.toBeNull();
+    expect(after).not.toBeNull();
+    expect(continuation).not.toBeNull();
+    expect(Math.abs((before?.width ?? 0) - (after?.width ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((before?.height ?? 0) - (after?.height ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((after?.x ?? 0) - (continuation?.x ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((after?.width ?? 0) - (continuation?.width ?? 0))).toBeLessThanOrEqual(1);
+
+    await page.getByTestId(`toggle-attachments-${pageName}`).click();
+    await expect(page.getByTestId(`page-attachments-${pageName}`)).toBeHidden();
   });
 });
 
@@ -203,6 +236,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
+    await openAttachmentDetails(page, fileName);
 
     // The usage still names the page, and the page still lists the file.
     await expect(page.getByTestId(`attachment-usages-${fileName}`)).toContainText(pageName);
@@ -233,6 +267,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
+    await openAttachmentDetails(page, fileName);
 
     await page.getByTestId(`delete-file-${fileName}`).click();
     const confirmation = page.getByTestId("delete-file-confirmation");
@@ -264,6 +299,7 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
+    await openAttachmentDetails(page, fileName);
 
     await page.getByTestId(`delete-file-${fileName}`).click();
     await expect(page.getByTestId("delete-file-confirmation")).toBeVisible({ timeout: 30_000 });

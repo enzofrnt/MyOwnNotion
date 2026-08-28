@@ -18,6 +18,8 @@ import {
   createRootItem,
   ensureNavigationVisible,
   expectNoHorizontalOverflow,
+  openAttachmentDetails,
+  openItemActions,
   openPageAttachments,
   openSettingsSection,
   openWorkspace,
@@ -120,6 +122,7 @@ test.describe("at 320 pixels", () => {
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
 
+    await openItemActions(page, name);
     const box = await page.getByTestId(`convert-${name}`).boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(isMobile === true ? 44 : 24);
   });
@@ -280,6 +283,7 @@ test.describe("the file surfaces at 320 pixels", () => {
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
     await waitForSynchronized(page);
+    await openAttachmentDetails(page, fileName);
 
     await page.getByTestId(`delete-file-${fileName}`).click();
     await expect(page.getByTestId("delete-file-confirmation")).toBeVisible({ timeout: 30_000 });

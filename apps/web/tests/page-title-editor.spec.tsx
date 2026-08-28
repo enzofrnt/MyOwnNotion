@@ -91,4 +91,15 @@ describe("page title editor", () => {
     expect(onCommit).toHaveBeenCalledWith("Sans titre");
     expect(title.value).toBe("Sans titre");
   });
+
+  it("edits a folder through the same canonical identity component", async () => {
+    const onCommit = vi.fn(async () => undefined);
+    await act(async () => {
+      root.render(<PageTitleEditor kind="folder" icon="📁" title="Archives" onCommit={onCommit} />);
+    });
+
+    const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
+    expect(title?.getAttribute("aria-label")).toBe("Nom du dossier");
+    expect(container.querySelector('[data-kind="folder"]')).not.toBeNull();
+  });
 });

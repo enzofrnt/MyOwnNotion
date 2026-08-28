@@ -787,6 +787,49 @@ navigateurs pris en charge, sans campagne VoiceOver.
 Le gate complet et les suites ciblées ferment T287 sans substituer une preuve CI
 à la validation locale exigée par `docs/development.md`.
 
+## Ligne d'arbre et pièces jointes compactes — 2026-08-28
+
+La ligne entière d'une page ou d'un dossier est maintenant la prise de
+déplacement de la sidebar ; les contrôles qu'elle contient restent des actions
+indépendantes. Le survol remplace l'emoji par le chevron sans déplacer le
+libellé. Pour une page, les actions suivent l'ordre validé pièces jointes, `+`,
+`…` ; pour un dossier, l'ordre est `+`, `…`. Le `+` ouvre dans la même ligne les
+choix page-plus et dossier-plus, tourne en croix et se referme avec la même
+transition, sans modifier la géométrie de la ligne.
+
+Les pièces jointes prolongent désormais la ligne sélectionnée dans une région
+compacte. L'ouverture ne change ni sa largeur ni sa hauteur ; l'état vide tient
+sur une ligne et l'état rempli expose d'abord nom, taille et compteur. Les
+détails et actions existants restent disponibles dans un niveau secondaire.
+Les descendants et panneaux utilisent la même région repliable paresseuse : la
+fermeture est symétrique et ne laisse aucun espace résiduel.
+
+L'identité titre/emoji reste portée par l'élément canonique commun. Un dossier
+ouvert utilise le même éditeur d'identité que la page, puis les mêmes mutations,
+projection locale, outbox et synchronisation. Aucun second champ ou modèle
+spécifique au dossier n'a été ajouté.
+
+Le gate a également rendu les contrôles locaux indépendants du `.env` de la
+machine. Le conteneur Firefox fixe ses ports et son origine internes, et le test
+du CLI de sécurité fixe explicitement le mode de cookie attendu. Ces changements
+n'altèrent pas la configuration de production ; ils empêchent une instance
+locale HTTPS/Compose de détourner une suite jetable.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composants ciblés | invocation Vitest Web sur `hierarchy-explorer`, `tree-drag-drop`, `navigation-inline-create`, `attachment-panel` et `page-title-editor` | 5 fichiers et 24 tests passés ; prise DnD de ligne, ordre des actions, focus clavier, géométrie stable, états vide/rempli et identité dossier |
+| Journeys modifiés | matrice parallèle des 11 parcours concernés dans `files`, `hierarchy`, `item-conversion`, `keyboard-navigation` et `workspace-shell` | Chromium desktop/mobile, Firefox desktop et WebKit desktop/mobile passés ; pointeur, clavier, création enfant, animations, pièces jointes et titre/emoji dossier |
+| Gate pré-push exact | `MYOWNNOTION_E2E_API_PORT_BASE=13301 MYOWNNOTION_E2E_WEB_PORT_BASE=15473 bun run checks:local` avec Bun 1.4.0 et les outils épinglés | passé : 315 fichiers et 3 228 tests de couverture, 18 tests de performance, 332 intégrations PostgreSQL, 12 migrations, 108 fichiers et 1 232 tests de contrat, matrice Playwright 5/5 à concurrence bornée, builds, images API/Web `amd64`/`arm64`, audit, secrets, analyse statique, licences et Compose |
+
+La matrice complète rejoue aussi les parcours de liens internes/Web, le caret et
+la suppression conservatrice d'une marque. Les suites de synchronisation
+opérationnelle, WebSocket, convergence hors ligne et absence de 90 jours restent
+vertes. Cette tranche ne rouvre donc ni le modèle de lien ni le protocole de
+synchronisation ; elle améliore leur présentation et leurs points d'entrée sans
+régression fonctionnelle observée. La portée d'ergonomie reste le clavier, le
+focus visible, le pointeur, le toucher et les navigateurs pris en charge, sans
+campagne VoiceOver.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

@@ -23,7 +23,7 @@
  */
 
 import type { Uuid } from "@myownnotion/domain";
-import { useCallback, useRef, useState } from "react";
+import { type Ref, type RefObject, useCallback, useRef, useState } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   AsyncState,
@@ -32,6 +32,7 @@ import {
   DialogDescription,
   DialogHeading,
   DialogRoot,
+  MenuItem,
 } from "../../ui/primitives/index.ts";
 
 export type ConvertibleKind = "page" | "folder";
@@ -48,6 +49,8 @@ export function ConvertItemControl({
   itemName,
   kind,
   convert,
+  finalFocus,
+  variant = "button",
 }: {
   readonly itemId: Uuid;
   readonly itemName: string;
@@ -57,11 +60,13 @@ export function ConvertItemControl({
     targetKind: ConvertibleKind,
     confirmedDestruction: boolean,
   ) => Promise<ConvertOutcome>;
+  readonly finalFocus?: RefObject<HTMLElement | null>;
+  readonly variant?: "button" | "menu";
 }) {
   const [pending, setPending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const trigger = useRef<HTMLButtonElement | null>(null);
+  const trigger = useRef<HTMLElement | null>(null);
 
   const target: ConvertibleKind = kind === "page" ? "folder" : "page";
 
@@ -99,34 +104,47 @@ export function ConvertItemControl({
         if (!open) close();
       }}
     >
-      <button
-        type="button"
-        ref={trigger}
-        className="ui-button navigation-item-convert"
-        data-size="square"
-        data-variant="ghost"
-        disabled={pending}
-        data-testid={`convert-${itemName}`}
-        aria-label={
-          kind === "page" ? `Transformer ${itemName} en dossier` : `Transformer ${itemName} en page`
-        }
-        onClick={(event) => {
-          // The control lives inside a clickable tree row. Letting this click
-          // reach the row selects it and closes the mobile drawer before the
-          // asynchronous confirmation can appear, leaving the dialog mounted
-          // inside a hidden drawer.
-          event.stopPropagation();
-          void run(false);
-        }}
-      >
-        <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
-        <span className="ui-visually-hidden">{kind === "page" ? "en dossier" : "en page"}</span>
-      </button>
+      {variant === "menu" ? (
+        <MenuItem
+          ref={trigger as Ref<HTMLDivElement>}
+          disabled={pending}
+          data-testid={`convert-${itemName}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            void run(false);
+          }}
+        >
+          <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
+          Transformer en {kind === "page" ? "dossier" : "page"}
+        </MenuItem>
+      ) : (
+        <button
+          type="button"
+          ref={trigger as Ref<HTMLButtonElement>}
+          className="ui-button navigation-item-convert"
+          data-size="square"
+          data-variant="ghost"
+          disabled={pending}
+          data-testid={`convert-${itemName}`}
+          aria-label={
+            kind === "page"
+              ? `Transformer ${itemName} en dossier`
+              : `Transformer ${itemName} en page`
+          }
+          onClick={(event) => {
+            event.stopPropagation();
+            void run(false);
+          }}
+        >
+          <AppIcon name={kind === "page" ? "folder" : "fileText"} size="small" />
+          <span className="ui-visually-hidden">{kind === "page" ? "en dossier" : "en page"}</span>
+        </button>
+      )}
 
       {confirming ? (
         <DialogContent
           role="alertdialog"
-          finalFocus={trigger}
+          finalFocus={finalFocus ?? trigger}
           size="medium"
           className="convert-dialog"
           data-testid="convert-confirmation"

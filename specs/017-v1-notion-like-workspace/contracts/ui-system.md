@@ -126,6 +126,21 @@ dans et après. Avant/après affichent une ligne entre les éléments ; dans met
 concerné, avec la même indentation, sans donner l'impression d'une nouvelle
 section globale.
 
+La ligne entière est la prise de déplacement au pointeur et aucune poignée à
+six points n'est ajoutée dans l'arborescence. Les contrôles internes ne
+déclenchent pas le glisser-déposer. Les actions contextuelles sont ordonnées
+`pièces jointes`, `+`, `…` pour une page et `+`, `…` pour un dossier. `+`
+déploie sur la ligne une surface compacte contenant une page avec plus, un
+dossier avec plus et la même commande tournée en croix ; cette surface recouvre
+au besoin la fin du titre mais ne modifie jamais la géométrie de la ligne.
+
+Les pièces jointes prolongent directement la surface sélectionnée sans changer
+sa largeur ni sa hauteur. La continuation affiche `Pièces jointes`, le nombre,
+puis des lignes compactes nom/taille ou une unique ligne
+`Aucune pièce jointe`. Les descendants et panneaux utilisent la même transition
+symétrique, n'occupent aucune place une fois fermés et suivent la préférence de
+réduction des animations.
+
 ### 5.1 Frontière du workspace
 
 La colonne principale ne rend que le contenu ou une vue de connaissance :
@@ -180,7 +195,8 @@ présent, sinon icône de type. Dans l'arbre, ce composant et le chevron de
 branche partagent exactement la même boîte ; le chevron remplace l'icône au
 survol ou au focus sans déplacer le texte. Dans le canevas d'une page, l'emoji
 est placé au-dessus du titre et ouvre un sélecteur Unicode compact, disponible
-hors ligne et refermable avec Échap.
+hors ligne et refermable avec Échap. Le canevas d'un dossier réutilise ce même
+éditeur d'identité pour son emoji et son titre, sans document éditorial.
 
 Une référence interne ou un bookmark Web déjà présent est reconnaissable au
 pointeur et offre les actions ouvrir, modifier la cible et retirer la

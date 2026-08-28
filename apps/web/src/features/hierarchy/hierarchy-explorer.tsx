@@ -33,7 +33,7 @@ import {
   type SafeError,
   type Uuid,
 } from "@myownnotion/domain";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DatabaseViewService } from "../../services/databases.ts";
 import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
@@ -54,12 +54,13 @@ import { initializeEditorFileTransfers } from "../editor/editor-file-state.tsx";
 import type { CreateSubpageRequest } from "../editor/editor-menus/slash-menu.tsx";
 import { EditorView } from "../editor/editor-view.tsx";
 import { BranchState } from "../navigation/branch-state.tsx";
+import { CollapsibleRegion } from "../navigation/collapsible-region.tsx";
 import { ConvertItemControl, type ConvertibleKind } from "../navigation/convert-item.tsx";
+import { NavigationInlineCreate } from "../navigation/navigation-inline-create.tsx";
 import { NavigationItemMenu } from "../navigation/navigation-item-menu.tsx";
 import { Sidebar, type SidebarShortcutPreferences } from "../navigation/sidebar.tsx";
 import {
   TreeDragDropProvider,
-  TreeDragHandle,
   type TreeDragItem,
   type TreeDropIntent,
   TreeDropTarget,
@@ -315,6 +316,7 @@ export function HierarchyExplorer({
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   const [rootCreationOpen, setRootCreationOpen] = useState(false);
+  const [inlineCreationItemId, setInlineCreationItemId] = useState<Uuid | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
@@ -856,12 +858,12 @@ export function HierarchyExplorer({
     [service, refresh],
   );
 
-  const renameSelectedPage = useCallback(
+  const renameSelectedItem = useCallback(
     (itemId: Uuid, name: string): Promise<void> => {
       const operation = async (): Promise<void> => {
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const current = await service.getItem(itemId);
-          if (current === null) throw new Error("Cette page n’est plus disponible.");
+          if (current === null) throw new Error("Cet élément n’est plus disponible.");
           if (current.name === name) return;
           const result = await service.mutate("item.rename", { itemId, name }, [
             current.currentRevisionId,
@@ -962,7 +964,7 @@ export function HierarchyExplorer({
 
   const createItem = useCallback(
     async (kind: "page" | "folder", parentItemId: Uuid | null) => {
-      const name = newItemName.trim() || (kind === "page" ? "Untitled page" : "Untitled folder");
+      const name = newItemName.trim() || "Sans titre";
       // Cleared before the write, not after it. The name is already captured
       // above, and clearing afterwards means the field is emptied whenever the
       // mutation happens to finish — including after the owner has started
@@ -972,6 +974,7 @@ export function HierarchyExplorer({
       // between the test filling the field and clicking the button.
       setNewItemName("");
       setRootCreationOpen(false);
+      setInlineCreationItemId(null);
       const keys = siblingKeys(parentItemId);
       const positionKey = safeKeyBetween(keys[keys.length - 1] ?? null, null);
       const itemId = generateUuidV7();
@@ -1312,7 +1315,15 @@ export function HierarchyExplorer({
     return (
       <li key={node.item.id} role="none">
         <TreeDropTarget itemId={node.item.id} canContainChildren={node.item.kind !== "file"}>
-          {({ activeZone, setAfterRef, setBeforeRef, setInsideRef }) => (
+          {({
+            activeZone,
+            consumeDragClick,
+            rowDragListeners,
+            rowDragging,
+            setAfterRef,
+            setBeforeRef,
+            setInsideRef,
+          }) => (
             <div className="tree-drop-target" data-active-zone={activeZone ?? undefined}>
               <span
                 ref={setBeforeRef}
@@ -1331,8 +1342,14 @@ export function HierarchyExplorer({
                 className="tree-row"
                 data-testid={`tree-item-${node.item.name}`}
                 data-item-id={node.item.id}
+                data-item-kind={node.item.kind}
                 data-drop-target={activeZone === "inside" || undefined}
-                onClick={() => openItem(node.item.id)}
+                data-dragging={rowDragging || undefined}
+                data-attachments-open={attachmentsOpen || undefined}
+                {...rowDragListeners}
+                onClick={() => {
+                  if (!consumeDragClick()) openItem(node.item.id);
+                }}
                 onContextMenu={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -1358,7 +1375,6 @@ export function HierarchyExplorer({
                   });
                 }}
               >
-                <TreeDragHandle itemId={node.item.id} itemName={node.item.name} />
                 <TreeItemIdentitySlot
                   item={node.item}
                   branch={branch}
@@ -1382,79 +1398,100 @@ export function HierarchyExplorer({
                   </span>
                 ) : null}
                 {node.item.kind === "file" ? <FileNode item={node.item} /> : null}
-                {node.item.kind === "page" ? (
-                  <Button
-                    size="square"
-                    variant="ghost"
-                    className="workspace-page-attachments-trigger"
-                    aria-label={`Pièces jointes de ${node.item.name}`}
-                    aria-expanded={attachmentsOpen}
-                    aria-controls={`page-attachments-${node.item.id}`}
-                    data-testid={`toggle-attachments-${node.item.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setExpandedAttachments((current) => {
-                        const next = new Set(current);
-                        if (next.has(node.item.id)) next.delete(node.item.id);
-                        else next.add(node.item.id);
-                        return next;
-                      });
+                <span
+                  className="navigation-item-actions"
+                  data-inline-open={inlineCreationItemId === node.item.id || undefined}
+                >
+                  {node.item.kind === "page" ? (
+                    <Button
+                      size="square"
+                      variant="ghost"
+                      className="workspace-page-attachments-trigger"
+                      aria-label={`Pièces jointes de ${node.item.name}`}
+                      aria-expanded={attachmentsOpen}
+                      aria-controls={`page-attachments-${node.item.id}`}
+                      data-testid={`toggle-attachments-${node.item.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectItemById(node.item.id);
+                        setExpandedAttachments((current) => {
+                          const next = new Set(current);
+                          if (next.has(node.item.id)) next.delete(node.item.id);
+                          else next.add(node.item.id);
+                          return next;
+                        });
+                      }}
+                    >
+                      <AppIcon name="file" size="small" />
+                      {attachmentCount > 0 ? (
+                        <span className="workspace-page-attachments-count">{attachmentCount}</span>
+                      ) : null}
+                    </Button>
+                  ) : null}
+                  {node.item.kind === "file" ? null : (
+                    <NavigationInlineCreate
+                      itemName={node.item.name}
+                      open={inlineCreationItemId === node.item.id}
+                      onOpenChange={(open) => setInlineCreationItemId(open ? node.item.id : null)}
+                      onCreatePage={() => void createItem("page", node.item.id)}
+                      onCreateFolder={() => void createItem("folder", node.item.id)}
+                    />
+                  )}
+                  <NavigationItemMenu
+                    itemName={node.item.name}
+                    canContainChildren={node.item.kind !== "file"}
+                    canMoveToRoot={parentId !== null}
+                    canMoveSelectedInside={selectedId !== null && selectedId !== node.item.id}
+                    favourite={node.item.favourite}
+                    keptOffline={node.item.offlineIntent}
+                    {...(node.item.kind === "file"
+                      ? {}
+                      : {
+                          conversion: (returnFocus: RefObject<HTMLButtonElement | null>) => (
+                            <ConvertItemControl
+                              itemId={node.item.id}
+                              itemName={node.item.name}
+                              kind={node.item.kind as ConvertibleKind}
+                              convert={convertItem}
+                              finalFocus={returnFocus}
+                              variant="menu"
+                            />
+                          ),
+                        })}
+                    onCreatePage={() => void createItem("page", node.item.id)}
+                    onCreateFolder={() => void createItem("folder", node.item.id)}
+                    onCreateDatabase={() => openDatabaseCreation(node.item.id)}
+                    onImportFile={(file) => void importHierarchyFile(node.item.id, file)}
+                    onRename={() => void renameItem(node)}
+                    onChangeIcon={
+                      node.item.kind === "file"
+                        ? undefined
+                        : () => setIconPickerItemId(node.item.id)
+                    }
+                    onMoveUp={() => void reorder(node, -1)}
+                    onMoveDown={() => void reorder(node, 1)}
+                    onMoveToRoot={() => void moveInto(node, null)}
+                    onMoveSelectedInside={() => {
+                      const selected = visibleNodes.find(
+                        (candidate) => candidate.item.id === selectedId,
+                      );
+                      if (selected !== undefined) void moveInto(selected, node.item.id);
                     }}
-                  >
-                    <AppIcon name="file" size="small" />
-                    {attachmentCount > 0 ? (
-                      <span className="workspace-page-attachments-count">{attachmentCount}</span>
-                    ) : null}
-                  </Button>
-                ) : null}
-                <NavigationItemMenu
-                  itemName={node.item.name}
-                  canContainChildren={node.item.kind !== "file"}
-                  canMoveToRoot={parentId !== null}
-                  canMoveSelectedInside={selectedId !== null && selectedId !== node.item.id}
-                  favourite={node.item.favourite}
-                  keptOffline={node.item.offlineIntent}
-                  conversion={
-                    node.item.kind === "file" ? undefined : (
-                      <ConvertItemControl
-                        itemId={node.item.id}
-                        itemName={node.item.name}
-                        kind={node.item.kind as ConvertibleKind}
-                        convert={convertItem}
-                      />
-                    )
-                  }
-                  onCreatePage={() => void createItem("page", node.item.id)}
-                  onCreateFolder={() => void createItem("folder", node.item.id)}
-                  onCreateDatabase={() => openDatabaseCreation(node.item.id)}
-                  onImportFile={(file) => void importHierarchyFile(node.item.id, file)}
-                  onRename={() => void renameItem(node)}
-                  onChangeIcon={
-                    node.item.kind === "file" ? undefined : () => setIconPickerItemId(node.item.id)
-                  }
-                  onMoveUp={() => void reorder(node, -1)}
-                  onMoveDown={() => void reorder(node, 1)}
-                  onMoveToRoot={() => void moveInto(node, null)}
-                  onMoveSelectedInside={() => {
-                    const selected = visibleNodes.find(
-                      (candidate) => candidate.item.id === selectedId,
-                    );
-                    if (selected !== undefined) void moveInto(selected, node.item.id);
-                  }}
-                  onToggleFavourite={() =>
-                    void runCommand("item.favourite", {
-                      itemId: node.item.id,
-                      favourite: !node.item.favourite,
-                    })
-                  }
-                  onToggleOffline={() =>
-                    void runCommand("item.offline", {
-                      itemId: node.item.id,
-                      offline: !node.item.offlineIntent,
-                    })
-                  }
-                  onRequestTrash={() => void requestTrash(node)}
-                />
+                    onToggleFavourite={() =>
+                      void runCommand("item.favourite", {
+                        itemId: node.item.id,
+                        favourite: !node.item.favourite,
+                      })
+                    }
+                    onToggleOffline={() =>
+                      void runCommand("item.offline", {
+                        itemId: node.item.id,
+                        offline: !node.item.offlineIntent,
+                      })
+                    }
+                    onRequestTrash={() => void requestTrash(node)}
+                  />
+                </span>
               </div>
               <span
                 ref={setAfterRef}
@@ -1466,9 +1503,10 @@ export function HierarchyExplorer({
             </div>
           )}
         </TreeDropTarget>
-        {node.item.kind === "page" && attachmentsOpen ? (
-          // biome-ignore lint/a11y/useSemanticElements: ARIA tree descendants use role="group" rather than a form fieldset
-          <div
+        {node.item.kind === "page" ? (
+          <CollapsibleRegion
+            open={attachmentsOpen}
+            lazy
             id={`page-attachments-${node.item.id}`}
             className="workspace-page-attachments"
             data-testid={`page-attachments-${node.item.name}`}
@@ -1481,32 +1519,30 @@ export function HierarchyExplorer({
               tabIndex={-1}
             >
               <AttachmentPanel
+                compact
                 pageId={node.item.id}
                 onChanged={() => void refresh()}
                 onOpenUsage={(itemId) => openPageLink(itemId)}
               />
             </div>
-          </div>
+          </CollapsibleRegion>
         ) : null}
         {/* Rendered only when open. Hiding a collapsed branch with CSS would
             leave its rows in the accessibility tree and in the tab order, so a
             screen reader would announce children of a folder the owner has
             closed. */}
-        {branchOpen ? (
-          node.children.length > 0 ? (
-            // biome-ignore lint/a11y/useSemanticElements: role="group" on ul is the canonical ARIA tree substructure
-            <ul role="group">{node.children.map((child) => renderNode(child, level + 1))}</ul>
-          ) : (
-            // An opened branch with nothing under it says which of the four
-            // situations it is in. Blank space reads as "empty" whichever one
-            // is true, and the two that are not empty are the ones where being
-            // wrong costs something: an owner who reads "not on this device"
-            // as "empty" concludes their notes are gone.
-            <BranchState
-              containerKind={node.item.kind === "folder" ? "folder" : "page"}
-              kind={problem !== null ? "error" : navigator.onLine ? "empty" : "offline"}
-            />
-          )
+        {branch ? (
+          <CollapsibleRegion open={branchOpen} lazy className="workspace-tree-children">
+            {node.children.length > 0 ? (
+              // biome-ignore lint/a11y/useSemanticElements: role="group" on ul is the canonical ARIA tree substructure
+              <ul role="group">{node.children.map((child) => renderNode(child, level + 1))}</ul>
+            ) : (
+              <BranchState
+                containerKind={node.item.kind === "folder" ? "folder" : "page"}
+                kind={problem !== null ? "error" : navigator.onLine ? "empty" : "offline"}
+              />
+            )}
+          </CollapsibleRegion>
         ) : null}
       </li>
     );
@@ -1612,7 +1648,9 @@ export function HierarchyExplorer({
 
   return (
     <WorkspaceShell
-      contentMode={selectedItem?.kind === "page" ? "page" : "bounded"}
+      contentMode={
+        selectedItem?.kind === "page" || selectedItem?.kind === "folder" ? "page" : "bounded"
+      }
       mobileNavigationOpen={mobileNavigationOpen}
       sidebarOpen={sidebarOpen}
       sidebarWidth={sidebarWidth}
@@ -1643,7 +1681,9 @@ export function HierarchyExplorer({
       header={
         <PageHeader
           kind={selectedItem?.kind ?? "workspace"}
-          {...(selectedItem?.kind === "page" ? {} : { title: selectedItem?.name ?? "Bienvenue" })}
+          {...(selectedItem?.kind === "page" || selectedItem?.kind === "folder"
+            ? {}
+            : { title: selectedItem?.name ?? "Bienvenue" })}
           breadcrumbs={activePath.map((item, index) => ({
             id: item.id,
             label: item.name,
@@ -1765,7 +1805,7 @@ export function HierarchyExplorer({
             key={`title-${selectedItem.id}`}
             icon={selectedItem.icon}
             title={selectedItem.name}
-            onCommit={(name) => renameSelectedPage(selectedItem.id, name)}
+            onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
             onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
             onMoveToContent={() => {
               document
@@ -2023,7 +2063,7 @@ export function HierarchyExplorer({
             key={`title-${selectedItem.id}`}
             icon={selectedItem.icon}
             title={selectedItem.name}
-            onCommit={(name) => renameSelectedPage(selectedItem.id, name)}
+            onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
             onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
             onMoveToContent={() => {
               const editable = document.querySelector<HTMLElement>(
@@ -2045,6 +2085,20 @@ export function HierarchyExplorer({
             }
             onCaptureScrollAnchor={onCaptureScrollAnchor}
             onOpenPage={openPageLink}
+          />
+        </article>
+      ) : selectedItem !== null && selectedItem.kind === "folder" ? (
+        <article
+          className="workspace-page-canvas workspace-folder-canvas"
+          data-testid="workspace-folder-canvas"
+        >
+          <PageTitleEditor
+            key={`title-${selectedItem.id}`}
+            kind="folder"
+            icon={selectedItem.icon}
+            title={selectedItem.name}
+            onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
+            onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
           />
         </article>
       ) : null}

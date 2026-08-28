@@ -657,6 +657,30 @@ chevron ne modifie jamais la géométrie. Après retrait du dernier caractère l
 la garde ProseMirror existante reste active avant `beforeinput`; le caret garde
 une couleur explicite et une boîte de ligne mesurable dans tous les moteurs.
 
+La convergence visuelle suivante retire `TreeDragHandle` de l'arborescence et
+compose `useDraggable` avec la cible intérieure sur la ligne elle-même. Le
+capteur pointeur conserve son seuil d'activation ; les boutons, champs et menus
+imbriqués n'amorcent pas un déplacement, tandis que les actions de menu gardent
+les déplacements clavier explicites. Le DnD des blocs de l'éditeur reste
+inchangé.
+
+Une primitive locale de région repliable conserve le contenu uniquement le
+temps de la transition de fermeture, applique une grille `0fr → 1fr` et retire
+ensuite les contrôles fermés du rendu. Elle sert aux descendants et aux pièces
+jointes, respecte `prefers-reduced-motion` et évite le chargement des fichiers
+avant la première ouverture. Les actions de création sont une surface absolue
+ancrée à droite de la ligne : deux boutons `FilePlus`/`FolderPlus` se révèlent
+à gauche d'un `Plus` tourné de 45 degrés, devant le libellé si nécessaire,
+avant le menu `…`, sans changement de largeur.
+
+`AttachmentPanel` gagne une présentation compacte dédiée à l'arborescence :
+en-tête avec compteur et import discret, état vide sur une ligne, puis nom et
+taille des fichiers avec accès secondaire aux actions existantes. Sa surface
+partage la largeur de la ligne et ses coins supérieurs sont raccordés à ceux de
+la sélection. Enfin, `PageTitleEditor` est généralisé en éditeur d'identité
+d'item paramétré par `page|folder`, afin que le dossier ouvert réutilise
+strictement les mutations `item.rename` et `item.icon` existantes.
+
 ### 10. Validation et ordre de livraison
 
 Les tranches d'implémentation sont :

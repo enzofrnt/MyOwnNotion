@@ -234,7 +234,7 @@ test.describe("acting on an item from the keyboard", () => {
     await expect(trigger).toBeFocused();
   });
 
-  test("the visible drag handle reorders siblings with the keyboard", async ({ page }) => {
+  test("the item menu keeps reordering available without a drag handle", async ({ page }) => {
     await openWorkspace(page);
     const first = uniqueName("KeyboardDragFirst");
     const second = uniqueName("KeyboardDragSecond");
@@ -244,18 +244,29 @@ test.describe("acting on an item from the keyboard", () => {
     await ensureNavigationVisible(page);
     await expectTreeOrder(page, first, second);
 
-    const handle = page.getByTestId(`drag-${second}`);
-    await handle.focus();
-    await page.keyboard.press("Space");
-    await expect(handle).toHaveAttribute("aria-pressed", "true");
-    // dnd-kit's keyboard sensor attaches its movement listener in the next
-    // browser task so the Space key that starts a drag cannot immediately end
-    // it. Cross that task boundary before sending the first movement key.
-    await page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
-    await page.keyboard.press("ArrowUp");
-    await expect(page.getByTestId(`drop-before-${first}`)).toHaveAttribute("data-active", "true");
-    await page.keyboard.press("Space");
+    await expect(page.getByTestId(`drag-${second}`)).toHaveCount(0);
+    await focusTree(page, second);
+    await page.keyboard.press("Shift+F10");
+    const menu = page.getByRole("menu", { name: `Actions pour ${second}` });
+    const moveUp = page.getByTestId(`move-up-${second}`);
+    await expect(moveUp).toBeVisible();
+    const menuItems = menu.getByRole("menuitem");
+    const moveUpIndex = await menuItems.evaluateAll(
+      (items, testId) => items.findIndex((item) => item.getAttribute("data-testid") === testId),
+      `move-up-${second}`,
+    );
+    expect(moveUpIndex).toBeGreaterThan(0);
+    await expect(menuItems.first()).toBeFocused();
+    for (let index = 0; index < moveUpIndex; index += 1) {
+      await page.keyboard.press("ArrowDown");
+    }
+    await expect(moveUp).toBeFocused();
+    await page.keyboard.press("Enter");
 
+    // WebKit closes the modal mobile drawer when the portaled menu dismisses.
+    // Reopen the tree before reading its DOM order; the command itself remains
+    // the same keyboard path on every engine.
+    await ensureNavigationVisible(page);
     await expectTreeOrder(page, second, first);
     await waitForSynchronized(page);
   });

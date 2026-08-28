@@ -18,12 +18,14 @@ function committedTitle(value: string): string {
  */
 export function PageTitleEditor({
   icon,
+  kind = "page",
   title,
   onCommit,
   onIconChange,
   onMoveToContent,
 }: {
   readonly icon?: string | null;
+  readonly kind?: "page" | "folder";
   readonly title: string;
   readonly onCommit: (title: string) => Promise<void>;
   readonly onIconChange?: (icon: string | null) => void;
@@ -121,10 +123,10 @@ export function PageTitleEditor({
   }, [commit]);
 
   return (
-    <div className="workspace-page-title">
+    <div className="workspace-page-title" data-kind={kind}>
       {onIconChange === undefined ? null : (
         <ItemEmojiPicker
-          kind="page"
+          kind={kind}
           label={title || UNTITLED_PAGE}
           value={icon ?? null}
           variant="page"
@@ -135,7 +137,7 @@ export function PageTitleEditor({
         ref={textarea}
         rows={1}
         value={draft}
-        aria-label="Titre de la page"
+        aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
         aria-invalid={failed || undefined}
         aria-busy={busy || undefined}
         data-testid="active-item-title"
