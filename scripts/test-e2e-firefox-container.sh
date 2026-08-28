@@ -10,6 +10,7 @@ repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 playwright_image="${MYOWNNOTION_PLAYWRIGHT_IMAGE:-mcr.microsoft.com/playwright:v1.62.1-noble}"
 database_url="${DATABASE_URL:-postgres://myownnotion:myownnotion-dev@host.docker.internal:5432/myownnotion}"
 deployment_key_file="${MYOWNNOTION_DEPLOYMENT_KEY_FILE:-${repo_root}/secrets/deployment-key}"
+e2e_prebuilt_web="${MYOWNNOTION_E2E_PREBUILT_WEB:-0}"
 
 # The repository is mounted at /work, so translate an isolated host-side key
 # created by the matrix runner to the path seen by the container. Refuse keys
@@ -40,6 +41,7 @@ docker run --rm --ipc=host \
     --env MYOWNNOTION_BLOB_ROOT=/tmp/myownnotion-blobs \
     --env MYOWNNOTION_BACKUP_ROOT=/tmp/myownnotion-backups \
     --env MYOWNNOTION_DEPLOYMENT_KEY_FILE="${container_deployment_key_file}" \
+    --env MYOWNNOTION_E2E_PREBUILT_WEB="${e2e_prebuilt_web}" \
     "${playwright_image}" \
-    bash -lc 'if ! command -v unzip >/dev/null; then apt-get update -qq && apt-get install -y --no-install-recommends unzip >/dev/null && rm -rf /var/lib/apt/lists/*; fi && curl --fail --silent --show-error --location https://bun.sh/install | bash -s "bun-v1.4.0" >/dev/null && export PATH="${HOME}/.bun/bin:${PATH}" && test "$(bun --version)" = "1.4.0" && bun ci && exec bun run --bun playwright test --fail-on-flaky-tests "$@"' \
+    bash -lc 'if ! command -v unzip >/dev/null; then apt-get update -qq && apt-get install -y --no-install-recommends unzip >/dev/null && rm -rf /var/lib/apt/lists/*; fi && curl --fail --silent --show-error --location https://bun.sh/install | bash -s "bun-v1.4.0" >/dev/null && export PATH="${HOME}/.bun/bin:${PATH}" && test "$(bun --version)" = "1.4.0" && bun ci && if [[ "${MYOWNNOTION_E2E_PREBUILT_WEB}" != "1" ]]; then MYOWNNOTION_E2E_BUILD=1 bun run --filter @myownnotion/web build; fi && exec bun run --bun playwright test --fail-on-flaky-tests "$@"' \
     -- "$@"

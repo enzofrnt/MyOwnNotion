@@ -4,6 +4,8 @@ import "./styles.css";
 import { ThemeProvider } from "./ui/theme-provider.tsx";
 import { UiLab } from "./ui/ui-lab.tsx";
 
+declare const __MYOWNNOTION_E2E__: boolean;
+
 const container = document.getElementById("root");
 if (container === null) {
   throw new Error("root container missing");
@@ -27,7 +29,11 @@ if (window.location.pathname === "/__ui-lab") {
   void import("./app.tsx").then(({ App }) => render(<App />));
 }
 
-if (import.meta.env.PROD && "serviceWorker" in navigator) {
+// Playwright intercepts requests at the page/context layer, while requests made
+// through an active service worker bypass those routes. The dedicated E2E build
+// therefore exercises the production application bundle without registering
+// the worker; the ordinary production build still ships and registers it.
+if (!__MYOWNNOTION_E2E__ && import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     void navigator.serviceWorker.register("/service-worker.js");
   });

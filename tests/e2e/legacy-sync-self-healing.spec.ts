@@ -50,39 +50,8 @@ test("five retained page conflicts self-heal while persistent storage remains a 
 
   await context.setOffline(true);
   const seeded = await page.evaluate(async (fixtures) => {
-    const modulePath = "/src/services/local-content.ts";
-    const loaded = (await import(/* @vite-ignore */ modulePath)) as {
-      localContent(): {
-        synchronize(): Promise<string>;
-        getItem(itemId: string): Promise<{
-          currentRevisionId: string;
-          kind: string;
-        } | null>;
-        mutate(
-          commandType: string,
-          payload: Record<string, unknown>,
-          baseRevisionIds: string[],
-        ): Promise<{ ok: true } | { ok: false; error: { code: string } }>;
-        outbox: {
-          all(): Promise<
-            Array<{
-              mutationId: string;
-              commandType: string;
-              payload: Record<string, unknown>;
-            }>
-          >;
-          captureConflict(
-            mutationId: string,
-            competingRevisionIds: string[],
-            errorCode: string,
-          ): Promise<void>;
-        };
-        db: {
-          legacySyncRecoveries: { clear(): Promise<void> };
-        };
-      };
-    };
-    const service = loaded.localContent();
+    const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+    if (service === undefined) throw new Error("the E2E local-content hook is unavailable");
     const originalSynchronize = service.synchronize.bind(service);
     Object.defineProperty(service, "synchronize", {
       configurable: true,
@@ -155,23 +124,8 @@ test("five retained page conflicts self-heal while persistent storage remains a 
 
   const local = await page.evaluate(
     async (pageIds) => {
-      const modulePath = "/src/services/local-content.ts";
-      const loaded = (await import(/* @vite-ignore */ modulePath)) as {
-        localContent(): {
-          outbox: {
-            conflicts(): Promise<unknown[]>;
-            activeConflicts(): Promise<unknown[]>;
-          };
-          legacyConflictRecovery: {
-            list(): Promise<Array<{ mutationId: string; status: string }>>;
-          };
-          pageOperationLog: {
-            getState(pageId: string): Promise<{ status: string } | null>;
-            getLegacyBranch(pageId: string): Promise<{ status: string } | null>;
-          };
-        };
-      };
-      const service = loaded.localContent();
+      const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+      if (service === undefined) throw new Error("the E2E local-content hook is unavailable");
       return {
         retainedConflicts: (await service.outbox.conflicts()).length,
         activeConflicts: (await service.outbox.activeConflicts()).length,

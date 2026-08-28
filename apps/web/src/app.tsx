@@ -28,6 +28,17 @@ import { ContentApi } from "./services/content-api.ts";
 import { localContent } from "./services/local-content.ts";
 import { SecurityApi } from "./services/security-api.ts";
 
+declare const __MYOWNNOTION_E2E__: boolean;
+
+if (__MYOWNNOTION_E2E__) {
+  Object.defineProperty(window, "__MYOWNNOTION_E2E_LOCAL_CONTENT__", {
+    configurable: false,
+    enumerable: false,
+    value: localContent,
+    writable: false,
+  });
+}
+
 type Gate = "checking" | "bootstrap" | "login" | "workspace";
 type WorkspaceView = "workspace" | SettingsSection;
 const BACKUP_STATUS_POLL_MS = 15 * 60 * 1000;

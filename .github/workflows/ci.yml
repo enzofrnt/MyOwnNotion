@@ -297,11 +297,17 @@ jobs:
           bun run db:migrate
         env:
           DATABASE_URL: postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion
+      - name: Build the browser application once
+        if: matrix.project != 'none'
+        run: bun run --filter @myownnotion/web build
+        env:
+          MYOWNNOTION_E2E_BUILD: '1'
       - name: Run selected journeys in this isolated project
         if: matrix.project != 'none'
         env:
           PLAYWRIGHT_PROJECT: ${{ matrix.project }}
           DATABASE_URL: postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion
+          MYOWNNOTION_E2E_PREBUILT_WEB: '1'
         run: |
           mapfile -t journeys < <(jq -r '.e2e.testFiles[]' test-impact.json)
           if [ "${#journeys[@]}" -eq 0 ]; then

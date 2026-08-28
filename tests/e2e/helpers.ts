@@ -16,6 +16,58 @@ import {
 } from "@playwright/test";
 import { seedSessionOnNewDevice } from "./reset-installation.ts";
 
+interface E2ELocalContentService {
+  synchronize(): Promise<string>;
+  getItem(itemId: string): Promise<{
+    readonly currentRevisionId: string;
+    readonly kind: string;
+    readonly pageDocument: unknown;
+  } | null>;
+  mutate(
+    commandType: string,
+    payload: Record<string, unknown>,
+    baseRevisionIds: string[],
+  ): Promise<
+    { readonly ok: true } | { readonly ok: false; readonly error: { readonly code: string } }
+  >;
+  readonly outbox: {
+    all(): Promise<
+      Array<{
+        readonly mutationId: string;
+        readonly commandType: string;
+        readonly payload: Record<string, unknown>;
+        readonly localRevisionIds: string[];
+      }>
+    >;
+    captureConflict(
+      mutationId: string,
+      competingRevisionIds: string[],
+      errorCode: string,
+    ): Promise<void>;
+    conflicts(): Promise<unknown[]>;
+    activeConflicts(): Promise<unknown[]>;
+  };
+  readonly db: {
+    readonly legacySyncRecoveries: { clear(): Promise<void> };
+    readonly revisionHeaders: {
+      get(revisionId: string): Promise<{ readonly canonicalRevisionId?: string } | undefined>;
+    };
+  };
+  readonly legacyConflictRecovery: {
+    list(): Promise<Array<{ readonly mutationId: string; readonly status: string }>>;
+  };
+  readonly pageOperationLog: {
+    getState(pageId: string): Promise<{ readonly status: string } | null>;
+    getLegacyBranch(pageId: string): Promise<{ readonly status: string } | null>;
+  };
+}
+
+declare global {
+  interface Window {
+    readonly __MYOWNNOTION_E2E_LOCAL_CONTENT__?: () => E2ELocalContentService;
+  }
+}
+
 /** Headers for direct API setup calls made by the current E2E client. */
 export const CURRENT_PROTOCOL_HEADERS = {
   "x-myownnotion-client-protocol": String(PROTOCOL_VERSION),

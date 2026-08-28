@@ -39,6 +39,7 @@ function portPolicy() {
  */
 export default defineConfig({
   define: {
+    __MYOWNNOTION_E2E__: "false",
     __MYOWNNOTION_SEARCH_WORKER_URL__: "undefined",
   },
   ...(process.env["MYOWNNOTION_VITE_CACHE_DIR"] === undefined

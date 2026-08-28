@@ -12,12 +12,14 @@
  *
  *   - **its own database**, created and migrated here, dropped afterwards. This
  *     is the one that made the suites sequential.
- *   - **its own API and web ports**, so five dev servers coexist.
+ *   - **its own API and web ports**, so five isolated stacks coexist.
  *   - **its own blob root**, or file journeys would read each other's bytes.
  *   - **its own deployment key**, because the security journeys mount one and a
  *     shared file is a shared fate if a run rewrites it.
- *   - **its own Vite dependency cache**, because concurrent optimizers cannot
- *     atomically publish into the same `node_modules/.vite/deps` directory.
+ *
+ * The web application is built once before the matrix. Every preview server
+ * reads the same immutable production bundle, so parallel stacks neither race
+ * a dependency optimiser nor rebuild into a shared output directory.
  *
  * What is *not* isolated is PostgreSQL itself — one server, several databases.
  * Starting five servers would cost more than the parallelism saves.
@@ -62,7 +64,7 @@ const WEB_PORT_BASE = Number(process.env["MYOWNNOTION_E2E_WEB_PORT_BASE"] ?? 547
  * How many stacks run at once.
  *
  * Not every project by default, and that was measured rather than assumed. A
- * stack is a browser, a Vite server and an API process, so five of them saturate
+ * stack is a browser, a static preview server and an API process, so five of them saturate
  * a laptop — and the first thing that gives way under saturation is not the
  * machine but the *journeys*: a click waiting on a render, an assertion budgeted
  * for a quiet machine. Runs at full width failed differently each time, in
@@ -73,7 +75,7 @@ const WEB_PORT_BASE = Number(process.env["MYOWNNOTION_E2E_WEB_PORT_BASE"] ?? 547
  * count. Three was green once and then failed twice, differently each time and
  * always on WebKit: a `createRootItem` missing its fifteen-second budget, and a
  * browser context closed underneath a running test. WebKit is the expensive one,
- * and cores are not the scarce resource — memory and the five Vite servers are.
+ * and cores are not the scarce resource — memory and the five browser stacks are.
  *
  * Raise it with `MYOWNNOTION_E2E_JOBS` on a machine with room, or lower it to one
  * to reproduce a sequential run. A gate that is green two times in three is not a
@@ -93,7 +95,6 @@ interface Stack {
   readonly blobRoot?: string;
   readonly backupRoot?: string;
   readonly deploymentKeyFile?: string;
-  readonly viteCacheDir?: string;
   readonly inContainer: boolean;
 }
 
@@ -147,7 +148,6 @@ function planStacks(selectedProjects: ReadonlySet<string>): Stack[] {
       blobRoot,
       backupRoot,
       deploymentKeyFile,
-      viteCacheDir: path.join(repoRoot, "node_modules", ".vite-e2e", `${project.name}-${suffix}`),
       inContainer: false,
     };
   }).filter((stack): stack is Stack => stack !== null);
@@ -240,7 +240,7 @@ async function dropDatabases(stacks: readonly Stack[]): Promise<void> {
   try {
     await withAdminClient(async (client) => {
       for (const stack of stacks) {
-        // FORCE, because a dev server that has not finished shutting down still
+        // FORCE, because an API server that has not finished shutting down still
         // holds a connection and would keep the database alive for the next run
         // to trip over.
         await client.query(`DROP DATABASE IF EXISTS ${stack.databaseName} WITH (FORCE)`);
@@ -290,6 +290,15 @@ async function migrate(stack: Stack): Promise<void> {
   }
 }
 
+async function buildWebApplication(): Promise<void> {
+  const { code, output } = await run("bun", ["run", "--filter", "@myownnotion/web", "build"], {
+    MYOWNNOTION_E2E_BUILD: "1",
+  });
+  if (code !== 0) {
+    throw new Error(`building the browser application failed:\n${output}`);
+  }
+}
+
 function prepareStack(stack: Stack): void {
   if (stack.blobRoot !== undefined) {
     mkdirSync(stack.blobRoot, { recursive: true });
@@ -317,9 +326,6 @@ function cleanUpStack(stack: Stack): void {
   if (stack.deploymentKeyFile !== undefined) {
     rmSync(stack.deploymentKeyFile, { force: true });
   }
-  if (stack.viteCacheDir !== undefined) {
-    rmSync(stack.viteCacheDir, { recursive: true, force: true });
-  }
 }
 
 async function runStack(
@@ -342,6 +348,7 @@ async function runStack(
       {
         DATABASE_URL: containerDatabaseUrlFor(stack.databaseName),
         MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile as string,
+        MYOWNNOTION_E2E_PREBUILT_WEB: "1",
       },
     );
   }
@@ -368,7 +375,7 @@ async function runStack(
       MYOWNNOTION_BLOB_ROOT: stack.blobRoot as string,
       MYOWNNOTION_BACKUP_ROOT: stack.backupRoot as string,
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile as string,
-      MYOWNNOTION_VITE_CACHE_DIR: stack.viteCacheDir as string,
+      MYOWNNOTION_E2E_PREBUILT_WEB: "1",
       // Playwright writes its report into one directory; five runs writing into
       // the same one would overwrite each other's failure artefacts, which are
       // exactly what someone reads after a red run.
@@ -433,6 +440,7 @@ async function main(): Promise<void> {
     // that are ready at different moments, and the first failure would look like
     // a journey failing rather than a setup one.
     await mapWithLimit(stacks, JOBS, migrate);
+    await buildWebApplication();
 
     // Every project's full output on disk, always — not only when it fails.
     // Five runs interleaving into one terminal is unreadable, and a summary at
