@@ -847,6 +847,29 @@ dans le tiroir modal sur mobile.
 | Parcours fichiers WebKit | `tests/e2e/files.spec.ts` puis parcours clavier ciblé | suite fichiers complète passée ; `Échap`, retour de focus, `Entrée`, remplacement et actions restent utilisables |
 | Matrice ciblée finale | fichiers et surfaces associées, cinq profils lancés en parallèle | Chromium desktop/mobile, Firefox desktop et WebKit desktop/mobile passés en 33 s |
 
+### Stabilisation du sélecteur de page sous WebKit mobile
+
+Le gate pré-push suivant a découvert une seconde frontière WebKit mobile dans
+un parcours de lien interne. La trace montrait d'abord un `beforeinput` sans
+`inputType`, puis un remontage de la toolbar entre le formatage en gras et le
+clic suivant. L'événement incomplet provoquait une erreur JavaScript et la
+sélection mémorisée appartenait au composant remplacé ; le bouton recevait bien
+le clic, mais ne possédait plus de plage utilisable pour ouvrir le sélecteur.
+
+Le gestionnaire traite désormais l'absence d'`inputType` comme une saisie
+ordinaire et la sélection est conservée au-dessus du composant flottant que
+BlockNote peut remonter. Le journey collecte explicitement les erreurs de page,
+de sorte qu'un dialogue visible ne puisse plus masquer une exception pendant
+la saisie.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Reproduction du gate | matrice E2E complète à concurrence 2 | 4/5 profils passés ; WebKit mobile a exposé l'exception `inputType` puis la perte de sélection |
+| Répétition WebKit mobile | parcours de formatage et lien interne avec `--repeat-each=20` | 20/20 passés sans retry ni erreur JavaScript |
+| Matrice ciblée finale | même parcours, cinq profils lancés en parallèle | Chromium desktop/mobile, Firefox desktop et WebKit desktop/mobile passés en 29 s |
+
+Le nouveau gate complet est exécuté sur le commit exact destiné au push.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

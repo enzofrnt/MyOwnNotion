@@ -41,7 +41,11 @@ import {
 } from "./editor-engine.ts";
 import { editorFileTransferQueue } from "./editor-file-state.tsx";
 import { insertDroppedFiles } from "./editor-files.ts";
-import { clearStaleLinkTypingState, editorLinkCreationFromSelection } from "./editor-links.ts";
+import {
+  clearStaleLinkTypingState,
+  type EditorLinkCreation,
+  editorLinkCreationFromSelection,
+} from "./editor-links.ts";
 import { BlockContextMenu } from "./editor-menus/block-context-menu.tsx";
 import { BlockSideMenu } from "./editor-menus/block-side-menu.tsx";
 import { EditorFormattingToolbar } from "./editor-menus/formatting-toolbar.tsx";
@@ -114,6 +118,10 @@ export function PageEditor({
   const [, setHistoryVersion] = useState(0);
   const onOpenPageRef = useRef(onOpenPage);
   const editorHostRef = useRef<HTMLElement | null>(null);
+  // BlockNote can replace the floating toolbar after a formatting action.
+  // This ref belongs to the editor surface so the replacement cannot discard
+  // the range needed by the next page-link action.
+  const preservedPageLinkSelection = useRef<EditorLinkCreation | null>(null);
   onOpenPageRef.current = onOpenPage;
 
   // One engine per mounted surface. Keeping it for that whole mount prevents a
@@ -662,7 +670,11 @@ export function PageEditor({
       onBeforeInputCapture={(event) => {
         if (!editable) return;
         markEditorActivity();
-        const inputType = (event.nativeEvent as InputEvent).inputType;
+        const nativeInputType = (event.nativeEvent as InputEvent).inputType;
+        // WebKit may omit `inputType` on a synthetic beforeinput event even
+        // though the DOM type declares it as a string. Missing metadata is an
+        // ordinary edit, never a reason to abort the editor event pipeline.
+        const inputType = typeof nativeInputType === "string" ? nativeInputType : "";
         if (inputType.startsWith("insert")) clearStaleLinkTypingState(editor);
         if (inputType.startsWith("delete")) {
           // The deletion itself changes the boundary. Clear after BlockNote's
@@ -740,6 +752,7 @@ export function PageEditor({
         <BlockSideMenu onError={reportEditorError} />
         <EditorFormattingToolbar
           onPageLinkRequest={setPageLinkPicker}
+          preservedSelection={preservedPageLinkSelection}
           onWebBookmarkRequest={() => {
             const anchorBlockId = editor.getTextCursorPosition().block.id;
             setWebBookmarkDialog({ mode: "create", anchorBlockId });

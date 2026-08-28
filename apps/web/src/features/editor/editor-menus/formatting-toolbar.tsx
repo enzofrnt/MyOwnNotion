@@ -8,7 +8,7 @@ import {
   useBlockNoteEditor,
   useComponentsContext,
 } from "@blocknote/react";
-import { useCallback, useEffect, useRef } from "react";
+import { type RefObject, useCallback, useEffect } from "react";
 import { AppIcon } from "../../../ui/icons.tsx";
 import type { EditorInstance } from "../blocknote-schema.ts";
 import {
@@ -25,19 +25,20 @@ function isTextSelection(selection: EditorLinkCreation | null): selection is Edi
 function MyOwnNotionFormattingToolbar({
   onPageLinkRequest,
   onWebBookmarkRequest,
+  preservedSelection,
 }: {
   readonly onPageLinkRequest: (request: PageLinkPickerRequest) => void;
   readonly onWebBookmarkRequest: () => void;
+  readonly preservedSelection: RefObject<EditorLinkCreation | null>;
 }) {
   const editor = useBlockNoteEditor() as unknown as EditorInstance;
   const selectedLink = selectedEditorLink(editor);
   const components = useComponentsContext();
   const Toolbar = components?.FormattingToolbar;
   const currentSelection = editorLinkCreationFromSelection(editor);
-  const preservedSelection = useRef<EditorLinkCreation | null>(null);
   useEffect(() => {
     if (isTextSelection(currentSelection)) preservedSelection.current = currentSelection;
-  }, [currentSelection]);
+  }, [currentSelection, preservedSelection]);
   if (Toolbar === undefined) return null;
 
   const openPageLinkFlow = (): void => {
@@ -46,8 +47,16 @@ function MyOwnNotionFormattingToolbar({
       return;
     }
     const selection = editorLinkCreationFromSelection(editor);
-    const usableSelection = isTextSelection(selection) ? selection : preservedSelection.current;
+    const usableSelection = isTextSelection(selection)
+      ? selection
+      : isTextSelection(currentSelection)
+        ? currentSelection
+        : preservedSelection.current;
     if (usableSelection !== null) onPageLinkRequest({ mode: "create", selection: usableSelection });
+  };
+  const rememberPageLinkSelection = (): void => {
+    const selection = editorLinkCreationFromSelection(editor);
+    if (isTextSelection(selection)) preservedSelection.current = selection;
   };
 
   return (
@@ -57,17 +66,19 @@ function MyOwnNotionFormattingToolbar({
       <BasicTextStyleButton basicTextStyle="underline" />
       <BasicTextStyleButton basicTextStyle="strike" />
       <BasicTextStyleButton basicTextStyle="code" />
-      <Toolbar.Button
-        className="bn-button"
-        data-testid="open-page-link-picker"
-        label={
-          selectedLink?.kind === "page" ? "Modifier le lien vers la page" : "Lien vers une page"
-        }
-        mainTooltip="Lien vers une page"
-        icon={<AppIcon name="fileText" />}
-        isSelected={selectedLink?.kind === "page"}
-        onClick={openPageLinkFlow}
-      />
+      <span className="bn-page-link-action" onPointerDownCapture={rememberPageLinkSelection}>
+        <Toolbar.Button
+          className="bn-button"
+          data-testid="open-page-link-picker"
+          label={
+            selectedLink?.kind === "page" ? "Modifier le lien vers la page" : "Lien vers une page"
+          }
+          mainTooltip="Lien vers une page"
+          icon={<AppIcon name="fileText" />}
+          isSelected={selectedLink?.kind === "page"}
+          onClick={openPageLinkFlow}
+        />
+      </span>
       <Toolbar.Button
         className="bn-button"
         data-testid="open-web-bookmark-dialog"
@@ -88,9 +99,11 @@ function MyOwnNotionFormattingToolbar({
 export function EditorFormattingToolbar({
   onPageLinkRequest,
   onWebBookmarkRequest,
+  preservedSelection,
 }: {
   readonly onPageLinkRequest: (request: PageLinkPickerRequest) => void;
   readonly onWebBookmarkRequest: () => void;
+  readonly preservedSelection: RefObject<EditorLinkCreation | null>;
 }) {
   const components = useComponentsContext();
   const toolbar = useCallback(
@@ -98,9 +111,10 @@ export function EditorFormattingToolbar({
       <MyOwnNotionFormattingToolbar
         onPageLinkRequest={onPageLinkRequest}
         onWebBookmarkRequest={onWebBookmarkRequest}
+        preservedSelection={preservedSelection}
       />
     ),
-    [onPageLinkRequest, onWebBookmarkRequest],
+    [onPageLinkRequest, onWebBookmarkRequest, preservedSelection],
   );
   if (components === undefined) return null;
   return <FormattingToolbarController formattingToolbar={toolbar} />;
