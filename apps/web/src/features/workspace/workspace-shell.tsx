@@ -27,7 +27,7 @@ export function WorkspaceShell({
   sidebarWidth,
 }: WorkspaceShellProps) {
   return (
-    <div className="workspace-shell" data-testid="workspace-shell">
+    <div className="workspace-shell" data-sidebar-open={sidebarOpen} data-testid="workspace-shell">
       <a className="workspace-skip-link" href="#workspace-main">
         Aller au contenu
       </a>

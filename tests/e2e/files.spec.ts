@@ -10,12 +10,52 @@ import {
   openPageAttachments,
   openSettingsSection,
   openWorkspace,
+  sampleCssTransition,
   selectSettledPage,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
 
 test.describe("canonical files (US2)", () => {
+  test("opens the paperclip continuation progressively without resizing its page row", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+    const pageName = uniqueName("Animated attachments");
+    await createRootItem(page, "page", pageName);
+    await waitForSynchronized(page);
+    await ensureNavigationRowVisible(page, pageName);
+
+    const row = page.getByTestId(`tree-item-${pageName}`);
+    const trigger = page.getByRole("button", { name: `Pièces jointes de ${pageName}` });
+    await row.hover();
+    await expect(trigger.locator(".ui-icon")).toHaveAttribute("data-icon", "paperclip");
+    const before = await row.boundingBox();
+    await trigger.click();
+    const region = page.getByTestId(`page-attachments-${pageName}`);
+    const middle = await sampleCssTransition(region, "grid-template-rows");
+    expect(middle.height).toBeGreaterThan(0);
+
+    await expect(page.getByTestId("attachments-empty")).toBeVisible();
+    const opened = await region.boundingBox();
+    const after = await row.boundingBox();
+    expect(before).not.toBeNull();
+    expect(opened).not.toBeNull();
+    expect(after).not.toBeNull();
+    expect(middle.height).toBeLessThan(opened?.height ?? 0);
+    expect(Math.abs((before?.x ?? 0) - (opened?.x ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((before?.width ?? 0) - (opened?.width ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((before?.width ?? 0) - (after?.width ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((before?.height ?? 0) - (after?.height ?? 0))).toBeLessThanOrEqual(1);
+
+    await trigger.click();
+    const closing = await sampleCssTransition(region, "grid-template-rows");
+    expect(closing.height).toBeGreaterThan(0);
+    expect(closing.height).toBeLessThan(opened?.height ?? 0);
+    await expect(region).toHaveCount(0);
+  });
+
   test("imports an attachment, lists it discreetly, and replaces content copy-on-write", async ({
     page,
   }) => {

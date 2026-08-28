@@ -72,6 +72,20 @@ position dans un document et déplacement clavier vers le parent sur WebKit.
 Elle ne rouvre pas l'historique des tâches terminées de la 003 ; elle prend la
 responsabilité explicite de ces comportements dans son propre périmètre.
 
+## Référence d’interaction versionnée
+
+La maquette validée
+[sidebar-attachments-v3.html](assets/sidebar-attachments-v3.html) est la
+référence normative de la tranche « barre latérale, ligne d’arbre et pièces
+jointes ». Elle conserve directement les états ouverts et fermés, l’ordre des
+commandes, les raccords de surfaces, les icônes et les mouvements approuvés.
+Les exigences ci-dessous rendent ces attentes testables, mais ne peuvent pas
+être interprétées comme une réduction de la maquette. Lorsqu’un détail de ce
+périmètre est ambigu dans la prose, le comportement observable de cette
+référence fait autorité. Une évolution différente exige donc une nouvelle
+validation explicite et une mise à jour simultanée de la référence, de la spec,
+du plan et des tests concernés.
+
 ## Clarifications
 
 ### Session 2026-08-20
@@ -202,6 +216,33 @@ responsabilité explicite de ces comportements dans son propre périmètre.
   menu ? → R: Non. Ouvrir un dossier affiche dans la zone principale le même
   éditeur d'identité que pour une page : emoji canonique et grand titre
   modifiable, sans créer un deuxième modèle de données.
+- Q: La maquette de navigation validée est-elle seulement illustrative ? → R:
+  Non. Le fichier `assets/sidebar-attachments-v3.html` est versionné avec la
+  feature et constitue la référence d’acceptation de cette tranche ; la
+  traduction Speckit ne doit ni en perdre ni en simplifier les interactions.
+- Q: La barre latérale peut-elle être masquée sur un écran large ? → R: Oui.
+  Une commande dans son en-tête la replie entièrement avec un mouvement court,
+  le contenu récupère progressivement l’espace, puis une commande persistante
+  dans le coin supérieur du contenu permet de la réafficher. Le choix reste
+  local à l’appareil et survit au rechargement.
+- Q: Comment matérialiser précisément le dépliage d’une branche ? → R: Le même
+  chevron orienté vers la droite tourne progressivement de 90 degrés. Il
+  remplace l’emoji au survol ou au focus dans une petite surface réactive ; les
+  descendants apparaissent et disparaissent progressivement, sans saut ni
+  espace résiduel.
+- Q: Jusqu’où la surface de création enfant peut-elle se déployer ? → R: Elle
+  reste intégrée dans les limites verticales et droites de la ligne active. Elle
+  peut recouvrir temporairement la fin du titre vers la gauche et la commande
+  discrète des pièces jointes lui cède sa place, mais aucun contrôle ne déborde
+  visuellement de la ligne. Le groupe ouvert est une enveloppe compacte et
+  visible, avec sa propre teinte et ses arrondis, qui contient réellement trois
+  commandes — page, dossier, même `+` devenu croix. Cette enveloppe reste plate,
+  sans ombre extérieure ni lecture de popover détaché ; une respiration
+  régulière d’un pixel l’entoure et sépare ses commandes.
+- Q: Quelle commande et quel mouvement représentent les pièces jointes ? → R:
+  Un trombone discret, identique à la maquette. Le panneau raccordé sous la
+  ligne gagne et perd progressivement sa hauteur et son opacité ; il ne surgit
+  jamais en un seul rendu.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -266,6 +307,22 @@ une page sur ordinateur puis sur un écran de 320 pixels.
     **When** le déplacement est confirmé, **Then** elle redevient une ligne
     feuille sans chevron ni message vide sous elle, et sa sélection reste
     lisible sans barre d'accent verticale.
+13. **Given** un workspace sur écran large, **When** le propriétaire masque la
+    barre latérale depuis son en-tête, **Then** elle disparaît progressivement,
+    le contenu récupère toute la largeur et une commande du contenu permet de
+    la réafficher avec retour de focus ; le même état revient après rechargement.
+14. **Given** une branche fermée, **When** le propriétaire cible puis active son
+    chevron, **Then** l’emoji cède sa place sans déplacement du titre, le même
+    chevron tourne progressivement vers le bas et les descendants gagnent leur
+    hauteur progressivement ; la fermeture produit le mouvement inverse.
+15. **Given** une ligne de page sélectionnée, **When** le propriétaire ouvre la
+    création enfant, **Then** page, dossier et croix forment une seule surface
+    dans la ligne, sans modifier le rectangle de la ligne ni dépasser de ses
+    limites supérieure, inférieure ou droite.
+16. **Given** une page sélectionnée avec ou sans fichier, **When** le
+    propriétaire active le trombone, **Then** une continuation de même largeur
+    s’ouvre progressivement sous la ligne sans modifier celle-ci et présente
+    soit les fichiers compacts, soit l’unique état vide validé.
 
 ---
 
@@ -693,7 +750,11 @@ en charge, une fois sans pointeur puis une fois au toucher.
   enfants, le chevron MUST remplacer visuellement l'icône lorsque la commande
   de repli est ciblée au pointeur ou au clavier, sans déplacer le libellé. Une
   feuille MUST ne rendre aucun chevron ni espace supplémentaire propre au
-  dépliage.
+  dépliage. Une branche MUST conserver un unique chevron orienté vers la droite
+  et le faire tourner progressivement de 90 degrés pour l’état ouvert, dans la
+  même surface compacte de survol ou de focus que celle de la référence
+  versionnée ; elle ne MUST pas remplacer brutalement une icône droite par une
+  seconde icône basse.
 - **FR-087**: Une référence interne MUST afficher dynamiquement le titre et
   l'icône actuels de sa cible et MUST interdire leur édition indépendante. Une
   référence explicite vers un autre emplacement MUST porter un indicateur de
@@ -719,22 +780,45 @@ en charge, une fois sans pointeur puis une fois au toucher.
   conserver l'ordre création enfant, menu complémentaire. La création enfant
   MUST révéler dans la ligne des choix explicites page et dossier, sans déplacer
   le titre ni modifier la taille de la ligne, et son bouton `+` MUST devenir la
-  commande de fermeture dans la même surface visuelle.
+  commande de fermeture dans la même surface visuelle. Cette surface MUST
+  rester contenue dans les limites supérieure, inférieure et droite de la ligne
+  sélectionnée ; elle MAY recouvrir la fin du titre vers la gauche et MUST
+  prendre temporairement la place de la commande de pièces jointes comme dans
+  la référence versionnée. Sur desktop, elle MUST contenir trois commandes de
+  28 px, une respiration périphérique de 1 px et deux séparations internes de
+  1 px, soit une enveloppe de 88 × 30 px. Son fond MUST être visible et distinct
+  de la ligne sélectionnée ; elle MUST rester plate, sans ombre extérieure ni
+  fond de popover détaché, et ses trois commandes MUST être des enfants du même
+  groupe visuel.
 - **FR-092**: Le panneau de pièces jointes ouvert depuis une page MUST prolonger
   visuellement sa ligne sélectionnée avec la même largeur, sans modifier la
   hauteur, la largeur ou la position de cette ligne. Il MUST afficher un en-tête
   compact avec le nombre de fichiers puis des lignes nom/taille, ou exactement
   un état vide compact ; il MUST conserver l'import et l'accès aux actions de
-  fichier sans transformer l'arborescence en panneau de gestion complet.
+  fichier sans transformer l'arborescence en panneau de gestion complet. Sa
+  commande MUST employer l’icône trombone de la référence versionnée, avec une
+  présence discrète au repos et un état explicite au survol, au focus ou quand
+  le panneau est ouvert.
 - **FR-093**: Les descendants, la création en ligne et les pièces jointes MUST
-  s'ouvrir et se fermer avec des transitions courtes symétriques, désactivées
-  lorsque la réduction de mouvement est demandée. Une surface fermée MUST ne
-  conserver ni hauteur, ni marge, ni contrôle atteignable.
+  s'ouvrir et se fermer avec des transitions courtes, progressives et
+  symétriques de la même famille visuelle que la référence versionnée. Leur
+  géométrie et leur opacité MUST posséder un état intermédiaire observable ; la
+  fermeture ne MUST pas être un démontage instantané après une ouverture
+  animée. Ces transitions MUST être désactivées lorsque la réduction de
+  mouvement est demandée. Une surface fermée MUST ne conserver ni hauteur, ni
+  marge, ni contrôle atteignable.
 - **FR-094**: L'ouverture d'un dossier MUST rendre dans la zone principale son
   emoji canonique et son titre au moyen du même composant d'identité et des
   mêmes règles de validation que pour une page. La modification MUST utiliser
   les mutations d'item existantes et se refléter immédiatement dans toutes les
   représentations de cet item.
+- **FR-095**: Sur écran large, l’en-tête de la barre latérale MUST exposer une
+  commande pour la masquer entièrement. Le contenu principal MUST récupérer
+  progressivement l’espace libéré et exposer alors une commande persistante
+  pour la réafficher. Les contrôles de la barre masquée MUST quitter l’ordre de
+  focus, le focus MUST rejoindre la commande opposée après le mouvement et
+  l’état MUST être restauré localement conformément à FR-004. Ce comportement
+  MUST reprendre les états et le mouvement de la référence versionnée.
 - **FR-023**: Images et fichiers insérés dans une page MUST réutiliser le cycle
   de vie, la sécurité, les limites, la déduplication et la disponibilité locale
   définis par la feature 005.
@@ -1083,6 +1167,27 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **SC-034**: Cent adresses invalides ne créent aucun bloc ; cent adresses
   valides créent chacune un bookmark pleine largeur qui reste visible avec son
   URL lorsque la récupération d'aperçu échoue.
+- **SC-035**: Sur écran large, cent cycles masquer/réafficher la barre latérale
+  conservent un contenu utilisable, un seul contrôle de bascule visible, un
+  retour de focus correct et l’état attendu après rechargement ; pendant chaque
+  cycle, la largeur de navigation et celle du contenu possèdent au moins un
+  état intermédiaire avant leur état final.
+- **SC-036**: Sur cent cycles de branche, le même nœud chevron passe
+  progressivement de 0 à 90 degrés puis revient, le titre se déplace de moins
+  d’un pixel, la région des descendants possède une hauteur intermédiaire et la
+  fermeture laisse une hauteur et une marge inférieures à un pixel sans
+  contrôle focalisable.
+- **SC-037**: Sur cent ouvertures et fermetures de la création enfant, le
+  rectangle de la ligne varie de moins d’un pixel et tous les contrôles révélés
+  restent à l’intérieur de ses limites supérieure, inférieure et droite ; le
+  `+` et sa croix sont le même contrôle animé et la fermeture possède un état
+  intermédiaire visible. À l’état ouvert desktop, l’enveloppe mesure 88 × 30 px,
+  les trois commandes sont séparées d’un pixel, son fond calculé n’est pas
+  transparent et son ombre calculée vaut `none`.
+- **SC-038**: Dans les cas zéro, un et plusieurs fichiers, cent cycles du
+  trombone conservent le rectangle de la ligne à moins d’un pixel, raccordent le
+  panneau à la même largeur à moins d’un pixel, traversent une hauteur
+  intermédiaire et reviennent à moins d’un pixel de hauteur résiduelle.
 
 ## Assumptions
 

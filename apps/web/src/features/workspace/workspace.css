@@ -25,6 +25,7 @@
 }
 
 .workspace-stage {
+  position: relative;
   min-width: 0;
 }
 
@@ -320,6 +321,12 @@
 
   .workspace-page-header__actions {
     min-width: var(--ui-target);
+  }
+}
+
+@media (min-width: 48rem) {
+  .workspace-shell[data-sidebar-open="false"] .workspace-page-header {
+    padding-left: calc(var(--space-12) + var(--space-2));
   }
 }
 

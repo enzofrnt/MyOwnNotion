@@ -16,6 +16,9 @@
       "!**/playwright-report",
       "!**/test-results",
       "!packages/database/migrations",
+      // Approved visual contract: keep it byte-for-byte identical to the
+      // prototype that was validated before implementation.
+      "!specs/017-v1-notion-like-workspace/assets/sidebar-attachments-v3.html",
       "!.specify",
       "!.agents",
       "!.cursor"

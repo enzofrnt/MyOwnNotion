@@ -16,6 +16,69 @@ import {
 } from "@playwright/test";
 import { seedSessionOnNewDevice } from "./reset-installation.ts";
 
+export interface CssTransitionSample {
+  readonly height: number;
+  readonly transform: string;
+  readonly width: number;
+}
+
+/**
+ * Freezes a real CSS transition at an exact progress point before measuring it.
+ *
+ * A fixed sleep does not prove an intermediate frame: on a busy runner 70 ms
+ * can take longer than a 210 ms transition. Reading the browser animation and
+ * seeking it to its midpoint makes the assertion deterministic while still
+ * exercising the production CSS rather than a test-only animation.
+ */
+export async function sampleCssTransition(
+  locator: Locator,
+  transitionProperty: string,
+  progress = 0.5,
+): Promise<CssTransitionSample> {
+  await expect(locator).toBeAttached();
+  return await locator.evaluate(
+    async (element, options): Promise<CssTransitionSample> => {
+      const findTransition = (): CSSTransition | undefined =>
+        element
+          .getAnimations()
+          .find(
+            (animation): animation is CSSTransition =>
+              "transitionProperty" in animation &&
+              animation.transitionProperty === options.transitionProperty,
+          );
+
+      let transition = findTransition();
+      for (let frame = 0; transition === undefined && frame < 12; frame += 1) {
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        transition = findTransition();
+      }
+      if (transition === undefined) {
+        throw new Error(`No active ${options.transitionProperty} transition was found`);
+      }
+
+      transition.pause();
+      const timing = transition.effect?.getComputedTiming();
+      const duration = typeof timing?.duration === "number" ? timing.duration : 0;
+      if (duration <= 0) {
+        throw new Error(`${options.transitionProperty} transition has no measurable duration`);
+      }
+      transition.currentTime = duration * options.progress;
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+      const rectangle = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const sample = {
+        height: rectangle.height,
+        transform: style.transform,
+        width: rectangle.width,
+      };
+      transition.finish();
+      return sample;
+    },
+    { progress, transitionProperty },
+  );
+}
+
 interface E2ELocalContentService {
   synchronize(): Promise<string>;
   getItem(itemId: string): Promise<{

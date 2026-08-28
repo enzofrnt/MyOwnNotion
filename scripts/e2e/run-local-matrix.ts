@@ -198,14 +198,18 @@ function parseMatrixArguments(args: readonly string[]): {
  * would report on code nobody is looking at. Losing a run to a clear error costs
  * a minute; losing one to a green report on the wrong code costs an afternoon.
  */
-async function assertPortFree(port: number, label: string): Promise<void> {
+async function assertPortFree(port: number, label: string, host: string): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const probe = createServer();
     probe.once("error", (error: NodeJS.ErrnoException) => {
+      if (host === "::1" && (error.code === "EAFNOSUPPORT" || error.code === "EADDRNOTAVAIL")) {
+        resolve();
+        return;
+      }
       reject(
         error.code === "EADDRINUSE"
           ? new Error(
-              `port ${port} (${label}) is already in use. Stop whatever holds it, or move the range with MYOWNNOTION_E2E_API_PORT_BASE / MYOWNNOTION_E2E_WEB_PORT_BASE.`,
+              `port ${port} (${label}) is already in use on ${host}. Stop whatever holds it, or move the range with MYOWNNOTION_E2E_API_PORT_BASE / MYOWNNOTION_E2E_WEB_PORT_BASE.`,
             )
           : error,
       );
@@ -213,7 +217,7 @@ async function assertPortFree(port: number, label: string): Promise<void> {
     probe.once("listening", () => {
       probe.close(() => resolve());
     });
-    probe.listen(port, "127.0.0.1");
+    probe.listen(port, host);
   });
 }
 
@@ -419,10 +423,15 @@ async function main(): Promise<void> {
 
   for (const stack of stacks) {
     if (stack.apiPort !== undefined) {
-      await assertPortFree(stack.apiPort, `${stack.project} API`);
+      await assertPortFree(stack.apiPort, `${stack.project} API`, "127.0.0.1");
     }
     if (stack.webPort !== undefined) {
-      await assertPortFree(stack.webPort, `${stack.project} web`);
+      // Vite resolves `localhost` to IPv6 on macOS. Checking only 127.0.0.1
+      // allowed an abandoned preview on ::1 to survive unnoticed; Playwright
+      // then reused that old bundle and reported failures that existed only in
+      // another run. Refuse both loopback families before building anything.
+      await assertPortFree(stack.webPort, `${stack.project} web`, "127.0.0.1");
+      await assertPortFree(stack.webPort, `${stack.project} web`, "::1");
     }
   }
 

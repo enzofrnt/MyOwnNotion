@@ -62,6 +62,33 @@ describe("workspace shell", () => {
     expect(markup).toContain('<main id="workspace-main"');
     expect(markup).toContain('class="workspace-reading-column"');
     expect(markup).toContain("Aller au contenu");
+    expect(markup).toContain('data-testid="close-sidebar"');
+    expect(markup).toContain('aria-label="Masquer la barre latérale"');
+    expect(markup).toContain('aria-label="Afficher la barre latérale"');
+    expect(markup).not.toContain('id="workspace-navigation" hidden=""');
+  });
+
+  it("keeps the desktop sidebar mounted but inert while it animates closed", () => {
+    const markup = renderToStaticMarkup(
+      <WorkspaceShell
+        navigation={<nav aria-label="Navigation principale">Pages</nav>}
+        header={<PageHeader title="Feuille de route" />}
+        mobileNavigationOpen={false}
+        sidebarOpen={false}
+        sidebarWidth={280}
+        onMobileNavigationOpenChange={() => undefined}
+        onSidebarOpenChange={() => undefined}
+        onSidebarWidthChange={() => undefined}
+      >
+        <article>Contenu éditorial</article>
+      </WorkspaceShell>,
+    );
+
+    expect(markup).toContain('data-sidebar-open="false"');
+    expect(markup).toContain('data-open="false"');
+    expect(markup).toContain('aria-hidden="true"');
+    expect(markup).toContain('inert=""');
+    expect(markup).not.toContain('id="workspace-navigation" hidden=""');
   });
 
   it("keeps page title, synchronization and settings out of the compact page chrome", () => {

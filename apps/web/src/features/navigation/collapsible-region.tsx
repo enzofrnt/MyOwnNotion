@@ -1,7 +1,14 @@
-import { type HTMLAttributes, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type HTMLAttributes,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { classNames } from "../../ui/class-names.ts";
 
-export const COLLAPSIBLE_REGION_DURATION_MS = 180;
+export const COLLAPSIBLE_REGION_DURATION_MS = 210;
 
 export interface CollapsibleRegionProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   readonly children: ReactNode;
@@ -20,24 +27,36 @@ export function CollapsibleRegion({
   const [present, setPresent] = useState(open || !lazy);
   const [visible, setVisible] = useState(open);
   const closingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const openingFrame = useRef<number | null>(null);
+  const openingFrames = useRef<number[]>([]);
+
+  const cancelOpeningFrames = useCallback((): void => {
+    for (const frame of openingFrames.current) cancelAnimationFrame(frame);
+    openingFrames.current = [];
+  }, []);
 
   useEffect(() => {
     if (closingTimer.current !== null) {
       clearTimeout(closingTimer.current);
       closingTimer.current = null;
     }
-    if (openingFrame.current !== null) {
-      cancelAnimationFrame(openingFrame.current);
-      openingFrame.current = null;
-    }
+    cancelOpeningFrames();
 
     if (open) {
-      setPresent(true);
-      openingFrame.current = requestAnimationFrame(() => {
-        openingFrame.current = null;
-        setVisible(true);
+      if (!present) {
+        setPresent(true);
+        return;
+      }
+      // Keep one painted collapsed frame after a lazy mount. A single RAF can
+      // run before the browser has committed the 0fr style and would make the
+      // first opening jump straight to its final height.
+      const first = requestAnimationFrame(() => {
+        const second = requestAnimationFrame(() => {
+          openingFrames.current = [];
+          setVisible(true);
+        });
+        openingFrames.current = [second];
       });
+      openingFrames.current = [first];
       return;
     }
 
@@ -48,14 +67,14 @@ export function CollapsibleRegion({
         setPresent(false);
       }, COLLAPSIBLE_REGION_DURATION_MS);
     }
-  }, [lazy, open, present]);
+  }, [cancelOpeningFrames, lazy, open, present]);
 
   useEffect(
     () => () => {
       if (closingTimer.current !== null) clearTimeout(closingTimer.current);
-      if (openingFrame.current !== null) cancelAnimationFrame(openingFrame.current);
+      cancelOpeningFrames();
     },
-    [],
+    [cancelOpeningFrames],
   );
 
   if (!present) return null;
@@ -64,7 +83,8 @@ export function CollapsibleRegion({
     <div
       {...props}
       className={classNames("collapsible-region", className)}
-      data-open={visible || undefined}
+      data-open={visible}
+      data-state={visible ? "open" : "closed"}
       aria-hidden={!visible}
       inert={!visible ? true : undefined}
     >

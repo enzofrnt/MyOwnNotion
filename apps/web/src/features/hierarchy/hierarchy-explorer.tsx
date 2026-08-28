@@ -1422,7 +1422,7 @@ export function HierarchyExplorer({
                         });
                       }}
                     >
-                      <AppIcon name="file" size="small" />
+                      <AppIcon name="paperclip" size="small" />
                       {attachmentCount > 0 ? (
                         <span className="workspace-page-attachments-count">{attachmentCount}</span>
                       ) : null}
@@ -1532,7 +1532,12 @@ export function HierarchyExplorer({
             screen reader would announce children of a folder the owner has
             closed. */}
         {branch ? (
-          <CollapsibleRegion open={branchOpen} lazy className="workspace-tree-children">
+          <CollapsibleRegion
+            open={branchOpen}
+            lazy
+            className="workspace-tree-children"
+            data-testid={`children-${node.item.name}`}
+          >
             {node.children.length > 0 ? (
               // biome-ignore lint/a11y/useSemanticElements: role="group" on ul is the canonical ARIA tree substructure
               <ul role="group">{node.children.map((child) => renderNode(child, level + 1))}</ul>

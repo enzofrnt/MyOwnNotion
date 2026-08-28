@@ -81,10 +81,15 @@ async function hoverContextualRowWithoutShift(page: Page): Promise<void> {
         const box = element.getBoundingClientRect();
         return {
           x: box.x,
+          y: box.y,
           width: box.width,
+          height: box.height,
           clientWidth: element.clientWidth,
+          clientHeight: element.clientHeight,
           scrollWidth: element.scrollWidth,
+          scrollHeight: element.scrollHeight,
           scrollLeft: element.scrollLeft,
+          scrollTop: element.scrollTop,
         };
       };
       const ancestors: Array<{

@@ -33,9 +33,11 @@ describe("inline child creation", () => {
       );
     });
 
-    const surface = container.querySelector('[data-testid="inline-create-Projet"]');
+    const cluster = container.querySelector('[data-testid="inline-create-Projet"]');
+    const surface = cluster?.querySelector(".navigation-inline-create__surface");
     const controls = [...(surface?.querySelectorAll("button") ?? [])];
-    expect(surface?.getAttribute("data-open")).toBe("true");
+    expect(cluster?.getAttribute("data-open")).toBe("true");
+    expect(cluster?.children).toHaveLength(1);
     expect(controls.map((button) => button.getAttribute("data-testid"))).toEqual([
       "new-page-inline-Projet",
       "new-folder-inline-Projet",

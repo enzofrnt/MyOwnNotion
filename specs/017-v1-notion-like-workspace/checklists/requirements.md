@@ -51,3 +51,13 @@
 - The 2026-08-28 correction supersedes the unified target picker: page
   references and Web bookmarks now have distinct compact keyboard flows, while
   emoji are canonical page/folder properties reused by every representation.
+- The approved sidebar prototype is now versioned under `assets/` and is the
+  normative interaction reference for sidebar collapse, branch disclosure,
+  inline child creation and compact attachments. FR-086 and FR-091–FR-095 plus
+  SC-035–SC-038 expose its geometry and intermediate motion as testable
+  outcomes instead of relying on a prose-only approximation.
+- The screenshot review of 2026-08-29 further fixes the open creation cluster
+  as a visible 88 × 30 px enclosing surface around three 28 px controls, with
+  one-pixel regular spacing and no exterior shadow. Three loose icons do not
+  satisfy the requirement. The normative asset, FR-091 and SC-037 carry the
+  same measurable correction.

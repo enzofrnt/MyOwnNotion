@@ -96,10 +96,17 @@ export function TreeItemIdentitySlot({
           type="button"
           className="tree-twisty"
           aria-label={expanded ? `Replier ${item.name}` : `Déplier ${item.name}`}
+          aria-expanded={expanded}
+          data-expanded={expanded}
           data-testid={`toggle-${item.name}`}
           onClick={stopAndToggle}
         >
-          <AppIcon name={expanded ? "chevronDown" : "chevronRight"} size="small" />
+          <AppIcon
+            name="chevronRight"
+            size="small"
+            className="tree-twisty__icon"
+            data-expanded={expanded}
+          />
         </button>
       ) : null}
     </span>
