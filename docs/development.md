@@ -248,7 +248,7 @@ a focused Playwright relaunch, setting `MYOWNNOTION_E2E_JOBS=5` runs the selecte
 journey on all five isolated browser profiles at once; this is the fastest way
 to confirm a targeted correction. Do not use width five for the complete
 Playwright corpus: on the reference fourteen-core laptop, five full stacks
-exhaust the browser/dev-server budget, prevent WebKit pages from loading and
+exhaust the browser/server budget, prevent WebKit pages from loading and
 can deadlock test cleanup. The complete pre-push gate therefore uses the
 measured repeatable width of two. The non-test build, image, security and
 Compose gates retain their dependency order.
@@ -260,8 +260,8 @@ system does not consider that window active, because another browser has the
 focus. No timeout can fix that, and no amount of it is the application's
 behaviour. Others simply miss their budget while three engines compete.
 
-CI is unaffected: it gives each project its own runner, so nothing there competes
-for anything.
+CI gives each project its own runner. Every runner builds the browser application
+once, then serves the production bundle throughout its selected journeys.
 
 Performance budgets run in their own Vitest project and their own CI job. They
 must never run under V8 coverage instrumentation: instrumentation changes the
@@ -304,8 +304,9 @@ creates its own random database, while avoiding one container per process.
 
 Do not run two raw Playwright commands concurrently. They share the default
 database and reset fixtures. `bun run test:e2e:local` is the parallel-safe browser
-entry point because it allocates a database, ports, blob root, deployment key
-and Vite cache per project. Keep its default width of two on a small runner.
+entry point because it allocates a database, ports, blob root and deployment key
+per project, then builds one immutable web bundle before starting them. Keep its
+default width of two on a small runner.
 
 This parallel feedback does not replace `bun run checks:local`. The full gate owns
 its resource ordering and must run once, without a competing test process,
@@ -321,10 +322,23 @@ making them take turns —
 | Isolated per project | Why |
 | --- | --- |
 | its own database, created and dropped by the runner | the reason the suites were sequential |
-| its own API and web ports (from 3301 and 5473) | five dev servers have to coexist |
+| its own API and web ports (from 3301 and 5473) | five preview servers have to coexist |
 | its own blob root | otherwise file journeys read each other's bytes |
 | its own deployment key | a shared file is a shared fate if a run rewrites it |
-| its own Vite dependency cache | concurrent optimizers cannot publish atomically into one cache directory |
+
+The web assets are deliberately shared: the runner performs one Bun production
+build before launching any browser, and every preview server only reads that
+immutable output. This avoids concurrent builds and prevents a cold WebKit page
+from depending on hundreds of individual Vite development-module transfers.
+The two migration journeys that inspect encrypted local state use a fixture hook
+compiled only when `MYOWNNOTION_E2E_BUILD=1`; the normal production build checks
+that this hook is absent before succeeding.
+
+The dedicated E2E bundle does not register the production service worker.
+Playwright request routes model outages and server responses, and requests made
+through an active worker bypass those routes. The ordinary production bundle
+still builds, precaches, and registers the worker; the Bun build rejects either
+bundle if it contains the wrong registration behavior.
 
 PostgreSQL itself is *not* isolated: one server, several databases. Starting
 five servers would cost more than the parallelism saves.
@@ -335,8 +349,8 @@ so a port held by another checkout is silently *adopted* — and the matrix then
 reports on code nobody is looking at. That has happened, and it cost more than
 the failed run it replaced.
 
-**Two projects at a time by default, not five.** A stack is a browser, a Vite
-server and an API process, and what gives way under saturation is not the machine
+**Two projects at a time by default, not five.** A stack is a browser, a static
+preview server and an API process, and what gives way under saturation is not the machine
 but the journeys — a click waiting on a render, an assertion budgeted for a quiet
 machine. Five at once failed differently on every attempt; three was green once
 and then failed twice, both times on WebKit, which is the expensive engine. Two is
@@ -344,7 +358,7 @@ what proved repeatable on a fourteen-core laptop, and it still runs the matrix i
 about nine minutes against sixteen sequentially.
 
 The number is measured rather than derived from the core count, because cores are
-not the scarce resource here — memory and the dev servers are.
+not the scarce resource here — memory and the browser stacks are.
 `MYOWNNOTION_E2E_JOBS` raises it on a machine with room, or lowers it to `1` to
 reproduce a sequential run. A gate that is green two times in three is not a gate.
 
@@ -361,11 +375,13 @@ traces and screenshots of the others.
 On macOS, Firefox runs inside the pinned Linux image, because Playwright's
 patched Firefox hangs before opening a page on the macOS development runtime.
 That project starts its servers inside the container and reaches PostgreSQL
-through `host.docker.internal`, so it needs a database of its own and nothing
-else. It runs alongside the others rather than after them.
+through `host.docker.internal`. During the parallel matrix it serves the same
+prebuilt bundle mounted from the host, so it never rewrites assets another
+preview server is reading. It runs alongside the others rather than after them.
 
-`bun run test:e2e` remains the single-stack command CI uses, and the one to reach
-for when debugging one journey.
+`bun run test:e2e` remains the single-stack command to reach for when debugging
+one journey; it builds the web bundle before starting Playwright. CI performs
+the same build as an explicit step before each isolated browser job.
 
 ### Security test harness
 
@@ -635,7 +651,8 @@ When invoking the raw `bun run test:e2e` and
 other. Those commands use the default PostgreSQL database, and concurrent
 journeys can delete each other's fixtures. `bun run test:e2e:local` is the safe
 parallel exception: its matrix runner allocates an isolated database, ports,
-temporary directories, and Vite dependency cache to every browser project.
+and temporary directories to every browser project, then serves one prebuilt
+production bundle read-only across the matrix.
 
 Pushing a work branch triggers no automated gate: **the pull request is the
 first remote gate**, so the applicable local gate must pass before every push.

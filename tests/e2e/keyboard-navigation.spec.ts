@@ -248,6 +248,10 @@ test.describe("acting on an item from the keyboard", () => {
     await handle.focus();
     await page.keyboard.press("Space");
     await expect(handle).toHaveAttribute("aria-pressed", "true");
+    // dnd-kit's keyboard sensor attaches its movement listener in the next
+    // browser task so the Space key that starts a drag cannot immediately end
+    // it. Cross that task boundary before sending the first movement key.
+    await page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
     await page.keyboard.press("ArrowUp");
     await expect(page.getByTestId(`drop-before-${first}`)).toHaveAttribute("data-active", "true");
     await page.keyboard.press("Space");

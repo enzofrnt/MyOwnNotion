@@ -5,6 +5,7 @@ import { injectManifest } from "workbox-build";
 
 const appRoot = import.meta.dir;
 const outdir = path.join(appRoot, "dist");
+const e2eBuild = process.env["MYOWNNOTION_E2E_BUILD"] === "1";
 
 function publicUrl(absolutePath: string): string {
   return `/${path.relative(outdir, absolutePath).split(path.sep).join("/")}`;
@@ -73,6 +74,7 @@ const applicationBuild = await requireSuccessfulBuild(
       "import.meta.env.PROD": "true",
       "import.meta.env.DEV": "false",
       "process.env.NODE_ENV": '"production"',
+      __MYOWNNOTION_E2E__: JSON.stringify(e2eBuild),
       __MYOWNNOTION_SEARCH_WORKER_URL__: JSON.stringify(workerUrl),
     },
     naming: {
@@ -132,6 +134,26 @@ const javascript = await Promise.all(
 );
 if (!javascript.some((source) => source.includes(workerUrl))) {
   throw new Error("The web application does not reference the emitted search worker");
+}
+const hasE2ETestHook = javascript.some((source) =>
+  source.includes("__MYOWNNOTION_E2E_LOCAL_CONTENT__"),
+);
+if (hasE2ETestHook !== e2eBuild) {
+  throw new Error(
+    e2eBuild
+      ? "The E2E build is missing its local-content fixture hook"
+      : "The production build contains an E2E-only fixture hook",
+  );
+}
+const registersServiceWorker = javascript.some((source) =>
+  source.includes('register("/service-worker.js")'),
+);
+if (registersServiceWorker === e2eBuild) {
+  throw new Error(
+    e2eBuild
+      ? "The E2E build registers a service worker that bypasses Playwright request routes"
+      : "The production build does not register its service worker",
+  );
 }
 
 console.info(

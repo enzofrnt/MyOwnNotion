@@ -93,7 +93,10 @@ export default defineConfig({
       },
     },
     {
-      command: "bun run --filter @myownnotion/web dev",
+      // The caller builds the web application once before the browser matrix.
+      // Serving the production bundle keeps the journey faithful to delivery
+      // and avoids a cold browser fetching hundreds of Vite source modules.
+      command: "bun run --filter @myownnotion/web preview",
       url: `http://${webHost}:${webPort}`,
       reuseExistingServer: !isCI,
       timeout: 120_000,

@@ -47,32 +47,8 @@ async function queueHistoricalReplacement(
 ): Promise<QueuedLegacyReplacement> {
   return await page.evaluate(
     async ({ id, replacementText }) => {
-      const modulePath = "/src/services/local-content.ts";
-      const loaded = (await import(/* @vite-ignore */ modulePath)) as {
-        localContent(): {
-          getItem(itemId: string): Promise<{
-            currentRevisionId: string;
-            kind: string;
-            pageDocument: unknown;
-          } | null>;
-          mutate(
-            commandType: string,
-            payload: Record<string, unknown>,
-            baseRevisionIds: string[],
-          ): Promise<{ ok: true } | { ok: false; error: { code: string } }>;
-          outbox: {
-            all(): Promise<
-              Array<{
-                mutationId: string;
-                commandType: string;
-                payload: Record<string, unknown>;
-                localRevisionIds: string[];
-              }>
-            >;
-          };
-        };
-      };
-      const service = loaded.localContent();
+      const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+      if (service === undefined) throw new Error("the E2E local-content hook is unavailable");
       const item = await service.getItem(id);
       if (item === null || item.kind !== "page" || item.pageDocument === null) {
         throw new Error("the legacy page is not available locally");
@@ -147,15 +123,11 @@ test.describe("page protocol migration", () => {
       .poll(
         () =>
           page.evaluate(async (id) => {
-            const modulePath = "/src/services/local-content.ts";
-            const loaded = (await import(/* @vite-ignore */ modulePath)) as {
-              localContent(): {
-                pageOperationLog: {
-                  getState(pageId: string): Promise<{ status: string } | null>;
-                };
-              };
-            };
-            return (await loaded.localContent().pageOperationLog.getState(id))?.status ?? null;
+            const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+            if (service === undefined) {
+              throw new Error("the E2E local-content hook is unavailable");
+            }
+            return (await service.pageOperationLog.getState(id))?.status ?? null;
           }, itemId),
         { timeout: 30_000 },
       )
@@ -191,16 +163,8 @@ test.describe("page protocol migration", () => {
       ).toContain(typed);
 
       const localAuthority = await page.evaluate(async (id) => {
-        const modulePath = "/src/services/local-content.ts";
-        const loaded = (await import(/* @vite-ignore */ modulePath)) as {
-          localContent(): {
-            pageOperationLog: {
-              getState(pageId: string): Promise<{ status: string } | null>;
-              getLegacyBranch(pageId: string): Promise<{ status: string } | null>;
-            };
-          };
-        };
-        const service = loaded.localContent();
+        const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+        if (service === undefined) throw new Error("the E2E local-content hook is unavailable");
         const [state, branch] = await Promise.all([
           service.pageOperationLog.getState(id),
           service.pageOperationLog.getLegacyBranch(id),
@@ -255,29 +219,8 @@ test.describe("page protocol migration", () => {
 
     const localState = await page.evaluate(
       async ({ id, oldMutationId, oldLocalRevisionId }) => {
-        const modulePath = "/src/services/local-content.ts";
-        const loaded = (await import(/* @vite-ignore */ modulePath)) as {
-          localContent(): {
-            outbox: {
-              all(): Promise<Array<{ mutationId: string; commandType: string }>>;
-            };
-            db: {
-              revisionHeaders: {
-                get(revisionId: string): Promise<
-                  | {
-                      canonicalRevisionId?: string;
-                    }
-                  | undefined
-                >;
-              };
-            };
-            pageOperationLog: {
-              getState(pageId: string): Promise<{ status: string } | null>;
-              getLegacyBranch(pageId: string): Promise<{ status: string } | null>;
-            };
-          };
-        };
-        const service = loaded.localContent();
+        const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+        if (service === undefined) throw new Error("the E2E local-content hook is unavailable");
         const [outbox, revision, state, branch] = await Promise.all([
           service.outbox.all(),
           service.db.revisionHeaders.get(oldLocalRevisionId),
