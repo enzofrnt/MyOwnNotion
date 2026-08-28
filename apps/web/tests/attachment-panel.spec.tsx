@@ -43,6 +43,8 @@ describe("compact attachment continuation", () => {
     expect(markup).toContain("brief.pdf");
     expect(markup).toContain("1.0 KiB");
     expect(markup).toContain('data-testid="attachment-brief.pdf"');
+    expect(markup).toContain('data-testid="attachment-actions-brief.pdf"');
     expect(markup).toContain("Actions pour brief.pdf");
+    expect(markup).not.toContain("<details");
   });
 });

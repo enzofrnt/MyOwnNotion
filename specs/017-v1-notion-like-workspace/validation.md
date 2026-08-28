@@ -830,6 +830,23 @@ régression fonctionnelle observée. La portée d'ergonomie reste le clavier, le
 focus visible, le pointeur, le toucher et les navigateurs pris en charge, sans
 campagne VoiceOver.
 
+### Stabilisation du menu de pièce jointe après merge
+
+La CI du merge `bc12367a` a reproduit deux fois sous forte charge WebKit desktop
+un clic reçu par le `<summary>` natif sans changement de son état `open`. Le
+rapport Playwright et ses snapshots confirment que la cible restait présente et
+que l'action native, intermittente, était la seule frontière en échec. Le menu
+secondaire utilise désormais le popover Ariakit commun : bouton explicite,
+fermeture par `Échap`, retour de focus, réouverture par `Entrée` et contenu gardé
+dans le tiroir modal sur mobile.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Reproduction initiale | parcours `the file surfaces` sur WebKit desktop | le parcours isolé pouvait passer alors que la trace CI montrait deux échecs identiques du disclosure natif |
+| Répétition WebKit | mêmes parcours avec `--repeat-each=5` | 5 répétitions complètes passées après remplacement par le popover explicite |
+| Parcours fichiers WebKit | `tests/e2e/files.spec.ts` puis parcours clavier ciblé | suite fichiers complète passée ; `Échap`, retour de focus, `Entrée`, remplacement et actions restent utilisables |
+| Matrice ciblée finale | fichiers et surfaces associées, cinq profils lancés en parallèle | Chromium desktop/mobile, Firefox desktop et WebKit desktop/mobile passés en 33 s |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

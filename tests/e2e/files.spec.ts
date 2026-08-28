@@ -39,13 +39,20 @@ test.describe("canonical files (US2)", () => {
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 15_000 });
 
     await openAttachmentDetails(page, fileName);
+    const attachmentActions = page.getByTestId(`attachment-actions-${fileName}`);
+    const attachmentDetails = page.getByTestId(`attachment-details-${fileName}`);
+    await page.keyboard.press("Escape");
+    await expect(attachmentDetails).toBeHidden();
+    await expect(attachmentActions).toBeFocused();
+    await attachmentActions.press("Enter");
+    await expect(attachmentDetails).toBeVisible();
 
     // The attachment does not appear in the hierarchy tree (FR-006).
     await expect(page.getByTestId(`tree-item-${fileName}`)).toHaveCount(0);
 
     // Replace content through this placement: feedback confirms every
     // placement now exposes the new content.
-    const replaceInput = page.getByTestId(`attachment-${fileName}`).locator('input[type="file"]');
+    const replaceInput = attachmentDetails.locator('input[type="file"]');
     await replaceInput.setInputFiles({
       name: fileName,
       mimeType: "text/plain",

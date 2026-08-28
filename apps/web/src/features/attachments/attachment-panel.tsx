@@ -12,7 +12,14 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { ContentApi } from "../../services/content-api.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { AppIcon } from "../../ui/icons.tsx";
-import { AsyncState, Button, FR_COPY } from "../../ui/index.ts";
+import {
+  AsyncState,
+  Button,
+  FR_COPY,
+  PopoverContent,
+  PopoverRoot,
+  PopoverTrigger,
+} from "../../ui/index.ts";
 import { AttachmentList, type AttachmentRow } from "../files/attachment-list.tsx";
 import { DeleteFile } from "../files/delete-file.tsx";
 import { FilePreview } from "../files/file-preview.tsx";
@@ -67,53 +74,64 @@ export function CompactAttachmentList({
           >
             {formatByteLength(attachmentByteLength(row))}
           </span>
-          <details className="workspace-attachment-file__details">
-            <summary aria-label={`Actions pour ${row.item.name}`}>
-              <AppIcon name="more" size="small" />
-            </summary>
-            <div className="workspace-attachment-file__details-panel">
-              <span data-testid={`attachment-type-${row.item.name}`}>
-                {attachmentMediaType(row)}
-              </span>
-              <span data-testid={`attachment-added-${row.item.name}`}>
-                {row.addedAt ?? FR_COPY.files.attachments.addedUnknown}
-              </span>
-              <span data-testid={`attachment-location-${row.item.name}`}>
-                {FR_COPY.files.attachments.inLocation} {row.location}
-              </span>
-              <span data-testid={`attachment-availability-${row.item.name}`}>
-                {row.availability === "present"
-                  ? FR_COPY.files.attachments.onDevice
-                  : row.availability === "offloaded"
-                    ? FR_COPY.files.attachments.offloaded
-                    : FR_COPY.files.attachments.neverFetched}
-              </span>
-              <span data-testid={`attachment-sync-${row.item.name}`}>
-                {row.synchronized
-                  ? FR_COPY.files.attachments.synchronized
-                  : FR_COPY.files.attachments.notSynchronized}
-              </span>
-              <span data-testid={`attachment-usages-${row.item.name}`}>
-                {row.usages.length === 0
-                  ? FR_COPY.files.attachments.usedNowhereElse
-                  : row.usages.map((usage, index) => (
-                      <span key={`${usage.usedByItemId}-${usage.blockId ?? index}`}>
-                        {index > 0 ? ", " : null}
-                        <Button
-                          type="button"
-                          size="compact"
-                          variant="ghost"
-                          data-testid={`attachment-usage-${usage.usedByName}`}
-                          onClick={() => onOpenUsage(usage.usedByItemId)}
-                        >
-                          {usage.usedByName}
-                        </Button>
-                      </span>
-                    ))}
-              </span>
-              <span className="workspace-attachment-file__actions">{actions(row)}</span>
-            </div>
-          </details>
+          <span className="workspace-attachment-file__details">
+            <PopoverRoot placement="right-start">
+              <PopoverTrigger
+                className="workspace-attachment-file__details-trigger"
+                aria-label={`Actions pour ${row.item.name}`}
+                data-testid={`attachment-actions-${row.item.name}`}
+              >
+                <AppIcon name="more" size="small" />
+              </PopoverTrigger>
+              <PopoverContent
+                className="workspace-attachment-file__details-panel"
+                aria-label={`Détails de ${row.item.name}`}
+                data-testid={`attachment-details-${row.item.name}`}
+                portal={false}
+              >
+                <span data-testid={`attachment-type-${row.item.name}`}>
+                  {attachmentMediaType(row)}
+                </span>
+                <span data-testid={`attachment-added-${row.item.name}`}>
+                  {row.addedAt ?? FR_COPY.files.attachments.addedUnknown}
+                </span>
+                <span data-testid={`attachment-location-${row.item.name}`}>
+                  {FR_COPY.files.attachments.inLocation} {row.location}
+                </span>
+                <span data-testid={`attachment-availability-${row.item.name}`}>
+                  {row.availability === "present"
+                    ? FR_COPY.files.attachments.onDevice
+                    : row.availability === "offloaded"
+                      ? FR_COPY.files.attachments.offloaded
+                      : FR_COPY.files.attachments.neverFetched}
+                </span>
+                <span data-testid={`attachment-sync-${row.item.name}`}>
+                  {row.synchronized
+                    ? FR_COPY.files.attachments.synchronized
+                    : FR_COPY.files.attachments.notSynchronized}
+                </span>
+                <span data-testid={`attachment-usages-${row.item.name}`}>
+                  {row.usages.length === 0
+                    ? FR_COPY.files.attachments.usedNowhereElse
+                    : row.usages.map((usage, index) => (
+                        <span key={`${usage.usedByItemId}-${usage.blockId ?? index}`}>
+                          {index > 0 ? ", " : null}
+                          <Button
+                            type="button"
+                            size="compact"
+                            variant="ghost"
+                            data-testid={`attachment-usage-${usage.usedByName}`}
+                            onClick={() => onOpenUsage(usage.usedByItemId)}
+                          >
+                            {usage.usedByName}
+                          </Button>
+                        </span>
+                      ))}
+                </span>
+                <span className="workspace-attachment-file__actions">{actions(row)}</span>
+              </PopoverContent>
+            </PopoverRoot>
+          </span>
         </li>
       ))}
     </ul>
