@@ -16,6 +16,7 @@ import {
   err,
   type ItemKind,
   normalizeDisplayName,
+  normalizeItemIcon,
   ok,
   PAGE_DOCUMENT_FORMAT,
   type PageDocument,
@@ -36,6 +37,7 @@ export interface CreateItemCommand {
   readonly id: Uuid;
   readonly kind: Extract<ItemKind, "page" | "folder">;
   readonly name: string;
+  readonly icon?: string | null;
   readonly placement: {
     /** Client-generatable placement identity (UUIDv7), server-assigned when absent. */
     readonly id?: Uuid;
@@ -51,6 +53,7 @@ export interface CreateItemPlan {
     readonly id: Uuid;
     readonly kind: Extract<ItemKind, "page" | "folder">;
     readonly name: string;
+    readonly icon: string | null;
   };
   readonly placement: {
     readonly id: Uuid | null;
@@ -147,6 +150,10 @@ export function validateCreateItem(
   if (!name.ok) {
     return name as DomainResult<CreateItemPlan>;
   }
+  const icon = normalizeItemIcon(command.icon ?? null);
+  if (!icon.ok) {
+    return icon as DomainResult<CreateItemPlan>;
+  }
   if (command.placement.kind !== "hierarchy") {
     return err("placement.cardinality-violation", "Pages and folders live in the hierarchy");
   }
@@ -173,7 +180,7 @@ export function validateCreateItem(
     return err("validation.invalid-identifier", "Placement id must be a UUID");
   }
   return ok({
-    item: { id: command.id, kind: command.kind, name: name.value },
+    item: { id: command.id, kind: command.kind, name: name.value, icon: icon.value },
     placement: {
       id: command.placement.id ?? null,
       parentItemId: command.placement.parentItemId,
@@ -289,6 +296,31 @@ export function validateRenameItem(
     return name as DomainResult<{ item: CanonicalItem; name: string }>;
   }
   return ok({ item, name: name.value });
+}
+
+export interface SetItemIconCommand {
+  readonly itemId: Uuid;
+  readonly icon: string | null;
+}
+
+export function validateItemIcon(
+  view: Pick<HierarchyView, "getItem">,
+  command: SetItemIconCommand,
+): DomainResult<{ readonly item: CanonicalItem; readonly icon: string | null }> {
+  const item = view.getItem(command.itemId);
+  if (item === null) {
+    return err("item.not-found", "Item does not exist");
+  }
+  if (item.lifecycle !== "active") {
+    return err("item.not-active", "Only active items can change their icon");
+  }
+  if (item.kind === "file") {
+    return err("item.wrong-kind", "Files do not carry a custom icon");
+  }
+  const icon = normalizeItemIcon(command.icon);
+  return icon.ok
+    ? ok({ item, icon: icon.value })
+    : (icon as DomainResult<{ readonly item: CanonicalItem; readonly icon: string | null }>);
 }
 
 /**

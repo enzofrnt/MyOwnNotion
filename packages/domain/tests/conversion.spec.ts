@@ -28,6 +28,7 @@ function item(kind: ItemKind, lifecycle: CanonicalItem["lifecycle"] = "active"):
     workspaceId: generateUuidV7(),
     kind,
     name: "Thing",
+    icon: null,
     lifecycle,
     trashedAt: null,
     purgeAfter: null,

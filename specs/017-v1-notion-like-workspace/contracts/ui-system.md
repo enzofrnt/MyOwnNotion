@@ -175,11 +175,18 @@ Le titre est la première grande ligne éditable du canevas. Il peut rester vide
 tant que le propriétaire le modifie ; `Sans titre` n'est affiché qu'après la
 sortie du champ, une validation explicite ou le départ de la page.
 
-Un lien interne ou externe déjà présent est reconnaissable au pointeur et
-offre les actions ouvrir, modifier la cible, modifier le texte et retirer le
-lien. Retirer le lien conserve son texte et ne supprime jamais la page cible.
-Ces actions existent dans la barre contextuelle, au clic droit et par un
-chemin clavier simple.
+Une page ou un dossier expose un seul composant d'identité : emoji canonique si
+présent, sinon icône de type. Dans l'arbre, ce composant et le chevron de
+branche partagent exactement la même boîte ; le chevron remplace l'icône au
+survol ou au focus sans déplacer le texte. Dans le canevas d'une page, l'emoji
+est placé au-dessus du titre et ouvre un sélecteur Unicode compact, disponible
+hors ligne et refermable avec Échap.
+
+Une référence interne ou un bookmark Web déjà présent est reconnaissable au
+pointeur et offre les actions ouvrir, modifier la cible et retirer la
+référence. Le titre et l'icône d'une référence interne sont ceux de la cible et
+ne sont pas des champs éditables. Les actions existent dans la barre
+contextuelle, au clic droit et par un chemin clavier simple.
 
 Le focus ne saute pas lors d'une update distante. Une suppression distante du
 bloc actif place le focus sur le voisin logique et affiche un retour d'état

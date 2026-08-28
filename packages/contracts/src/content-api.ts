@@ -10,6 +10,10 @@ import { type Static, Type } from "@sinclair/typebox";
 
 export const UuidSchema = Type.String({ format: "uuid" });
 export const DisplayNameSchema = Type.String({ minLength: 1, maxLength: 512 });
+export const ItemIconSchema = Type.Union([
+  Type.String({ minLength: 1, maxLength: 64 }),
+  Type.Null(),
+]);
 export const ItemKindSchema = Type.Union([
   Type.Literal("page"),
   Type.Literal("folder"),
@@ -66,6 +70,9 @@ export const ItemSchema = Type.Object({
   id: UuidSchema,
   kind: ItemKindSchema,
   name: DisplayNameSchema,
+  // Optional only at the transport boundary for responses produced before
+  // canonical item icons existed. Current servers always emit it.
+  icon: Type.Optional(ItemIconSchema),
   lifecycle: LifecycleSchema,
   currentRevisionId: UuidSchema,
   trashedAt: Type.Optional(NullableDateTime),
@@ -134,6 +141,7 @@ export const CreateItemSchema = Type.Object(
     id: UuidSchema,
     kind: Type.Union([Type.Literal("page"), Type.Literal("folder")]),
     name: DisplayNameSchema,
+    icon: Type.Optional(ItemIconSchema),
     placement: CreatePlacementSchema,
     pageDocument: Type.Optional(PageDocumentSchema),
   },
@@ -145,8 +153,16 @@ export const UpdateItemSchema = Type.Object(
   {
     baseRevisionId: UuidSchema,
     name: Type.Optional(DisplayNameSchema),
+    icon: Type.Optional(ItemIconSchema),
   },
-  { additionalProperties: false },
+  {
+    additionalProperties: false,
+    // The revision plus exactly one mutable presentation field. Keeping this
+    // invariant in the transport contract means generated clients cannot send
+    // an ambiguous rename-and-icon write that the route would then reject.
+    minProperties: 2,
+    maxProperties: 2,
+  },
 );
 export type UpdateItemDto = Static<typeof UpdateItemSchema>;
 

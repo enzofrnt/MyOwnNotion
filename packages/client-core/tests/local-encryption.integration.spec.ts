@@ -13,6 +13,7 @@
 
 import {
   type ConflictRecordRow,
+  LOCAL_ENTITY_TYPES,
   LocalCipher,
   type LocalDatabase,
   type LocalItemRow,
@@ -39,6 +40,7 @@ function itemRow(overrides: Partial<LocalItemRow> = {}): LocalItemRow {
     id: generateUuidV7(),
     kind: "page",
     name: "Redundancy consultation notes",
+    icon: "🔐",
     lifecycle: "active",
     currentRevisionId: generateUuidV7(),
     trashedAt: null,
@@ -77,6 +79,7 @@ describe("what reaches IndexedDB", () => {
     const stored = JSON.stringify(await db.items.toArray());
     expect(stored).not.toContain("Redundancy");
     expect(stored).not.toContain("consultation");
+    expect(stored).not.toContain("🔐");
     expect(stored).not.toContain("Headcount");
     expect(stored).not.toContain("12%");
   });
@@ -99,6 +102,25 @@ describe("what reaches IndexedDB", () => {
     const stored = (await db.items.get(row.id)) as never;
 
     expect(await codec.openItem(stored)).toEqual(row);
+  });
+
+  it("opens a legacy title-only envelope with no icon", async () => {
+    const row = itemRow({ icon: null });
+    const cipher = new LocalCipher(keys);
+    const sealed = await codec.sealItem(row);
+    const legacyName = await cipher.seal(
+      {
+        installationId,
+        workspaceId,
+        entityType: LOCAL_ENTITY_TYPES.itemName,
+        entityId: row.id,
+        keyGeneration: 1,
+        recordVersion: 1,
+      },
+      row.name,
+    );
+
+    expect(await codec.openItem({ ...sealed, sealedName: legacyName })).toEqual(row);
   });
 
   it("still lists and filters items while sealed", async () => {

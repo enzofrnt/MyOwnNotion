@@ -44,6 +44,15 @@ export interface ProtectedContentDeps {
   readonly records: ProtectedRecordService;
 }
 
+export interface ItemPresentation {
+  readonly name: string;
+  readonly icon: string | null;
+}
+
+function normalizeItemPresentation(value: string | ItemPresentation): ItemPresentation {
+  return typeof value === "string" ? { name: value, icon: null } : value;
+}
+
 /**
  * Seals and opens the feature-001 payloads.
  *
@@ -109,28 +118,60 @@ export class ProtectedContent {
   }
 
   /** Seals an item's name. The title is the most exposed field in a dump. */
-  async writeItemName(
+  async writeItemPresentation(
     executor: Database | Transaction,
-    input: { itemId: string; recordVersion: number; name: string },
+    input: { itemId: string; recordVersion: number; name: string; icon: string | null },
   ): Promise<void> {
     await this.#write(
       executor,
       PROTECTED_ENTITY_TYPES.itemName,
       input.itemId,
       input.recordVersion,
-      input.name,
+      { name: input.name, icon: input.icon } satisfies ItemPresentation,
     );
   }
 
+  async writeItemName(
+    executor: Database | Transaction,
+    input: { itemId: string; recordVersion: number; name: string; icon?: string | null },
+  ): Promise<void> {
+    const current = await this.readItemPresentation(executor, input.itemId);
+    await this.writeItemPresentation(executor, {
+      itemId: input.itemId,
+      recordVersion: input.recordVersion,
+      name: input.name,
+      icon: input.icon === undefined ? (current?.icon ?? null) : input.icon,
+    });
+  }
+
+  async readItemPresentation(
+    executor: Database | Transaction,
+    itemId: string,
+  ): Promise<ItemPresentation | null> {
+    const value = await this.#read<string | ItemPresentation>(
+      executor,
+      PROTECTED_ENTITY_TYPES.itemName,
+      itemId,
+    );
+    return value === null ? null : normalizeItemPresentation(value);
+  }
+
   async readItemName(executor: Database | Transaction, itemId: string): Promise<string | null> {
-    return await this.#read<string>(executor, PROTECTED_ENTITY_TYPES.itemName, itemId);
+    return (await this.readItemPresentation(executor, itemId))?.name ?? null;
   }
 
   async readItemNames(
     executor: Database | Transaction,
     itemIds: readonly string[],
   ): Promise<ReadonlyMap<string, string>> {
-    return await this.#readMany<string>(executor, PROTECTED_ENTITY_TYPES.itemName, itemIds);
+    const values = await this.#readMany<string | ItemPresentation>(
+      executor,
+      PROTECTED_ENTITY_TYPES.itemName,
+      itemIds,
+    );
+    return new Map(
+      [...values].map(([itemId, value]) => [itemId, normalizeItemPresentation(value).name]),
+    );
   }
 
   /** Seals a page's document body. */

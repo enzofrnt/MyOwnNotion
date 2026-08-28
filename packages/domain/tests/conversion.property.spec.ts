@@ -29,6 +29,7 @@ function itemArbitrary(kind: ItemKind): fc.Arbitrary<CanonicalItem> {
     workspaceId: generateUuidV7(),
     kind,
     name: "Thing",
+    icon: null,
     lifecycle: "active" as const,
     trashedAt: null,
     purgeAfter: null,

@@ -39,7 +39,9 @@ import { localContent } from "../../services/local-content.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
 import { WorkspaceSearchService } from "../../services/search.ts";
 import { FR_COPY } from "../../ui/copy/index.ts";
+import { ItemEmojiDialog } from "../../ui/emoji-picker.tsx";
 import { AppIcon } from "../../ui/icons.tsx";
+import { TreeItemIdentitySlot } from "../../ui/item-icon.tsx";
 import { AsyncState, Button, ConfirmDialog, Field } from "../../ui/primitives/index.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
@@ -323,6 +325,7 @@ export function HierarchyExplorer({
     recentsExpanded: true,
   });
   const [searchOpen, setSearchOpen] = useState(false);
+  const [iconPickerItemId, setIconPickerItemId] = useState<Uuid | null>(null);
   const [trashConfirmation, setTrashConfirmation] = useState<TrashConfirmation | null>(null);
   const [trashing, setTrashing] = useState(false);
   const searchReturnFocus = useRef<HTMLElement | null>(null);
@@ -526,6 +529,10 @@ export function HierarchyExplorer({
 
   const tree = useMemo(() => buildTree(items), [items]);
   const searchBranches = useMemo(() => searchBranchOptions(tree), [tree]);
+  const searchItemIcons = useMemo(
+    () => new Map(items.map((item) => [item.id, item.icon] as const)),
+    [items],
+  );
   const visibleNodes = useMemo(() => flatten(tree, expanded), [tree, expanded]);
   const allNodes = useMemo(() => flattenAll(tree), [tree]);
   const draggableTreeItems = useMemo(() => treeDragItems(tree), [tree]);
@@ -541,6 +548,12 @@ export function HierarchyExplorer({
     return counts;
   }, [items]);
   const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
+  const iconPickerItem = useMemo(() => {
+    if (iconPickerItemId === null) return null;
+    const item = items.find((candidate) => candidate.id === iconPickerItemId);
+    if (item === undefined || (item.kind !== "page" && item.kind !== "folder")) return null;
+    return { kind: item.kind, icon: item.icon, name: item.name, id: item.id };
+  }, [iconPickerItemId, items]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -871,6 +884,34 @@ export function HierarchyExplorer({
       const queued = titleMutationQueue.current.then(operation, operation);
       titleMutationQueue.current = queued.catch(() => undefined);
       return queued;
+    },
+    [refresh, service],
+  );
+
+  const changeItemIcon = useCallback(
+    async (itemId: Uuid, icon: string | null): Promise<void> => {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const current = await service.getItem(itemId);
+        if (current === null) throw new Error("Cet élément n’est plus disponible.");
+        if (current.kind === "file") throw new Error("Un fichier ne peut pas recevoir d’icône.");
+        if (current.icon === icon) return;
+        const result = await service.mutate("item.icon", { itemId, icon }, [
+          current.currentRevisionId,
+        ]);
+        if (result.ok) {
+          await refresh();
+          return;
+        }
+        if (result.error.code === "revision.stale-base") continue;
+        setProblem(result.error);
+        throw new Error(result.error.title);
+      }
+      const error: SafeError = {
+        code: "revision.stale-base",
+        title: "L’icône a changé sur un autre appareil. Réessayez.",
+      };
+      setProblem(error);
+      throw new Error(error.title);
     },
     [refresh, service],
   );
@@ -1318,37 +1359,11 @@ export function HierarchyExplorer({
                 }}
               >
                 <TreeDragHandle itemId={node.item.id} itemName={node.item.name} />
-                {branch ? (
-                  <button
-                    type="button"
-                    className="tree-twisty"
-                    aria-label={
-                      branchOpen ? `Replier ${node.item.name}` : `Déplier ${node.item.name}`
-                    }
-                    data-testid={`toggle-${node.item.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleBranch(node.item.id, !branchOpen);
-                    }}
-                  >
-                    <AppIcon name={branchOpen ? "chevronDown" : "chevronRight"} size="small" />
-                  </button>
-                ) : (
-                  // Reserves the same width so names line up whether or not a row has
-                  // children; hidden from assistive technology because it says
-                  // nothing.
-                  <span className="tree-twisty tree-twisty--leaf" aria-hidden="true" />
-                )}
-                <AppIcon
-                  className="workspace-tree-item-icon"
-                  name={
-                    node.item.kind === "folder"
-                      ? "folder"
-                      : node.item.kind === "file"
-                        ? "file"
-                        : "fileText"
-                  }
-                  size="small"
+                <TreeItemIdentitySlot
+                  item={node.item}
+                  branch={branch}
+                  expanded={branchOpen}
+                  onToggle={() => toggleBranch(node.item.id, !branchOpen)}
                 />
                 <span className="tree-name">{node.item.name}</span>
                 {/* Marked, never as "missing" (FR-018). Content the server holds is
@@ -1414,6 +1429,9 @@ export function HierarchyExplorer({
                   onCreateDatabase={() => openDatabaseCreation(node.item.id)}
                   onImportFile={(file) => void importHierarchyFile(node.item.id, file)}
                   onRename={() => void renameItem(node)}
+                  onChangeIcon={
+                    node.item.kind === "file" ? undefined : () => setIconPickerItemId(node.item.id)
+                  }
                   onMoveUp={() => void reorder(node, -1)}
                   onMoveDown={() => void reorder(node, 1)}
                   onMoveToRoot={() => void moveInto(node, null)}
@@ -1650,10 +1668,19 @@ export function HierarchyExplorer({
         }}
         onConfirm={() => void confirmTrash()}
       />
+      <ItemEmojiDialog
+        open={iconPickerItem !== null}
+        item={iconPickerItem}
+        onClose={() => setIconPickerItemId(null)}
+        onChange={(icon) => {
+          if (iconPickerItem !== null) void changeItemIcon(iconPickerItem.id, icon);
+        }}
+      />
       {searchOpen && search !== null ? (
         <SearchDialog
           search={search}
           branches={searchBranches}
+          itemIcons={searchItemIcons}
           onOpen={(itemId) => openItem(itemId)}
           onClose={closeSearch}
         />
@@ -1736,8 +1763,10 @@ export function HierarchyExplorer({
         <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
           <PageTitleEditor
             key={`title-${selectedItem.id}`}
+            icon={selectedItem.icon}
             title={selectedItem.name}
             onCommit={(name) => renameSelectedPage(selectedItem.id, name)}
+            onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
             onMoveToContent={() => {
               document
                 .querySelector<HTMLElement>(
@@ -1992,8 +2021,10 @@ export function HierarchyExplorer({
         <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
           <PageTitleEditor
             key={`title-${selectedItem.id}`}
+            icon={selectedItem.icon}
             title={selectedItem.name}
             onCommit={(name) => renameSelectedPage(selectedItem.id, name)}
+            onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
             onMoveToContent={() => {
               const editable = document.querySelector<HTMLElement>(
                 '[data-testid="operational-editor"] .ProseMirror',

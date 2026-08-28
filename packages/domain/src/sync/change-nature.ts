@@ -24,6 +24,7 @@
 const NATURES: Readonly<Record<string, string>> = {
   "item.create": "created",
   "item.rename": "renamed",
+  "item.icon": "changed icon",
   "item.trash": "moved to trash",
   "item.restore": "restored from trash",
   "item.convert": "converted to another kind",

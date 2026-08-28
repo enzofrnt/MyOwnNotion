@@ -203,7 +203,7 @@ Chaque bloc éditable fournit, au clavier comme au pointeur/toucher :
 - poignée de bloc, sélection et menu d'actions ;
 - glisser-déposer avec cible visible et annulation ;
 - duplication, suppression, conversion et déplacement ;
-- barre flottante pour texte, cible de lien unifiée et couleurs ;
+- barre flottante pour texte, lien de page, bookmark Web et couleurs ;
 - indentation/désindentation des structures compatibles ;
 - undo/redo de la session locale sans annuler silencieusement une update
   distante ;
@@ -214,30 +214,34 @@ Les actions de drag ont une alternative clavier. Le menu `/` n'affiche pas une
 fonction XL indisponible. Tables, embeds et fichiers indiquent clairement leur
 état hors ligne.
 
-### 8.1 Liens externes et liens de page
+### 8.1 Bookmarks Web et liens de page
 
-Les liens Web standards restent des marques BlockNote. Le nœud inline
-`pageLink` conserve pour sa part l'UUID canonique de la page cible ; il n'est
-jamais dégradé en simple URL ou résolu par son titre. Ces deux représentations
-partagent toutefois un seul contrôleur Ariakit MyOwnNotion : le champ cible
-accepte une URL ou recherche une page par nom et chemin, et peut convertir un
-lien de l'une à l'autre sans perdre le texte ni ses styles compatibles.
+Le nœud inline `pageLink` conserve l'UUID canonique de la page cible ; il n'est
+jamais dégradé en simple URL ou résolu par son titre lors du stockage. Son texte
+canonique sert seulement de fallback. Le node view visible résout le titre,
+l'emoji ou l'icône de type depuis la projection d'items et interdit leur
+édition indépendante.
 
-La commande `/lien`, la barre flottante, le clic droit et le clavier ouvrent ce
-même contrôleur. `/embed` reste une commande séparée et explicite : saisir
-« lien » ne crée jamais un bookmark, une iframe ou un aperçu tiers.
+`PageLinkPicker` conserve la sélection ProseMirror, recherche uniquement les
+pages et dossiers actifs par nom/chemin et sélectionne une option par clic ou
+flèches puis Entrée. `WebBookmarkDialog` conserve la position de bloc, valide
+uniquement une URL autorisée et crée un bloc `embed` de fournisseur `bookmark`
+sur une ligne entière. Échap ferme chaque outil sans mutation. `/embed` reste
+une commande séparée pour les fournisseurs interactifs.
 
-Les deux familles partagent les actions produit suivantes :
+Les familles exposent les actions adaptées suivantes :
 
 - ouvrir la cible, avec navigation interne sans rechargement pour `pageLink` ;
-- modifier le texte visible ;
-- modifier la cible avec le sélecteur canonique de pages ou un champ URL ;
-- retirer seulement la relation de lien en conservant le texte visible.
+- modifier la cible avec le sélecteur canonique de pages ou le champ URL
+  correspondant ;
+- retirer seulement la relation de page ou le bloc bookmark.
 
 Pour un `pageLink`, retirer ou retargeter le lien ne supprime, ne déplace et ne
-renomme jamais la page cible. Le contrôleur contextuel détecte le lien sous la
-sélection ou le pointeur, fonctionne depuis la toolbar, le clic droit et le
-clavier, et ferme ses menus avec `Escape` sans perdre la sélection.
+renomme jamais la page cible. Le retrait matérialise le titre fallback comme
+texte ordinaire. Une cible enfant hiérarchique directe de la page source ne
+porte pas de badge ; toute autre référence porte un indicateur superposé à
+l'icône résolue. Le contrôleur contextuel fonctionne depuis la toolbar, le clic
+droit et le clavier, et ferme ses menus avec `Escape` sans perdre la sélection.
 
 Après suppression de tout le texte lié, la marque `link` stockée par
 ProseMirror est retirée avant la prochaine insertion à la borne. Une nouvelle

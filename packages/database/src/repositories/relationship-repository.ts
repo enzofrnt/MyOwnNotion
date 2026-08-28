@@ -246,6 +246,7 @@ export async function listRelationships(
               workspaceId: item.workspaceId as Uuid,
               kind: item.kind as "page" | "folder" | "file",
               name: item.name,
+              icon: item.icon,
               lifecycle: item.lifecycle as "active" | "trashed" | "purged",
               trashedAt: null,
               purgeAfter: null,

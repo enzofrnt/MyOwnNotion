@@ -144,6 +144,7 @@ describe("search dialog states", () => {
     const markup = renderToStaticMarkup(
       SearchResults({
         results: [result],
+        iconByItemId: new Map([[result.itemId, "🧠"]]),
         selectedItemId: null,
         onOpen: () => undefined,
         onSelectionChange: () => undefined,
@@ -154,6 +155,8 @@ describe("search dialog states", () => {
     expect(markup).not.toContain("<img");
     expect(markup).toContain("Contenu retiré de cet appareil");
     expect(markup).toContain("Décision en attente");
+    expect(markup).toContain("🧠");
+    expect(markup).toContain('data-item-emoji="true"');
   });
 
   it("identifies the structured property responsible for a search match", () => {

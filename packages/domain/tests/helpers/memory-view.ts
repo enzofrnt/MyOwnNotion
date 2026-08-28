@@ -47,6 +47,7 @@ export class MemoryGraph implements HierarchyView {
       workspaceId: this.workspaceId,
       kind,
       name,
+      icon: null,
       lifecycle,
       trashedAt: null,
       purgeAfter: null,

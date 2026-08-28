@@ -149,6 +149,105 @@ test.describe("hierarchy organization (US1)", () => {
     await waitForSynchronized(page);
   });
 
+  test("keeps one emoji identity and stable branch geometry", async ({ page }) => {
+    await openWorkspace(page);
+    const parent = uniqueName("Emoji parent");
+    const child = uniqueName("Emoji child");
+    await createRootItem(page, "page", parent);
+    await createChildItem(page, parent, "page", child);
+    await waitForSynchronized(page);
+    await selectItem(page, parent);
+
+    // The icon is an item mutation, so it must use the same durable local
+    // projection and outbox as every other hierarchy change. Choose it while
+    // completely offline, then reconnect without reloading.
+    await page.context().setOffline(true);
+    await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+
+    const titleIcon = page.getByTestId("item-icon-picker-trigger");
+    await titleIcon.click();
+    const picker = page.getByTestId("emoji-picker-panel");
+    await expect(picker).toBeVisible();
+    const emojiSearch = picker.locator('em-emoji-picker input[type="search"]');
+    // Mobile WebKit intentionally ignores autofocus that was not initiated by
+    // its virtual keyboard. Explicit focus still exercises the same keyboard
+    // path and mirrors a user tabbing into the local picker.
+    await emojiSearch.focus();
+    await expect(emojiSearch).toBeFocused();
+    await emojiSearch.fill("pushpin");
+    // Emoji Mart exposes each filtered choice as a real button. Move focus to
+    // the exact result and activate it with Enter so the journey remains
+    // deterministic while proving the picker needs no pointer.
+    const pin = picker.getByRole("button", { name: "📌", exact: true });
+    await expect(pin).toBeVisible();
+    await pin.focus();
+    await expect(pin).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(picker).toBeHidden();
+    await expect(titleIcon.locator('[data-item-emoji="true"]')).toHaveText("📌");
+
+    await ensureNavigationVisible(page);
+    const parentRow = page.getByTestId(`tree-item-${parent}`);
+    const identitySlot = parentRow.locator(".tree-item-identity-slot");
+    const treeIcon = identitySlot.locator(".workspace-tree-item-icon");
+    const toggle = page.getByTestId(`toggle-${parent}`);
+    await expect(treeIcon.locator('[data-item-emoji="true"]')).toHaveText("📌");
+
+    const slotBox = await identitySlot.boundingBox();
+    const iconBox = await treeIcon.boundingBox();
+    const toggleBox = await toggle.boundingBox();
+    expect(slotBox).not.toBeNull();
+    expect(iconBox).not.toBeNull();
+    expect(toggleBox).not.toBeNull();
+    const iconCenterX = (iconBox?.x ?? 0) + (iconBox?.width ?? 0) / 2;
+    const iconCenterY = (iconBox?.y ?? 0) + (iconBox?.height ?? 0) / 2;
+    const toggleCenterX = (toggleBox?.x ?? 0) + (toggleBox?.width ?? 0) / 2;
+    const toggleCenterY = (toggleBox?.y ?? 0) + (toggleBox?.height ?? 0) / 2;
+    expect(Math.abs(iconCenterX - toggleCenterX)).toBeLessThanOrEqual(1);
+    expect(Math.abs(iconCenterY - toggleCenterY)).toBeLessThanOrEqual(1);
+
+    const label = parentRow.locator(".tree-name");
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    const labelBeforeFocus = await label.boundingBox();
+    await parentRow.focus();
+    const labelAfterFocus = await label.boundingBox();
+    expect(labelBeforeFocus).not.toBeNull();
+    expect(labelAfterFocus).not.toBeNull();
+    expect(Math.abs((labelBeforeFocus?.x ?? 0) - (labelAfterFocus?.x ?? 0))).toBeLessThanOrEqual(1);
+    await expect
+      .poll(() => toggle.evaluate((element) => getComputedStyle(element).opacity))
+      .toBe("1");
+
+    await page.context().setOffline(false);
+    await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(true);
+    await waitForSynchronized(page);
+
+    // Search resolves the accepted item identity from the projection too.
+    await page.keyboard.press("ControlOrMeta+k");
+    const search = page.getByRole("dialog", { name: "Rechercher dans l’espace de travail" });
+    await search.getByLabel("Recherche", { exact: true }).fill(parent);
+    await search.getByRole("button", { name: "Rechercher", exact: true }).click();
+    const result = search.getByRole("listitem").filter({ hasText: parent });
+    await expect(result.locator('[data-item-emoji="true"]')).toHaveText("📌");
+    await search.getByRole("button", { name: "Fermer la recherche" }).click();
+
+    await waitForSynchronized(page);
+    await page.reload();
+    await openWorkspace(page);
+    await selectItem(page, parent);
+    await expect(
+      page.getByTestId("item-icon-picker-trigger").locator('[data-item-emoji="true"]'),
+    ).toHaveText("📌");
+    await ensureNavigationVisible(page);
+    await expect(
+      page
+        .getByTestId(`tree-item-${parent}`)
+        .locator('.workspace-tree-item-icon [data-item-emoji="true"]'),
+    ).toHaveText("📌");
+  });
+
   test("trashes a branch into the 30-day trash and restores it", async ({ page }) => {
     await openWorkspace(page);
     const root = uniqueName("TrashRoot");

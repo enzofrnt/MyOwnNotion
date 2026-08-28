@@ -116,11 +116,13 @@ export function searchAnnouncement(
 export function SearchDialog({
   search,
   branches = [],
+  itemIcons = new Map(),
   onOpen,
   onClose,
 }: {
   readonly search: WorkspaceSearchService;
   readonly branches?: readonly SearchBranchOption[];
+  readonly itemIcons?: ReadonlyMap<string, string | null>;
   readonly onOpen: (itemId: Uuid) => void;
   readonly onClose: () => void;
 }) {
@@ -351,6 +353,7 @@ export function SearchDialog({
           {view === "results" ? (
             <SearchResults
               results={results}
+              iconByItemId={itemIcons}
               selectedItemId={selectedItemId}
               onSelectionChange={setSelectedItemId}
               onReturnToQuery={() => input.current?.focus()}

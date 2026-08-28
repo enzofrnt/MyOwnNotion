@@ -26,20 +26,24 @@ function pageLinks(page: Page): Locator {
   return editorSurface(page).locator(`a[href^="${PAGE_LINK_PREFIX}"]`);
 }
 
-function externalLinks(page: Page): Locator {
-  return editorSurface(page).locator('a[href^="https://"]');
+function webBookmarks(page: Page): Locator {
+  return editorSurface(page).getByTestId("web-bookmark-card");
 }
 
 async function linkSelectionToPage(page: Page, targetName: string): Promise<void> {
   const toolbar = page.locator(".bn-formatting-toolbar");
   await expect(toolbar).toBeVisible();
-  await toolbar.getByRole("button", { name: "Ajouter un lien" }).click();
-  const dialog = page.getByTestId("link-editor-dialog");
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Page ou adresse").fill(targetName);
-  await dialog.getByRole("option").filter({ hasText: targetName }).click();
-  await dialog.getByTestId("save-editor-link").click();
-  await expect(dialog).toBeHidden();
+  await toolbar.getByTestId("open-page-link-picker").click();
+  const picker = page.getByTestId("page-link-picker");
+  await expect(picker).toBeVisible();
+  const search = picker.getByLabel("Rechercher une page");
+  await expect(search).toBeFocused();
+  await search.fill(targetName);
+  await expect(picker.getByRole("option").filter({ hasText: targetName })).toHaveCount(1);
+  // The compact picker is completely keyboard operable: filtering and Enter
+  // are enough to create the reference, without a second confirmation form.
+  await search.press("Enter");
+  await expect(picker).toBeHidden();
 }
 
 async function selectPreviousWord(page: Page, expected: string): Promise<void> {
@@ -90,6 +94,20 @@ test("links to another page without nesting it, including a descendant", async (
   // A late reconciliation remounts this control and intentionally resets its
   // selected target, which can otherwise disable the insert button mid-click.
   await waitForSynchronized(page);
+  await selectItem(page, reference);
+  const referenceIcon = page.getByTestId("item-icon-picker-trigger");
+  await referenceIcon.click();
+  const emojiPicker = page.getByTestId("emoji-picker-panel");
+  const emojiSearch = emojiPicker.locator('em-emoji-picker input[type="search"]');
+  await emojiSearch.focus();
+  await emojiSearch.fill("pushpin");
+  const pin = emojiPicker.getByRole("button", { name: "📌", exact: true });
+  await expect(pin).toBeVisible();
+  await pin.focus();
+  await expect(pin).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(referenceIcon.locator('[data-item-emoji="true"]')).toHaveText("📌");
+  await waitForSynchronized(page);
   await selectItem(page, source);
 
   const editor = editorSurface(page);
@@ -108,6 +126,9 @@ test("links to another page without nesting it, including a descendant", async (
   }
   const targetId = targetHref.slice(PAGE_LINK_PREFIX.length);
   expect(targetId).not.toBe("");
+  await expect(pageLinks(page).first().locator(".page-link__label")).toHaveText(reference);
+  await expect(pageLinks(page).first().locator('[data-item-emoji="true"]')).toHaveText("📌");
+  await expect(pageLinks(page).first().locator('[data-item-reference="true"]')).toHaveCount(1);
   const childRow = page.getByTestId(`tree-item-${child}`);
   // The link insertion can reconcile the tree with the source branch
   // collapsed. Expand it before asserting placement: absence from a collapsed
@@ -127,6 +148,8 @@ test("links to another page without nesting it, including a descendant", async (
   await saveDocument(page, { until: "synced" });
   await waitForSynchronized(page);
   await expect(pageLinks(page)).toHaveCount(2);
+  await expect(pageLinks(page).nth(1).locator(".page-link__label")).toHaveText(child);
+  await expect(pageLinks(page).nth(1).locator('[data-item-reference="true"]')).toHaveCount(0);
   await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(1);
 
   // Moving the target changes only its hierarchy placement.
@@ -153,12 +176,19 @@ test("links to another page without nesting it, including a descendant", async (
 
   await selectItem(page, source);
   await expect(pageLinks(page).first()).toHaveAttribute("href", targetHref);
+  // The link stores only the target identity. Name and kind presentation are
+  // resolved from the current projection and therefore follow later changes.
+  await expect(pageLinks(page).first().locator(".page-link__label")).toHaveText(
+    `${reference}-renamed`,
+  );
+  await expect(pageLinks(page).first().locator('[data-item-emoji="true"]')).toHaveText("📌");
 
   // Durable reload keeps the typed link separate from the tree placement.
   await page.reload();
   await openWorkspace(page);
   await selectItem(page, source);
   await expect(pageLinks(page).first()).toHaveAttribute("href", targetHref);
+  await expect(pageLinks(page).first().locator('[data-item-emoji="true"]')).toHaveText("📌");
   await expect(page.getByTestId(`tree-item-${reference}-renamed`)).toHaveCount(1);
 
   // Once both endpoints are in the local projection, following the link does
@@ -201,12 +231,12 @@ test("edits and removes a page link from its context menu without deleting text 
   const link = pageLinks(page).first();
   await link.click({ button: "right" });
   await page.getByTestId("context-edit-link").click();
-  const dialog = page.getByTestId("link-editor-dialog");
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Texte affiché").fill("seconde cible");
-  await dialog.getByLabel("Page ou adresse").fill(secondTarget);
-  await dialog.getByRole("option").filter({ hasText: secondTarget }).click();
-  await dialog.getByTestId("save-editor-link").click();
+  const picker = page.getByTestId("page-link-picker");
+  await expect(picker).toBeVisible();
+  const search = picker.getByLabel("Rechercher une page");
+  await search.fill(secondTarget);
+  await search.press("Enter");
+  await expect(picker).toBeHidden();
 
   const secondTargetId = await page
     .getByTestId(`tree-item-${secondTarget}`)
@@ -216,12 +246,12 @@ test("edits and removes a page link from its context menu without deleting text 
     "href",
     `${PAGE_LINK_PREFIX}${secondTargetId}`,
   );
-  await expect(pageLinks(page).first()).toHaveText("seconde cible");
+  await expect(pageLinks(page).first().locator(".page-link__label")).toHaveText(secondTarget);
 
   await pageLinks(page).first().click({ button: "right" });
   await page.getByTestId("context-remove-link").click();
   await expect(pageLinks(page)).toHaveCount(0);
-  await expect(editor).toContainText("seconde cible");
+  await expect(editor).toContainText(secondTarget);
   await expect(page.getByTestId(`tree-item-${firstTarget}`)).toHaveCount(1);
   await expect(page.getByTestId(`tree-item-${secondTarget}`)).toHaveCount(1);
 
@@ -230,14 +260,12 @@ test("edits and removes a page link from its context menu without deleting text 
   await openWorkspace(page);
   await selectItem(page, source);
   await expect(pageLinks(page)).toHaveCount(0);
-  await expect(editorSurface(page)).toContainText("seconde cible");
+  await expect(editorSurface(page)).toContainText(secondTarget);
 });
 
-test("edits and removes an external link from its context menu without deleting its text", async ({
-  page,
-}) => {
+test("creates, validates, edits, and removes a full-line Web bookmark", async ({ page }) => {
   await openWorkspace(page);
-  const source = uniqueName("External link lifecycle");
+  const source = uniqueName("Web bookmark lifecycle");
   await createRootItem(page, "page", source);
   await waitForSynchronized(page);
   await selectItem(page, source);
@@ -246,51 +274,61 @@ test("edits and removes an external link from its context menu without deleting 
   await editor.click();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.press("Delete");
-  await editor.pressSequentially("Site initial");
-  await selectPreviousWord(page, "initial");
+  await editor.pressSequentially("/lien web");
+  const slashMenu = page.getByRole("listbox");
+  await slashMenu.getByRole("option", { name: /^Lien Web/u }).click();
 
-  const toolbar = page.locator(".bn-formatting-toolbar");
-  await expect(toolbar).toBeVisible();
-  await toolbar.getByRole("button", { name: "Ajouter un lien" }).click();
-  const createLink = page.getByTestId("link-editor-dialog");
-  await expect(createLink).toBeVisible();
-  await createLink.getByLabel("Page ou adresse").fill("https://example.com/initial");
-  await createLink.getByTestId("save-editor-link").click();
-  await saveDocument(page);
-
-  await externalLinks(page).first().click({ button: "right" });
-  await page.getByTestId("context-edit-link").click();
-  const dialog = page.getByTestId("link-editor-dialog");
+  const dialog = page.getByTestId("web-bookmark-dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Texte affiché").fill("documentation");
-  await dialog.getByLabel("Page ou adresse").fill("https://example.com/documentation");
-  await dialog.getByTestId("save-editor-link").click();
+  const address = dialog.getByLabel("Adresse Web");
+  await expect(address).toBeFocused();
+  await address.fill("pas un lien");
+  await address.press("Enter");
+  await expect(dialog.getByRole("alert")).toHaveText("Saisissez un lien Web valide.");
+  await address.fill("example.com/initial");
+  await address.press("Enter");
+  await expect(dialog).toBeHidden();
 
-  await expect(externalLinks(page).first()).toHaveAttribute(
-    "href",
-    "https://example.com/documentation",
-  );
-  await expect(externalLinks(page).first()).toHaveText("documentation");
+  const card = webBookmarks(page).first();
+  await expect(card).toBeVisible();
+  await expect(card.getByRole("link")).toHaveAttribute("href", "https://example.com/initial");
+  await expect(card).toContainText("example.com");
+  await expect(card.locator("iframe")).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const cardBox = await card.boundingBox();
+      const editorBox = await editor.boundingBox();
+      return cardBox !== null && editorBox !== null ? cardBox.width / editorBox.width : 0;
+    })
+    .toBeGreaterThan(0.75);
+  await waitForSynchronized(page);
+  await expect(card).toBeVisible();
 
-  await externalLinks(page).first().click({ button: "right" });
-  await page.getByTestId("context-remove-link").click();
-  await expect(externalLinks(page)).toHaveCount(0);
-  await expect(editor).toContainText("documentation");
+  await card.click({ button: "right" });
+  await page.getByTestId("context-edit-web-bookmark").click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Adresse Web").fill("https://example.com/documentation");
+  await dialog.getByLabel("Adresse Web").press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(card.getByRole("link")).toHaveAttribute("href", "https://example.com/documentation");
+
+  await card.click({ button: "right" });
+  await page.getByTestId("context-remove-web-bookmark").click();
+  await expect(webBookmarks(page)).toHaveCount(0);
 
   await saveDocument(page, { until: "synced" });
   await page.reload();
   await openWorkspace(page);
   await selectItem(page, source);
-  await expect(externalLinks(page)).toHaveCount(0);
-  await expect(editorSurface(page)).toContainText("documentation");
+  await expect(webBookmarks(page)).toHaveCount(0);
 });
 
-test("/lien creates a Web link and fresh typing stays plain after deleting it", async ({
-  page,
-}) => {
+test("keeps page and Web actions separate and shows a caret on an empty line", async ({ page }) => {
   await openWorkspace(page);
-  const source = uniqueName("Slash link boundary");
+  const source = uniqueName("Link action boundary");
+  const target = uniqueName("Keyboard target");
   await createRootItem(page, "page", source);
+  await createRootItem(page, "page", target);
   await waitForSynchronized(page);
   await selectItem(page, source);
 
@@ -300,20 +338,39 @@ test("/lien creates a Web link and fresh typing stays plain after deleting it", 
   await page.keyboard.press("Delete");
   await editor.pressSequentially("/lien");
   const slashMenu = page.getByRole("listbox");
-  await slashMenu.getByRole("option", { name: /^Lien/u }).click();
+  await expect(slashMenu.getByRole("option", { name: /^Lien vers une page/u })).toHaveCount(1);
+  await expect(slashMenu.getByRole("option", { name: /^Lien Web/u })).toHaveCount(1);
+  await slashMenu.getByRole("option", { name: /^Lien vers une page/u }).click();
 
-  const dialog = page.getByTestId("link-editor-dialog");
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Texte affiché").fill("Documentation");
-  await dialog.getByLabel("Page ou adresse").fill("example.com/docs");
-  await dialog.getByTestId("save-editor-link").click();
-  const link = externalLinks(page).first();
-  await expect(link).toHaveAttribute("href", "https://example.com/docs");
+  const picker = page.getByTestId("page-link-picker");
+  const search = picker.getByLabel("Rechercher une page");
+  await expect(search).toBeFocused();
+  await search.fill(target);
+  await search.press("Enter");
+  await expect(pageLinks(page)).toHaveCount(1);
+  await expect(webBookmarks(page)).toHaveCount(0);
 
-  await link.selectText();
+  await pageLinks(page).first().click({ button: "right" });
+  await page.getByTestId("context-remove-link").click();
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.press("Delete");
+  const emptyLine = editor.locator(".bn-inline-content").first();
+  await emptyLine.click();
+  await expect
+    .poll(() => emptyLine.evaluate((line) => getComputedStyle(line).caretColor))
+    .not.toBe("rgba(0, 0, 0, 0)");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const selection = window.getSelection();
+        return selection !== null && selection.rangeCount > 0 && selection.isCollapsed;
+      }),
+    )
+    .toBe(true);
   await editor.pressSequentially("Nouveau texte");
-  await expect(externalLinks(page)).toHaveCount(0);
+  await expect(pageLinks(page)).toHaveCount(0);
+  await expect(webBookmarks(page)).toHaveCount(0);
   await expect(editor).toContainText("Nouveau texte");
   await expect
     .poll(() => editor.evaluate((surface) => getComputedStyle(surface as HTMLElement).caretColor))
@@ -348,7 +405,11 @@ test("/page creates one linked subpage under the current page", async ({ page })
   await selectItem(page, parent);
 
   const link = pageLinks(page).first();
-  await expect(link).toHaveText("Sans titre");
+  await expect(link.locator(".page-link__label")).toHaveText("Sans titre");
+  // This is the canonical child created by /page, not a reference to an item
+  // elsewhere in the hierarchy, so it keeps the page identity without the
+  // small reference badge.
+  await expect(link.locator('[data-item-reference="true"]')).toHaveCount(0);
   const href = await link.getAttribute("href");
   if (href === null || !href.startsWith(PAGE_LINK_PREFIX)) {
     throw new Error("La sous-page doit conserver une identité de lien interne.");

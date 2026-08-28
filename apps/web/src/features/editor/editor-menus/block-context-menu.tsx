@@ -18,23 +18,52 @@ import {
 import type { EditorInstance } from "../blocknote-schema.ts";
 import { type EditorLinkDescriptor, openEditorLink, removeEditorLink } from "../editor-links.ts";
 import type { EditorContextMenuState } from "../editor-shortcuts.ts";
+import type { PageLinkPickerRequest } from "./page-link-picker.tsx";
+import { normalizeWebBookmarkUrl, type WebBookmarkRequest } from "./web-bookmark-dialog.tsx";
 
 export function BlockContextMenu({
   editor,
   state,
   onDismiss,
-  onEditLink,
+  onEditPageLink,
+  onEditWebBookmark,
   onError,
   onOpenPage,
 }: {
   readonly editor: EditorInstance;
   readonly state: EditorContextMenuState | null;
   readonly onDismiss: () => void;
-  readonly onEditLink: (link: EditorLinkDescriptor) => void;
+  readonly onEditPageLink: (request: PageLinkPickerRequest) => void;
+  readonly onEditWebBookmark: (request: WebBookmarkRequest) => void;
   readonly onError: (message: string) => void;
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
 }) {
   const firstItem = useRef<HTMLDivElement | null>(null);
+  const contextBlock = state === null ? undefined : editor.getBlock(state.blockId);
+  const customBlock = contextBlock as
+    | { readonly type: string; readonly props: Readonly<Record<string, unknown>> }
+    | undefined;
+  const renderedContextBlock =
+    state === null
+      ? undefined
+      : [
+          ...(editor.domElement?.querySelectorAll<HTMLElement>(".bn-block-outer[data-id]") ?? []),
+        ].find((element) => element.dataset["id"] === state.blockId);
+  const renderedBookmarkSource = renderedContextBlock
+    ?.querySelector<HTMLAnchorElement>('[data-testid="web-bookmark-card"] a[href]')
+    ?.getAttribute("href");
+  const bookmarkUrl =
+    (state?.webBookmarkSourceUrl === null || state?.webBookmarkSourceUrl === undefined
+      ? null
+      : normalizeWebBookmarkUrl(state.webBookmarkSourceUrl)) ??
+    (renderedBookmarkSource === null || renderedBookmarkSource === undefined
+      ? null
+      : normalizeWebBookmarkUrl(renderedBookmarkSource)) ??
+    (customBlock?.type === "embed" &&
+    customBlock.props["provider"] === "bookmark" &&
+    typeof customBlock.props["sourceUrl"] === "string"
+      ? normalizeWebBookmarkUrl(customBlock.props["sourceUrl"])
+      : null);
   const execute = (action: () => void): void => {
     try {
       // Ariakit moves focus into the menu before dispatching its action. Some
@@ -83,6 +112,40 @@ export function BlockContextMenu({
         autoFocusOnShow={state?.openedBy === "keyboard"}
         initialFocus={state?.openedBy === "keyboard" ? firstItem : null}
       >
+        {bookmarkUrl === null || state === null ? null : (
+          <>
+            <MenuLabel>Lien Web</MenuLabel>
+            <MenuItem
+              ref={firstItem}
+              data-testid="context-open-web-bookmark"
+              onClick={() => {
+                window.open(bookmarkUrl, "_blank", "noopener,noreferrer");
+                onDismiss();
+              }}
+            >
+              Ouvrir le lien
+            </MenuItem>
+            <MenuItem
+              data-testid="context-edit-web-bookmark"
+              onClick={() => {
+                onEditWebBookmark({ mode: "edit", blockId: state.blockId, sourceUrl: bookmarkUrl });
+                onDismiss();
+              }}
+            >
+              Modifier le lien…
+            </MenuItem>
+            <MenuItem
+              data-testid="context-remove-web-bookmark"
+              onClick={() => {
+                editor.removeBlocks([state.blockId]);
+                onDismiss();
+              }}
+            >
+              Retirer le lien
+            </MenuItem>
+            <MenuSeparator />
+          </>
+        )}
         {state?.link === null || state?.link === undefined ? null : (
           <>
             <MenuLabel>{state.link.kind === "page" ? "Lien vers une page" : "Lien Web"}</MenuLabel>
@@ -96,15 +159,20 @@ export function BlockContextMenu({
             >
               Ouvrir le lien
             </MenuItem>
-            <MenuItem
-              data-testid="context-edit-link"
-              onClick={() => {
-                onEditLink(state.link as EditorLinkDescriptor);
-                onDismiss();
-              }}
-            >
-              Modifier le lien…
-            </MenuItem>
+            {state.link.kind === "page" ? (
+              <MenuItem
+                data-testid="context-edit-link"
+                onClick={() => {
+                  onEditPageLink({
+                    mode: "edit",
+                    link: state.link as Extract<EditorLinkDescriptor, { readonly kind: "page" }>,
+                  });
+                  onDismiss();
+                }}
+              >
+                Modifier la page cible…
+              </MenuItem>
+            ) : null}
             <MenuItem
               data-testid="context-remove-link"
               onClick={() => {
@@ -122,7 +190,11 @@ export function BlockContextMenu({
         )}
         <MenuLabel>Bloc</MenuLabel>
         <MenuItem
-          ref={state?.link === null || state?.link === undefined ? firstItem : undefined}
+          ref={
+            bookmarkUrl === null && (state?.link === null || state?.link === undefined)
+              ? firstItem
+              : undefined
+          }
           data-testid="context-insert-after"
           onClick={() => execute(() => void insertParagraphAfterSelection(editor))}
           shortcut="⌥⌘↵"

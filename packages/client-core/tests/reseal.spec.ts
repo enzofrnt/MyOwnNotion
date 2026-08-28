@@ -43,6 +43,7 @@ function plaintextRow(name: string): LocalItemRow {
     id: generateUuidV7() as Uuid,
     kind: "page",
     name,
+    icon: null,
     lifecycle: "active",
     currentRevisionId: generateUuidV7() as Uuid,
     trashedAt: null,

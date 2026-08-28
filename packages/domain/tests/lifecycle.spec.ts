@@ -28,6 +28,7 @@ function trashedItem(id: Uuid, overrides: Partial<CanonicalItem> = {}): Canonica
     workspaceId: generateUuidV7(),
     kind: "page",
     name: "Trashed",
+    icon: null,
     lifecycle: "trashed",
     trashedAt: NOW.toISOString(),
     purgeAfter: new Date(NOW.getTime() + TRASH_RETENTION_MS).toISOString(),

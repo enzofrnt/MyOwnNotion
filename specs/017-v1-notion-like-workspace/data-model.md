@@ -24,7 +24,29 @@ page active. Une divergence de digest entre état opérationnel et projection es
 une erreur d'intégrité ; elle ne produit pas un choix last-write-wins.
 
 Les items, placements, relations, fichiers et bases conservent leurs autorités
-existantes. Le nouveau modèle couvre uniquement le corps éditorial d'une page.
+existantes. Le corps éditorial garde son autorité opérationnelle distincte.
+
+### Présentation canonique d'un item
+
+~~~ts
+interface CanonicalItemPresentation {
+  name: string;
+  icon: string | null;
+}
+~~~
+
+`icon` appartient à l'identité page/dossier et contient zéro ou un grapheme
+emoji Unicode. Il ne contient ni URL, ni HTML, ni identifiant de pack tiers.
+Un fichier ne reçoit pas d'emoji en V1. La valeur est transportée par les mêmes
+snapshots et changements que l'item ; elle n'est jamais recopiée dans un
+`pageLink`.
+
+La projection locale chiffre `name` et `icon` dans une seule enveloppe de
+présentation. Une ancienne enveloppe contenant seulement une chaîne est
+interprétée comme `{ name: value, icon: null }`. Le stockage serveur conserve
+la même compatibilité de lecture pendant la migration. Export et restauration
+portent explicitement `icon` afin qu'un aller-retour ne dépende pas d'une
+reconstruction visuelle.
 
 ## 2. État opérationnel en mémoire
 
@@ -80,6 +102,12 @@ Les attributs v3 sont :
 - `textColor: <token canonique ou couleur validée>` ;
 - `backgroundColor: <token canonique ou couleur validée>` ;
 - attribut inconnu conservé sous forme opaque.
+
+Le texte couvert par `pageLink` est un fallback canonique pour export ou cible
+indisponible. Dans l'éditeur, le node view résout le `name` et l'`icon` actuels
+de `itemId`, les rend non éditables et détermine le badge à partir du placement
+hiérarchique courant de la cible. Aucun renommage de cible ne réécrit donc tous
+les documents sources.
 
 Les politiques d'expansion des marques sont configurées de façon identique
 dans le client, le serveur et les tests. Les liens ne s'étendent pas au texte

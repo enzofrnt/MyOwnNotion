@@ -28,6 +28,8 @@ export interface EditorContextMenuState {
   readonly blockId: string;
   readonly openedBy: "keyboard" | "pointer";
   readonly link: EditorLinkDescriptor | null;
+  /** URL captured from the rendered bookmark before focus changes remount it. */
+  readonly webBookmarkSourceUrl: string | null;
 }
 
 export const MARKDOWN_INSERTION_SHORTCUTS = [
@@ -74,6 +76,17 @@ function blockIdFromTarget(target: EventTarget | null): string | null {
   return target.closest<HTMLElement>(".bn-block-outer[data-id]")?.dataset["id"] ?? null;
 }
 
+function webBookmarkSourceFromElement(element: Element | null): string | null {
+  if (element === null) return null;
+  const card = element.matches('[data-testid="web-bookmark-card"]')
+    ? element
+    : (element.closest('[data-testid="web-bookmark-card"]') ??
+      element.querySelector('[data-testid="web-bookmark-card"]'));
+  return (
+    card?.querySelector<HTMLAnchorElement>('a[href^="http://"], a[href^="https://"]')?.href ?? null
+  );
+}
+
 function menuPointForSelection(editor: EditorInstance): EditorContextMenuState {
   const first = resolveContiguousBlockSelection(editor).blocks[0];
   if (first === undefined) throw new Error("Aucun bloc n’est sélectionné.");
@@ -87,6 +100,7 @@ function menuPointForSelection(editor: EditorInstance): EditorContextMenuState {
         blockId: first.id,
         openedBy: "keyboard",
         link: selectedEditorLink(editor),
+        webBookmarkSourceUrl: webBookmarkSourceFromElement(element ?? null),
       }
     : {
         x: rect.left + Math.min(32, rect.width / 2),
@@ -94,6 +108,7 @@ function menuPointForSelection(editor: EditorInstance): EditorContextMenuState {
         blockId: first.id,
         openedBy: "keyboard",
         link: selectedEditorLink(editor),
+        webBookmarkSourceUrl: webBookmarkSourceFromElement(element ?? null),
       };
 }
 
@@ -143,7 +158,7 @@ export function useEditorShortcuts(input: {
   );
 
   const onKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
+    (event: KeyboardEvent<HTMLElement>) => {
       if (!input.editable || event.nativeEvent.isComposing) return;
       const action = editorShortcutAction(event);
       if (action === null) return;
@@ -170,12 +185,16 @@ export function useEditorShortcuts(input: {
       const blockId = blockIdFromTarget(event.target);
       if (blockId === null || input.editor.getBlock(blockId) === undefined) return;
       event.preventDefault();
+      event.stopPropagation();
       setContextMenu({
         x: event.clientX,
         y: event.clientY,
         blockId,
         openedBy: "pointer",
         link: editorLinkFromDomTarget(input.editor, event.target),
+        webBookmarkSourceUrl: webBookmarkSourceFromElement(
+          event.target instanceof Element ? event.target : null,
+        ),
       });
     },
     [input],

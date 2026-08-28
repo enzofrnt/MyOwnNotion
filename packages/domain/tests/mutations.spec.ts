@@ -56,6 +56,7 @@ describe("typed mutation dispatch (T073)", () => {
         placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
       },
       "item.rename": { itemId, name: "renamed" },
+      "item.icon": { itemId, icon: "📌" },
       "item.convert": { itemId, targetKind: "folder", confirmedDestruction: true },
       "item.favourite": { itemId, favourite: true },
       "item.offline": { itemId, offline: true },
@@ -152,6 +153,7 @@ describe("typed mutation dispatch (T073)", () => {
       ["item.create", { id: "not-a-uuid", kind: "page", name: "x" }],
       ["item.create", { id: generateUuidV7(), kind: "file", name: "x" }],
       ["item.rename", { itemId: generateUuidV7() }],
+      ["item.icon", { itemId: generateUuidV7(), icon: "not an emoji" }],
       ["placement.move", { placementId: generateUuidV7(), parentItemId: 42, positionKey: "V" }],
       [
         "page.document.replace",

@@ -339,6 +339,12 @@ d'intégrité à réparer, jamais un conflit à arbitrer par ancienneté.
 
 Déplacer ou renommer un objet ne doit pas changer son identité ni casser silencieusement ses références.
 
+Une page ou un dossier peut porter un emoji Unicode facultatif comme icône
+canonique. Cette propriété appartient à l'objet, pas aux raccourcis ou liens
+qui le représentent. Elle suit donc la même identité dans la navigation,
+l'en-tête, la recherche, les références internes, les exports, les sauvegardes
+et la synchronisation. Sans emoji, l'interface utilise l'icône de type.
+
 Une référence vers une page n'est pas une relation de hiérarchie. Le modèle
 doit distinguer explicitement :
 
@@ -509,6 +515,12 @@ une indentation et un guide sobres. Lorsqu'une branche ouverte est vide, son
 de l'interface ; il ne ressemble ni à une ligne racine ni à un message sans
 rapport avec son parent.
 
+L'emoji ou l'icône de type et le chevron d'une branche occupent le même
+emplacement fixe. Au survol ou au focus d'une branche, le chevron remplace
+visuellement l'icône sans ajouter une colonne ni déplacer le libellé. Une
+feuille ne rend aucun chevron. L'emoji de la page ouverte apparaît aussi dans
+le canevas, au-dessus de son titre, et peut y être modifié ou retiré.
+
 Un déplacement au pointeur distingue trois destinations sur une ligne : avant
 la ligne, à l'intérieur de l'élément s'il peut contenir des enfants, et après
 la ligne. Les destinations avant/après sont représentées par un repère entre
@@ -571,20 +583,31 @@ Les blocs comprennent au minimum :
 - fichiers ;
 - contenus intégrés.
 
-Parmi les liens, l'éditeur doit distinguer les liens externes et les liens
+Parmi les liens, l'éditeur doit distinguer les bookmarks Web et les liens
 internes vers des pages. Un lien interne conserve l'identifiant canonique de
-sa cible, affiche son libellé dans le contenu et ouvre la cible sans créer de
-placement hiérarchique. Les références internes doivent rester intactes après
-un renommage, un déplacement ou une conversion de la cible ; leurs relations
-inverses peuvent ensuite alimenter les backlinks.
+sa cible, affiche toujours son titre et son icône courants, et ouvre la cible
+sans créer de placement hiérarchique. Son libellé et son icône ne sont pas
+éditables indépendamment. Les références internes doivent rester intactes
+après un renommage, un déplacement, une conversion ou un changement d'emoji de
+la cible ; leurs relations inverses peuvent ensuite alimenter les backlinks.
 
-Un lien existant, interne ou externe, est reconnaissable comme une cible
-cliquable et expose des actions pour l'ouvrir, modifier sa cible ou son
-libellé, et retirer le lien. Ces actions sont disponibles depuis l'outil
-contextuel du lien et depuis le clic droit. Retirer un lien conserve son texte
-et, pour un lien interne, ne supprime ni ne déplace jamais la page cible. Créer
-ou remplacer un lien interne passe par le même sélecteur de pages afin de ne
-jamais stocker un titre comme identité.
+Une référence interne explicite vers une page située ailleurs utilise un petit
+indicateur de lien superposé à l'icône de la cible. La référence créée par la
+commande `/page` vers l'enfant hiérarchique direct de la page courante n'utilise
+pas cet indicateur : elle représente la sous-page créée à cet emplacement.
+
+La création utilise deux actions visibles et deux outils compacts distincts.
+« Lien vers une page » recherche uniquement les pages et dossiers par nom ou
+chemin et se pilote entièrement au clavier. « Lien Web » valide uniquement une
+adresse puis crée un bookmark occupant sa propre ligne. Le bookmark affiche un
+aperçu lorsque celui-ci est disponible et conserve au minimum domaine et URL
+dans le cas contraire ; il n'exécute pas une iframe arbitraire. Les contenus
+intégrés interactifs restent une troisième action explicite.
+
+Une référence existante est reconnaissable comme une cible cliquable et expose
+des actions pour l'ouvrir, modifier sa cible ou la retirer depuis son outil
+contextuel et le clic droit. Retirer une référence interne ne supprime, ne
+déplace et ne renomme jamais la page cible.
 
 Les blocs peuvent être sélectionnés, déplacés, transformés, dupliqués, regroupés et supprimés. Le bloc actif expose une poignée contextuelle, les déplacements affichent leur destination et les actions associées restent disponibles au clavier. Une sélection de plusieurs blocs conserve leur ordre lorsqu'elle est déplacée ou dupliquée. Les actions d'édition courantes doivent être annulables et rétablissables.
 

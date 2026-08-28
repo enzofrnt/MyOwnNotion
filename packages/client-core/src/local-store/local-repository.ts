@@ -45,6 +45,7 @@ function itemRowFrom(dto: ItemDto): LocalItemRow {
     id: dto.id as Uuid,
     kind: dto.kind,
     name: dto.name,
+    icon: dto.icon ?? null,
     lifecycle: dto.lifecycle,
     currentRevisionId: dto.currentRevisionId as Uuid,
     trashedAt: dto.trashedAt ?? null,

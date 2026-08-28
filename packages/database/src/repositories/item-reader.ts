@@ -13,6 +13,7 @@ export interface ItemReadModel {
   readonly id: Uuid;
   readonly kind: "page" | "folder" | "file";
   readonly name: string;
+  readonly icon: string | null;
   readonly lifecycle: "active" | "trashed" | "purged";
   readonly currentRevisionId: Uuid;
   readonly trashedAt: string | null;
@@ -83,6 +84,7 @@ export async function readItems(
       id: row.id as Uuid,
       kind: row.kind as ItemReadModel["kind"],
       name: row.name,
+      icon: row.icon,
       lifecycle: row.lifecycle as ItemReadModel["lifecycle"],
       currentRevisionId: row.currentRevisionId as Uuid,
       trashedAt: row.trashedAt?.toISOString() ?? null,
@@ -171,14 +173,21 @@ export async function listItems(
  * own transaction, where the full `readItem` — which fans out to placements,
  * documents and files — would be far more work than the one column it needs.
  */
+export async function readItemPresentation(
+  executor: Parameters<typeof readItems>[0],
+  itemId: string,
+): Promise<{ readonly name: string; readonly icon: string | null } | null> {
+  const rows = await executor
+    .select({ name: items.name, icon: items.icon })
+    .from(items)
+    .where(eq(items.id, itemId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function readItemName(
   executor: Parameters<typeof readItems>[0],
   itemId: string,
 ): Promise<string | null> {
-  const rows = await executor
-    .select({ name: items.name })
-    .from(items)
-    .where(eq(items.id, itemId))
-    .limit(1);
-  return rows[0]?.name ?? null;
+  return (await readItemPresentation(executor, itemId))?.name ?? null;
 }

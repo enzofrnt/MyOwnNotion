@@ -21,6 +21,7 @@ export interface NavigationItemMenuProps {
   readonly onCreateDatabase: () => void;
   readonly onImportFile?: ((file: File) => void) | undefined;
   readonly onRename: () => void;
+  readonly onChangeIcon?: (() => void) | undefined;
   readonly onMoveUp: () => void;
   readonly onMoveDown: () => void;
   readonly onMoveToRoot: () => void;
@@ -47,6 +48,7 @@ export function NavigationItemMenu({
   onMoveToRoot,
   onMoveUp,
   onRename,
+  onChangeIcon,
   onToggleFavourite,
   onToggleOffline,
   onRequestTrash,
@@ -99,6 +101,12 @@ export function NavigationItemMenu({
             <AppIcon name="fileText" size="small" />
             Renommer
           </MenuItem>
+          {onChangeIcon === undefined ? null : (
+            <MenuItem data-testid={`change-icon-${itemName}`} onClick={onChangeIcon}>
+              <AppIcon name="smile" size="small" />
+              Ajouter ou changer l’icône
+            </MenuItem>
+          )}
           <MenuItem data-testid={`move-up-${itemName}`} onClick={onMoveUp}>
             <AppIcon name="arrowUp" size="small" />
             Déplacer vers le haut

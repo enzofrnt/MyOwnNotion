@@ -93,6 +93,44 @@ describe("item.create", () => {
     expect((await readItem(itemId))?.pageDocument).toBeNull();
   });
 
+  it("persists and removes a canonical item emoji offline", async () => {
+    const itemId = generateUuidV7();
+    const placementId = generateUuidV7();
+    const created = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.create",
+        payload: {
+          id: itemId,
+          kind: "page",
+          name: "Travel",
+          icon: "🧳",
+          placement: { id: placementId, kind: "hierarchy", parentItemId: null, positionKey: "V" },
+        },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+    expect(created.ok).toBe(true);
+    expect((await readItem(itemId))?.icon).toBe("🧳");
+
+    const removed = await applyLocalMutation(
+      db,
+      {
+        mutationId: generateUuidV7(),
+        commandType: "item.icon",
+        payload: { itemId, icon: null },
+        baseRevisionIds: [],
+      },
+      now,
+      codec,
+    );
+    expect(removed.ok).toBe(true);
+    expect((await readItem(itemId))?.icon).toBeNull();
+  });
+
   it("nests beneath an active container", async () => {
     const parent = await createItem("folder", "Parent", null);
     const child = await createItem("page", "Child", parent.itemId);
@@ -172,6 +210,7 @@ describe("item.create", () => {
         id: fileId,
         kind: "file",
         name: "diagram.png",
+        icon: null,
         lifecycle: "active",
         currentRevisionId: revisionId,
         trashedAt: null,

@@ -5,13 +5,12 @@ l'inventaire des gates dans `docs/development.md`.
 
 ## 1. Préparer l'environnement
 
-Depuis la racine du dépôt, utiliser Node 24 et la version pnpm verrouillée :
+Depuis la racine du dépôt, utiliser Bun 1.4.0, verrouillé par le dépôt :
 
 ~~~bash
-corepack enable
-pnpm install --frozen-lockfile
+bun install --frozen-lockfile
 docker compose up -d --wait postgres
-pnpm db:migrate
+bun run db:migrate
 ~~~
 
 Avant une tranche, lire dans cet ordre : constitution, canevas produit, spec,
@@ -125,11 +124,20 @@ Pour la convergence d'interface courante, vérifier dans cet ordre :
    sortie du champ ;
 4. le témoin de synchronisation épinglé en bas qui ne change jamais la position
    du titre ou du premier bloc ;
-5. un lien interne puis externe créé avec le même champ cible, ouvert,
-   converti, retargeté, renommé et retiré par `/lien`, toolbar, clic droit et
-   clavier ; le texte et toute page cible doivent survivre au retrait du lien,
-   `/embed` doit rester distinct et une nouvelle saisie après suppression
-   complète du lien doit rester sans lien.
+5. un emoji facultatif ajouté à une page et à un dossier, puis changé et
+   retiré hors ligne ; l'arbre, l'en-tête, la recherche et chaque référence
+   interne doivent toujours résoudre la même identité, tandis que le chevron
+   d'une branche remplace l'icône dans la même boîte sans déplacer le texte ;
+6. un lien de page créé par son action dédiée au clavier, retargeté et retiré :
+   son libellé doit suivre le titre courant de la cible, son icône doit suivre
+   l'emoji courant et seule une référence hors de la filiation directe porte
+   le badge de lien ;
+7. un bookmark Web créé par son action dédiée avec une URL valide, refusé avec
+   une URL invalide, puis modifié et retiré ; il doit occuper une ligne entière,
+   rester lisible hors ligne et ne jamais devenir un embed interactif implicite ;
+8. une ligne vide et une saisie suivant la suppression complète d'un lien sur
+   Chromium, Firefox et WebKit : le caret doit rester visible et le nouveau
+   texte ne doit porter aucune ancienne relation.
 
 Ces parcours visent l'ergonomie personnelle de base : clavier, focus visible,
 pointeur et toucher. Ils n'ouvrent pas de campagne VoiceOver ou de conformité
@@ -178,8 +186,8 @@ parallèle ; le corpus Playwright complet reste à deux stacks en parallèle,
 limite mesurée et documentée dans `docs/development.md`.
 
 ~~~bash
-MYOWNNOTION_E2E_JOBS=5 pnpm test:e2e:local -- --grep "offline page convergence"
-pnpm test:e2e:gate
+MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- --grep "offline page convergence"
+bun run test:e2e:gate
 ~~~
 
 ## 5. Gate avant push
@@ -190,7 +198,7 @@ configuration, fixture ou référence visuelle change, la modification est mixte
 et exige le gate complet :
 
 ~~~bash
-pnpm checks:local
+bun run checks:local
 ~~~
 
 Ne jamais déclarer une tranche terminée parce que le CRDT converge seul : la

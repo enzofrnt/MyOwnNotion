@@ -1,7 +1,11 @@
 import { createReactBlockSpec } from "@blocknote/react";
 import { type EmbedProvider, validateDocumentV3 } from "@myownnotion/domain";
-import { useEffect, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FR_COPY } from "../../../ui/copy/fr.ts";
+import { AppIcon } from "../../../ui/icons.tsx";
+import { Button } from "../../../ui/primitives/index.ts";
+import { WebBookmarkDialog, type WebBookmarkEditor } from "../editor-menus/web-bookmark-dialog.tsx";
 
 const PROVIDERS = ["bookmark", "youtube", "vimeo", "figma", "github"] as const;
 const VALIDATION_BLOCK_ID = "0193f4a8-7c2d-7b11-8a3e-1c9d4e6f2056";
@@ -101,6 +105,161 @@ export function EmbedPreview({
   );
 }
 
+export function webBookmarkPresentation(sourceUrl: string): {
+  readonly href: string;
+  readonly domain: string;
+} | null {
+  if (!isSafeEmbedSource("bookmark", sourceUrl)) return null;
+  const url = new URL(sourceUrl);
+  return {
+    href: url.href,
+    domain: url.hostname.replace(/^www\./u, "") || url.href,
+  };
+}
+
+export function WebBookmarkCard({
+  editable = false,
+  onEdit,
+  onRemove,
+  sourceUrl,
+}: {
+  readonly sourceUrl: string;
+  readonly editable?: boolean;
+  readonly onEdit?: (() => void) | undefined;
+  readonly onRemove?: (() => void) | undefined;
+}) {
+  const presentation = webBookmarkPresentation(sourceUrl);
+  const [contextPoint, setContextPoint] = useState<{
+    readonly x: number;
+    readonly y: number;
+  } | null>(null);
+  const contextMenu = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (contextPoint === null) return;
+    const closeOutside = (event: PointerEvent): void => {
+      if (!(event.target instanceof Node) || !contextMenu.current?.contains(event.target)) {
+        setContextPoint(null);
+      }
+    };
+    const closeWithKeyboard = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setContextPoint(null);
+    };
+    const focusFrame = requestAnimationFrame(() => {
+      contextMenu.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    });
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeWithKeyboard);
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeWithKeyboard);
+    };
+  }, [contextPoint]);
+  if (presentation === null) {
+    return <p role="alert">Saisissez un lien Web valide.</p>;
+  }
+  const openContextMenu = (event: MouseEvent<HTMLElement>): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextPoint({
+      x: Math.min(event.clientX, Math.max(8, window.innerWidth - 224)),
+      y: Math.min(event.clientY, Math.max(8, window.innerHeight - 152)),
+    });
+  };
+  const closeContextMenu = (): void => setContextPoint(null);
+  return (
+    <>
+      {contextPoint === null
+        ? null
+        : createPortal(
+            <div
+              ref={contextMenu}
+              className="ui-menu web-bookmark-context-menu"
+              role="menu"
+              aria-label="Actions du lien Web"
+              data-testid="web-bookmark-context-menu"
+              style={{ left: contextPoint.x, top: contextPoint.y }}
+              onContextMenu={(event) => event.preventDefault()}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <span className="ui-menu__label">Lien Web</span>
+              <button
+                type="button"
+                role="menuitem"
+                className="ui-menu__item"
+                data-testid="context-open-web-bookmark"
+                onClick={() => {
+                  window.open(presentation.href, "_blank", "noopener,noreferrer");
+                  closeContextMenu();
+                }}
+              >
+                Ouvrir le lien
+              </button>
+              {!editable || onEdit === undefined ? null : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ui-menu__item"
+                  data-testid="context-edit-web-bookmark"
+                  onClick={() => {
+                    onEdit();
+                    closeContextMenu();
+                  }}
+                >
+                  Modifier le lien…
+                </button>
+              )}
+              {!editable || onRemove === undefined ? null : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ui-menu__item"
+                  data-testid="context-remove-web-bookmark"
+                  onClick={() => {
+                    onRemove();
+                    closeContextMenu();
+                  }}
+                >
+                  Retirer le lien
+                </button>
+              )}
+            </div>,
+            document.body,
+          )}
+      <article
+        className="web-bookmark-card"
+        data-testid="web-bookmark-card"
+        onContextMenu={openContextMenu}
+      >
+        <a href={presentation.href} target="_blank" rel="noreferrer noopener">
+          <span className="web-bookmark-card__mark">
+            <AppIcon name="link" />
+          </span>
+          <span className="web-bookmark-card__content">
+            <strong>{presentation.domain}</strong>
+            <small>{presentation.href}</small>
+          </span>
+          <AppIcon name="reference" size="small" />
+        </a>
+        {!editable || (onEdit === undefined && onRemove === undefined) ? null : (
+          <span className="web-bookmark-card__actions">
+            {onEdit === undefined ? null : (
+              <Button type="button" size="compact" variant="ghost" onClick={onEdit}>
+                Modifier
+              </Button>
+            )}
+            {onRemove === undefined ? null : (
+              <Button type="button" size="compact" variant="ghost" onClick={onRemove}>
+                Retirer
+              </Button>
+            )}
+          </span>
+        )}
+      </article>
+    </>
+  );
+}
+
 export const embedBlockSpec = createReactBlockSpec(
   {
     type: "embed",
@@ -118,6 +277,7 @@ export const embedBlockSpec = createReactBlockSpec(
       const [sourceUrl, setSourceUrl] = useState(block.props.sourceUrl);
       const [caption, setCaption] = useState(block.props.caption);
       const [invalidSource, setInvalidSource] = useState(false);
+      const [bookmarkDialogOpen, setBookmarkDialogOpen] = useState(false);
 
       useEffect(() => setProvider(block.props.provider as EmbedProvider), [block.props.provider]);
       useEffect(() => setSourceUrl(block.props.sourceUrl), [block.props.sourceUrl]);
@@ -139,6 +299,24 @@ export const embedBlockSpec = createReactBlockSpec(
         setInvalidSource(false);
         editor.updateBlock(block.id, { props: { sourceUrl } });
       };
+
+      if (provider === "bookmark") {
+        return (
+          <div className="editor-web-bookmark" contentEditable={false}>
+            <WebBookmarkCard
+              sourceUrl={sourceUrl}
+              editable={editor.isEditable}
+              onEdit={() => setBookmarkDialogOpen(true)}
+              onRemove={() => editor.removeBlocks([block.id])}
+            />
+            <WebBookmarkDialog
+              editor={editor as unknown as WebBookmarkEditor}
+              request={bookmarkDialogOpen ? { mode: "edit", blockId: block.id, sourceUrl } : null}
+              onClose={() => setBookmarkDialogOpen(false)}
+            />
+          </div>
+        );
+      }
 
       return (
         <article className="editor-embed-block" contentEditable={false}>

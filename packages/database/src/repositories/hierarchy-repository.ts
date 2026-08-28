@@ -20,6 +20,7 @@ export function toCanonicalItem(row: ItemRow): CanonicalItem {
     workspaceId: row.workspaceId as Uuid,
     kind: row.kind as CanonicalItem["kind"],
     name: row.name,
+    icon: row.icon,
     lifecycle: row.lifecycle as CanonicalItem["lifecycle"],
     trashedAt: row.trashedAt?.toISOString() ?? null,
     purgeAfter: row.purgeAfter?.toISOString() ?? null,

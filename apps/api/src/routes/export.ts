@@ -126,6 +126,7 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
       workspaceId: context.workspaceId,
       kind: model.kind,
       name: model.name,
+      icon: model.icon,
       lifecycle: model.lifecycle,
       trashedAt: model.trashedAt,
       purgeAfter: model.purgeAfter,

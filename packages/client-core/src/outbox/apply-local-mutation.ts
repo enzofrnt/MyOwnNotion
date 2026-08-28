@@ -150,6 +150,7 @@ export async function applyLocalMutation(
 export class LocalValidationError extends Error {
   readonly code:
     | "item.not-found"
+    | "item.wrong-kind"
     | "containment.cycle-rejected"
     | "validation.invalid-payload"
     | "relationship.endpoint-unavailable"

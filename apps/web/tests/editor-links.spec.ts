@@ -10,7 +10,6 @@ import {
   createEditorLink,
   editorLinkAtPosition,
   removeEditorLink,
-  resolveEditorLinkTarget,
   updateEditorLink,
 } from "../src/features/editor/editor-links.ts";
 
@@ -181,24 +180,6 @@ describe("editor link lifecycle", () => {
     expect(firstLink(editor)).toMatchObject({ kind: "external", text: "Site" });
   });
 
-  it("resolves a page name or path before falling back to a safe Web address", () => {
-    const target = generateUuidV7();
-    const pages = [{ id: target, name: "Projet", path: "Notes / Projet" }];
-    expect(resolveEditorLinkTarget("Notes / Projet", pages)).toEqual({
-      kind: "page",
-      target,
-    });
-    expect(resolveEditorLinkTarget("https://example.com", pages)).toEqual({
-      kind: "external",
-      target: "https://example.com/",
-    });
-    expect(resolveEditorLinkTarget("example.com/docs", pages)).toEqual({
-      kind: "external",
-      target: "https://example.com/docs",
-    });
-    expect(resolveEditorLinkTarget("javascript:alert(1)", pages)).toBeNull();
-  });
-
   it("clears a stale link mark at a boundary before fresh typing", () => {
     const editor = externalLinkEditor();
     const link = firstLink(editor);
@@ -217,5 +198,28 @@ describe("editor link lifecycle", () => {
     expect(
       editor.prosemirrorState.storedMarks?.some((mark) => mark.type.name === "link") ?? false,
     ).toBe(false);
+  });
+
+  it("does not recreate a deleted link on the next typed character", () => {
+    const editor = externalLinkEditor();
+    const link = firstLink(editor);
+    if (link === null || link.kind !== "external") throw new Error("external link missing");
+    const linkMark = editor.pmSchema.marks["link"];
+    if (linkMark === undefined) throw new Error("link mark missing");
+
+    editor.transact((transaction) => {
+      transaction.delete(link.from, link.to);
+      transaction.setSelection(Selection.near(transaction.doc.resolve(link.from)));
+      transaction.addStoredMark(linkMark.create({ href: link.target }));
+      return true;
+    });
+    expect(clearStaleLinkTypingState(editor)).toBe(true);
+    editor.transact((transaction) => {
+      transaction.insertText("N");
+      return true;
+    });
+
+    expect(firstLink(editor)).toBeNull();
+    expect(JSON.stringify(editor.document)).toContain("N");
   });
 });

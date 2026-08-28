@@ -29,6 +29,31 @@ describe("reviewed SQL migrations", () => {
     expect(applied).toContain("0010_page_operation_backups");
     expect(applied).toContain("0011_page_operation_compaction_indexes");
     expect(applied).toContain("0012_upload_attachment_parent");
+    expect(applied).toContain("0013_item_icons");
+  });
+
+  it("adds a nullable item icon with file and length guards", async () => {
+    const client = new pg.Client({ connectionString: database.connectionString });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{ nullable: string }>(
+        `SELECT is_nullable AS nullable
+           FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'icon'`,
+      );
+      expect(rows).toEqual([{ nullable: "YES" }]);
+      const constraints = await client.query<{ conname: string }>(
+        `SELECT conname FROM pg_constraint
+          WHERE conrelid = 'items'::regclass
+            AND conname IN ('items_icon_length_check', 'items_file_icon_check')`,
+      );
+      expect(constraints.rows.map(({ conname }) => conname).sort()).toEqual([
+        "items_file_icon_check",
+        "items_icon_length_check",
+      ]);
+    } finally {
+      await client.end();
+    }
   });
 
   it("retains an editor upload's source page until finalization", async () => {
@@ -322,6 +347,7 @@ describe("reviewed SQL migrations", () => {
         "0010_page_operation_backups",
         "0011_page_operation_compaction_indexes",
         "0012_upload_attachment_parent",
+        "0013_item_icons",
       ]);
       const { rows } = await client.query<{
         format_version: number;

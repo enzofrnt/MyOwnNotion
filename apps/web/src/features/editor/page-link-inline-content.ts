@@ -1,4 +1,4 @@
-/** BlockNote-owned rendering for canonical internal page links. */
+/** BlockNote-owned rendering for canonical internal page references. */
 
 import {
   createInlineContentSpec,
@@ -6,6 +6,9 @@ import {
   type InlineContentFromConfig,
 } from "@blocknote/core";
 import type { ProjectedItem } from "@myownnotion/client-core";
+import { createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { ItemIcon } from "../../ui/item-icon.tsx";
 import {
   type PageLinkTargetState,
   pageLinkStatePresentation,
@@ -18,39 +21,87 @@ const pageLinkConfig = {
   propSchema: {
     targetItemId: { default: "" },
   },
+  // The canonical fallback label remains styled content for export and
+  // recovery. The node view deliberately omits contentDOM, making that content
+  // a ProseMirror black box while the visible label resolves dynamically.
   content: "styled",
 } as const;
 
 type PageLinkInlineContent = InlineContentFromConfig<typeof pageLinkConfig, DefaultStyleSchema>;
-type PresentationItem = Pick<ProjectedItem, "id" | "lifecycle">;
+type PresentationItem = Pick<
+  ProjectedItem,
+  "id" | "lifecycle" | "name" | "icon" | "kind" | "placements"
+>;
 
 interface PageLinkBinding {
   readonly anchor: HTMLAnchorElement;
-  readonly content: HTMLElement;
+  readonly iconRoot: Root;
+  readonly label: HTMLElement;
   readonly targetItemId: string;
+  readonly fallbackLabel: string;
+}
+
+export interface ResolvedPageLinkPresentation {
+  readonly state: PageLinkTargetState;
+  readonly label: string;
+  readonly icon: string | null;
+  readonly kind: "page" | "folder";
+  readonly reference: boolean;
 }
 
 const itemsByEditor = new WeakMap<object, readonly PresentationItem[]>();
+const currentPageByEditor = new WeakMap<object, string>();
 const bindingsByEditor = new WeakMap<object, Set<PageLinkBinding>>();
 const openPageByEditor = new WeakMap<object, (itemId: string) => void>();
 
-function stateFor(editor: object, targetItemId: string): PageLinkTargetState {
-  return pageLinkTargetState(targetItemId, itemsByEditor.get(editor) ?? []);
+function hierarchyParentId(item: PresentationItem): string | null {
+  return item.placements.find((placement) => placement.kind === "hierarchy")?.parentItemId ?? null;
+}
+
+export function resolvePageLinkPresentation(
+  targetItemId: string,
+  fallbackLabel: string,
+  currentPageId: string,
+  items: readonly PresentationItem[],
+): ResolvedPageLinkPresentation {
+  const target = items.find((item) => item.id === targetItemId);
+  const state = pageLinkTargetState(targetItemId, items);
+  return {
+    state,
+    label: target?.name.trim() || fallbackLabel.trim() || "Sans titre",
+    icon: target?.icon ?? null,
+    kind: target?.kind === "folder" ? "folder" : "page",
+    // A direct child is part of the current page. Every other occurrence is an
+    // explicit reference and receives the small relation badge.
+    reference: target === undefined || hierarchyParentId(target) !== currentPageId,
+  };
 }
 
 function applyPresentation(editor: object, binding: PageLinkBinding): void {
-  const state = stateFor(editor, binding.targetItemId);
-  const { className, suffix } = pageLinkStatePresentation(state);
+  const presentation = resolvePageLinkPresentation(
+    binding.targetItemId,
+    binding.fallbackLabel,
+    currentPageByEditor.get(editor) ?? "",
+    itemsByEditor.get(editor) ?? [],
+  );
+  const { className, suffix } = pageLinkStatePresentation(presentation.state);
   binding.anchor.className = className;
+  binding.label.textContent = presentation.label;
+  binding.iconRoot.render(
+    createElement(ItemIcon, {
+      kind: presentation.kind,
+      icon: presentation.icon,
+      reference: presentation.reference,
+      size: "inline",
+    }),
+  );
+  binding.anchor.setAttribute("aria-label", `${presentation.label}${suffix}`);
   if (suffix === "") {
     binding.anchor.removeAttribute("data-page-link-state");
-    binding.anchor.removeAttribute("aria-label");
     binding.anchor.removeAttribute("title");
     return;
   }
-  const label = binding.content.textContent?.trim() || "Lien interne";
-  binding.anchor.dataset["pageLinkState"] = state;
-  binding.anchor.setAttribute("aria-label", `${label}${suffix}`);
+  binding.anchor.dataset["pageLinkState"] = presentation.state;
   binding.anchor.title = suffix.trim().replace(/^\(|\)$/gu, "");
 }
 
@@ -62,38 +113,49 @@ function registerBinding(editor: object, binding: PageLinkBinding): () => void {
   applyPresentation(editor, binding);
   return () => {
     bindings.delete(binding);
+    binding.iconRoot.unmount();
     if (bindings.size === 0) bindingsByEditor.delete(editor);
   };
 }
 
-/**
- * Updates page-link presentation without touching ProseMirror-owned DOM from
- * outside its node views. Custom inline node views explicitly ignore their
- * own attribute mutations, so a target changing state cannot start the
- * mutation/reparse loop that previously froze the editor.
- */
+/** Refreshes names, emoji and relation badges without rewriting page content. */
 export function updatePageLinkPresentations(
   editor: object,
   items: readonly PresentationItem[],
+  currentPageId: string,
   onOpenPage?: (itemId: string) => void,
 ): void {
   itemsByEditor.set(editor, items);
+  currentPageByEditor.set(editor, currentPageId);
   if (onOpenPage === undefined) openPageByEditor.delete(editor);
   else openPageByEditor.set(editor, onOpenPage);
-  for (const binding of bindingsByEditor.get(editor) ?? []) {
-    applyPresentation(editor, binding);
-  }
+  for (const binding of bindingsByEditor.get(editor) ?? []) applyPresentation(editor, binding);
 }
 
 function renderPageLink(
   inlineContent: PageLinkInlineContent,
   editor: object,
-): { dom: HTMLAnchorElement; contentDOM: HTMLElement; destroy: () => void } {
+): { dom: HTMLAnchorElement; destroy: () => void } {
   const targetItemId = inlineContent.props.targetItemId;
+  const fallbackLabel =
+    inlineContent.content
+      .map((content) => content.text)
+      .join("")
+      .trim() || "Sans titre";
   const target = pageLinkTargetFromHref(`#page=${targetItemId}`);
   const anchor = document.createElement("a");
   anchor.href = target === null ? "#" : pageLinkHrefFor(target);
   anchor.dataset["pageLinkTarget"] = targetItemId;
+  anchor.contentEditable = "false";
+  anchor.draggable = false;
+
+  const icon = document.createElement("span");
+  icon.className = "page-link__icon";
+  const iconRoot = createRoot(icon);
+  const label = document.createElement("span");
+  label.className = "page-link__label";
+  anchor.append(icon, label);
+
   const openTarget = (event: MouseEvent): void => {
     const currentTarget = pageLinkTargetFromHref(anchor.getAttribute("href"));
     if (currentTarget === null) return;
@@ -102,35 +164,33 @@ function renderPageLink(
     openPageByEditor.get(editor)?.(currentTarget);
   };
   anchor.addEventListener("click", openTarget);
-  const contentDOM = document.createElement("span");
-  anchor.append(contentDOM);
 
-  const binding = { anchor, content: contentDOM, targetItemId };
+  const binding = {
+    anchor,
+    iconRoot,
+    label,
+    targetItemId,
+    fallbackLabel,
+  };
   const unregister = registerBinding(editor, binding);
-  const textObserver = new MutationObserver(() => applyPresentation(editor, binding));
-  textObserver.observe(contentDOM, { childList: true, subtree: true, characterData: true });
-
   return {
     dom: anchor,
-    contentDOM,
     destroy: () => {
       anchor.removeEventListener("click", openTarget);
-      textObserver.disconnect();
       unregister();
     },
   };
 }
 
 export const pageLinkInlineContentSpec = createInlineContentSpec(pageLinkConfig, {
-  // Internal links must claim their tagged/hash anchors before the default
-  // external-link parser turns them into generic URL marks.
   runsBefore: ["link"],
   parse: (element) => {
     if (element.tagName !== "A") return undefined;
     const target =
       pageLinkTargetFromHref(element.getAttribute("href")) ??
       pageLinkTargetFromHref(`#page=${element.getAttribute("data-page-link-target") ?? ""}`);
-    return target === null ? undefined : { targetItemId: target };
+    if (target === null) return undefined;
+    return { targetItemId: target };
   },
   render: (inlineContent, _updateInlineContent, editor) =>
     renderPageLink(inlineContent as PageLinkInlineContent, editor),

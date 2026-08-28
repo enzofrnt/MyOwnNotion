@@ -53,7 +53,7 @@ describe("the /page command", () => {
 });
 
 describe("/lien", () => {
-  it("clears the slash query and opens the unified link flow instead of an embed", () => {
+  it("clears the slash query and reports the block used by either explicit link flow", () => {
     const calls: unknown[] = [];
     const editor = {
       getTextCursorPosition: () => ({
@@ -62,16 +62,16 @@ describe("/lien", () => {
       updateBlock: (...args: unknown[]) => calls.push(["update", ...args]),
       setTextCursorPosition: (...args: unknown[]) => calls.push(["cursor", ...args]),
     };
-    let opened = false;
+    let openedFor: string | null = null;
 
-    prepareLinkFromSlash(editor, () => {
-      opened = true;
+    prepareLinkFromSlash(editor, (blockId) => {
+      openedFor = blockId;
     });
 
     expect(calls).toEqual([
       ["update", "block-id", { type: "paragraph", content: [] }],
       ["cursor", "block-id", "start"],
     ]);
-    expect(opened).toBe(true);
+    expect(openedFor).toBe("block-id");
   });
 });

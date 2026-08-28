@@ -77,12 +77,12 @@ export class LocalRecordCodec {
   }
 
   async sealItem(row: LocalItemRow, recordVersion = 1): Promise<SealedLocalItemRow> {
-    const { name, pageDocument, file, ...rest } = row;
+    const { name, icon, pageDocument, file, ...rest } = row;
     return {
       ...rest,
       sealedName: await this.#cipher.seal(
         this.#binding(LOCAL_ENTITY_TYPES.itemName, row.id, recordVersion),
-        name,
+        { name, icon },
       ),
       sealedPageBody:
         pageDocument === null
@@ -104,12 +104,18 @@ export class LocalRecordCodec {
 
   async openItem(row: SealedLocalItemRow, recordVersion = 1): Promise<LocalItemRow> {
     const { sealedName, sealedPageBody, sealedFile, hasPageDocument: _ignored, ...rest } = row;
+    const presentation = await this.#cipher.open(
+      this.#binding(LOCAL_ENTITY_TYPES.itemName, row.id, recordVersion),
+      sealedName,
+    );
+    const normalizedPresentation =
+      typeof presentation === "string"
+        ? { name: presentation, icon: null }
+        : (presentation as { readonly name: string; readonly icon?: string | null });
     return {
       ...rest,
-      name: (await this.#cipher.open(
-        this.#binding(LOCAL_ENTITY_TYPES.itemName, row.id, recordVersion),
-        sealedName,
-      )) as string,
+      name: normalizedPresentation.name,
+      icon: normalizedPresentation.icon ?? null,
       pageDocument:
         sealedPageBody === null
           ? null
