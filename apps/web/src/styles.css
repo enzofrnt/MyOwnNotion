@@ -499,6 +499,8 @@ select {
 }
 
 .database-grid [data-grid-mode="editing"] {
+  position: relative;
+  z-index: 3;
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
@@ -560,9 +562,16 @@ select {
 }
 
 .database-cell-editor {
+  position: relative;
+  z-index: 1;
   display: grid;
   min-width: min(22rem, 70vw);
+  padding: 0.45rem;
   gap: 0.45rem;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.12);
 }
 
 .database-cell-editor .database-field {
@@ -1372,6 +1381,27 @@ textarea {
 .session-detail {
   font-size: 0.85rem;
   opacity: 0.8;
+  overflow-wrap: anywhere;
+}
+
+/* React does not insert text nodes between adjacent Button components. Firefox
+   and WebKit therefore keep the three device actions on one unbreakable inline
+   line unless the layout defines its own wrapping boundary. Keep the actions
+   explicit so an inventory row below the fold cannot widen every settings
+   screen on a phone. */
+.device-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.device-actions .ui-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.device-actions .ui-button__label {
   overflow-wrap: anywhere;
 }
 
