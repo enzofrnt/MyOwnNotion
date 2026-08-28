@@ -8,11 +8,19 @@ import {
   useBlockNoteEditor,
   useComponentsContext,
 } from "@blocknote/react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { AppIcon } from "../../../ui/icons.tsx";
 import type { EditorInstance } from "../blocknote-schema.ts";
-import { editorLinkCreationFromSelection, selectedEditorLink } from "../editor-links.ts";
+import {
+  type EditorLinkCreation,
+  editorLinkCreationFromSelection,
+  selectedEditorLink,
+} from "../editor-links.ts";
 import type { PageLinkPickerRequest } from "./page-link-picker.tsx";
+
+function isTextSelection(selection: EditorLinkCreation | null): selection is EditorLinkCreation {
+  return selection !== null && selection.from < selection.to && selection.text.trim().length > 0;
+}
 
 function MyOwnNotionFormattingToolbar({
   onPageLinkRequest,
@@ -25,6 +33,11 @@ function MyOwnNotionFormattingToolbar({
   const selectedLink = selectedEditorLink(editor);
   const components = useComponentsContext();
   const Toolbar = components?.FormattingToolbar;
+  const currentSelection = editorLinkCreationFromSelection(editor);
+  const preservedSelection = useRef<EditorLinkCreation | null>(null);
+  useEffect(() => {
+    if (isTextSelection(currentSelection)) preservedSelection.current = currentSelection;
+  }, [currentSelection]);
   if (Toolbar === undefined) return null;
 
   const openPageLinkFlow = (): void => {
@@ -33,7 +46,8 @@ function MyOwnNotionFormattingToolbar({
       return;
     }
     const selection = editorLinkCreationFromSelection(editor);
-    if (selection !== null) onPageLinkRequest({ mode: "create", selection });
+    const usableSelection = isTextSelection(selection) ? selection : preservedSelection.current;
+    if (usableSelection !== null) onPageLinkRequest({ mode: "create", selection: usableSelection });
   };
 
   return (

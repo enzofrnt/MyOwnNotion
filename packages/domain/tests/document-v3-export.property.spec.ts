@@ -91,4 +91,22 @@ describe("v3 export and extraction", () => {
     ]);
     expect(pageLinkTargetsV3(document)).toEqual([targetItemId]);
   });
+
+  it("uses a stable image label when alt text and caption are absent", () => {
+    const fileItemId = generateUuidV7();
+    const document: BlockDocumentV3 = {
+      blocks: [
+        {
+          type: "image",
+          id: generateUuidV7(),
+          fileItemId,
+          caption: null,
+          altText: null,
+          displayWidth: null,
+        },
+      ],
+    };
+
+    expect(exportMarkdownV3(document)).toContain(`![image](myownnotion://file/${fileItemId})`);
+  });
 });
