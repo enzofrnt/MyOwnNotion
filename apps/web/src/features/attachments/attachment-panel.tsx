@@ -11,6 +11,7 @@ import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
 import { safeKeyBetween } from "../../services/ordering.ts";
+import { AsyncState, Button, FR_COPY } from "../../ui/index.ts";
 import { AttachmentList, type AttachmentRow } from "../files/attachment-list.tsx";
 import { DeleteFile } from "../files/delete-file.tsx";
 import { FilePreview } from "../files/file-preview.tsx";
@@ -72,13 +73,10 @@ export function AttachmentPanel({
    * than a redesign.
    */
   const rows: AttachmentRow[] = attachments.map((item) => {
-    const placement = item.placements.find(
-      (candidate) => candidate.kind === "attachment" && candidate.parentItemId === pageId,
-    );
     return {
       item,
       addedAt: null,
-      location: placement === undefined ? "this page" : "this page",
+      location: FR_COPY.files.attachments.location,
       usages: usagesByFile[item.id] ?? [],
       availability: "present",
       // The server answered with it, so it is stored and verified there.
@@ -138,17 +136,15 @@ export function AttachmentPanel({
   return (
     <section
       className="workspace-attachment-panel"
-      aria-label="Pièces jointes de la page"
+      aria-label={FR_COPY.files.attachments.label}
       data-testid="attachment-panel"
     >
-      <h2>Pièces jointes</h2>
+      <h2>{FR_COPY.files.attachments.title}</h2>
       {problem !== null ? (
-        <p className="status-banner" data-state="error" role="alert">
-          {problem.code}: {problem.title}
-        </p>
+        <AsyncState kind="error" compact description={FR_COPY.files.attachments.loadFailed} />
       ) : null}
       <div className="field-row">
-        <label htmlFor={`attachment-upload-${pageId}`}>Ajouter un fichier à cette page</label>
+        <label htmlFor={`attachment-upload-${pageId}`}>{FR_COPY.files.attachments.add}</label>
         <input
           id={`attachment-upload-${pageId}`}
           data-testid="attachment-upload"
@@ -166,25 +162,31 @@ export function AttachmentPanel({
           );
           return (
             <>
-              <button
+              <Button
                 type="button"
-                aria-label={`Remove ${row.item.name} from this page`}
+                size="compact"
+                variant="ghost"
+                aria-label={`${FR_COPY.files.attachments.remove} : ${row.item.name}`}
                 onClick={() =>
                   placement !== undefined ? void removePlacement(placement.id as Uuid) : undefined
                 }
               >
-                remove
-              </button>
-              <button
+                {FR_COPY.files.attachments.removeAction}
+              </Button>
+              <Button
                 type="button"
-                aria-label={`Preview ${row.item.name}`}
+                size="compact"
+                variant="ghost"
+                aria-label={`${FR_COPY.files.attachments.preview} : ${row.item.name}`}
                 data-testid={`preview-file-${row.item.name}`}
                 onClick={() =>
                   setPreviewing((current) => (current === row.item.id ? null : row.item.id))
                 }
               >
-                {previewing === row.item.id ? "close" : "preview"}
-              </button>
+                {previewing === row.item.id
+                  ? FR_COPY.files.attachments.closePreview
+                  : FR_COPY.files.attachments.previewAction}
+              </Button>
               <DeleteFile
                 api={api}
                 fileItemId={row.item.id as Uuid}

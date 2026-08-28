@@ -49,7 +49,7 @@ test.describe("canonical files (US2)", () => {
       buffer: Buffer.from("replaced bytes"),
     });
     await expect(page.getByTestId("replace-feedback")).toContainText(
-      "every placement of this file now shows the new content",
+      "toutes les occurrences de ce fichier affichent la nouvelle version",
       { timeout: 15_000 },
     );
   });
@@ -95,7 +95,7 @@ test.describe("canonical files (US2)", () => {
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole("button", { name: `Remove ${fileName} from this page` }).click();
+    await page.getByRole("button", { name: `Retirer ce fichier de la page : ${fileName}` }).click();
     await expect(page.getByTestId(`attachment-${fileName}`)).toHaveCount(0);
 
     // The canonical file entered the 30-day trash (after sync refresh).
@@ -140,7 +140,7 @@ test.describe("what a page says about its files (US1)", () => {
     await expect(page.getByTestId(`attachment-type-${fileName}`)).toContainText("text/plain");
     await expect(page.getByTestId(`attachment-size-${fileName}`)).not.toBeEmpty();
     await expect(page.getByTestId(`attachment-location-${fileName}`)).not.toBeEmpty();
-    await expect(page.getByTestId(`attachment-sync-${fileName}`)).toContainText(/synchronized/i);
+    await expect(page.getByTestId(`attachment-sync-${fileName}`)).toContainText(/synchronisé/i);
 
     // Never "missing": content the server holds is not lost because a device
     // has not fetched it, and the three states are distinct for that reason.
@@ -238,12 +238,12 @@ test.describe("moving, renaming and deleting a file (US2)", () => {
     const confirmation = page.getByTestId("delete-file-confirmation");
     await expect(confirmation).toBeVisible({ timeout: 30_000 });
     await expect(confirmation).toHaveAttribute("role", "alertdialog");
-    // Named, not counted.
-    await expect(page.getByTestId("delete-file-usages")).toContainText(pageName);
+    await expect(page.getByTestId("delete-file-usages")).toContainText("1 utilisation connue");
+    // Named, not merely counted.
     await expect(page.getByTestId("delete-file-usage-list")).toContainText(pageName);
 
     await page.getByTestId("delete-file-cancel").click();
-    await expect(confirmation).toHaveCount(0);
+    await expect(confirmation).toBeHidden();
     // Declining is not a soft delete: the file is exactly where it was.
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible();
   });

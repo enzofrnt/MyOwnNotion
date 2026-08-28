@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import type { DatabaseCellUpdate } from "./table-view.tsx";
@@ -225,8 +226,10 @@ function BoardCards({
                 </select>
               </label>
               <div className="database-card__move-actions">
-                <button
+                <Button
                   type="button"
+                  size="compact"
+                  variant="ghost"
                   aria-label={DATABASE_COPY.board.movePrevious(row.title)}
                   disabled={columns[0]?.id === column.id || onUpdateEntry === undefined}
                   onClick={() => moveAdjacent(row, -1)}
@@ -234,9 +237,11 @@ function BoardCards({
                   onKeyUp={(event) => moveAdjacentFromKeyboard(event, row, -1)}
                 >
                   {DATABASE_COPY.board.previous}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  size="compact"
+                  variant="ghost"
                   aria-label={DATABASE_COPY.board.moveNext(row.title)}
                   disabled={columns.at(-1)?.id === column.id || onUpdateEntry === undefined}
                   onClick={() => moveAdjacent(row, 1)}
@@ -244,7 +249,7 @@ function BoardCards({
                   onKeyUp={(event) => moveAdjacentFromKeyboard(event, row, 1)}
                 >
                   {DATABASE_COPY.board.next}
-                </button>
+                </Button>
               </div>
               {row.syncState === "synced" ? null : (
                 <span className={`database-sync database-sync--${row.syncState}`}>
@@ -299,7 +304,7 @@ export function BoardView({
   if (axis === undefined) {
     return (
       <section className="database-view" aria-label={DATABASE_COPY.board.viewLabel(view.name)}>
-        <p role="alert">{DATABASE_COPY.board.needsProperty}</p>
+        <AsyncState kind="unavailable" description={DATABASE_COPY.board.needsProperty} />
       </section>
     );
   }
@@ -382,8 +387,10 @@ export function BoardView({
                     {column.label} · {column.rows.length}
                   </h3>
                   {column.id === "missing" ? null : (
-                    <button
+                    <Button
                       type="button"
+                      size="compact"
+                      variant="ghost"
                       aria-expanded={!collapsed}
                       aria-label={`${
                         collapsed ? DATABASE_COPY.board.expand : DATABASE_COPY.board.collapse
@@ -399,11 +406,11 @@ export function BoardView({
                       }}
                     >
                       {collapsed ? DATABASE_COPY.board.expand : DATABASE_COPY.board.collapse}
-                    </button>
+                    </Button>
                   )}
                 </header>
                 {collapsed ? null : column.rows.length === 0 ? (
-                  <p className="muted">{DATABASE_COPY.board.noCards}</p>
+                  <AsyncState compact kind="empty" description={DATABASE_COPY.board.noCards} />
                 ) : (
                   <BoardCards
                     column={column}

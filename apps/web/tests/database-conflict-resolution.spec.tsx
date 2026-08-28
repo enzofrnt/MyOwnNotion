@@ -80,7 +80,7 @@ describe("structured database conflict resolution (T082)", () => {
       }),
     );
 
-    expect(markup).toContain("Resolve database conflict");
+    expect(markup).toContain("Résoudre le conflit de base de données");
     expect(markup).toContain("Local table");
     expect(markup).toContain("Shared table");
     expect(markup).toContain("Remote table");

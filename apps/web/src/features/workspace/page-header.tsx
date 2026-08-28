@@ -10,7 +10,6 @@ export interface PageBreadcrumb {
 export interface PageHeaderProps {
   readonly title?: string;
   readonly breadcrumbs?: readonly PageBreadcrumb[];
-  readonly status?: ReactNode;
   readonly actions?: ReactNode;
   readonly kind?: "page" | "folder" | "file" | "workspace";
 }
@@ -26,7 +25,6 @@ export function PageHeader({
   actions,
   breadcrumbs = [],
   kind = "workspace",
-  status,
   title,
 }: PageHeaderProps) {
   const pageChromeOnly = kind === "page";
@@ -63,11 +61,6 @@ export function PageHeader({
             ))}
           </ol>
         </nav>
-        {pageChromeOnly || status === undefined ? null : (
-          <section className="workspace-page-header__status" aria-label="État du document">
-            {status}
-          </section>
-        )}
       </div>
       {pageChromeOnly ? null : (
         <div className="workspace-page-header__title-row">

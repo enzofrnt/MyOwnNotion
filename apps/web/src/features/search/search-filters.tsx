@@ -1,4 +1,5 @@
 import type { ItemKind, Uuid } from "@myownnotion/domain";
+import { Button, FR_COPY } from "../../ui/index.ts";
 
 export const ALL_SEARCH_KINDS = ["page", "folder", "file"] as const satisfies readonly ItemKind[];
 
@@ -8,9 +9,9 @@ export interface SearchBranchOption {
 }
 
 const KIND_LABELS: Readonly<Record<ItemKind, string>> = {
-  page: "Pages",
-  folder: "Folders",
-  file: "Files",
+  page: FR_COPY.search.pages,
+  folder: FR_COPY.search.folders,
+  file: FR_COPY.search.files,
 };
 
 export function SearchFilters({
@@ -34,7 +35,7 @@ export function SearchFilters({
   return (
     <div className="search-filters">
       <fieldset>
-        <legend>Filter by type</legend>
+        <legend>{FR_COPY.search.typeFilter}</legend>
         <div className="search-filters__kinds">
           {ALL_SEARCH_KINDS.map((kind) => (
             <label key={kind}>
@@ -55,14 +56,14 @@ export function SearchFilters({
       </fieldset>
 
       <label className="search-filters__branch">
-        Branch
+        {FR_COPY.search.branch}
         <select
           value={branchRootItemId ?? ""}
           onChange={(event) =>
             onBranchChange(event.target.value === "" ? null : (event.target.value as Uuid))
           }
         >
-          <option value="">Whole workspace</option>
+          <option value="">{FR_COPY.search.wholeWorkspace}</option>
           {branches.map((branch) => (
             <option key={branch.itemId} value={branch.itemId}>
               {branch.label}
@@ -71,9 +72,9 @@ export function SearchFilters({
         </select>
       </label>
 
-      <button type="button" disabled={!hasActiveFilter} onClick={onReset}>
-        Reset filters
-      </button>
+      <Button type="button" size="compact" disabled={!hasActiveFilter} onClick={onReset}>
+        {FR_COPY.search.resetFilters}
+      </Button>
     </div>
   );
 }

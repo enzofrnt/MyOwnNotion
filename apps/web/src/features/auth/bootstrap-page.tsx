@@ -20,6 +20,7 @@
 import type { BootstrapProgressDto, InstallationStatusDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { newClientNonce, SecurityApi } from "../../services/security-api.ts";
+import { AsyncState, Button, FR_COPY } from "../../ui/index.ts";
 import { RecoveryKitPanel, saveKitBlob } from "../security/recovery-kit-panel.tsx";
 import { createOwnerPasskey, type PasskeyFailure, passkeysAvailable } from "./passkey-client.ts";
 
@@ -33,12 +34,11 @@ interface KitState {
 }
 
 const PASSKEY_GUIDANCE: Record<PasskeyFailure, string> = {
-  unsupported: "This browser cannot create a passkey. Try a current Firefox, Chrome, or Safari.",
-  cancelled: "The passkey prompt closed before it finished. Start it again when you are ready.",
-  "already-registered": "This device already holds a passkey for this installation.",
-  "insecure-context":
-    "Passkeys need a secure context. Reach this installation over HTTPS, or over localhost.",
-  failed: "The passkey could not be created. Try again.",
+  unsupported: FR_COPY.auth.passkey.unsupported,
+  cancelled: FR_COPY.auth.passkey.cancelled,
+  "already-registered": FR_COPY.auth.passkey.alreadyRegistered,
+  "insecure-context": FR_COPY.auth.passkey.insecureContext,
+  failed: FR_COPY.auth.passkey.failed,
 };
 
 /**
@@ -76,7 +76,7 @@ export function BootstrapPage(props: BootstrapPageProps) {
   const refreshStatus = useCallback(async (): Promise<InstallationStatusDto | null> => {
     const result = await api.status();
     if (!result.ok) {
-      setMessage("This installation is not answering. Check that the server is running.");
+      setMessage(FR_COPY.auth.bootstrap.unavailableServer);
       setStage("unavailable");
       return null;
     }
@@ -125,8 +125,8 @@ export function BootstrapPage(props: BootstrapPageProps) {
         // `conflict` on the claim route can only mean one thing: another
         // attempt is already open. Nothing else on this route conflicts.
         started.problem.code === "conflict"
-          ? "Another browser is already setting up this installation. Finish there, or reload here once it is done."
-          : "Setup could not start. Reload the page and try again.",
+          ? FR_COPY.auth.bootstrap.anotherBrowser
+          : FR_COPY.auth.bootstrap.startFailed,
       );
       await refreshStatus();
       return;
@@ -138,7 +138,7 @@ export function BootstrapPage(props: BootstrapPageProps) {
       relyingPartyId: window.location.hostname,
       relyingPartyName: "MyOwnNotion",
       userId: started.value.attemptId,
-      userName: "Owner",
+      userName: FR_COPY.auth.passkey.ownerName,
     });
     if (!ceremony.ok) {
       api.forget();
@@ -153,8 +153,8 @@ export function BootstrapPage(props: BootstrapPageProps) {
       setStage("idle");
       fail(
         verified.problem.code === "authentication_failed"
-          ? "The passkey was not accepted. Start setup again to get a fresh challenge."
-          : "Setup could not continue. Start again.",
+          ? FR_COPY.auth.bootstrap.passkeyRejected
+          : FR_COPY.auth.bootstrap.continueFailed,
       );
       return;
     }
@@ -174,8 +174,8 @@ export function BootstrapPage(props: BootstrapPageProps) {
     if (!result.ok) {
       fail(
         result.problem.code === "conflict" || result.problem.status === 410
-          ? "That download is already spent. Generate a new kit to get another one."
-          : "The kit could not be downloaded. Generate a new kit and try again.",
+          ? FR_COPY.auth.bootstrap.downloadConsumed
+          : FR_COPY.auth.bootstrap.downloadFailed,
       );
       return;
     }
@@ -193,7 +193,7 @@ export function BootstrapPage(props: BootstrapPageProps) {
     setMessage(null);
     const result = await api.regenerateKit(kit.attemptId);
     if (!result.ok) {
-      fail("A new kit could not be generated. Reload the page to start setup again.");
+      fail(FR_COPY.auth.bootstrap.regenerateFailed);
       return;
     }
     setKit({
@@ -202,7 +202,7 @@ export function BootstrapPage(props: BootstrapPageProps) {
       delivery: "downloadable",
       downloadExpiresAt: result.value.downloadExpiresAt,
     });
-    setMessage("A new kit is ready. The previous one no longer works.");
+    setMessage(FR_COPY.auth.bootstrap.regenerated);
     setBusy(false);
   }, [api, kit, fail]);
 
@@ -214,7 +214,7 @@ export function BootstrapPage(props: BootstrapPageProps) {
     setMessage(null);
     const result = await api.confirmStorage(kit.attemptId);
     if (!result.ok) {
-      fail("Setup could not be completed. Your installation still has no owner.");
+      fail(FR_COPY.auth.bootstrap.completionFailed);
       await refreshStatus();
       return;
     }
@@ -232,60 +232,66 @@ export function BootstrapPage(props: BootstrapPageProps) {
   }, [api, kit, fail, refreshStatus, props.onReady]);
 
   return (
-    <main className="bootstrap-page" aria-labelledby="bootstrap-heading">
-      <h1 id="bootstrap-heading">Set up this installation</h1>
+    <main className="bootstrap-page ui-auth-surface" aria-labelledby="bootstrap-heading">
+      <h1 id="bootstrap-heading">{FR_COPY.auth.bootstrap.title}</h1>
 
       <p className="bootstrap-counts" data-testid="owner-counts">
-        Owners: <strong data-testid="owner-count">{status?.ownerCount ?? 0}</strong> · Workspaces:{" "}
+        {FR_COPY.auth.bootstrap.owners} :{" "}
+        <strong data-testid="owner-count">{status?.ownerCount ?? 0}</strong> ·{" "}
+        {FR_COPY.auth.bootstrap.workspaces} :{" "}
         <strong data-testid="workspace-count">{status?.workspaceCount ?? 0}</strong>
       </p>
 
-      {/* One live region for the whole page: a screen reader hears each
-          outcome once, in the order it happened, rather than competing
-          announcements from separate regions. */}
-      <p
-        className="bootstrap-message"
-        role="status"
-        aria-live="polite"
-        data-testid="bootstrap-message"
-      >
-        {message ?? ""}
-      </p>
+      {message === null ? null : (
+        <AsyncState
+          compact
+          kind={busy ? "loading" : stage === "kit" ? "success" : "error"}
+          title={message}
+          testId="bootstrap-message"
+        />
+      )}
 
       {stage === "loading" ? (
-        <p data-testid="bootstrap-loading">Checking this installation…</p>
+        <AsyncState
+          kind="loading"
+          title={FR_COPY.auth.bootstrap.checking}
+          testId="bootstrap-loading"
+        />
       ) : null}
 
       {stage === "unavailable" ? (
-        <p data-testid="bootstrap-unavailable">
-          This installation is not answering. Nothing has been changed.
-        </p>
+        <AsyncState
+          kind="error"
+          title={FR_COPY.auth.bootstrap.unavailableTitle}
+          description={FR_COPY.auth.bootstrap.unavailable}
+          testId="bootstrap-unavailable"
+        />
       ) : null}
 
       {stage === "idle" ? (
-        <section aria-labelledby="bootstrap-start-heading">
-          <h2 id="bootstrap-start-heading">Create the owner passkey</h2>
-          <p>
-            This installation has no owner yet. Creating the passkey and saving the recovery kit
-            takes about a minute, and it has to be finished in one go — reloading this page starts
-            over.
-          </p>
-          <button
+        <section className="ui-auth-card" aria-labelledby="bootstrap-start-heading">
+          <h2 id="bootstrap-start-heading">{FR_COPY.auth.bootstrap.createTitle}</h2>
+          <p>{FR_COPY.auth.bootstrap.createDescription}</p>
+          <Button
             type="button"
-            className="primary"
+            variant="primary"
+            busy={busy}
             onClick={() => {
               void beginSetup();
             }}
-            disabled={busy}
             data-testid="begin-setup"
           >
-            Create owner passkey
-          </button>
+            {FR_COPY.auth.bootstrap.createAction}
+          </Button>
         </section>
       ) : null}
 
       {stage === "verifying" ? (
-        <p data-testid="bootstrap-verifying">Waiting for your device to confirm the passkey…</p>
+        <AsyncState
+          kind="loading"
+          title={FR_COPY.auth.bootstrap.verifying}
+          testId="bootstrap-verifying"
+        />
       ) : null}
 
       {stage === "kit" && kit !== null ? (

@@ -14,6 +14,7 @@
  */
 
 import type { FileUsageDto, ItemDto } from "@myownnotion/contracts";
+import { AsyncState, Button, FR_COPY, formatDate } from "../../ui/index.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 
 export type LocalAvailability = "present" | "offloaded" | "never-fetched";
@@ -21,16 +22,19 @@ export type LocalAvailability = "present" | "offloaded" | "never-fetched";
 /** What each availability state says, in the owner's terms. */
 const AVAILABILITY: Record<LocalAvailability, { readonly label: string; readonly detail: string }> =
   {
-    present: { label: "On this device", detail: "Opens without a connection." },
+    present: {
+      label: FR_COPY.files.attachments.onDevice,
+      detail: FR_COPY.files.attachments.onDeviceDetail,
+    },
     offloaded: {
-      label: "Not on this device",
+      label: FR_COPY.files.attachments.offloaded,
       // Names the cause, because the owner did not do this and would otherwise
       // wonder what went wrong.
-      detail: "Released to stay within this device's storage limit. Opening it fetches it again.",
+      detail: FR_COPY.files.attachments.offloadedDetail,
     },
     "never-fetched": {
-      label: "Not fetched yet",
-      detail: "Held by the server. Opening it brings it here.",
+      label: FR_COPY.files.attachments.neverFetched,
+      detail: FR_COPY.files.attachments.neverFetchedDetail,
     },
   };
 
@@ -55,9 +59,12 @@ export function AttachmentList({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="empty-state" data-testid="attachments-empty">
-        No attachments. Files attached here stay out of the hierarchy tree.
-      </p>
+      <AsyncState
+        compact
+        kind="empty"
+        description={FR_COPY.files.attachments.empty}
+        testId="attachments-empty"
+      />
     );
   }
 
@@ -72,7 +79,7 @@ export function AttachmentList({
             data-testid={`attachment-${row.item.name}`}
             data-availability={row.availability}
           >
-            <span className="tree-kind">file</span>
+            <span className="tree-kind">{FR_COPY.files.attachments.fileKind}</span>
             <span className="tree-name">{row.item.name}</span>
 
             <span className="muted" data-testid={`attachment-type-${row.item.name}`}>
@@ -82,10 +89,12 @@ export function AttachmentList({
               {formatByteLength(byteLengthOf(row.item))}
             </span>
             <span className="muted" data-testid={`attachment-added-${row.item.name}`}>
-              {row.addedAt === null ? "added: unknown" : `added ${formatDate(row.addedAt)}`}
+              {row.addedAt === null
+                ? FR_COPY.files.attachments.addedUnknown
+                : `${FR_COPY.files.attachments.added} ${formatDate(row.addedAt)}`}
             </span>
             <span className="muted" data-testid={`attachment-location-${row.item.name}`}>
-              in {row.location}
+              {FR_COPY.files.attachments.inLocation} {row.location}
             </span>
 
             <span
@@ -96,26 +105,29 @@ export function AttachmentList({
               {availability.label}
             </span>
             <span className="muted" data-testid={`attachment-sync-${row.item.name}`}>
-              {row.synchronized ? "Synchronized" : "Not synchronized yet"}
+              {row.synchronized
+                ? FR_COPY.files.attachments.synchronized
+                : FR_COPY.files.attachments.notSynchronized}
             </span>
 
             <span className="muted" data-testid={`attachment-usages-${row.item.name}`}>
               {row.usages.length === 0 ? (
-                "used nowhere else"
+                FR_COPY.files.attachments.usedNowhereElse
               ) : (
                 <>
-                  used in{" "}
+                  {FR_COPY.files.attachments.usedIn}{" "}
                   {row.usages.map((usage, index) => (
                     <span key={`${usage.usedByItemId}-${usage.blockId ?? index}`}>
                       {index > 0 ? ", " : null}
-                      <button
+                      <Button
                         type="button"
-                        className="link"
+                        size="compact"
+                        variant="ghost"
                         data-testid={`attachment-usage-${usage.usedByName}`}
                         onClick={() => onOpenUsage(usage.usedByItemId)}
                       >
                         {usage.usedByName}
-                      </button>
+                      </Button>
                     </span>
                   ))}
                 </>
@@ -132,7 +144,7 @@ export function AttachmentList({
 
 function mediaTypeOf(item: ItemDto): string {
   const file = (item as { file?: { mediaType?: string } }).file;
-  return file?.mediaType ?? "unknown type";
+  return file?.mediaType ?? FR_COPY.files.attachments.unknownType;
 }
 
 function byteLengthOf(item: ItemDto): number {
@@ -147,7 +159,3 @@ function byteLengthOf(item: ItemDto): number {
  * reason to show something imperfect, never a reason for the attachment list to
  * fail to render.
  */
-function formatDate(iso: string): string {
-  const parsed = new Date(iso);
-  return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString();
-}

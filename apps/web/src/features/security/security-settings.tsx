@@ -11,12 +11,14 @@
  */
 
 import type { PasskeyViewDto } from "@myownnotion/contracts";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type {
   RecoveryStatusView,
   RotationStatusView,
   SecurityApi,
 } from "../../services/security-api.ts";
+import { FR_COPY } from "../../ui/copy/index.ts";
+import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
 import { DevicePanel } from "./device-panel.tsx";
 import { KeyRotationPanel } from "./key-rotation-panel.tsx";
 import { RecoveryReadinessPanel } from "./recovery-readiness-panel.tsx";
@@ -37,19 +39,27 @@ export interface SecuritySettingsProps {
   readonly onSignedOut: () => void;
 }
 
+interface SecurityNotice {
+  readonly kind: "error" | "info" | "success";
+  readonly message: string;
+}
+
 export function SecuritySettings(props: SecuritySettingsProps) {
   const [passkeys, setPasskeys] = useState<readonly PasskeyViewDto[]>([]);
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<SecurityNotice | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [rotation, setRotation] = useState<RotationStatusView | null>(null);
   const [recovery, setRecovery] = useState<RecoveryStatusView | null>(null);
-  const passwordId = useId();
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     const result = await props.api.listPasskeys();
     if (result.ok) {
       setPasskeys(result.value.passkeys);
+    } else {
+      setNotice({ kind: "error", message: FR_COPY.security.passkeys.loadFailed });
     }
     // A separate call, and a failure here is silent. Rotation state is
     // context, not the reason the owner came to this screen; an error banner
@@ -62,6 +72,7 @@ export function SecuritySettings(props: SecuritySettingsProps) {
     // same as "you have no kit".
     const recoveryResult = await props.api.recoveryStatus();
     setRecovery(recoveryResult.ok ? recoveryResult.value : null);
+    setLoading(false);
   }, [props.api]);
 
   useEffect(() => {
@@ -72,21 +83,23 @@ export function SecuritySettings(props: SecuritySettingsProps) {
     async (event: React.FormEvent) => {
       event.preventDefault();
       setBusy(true);
-      setMessage(null);
+      setNotice(null);
       const result = await props.api.setPassword(password);
       setPassword("");
       if (!result.ok) {
-        setMessage(
-          result.problem.code === "recent_authentication_required"
-            ? "Confirm your passkey or password again before changing it."
-            : result.problem.code === "validation_failed"
-              ? "Use at least 12 characters. A few unrelated words works well."
-              : "The password could not be saved.",
-        );
+        setNotice({
+          kind: "error",
+          message:
+            result.problem.code === "recent_authentication_required"
+              ? FR_COPY.security.recentAuthentication
+              : result.problem.code === "validation_failed"
+                ? FR_COPY.security.password.validation
+                : FR_COPY.security.password.failed,
+        });
         setBusy(false);
         return;
       }
-      setMessage("Password saved.");
+      setNotice({ kind: "success", message: FR_COPY.security.password.saved });
       setBusy(false);
     },
     [password, props.api],
@@ -95,16 +108,18 @@ export function SecuritySettings(props: SecuritySettingsProps) {
   const removePasskey = useCallback(
     async (credentialId: string) => {
       setBusy(true);
-      setMessage(null);
+      setNotice(null);
       const result = await props.api.removePasskey(credentialId);
       if (!result.ok) {
-        setMessage(
-          result.problem.code === "conflict"
-            ? "This is your only way to sign in. Add another passkey or set a password first."
-            : result.problem.code === "recent_authentication_required"
-              ? "Confirm your passkey or password again before removing one."
-              : "That passkey could not be removed.",
-        );
+        setNotice({
+          kind: "error",
+          message:
+            result.problem.code === "conflict"
+              ? FR_COPY.security.passkeys.removeOnly
+              : result.problem.code === "recent_authentication_required"
+                ? FR_COPY.security.recentAuthentication
+                : FR_COPY.security.passkeys.removeFailed,
+        });
         setBusy(false);
         return;
       }
@@ -122,67 +137,63 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       aria-labelledby="security-heading"
       data-testid="security-settings"
     >
-      <h2 id="security-heading">Security</h2>
+      <h2 id="security-heading">{FR_COPY.security.title}</h2>
 
-      <p
-        className="security-message"
-        role="status"
-        aria-live="polite"
-        data-testid="security-message"
-      >
-        {message ?? ""}
-      </p>
+      {notice === null ? null : (
+        <AsyncState compact kind={notice.kind} title={notice.message} testId="security-message" />
+      )}
 
-      <section aria-labelledby="passkeys-heading">
-        <h2 id="passkeys-heading">Passkeys</h2>
-        <ul data-testid="passkey-list">
-          {activePasskeys.map((passkey) => (
-            <li key={passkey.credentialId} data-testid="passkey-row">
-              <span>{passkey.label}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  void removePasskey(passkey.credentialId);
-                }}
-                disabled={busy}
-                data-testid="remove-passkey"
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
+      <section className="ui-settings-panel" aria-labelledby="passkeys-heading">
+        <h2 id="passkeys-heading">{FR_COPY.security.passkeys.title}</h2>
+        {loading ? (
+          <AsyncState compact kind="loading" title={FR_COPY.security.passkeys.loading} />
+        ) : (
+          <ul data-testid="passkey-list">
+            {activePasskeys.map((passkey) => (
+              <li key={passkey.credentialId} data-testid="passkey-row">
+                <span>{passkey.label}</span>
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  onClick={() => {
+                    void removePasskey(passkey.credentialId);
+                  }}
+                  disabled={busy}
+                  data-testid="remove-passkey"
+                >
+                  {FR_COPY.security.passkeys.remove}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
         {activePasskeys.length === 1 ? (
           <p className="security-note" data-testid="last-passkey-note">
-            This is your only passkey. Add another, or set a password, before removing it.
+            {FR_COPY.security.passkeys.onlyOne}
           </p>
         ) : null}
       </section>
 
-      <section aria-labelledby="password-heading">
-        <h2 id="password-heading">Password</h2>
-        <p>
-          An alternative for when a passkey is not available. Your passkey keeps working either way.
-        </p>
+      <section className="ui-settings-panel" aria-labelledby="password-heading">
+        <h2 id="password-heading">{FR_COPY.security.password.title}</h2>
+        <p>{FR_COPY.security.password.description}</p>
         <p className="security-warning" data-testid="no-reset-warning">
-          There is no password reset. This installation has no way to reach you, so if you forget
-          it, sign in with your passkey — or use your recovery kit if you have lost both.
+          {FR_COPY.security.password.warning}
         </p>
         <form onSubmit={savePassword}>
-          <label htmlFor={passwordId}>New password</label>
-          <input
-            id={passwordId}
+          <Field
             type="password"
             autoComplete="new-password"
             minLength={12}
+            label={FR_COPY.security.password.label}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             disabled={busy}
             data-testid="new-password-input"
           />
-          <button type="submit" disabled={busy} data-testid="save-password">
-            Save password
-          </button>
+          <Button type="submit" variant="primary" busy={busy} data-testid="save-password">
+            {FR_COPY.security.password.save}
+          </Button>
         </form>
       </section>
 
@@ -200,11 +211,12 @@ export function SecuritySettings(props: SecuritySettingsProps) {
         onPrepareReplacement={async () => {
           setBusy(true);
           const result = await props.api.prepareRecoveryReplacement();
-          setMessage(
-            result.ok
-              ? "A new kit is ready to download."
-              : "That kit could not be prepared. Your existing kit is unaffected.",
-          );
+          setNotice({
+            kind: result.ok ? "success" : "error",
+            message: result.ok
+              ? FR_COPY.security.recovery.prepared
+              : FR_COPY.security.recovery.prepareFailed,
+          });
           await refresh();
           setBusy(false);
         }}

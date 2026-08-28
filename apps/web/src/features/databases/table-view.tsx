@@ -26,6 +26,7 @@ import {
   useState,
 } from "react";
 import type { DatabaseViewPage, DatabaseViewRow } from "../../services/databases.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
@@ -414,20 +415,24 @@ export function TableView({
                           <legend className="sr-only">
                             {DATABASE_COPY.table.width(property.name, width)}
                           </legend>
-                          <button
+                          <Button
                             type="button"
+                            size="square"
+                            variant="ghost"
                             aria-label={DATABASE_COPY.table.narrow(property.name)}
                             onClick={() => onResize(property.id, Math.max(80, width - 20))}
                           >
                             −
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            size="square"
+                            variant="ghost"
                             aria-label={DATABASE_COPY.table.widen(property.name)}
                             onClick={() => onResize(property.id, Math.min(800, width + 20))}
                           >
                             +
-                          </button>
+                          </Button>
                         </fieldset>
                       )}
                     </th>
@@ -444,9 +449,15 @@ export function TableView({
             {renderedRows.length === 0 ? (
               <tr>
                 <td colSpan={Math.max(1, visible.length)}>
-                  {page.coverage === "partial"
-                    ? DATABASE_COPY.common.noEntriesAvailable
-                    : DATABASE_COPY.common.noEntries}
+                  <AsyncState
+                    compact
+                    kind={page.coverage === "partial" ? "offline" : "empty"}
+                    description={
+                      page.coverage === "partial"
+                        ? DATABASE_COPY.common.noEntriesAvailable
+                        : DATABASE_COPY.common.noEntries
+                    }
+                  />
                 </td>
               </tr>
             ) : (
@@ -542,8 +553,10 @@ export function TableView({
                                 </span>
                               ) : null}
                               <div className="database-cell-editor__actions">
-                                <button
+                                <Button
                                   type="button"
+                                  size="compact"
+                                  busy={editingCell.saving}
                                   disabled={editingCell.saving}
                                   onClick={() => void saveEdit(position, property, row.original)}
                                 >
@@ -553,14 +566,16 @@ export function TableView({
                                         property.name,
                                         row.original.title,
                                       )}
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                   type="button"
+                                  size="compact"
+                                  variant="ghost"
                                   disabled={editingCell.saving}
                                   onClick={() => cancelEdit(position)}
                                 >
                                   {DATABASE_COPY.table.cancelEdit}
-                                </button>
+                                </Button>
                                 <StableActionButton
                                   type="button"
                                   className="link"

@@ -12,6 +12,7 @@
  * interface with no word for that moment fills it with an optimistic one.
  */
 
+import { AsyncState, FR_COPY } from "../../ui/index.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 import type { TransferState } from "./upload.ts";
 
@@ -28,31 +29,31 @@ export function describeTransfer(state: TransferState): {
 } {
   switch (state.kind) {
     case "idle":
-      return { label: "Ready", detail: null };
+      return { label: FR_COPY.files.transfer.ready, detail: null };
     case "uploading": {
       const percent = state.total === 0 ? 100 : Math.floor((state.sent / state.total) * 100);
       return {
-        label: `Sending… ${percent}%`,
+        label: `${FR_COPY.files.transfer.sending} ${percent}%`,
         // The byte counts, not only the percentage: on a large file a stalled
         // percentage and a slow one look identical, and the numbers distinguish
         // them.
-        detail: `${formatByteLength(state.sent)} of ${formatByteLength(state.total)}`,
+        detail: `${formatByteLength(state.sent)} ${FR_COPY.files.transfer.of} ${formatByteLength(state.total)}`,
       };
     }
     case "verifying":
       return {
-        label: "Checking…",
-        detail: "Every byte has arrived. The server is confirming it stored them intact.",
+        label: FR_COPY.files.transfer.verifying,
+        detail: FR_COPY.files.transfer.verifyingDetail,
       };
     case "synchronized":
-      return { label: "Stored", detail: null };
+      return { label: FR_COPY.files.transfer.stored, detail: null };
     case "blocked":
       return {
-        label: "Not stored",
+        label: FR_COPY.files.transfer.blocked,
         detail:
           state.limitBytes === undefined
-            ? state.reason
-            : `${state.reason} This installation accepts files up to ${formatByteLength(state.limitBytes)}.`,
+            ? FR_COPY.files.transfer.blockedDetail
+            : `${FR_COPY.files.transfer.blockedDetail} ${FR_COPY.files.transfer.limitDetail} ${formatByteLength(state.limitBytes)}.`,
       };
   }
 }
@@ -63,18 +64,16 @@ export function TransferStateIndicator({ state }: { readonly state: TransferStat
   }
   const { label, detail } = describeTransfer(state);
   return (
-    <p
-      className="save-state"
-      data-testid="transfer-state"
-      data-state={state.kind}
-      // Assertive only when something needs a decision. A progress figure that
-      // interrupted a screen reader on every chunk is one an owner turns off,
-      // after which the refusal goes unheard too.
-      role={state.kind === "blocked" ? "alert" : "status"}
-      aria-live={state.kind === "blocked" ? "assertive" : "polite"}
-    >
-      <strong data-testid="transfer-state-label">{label}</strong>
-      {detail !== null ? <span data-testid="transfer-state-detail"> — {detail}</span> : null}
-    </p>
+    <AsyncState
+      compact
+      kind={
+        state.kind === "blocked" ? "error" : state.kind === "synchronized" ? "success" : "syncing"
+      }
+      title={<span data-testid="transfer-state-label">{label}</span>}
+      description={
+        detail === null ? undefined : <span data-testid="transfer-state-detail">{detail}</span>
+      }
+      testId="transfer-state"
+    />
   );
 }

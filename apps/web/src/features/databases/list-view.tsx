@@ -1,6 +1,7 @@
 import type { DatabaseProperty, DatabaseView, Uuid } from "@myownnotion/domain";
 import { useLayoutEffect, useRef } from "react";
 import type { DatabaseViewPage } from "../../services/databases.ts";
+import { AsyncState } from "../../ui/primitives/index.ts";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
 import { displayDatabaseValue } from "./database-value.ts";
@@ -45,11 +46,14 @@ export function ListView({
       onScroll={(event) => onScroll?.(event.currentTarget.scrollTop)}
     >
       {page.rows.length === 0 ? (
-        <p className="empty-state">
-          {page.coverage === "partial"
-            ? DATABASE_COPY.common.noEntriesAvailable
-            : DATABASE_COPY.common.noEntries}
-        </p>
+        <AsyncState
+          kind={page.coverage === "partial" ? "offline" : "empty"}
+          description={
+            page.coverage === "partial"
+              ? DATABASE_COPY.common.noEntriesAvailable
+              : DATABASE_COPY.common.noEntries
+          }
+        />
       ) : (
         <ul
           className={`database-list database-list--${view.type === "list" ? view.options.density : "comfortable"}`}

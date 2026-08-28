@@ -132,11 +132,11 @@ describe("database gallery view (T089)", () => {
         onChangeView: vi.fn(),
       }),
     );
-    expect(markup).toContain('aria-label="Project gallery gallery view"');
+    expect(markup).toContain('aria-label="Vue galerie Project gallery"');
     expect(markup).toContain("Alpha");
     expect(markup).toContain("Beta");
     expect(markup).toContain("Design brief");
-    expect(markup).toContain("No safe preview available");
+    expect(markup).toContain("Aucun aperçu sûr disponible");
     expect(markup).toContain("Visible summary");
     expect(markup).toContain('aria-posinset="2"');
     expect(markup).toContain('aria-setsize="2"');

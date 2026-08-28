@@ -27,7 +27,7 @@ export interface NavigationItemMenuProps {
   readonly onMoveSelectedInside: () => void;
   readonly onToggleFavourite: () => void;
   readonly onToggleOffline: () => void;
-  readonly onTrash: () => void;
+  readonly onRequestTrash: () => void;
 }
 
 export function NavigationItemMenu({
@@ -49,7 +49,7 @@ export function NavigationItemMenu({
   onRename,
   onToggleFavourite,
   onToggleOffline,
-  onTrash,
+  onRequestTrash,
 }: NavigationItemMenuProps) {
   const fileInput = useRef<HTMLInputElement | null>(null);
   return (
@@ -142,7 +142,7 @@ export function NavigationItemMenu({
             {keptOffline ? "Ne plus conserver hors ligne" : "Conserver hors ligne"}
           </MenuItem>
           <MenuSeparator />
-          <MenuItem destructive data-testid={`trash-${itemName}`} onClick={onTrash}>
+          <MenuItem destructive data-testid={`trash-${itemName}`} onClick={onRequestTrash}>
             <AppIcon name="delete" size="small" />
             Placer dans la corbeille
           </MenuItem>

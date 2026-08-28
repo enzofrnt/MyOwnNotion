@@ -107,14 +107,14 @@ describe("structured task surfaces (T060)", () => {
         onChange: vi.fn(),
       }),
     );
-    expect(enabled).toContain("Task tracking");
-    expect(enabled).toContain("Task status property");
-    expect(enabled).toContain("Task due date property");
-    expect(enabled).toContain("Task priority property");
+    expect(enabled).toContain("Suivi des tâches");
+    expect(enabled).toContain("Propriété de statut de la tâche");
+    expect(enabled).toContain("échéance de la tâche");
+    expect(enabled).toContain("Propriété de priorité de la tâche");
     expect(enabled).toContain("Workflow");
     expect(enabled).toContain("Deadline");
     expect(enabled).toContain("Importance");
-    expect(enabled).toContain("Disable task tracking");
+    expect(enabled).toContain("Désactiver le suivi des tâches");
 
     const disabled = renderToStaticMarkup(
       createElement(TaskConfiguration, {
@@ -122,8 +122,8 @@ describe("structured task surfaces (T060)", () => {
         onChange: vi.fn(),
       }),
     );
-    expect(disabled).toContain("Enable task tracking");
-    expect(disabled).not.toContain("Task due date property");
+    expect(disabled).toContain("Activer le suivi des tâches");
+    expect(disabled).not.toContain("échéance de la tâche");
   });
 
   it("shows invalid role references instead of silently remapping by name", () => {
@@ -134,8 +134,8 @@ describe("structured task surfaces (T060)", () => {
       }),
     );
     expect(invalid).toContain('role="alert"');
-    expect(invalid).toContain("Task role configuration is invalid");
-    expect(invalid).toContain("Disable task tracking");
+    expect(invalid).toContain("La configuration des rôles est invalide");
+    expect(invalid).toContain("Désactiver le suivi des tâches");
   });
 
   it("presents semantic task fields, ordinary properties and the page document once", () => {
@@ -164,12 +164,12 @@ describe("structured task surfaces (T060)", () => {
       }),
     );
 
-    expect(markup).toContain('aria-label="Task tracking"');
+    expect(markup).toContain('aria-label="Suivi des tâches"');
     expect(markup.match(/data-task-role=/g)).toHaveLength(3);
-    expect(markup).toContain("Task status");
-    expect(markup).toContain("Task due date");
-    expect(markup).toContain("Task priority");
-    expect(markup).toContain('aria-label="Other properties"');
+    expect(markup).toContain("Statut de la tâche");
+    expect(markup).toContain("Échéance de la tâche");
+    expect(markup).toContain("Priorité de la tâche");
+    expect(markup).toContain('aria-label="Autres propriétés"');
     expect(markup).toContain("Notes");
     expect(markup).toContain("Editorial checklist and notes");
     expect(markup.match(/>Workflow<\/label>/g)).toHaveLength(1);

@@ -204,13 +204,22 @@
 
   .settings-sidebar__header {
     display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
   }
 
+  .settings-back {
+    max-width: 100%;
+    white-space: normal;
+  }
+
   .settings-navigation {
     display: flex;
+    min-width: 0;
+    max-width: 100%;
     padding-bottom: var(--space-1);
     overflow-x: auto;
     scroll-snap-type: x proximity;

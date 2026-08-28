@@ -17,19 +17,19 @@ import {
 
 describe("a device that has never been used", () => {
   it("says never, rather than borrowing a date", () => {
-    expect(describeLastUse(null)).toBe("never");
+    expect(describeLastUse(null)).toBe("jamais");
   });
 
   it("renders a real instant when there is one", () => {
     const rendered = describeLastUse("2026-05-01T12:00:00.000Z");
-    expect(rendered).not.toBe("never");
-    expect(rendered).not.toBe("unknown");
+    expect(rendered).not.toBe("jamais");
+    expect(rendered).not.toBe("inconnue");
   });
 
   it("admits when a timestamp cannot be read", () => {
     // A malformed value is not "never used" — saying so would report a bug as
     // a fact about the device.
-    expect(describeLastUse("not-a-date")).toBe("unknown");
+    expect(describeLastUse("not-a-date")).toBe("inconnue");
   });
 });
 
@@ -37,16 +37,16 @@ describe("device states in the owner's words", () => {
   it("distinguishes revoked from needing to sign in again", () => {
     // The two mean different things: one device is no longer theirs, the other
     // still is. A shared label would make the owner treat them the same.
-    expect(describeState("revoked")).toBe("Revoked");
-    expect(describeState("reauthorization-required")).toBe("Needs to sign in again");
+    expect(describeState("revoked")).toBe("Révoqué");
+    expect(describeState("reauthorization-required")).toBe("Nouvelle connexion nécessaire");
   });
 
   it("names a pending device as unconfirmed rather than active", () => {
-    expect(describeState("pending")).toBe("Not yet confirmed");
+    expect(describeState("pending")).toBe("Pas encore confirmé");
   });
 
   it("calls an active device active", () => {
-    expect(describeState("active")).toBe("Active");
+    expect(describeState("active")).toBe("Actif");
   });
 });
 
@@ -55,13 +55,13 @@ describe("what revoking does not do", () => {
     // FR-010. Saying only "revoked" would let an owner believe their data was
     // wiped and stop looking for the lost device — the opposite of what the
     // situation calls for.
-    expect(REVOKED_NOTICE).toMatch(/cannot be erased remotely/i);
-    expect(REVOKED_NOTICE).toMatch(/reconnects/i);
+    expect(REVOKED_NOTICE).toMatch(/ne peuvent pas être effacées à distance/i);
+    expect(REVOKED_NOTICE).toMatch(/reconnecte/i);
   });
 
   it("still says what revoking did achieve", () => {
     // The limitation must not swallow the reassurance: the device really has
     // lost its access from now on.
-    expect(REVOKED_NOTICE).toMatch(/no longer reach/i);
+    expect(REVOKED_NOTICE).toMatch(/ne peut plus accéder/i);
   });
 });

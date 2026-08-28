@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { AppIcon } from "../src/ui/icons.tsx";
 import {
   Button,
+  ConfirmDialog,
   DialogContent,
   DialogDescription,
   DialogHeading,
@@ -78,6 +79,25 @@ describe("shared UI primitive contracts", () => {
     expect(markup).toContain('aria-modal="true"');
     expect(markup).toContain("Supprimer la page ?");
     expect(markup).toContain("récupérable dans la corbeille");
+  });
+
+  it("keeps destructive confirmation inside the shared dialog contract", () => {
+    const markup = renderToStaticMarkup(
+      <ConfirmDialog
+        open
+        title="Supprimer le fichier ?"
+        description="Le fichier restera récupérable dans la corbeille."
+        confirmLabel="Supprimer"
+        onCancel={() => undefined}
+        onConfirm={() => undefined}
+        portal={false}
+      />,
+    );
+
+    expect(markup).toContain('role="alertdialog"');
+    expect(markup).toContain("Supprimer le fichier ?");
+    expect(markup).toContain("Annuler");
+    expect(markup).toContain('data-variant="danger"');
   });
 
   it("announces asynchronous and urgent states without relying on color", () => {

@@ -10,6 +10,7 @@ import type { ProjectedItem } from "@myownnotion/client-core";
 import { generateUuidV7, isUuid, type Uuid } from "@myownnotion/domain";
 import { useCallback, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
+import { AsyncState, Button, Field, FR_COPY, formatDateTime } from "../../ui/index.ts";
 
 interface RevisionView {
   id: string;
@@ -38,9 +39,9 @@ function describeAuthor(revision: RevisionView): string {
     return revision.authoredByDeviceName;
   }
   if (typeof revision.authoredByDeviceId === "string") {
-    return `a device that has since been removed (${revision.authoredByDeviceId})`;
+    return FR_COPY.history.removedDevice;
   }
-  return "an unrecorded device";
+  return FR_COPY.history.unrecordedDevice;
 }
 
 export function RevisionRestore({
@@ -54,14 +55,14 @@ export function RevisionRestore({
   const [revisionId, setRevisionId] = useState("");
   const [preview, setPreview] = useState<RevisionView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [messageState, setMessageState] = useState<"error" | "conflict" | "synced">("synced");
+  const [messageState, setMessageState] = useState<"error" | "conflict" | "success">("success");
 
   const loadPreview = useCallback(async () => {
     setMessage(null);
     setPreview(null);
     if (!isUuid(revisionId)) {
       setMessageState("error");
-      setMessage("Provide a revision UUID");
+      setMessage(FR_COPY.history.invalidId);
       return;
     }
     const result = await api.getRevision(revisionId);
@@ -69,8 +70,8 @@ export function RevisionRestore({
       setMessageState(result.problem.code === "revision.snapshot-expired" ? "conflict" : "error");
       setMessage(
         result.problem.code === "revision.snapshot-expired"
-          ? "This revision's content is no longer retained (24-hour window elapsed); its lineage is preserved"
-          : `${result.problem.code}: ${result.problem.title}`,
+          ? FR_COPY.history.expired
+          : FR_COPY.history.loadFailed,
       );
       return;
     }
@@ -93,42 +94,43 @@ export function RevisionRestore({
         result.problem.code === "revision.stale-base"
       ) {
         setMessageState("conflict");
-        setMessage(
-          "The current head changed since this restore was prepared — reload and retry explicitly",
-        );
+        setMessage(FR_COPY.history.stale);
       } else {
         setMessageState("error");
-        setMessage(`${result.problem.code}: ${result.problem.title}`);
+        setMessage(FR_COPY.history.restoreFailed);
       }
       return;
     }
-    setMessageState("synced");
-    setMessage("Restored as a new revision descending from the current head — history unchanged");
+    setMessageState("success");
+    setMessage(FR_COPY.history.restored);
     onRestored?.();
   }, [api, item.currentRevisionId, preview, onRestored]);
 
   return (
-    <section className="panel" aria-label="Revision history" data-testid="revision-restore">
-      <h2>History</h2>
+    <section
+      className="ui-settings-panel"
+      aria-label={FR_COPY.history.label}
+      data-testid="revision-restore"
+    >
+      <h2>{FR_COPY.history.title}</h2>
       <p className="muted">
-        Current head <code data-testid="current-head">{item.currentRevisionId}</code>. Superseded
-        content stays restorable for 24 hours.
+        {FR_COPY.history.currentHead} :{" "}
+        <code data-testid="current-head">{item.currentRevisionId}</code>.{" "}
+        {FR_COPY.history.retention}
       </p>
       <div className="field-row">
-        <label htmlFor={`revision-id-${item.id}`} className="muted">
-          Revision ID
-        </label>
-        <input
+        <Field
           id={`revision-id-${item.id}`}
+          label={FR_COPY.history.revisionId}
           data-testid="revision-id-input"
           type="text"
           value={revisionId}
-          placeholder="revision UUID"
+          placeholder={FR_COPY.history.revisionPlaceholder}
           onChange={(event) => setRevisionId(event.target.value)}
         />
-        <button type="button" data-testid="preview-revision" onClick={() => void loadPreview()}>
-          Preview
-        </button>
+        <Button type="button" data-testid="preview-revision" onClick={() => void loadPreview()}>
+          {FR_COPY.history.preview}
+        </Button>
       </div>
       {preview !== null ? (
         <div data-testid="revision-preview">
@@ -137,37 +139,29 @@ export function RevisionRestore({
               splitting them across three lines makes a list of entries harder
               to scan rather than easier. */}
           <p className="muted" data-testid="revision-attribution">
-            {preview.changeNature ?? "changed"} on {preview.acceptedAt} from{" "}
-            {describeAuthor(preview)}
+            {FR_COPY.history.changed} {FR_COPY.history.on} {formatDateTime(preview.acceptedAt)}{" "}
+            {FR_COPY.history.from} {describeAuthor(preview)}
           </p>
           <p className="muted">
-            Parents:{" "}
+            {FR_COPY.history.parents} :{" "}
             {preview.parentRevisionIds.length === 0
-              ? "none (creation)"
+              ? FR_COPY.history.noParent
               : preview.parentRevisionIds.join(", ")}
             {/* Two parents is not a curiosity: it is where two devices' work
                 rejoined, and it is the evidence that both originals were kept. */}
-            {preview.parentRevisionIds.length > 1
-              ? " — this revision joined two versions, and both remain reachable through it"
-              : ""}
+            {preview.parentRevisionIds.length > 1 ? ` — ${FR_COPY.history.joined}` : ""}
           </p>
+          <p className="muted">{FR_COPY.history.snapshot}</p>
           <pre className="muted" data-testid="revision-snapshot">
             {JSON.stringify(preview.snapshot, null, 2)}
           </pre>
-          <button type="button" data-testid="restore-revision" onClick={() => void restore()}>
-            Restore as new revision
-          </button>
+          <Button type="button" data-testid="restore-revision" onClick={() => void restore()}>
+            {FR_COPY.history.restore}
+          </Button>
         </div>
       ) : null}
       {message !== null ? (
-        <p
-          className="status-banner"
-          data-state={messageState}
-          role={messageState === "synced" ? "status" : "alert"}
-          data-testid="restore-feedback"
-        >
-          {message}
-        </p>
+        <AsyncState compact kind={messageState} description={message} testId="restore-feedback" />
       ) : null}
     </section>
   );

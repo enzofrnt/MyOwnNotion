@@ -51,9 +51,10 @@ async function convertAndSettle(
   becomes: "page" | "folder",
 ): Promise<void> {
   await activateConversion(page, name);
-  await expect(convertButton(page, name)).toHaveText(becomes === "page" ? "to folder" : "to page", {
-    timeout: 30_000,
-  });
+  await expect(convertButton(page, name)).toHaveText(
+    becomes === "page" ? "en dossier" : "en page",
+    { timeout: 30_000 },
+  );
   await waitForSynchronized(page);
 }
 
@@ -147,14 +148,12 @@ test.describe("turning a page into a folder", () => {
     const dialog = page.getByTestId("convert-confirmation");
     await expect(dialog).toBeVisible({ timeout: 30_000 });
     // Names the loss rather than asking a vague question.
-    await expect(dialog).toContainText(/deleted/i);
+    await expect(dialog).toContainText(/supprimé/i);
     // And says the recovery is bounded, so the owner is not promised a
     // reversibility that expires in silence.
-    await expect(page.getByTestId("convert-retention-notice")).toContainText(
-      /only for as long as/i,
-    );
+    await expect(page.getByTestId("convert-retention-notice")).toContainText(/tant que/i);
     // And says what is *not* lost, which is most of what they have.
-    await expect(dialog).toContainText(/underneath/i);
+    await expect(dialog).toContainText(/sous/i);
   });
 
   test("declining leaves the page exactly as it was", async ({ page }) => {
@@ -367,7 +366,7 @@ test.describe("offline", () => {
 
     await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
     await activateConversion(page, name);
-    await expect(convertButton(page, name)).toHaveText("to folder", { timeout: 30_000 });
+    await expect(convertButton(page, name)).toHaveText("en dossier", { timeout: 30_000 });
 
     await page.unroute("**/v1/**");
     // Reload before waiting: the client reconciles when it starts and when it
@@ -378,6 +377,6 @@ test.describe("offline", () => {
     await openWorkspace(page);
     await waitForSynchronized(page);
     // Still a page after the round trip: the queued conversion was accepted.
-    await expect(convertButton(page, name)).toHaveText("to folder");
+    await expect(convertButton(page, name)).toHaveText("en dossier");
   });
 });

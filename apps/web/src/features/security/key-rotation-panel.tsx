@@ -27,6 +27,8 @@
  */
 
 import type { RotationPolicyViewDto } from "@myownnotion/contracts";
+import { FR_COPY, formatNumber } from "../../ui/copy/index.ts";
+import { AsyncState } from "../../ui/primitives/index.ts";
 
 export interface RunningRotationView {
   readonly operationId: string;
@@ -55,8 +57,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  */
 export function describeKind(kind: RotationPolicyViewDto["kind"]): string {
   return kind === "wrapping-key"
-    ? "The key that protects this installation's keys. Rotating it is quick and does not touch your notes."
-    : "The key that protects your notes. Rotating it rewrites every one of them, which takes a while.";
+    ? FR_COPY.security.rotation.installationKeyDescription
+    : FR_COPY.security.rotation.noteKeyDescription;
 }
 
 /**
@@ -90,39 +92,41 @@ export function describeStatus(
 
   switch (policy.state) {
     case "in-progress":
-      return { tone: "ok", message: "A rotation is running. Your notes stay readable throughout." };
+      return { tone: "ok", message: FR_COPY.security.rotation.status.inProgress };
     case "failed":
       return {
         tone: "urgent",
-        message:
-          "The last rotation did not finish. Nothing was lost and your notes are readable — it needs to be run again.",
+        message: FR_COPY.security.rotation.status.failed,
       };
     case "write-block":
       return {
         tone: "urgent",
         // The distinction this whole panel turns on.
-        message:
-          "This key is overdue, so new changes are paused. You can still read everything; rotating the key restores saving.",
+        message: FR_COPY.security.rotation.status.writeBlock,
       };
     case "emergency":
       return {
         tone: "urgent",
-        message: "This key was marked urgent. Rotate it now — saving stops as soon as it is due.",
+        message: FR_COPY.security.rotation.status.emergency,
       };
     case "overdue-within-grace":
       return {
         tone: "warning",
         message:
           days === null
-            ? "This key is overdue. Saving will pause soon unless it is rotated."
-            : `This key is overdue. Saving pauses in ${days} ${days === 1 ? "day" : "days"} unless it is rotated.`,
+            ? FR_COPY.security.rotation.status.overdueUnknown
+            : `${FR_COPY.security.rotation.status.overdue} ${days} ${
+                days === 1
+                  ? FR_COPY.security.rotation.status.day
+                  : FR_COPY.security.rotation.status.days
+              } si elle n’est pas renouvelée.`,
       };
     case "due":
-      return { tone: "warning", message: "This key is due to be rotated." };
+      return { tone: "warning", message: FR_COPY.security.rotation.status.due };
     case "complete":
-      return { tone: "ok", message: "Rotated. Nothing to do." };
+      return { tone: "ok", message: FR_COPY.security.rotation.status.complete };
     default:
-      return { tone: "ok", message: "Up to date." };
+      return { tone: "ok", message: FR_COPY.security.rotation.status.current };
   }
 }
 
@@ -136,27 +140,51 @@ export function describeStatus(
  */
 export function describeProgress(running: RunningRotationView): string {
   if (running.totalCount <= 0) {
-    return "Starting.";
+    return FR_COPY.security.rotation.progressStarting;
   }
-  const unit = running.kind === "data-key" ? "notes" : "workspaces";
-  return `${running.processedCount.toLocaleString()} of ${running.totalCount.toLocaleString()} ${unit}.`;
+  const unit =
+    running.kind === "data-key"
+      ? FR_COPY.security.rotation.notes
+      : FR_COPY.security.rotation.workspaces;
+  return `${formatNumber(running.processedCount)} ${FR_COPY.security.rotation.progressOf} ${formatNumber(
+    running.totalCount,
+  )} ${unit}.`;
+}
+
+function describeNextAction(action: string): string {
+  switch (action) {
+    case "schedule-rotation":
+      return FR_COPY.security.rotation.actions.schedule;
+    case "start-rotation":
+      return FR_COPY.security.rotation.actions.start;
+    case "start-rotation-urgently":
+      return FR_COPY.security.rotation.actions.urgent;
+    case "resume-rotation":
+      return FR_COPY.security.rotation.actions.resume;
+    case "retry-rotation":
+      return FR_COPY.security.rotation.actions.retry;
+    default:
+      return FR_COPY.security.rotation.actions.none;
+  }
 }
 
 export function KeyRotationPanel(props: KeyRotationPanelProps) {
   const now = new Date();
 
   return (
-    <section className="key-rotation-panel" aria-labelledby="key-rotation-heading">
-      <h2 id="key-rotation-heading">Encryption keys</h2>
+    <section
+      className="key-rotation-panel ui-settings-panel"
+      aria-labelledby="key-rotation-heading"
+    >
+      <h2 id="key-rotation-heading">{FR_COPY.security.rotation.title}</h2>
 
       {!props.writesAllowed && (
-        // Announced rather than merely styled: an owner using a screen reader
-        // must learn that saving has paused at the moment they arrive, not by
-        // discovering it when an edit fails.
-        <p className="key-rotation-panel__blocked" role="status">
-          New changes are paused until a key is rotated. Everything you have written is still here
-          and still readable.
-        </p>
+        <AsyncState
+          compact
+          className="key-rotation-panel__blocked"
+          kind="conflict"
+          title={FR_COPY.security.rotation.writesPaused}
+        />
       )}
 
       <ul className="key-rotation-panel__policies">
@@ -165,7 +193,11 @@ export function KeyRotationPanel(props: KeyRotationPanelProps) {
           const active = props.running.find((operation) => operation.kind === policy.kind);
           return (
             <li key={policy.kind} className={`key-rotation-panel__policy is-${status.tone}`}>
-              <h3>{policy.kind === "wrapping-key" ? "Installation key" : "Note key"}</h3>
+              <h3>
+                {policy.kind === "wrapping-key"
+                  ? FR_COPY.security.rotation.installationKey
+                  : FR_COPY.security.rotation.noteKey}
+              </h3>
               <p className="key-rotation-panel__what">{describeKind(policy.kind)}</p>
               <p className="key-rotation-panel__status">{status.message}</p>
               {active !== undefined && (
@@ -174,9 +206,7 @@ export function KeyRotationPanel(props: KeyRotationPanelProps) {
                 </p>
               )}
               <p className="key-rotation-panel__next">
-                {/* The server's own words for what to do next. Rewriting them
-                    here would let the screen and the command line disagree. */}
-                Next step: {policy.nextAction}
+                {FR_COPY.security.rotation.nextStep} : {describeNextAction(policy.nextAction)}
               </p>
             </li>
           );
@@ -184,9 +214,8 @@ export function KeyRotationPanel(props: KeyRotationPanelProps) {
       </ul>
 
       <p className="key-rotation-panel__where">
-        Rotating a key is done on the machine that hosts this installation, with{" "}
-        <code>security rotation</code>. It is not available from this screen, because it needs the
-        key file that only the host can read.
+        {FR_COPY.security.rotation.hostInstructions} <code>security rotation</code>.{" "}
+        {FR_COPY.security.rotation.hostReason}
       </p>
     </section>
   );

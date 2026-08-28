@@ -38,6 +38,7 @@ import {
 } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 
 /** Shared side vocabulary for document and structured conflict resolvers. */
 export type ConflictSide = "local" | "remote";
@@ -110,7 +111,7 @@ export function ConflictResolution({
       if (ancestorId === undefined || remoteId === undefined) {
         if (!cancelled) {
           setUnavailable(
-            "This conflict does not name both versions, so they cannot be compared here. Your version is still queued and nothing has been lost.",
+            "Ce conflit ne désigne pas ses deux versions : leur comparaison est impossible ici. Votre version reste conservée et rien n’a été perdu.",
           );
         }
         return;
@@ -126,7 +127,7 @@ export function ConflictResolution({
         // Most often the ancestor's snapshot passed its retention window. Said
         // plainly, with what is still true: the work is not gone.
         setUnavailable(
-          "The version both devices started from is no longer retained, so a three-way comparison is not possible. Both versions are still readable in the conflict notice, and neither has been discarded.",
+          "La version commune de départ n’est plus conservée : la comparaison à trois versions est impossible. Les deux versions restent lisibles et aucune n’a été supprimée.",
         );
         return;
       }
@@ -137,7 +138,7 @@ export function ConflictResolution({
       const local = blocksOf((row.payload["document"] as { body?: unknown } | undefined)?.body);
       if (ancestor === null || remote === null || local === null) {
         setUnavailable(
-          "One of these versions was written before the block editor, so it cannot be compared block by block. Both versions are still readable in the conflict notice.",
+          "Une de ces versions précède l’éditeur de blocs et ne peut pas être comparée bloc par bloc. Les deux versions restent lisibles.",
         );
         return;
       }
@@ -147,7 +148,7 @@ export function ConflictResolution({
         // refusal and this screen opening, and the right answer is to say so
         // rather than to present an empty comparison.
         setUnavailable(
-          "These versions no longer conflict — they can be combined without a decision. Close this and save again.",
+          "Ces versions ne sont plus en conflit : elles peuvent être combinées sans décision. Fermez cette fenêtre et relancez l’enregistrement.",
         );
         return;
       }
@@ -233,23 +234,17 @@ export function ConflictResolution({
 
   if (unavailable !== null) {
     return (
-      <section
-        className="panel"
-        aria-label="Resolve this conflict"
-        data-testid="conflict-resolution"
-      >
-        <h2>Resolve this conflict</h2>
-        <p
-          className="status-banner"
-          data-state="conflict"
-          role="status"
-          data-testid="resolution-unavailable"
-        >
-          {unavailable}
-        </p>
-        <button type="button" onClick={onCancel} data-testid="resolution-close">
-          Close
-        </button>
+      <section className="panel" aria-label="Résoudre ce conflit" data-testid="conflict-resolution">
+        <h2>Résoudre ce conflit</h2>
+        <AsyncState
+          compact
+          kind="conflict"
+          description={unavailable}
+          testId="resolution-unavailable"
+        />
+        <Button type="button" onClick={onCancel} data-testid="resolution-close">
+          Fermer
+        </Button>
       </section>
     );
   }
@@ -259,24 +254,24 @@ export function ConflictResolution({
   }
 
   return (
-    <section className="panel" aria-label="Resolve this conflict" data-testid="conflict-resolution">
-      <h2>Resolve this conflict</h2>
+    <section className="panel" aria-label="Résoudre ce conflit" data-testid="conflict-resolution">
+      <h2>Résoudre ce conflit</h2>
       <p className="muted">
-        These parts changed in two places at once. Choose what to keep for each — keeping both is
-        often the right answer. Nothing is saved until you confirm, and both versions stay in this
-        page's history afterwards.
+        Ces parties ont changé à deux endroits en même temps. Choisissez quoi conserver pour chacune
+        ; conserver les deux est souvent pertinent. Rien n’est enregistré avant votre confirmation
+        et les deux versions restent ensuite dans l’historique.
       </p>
 
       <table className="conflict-columns" data-testid="conflict-columns">
         <caption className="muted">
-          Each row is one part of the page that changed in both places.
+          Chaque ligne représente une partie modifiée aux deux endroits.
         </caption>
         <thead>
           <tr>
-            <th scope="col">This device</th>
-            <th scope="col">What you both started from</th>
-            <th scope="col">The other device</th>
-            <th scope="col">Keep</th>
+            <th scope="col">Cet appareil</th>
+            <th scope="col">Version commune de départ</th>
+            <th scope="col">L’autre appareil</th>
+            <th scope="col">Conserver</th>
           </tr>
         </thead>
         <tbody>
@@ -289,27 +284,28 @@ export function ConflictResolution({
                     Without it a stacked row is three unlabelled texts, and
                     choosing between unlabelled versions is worse than not
                     choosing. */}
-                <td data-column="This device">
+                <td data-column="Cet appareil">
                   <pre data-testid={`conflict-local-${id}`}>
-                    {blockAsText(findBlock(prepared.outcome.local, id)) || "(removed here)"}
+                    {blockAsText(findBlock(prepared.outcome.local, id)) || "(supprimé ici)"}
                   </pre>
                 </td>
-                <td data-column="What you both started from">
+                <td data-column="Version commune de départ">
                   <pre data-testid={`conflict-ancestor-${id}`}>
-                    {blockAsText(findBlock(prepared.outcome.ancestor, id)) || "(did not exist yet)"}
+                    {blockAsText(findBlock(prepared.outcome.ancestor, id)) ||
+                      "(n’existait pas encore)"}
                   </pre>
                 </td>
-                <td data-column="The other device">
+                <td data-column="L’autre appareil">
                   <pre data-testid={`conflict-remote-${id}`}>
-                    {blockAsText(findBlock(prepared.outcome.remote, id)) || "(removed there)"}
+                    {blockAsText(findBlock(prepared.outcome.remote, id)) || "(supprimé là-bas)"}
                   </pre>
                 </td>
-                <td data-column="Keep">
+                <td data-column="Conserver">
                   {/* A radio group per row, labelled by the row, so the choice
                       reads as one question with three answers rather than three
                       independent switches. */}
                   <fieldset>
-                    <legend className="muted">Keep for this part</legend>
+                    <legend className="muted">Conserver pour cette partie</legend>
                     {(["local", "remote", "both"] as const).map((option) => (
                       <label key={option} htmlFor={`choice-${id}-${option}`}>
                         <input
@@ -324,10 +320,10 @@ export function ConflictResolution({
                           }}
                         />
                         {option === "local"
-                          ? "This device"
+                          ? "Cet appareil"
                           : option === "remote"
-                            ? "The other device"
-                            : "Both"}
+                            ? "L’autre appareil"
+                            : "Les deux"}
                       </label>
                     ))}
                   </fieldset>
@@ -338,61 +334,60 @@ export function ConflictResolution({
         </tbody>
       </table>
 
-      <h3>The order this will be saved in</h3>
+      <h3>Ordre du contenu enregistré</h3>
       <ol data-testid="conflict-order">
         {(result?.blocks ?? []).map((block, index) => (
           <li key={block.id} data-testid={`conflict-order-${block.id}`}>
-            <span>{blockAsText(block) || "(empty)"}</span>
-            <button
+            <span>{blockAsText(block) || "(vide)"}</span>
+            <Button
+              size="compact"
+              variant="ghost"
               type="button"
               data-testid={`conflict-move-up-${block.id}`}
               disabled={index === 0}
               onClick={() => move(block.id, -1)}
             >
-              Move up
-            </button>
-            <button
+              Monter
+            </Button>
+            <Button
+              size="compact"
+              variant="ghost"
               type="button"
               data-testid={`conflict-move-down-${block.id}`}
               disabled={index === (result?.blocks.length ?? 0) - 1}
               onClick={() => move(block.id, 1)}
             >
-              Move down
-            </button>
+              Descendre
+            </Button>
           </li>
         ))}
       </ol>
 
-      <h3>Review before saving</h3>
+      <h3>Vérification avant enregistrement</h3>
       {/* The whole result, not a summary of the choices. A summary is a claim
           about what the choices produce; this is the thing itself. */}
       <pre data-testid="conflict-review">
-        {result === null ? "" : exportMarkdown(result).trim() || "(this would save an empty page)"}
+        {result === null
+          ? ""
+          : exportMarkdown(result).trim() || "(la page enregistrée serait vide)"}
       </pre>
 
       {failure !== null ? (
-        <p
-          className="status-banner"
-          data-state="error"
-          role="alert"
-          data-testid="resolution-failure"
-        >
-          {failure}
-        </p>
+        <AsyncState compact kind="error" description={failure} testId="resolution-failure" />
       ) : null}
 
       <div className="tree-actions">
-        <button
+        <Button
           type="button"
           data-testid="conflict-commit"
           disabled={saving}
           onClick={() => void commit()}
         >
-          {saving ? "Saving…" : "Save this resolution"}
-        </button>
-        <button type="button" data-testid="conflict-cancel" onClick={onCancel}>
-          Not now
-        </button>
+          {saving ? "Enregistrement…" : "Enregistrer cette résolution"}
+        </Button>
+        <Button type="button" variant="ghost" data-testid="conflict-cancel" onClick={onCancel}>
+          Plus tard
+        </Button>
       </div>
     </section>
   );

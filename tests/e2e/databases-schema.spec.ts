@@ -39,23 +39,23 @@ test("creates a typed database whose entry and relations keep canonical page ide
 
   await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
-  const createDatabase = page.getByRole("form", { name: "Create a database" });
-  await createDatabase.getByLabel("Create a database").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Create database" }).click();
+  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
+  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
+  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeAttached({ timeout: 15_000 });
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
   await waitForSynchronized(page);
 
   const addProperty = async (name: string, type: string, options?: string): Promise<void> => {
-    await page.getByRole("button", { name: "Add property" }).click();
-    const editor = page.getByRole("form", { name: "Property editor" });
+    await page.getByRole("button", { name: "Ajouter une propriété" }).click();
+    const editor = page.getByRole("form", { name: "Éditeur de propriété" });
     await expect(editor).toBeVisible();
-    await editor.getByLabel("Name").fill(name);
+    await editor.getByLabel("Nom").fill(name);
     await editor.getByLabel("Type").selectOption(type);
     if (options !== undefined) {
-      await editor.getByLabel("Options, separated by commas").fill(options);
+      await editor.getByLabel("Options séparées par des virgules").fill(options);
     }
-    await editor.getByRole("button", { name: "Save property" }).click();
+    await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
     await expect(page.locator(".database-schema").getByText(name, { exact: true })).toBeVisible();
     await waitForDatabaseDefinitionSaved(page);
   };
@@ -73,7 +73,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await waitForSynchronized(page);
   await entryButton.click();
 
-  await expect(page.getByText("Database entry · page")).toBeVisible();
+  await expect(page.getByText("Entrée de base de données · page")).toBeVisible();
   const entryPanel = page.locator(".entry-panel");
   await entryPanel
     .getByLabel("Notes", { exact: true })
@@ -87,7 +87,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await entryPanel.getByLabel("Related", { exact: true }).selectOption({ label: targetName });
   await saveEntryProperties(page);
 
-  await page.getByRole("button", { name: "Close entry" }).click();
+  await page.getByRole("button", { name: "Fermer l'entrée" }).click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
   await selectItem(page, targetName);
@@ -121,24 +121,22 @@ test("announces the active entry count before trashing a database", async ({ pag
   await ensureNavigationVisible(page);
   await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
-  const createDatabase = page.getByRole("form", { name: "Create a database" });
-  await createDatabase.getByLabel("Create a database").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Create database" }).click();
+  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
+  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
+  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
   for (const entryName of entryNames) {
     await createDatabaseEntry(page, entryName);
   }
 
-  const confirmation = page.waitForEvent("dialog");
-  const trash = trashItem(page, databaseName);
-
-  const dialog = await confirmation;
-  expect(dialog.message()).toBe(
-    `Move “${databaseName}” and 2 active database entries to the trash?`,
+  await trashItem(page, databaseName, { confirm: false });
+  const confirmation = page.getByTestId("trash-confirmation");
+  await expect(confirmation).toContainText(
+    `Placer « ${databaseName} » et 2 entrées actives de la base de données dans la corbeille ?`,
   );
-  await dialog.dismiss();
-  await trash;
+  await confirmation.getByTestId("cancel-trash").click();
+  await expect(confirmation).toBeHidden();
   await expect(page.getByTestId(`tree-item-${databaseName}`)).toBeVisible();
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 });

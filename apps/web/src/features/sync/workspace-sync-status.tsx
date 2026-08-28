@@ -1,35 +1,37 @@
-/**
- * Synchronization status indicator (T046, US6, FR-043).
- *
- * Shows offline, pending, synchronizing, synchronized, quota-failure, and
- * unresolved-conflict states. Never claims server durability for local-only
- * work: "pending" and "offline" explicitly say changes are local.
- */
+/** Compact workspace-level synchronization summary retained in the sidebar. */
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { ConnectionState } from "../features/sync/connection-state.tsx";
-import { useChangeStream } from "../features/sync/use-change-stream.ts";
-import type { LocalContentService, LocalContentSnapshot } from "../services/local-content.ts";
-import { storageDiagnostics } from "../services/storage-manager.ts";
-import { FR_COPY } from "../ui/copy/index.ts";
+import type { LocalContentService, LocalContentSnapshot } from "../../services/local-content.ts";
+import { storageDiagnostics } from "../../services/storage-manager.ts";
+import { FR_COPY } from "../../ui/copy/index.ts";
+import { Status, type StatusKind } from "../../ui/primitives/status.tsx";
+import { ConnectionState } from "./connection-state.tsx";
+import { useChangeStream } from "./use-change-stream.ts";
 
-const LABELS: Record<string, string> = {
+const LABELS: Readonly<Record<LocalContentSnapshot["syncState"], string>> = {
   offline: FR_COPY.synchronization.offline,
   pending: FR_COPY.synchronization.pending,
   syncing: FR_COPY.synchronization.syncing,
   synced: FR_COPY.synchronization.synced,
   conflict: FR_COPY.synchronization.attention,
-  // Local persistence failed: the change is not saved anywhere. This must
-  // never read like "offline", where the change IS durable locally.
   "quota-failure": FR_COPY.synchronization.localSaveFailed,
 };
 
-const COMPACT_LABELS: Record<string, string> = {
-  offline: "Enregistré sur cet appareil",
-  pending: "Enregistré sur cet appareil",
-  syncing: FR_COPY.synchronization.syncing,
-  synced: FR_COPY.synchronization.synced,
-  conflict: "Intervention nécessaire",
-  "quota-failure": "Non enregistré",
+const COMPACT_LABELS: Readonly<Record<LocalContentSnapshot["syncState"], string>> = {
+  offline: FR_COPY.synchronization.compact.localSaved,
+  pending: FR_COPY.synchronization.compact.localSaved,
+  syncing: FR_COPY.synchronization.compact.syncing,
+  synced: FR_COPY.synchronization.compact.synced,
+  conflict: FR_COPY.synchronization.compact.attention,
+  "quota-failure": FR_COPY.synchronization.compact.notSaved,
+};
+
+const STATUS_KINDS: Readonly<Record<LocalContentSnapshot["syncState"], StatusKind>> = {
+  offline: "offline",
+  pending: "pending",
+  syncing: "syncing",
+  synced: "success",
+  conflict: "conflict",
+  "quota-failure": "error",
 };
 
 export function syncStatusDetails(snapshot: LocalContentSnapshot): string {
@@ -74,7 +76,7 @@ export function syncStatusDetails(snapshot: LocalContentSnapshot): string {
   return details.length === 0 ? "" : ` (${details.join(" · ")})`;
 }
 
-export function SyncStatus({ service }: { readonly service: LocalContentService }) {
+export function WorkspaceSyncStatus({ service }: { readonly service: LocalContentService }) {
   const snapshot = useSyncExternalStore(
     service.subscribe,
     service.getSnapshot,
@@ -90,32 +92,34 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
     () => service.realtimePageSync.state,
   );
   const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
-  // Opened here because the retained workspace owns the synchronization
-  // lifetime. The workspace may be visually hidden while settings are open,
-  // but it deliberately stays mounted so remote changes keep arriving and the
-  // owner returns to current content rather than a frozen copy.
   const stream = useChangeStream(service);
 
   useEffect(() => {
     void storageDiagnostics().then((diagnostics) => {
       if (diagnostics.usageRatio !== null && diagnostics.usageRatio > 0.85) {
         setQuotaWarning(
-          `Local storage is ${Math.round(diagnostics.usageRatio * 100)}% full — saving may fail soon`,
+          FR_COPY.synchronization.quotaWarning(Math.round(diagnostics.usageRatio * 100)),
         );
       }
     });
   }, []);
 
   const detail = syncStatusDetails(snapshot);
-  const detailedLabel = `${LABELS[snapshot.syncState] ?? snapshot.syncState}${detail}`;
-  const compactLabel = `${COMPACT_LABELS[snapshot.syncState] ?? snapshot.syncState}${detail}`;
+  const detailedLabel = `${LABELS[snapshot.syncState]}${detail}`;
+  const compactLabel = `${COMPACT_LABELS[snapshot.syncState]}${detail}`;
   const liveStatus = (() => {
     if (realtimeState === "ready") return { state: "live" as const, refusal: null };
     if (realtimeState === "revoked") {
-      return { state: "revoked" as const, refusal: "Sign in again or authorize this device." };
+      return {
+        state: "revoked" as const,
+        refusal: FR_COPY.synchronization.realtime.revokedRefusal,
+      };
     }
     if (realtimeState === "needs-update") {
-      return { state: "needs-update" as const, refusal: "Reload after updating the app." };
+      return {
+        state: "needs-update" as const,
+        refusal: FR_COPY.synchronization.realtime.updateRefusal,
+      };
     }
     if (stream.state === "revoked" || stream.state === "needs-update") return stream;
     if (realtimeState === "connecting" || realtimeState === "authenticating") {
@@ -125,47 +129,46 @@ export function SyncStatus({ service }: { readonly service: LocalContentService 
   })();
 
   return (
-    <section className="workspace-sync-status" aria-label="Synchronisation de l’espace de travail">
-      <p
-        className="status-banner"
-        data-state={snapshot.syncState}
+    <section className="workspace-sync-status" aria-label={FR_COPY.synchronization.workspaceLabel}>
+      <Status
+        kind={STATUS_KINDS[snapshot.syncState]}
+        state={snapshot.syncState}
         data-testid="sync-status"
-        role="status"
-        aria-live="polite"
-        title={detailedLabel}
-      >
-        <span className="workspace-status__full">{detailedLabel}</span>
-        <span className="workspace-status__compact" aria-hidden="true">
-          {compactLabel}
-        </span>
-      </p>
+        title={
+          <>
+            <span className="workspace-status__full">{detailedLabel}</span>
+            <span className="workspace-status__compact" aria-hidden="true">
+              {compactLabel}
+            </span>
+          </>
+        }
+      />
       <ConnectionState status={liveStatus} />
       {snapshot.storagePersisted === false ? (
-        <p
-          className="status-banner"
-          data-state="storage-advisory"
-          role="status"
+        <Status
+          kind="info"
+          state="storage-advisory"
           data-testid="storage-persistence-advisory"
-          title={FR_COPY.synchronization.storageNotPersistent}
-        >
-          <span className="workspace-status__full">
-            {FR_COPY.synchronization.storageNotPersistent}
-          </span>
-          <span className="workspace-status__compact" aria-hidden="true">
-            Stockage local non garanti
-          </span>
-        </p>
+          title={
+            <>
+              <span className="workspace-status__full">
+                {FR_COPY.synchronization.storageNotPersistent}
+              </span>
+              <span className="workspace-status__compact" aria-hidden="true">
+                {FR_COPY.synchronization.compact.storageNotPersistent}
+              </span>
+            </>
+          }
+        />
       ) : null}
-      {quotaWarning !== null ? (
-        <p
-          className="status-banner"
-          data-state="quota-warning"
-          role="alert"
+      {quotaWarning === null ? null : (
+        <Status
+          kind="error"
+          state="quota-warning"
           data-testid="quota-warning"
-        >
-          {quotaWarning}
-        </p>
-      ) : null}
+          title={quotaWarning}
+        />
+      )}
     </section>
   );
 }

@@ -101,7 +101,9 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
   await openWorkspace(page);
 
   await openSettingsSection(page, "backups");
-  await expect(page.getByTestId("backup-last-verified")).toContainText("Last verified backup:");
+  await expect(page.getByTestId("backup-last-verified")).toContainText(
+    "Dernière sauvegarde vérifiée",
+  );
   await expect(page.getByTestId("backup-stale")).toHaveCount(0);
 
   await makeLastVerificationStale();
@@ -117,8 +119,10 @@ test("a verified backup is visible, and becomes a plain warning after 26 hours",
 
   const warning = page.getByTestId("backup-stale");
   await expect(warning).toHaveAttribute("role", "alert");
-  await expect(warning).toContainText("No verified backup in more than a day");
-  await expect(warning).toContainText("not currently protected against losing this machine");
+  await expect(warning).toContainText("Aucune sauvegarde vérifiée depuis plus d’une journée");
+  await expect(warning).toContainText(
+    "n’est actuellement pas protégé contre la perte de cette machine",
+  );
 });
 
 test("the owner can rehearse the latest backup without touching the live workspace", async ({
@@ -130,8 +134,8 @@ test("the owner can rehearse the latest backup without touching the live workspa
 
   await page.getByTestId("run-rehearsal").click();
   await expect(page.getByTestId("rehearsal-result")).toContainText(
-    "restored successfully in isolation",
+    "restaurée avec succès dans un environnement isolé",
   );
-  await expect(page.getByTestId("backup-last-rehearsal")).toContainText("succeeded");
+  await expect(page.getByTestId("backup-last-rehearsal")).toContainText("réussi");
   await expect(page.getByTestId("rehearsal-due")).toHaveCount(0);
 });

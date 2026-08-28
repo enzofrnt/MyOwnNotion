@@ -6,8 +6,18 @@ import {
   type Uuid,
 } from "@myownnotion/domain";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import type { WorkspaceSearchService } from "../../services/search.ts";
+import {
+  AsyncState,
+  Button,
+  DialogContent,
+  DialogDismiss,
+  DialogHeading,
+  DialogRoot,
+  Field,
+  FR_COPY,
+  formatNumber,
+} from "../../ui/index.ts";
 import { ALL_SEARCH_KINDS, type SearchBranchOption, SearchFilters } from "./search-filters.tsx";
 import { SearchResults } from "./search-results.tsx";
 
@@ -15,7 +25,7 @@ type SearchPhase = "idle" | "loading" | "settled" | "error";
 export type SearchViewState = "empty-query" | "loading" | "results" | "no-results" | "error";
 type SearchProblem = "query-too-long" | "unavailable" | null;
 
-const QUERY_TOO_LONG_MESSAGE = "Search queries are limited to 512 Unicode characters.";
+const QUERY_TOO_LONG_MESSAGE = FR_COPY.search.queryTooLong;
 
 export function searchQueryProblem(query: string): string | null {
   return countUnicodeCharacters(query) > MAX_SEARCH_QUERY_LENGTH ? QUERY_TOO_LONG_MESSAGE : null;
@@ -93,9 +103,14 @@ export function searchAnnouncement(
     return "";
   }
   const count = page.results.length;
-  const coverage = page.coverage === "complete" ? "the complete workspace" : "data on this device";
+  const coverage =
+    page.coverage === "complete" ? FR_COPY.search.completeCoverage : FR_COPY.search.localCoverage;
   const selected = page.results.find(({ itemId }) => itemId === selectedItemId);
-  return `${page.state === "cursor-stale" ? "Content changed; results refreshed. " : ""}${count} ${count === 1 ? "result" : "results"} in ${coverage}.${selected === undefined ? "" : ` Selected ${selected.title}.`}`;
+  const refresh = page.state === "cursor-stale" ? `${FR_COPY.search.contentRefreshed} ` : "";
+  const resultLabel = count === 1 ? FR_COPY.search.resultSingular : FR_COPY.search.resultPlural;
+  const selection =
+    selected === undefined ? "" : ` ${FR_COPY.search.selected} : ${selected.title}.`;
+  return `${refresh}${formatNumber(count)} ${resultLabel} dans ${coverage}.${selection}`;
 }
 
 export function SearchDialog({
@@ -117,37 +132,12 @@ export function SearchDialog({
   const [selectedItemId, setSelectedItemId] = useState<Uuid | null>(null);
   const [problem, setProblem] = useState<SearchProblem>(null);
   const input = useRef<HTMLInputElement | null>(null);
-  const dialog = useRef<HTMLElement | null>(null);
+  const dialog = useRef<HTMLDivElement | null>(null);
   const requestSerial = useRef(0);
-
-  useEffect(() => {
-    const appRoot = document.getElementById("root");
-    if (appRoot === null) return;
-    const wasInert = appRoot.inert;
-    const previousAriaHidden = appRoot.getAttribute("aria-hidden");
-    appRoot.inert = true;
-    appRoot.setAttribute("aria-hidden", "true");
-    return () => {
-      appRoot.inert = wasInert;
-      if (previousAriaHidden === null) appRoot.removeAttribute("aria-hidden");
-      else appRoot.setAttribute("aria-hidden", previousAriaHidden);
-    };
-  }, []);
 
   useEffect(() => {
     input.current?.focus();
   }, []);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
 
   const runSearch = async (
     nextQuery: string,
@@ -231,35 +221,31 @@ export function SearchDialog({
     onClose();
   };
 
-  return createPortal(
-    <div className="search-backdrop" role="presentation">
-      <section
-        ref={dialog}
-        className="search-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="workspace-search-title"
-      >
+  return (
+    <DialogRoot
+      open
+      setOpen={(openState) => {
+        if (!openState) onClose();
+      }}
+    >
+      <DialogContent ref={dialog} className="search-dialog" size="large" initialFocus={input}>
         <header className="search-dialog__header">
-          <h2 id="workspace-search-title">Search the workspace</h2>
-          <button type="button" aria-label="Close search" onClick={onClose}>
-            Close
-          </button>
+          <DialogHeading id="workspace-search-title">{FR_COPY.search.title}</DialogHeading>
+          <DialogDismiss aria-label={FR_COPY.search.close} />
         </header>
         <form
-          aria-label="Workspace search"
+          aria-label={FR_COPY.search.dialogLabel}
           className="search-form"
           onSubmit={(event) => void submit(event)}
         >
-          <label htmlFor="workspace-search-query">Query</label>
-          <input
+          <Field
             ref={input}
             id="workspace-search-query"
+            label={FR_COPY.search.queryLabel}
             name="query"
             type="text"
             defaultValue=""
-            aria-describedby={problem === "query-too-long" ? "workspace-search-problem" : undefined}
-            aria-invalid={problem === "query-too-long"}
+            error={problem === "query-too-long" ? QUERY_TOO_LONG_MESSAGE : undefined}
             autoComplete="off"
             onChange={(event) => {
               setQuery(event.target.value);
@@ -283,7 +269,13 @@ export function SearchDialog({
               firstResult?.focus();
             }}
           />
-          <button type="submit">Search</button>
+          <Button
+            type="submit"
+            variant="primary"
+            busy={phase === "loading" && results.length === 0}
+          >
+            {FR_COPY.search.action}
+          </Button>
         </form>
 
         <SearchFilters
@@ -325,52 +317,36 @@ export function SearchDialog({
         </p>
         <div className="search-dialog__content" aria-busy={view === "loading"}>
           {view === "empty-query" ? (
-            <p className="muted">Search page titles, page content, folders and files.</p>
+            <AsyncState kind="info" compact description={FR_COPY.search.queryHint} />
           ) : null}
-          {view === "loading" ? <p role="status">Searching the complete workspace…</p> : null}
+          {view === "loading" ? <AsyncState kind="loading" title={FR_COPY.search.loading} /> : null}
           {page?.state === "server-loading" && view === "results" ? (
-            <p className="muted" role="status">
-              Local results shown. Searching the complete workspace…
-            </p>
+            <AsyncState kind="loading" compact title={FR_COPY.search.loadingComplete} />
           ) : null}
           {page?.state === "offline" ? (
-            <p className="status-banner" data-state="offline" role="status">
-              Search is limited to data available on this device while offline.
-            </p>
+            <AsyncState kind="offline" compact description={FR_COPY.search.offline} />
           ) : null}
           {page?.state === "rebuilding" ? (
-            <p className="status-banner" data-state="pending" role="status">
-              The complete index is rebuilding. Reliable local results remain available.
-            </p>
+            <AsyncState kind="pending" compact description={FR_COPY.search.rebuilding} />
           ) : null}
           {page?.state === "degraded" ? (
-            <p className="status-banner" data-state="error" role="status">
-              Complete search is temporarily unavailable. Reliable local results remain visible.
-            </p>
+            <AsyncState kind="error" compact description={FR_COPY.search.degraded} />
           ) : null}
           {page?.state === "cursor-stale" ? (
-            <p className="status-banner" data-state="pending" role="status">
-              Content changed while loading more. Results were refreshed from the beginning.
-            </p>
+            <AsyncState kind="pending" compact description={FR_COPY.search.refreshed} />
           ) : null}
           {view === "no-results" ? (
-            <p className="empty-state">
-              {page?.coverage === "local-only"
-                ? "No result in the data available on this device."
-                : "No result in the complete workspace."}
-            </p>
+            <AsyncState
+              kind="empty"
+              description={
+                page?.coverage === "local-only"
+                  ? FR_COPY.search.noLocalResult
+                  : FR_COPY.search.noResult
+              }
+            />
           ) : null}
-          {view === "error" ? (
-            <p
-              id={problem === "query-too-long" ? "workspace-search-problem" : undefined}
-              className="status-banner"
-              data-state="error"
-              role="alert"
-            >
-              {problem === "query-too-long"
-                ? QUERY_TOO_LONG_MESSAGE
-                : "Complete search is temporarily unavailable. Your query is still editable."}
-            </p>
+          {view === "error" && problem !== "query-too-long" ? (
+            <AsyncState kind="error" description={FR_COPY.search.unavailable} />
           ) : null}
           {view === "results" ? (
             <SearchResults
@@ -392,8 +368,7 @@ export function SearchDialog({
             />
           ) : null}
         </div>
-      </section>
-    </div>,
-    document.body,
+      </DialogContent>
+    </DialogRoot>
   );
 }

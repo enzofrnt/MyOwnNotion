@@ -196,40 +196,6 @@ select {
   font-size: 0.75rem;
 }
 
-.status-banner {
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-}
-
-.status-banner[data-state="error"] {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.status-banner[data-state="offline"] {
-  border-color: var(--warn);
-  color: var(--warn);
-}
-
-.status-banner[data-state="synced"] {
-  border-color: var(--ok);
-  color: var(--ok);
-}
-
-.status-banner[data-state="pending"],
-.status-banner[data-state="syncing"] {
-  border-color: var(--warn);
-  color: var(--warn);
-}
-
-.status-banner[data-state="conflict"] {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
 .ambiguity-actions {
   display: flex;
   min-width: 0;
@@ -238,15 +204,6 @@ select {
   padding: 0;
   margin: 0;
   border: 0;
-}
-
-.empty-state,
-.loading-state {
-  color: var(--muted);
-  padding: 1.5rem;
-  text-align: center;
-  border: 1px dashed var(--border);
-  border-radius: 8px;
 }
 
 .panel {
@@ -423,9 +380,6 @@ select {
 }
 
 .database-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 3;
   display: grid;
   gap: 0.6rem;
   margin-top: 1rem;
@@ -545,6 +499,8 @@ select {
 }
 
 .database-grid [data-grid-mode="editing"] {
+  position: relative;
+  z-index: 3;
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
@@ -606,9 +562,16 @@ select {
 }
 
 .database-cell-editor {
+  position: relative;
+  z-index: 1;
   display: grid;
   min-width: min(22rem, 70vw);
+  padding: 0.45rem;
   gap: 0.45rem;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.12);
 }
 
 .database-cell-editor .database-field {
@@ -920,7 +883,9 @@ select {
 }
 
 .database-calendar__day {
+  min-width: 0;
   min-height: 8rem;
+  overflow: hidden;
   padding: 0.45rem;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -931,6 +896,9 @@ select {
 }
 
 .database-calendar__card {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 0.45rem;
 }
 
@@ -939,9 +907,15 @@ select {
   width: 100%;
 }
 
-.database-calendar__move-actions,
 .database-card__move-actions {
   display: flex;
+  gap: 0.25rem;
+}
+
+.database-calendar__move-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 0.25rem;
 }
 
@@ -950,6 +924,16 @@ select {
   min-width: 0;
   padding: 0.25rem;
   font-size: 0.75rem;
+}
+
+.database-calendar__move-actions button {
+  width: 100%;
+  max-width: 100%;
+}
+
+.database-calendar__move-actions .ui-button__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .database-calendar__unscheduled {
@@ -1398,6 +1382,28 @@ textarea {
   font-size: 0.85rem;
   opacity: 0.8;
   overflow-wrap: anywhere;
+}
+
+/* Security controls carry deliberately explicit French labels. Linux Firefox
+   renders some of them wider than macOS, so every button must be allowed to
+   wrap inside its card; otherwise an off-screen recovery action widens the
+   whole settings document even while the visible content looks correct. */
+.security-settings .ui-button {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.security-settings .ui-button__label {
+  overflow-wrap: anywhere;
+}
+
+/* React does not insert text nodes between adjacent Button components. Keep a
+   real wrapping boundary around the three actions in each device row. */
+.device-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
 }
 
 /* Every control stays reachable by thumb: these screens are used under

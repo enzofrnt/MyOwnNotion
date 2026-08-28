@@ -20,15 +20,15 @@ import {
 
 async function openSearch(page: Page) {
   await page.keyboard.press("ControlOrMeta+k");
-  const dialog = page.getByRole("dialog", { name: "Search the workspace" });
+  const dialog = page.getByRole("dialog", { name: "Rechercher dans l’espace de travail" });
   await expect(dialog).toBeVisible();
   return dialog;
 }
 
 async function searchFor(page: Page, query: string) {
   const dialog = await openSearch(page);
-  await dialog.getByLabel("Query").fill(query);
-  await dialog.getByRole("button", { name: "Search", exact: true }).click();
+  await dialog.getByLabel("Recherche", { exact: true }).fill(query);
+  await dialog.getByRole("button", { name: "Rechercher", exact: true }).click();
   return dialog;
 }
 
@@ -134,17 +134,19 @@ test.describe("offline workspace search (US2)", () => {
 
       let dialog = await searchFor(page, pendingBodyPhrase);
       await expect(
-        dialog.getByText("Search is limited to data available on this device while offline."),
+        dialog.getByText(
+          "Hors ligne — la recherche est limitée aux données disponibles sur cet appareil.",
+        ),
       ).toBeVisible();
       const pendingResult = dialog.getByRole("listitem").filter({ hasText: localPage });
       await expect(pendingResult).toHaveCount(1);
       await expect(pendingResult).toContainText(pendingBodyPhrase);
-      await dialog.getByRole("button", { name: "Close search" }).click();
+      await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
       dialog = await searchFor(page, offloadedPage);
       const releasedResult = dialog.getByRole("listitem").filter({ hasText: offloadedPage });
       await expect(releasedResult).toHaveCount(1);
-      await expect(releasedResult).toContainText("Content released from this device");
+      await expect(releasedResult).toContainText("Contenu retiré de cet appareil");
       await releasedResult.getByRole("button").click();
       await expect(page.getByTestId("editor-unavailable")).toContainText(
         "released from this device",
@@ -152,12 +154,14 @@ test.describe("offline workspace search (US2)", () => {
 
       dialog = await searchFor(page, releasedBodyPhrase);
       await expect(
-        dialog.getByText("No result in the data available on this device."),
+        dialog.getByText("Aucun résultat dans les données disponibles sur cet appareil."),
       ).toBeVisible();
       await expect(
-        dialog.getByText("Search is limited to data available on this device while offline."),
+        dialog.getByText(
+          "Hors ligne — la recherche est limitée aux données disponibles sur cet appareil.",
+        ),
       ).toBeVisible();
-      await dialog.getByRole("button", { name: "Close search" }).click();
+      await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
     } finally {
       await context.setOffline(false);
     }
@@ -165,7 +169,9 @@ test.describe("offline workspace search (US2)", () => {
     await waitForSynchronized(page);
     const dialog = await searchFor(page, pendingBodyPhrase);
     await expect(
-      dialog.getByText("Search is limited to data available on this device while offline."),
+      dialog.getByText(
+        "Hors ligne — la recherche est limitée aux données disponibles sur cet appareil.",
+      ),
     ).toHaveCount(0);
     await expect(dialog.getByRole("listitem").filter({ hasText: localPage })).toHaveCount(1);
   });

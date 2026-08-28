@@ -5,7 +5,7 @@ import type {
 } from "@myownnotion/client-core";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { LocalContentService } from "../../services/local-content.ts";
-import { Button } from "../../ui/primitives/index.ts";
+import { AsyncState, Button } from "../../ui/primitives/index.ts";
 
 const REASON_COPY: Record<LegacySyncRecoveryReasonCode, string> = {
   "legacy-recovery.payload-unreadable":
@@ -125,9 +125,7 @@ export function LegacyRecoveryList({ service }: { readonly service: LocalContent
         fusion exacte ne peut pas être prouvée.
       </p>
       {problem === null ? null : (
-        <p className="status-banner" data-state="attention" role="alert">
-          {problem}
-        </p>
+        <AsyncState compact kind="conflict" state="attention" description={problem} />
       )}
       {recoveries.length === 0 ? (
         <p className="muted" data-testid="legacy-recovery-empty">

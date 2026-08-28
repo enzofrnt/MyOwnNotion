@@ -375,26 +375,26 @@ deux thèmes et deux largeurs.
 
 ### Tests for User Story 6
 
-- [ ] T172 [P] [US6] Écrire la matrice de rendu des surfaces et états communs, avec workspace limité au contenu et destinations de configuration séparées, dans `apps/web/tests/v1-surface-consistency.spec.tsx`
-- [ ] T173 [P] [US6] Écrire l'audit de copie française et d'absence de diagnostics bruts ou panneaux d'exploitation sous le document courant dans `apps/web/tests/french-copy.spec.ts`
-- [ ] T174 [P] [US6] Écrire les références visuelles multi-surfaces clair/sombre/mobile dans `tests/e2e/v1-surface-visuals.spec.ts`
+- [X] T172 [P] [US6] Écrire la matrice de rendu des surfaces et états communs, avec workspace limité au contenu et destinations de configuration séparées, dans `apps/web/tests/v1-surface-consistency.spec.tsx`
+- [X] T173 [P] [US6] Écrire l'audit de copie française et d'absence de diagnostics bruts ou panneaux d'exploitation sous le document courant dans `apps/web/tests/french-copy.spec.ts`
+- [X] T174 [P] [US6] Écrire les références visuelles multi-surfaces clair/sombre/mobile dans `tests/e2e/v1-surface-visuals.spec.ts`
 
 ### Implementation for User Story 6
 
-- [ ] T175 [P] [US6] Migrer installation et connexion vers primitives/copie communes dans `apps/web/src/features/auth/bootstrap-page.tsx` et `apps/web/src/features/auth/login-page.tsx`
-- [ ] T176 [P] [US6] Migrer recherche vers primitives/copie communes dans `apps/web/src/features/search/search-dialog.tsx`, `search-results.tsx` et `search-filters.tsx`
-- [ ] T177 [P] [US6] Migrer fichiers vers primitives/copie communes dans `apps/web/src/features/files/file-preview.tsx`, `storage-panel.tsx`, `transfer-state.tsx` et `apps/web/src/features/attachments/attachment-panel.tsx`
-- [ ] T178 [P] [US6] Migrer les vues de bases sans ajouter de capacité dans `apps/web/src/features/databases/database-page.tsx`, `database-toolbar.tsx`, `table-view.tsx`, `board-view.tsx`, `calendar-view.tsx`, `gallery-view.tsx` et `list-view.tsx`
-- [ ] T179 [P] [US6] Migrer sauvegarde et historique dans `apps/web/src/features/backup/backup-panel.tsx`, `restore-rehearsal.tsx` et `apps/web/src/features/history/revision-restore.tsx`
-- [ ] T180 [P] [US6] Migrer sécurité dans `apps/web/src/features/security/security-settings.tsx`, `device-panel.tsx`, `session-panel.tsx`, `key-rotation-panel.tsx` et `recovery-kit-panel.tsx`
-- [ ] T181 [US6] Unifier états loading/empty/offline/error/success/conflict dans `apps/web/src/ui/primitives/async-state.tsx` et toutes les surfaces migrées
+- [X] T175 [P] [US6] Migrer installation et connexion vers primitives/copie communes dans `apps/web/src/features/auth/bootstrap-page.tsx` et `apps/web/src/features/auth/login-page.tsx`
+- [X] T176 [P] [US6] Migrer recherche vers primitives/copie communes dans `apps/web/src/features/search/search-dialog.tsx`, `search-results.tsx` et `search-filters.tsx`
+- [X] T177 [P] [US6] Migrer fichiers vers primitives/copie communes dans `apps/web/src/features/files/file-preview.tsx`, `storage-panel.tsx`, `transfer-state.tsx` et `apps/web/src/features/attachments/attachment-panel.tsx`
+- [X] T178 [P] [US6] Migrer les vues de bases sans ajouter de capacité dans `apps/web/src/features/databases/database-page.tsx`, `database-toolbar.tsx`, `table-view.tsx`, `board-view.tsx`, `calendar-view.tsx`, `gallery-view.tsx` et `list-view.tsx`
+- [X] T179 [P] [US6] Migrer sauvegarde et historique dans `apps/web/src/features/backup/backup-panel.tsx`, `restore-rehearsal.tsx` et `apps/web/src/features/history/revision-restore.tsx`
+- [X] T180 [P] [US6] Migrer sécurité dans `apps/web/src/features/security/security-settings.tsx`, `device-panel.tsx`, `session-panel.tsx`, `key-rotation-panel.tsx` et `recovery-kit-panel.tsx`
+- [X] T181 [US6] Unifier états loading/empty/offline/error/success/conflict dans `apps/web/src/ui/primitives/async-state.tsx` et toutes les surfaces migrées
 - [X] T182 [US6] Créer les destinations dédiées de réglages et gestion, puis y déplacer stockage, sécurité, appareils, sauvegardes, corbeille administrative, IDs, révisions techniques, outbox et diagnostics hors du document courant dans `apps/web/src/features/settings/settings-shell.tsx`, `apps/web/src/features/diagnostics/diagnostics-panel.tsx` et `apps/web/src/features/hierarchy/hierarchy-explorer.tsx`
-- [ ] T183 [US6] Remplacer les confirmations natives par `ConfirmDialog` dans `apps/web/src/ui/primitives/confirm-dialog.tsx`, `apps/web/src/features/navigation/navigation-item-menu.tsx`, `apps/web/src/features/files/delete-file.tsx` et `apps/web/src/features/security/device-panel.tsx`
-- [ ] T184 [US6] Appliquer thème et catalogue français aux composants BlockNote/Ariakit dans `apps/web/src/features/editor/page-editor.tsx` et `apps/web/src/ui/copy/fr.ts`
-- [ ] T185 [US6] Supprimer variantes CSS et ancien composant sync sans consommateur dans `apps/web/src/styles.css` et `apps/web/src/components/sync-status.tsx`
-- [ ] T186 [US6] Approuver les références visuelles contrôlées dans `tests/e2e/v1-surface-visuals.spec.ts-snapshots/`
-- [ ] T187 [US6] Enregistrer le journey visuel multi-surfaces dans `ci/test-impact.json`
-- [ ] T188 [US6] Consigner la matrice finale des surfaces et états dans `specs/017-v1-notion-like-workspace/validation.md`
+- [X] T183 [US6] Remplacer les confirmations natives par `ConfirmDialog` dans `apps/web/src/ui/primitives/confirm-dialog.tsx`, `apps/web/src/features/navigation/navigation-item-menu.tsx`, `apps/web/src/features/files/delete-file.tsx` et `apps/web/src/features/security/device-panel.tsx`
+- [X] T184 [US6] Appliquer thème et catalogue français aux composants BlockNote/Ariakit dans `apps/web/src/features/editor/page-editor.tsx` et `apps/web/src/ui/copy/fr.ts`
+- [X] T185 [US6] Supprimer variantes CSS et ancien composant sync sans consommateur dans `apps/web/src/styles.css` et `apps/web/src/components/sync-status.tsx`
+- [X] T186 [US6] Approuver les références visuelles contrôlées dans `tests/e2e/v1-surface-visuals.spec.ts-snapshots/`
+- [X] T187 [US6] Enregistrer le journey visuel multi-surfaces dans `ci/test-impact.json`
+- [X] T188 [US6] Consigner la matrice finale des surfaces et états dans `specs/017-v1-notion-like-workspace/validation.md`
 
 **Checkpoint**: Toutes les surfaces V1 utilisent le même système visuel et la
 même langue ; la feature est fonctionnellement complète.

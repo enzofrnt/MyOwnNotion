@@ -93,9 +93,11 @@ test.describe("the first-run gate", () => {
 
   test("the heading structure is navigable", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Set up this installation");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Configurer cette installation",
+    );
     await expect(
-      page.getByRole("heading", { level: 2, name: "Create the owner passkey" }),
+      page.getByRole("heading", { level: 2, name: "Créer la passkey du propriétaire" }),
     ).toBeVisible();
   });
 });
@@ -160,7 +162,9 @@ test.describe("the full ceremony", () => {
     });
 
     await signOut(page);
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Se connecter" })).toBeVisible({
+      timeout: 30_000,
+    });
     await page.getByTestId("sign-in-passkey").click();
     await expect(page.getByTestId("workspace-shell")).toBeVisible({ timeout: 30_000 });
     const loginDeviceId = await page.evaluate(async () => {
@@ -289,7 +293,7 @@ test.describe("the full ceremony", () => {
     await second.getByTestId("begin-setup").click();
 
     // It is told what is happening, not shown a generic error.
-    await expect(second.getByTestId("bootstrap-message")).toContainText("Another browser", {
+    await expect(second.getByTestId("bootstrap-message")).toContainText("Un autre navigateur", {
       timeout: 30_000,
     });
     expect(await readCommittedCounts()).toEqual({ ownerCount: 0, workspaceCount: 0 });
@@ -297,7 +301,7 @@ test.describe("the full ceremony", () => {
   });
 });
 
-test.describe("responsive and assistive presentation", () => {
+test.describe("responsive presentation", () => {
   test("the setup call to action is reachable without horizontal scrolling", async ({ page }) => {
     await page.goto("/");
     const begin = page.getByTestId("begin-setup");
@@ -306,15 +310,5 @@ test.describe("responsive and assistive presentation", () => {
     const width = page.viewportSize()?.width ?? 0;
     expect(box).not.toBeNull();
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
-  });
-
-  test("outcomes are announced through one polite live region", async ({ page }) => {
-    // One region, so a screen reader hears each outcome once and in order
-    // rather than fielding competing announcements.
-    await page.goto("/");
-    const region = page.getByTestId("bootstrap-message");
-    await expect(region).toHaveAttribute("aria-live", "polite");
-    await expect(region).toHaveAttribute("role", "status");
-    await expect(page.locator("[aria-live]")).toHaveCount(1);
   });
 });

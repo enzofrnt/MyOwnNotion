@@ -1,7 +1,7 @@
-import { type ButtonHTMLAttributes, type MouseEvent, type PointerEvent, useRef } from "react";
+import { type MouseEvent, type PointerEvent, useRef } from "react";
+import { Button, type ButtonProps } from "./primitives/button.tsx";
 
-interface StableActionButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick" | "onPointerDown"> {
+interface StableActionButtonProps extends Omit<ButtonProps, "onClick" | "onPointerDown"> {
   readonly onActivate: (trigger: HTMLButtonElement) => void;
 }
 
@@ -37,6 +37,6 @@ export function StableActionButton({ onActivate, ...buttonProps }: StableActionB
   };
 
   return (
-    <button {...buttonProps} onPointerDown={activateFromPointer} onClick={activateFromClick} />
+    <Button {...buttonProps} onPointerDown={activateFromPointer} onClick={activateFromClick} />
   );
 }

@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
 import type { EditorDurableSession } from "./editor-sync-status.tsx";
 
@@ -31,21 +32,24 @@ export function LocalCommitRecovery({ session }: { readonly session: EditorDurab
   };
 
   return (
-    <section className="status-banner" data-state="error" data-testid="recovery-buffer">
-      <p>
-        Vos modifications restent affichées mais ne sont pas encore enregistrées sur cet appareil.
-        Réessayez pour les rendre durables ; rien n’a été perdu.
-      </p>
-      <Button
-        type="button"
-        variant="secondary"
-        size="compact"
-        data-testid="retry-blocked-commit"
-        disabled={retrying}
-        onClick={() => void retry()}
-      >
-        Réessayer l’enregistrement
-      </Button>
-    </section>
+    <AsyncState
+      compact
+      kind="error"
+      testId="recovery-buffer"
+      title="Enregistrement local interrompu"
+      description="Vos modifications restent affichées mais ne sont pas encore enregistrées sur cet appareil ; rien n’a été perdu."
+      action={
+        <Button
+          type="button"
+          variant="secondary"
+          size="compact"
+          data-testid="retry-blocked-commit"
+          disabled={retrying}
+          onClick={() => void retry()}
+        >
+          Réessayer l’enregistrement
+        </Button>
+      }
+    />
   );
 }

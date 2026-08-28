@@ -19,6 +19,8 @@
 import type { DeviceDto } from "@myownnotion/contracts";
 import { useCallback, useEffect, useState } from "react";
 import type { SecurityApi } from "../../services/security-api.ts";
+import { FR_COPY, formatDateTime } from "../../ui/copy/index.ts";
+import { AsyncState, Button, ConfirmDialog, Field } from "../../ui/primitives/index.ts";
 
 export interface DevicePanelProps {
   readonly api: SecurityApi;
@@ -36,10 +38,10 @@ export interface DevicePanelProps {
 export function describeLastUse(iso: string | null): string {
   if (iso === null) {
     // Deliberately words, not a date. See the module comment.
-    return "never";
+    return FR_COPY.security.devices.never;
   }
   const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? "unknown" : at.toLocaleString();
+  return Number.isNaN(at.getTime()) ? FR_COPY.security.devices.unknown : formatDateTime(at);
 }
 
 /**
@@ -51,36 +53,45 @@ export function describeLastUse(iso: string | null): string {
  * would let an owner believe their data was wiped, and stop looking for the
  * device.
  */
-export const REVOKED_NOTICE =
-  "That device can no longer reach this workspace. Anything already stored on it cannot be erased remotely if it never reconnects.";
+export const REVOKED_NOTICE = FR_COPY.security.devices.revokedNotice;
 
 export function describeState(state: DeviceDto["state"]): string {
   switch (state) {
     case "revoked":
-      return "Revoked";
+      return FR_COPY.security.devices.states.revoked;
     case "reauthorization-required":
-      return "Needs to sign in again";
+      return FR_COPY.security.devices.states.reauthorizationRequired;
     case "pending":
-      return "Not yet confirmed";
+      return FR_COPY.security.devices.states.pending;
     default:
-      return "Active";
+      return FR_COPY.security.devices.states.active;
   }
+}
+
+interface DeviceNotice {
+  readonly kind: "error" | "info" | "success";
+  readonly message: string;
 }
 
 export function DevicePanel(props: DevicePanelProps) {
   const [devices, setDevices] = useState<readonly DeviceDto[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<DeviceNotice | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [pendingRevocation, setPendingRevocation] = useState<DeviceDto | null>(null);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     const result = await props.api.listDevices();
     if (!result.ok) {
-      setMessage("The device list could not be loaded.");
+      setNotice({ kind: "error", message: FR_COPY.security.devices.loadFailed });
+      setLoading(false);
       return;
     }
     setDevices(result.value.devices);
+    setLoading(false);
   }, [props.api]);
 
   useEffect(() => {
@@ -95,7 +106,7 @@ export function DevicePanel(props: DevicePanelProps) {
    */
   const explain = useCallback((code: string, fallback: string): string => {
     return code === "recent_authentication_required"
-      ? "Confirm your passkey or password again, then try that once more."
+      ? FR_COPY.security.recentAuthentication
       : fallback;
   }, []);
 
@@ -103,13 +114,16 @@ export function DevicePanel(props: DevicePanelProps) {
     async (deviceId: string) => {
       const name = draftName.trim();
       if (name.length === 0) {
-        setMessage("A device needs a name.");
+        setNotice({ kind: "error", message: FR_COPY.security.devices.nameRequired });
         return;
       }
       setBusy(true);
       const result = await props.api.renameDevice(deviceId, name);
       if (!result.ok) {
-        setMessage(explain(result.problem.code, "That device could not be renamed."));
+        setNotice({
+          kind: "error",
+          message: explain(result.problem.code, FR_COPY.security.devices.renameFailed),
+        });
       } else {
         setEditing(null);
         await refresh();
@@ -122,13 +136,16 @@ export function DevicePanel(props: DevicePanelProps) {
   const revoke = useCallback(
     async (deviceId: string) => {
       setBusy(true);
-      setMessage(null);
+      setNotice(null);
       const result = await props.api.revokeDevice(deviceId);
       if (!result.ok) {
-        setMessage(explain(result.problem.code, "That device could not be revoked."));
+        setNotice({
+          kind: "error",
+          message: explain(result.problem.code, FR_COPY.security.devices.revokeFailed),
+        });
       } else {
         await refresh();
-        setMessage(REVOKED_NOTICE);
+        setNotice({ kind: "success", message: REVOKED_NOTICE });
       }
       setBusy(false);
     },
@@ -138,15 +155,16 @@ export function DevicePanel(props: DevicePanelProps) {
   const reauthorize = useCallback(
     async (deviceId: string) => {
       setBusy(true);
-      setMessage(null);
+      setNotice(null);
       const result = await props.api.reauthorizeDevice(deviceId);
       if (!result.ok) {
-        setMessage(
-          explain(result.problem.code, "That device could not be asked to sign in again."),
-        );
+        setNotice({
+          kind: "error",
+          message: explain(result.problem.code, FR_COPY.security.devices.reauthorizeFailed),
+        });
       } else {
         await refresh();
-        setMessage("That device will be asked to sign in again.");
+        setNotice({ kind: "success", message: FR_COPY.security.devices.reauthorizeScheduled });
       }
       setBusy(false);
     },
@@ -154,108 +172,145 @@ export function DevicePanel(props: DevicePanelProps) {
   );
 
   return (
-    <section className="device-panel" aria-labelledby="devices-heading">
-      <h2 id="devices-heading">Your devices</h2>
-      <p className="device-message" role="status" aria-live="polite" data-testid="device-message">
-        {message ?? ""}
-      </p>
+    <section className="device-panel ui-settings-panel" aria-labelledby="devices-heading">
+      <h2 id="devices-heading">{FR_COPY.security.devices.title}</h2>
+      {notice === null ? null : (
+        <AsyncState
+          compact
+          className="device-message"
+          kind={notice.kind}
+          title={notice.message}
+          testId="device-message"
+        />
+      )}
 
-      <ul className="device-list" data-testid="device-list">
-        {devices.map((device) => {
-          const isCurrent = device.deviceId === props.currentDeviceId;
-          const revoked = device.state === "revoked";
-          return (
-            <li key={device.deviceId} data-testid="device-row">
-              {editing === device.deviceId ? (
-                <div>
-                  <label htmlFor={`device-name-${device.deviceId}`}>Device name</label>
-                  <input
-                    id={`device-name-${device.deviceId}`}
-                    value={draftName}
-                    onChange={(event) => {
-                      setDraftName(event.target.value);
-                    }}
-                    data-testid="device-name-input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void rename(device.deviceId);
-                    }}
-                    disabled={busy}
-                    data-testid="save-device-name"
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditing(null);
-                    }}
-                    disabled={busy}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <strong>{device.name}</strong>
-                  {isCurrent ? <span data-testid="current-device"> — this device</span> : null}
-                </div>
-              )}
+      {loading ? (
+        <AsyncState compact kind="loading" title={FR_COPY.security.devices.loading} />
+      ) : devices.length === 0 ? (
+        <AsyncState compact kind="empty" title={FR_COPY.security.devices.empty} />
+      ) : (
+        <ul className="device-list" data-testid="device-list">
+          {devices.map((device) => {
+            const isCurrent = device.deviceId === props.currentDeviceId;
+            const revoked = device.state === "revoked";
+            return (
+              <li key={device.deviceId} data-testid="device-row">
+                {editing === device.deviceId ? (
+                  <div>
+                    <Field
+                      id={`device-name-${device.deviceId}`}
+                      label={FR_COPY.security.devices.name}
+                      value={draftName}
+                      onChange={(event) => {
+                        setDraftName(event.target.value);
+                      }}
+                      data-testid="device-name-input"
+                    />
+                    <Button
+                      size="compact"
+                      variant="primary"
+                      onClick={() => {
+                        void rename(device.deviceId);
+                      }}
+                      busy={busy}
+                      data-testid="save-device-name"
+                    >
+                      {FR_COPY.security.devices.saveName}
+                    </Button>
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditing(null);
+                      }}
+                      disabled={busy}
+                    >
+                      {FR_COPY.security.devices.cancelRename}
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <strong>{device.name}</strong>
+                    {isCurrent ? (
+                      <span data-testid="current-device">
+                        {" "}
+                        — {FR_COPY.security.devices.current}
+                      </span>
+                    ) : null}
+                  </div>
+                )}
 
-              <div className="device-detail">
-                {device.platform} · {describeState(device.state)} · last used{" "}
-                <span data-testid="device-last-activity">
-                  {describeLastUse(device.lastActivityAt)}
-                </span>{" "}
-                · last synchronized{" "}
-                <span data-testid="device-last-sync">{describeLastUse(device.lastSyncAt)}</span>
-              </div>
-
-              {revoked ? null : (
-                <div className="device-actions">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditing(device.deviceId);
-                      setDraftName(device.name);
-                    }}
-                    disabled={busy}
-                    data-testid="rename-device"
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void reauthorize(device.deviceId);
-                    }}
-                    disabled={busy}
-                    data-testid="reauthorize-device"
-                  >
-                    Ask it to sign in again
-                  </button>
-                  <button
-                    type="button"
-                    className="danger"
-                    onClick={() => {
-                      void revoke(device.deviceId);
-                    }}
-                    disabled={busy}
-                    // Says what it costs before the owner commits, rather than
-                    // letting them meet the requirement as an error.
-                    title="You will be asked to confirm your passkey or password"
-                    data-testid="revoke-device"
-                  >
-                    Revoke
-                  </button>
+                <div className="device-detail">
+                  {device.platform} · {describeState(device.state)} ·{" "}
+                  {FR_COPY.security.devices.lastUsed}{" "}
+                  <span data-testid="device-last-activity">
+                    {describeLastUse(device.lastActivityAt)}
+                  </span>{" "}
+                  · {FR_COPY.security.devices.lastSynchronized}{" "}
+                  <span data-testid="device-last-sync">{describeLastUse(device.lastSyncAt)}</span>
                 </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+
+                {revoked ? null : (
+                  <div className="device-actions">
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditing(device.deviceId);
+                        setDraftName(device.name);
+                      }}
+                      disabled={busy}
+                      data-testid="rename-device"
+                    >
+                      {FR_COPY.security.devices.rename}
+                    </Button>
+                    <Button
+                      size="compact"
+                      variant="secondary"
+                      onClick={() => {
+                        void reauthorize(device.deviceId);
+                      }}
+                      disabled={busy}
+                      data-testid="reauthorize-device"
+                    >
+                      {FR_COPY.security.devices.reauthorize}
+                    </Button>
+                    <Button
+                      size="compact"
+                      variant="danger"
+                      onClick={() => {
+                        setPendingRevocation(device);
+                      }}
+                      disabled={busy}
+                      // Says what it costs before the owner commits, rather than
+                      // letting them meet the requirement as an error.
+                      title={FR_COPY.security.devices.revokeTitle}
+                      data-testid="revoke-device"
+                    >
+                      {FR_COPY.security.devices.revoke}
+                    </Button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <ConfirmDialog
+        open={pendingRevocation !== null}
+        busy={busy}
+        title={FR_COPY.security.devices.revokeDialogTitle(pendingRevocation?.name ?? "")}
+        description={FR_COPY.security.devices.revokeDialogDescription}
+        confirmLabel={FR_COPY.security.devices.revokeDialogConfirm}
+        testId="revoke-device-confirmation"
+        confirmTestId="confirm-revoke-device"
+        cancelTestId="cancel-revoke-device"
+        onCancel={() => setPendingRevocation(null)}
+        onConfirm={() => {
+          if (pendingRevocation === null) return;
+          void revoke(pendingRevocation.deviceId).finally(() => setPendingRevocation(null));
+        }}
+      />
     </section>
   );
 }

@@ -11,6 +11,7 @@ import type { ProblemDto, RelationshipDto } from "@myownnotion/contracts";
 import { generateUuidV7, isUuid, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ContentApi } from "../../services/content-api.ts";
+import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
 
 export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
   const api = useMemo(() => new ContentApi(), []);
@@ -41,7 +42,7 @@ export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
     if (!isUuid(targetId)) {
       setProblem({
         type: "about:client",
-        title: "Target must be a stable item UUID",
+        title: "La cible doit être l’identifiant UUID stable d’un élément",
         status: 400,
         code: "validation.invalid-identifier",
       });
@@ -73,43 +74,45 @@ export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
   );
 
   return (
-    <section className="panel" aria-label="Item details" data-testid="item-details">
-      <h2>Identity & relationships</h2>
+    <section className="panel" aria-label="Identité et relations" data-testid="item-details">
+      <h2>Identité et relations</h2>
       <p className="muted">
-        Stable ID <code data-testid="stable-id">{item.id}</code> — current revision{" "}
-        <code>{item.currentRevisionId}</code>. Renames and moves never change this identity.
+        Identifiant stable <code data-testid="stable-id">{item.id}</code> — révision actuelle{" "}
+        <code>{item.currentRevisionId}</code>. Un renommage ou un déplacement ne modifie jamais cet
+        identifiant.
       </p>
       {problem !== null ? (
-        <p className="status-banner" data-state="error" role="alert">
-          {problem.code}: {problem.title}
-        </p>
+        <AsyncState compact kind="error" description={`${problem.code} : ${problem.title}`} />
       ) : null}
       {offline ? (
-        <p className="muted">Relationship diagnostics need the server; working offline.</p>
+        <AsyncState
+          compact
+          kind="offline"
+          description="Les relations détaillées nécessitent le serveur. Les données locales restent disponibles."
+        />
       ) : (
         <>
           <div className="field-row">
-            <label htmlFor={`relation-target-${item.id}`} className="muted">
-              Relate to item ID
-            </label>
-            <input
+            <Field
               id={`relation-target-${item.id}`}
               data-testid="relation-target"
               type="text"
+              label="Identifiant de l’élément lié"
               value={targetId}
-              placeholder="target item UUID"
+              placeholder="UUID de l’élément cible"
               onChange={(event) => setTargetId(event.target.value)}
             />
-            <button
+            <Button
+              size="compact"
               type="button"
               data-testid="create-relation"
               onClick={() => void createRelationship()}
             >
-              Link
-            </button>
+              Lier
+            </Button>
           </div>
           {relationships.length === 0 ? (
-            <p className="muted">No relationships.</p>
+            <p className="muted">Aucune relation.</p>
           ) : (
             <ul className="tree" data-testid="relationship-list">
               {relationships.map((relationship) => (
@@ -129,16 +132,18 @@ export function ItemDetails({ item }: { readonly item: ProjectedItem }) {
                       : (relationship.sourceAvailability ?? "active")}
                   </span>
                   {relationship.relationType === "page:link" ? (
-                    <span className="muted">managed in the page document</span>
+                    <span className="muted">gérée dans le contenu de la page</span>
                   ) : (
                     <span className="tree-actions">
-                      <button
+                      <Button
+                        size="compact"
+                        variant="ghost"
                         type="button"
-                        aria-label="Remove relationship"
+                        aria-label="Retirer la relation"
                         onClick={() => void removeRelationship(relationship.id as Uuid)}
                       >
-                        unlink
-                      </button>
+                        Délier
+                      </Button>
                     </span>
                   )}
                 </li>

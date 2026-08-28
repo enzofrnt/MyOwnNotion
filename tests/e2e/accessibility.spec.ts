@@ -167,7 +167,9 @@ test.describe("automated accessibility audit", () => {
   test("the search dialog has no critical or serious violations", async ({ page }) => {
     await openWorkspace(page);
     await page.keyboard.press("ControlOrMeta+k");
-    await expect(page.getByRole("dialog", { name: "Search the workspace" })).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "Rechercher dans l’espace de travail" }),
+    ).toBeVisible();
 
     const found = await violations(page);
     expect(
@@ -348,25 +350,27 @@ test.describe("structured database view accessibility (feature 009)", () => {
     const entryName = uniqueName("Keyboard card");
     await openRootCreation(page);
     await page.getByTestId("new-root-database").click();
-    const createDatabase = page.getByRole("form", { name: "Create a database" });
-    await createDatabase.getByLabel("Create a database").fill(databaseName);
-    const createDatabaseButton = createDatabase.getByRole("button", { name: "Create database" });
+    const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
+    await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
+    const createDatabaseButton = createDatabase.getByRole("button", {
+      name: "Créer la base de données",
+    });
     await createDatabaseButton.click();
     await expect(createDatabase).toBeHidden({ timeout: 15_000 });
     await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
     await waitForSynchronized(page);
 
     const addProperty = async (name: string, type: "status" | "date"): Promise<void> => {
-      await page.getByRole("button", { name: "Add property" }).click();
-      const editor = page.getByRole("form", { name: "Property editor" });
-      await editor.getByLabel("Name").fill(name);
+      await page.getByRole("button", { name: "Ajouter une propriété" }).click();
+      const editor = page.getByRole("form", { name: "Éditeur de propriété" });
+      await editor.getByLabel("Nom").fill(name);
       await editor.getByLabel("Type").selectOption(type);
       if (type === "status") {
-        const options = editor.getByLabel("Options, separated by commas");
+        const options = editor.getByLabel("Options séparées par des virgules");
         await options.fill("To do, Done");
         await expect(options).toHaveValue("To do, Done");
       }
-      await editor.getByRole("button", { name: "Save property" }).click();
+      await editor.getByRole("button", { name: "Enregistrer la propriété" }).click();
       await expect(editor).toBeHidden({ timeout: 15_000 });
       await waitForDatabaseDefinitionSaved(page);
     };
@@ -374,8 +378,8 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await addProperty("Due", "date");
 
     const entryForm = page.locator(".database-entry-create");
-    await entryForm.getByLabel("New entry").fill(entryName);
-    await entryForm.getByRole("button", { name: "New entry" }).click();
+    await entryForm.getByLabel("Nouvelle entrée").fill(entryName);
+    await entryForm.getByRole("button", { name: "Nouvelle entrée" }).click();
     const entryTrigger = page
       .locator("[data-entry-trigger]")
       .filter({ hasText: entryName })
@@ -389,14 +393,14 @@ test.describe("structured database view accessibility (feature 009)", () => {
     const due = panel.getByLabel("Due", { exact: true });
     await due.fill("2026-08-20");
     await expect(due).toHaveValue("2026-08-20");
-    const saveProperties = panel.getByRole("button", { name: "Save properties" });
+    const saveProperties = panel.getByRole("button", { name: "Enregistrer les propriétés" });
     await saveProperties.click();
     await expect(page.getByTestId("entry-properties-saved")).toHaveText(
-      "Properties saved locally.",
+      "Propriétés enregistrées localement.",
       { timeout: 15_000 },
     );
     await waitForSynchronized(page);
-    await page.getByRole("button", { name: "Close entry" }).click();
+    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
 
     const createView = async (buttonName: string, tabName: RegExp): Promise<void> => {
       await page.getByRole("button", { name: buttonName }).click();
@@ -405,12 +409,12 @@ test.describe("structured database view accessibility (feature 009)", () => {
       await expect(tab).toHaveAttribute("aria-selected", "true");
       await waitForDatabaseDefinitionSaved(page);
     };
-    await createView("New list view", /List 2/);
-    await createView("New board view", /Board 3/);
-    await createView("New gallery view", /Gallery 4/);
-    await createView("New calendar view", /Calendar 5/);
+    await createView("Nouvelle vue liste", /Liste 2/);
+    await createView("Nouvelle vue Kanban", /Kanban 3/);
+    await createView("Nouvelle vue galerie", /Galerie 4/);
+    await createView("Nouvelle vue calendrier", /Calendrier 5/);
 
-    for (const viewName of [/Table/, /List 2/, /Board 3/, /Gallery 4/, /Calendar 5/]) {
+    for (const viewName of [/Tableau/, /Liste 2/, /Kanban 3/, /Galerie 4/, /Calendrier 5/]) {
       const tab = page.getByRole("tab", { name: viewName });
       await expect(tab).toBeVisible({ timeout: 15_000 });
       await tab.click();
@@ -418,13 +422,15 @@ test.describe("structured database view accessibility (feature 009)", () => {
       expect(await seriousViolations(page)).toEqual([]);
     }
 
-    await page.getByRole("tab", { name: /Board 3/ }).click();
-    await expect(page.getByLabel(`Move ${entryName} to another column`)).toBeVisible();
+    await page.getByRole("tab", { name: /Kanban 3/ }).click();
+    await expect(page.getByLabel(`Déplacer ${entryName} dans une autre colonne`)).toBeVisible();
     await expect(
-      page.getByRole("button", { name: `Move ${entryName} to next column` }),
+      page.getByRole("button", { name: `Déplacer ${entryName} dans la colonne suivante` }),
     ).toBeVisible();
-    await page.getByRole("tab", { name: /Calendar 5/ }).click();
-    await expect(page.getByLabel(`Schedule ${entryName}`)).toBeVisible();
-    await expect(page.getByRole("button", { name: `Move ${entryName} to next day` })).toBeVisible();
+    await page.getByRole("tab", { name: /Calendrier 5/ }).click();
+    await expect(page.getByLabel(`Planifier ${entryName}`)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `Déplacer ${entryName} au jour suivant` }),
+    ).toBeVisible();
   });
 });

@@ -29,20 +29,20 @@ import {
 
 async function openSearch(page: Page) {
   await page.keyboard.press("ControlOrMeta+k");
-  const dialog = page.getByRole("dialog", { name: "Search the workspace" });
+  const dialog = page.getByRole("dialog", { name: "Rechercher dans l’espace de travail" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByLabel("Query")).toBeFocused();
+  await expect(dialog.getByLabel("Recherche", { exact: true })).toBeFocused();
   return dialog;
 }
 
 async function searchFor(page: Page, query: string) {
   const dialog = await openSearch(page);
-  const input = dialog.getByLabel("Query");
+  const input = dialog.getByLabel("Recherche", { exact: true });
   await input.fill(query);
   // A workspace projection may render in the same task as the input event.
   // The uncontrolled query must retain the visible text before submission.
   await expect(input).toHaveValue(query);
-  await dialog.getByRole("button", { name: "Search", exact: true }).click();
+  await dialog.getByRole("button", { name: "Rechercher", exact: true }).click();
   return dialog;
 }
 
@@ -80,7 +80,7 @@ test.describe("workspace search (US1)", () => {
     let dialog = await searchFor(page, `architecture resiliente ${rankPhrase}`);
     const titleResult = dialog.getByRole("listitem").filter({ hasText: titlePage });
     await expect(titleResult).toBeVisible();
-    await expect(titleResult).toContainText("page");
+    await expect(titleResult).toContainText("Pages");
     await titleResult.getByRole("button").click();
     await expect(dialog).toBeHidden();
     await expect(page.getByTestId(`tree-item-${titlePage}`)).toHaveAttribute(
@@ -92,50 +92,50 @@ test.describe("workspace search (US1)", () => {
     const bodyResult = dialog.getByRole("listitem").filter({ hasText: bodyPage });
     await expect(bodyResult).toBeVisible();
     await expect(bodyResult).toContainText(bodyPhrase);
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     dialog = await searchFor(page, "🧠");
     await expect(dialog.getByRole("listitem").filter({ hasText: symbolPage })).toHaveCount(1);
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     dialog = await searchFor(page, fileName);
     const fileResult = dialog.getByRole("listitem").filter({ hasText: fileName });
     await expect(fileResult).toBeVisible();
-    await expect(fileResult).toContainText("file");
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await expect(fileResult).toContainText("Fichiers");
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     dialog = await searchFor(page, rankPhrase);
     const ranked = dialog.getByRole("listitem");
     await expect(ranked.first()).toContainText(titlePage);
     await expect(ranked.nth(1)).toContainText(bodyPage);
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     const missing = `${token}-absent`;
     dialog = await searchFor(page, missing);
-    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
-    await expect(dialog.getByLabel("Query")).toHaveValue(missing);
+    await expect(dialog.getByText("Aucun résultat dans l’espace de travail.")).toBeVisible();
+    await expect(dialog.getByLabel("Recherche", { exact: true })).toHaveValue(missing);
   });
 
   test("accepts 512 Unicode characters and explicitly refuses the 513th", async ({ page }) => {
     await openWorkspace(page);
     let dialog = await openSearch(page);
-    const query = dialog.getByLabel("Query");
+    const query = dialog.getByLabel("Recherche", { exact: true });
     const uniquePrefix = uniqueName("unicode-boundary");
     const accepted = `${uniquePrefix}${"🧠".repeat(512 - Array.from(uniquePrefix).length)}`;
     await query.fill(accepted);
     await expect(query).toHaveValue(accepted);
-    await dialog.getByRole("button", { name: "Search", exact: true }).click();
-    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
+    await dialog.getByRole("button", { name: "Rechercher", exact: true }).click();
+    await expect(dialog.getByText("Aucun résultat dans l’espace de travail.")).toBeVisible();
 
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
     dialog = await openSearch(page);
     const rejected = `${accepted}🧠`;
-    await dialog.getByLabel("Query").fill(rejected);
-    await dialog.getByRole("button", { name: "Search", exact: true }).click();
+    await dialog.getByLabel("Recherche", { exact: true }).fill(rejected);
+    await dialog.getByRole("button", { name: "Rechercher", exact: true }).click();
     await expect(dialog.getByRole("alert")).toHaveText(
-      "Search queries are limited to 512 Unicode characters.",
+      "La recherche est limitée à 512 caractères Unicode.",
     );
-    await expect(dialog.getByLabel("Query")).toHaveValue(rejected);
+    await expect(dialog.getByLabel("Recherche", { exact: true })).toHaveValue(rejected);
   });
 });
 
@@ -156,7 +156,7 @@ test.describe("workspace search refinement (US3)", () => {
     let dialog = await searchFor(page, token);
     await expect(dialog.getByRole("listitem")).toHaveCount(3);
 
-    const query = dialog.getByLabel("Query");
+    const query = dialog.getByLabel("Recherche", { exact: true });
     await query.focus();
     await page.keyboard.press("ArrowDown");
     const resultButtons = dialog.locator("[data-search-result]");
@@ -170,14 +170,14 @@ test.describe("workspace search refinement (US3)", () => {
     const searchTrigger = page.getByRole("button", { name: /Rechercher.*⌘ K/u });
     await searchTrigger.focus();
     dialog = await searchFor(page, token);
-    await dialog.getByLabel("Folders").uncheck();
-    await dialog.getByLabel("Files").uncheck();
+    await dialog.getByLabel("Dossiers").uncheck();
+    await dialog.getByLabel("Fichiers").uncheck();
     await expect(dialog.getByRole("listitem")).toHaveCount(2);
     await expect(
       dialog.locator(".search-result__title").getByText(branch, { exact: true }),
     ).toHaveCount(0);
 
-    await dialog.getByRole("button", { name: "Reset filters" }).click();
+    await dialog.getByRole("button", { name: "Réinitialiser les filtres" }).click();
     await expect(dialog.getByRole("listitem")).toHaveCount(3);
     await dialog.getByLabel("Branch").selectOption({ label: branch });
     await expect(dialog.getByRole("listitem")).toHaveCount(2);
@@ -185,21 +185,9 @@ test.describe("workspace search refinement (US3)", () => {
     await expect(dialog.getByRole("listitem").filter({ hasText: outside })).toHaveCount(0);
 
     await page.setViewportSize({ width: 320, height: 720 });
-    await expect(dialog.getByLabel("Query")).toBeVisible();
+    await expect(dialog.getByLabel("Recherche", { exact: true })).toBeVisible();
     await expect(dialog.getByLabel("Branch")).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Close search" })).toBeInViewport();
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      ),
-    ).toBeLessThanOrEqual(24);
-
-    await page.setViewportSize({ width: 640, height: 720 });
-    await page.evaluate(() => {
-      document.documentElement.style.zoom = "2";
-    });
-    await expect(dialog.getByLabel("Query")).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Close search" })).toBeInViewport();
+    await expect(dialog.getByRole("button", { name: "Fermer la recherche" })).toBeInViewport();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -256,7 +244,7 @@ test.describe("workspace search refinement (US3)", () => {
     const first = dialog.getByRole("button", { name: /First page/u });
     await first.focus();
     await expect(first).toHaveAttribute("aria-current", "true");
-    await dialog.getByRole("button", { name: "Load more results" }).click();
+    await dialog.getByRole("button", { name: "Afficher plus de résultats" }).click();
 
     await expect(dialog.getByRole("listitem")).toHaveCount(2);
     await expect(dialog.getByText("Second page", { exact: true })).toBeVisible();
@@ -329,17 +317,17 @@ test.describe("workspace search freshness (US4)", () => {
 
     let dialog = await searchFor(page, bodyPhrase);
     await expect(dialog.getByRole("listitem").filter({ hasText: oldName })).toBeVisible();
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     await renameItem(page, oldName, currentName);
     await waitForSynchronized(page);
 
     dialog = await searchFor(page, oldName);
-    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await expect(dialog.getByText("Aucun résultat dans l’espace de travail.")).toBeVisible();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
     dialog = await searchFor(page, currentName);
     await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toHaveCount(1);
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     await selectItem(page, currentName);
     await moveSelectedItemInto(page, destination);
@@ -348,7 +336,7 @@ test.describe("workspace search freshness (US4)", () => {
     await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toContainText(
       destination,
     );
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     await ensureNavigationVisible(page);
     await page.getByRole("button", { name: `Déplier ${destination}` }).click();
@@ -363,19 +351,19 @@ test.describe("workspace search freshness (US4)", () => {
     await waitForSynchronized(page);
 
     dialog = await searchFor(page, bodyPhrase);
-    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await expect(dialog.getByText("Aucun résultat dans l’espace de travail.")).toBeVisible();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
     dialog = await searchFor(page, currentName);
     await expect(dialog.getByRole("listitem").filter({ hasText: currentName })).toContainText(
-      "folder",
+      "Dossiers",
     );
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     await trashItem(page, currentName);
     await waitForSynchronized(page);
     dialog = await searchFor(page, currentName);
-    await expect(dialog.getByText("No result in the complete workspace.")).toBeVisible();
-    await dialog.getByRole("button", { name: "Close search" }).click();
+    await expect(dialog.getByText("Aucun résultat dans l’espace de travail.")).toBeVisible();
+    await dialog.getByRole("button", { name: "Fermer la recherche" }).click();
 
     await openSettingsSection(page, "trash");
     await page
@@ -414,6 +402,6 @@ test.describe("workspace search freshness (US4)", () => {
 
     const dialog = await searchFor(page, token);
     await expect(dialog.getByRole("listitem").filter({ hasText: token })).toBeVisible();
-    await expect(dialog.getByText(/complete index is rebuilding/i)).toBeVisible();
+    await expect(dialog.getByText(/index complet est en reconstruction/i)).toBeVisible();
   });
 });

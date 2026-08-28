@@ -11,6 +11,7 @@
 import type { PageAmbiguityRecord } from "@myownnotion/client-core";
 import { useState } from "react";
 import { FR_COPY } from "../../ui/copy/fr.ts";
+import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { Button } from "../../ui/primitives/button.tsx";
 
 const KIND_LABELS: Record<PageAmbiguityRecord["kind"], string> = {
@@ -33,41 +34,48 @@ export function PageAmbiguityNotice({
   const expanded = records.find((record) => record.ambiguityId === expandedId);
 
   return (
-    <section className="status-banner" data-state="attention" data-testid="ambiguity-notice">
-      <p>
-        <strong>{FR_COPY.status.conflict}</strong>{" "}
-        {records.length === 1
-          ? "Une décision est nécessaire sur cette page."
-          : `${records.length} décisions sont nécessaires sur cette page.`}
-      </p>
-      <ul className="ambiguity-list">
-        {records.map((record) => (
-          <li key={record.ambiguityId}>
-            <button
-              type="button"
-              data-testid={`ambiguity-item-${record.ambiguityId}`}
-              aria-expanded={expandedId === record.ambiguityId}
-              onClick={() =>
-                setExpandedId((current) =>
-                  current === record.ambiguityId ? null : record.ambiguityId,
-                )
-              }
-            >
-              {KIND_LABELS[record.kind]}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {expanded === undefined ? null : (
-        <PageAmbiguityResolution
-          record={expanded}
-          onResolve={(decision) => {
-            onResolve?.(expanded.ambiguityId, decision);
-            setExpandedId(null);
-          }}
-        />
-      )}
-    </section>
+    <AsyncState
+      kind="conflict"
+      state="attention"
+      testId="ambiguity-notice"
+      title={FR_COPY.status.conflict}
+      description={
+        <>
+          <p>
+            {records.length === 1
+              ? "Une décision est nécessaire sur cette page."
+              : `${records.length} décisions sont nécessaires sur cette page.`}
+          </p>
+          <ul className="ambiguity-list">
+            {records.map((record) => (
+              <li key={record.ambiguityId}>
+                <button
+                  type="button"
+                  data-testid={`ambiguity-item-${record.ambiguityId}`}
+                  aria-expanded={expandedId === record.ambiguityId}
+                  onClick={() =>
+                    setExpandedId((current) =>
+                      current === record.ambiguityId ? null : record.ambiguityId,
+                    )
+                  }
+                >
+                  {KIND_LABELS[record.kind]}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {expanded === undefined ? null : (
+            <PageAmbiguityResolution
+              record={expanded}
+              onResolve={(decision) => {
+                onResolve?.(expanded.ambiguityId, decision);
+                setExpandedId(null);
+              }}
+            />
+          )}
+        </>
+      }
+    />
   );
 }
 

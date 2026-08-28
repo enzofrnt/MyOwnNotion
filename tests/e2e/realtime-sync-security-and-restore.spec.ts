@@ -83,7 +83,10 @@ test("revoking a device closes all of its live page sockets immediately", async 
     const row = page.getByTestId("device-row").filter({ hasText: deviceName });
     await expect(row).toBeVisible();
     await row.getByTestId("revoke-device").click();
-    await expect(page.getByTestId("device-message")).toContainText("no longer reach");
+    const confirmation = page.getByTestId("revoke-device-confirmation");
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByTestId("confirm-revoke-device").click();
+    await expect(page.getByTestId("device-message")).toContainText("ne peut plus accéder");
 
     await expect(second.page.getByTestId("live-connection-state")).toHaveAttribute(
       "data-state",

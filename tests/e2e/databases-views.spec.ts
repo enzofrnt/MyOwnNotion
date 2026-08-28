@@ -34,17 +34,17 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await ensureNavigationVisible(page);
   await openRootCreation(page);
   await page.getByTestId("new-root-database").click();
-  const createDatabase = page.getByRole("form", { name: "Create a database" });
-  await createDatabase.getByLabel("Create a database").fill(databaseName);
-  await createDatabase.getByRole("button", { name: "Create database" }).click();
+  const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
+  await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
+  await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
   await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
 
-  await page.getByRole("button", { name: "Add property" }).click();
-  const propertyEditor = page.getByRole("form", { name: "Property editor" });
-  await propertyEditor.getByLabel("Name").fill("Status");
+  await page.getByRole("button", { name: "Ajouter une propriété" }).click();
+  const propertyEditor = page.getByRole("form", { name: "Éditeur de propriété" });
+  await propertyEditor.getByLabel("Nom").fill("Status");
   await propertyEditor.getByLabel("Type").selectOption("status");
-  await propertyEditor.getByLabel("Options, separated by commas").fill("To do, Done");
-  await propertyEditor.getByRole("button", { name: "Save property" }).click();
+  await propertyEditor.getByLabel("Options séparées par des virgules").fill("To do, Done");
+  await propertyEditor.getByRole("button", { name: "Enregistrer la propriété" }).click();
   await expect(page.locator(".database-schema").getByText("Status", { exact: true })).toBeVisible();
   await waitForDatabaseDefinitionSaved(page);
 
@@ -56,7 +56,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     await expect(panel).toBeVisible();
     await panel.getByLabel("Status", { exact: true }).selectOption({ label: status });
     await saveEntryProperties(page);
-    await page.getByRole("button", { name: "Close entry" }).click();
+    await page.getByRole("button", { name: "Fermer l'entrée" }).click();
     await expect(page.getByTestId("active-item-title")).toHaveValue(databaseName);
     await expect(
       page.locator(`[data-entry-trigger]`).filter({ hasText: title }).first(),
@@ -76,32 +76,32 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   await alphaStatus().press("F2");
   await alphaStatus().getByLabel("Status", { exact: true }).selectOption({ label: "Done" });
   await alphaStatus()
-    .getByRole("button", { name: `Save Status for ${entries.alpha}` })
+    .getByRole("button", { name: `Enregistrer Status pour ${entries.alpha}` })
     .click();
   await expect(alphaStatus()).toHaveAttribute("aria-label", "Status, Done");
   await waitForSynchronized(page);
   await alphaStatus().press("F2");
   await alphaStatus().getByLabel("Status", { exact: true }).selectOption({ label: "To do" });
   await alphaStatus()
-    .getByRole("button", { name: `Save Status for ${entries.alpha}` })
+    .getByRole("button", { name: `Enregistrer Status pour ${entries.alpha}` })
     .click();
   await expect(alphaStatus()).toHaveAttribute("aria-label", "Status, To do");
   await waitForSynchronized(page);
 
-  const filterEditor = page.locator(".database-rule-editor").filter({ hasText: /^Filters/ });
+  const filterEditor = page.locator(".database-rule-editor").filter({ hasText: /^Filtres/ });
   await filterEditor.locator("summary").click();
-  await filterEditor.getByRole("button", { name: "Add filter" }).click();
+  await filterEditor.getByRole("button", { name: "Ajouter un filtre" }).click();
   let rules = filterEditor.locator(".database-rule");
-  await rules.nth(0).getByLabel("Property").selectOption({ label: "Status" });
-  await rules.nth(0).getByLabel("Operator").selectOption("equals");
-  await rules.nth(0).getByLabel("Value for Status").selectOption({ label: "To do" });
-  await filterEditor.getByRole("button", { name: "Add filter" }).click();
+  await rules.nth(0).getByLabel("Propriété").selectOption({ label: "Status" });
+  await rules.nth(0).getByLabel("Opérateur").selectOption("equals");
+  await rules.nth(0).getByLabel("Valeur pour Status").selectOption({ label: "To do" });
+  await filterEditor.getByRole("button", { name: "Ajouter un filtre" }).click();
   rules = filterEditor.locator(".database-rule");
-  await rules.nth(1).getByLabel("Property").selectOption({ label: "Title" });
-  await rules.nth(1).getByLabel("Operator").selectOption("contains");
-  await rules.nth(1).getByLabel("Value for Title").fill("Alpha");
-  await filterEditor.getByLabel("Filter combination").selectOption("any");
-  await filterEditor.getByRole("button", { name: "Save filters" }).click();
+  await rules.nth(1).getByLabel("Propriété").selectOption({ label: "Titre" });
+  await rules.nth(1).getByLabel("Opérateur").selectOption("contains");
+  await rules.nth(1).getByLabel("Valeur pour Titre").fill("Alpha");
+  await filterEditor.getByLabel("Combinaison des filtres").selectOption("any");
+  await filterEditor.getByRole("button", { name: "Enregistrer les filtres" }).click();
   await expect(
     page.locator(`[data-entry-trigger]`).filter({ hasText: entries.gamma }),
   ).toBeVisible();
@@ -110,8 +110,8 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   );
   await waitForDatabaseDefinitionSaved(page);
 
-  await filterEditor.getByLabel("Filter combination").selectOption("all");
-  await filterEditor.getByRole("button", { name: "Save filters" }).click();
+  await filterEditor.getByLabel("Combinaison des filtres").selectOption("all");
+  await filterEditor.getByRole("button", { name: "Enregistrer les filtres" }).click();
   await expect(
     page.locator(`[data-entry-trigger]`).filter({ hasText: entries.alpha }),
   ).toBeVisible();
@@ -120,17 +120,19 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   );
   await waitForDatabaseDefinitionSaved(page);
 
-  await filterEditor.getByRole("button", { name: "Clear filters" }).click();
-  await filterEditor.getByRole("button", { name: "Save filters" }).click();
+  await filterEditor.getByRole("button", { name: "Effacer les filtres" }).click();
+  await filterEditor.getByRole("button", { name: "Enregistrer les filtres" }).click();
   await expect(page.locator("[data-entry-trigger]")).toHaveCount(3);
   await waitForDatabaseDefinitionSaved(page);
 
-  const sortEditor = page.locator(".database-rule-editor").filter({ hasText: /^Sort & group/ });
+  const sortEditor = page
+    .locator(".database-rule-editor")
+    .filter({ hasText: /^Tri et regroupement/ });
   await sortEditor.locator("summary").click();
-  await sortEditor.getByRole("button", { name: "Add sort" }).click();
+  await sortEditor.getByRole("button", { name: "Ajouter un tri" }).click();
   await sortEditor.getByLabel("Direction").selectOption("descending");
-  await sortEditor.getByLabel("Group by").selectOption({ label: "Status" });
-  await sortEditor.getByRole("button", { name: "Save sort and group" }).click();
+  await sortEditor.getByLabel("Regrouper par").selectOption({ label: "Status" });
+  await sortEditor.getByRole("button", { name: "Enregistrer le tri et le regroupement" }).click();
   await expect
     .poll(
       async () =>
@@ -153,30 +155,30 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
     page.locator(".database-grid").getByRole("columnheader", { name: /Status/ }),
   ).toBeVisible();
   await waitForDatabaseDefinitionSaved(page);
-  await columns.getByRole("button", { name: "Move Status column earlier" }).click();
+  await columns.getByRole("button", { name: "Déplacer la colonne Status vers la gauche" }).click();
   await expect
     .poll(async () =>
       page
         .locator(".database-grid thead th")
         .evaluateAll((headers) => headers.map((header) => header.textContent?.trim())),
     )
-    .toEqual([expect.stringContaining("Status"), expect.stringContaining("Title")]);
+    .toEqual([expect.stringContaining("Status"), expect.stringContaining("Titre")]);
   await waitForDatabaseDefinitionSaved(page);
-  await page.getByRole("button", { name: "Widen Title" }).click();
-  await expect(page.getByRole("group", { name: "Title width 280 pixels" })).toBeVisible();
+  await page.getByRole("button", { name: "Augmenter la largeur de Titre" }).click();
+  await expect(page.getByRole("group", { name: "Largeur de Titre : 280 pixels" })).toBeVisible();
   await waitForDatabaseDefinitionSaved(page);
 
-  await page.getByRole("button", { name: "New list view" }).click();
-  const listTab = page.getByRole("tab", { name: /List 2/ });
+  await page.getByRole("button", { name: "Nouvelle vue liste" }).click();
+  const listTab = page.getByRole("tab", { name: /Liste 2/ });
   await expect(listTab).toBeVisible({ timeout: 15_000 });
   await waitForDatabaseDefinitionSaved(page);
   await listTab.click();
   await expect(page.locator(".database-list")).toBeVisible();
   await expect(page.locator(".database-list__entry")).toHaveCount(3);
-  const viewName = page.getByLabel("View name");
+  const viewName = page.getByLabel("Nom de la vue");
   await viewName.fill("Planning");
   await expect(viewName).toHaveValue("Planning");
-  await page.getByRole("button", { name: "Rename view" }).click();
+  await page.getByRole("button", { name: "Renommer la vue" }).click();
   await expect(page.getByRole("tab", { name: /Planning/ })).toBeVisible();
   await waitForDatabaseDefinitionSaved(page);
 
@@ -188,7 +190,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   );
   await expect(page.locator(".database-list")).toBeVisible();
   await page.getByRole("tab", { name: /Table/ }).click();
-  await expect(page.getByRole("group", { name: "Title width 280 pixels" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Largeur de Titre : 280 pixels" })).toBeVisible();
 
   const second = await openSecondDevice(browser, baseURL);
   try {

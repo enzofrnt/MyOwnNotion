@@ -5,6 +5,7 @@ import {
   SuggestionMenuController,
   useBlockNoteEditor,
 } from "@blocknote/react";
+import { FR_COPY } from "../../../ui/copy/fr.ts";
 import { createEditorTable } from "../custom-blocks/table.tsx";
 
 const US2_TITLES = new Set([
@@ -55,7 +56,10 @@ export async function createSubpageFromSlash(
   onCreated?: (child: { readonly id: string; readonly title: string }) => void | Promise<void>,
 ): Promise<void> {
   const current = editor.getTextCursorPosition().block;
-  const child = await createSubpage({ id: current.id, title: "Sans titre" });
+  const child = await createSubpage({
+    id: current.id,
+    title: FR_COPY.editor.slashMenu.subpage.defaultTitle,
+  });
   editor.updateBlock(current.id, {
     type: "paragraph",
     content: [
@@ -114,17 +118,17 @@ export function FrenchSlashMenu({
   const editor = useBlockNoteEditor();
   const advancedItems = [
     {
-      title: "Liste dépliable",
-      subtext: "Masquer ou afficher des blocs imbriqués",
+      title: FR_COPY.editor.slashMenu.toggle.title,
+      subtext: FR_COPY.editor.slashMenu.toggle.description,
       aliases: ["toggle", "details", "déplier"],
-      group: "Blocs avancés",
+      group: FR_COPY.editor.slashMenu.advancedGroup,
       onItemClick: () => insertRichBlock(editor, { type: "toggleListItem", content: "" }),
     },
     {
-      title: "Encadré",
-      subtext: "Mettre une information en évidence",
+      title: FR_COPY.editor.slashMenu.callout.title,
+      subtext: FR_COPY.editor.slashMenu.callout.description,
       aliases: ["callout", "alerte", "conseil"],
-      group: "Blocs avancés",
+      group: FR_COPY.editor.slashMenu.advancedGroup,
       onItemClick: () =>
         insertRichBlock(editor, {
           type: "callout",
@@ -133,17 +137,17 @@ export function FrenchSlashMenu({
         }),
     },
     {
-      title: "Tableau simple",
-      subtext: "Créer un tableau à identités stables",
+      title: FR_COPY.editor.slashMenu.table.title,
+      subtext: FR_COPY.editor.slashMenu.table.description,
       aliases: ["table", "grille", "colonnes"],
-      group: "Blocs avancés",
+      group: FR_COPY.editor.slashMenu.advancedGroup,
       onItemClick: () => insertTableAfterCurrent(editor as unknown as SlashEditor),
     },
     {
-      title: "Contenu intégré",
-      subtext: "Ajouter explicitement un aperçu tiers avec votre accord",
+      title: FR_COPY.editor.slashMenu.embed.title,
+      subtext: FR_COPY.editor.slashMenu.embed.description,
       aliases: ["embed", "intégration", "vidéo", "figma", "github"],
-      group: "Blocs avancés",
+      group: FR_COPY.editor.slashMenu.advancedGroup,
       onItemClick: () =>
         insertRichBlock(editor, {
           type: "embed",
@@ -160,10 +164,10 @@ export function FrenchSlashMenu({
       ? []
       : [
           {
-            title: "Lien",
-            subtext: "Créer un lien vers une page ou une adresse Web",
+            title: FR_COPY.editor.slashMenu.link.title,
+            subtext: FR_COPY.editor.slashMenu.link.description,
             aliases: ["lien", "link", "url", "web", "page"],
-            group: "Navigation",
+            group: FR_COPY.editor.slashMenu.navigationGroup,
             onItemClick: () => prepareLinkFromSlash(editor as unknown as SlashEditor, onCreateLink),
           },
         ]),
@@ -171,10 +175,10 @@ export function FrenchSlashMenu({
       ? []
       : [
           {
-            title: "Sous-page",
-            subtext: "Créer une page imbriquée et insérer son lien",
+            title: FR_COPY.editor.slashMenu.subpage.title,
+            subtext: FR_COPY.editor.slashMenu.subpage.description,
             aliases: ["page", "sous-page", "subpage"],
-            group: "Navigation",
+            group: FR_COPY.editor.slashMenu.navigationGroup,
             onItemClick: () => {
               void createSubpageFromSlash(
                 editor as unknown as SlashEditor,
@@ -182,7 +186,9 @@ export function FrenchSlashMenu({
                 onSubpageCreated,
               ).catch((error: unknown) => {
                 onError?.(
-                  error instanceof Error ? error.message : "La sous-page n’a pas pu être créée.",
+                  error instanceof Error
+                    ? error.message
+                    : FR_COPY.editor.slashMenu.subpage.creationFailed,
                 );
               });
             },

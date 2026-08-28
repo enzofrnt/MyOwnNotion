@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { AsyncState, FR_COPY, LinkButton } from "../../ui/index.ts";
 import { formatByteLength } from "../hierarchy/file-node.tsx";
 
 /** What the application renders inside its own sandboxed frame. */
@@ -86,7 +87,7 @@ export function FilePreview({
           credentials: "same-origin",
         });
         if (!response.ok) {
-          setLoad({ kind: "failed", reason: "This file could not be loaded." });
+          setLoad({ kind: "failed", reason: FR_COPY.files.preview.loadFailed });
           return;
         }
         // Fetched successfully, so this device now holds it again. Recorded by
@@ -105,7 +106,7 @@ export function FilePreview({
         }
         setLoad({ kind: "ready", url });
       } catch {
-        setLoad({ kind: "failed", reason: "This file could not be loaded on this device." });
+        setLoad({ kind: "failed", reason: FR_COPY.files.preview.loadFailedHere });
       }
     })();
     return () => {
@@ -138,14 +139,14 @@ export function FilePreview({
 
   if (load.kind === "failed") {
     return (
-      <p className="status-banner" data-state="error" role="alert" data-testid="preview-failed">
-        {availability === "present"
-          ? load.reason
-          : // Not held here and not reachable: the file exists, the connection
-            // does not. Saying "could not be loaded" alone would let an owner
-            // conclude it is gone.
-            `${fileName} is not on this device and could not be fetched. It is still on the server; try again when you have a connection.`}
-      </p>
+      <AsyncState
+        kind="error"
+        title={fileName}
+        description={
+          availability === "present" ? load.reason : FR_COPY.files.preview.remoteOnlyFailed
+        }
+        testId="preview-failed"
+      />
     );
   }
 
@@ -155,16 +156,14 @@ export function FilePreview({
     // sentence this feature works hardest to avoid.
     const because =
       availability === "present"
-        ? `Loading ${fileName}…`
+        ? FR_COPY.files.preview.loading
         : typeof navigator !== "undefined" && !navigator.onLine
-          ? `${fileName} is not on this device, and there is no connection to fetch it. It is still on the server.`
+          ? FR_COPY.files.preview.offlineRemoteOnly
           : availability === "offloaded"
-            ? `Fetching ${fileName} again — this device had released it to stay within its storage limit.`
-            : `Fetching ${fileName} for the first time on this device…`;
+            ? FR_COPY.files.preview.fetchingReleased
+            : FR_COPY.files.preview.fetchingFirst;
     return (
-      <p className="muted" role="status" aria-busy="true" data-testid="preview-loading">
-        {because}
-      </p>
+      <AsyncState kind="loading" title={fileName} description={because} testId="preview-loading" />
     );
   }
 
@@ -176,7 +175,7 @@ export function FilePreview({
       // that safe.
       sandbox="allow-scripts"
       src={load.url}
-      title={`Preview of ${fileName}`}
+      title={`${FR_COPY.files.preview.frameTitle} : ${fileName}`}
       className="file-preview"
       data-testid="file-preview"
       referrerPolicy="no-referrer"
@@ -197,26 +196,27 @@ export function UnsupportedFile({
   readonly byteLength: number;
 }) {
   return (
-    <section className="panel" data-testid="file-unsupported" aria-label={`About ${fileName}`}>
-      <p>
-        <strong data-testid="unsupported-name">{fileName}</strong>
-      </p>
-      <p className="muted">
-        <span data-testid="unsupported-type">{mediaType}</span>
-        {" · "}
-        <span data-testid="unsupported-size">{formatByteLength(byteLength)}</span>
-      </p>
-      <p className="muted">
-        This kind of file is not previewed here. Downloading it opens it in whatever application you
-        normally use for it.
-      </p>
-      <a
-        href={`/v1/files/${fileItemId}/content`}
-        download={fileName}
-        data-testid="unsupported-download"
-      >
-        Download {fileName}
-      </a>
-    </section>
+    <AsyncState
+      kind="unavailable"
+      title={<span data-testid="unsupported-name">{fileName}</span>}
+      description={
+        <>
+          <span data-testid="unsupported-type">{mediaType}</span>
+          {" · "}
+          <span data-testid="unsupported-size">{formatByteLength(byteLength)}</span>
+          <span className="ui-async-state__paragraph">{FR_COPY.files.preview.unsupported}</span>
+        </>
+      }
+      action={
+        <LinkButton
+          href={`/v1/files/${fileItemId}/content`}
+          download={fileName}
+          data-testid="unsupported-download"
+        >
+          {FR_COPY.files.preview.download}
+        </LinkButton>
+      }
+      testId="file-unsupported"
+    />
   );
 }

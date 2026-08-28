@@ -18,20 +18,20 @@ import { DEPLOYMENT_KEY_REQUIREMENT } from "../src/features/security/recovery-ki
 
 describe("what the owner is told to keep", () => {
   it("names the deployment key, not just the kit", () => {
-    expect(DEPLOYMENT_KEY_REQUIREMENT).toMatch(/deployment key/i);
+    expect(DEPLOYMENT_KEY_REQUIREMENT).toMatch(/clé de déploiement/i);
   });
 
   it("says the kit alone is not enough", () => {
     // The sentence that stops an owner concluding the file is a complete
     // backup. Without it the panel is accurate about the file and wrong about
     // what the file achieves.
-    expect(DEPLOYMENT_KEY_REQUIREMENT).toMatch(/on its own|alone|cannot restore/i);
+    expect(DEPLOYMENT_KEY_REQUIREMENT).toMatch(/kit seul ne permet aucune restauration/i);
   });
 
   it("says to keep the two apart", () => {
     // A kit and the key that opens it, in the same place, are one thing that
     // can be lost together — which is the scenario the kit exists for.
-    expect(DEPLOYMENT_KEY_REQUIREMENT).toMatch(/separate|somewhere else/i);
+    expect(DEPLOYMENT_KEY_REQUIREMENT).toMatch(/autre emplacement/i);
   });
 
   it("uses no jargon an owner would have to look up", () => {

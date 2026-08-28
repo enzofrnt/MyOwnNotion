@@ -41,7 +41,7 @@ describe("the blocked state", () => {
   it("says reading still works", () => {
     const status = describeStatus(policy({ state: "write-block" }), NOW);
     // The sentence this whole file exists for.
-    expect(status.message).toMatch(/still read/i);
+    expect(status.message).toMatch(/reste lisible/i);
     expect(status.tone).toBe("urgent");
   });
 
@@ -58,7 +58,7 @@ describe("the blocked state", () => {
     // bare alarm is what sends an owner to delete a volume.
     for (const state of ["write-block", "failed", "emergency"] as const) {
       const { message } = describeStatus(policy({ state }), NOW);
-      const reassures = /still read|readable|nothing was lost|saving/i.test(message);
+      const reassures = /reste(?:nt)? lisible|rien n.a été perdu|enregistrement/i.test(message);
       expect(reassures, `${state}: ${message}`).toBe(true);
     }
   });
@@ -69,8 +69,8 @@ describe("a failed rotation", () => {
     const status = describeStatus(policy({ state: "failed" }), NOW);
     // A failed rotation is recoverable by construction: both key generations
     // stay readable. An owner told only "failed" would assume otherwise.
-    expect(status.message).toMatch(/nothing was lost/i);
-    expect(status.message).toMatch(/again/i);
+    expect(status.message).toMatch(/rien n.a été perdu/i);
+    expect(status.message).toMatch(/relancez/i);
   });
 });
 
@@ -85,7 +85,7 @@ describe("the countdown", () => {
     );
     // The due date is when work should start; the write block is when the
     // workspace stops accepting changes. Only the second is a deadline.
-    expect(status.message).toMatch(/3 days/);
+    expect(status.message).toMatch(/3 jours/);
   });
 
   it("says one day in the singular", () => {
@@ -96,7 +96,7 @@ describe("the countdown", () => {
       }),
       NOW,
     );
-    expect(status.message).toMatch(/1 day\b/);
+    expect(status.message).toMatch(/1 jour\b/);
   });
 
   it("rounds down rather than up", () => {
@@ -113,7 +113,7 @@ describe("the countdown", () => {
     );
     // Still a warning, just without a number it cannot compute.
     expect(status.tone).toBe("warning");
-    expect(status.message).toMatch(/overdue/i);
+    expect(status.message).toMatch(/en retard/i);
   });
 });
 
@@ -128,8 +128,8 @@ describe("progress on a running rotation", () => {
     });
     // A progress bar with no numbers is indistinguishable from a hang, and an
     // owner who concludes it has hung will restart the container mid-sweep.
-    expect(described).toMatch(/4,?812/);
-    expect(described).toMatch(/7,?700/);
+    expect(described).toMatch(/4\s812/u);
+    expect(described).toMatch(/7\s700/u);
   });
 
   it("says it is starting rather than showing a confident zero", () => {
@@ -141,7 +141,7 @@ describe("progress on a running rotation", () => {
         processedCount: 0,
         totalCount: 0,
       }),
-    ).toBe("Starting.");
+    ).toBe("Démarrage.");
   });
 
   it("counts workspaces for the installation key and notes for the note key", () => {
@@ -152,24 +152,26 @@ describe("progress on a running rotation", () => {
       processedCount: 1,
       totalCount: 1,
     });
-    expect(wrapping).toMatch(/workspaces/);
+    expect(wrapping).toMatch(/espaces de travail/);
   });
 });
 
 describe("what each key is, in the owner's terms", () => {
   it("says the installation key does not touch the notes", () => {
-    expect(describeKind("wrapping-key")).toMatch(/does not touch your notes/i);
+    expect(describeKind("wrapping-key")).toMatch(/ne modifie pas vos notes/i);
   });
 
   it("warns that rotating the note key rewrites everything", () => {
     // The two rotations differ in cost by orders of magnitude, and that is
     // what someone deciding when to run one needs to know.
-    expect(describeKind("data-key")).toMatch(/rewrites every/i);
+    expect(describeKind("data-key")).toMatch(/réécrit chaque/i);
   });
 
   it("uses neither schema term on screen", () => {
     for (const kind of ["wrapping-key", "data-key"] as const) {
-      expect(describeKind(kind)).not.toMatch(/wrapping key|data key/i);
+      expect(describeKind(kind)).not.toMatch(
+        /wrapping key|data key|clé d.enveloppe|clé de données/i,
+      );
     }
   });
 });
@@ -177,12 +179,14 @@ describe("what each key is, in the owner's terms", () => {
 describe("a healthy installation", () => {
   it("says there is nothing to do", () => {
     expect(describeStatus(policy({ state: "pre-due" }), NOW).tone).toBe("ok");
-    expect(describeStatus(policy({ state: "complete" }), NOW).message).toMatch(/nothing to do/i);
+    expect(describeStatus(policy({ state: "complete" }), NOW).message).toMatch(
+      /aucune action nécessaire/i,
+    );
   });
 
   it("reassures during a running rotation", () => {
     const status = describeStatus(policy({ state: "in-progress" }), NOW);
     expect(status.tone).toBe("ok");
-    expect(status.message).toMatch(/readable/i);
+    expect(status.message).toMatch(/restent lisibles/i);
   });
 });
