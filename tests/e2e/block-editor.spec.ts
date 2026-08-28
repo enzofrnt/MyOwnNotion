@@ -251,6 +251,8 @@ test.describe("the contextual BlockNote controls", () => {
   test("formats a selection and creates a durable internal page link in two actions", async ({
     page,
   }) => {
+    const uncaughtErrors: string[] = [];
+    page.on("pageerror", (error) => uncaughtErrors.push(error.message));
     const targetName = uniqueName("LinkTarget");
     await openPage(page, targetName);
     const sourceName = uniqueName("FormattingPage");
@@ -298,6 +300,7 @@ test.describe("the contextual BlockNote controls", () => {
     await expect(surface(page).locator('a[href^="#page="] .page-link__label')).toHaveText(
       targetName,
     );
+    expect(uncaughtErrors).toEqual([]);
   });
 });
 

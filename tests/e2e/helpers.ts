@@ -302,15 +302,12 @@ export async function openPageAttachments(page: Page, pageName: string): Promise
 
 /** Opens one compact attachment row's detailed facts and file actions. */
 export async function openAttachmentDetails(page: Page, fileName: string): Promise<void> {
-  const details = page.getByTestId(`attachment-${fileName}`).locator("details");
-  if ((await details.getAttribute("open")) === null) {
-    // `<summary>` is keyboard-operable in every supported browser, but Firefox
-    // and WebKit do not consistently expose it with the ARIA `button` role.
-    // Target the native disclosure element rather than assuming one engine's
-    // accessibility-tree mapping.
-    await details.locator("summary").click();
+  const trigger = page.getByTestId(`attachment-actions-${fileName}`);
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+    await trigger.click();
   }
-  await expect(details).toHaveAttribute("open", "");
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId(`attachment-details-${fileName}`)).toBeVisible();
 }
 
 /** Opens one row's accessible action menu without relying on hover state. */

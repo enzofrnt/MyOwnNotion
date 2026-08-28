@@ -1764,6 +1764,10 @@ code,
   scrollbar-width: thin;
 }
 
+.page-editor .bn-page-link-action {
+  display: contents;
+}
+
 .page-editor .bn-ak-button {
   min-width: var(--ui-target-compact);
   height: var(--ui-target-compact);

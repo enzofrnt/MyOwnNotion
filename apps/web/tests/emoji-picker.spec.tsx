@@ -63,4 +63,34 @@ describe("local emoji picker", () => {
     await act(async () => remove?.click());
     expect(onSelect).toHaveBeenCalledWith(null);
   });
+
+  it("keeps the focused picker mounted while its selection callback changes", async () => {
+    const firstSelection = vi.fn();
+    const latestSelection = vi.fn();
+    const factory = vi.fn<EmojiPickerFactory>((options) => {
+      const fakePicker = document.createElement("button");
+      fakePicker.type = "button";
+      fakePicker.dataset["testid"] = "stable-emoji";
+      fakePicker.addEventListener("click", () => options.onEmojiSelect({ native: "📌" }));
+      return fakePicker;
+    });
+
+    await act(async () => {
+      root.render(<EmojiPickerPanel value={null} onSelect={firstSelection} factory={factory} />);
+    });
+    const picker = container.querySelector<HTMLButtonElement>('[data-testid="stable-emoji"]');
+    picker?.focus();
+    expect(document.activeElement).toBe(picker);
+
+    await act(async () => {
+      root.render(<EmojiPickerPanel value={null} onSelect={latestSelection} factory={factory} />);
+    });
+
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="stable-emoji"]')).toBe(picker);
+    expect(document.activeElement).toBe(picker);
+    await act(async () => picker?.click());
+    expect(firstSelection).not.toHaveBeenCalled();
+    expect(latestSelection).toHaveBeenCalledWith("📌");
+  });
 });
