@@ -3,8 +3,6 @@ import {
   closestCenter,
   DndContext,
   type DragEndEvent,
-  type KeyboardCoordinateGetter,
-  KeyboardSensor,
   PointerSensor,
   pointerWithin,
   useDraggable,
@@ -12,10 +10,8 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import type { ReactNode, RefCallback } from "react";
-import { useMemo } from "react";
-import { AppIcon } from "../../ui/icons.tsx";
-import { Button } from "../../ui/primitives/index.ts";
+import type { ReactNode, PointerEvent as ReactPointerEvent, RefCallback } from "react";
+import { useCallback, useRef } from "react";
 
 export interface TreeDragItem {
   readonly id: string;
@@ -94,51 +90,6 @@ export function adjacentTreeKeyboardDropTarget(
   return itemId === null ? null : treeDropTargetId(itemId, direction === "up" ? "before" : "after");
 }
 
-const treeKeyboardCoordinates: KeyboardCoordinateGetter = (
-  event,
-  { active, currentCoordinates, context },
-) => {
-  if (
-    event.code !== "ArrowUp" &&
-    event.code !== "ArrowDown" &&
-    event.code !== "ArrowLeft" &&
-    event.code !== "ArrowRight"
-  ) {
-    return undefined;
-  }
-  event.preventDefault();
-
-  const rows = context.droppableContainers.getEnabled().flatMap((container) => {
-    const target = parseTreeDropTargetId(String(container.id));
-    if (target?.zone !== "before") return [];
-    const rect = context.droppableRects.get(container.id);
-    return rect === undefined ? [] : [{ id: target.itemId, top: rect.top }];
-  });
-  const currentDropTarget = parseTreeDropTargetId(String(context.over?.id ?? ""));
-  const currentItemId = currentDropTarget?.itemId ?? String(active);
-  const targetId =
-    event.code === "ArrowUp" || event.code === "ArrowDown"
-      ? adjacentTreeKeyboardDropTarget(
-          rows,
-          currentItemId,
-          event.code === "ArrowUp" ? "up" : "down",
-        )
-      : currentDropTarget === null || currentDropTarget.itemId === String(active)
-        ? null
-        : treeDropTargetId(
-            currentDropTarget.itemId,
-            event.code === "ArrowRight" ? "inside" : "before",
-          );
-  if (targetId === null || context.collisionRect === null) return undefined;
-  const targetRect = context.droppableRects.get(targetId);
-  if (targetRect === undefined) return undefined;
-
-  return {
-    x: currentCoordinates.x,
-    y: targetRect.top + targetRect.height / 2 - context.collisionRect.height / 2,
-  };
-};
-
 function isBelow(
   byId: ReadonlyMap<string, TreeDragItem>,
   candidateId: string,
@@ -212,17 +163,6 @@ const treeCollisionDetection: CollisionDetection = (input) => {
   return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(input);
 };
 
-function dropTargetName(byId: ReadonlyMap<string, TreeDragItem>, dropTargetId: string): string {
-  const target = parseTreeDropTargetId(dropTargetId);
-  if (target === null) return "la cible";
-  const name = byId.get(target.itemId)?.name ?? "l’élément";
-  return target.zone === "inside"
-    ? `dans ${name}`
-    : target.zone === "before"
-      ? `avant ${name}`
-      : `après ${name}`;
-}
-
 export function TreeDragDropProvider({
   children,
   items,
@@ -234,12 +174,7 @@ export function TreeDragDropProvider({
   readonly onDrop: (intent: Exclude<TreeDropIntent, { readonly kind: "rejected" }>) => void;
   readonly onRejected?: (intent: Extract<TreeDropIntent, { readonly kind: "rejected" }>) => void;
 }) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: treeKeyboardCoordinates }),
-  );
-  const byId = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
-  const itemName = (id: string): string => byId.get(id)?.name ?? "l’élément";
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const finishDrag = (event: DragEndEvent): void => {
     if (event.over === null) return;
@@ -258,24 +193,6 @@ export function TreeDragDropProvider({
       collisionDetection={treeCollisionDetection}
       autoScroll
       onDragEnd={finishDrag}
-      accessibility={{
-        screenReaderInstructions: {
-          draggable:
-            "Appuyez sur Espace pour saisir une ligne, utilisez les flèches pour choisir une cible, puis Espace pour déposer. Échap annule.",
-        },
-        announcements: {
-          onDragStart: ({ active }) => `${itemName(String(active.id))} saisi.`,
-          onDragOver: ({ active, over }) =>
-            over === null
-              ? `${itemName(String(active.id))} n’est au-dessus d’aucune cible.`
-              : `${itemName(String(active.id))} ${dropTargetName(byId, String(over.id))}.`,
-          onDragEnd: ({ active, over }) =>
-            over === null
-              ? `Déplacement de ${itemName(String(active.id))} annulé.`
-              : `${itemName(String(active.id))} déposé ${dropTargetName(byId, String(over.id))}.`,
-          onDragCancel: ({ active }) => `Déplacement de ${itemName(String(active.id))} annulé.`,
-        },
-      }}
     >
       {children}
     </DndContext>
@@ -294,14 +211,51 @@ export function TreeDropTarget({
     readonly setBeforeRef: RefCallback<HTMLElement>;
     readonly setInsideRef: RefCallback<HTMLElement>;
     readonly setAfterRef: RefCallback<HTMLElement>;
+    readonly rowDragListeners: {
+      readonly onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
+    };
+    readonly rowDragging: boolean;
+    readonly consumeDragClick: () => boolean;
   }) => ReactNode;
 }) {
+  const draggable = useDraggable({ id: itemId });
   const before = useDroppable({ id: treeDropTargetId(itemId, "before") });
   const inside = useDroppable({
     id: treeDropTargetId(itemId, "inside"),
     disabled: !canContainChildren,
   });
   const after = useDroppable({ id: treeDropTargetId(itemId, "after") });
+  const draggedSincePointerDown = useRef(false);
+  if (draggable.isDragging) draggedSincePointerDown.current = true;
+  const setInsideRef = useCallback(
+    (node: HTMLElement | null) => {
+      inside.setNodeRef(node);
+      draggable.setNodeRef(node);
+    },
+    [draggable.setNodeRef, inside.setNodeRef],
+  );
+  const onPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      draggedSincePointerDown.current = false;
+      if (event.button !== 0) return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          "button, input, select, textarea, a, summary, [role='menuitem'], [data-no-tree-drag]",
+        ) !== null
+      ) {
+        return;
+      }
+      draggable.listeners?.["onPointerDown"]?.(event);
+    },
+    [draggable.listeners],
+  );
+  const consumeDragClick = useCallback((): boolean => {
+    const dragged = draggedSincePointerDown.current;
+    draggedSincePointerDown.current = false;
+    return dragged;
+  }, []);
   const active = before.active ?? inside.active ?? after.active;
   const draggingAnotherItem = active !== null && String(active.id) !== itemId;
   return children({
@@ -315,37 +269,10 @@ export function TreeDropTarget({
             ? "after"
             : null,
     setBeforeRef: before.setNodeRef,
-    setInsideRef: inside.setNodeRef,
+    setInsideRef,
     setAfterRef: after.setNodeRef,
+    rowDragListeners: { onPointerDown },
+    rowDragging: draggable.isDragging,
+    consumeDragClick,
   });
-}
-
-export function TreeDragHandle({
-  itemId,
-  itemName,
-}: {
-  readonly itemId: string;
-  readonly itemName: string;
-}) {
-  const { attributes, isDragging, listeners, setNodeRef } = useDraggable({
-    id: itemId,
-    attributes: { role: "button", roleDescription: "poignée de déplacement" },
-  });
-
-  return (
-    <Button
-      {...attributes}
-      {...listeners}
-      ref={setNodeRef}
-      className="tree-drag-handle"
-      size="square"
-      variant="ghost"
-      aria-label={`Déplacer ${itemName}`}
-      data-testid={`drag-${itemName}`}
-      data-dragging={isDragging || undefined}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <AppIcon name="drag" size="small" />
-    </Button>
-  );
 }

@@ -93,7 +93,7 @@ test.describe("hierarchy organization (US1)", () => {
     await expectTreeOrder(page, second, first);
   });
 
-  test("reorders siblings with the visible drag handle", async ({ page }) => {
+  test("reorders siblings by dragging the row without a sidebar handle", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await openWorkspace(page);
     const first = uniqueName("Drag first");
@@ -104,9 +104,10 @@ test.describe("hierarchy organization (US1)", () => {
 
     const sourceRow = page.getByTestId(`tree-item-${second}`);
     await sourceRow.hover();
-    const handle = page.getByTestId(`drag-${second}`);
+    await expect(page.getByTestId(`drag-${second}`)).toHaveCount(0);
+    const dragSurface = sourceRow.locator(".tree-name");
     const target = page.getByTestId(`drop-before-${first}`);
-    const sourceBox = await handle.boundingBox();
+    const sourceBox = await dragSurface.boundingBox();
     const targetBox = await target.boundingBox();
     expect(sourceBox).not.toBeNull();
     expect(targetBox).not.toBeNull();
@@ -131,6 +132,53 @@ test.describe("hierarchy organization (US1)", () => {
 
     await expectTreeOrder(page, second, first);
     await waitForSynchronized(page);
+  });
+
+  test("creates page and folder children from the compact in-row actions", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+    const parent = uniqueName("Inline parent");
+    const childPage = uniqueName("Inline page");
+    const childFolder = uniqueName("Inline folder");
+    await createRootItem(page, "folder", parent);
+    await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
+
+    const row = page.getByTestId(`tree-item-${parent}`);
+    const before = await row.boundingBox();
+    await row.hover();
+    const inlineToggle = page.getByTestId(`toggle-inline-create-${parent}`);
+    await inlineToggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId(`new-page-inline-${parent}`)).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(inlineToggle).toBeFocused();
+
+    await inlineToggle.click();
+    const after = await row.boundingBox();
+    expect(before).not.toBeNull();
+    expect(after).not.toBeNull();
+    expect(Math.abs((before?.width ?? 0) - (after?.width ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((before?.height ?? 0) - (after?.height ?? 0))).toBeLessThanOrEqual(1);
+
+    const name = page.getByLabel("Nom", { exact: true });
+    await page.getByTestId("toggle-root-creation").click();
+    await name.fill(childPage);
+    await page.getByTestId("toggle-root-creation").click();
+    await row.hover();
+    await page.getByTestId(`new-page-inline-${parent}`).click();
+    await expect(page.getByTestId("active-item-title")).toHaveValue(childPage, {
+      timeout: 15_000,
+    });
+
+    await ensureNavigationVisible(page);
+    await page.getByTestId("toggle-root-creation").click();
+    await page.getByLabel("Nom", { exact: true }).fill(childFolder);
+    await page.getByTestId("toggle-root-creation").click();
+    await row.hover();
+    await page.getByTestId(`toggle-inline-create-${parent}`).click();
+    await page.getByTestId(`new-folder-inline-${parent}`).click();
+    await expect(page.getByTestId(`tree-item-${childFolder}`)).toBeVisible({ timeout: 15_000 });
   });
 
   test("turns a page back into a leaf after its last child moves away", async ({ page }) => {

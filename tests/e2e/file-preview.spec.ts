@@ -10,6 +10,7 @@
 import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
+  openAttachmentDetails,
   openPageAttachments,
   openWorkspace,
   selectSettledPage,
@@ -51,6 +52,7 @@ async function pageWithFile(
   });
   await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
   await waitForSynchronized(page);
+  await openAttachmentDetails(page, fileName);
 }
 
 test.describe("a preview cannot reach the workspace", () => {
@@ -154,6 +156,7 @@ test.describe("deferred diagram support", () => {
       buffer: Buffer.from('<mxfile><diagram id="a" name="Page-1"></diagram></mxfile>'),
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    await openAttachmentDetails(page, fileName);
     await page.getByTestId(`preview-file-${fileName}`).click();
     await expect(page.getByTestId("file-unsupported")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("unsupported-download")).toBeVisible();

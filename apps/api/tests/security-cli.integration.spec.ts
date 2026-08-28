@@ -29,6 +29,7 @@ beforeAll(async () => {
   vi.stubEnv("DATABASE_URL", harness.postgres.connectionString);
   vi.stubEnv("MYOWNNOTION_DEPLOYMENT_KEY_FILE", keyFile);
   vi.stubEnv("MYOWNNOTION_PUBLIC_ORIGIN", "https://localhost.test");
+  vi.stubEnv("MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE", "0");
 }, 180_000);
 
 afterAll(async () => {

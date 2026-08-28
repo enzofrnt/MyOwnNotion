@@ -169,9 +169,11 @@ test("links to another page without nesting it, including a descendant", async (
   // Conversion also preserves identity. The target is empty, so page → folder
   // is non-destructive and needs no confirmation.
   await convertItem(page, `${reference}-renamed`);
-  await expect(page.getByTestId(`convert-${reference}-renamed`)).toHaveText("en page", {
-    timeout: 30_000,
-  });
+  await expect(page.getByTestId(`tree-item-${reference}-renamed`)).toHaveAttribute(
+    "data-item-kind",
+    "folder",
+    { timeout: 30_000 },
+  );
   await waitForSynchronized(page);
 
   await selectItem(page, source);

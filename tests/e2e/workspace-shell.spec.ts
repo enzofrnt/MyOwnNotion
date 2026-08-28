@@ -224,4 +224,28 @@ test.describe("focused workspace shell", () => {
     await expect(title).toHaveValue("Sans titre");
     await expect(page.getByTestId("tree-item-Sans titre")).toBeVisible({ timeout: 15_000 });
   });
+
+  test("edits a folder title and emoji from the main canvas", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+    const original = uniqueName("Dossier éditable");
+    const renamed = uniqueName("Dossier renommé");
+    await createRootItem(page, "folder", original);
+    await page.getByTestId(`tree-item-${original}`).click();
+
+    const title = page.getByRole("textbox", { name: "Nom du dossier" });
+    await expect(page.getByTestId("workspace-folder-canvas")).toBeVisible();
+    await expect(title).toHaveValue(original);
+    await title.fill(renamed);
+    await title.blur();
+    await expect(page.getByTestId(`tree-item-${renamed}`)).toBeVisible({ timeout: 15_000 });
+
+    const icon = page.getByTestId("item-icon-picker-trigger");
+    await icon.click();
+    const picker = page.getByTestId("emoji-picker-panel");
+    await expect(picker).toBeVisible();
+    const folderEmoji = picker.getByRole("button", { name: "📁", exact: true });
+    await folderEmoji.click();
+    await expect(icon.locator('[data-item-emoji="true"]')).toHaveText("📁");
+  });
 });

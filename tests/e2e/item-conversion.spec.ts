@@ -32,10 +32,6 @@ import {
   waitForSynchronized,
 } from "./helpers.ts";
 
-function convertButton(page: import("@playwright/test").Page, name: string) {
-  return page.getByTestId(`convert-${name}`);
-}
-
 /**
  * Clicks the conversion control and waits for the *item* to have changed.
  *
@@ -51,10 +47,9 @@ async function convertAndSettle(
   becomes: "page" | "folder",
 ): Promise<void> {
   await activateConversion(page, name);
-  await expect(convertButton(page, name)).toHaveText(
-    becomes === "page" ? "en dossier" : "en page",
-    { timeout: 30_000 },
-  );
+  await expect(page.getByTestId(`tree-item-${name}`)).toHaveAttribute("data-item-kind", becomes, {
+    timeout: 30_000,
+  });
   await waitForSynchronized(page);
 }
 
@@ -231,7 +226,7 @@ test.describe("the confirmation as a dialog", () => {
 
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("convert-confirmation")).toBeHidden();
-    await expect(convertButton(page, name)).toBeFocused();
+    await expect(page.getByTestId(`item-actions-${name}`)).toBeFocused();
   });
 
   test("is announced as an alert dialog", async ({ page }) => {
@@ -366,7 +361,9 @@ test.describe("offline", () => {
 
     await page.route("**/v1/**", (route) => route.abort("connectionrefused"));
     await activateConversion(page, name);
-    await expect(convertButton(page, name)).toHaveText("en dossier", { timeout: 30_000 });
+    await expect(page.getByTestId(`tree-item-${name}`)).toHaveAttribute("data-item-kind", "page", {
+      timeout: 30_000,
+    });
 
     await page.unroute("**/v1/**");
     // Reload before waiting: the client reconciles when it starts and when it
@@ -377,6 +374,6 @@ test.describe("offline", () => {
     await openWorkspace(page);
     await waitForSynchronized(page);
     // Still a page after the round trip: the queued conversion was accepted.
-    await expect(convertButton(page, name)).toHaveText("en dossier");
+    await expect(page.getByTestId(`tree-item-${name}`)).toHaveAttribute("data-item-kind", "page");
   });
 });

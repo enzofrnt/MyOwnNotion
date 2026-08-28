@@ -300,6 +300,19 @@ export async function openPageAttachments(page: Page, pageName: string): Promise
   await expect(page.getByTestId("attachment-panel")).toBeVisible({ timeout: 15_000 });
 }
 
+/** Opens one compact attachment row's detailed facts and file actions. */
+export async function openAttachmentDetails(page: Page, fileName: string): Promise<void> {
+  const details = page.getByTestId(`attachment-${fileName}`).locator("details");
+  if ((await details.getAttribute("open")) === null) {
+    // `<summary>` is keyboard-operable in every supported browser, but Firefox
+    // and WebKit do not consistently expose it with the ARIA `button` role.
+    // Target the native disclosure element rather than assuming one engine's
+    // accessibility-tree mapping.
+    await details.locator("summary").click();
+  }
+  await expect(details).toHaveAttribute("open", "");
+}
+
 /** Opens one row's accessible action menu without relying on hover state. */
 export async function openItemActions(page: Page, itemName: string): Promise<void> {
   const row = await ensureNavigationRowVisible(page, itemName);
@@ -401,10 +414,9 @@ export async function moveSelectedItemInto(page: Page, targetName: string): Prom
   await clickItemAction(page, targetName, `move-selected-inside-${targetName}`);
 }
 
-/** Reveals and activates the conversion control beside a hierarchy row. */
+/** Reveals and activates conversion from the row's complementary actions. */
 export async function convertItem(page: Page, itemName: string): Promise<void> {
-  const row = await ensureNavigationRowVisible(page, itemName);
-  await row.focus();
+  await openItemActions(page, itemName);
   await page.getByTestId(`convert-${itemName}`).click();
 }
 

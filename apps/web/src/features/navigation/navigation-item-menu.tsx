@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, useRef } from "react";
+import { type MouseEvent, type ReactNode, type RefObject, useRef } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   MenuContent,
@@ -15,7 +15,7 @@ export interface NavigationItemMenuProps {
   readonly canMoveSelectedInside: boolean;
   readonly favourite: boolean;
   readonly keptOffline: boolean;
-  readonly conversion?: ReactNode;
+  readonly conversion?: (returnFocus: RefObject<HTMLButtonElement | null>) => ReactNode;
   readonly onCreatePage: () => void;
   readonly onCreateFolder: () => void;
   readonly onCreateDatabase: () => void;
@@ -54,11 +54,12 @@ export function NavigationItemMenu({
   onRequestTrash,
 }: NavigationItemMenuProps) {
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const menuTrigger = useRef<HTMLButtonElement | null>(null);
   return (
-    <span className="navigation-item-actions">
-      {conversion}
+    <span className="navigation-item-menu">
       <MenuRoot>
         <MenuTrigger
+          ref={menuTrigger}
           className="navigation-item-menu__trigger"
           data-testid={`item-actions-${itemName}`}
           aria-label={`Actions pour ${itemName}`}
@@ -107,6 +108,7 @@ export function NavigationItemMenu({
               Ajouter ou changer l’icône
             </MenuItem>
           )}
+          {conversion?.(menuTrigger)}
           <MenuItem data-testid={`move-up-${itemName}`} onClick={onMoveUp}>
             <AppIcon name="arrowUp" size="small" />
             Déplacer vers le haut

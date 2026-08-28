@@ -31,6 +31,9 @@ if [[ "${1:-}" == "--" ]]; then
     shift
 fi
 
+# Bun auto-loads the repository's mounted `.env`. Pin the container stack to
+# its documented internal ports so a developer's local Compose ports do not
+# redirect Playwright toward an unrelated (or absent) installation.
 docker run --rm --ipc=host \
     --add-host=host.docker.internal:host-gateway \
     --volume "${repo_root}:/work" \
@@ -38,6 +41,10 @@ docker run --rm --ipc=host \
     --workdir /work \
     --env CI=1 \
     --env DATABASE_URL="${database_url}" \
+    --env MYOWNNOTION_API_PORT=3001 \
+    --env MYOWNNOTION_WEB_PORT=5173 \
+    --env MYOWNNOTION_WEB_HOST=localhost \
+    --env MYOWNNOTION_PUBLIC_ORIGIN=http://localhost:5173 \
     --env MYOWNNOTION_BLOB_ROOT=/tmp/myownnotion-blobs \
     --env MYOWNNOTION_BACKUP_ROOT=/tmp/myownnotion-backups \
     --env MYOWNNOTION_DEPLOYMENT_KEY_FILE="${container_deployment_key_file}" \

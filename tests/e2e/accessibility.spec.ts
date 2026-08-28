@@ -11,6 +11,7 @@ import {
   createRootItem,
   ensureNavigationRowVisible,
   ensureNavigationVisible,
+  openAttachmentDetails,
   openItemActions,
   openPageAttachments,
   openRootCreation,
@@ -253,6 +254,7 @@ test.describe("the file surfaces (feature 005)", () => {
       buffer: Buffer.from("bytes for the audit"),
     });
     await expect(page.getByTestId(`attachment-${fileName}`)).toBeVisible({ timeout: 30_000 });
+    await openAttachmentDetails(page, fileName);
     return { pageName, fileName };
   }
 
