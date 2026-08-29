@@ -7,12 +7,12 @@ import {
   COLLAPSIBLE_REGION_CLEANUP_FALLBACK_MS,
   COLLAPSIBLE_REGION_DURATION_MS,
   CollapsibleRegion,
-  TREE_JOIN_RADIUS_DURATION_VAR,
   cssEase,
   joinReleaseHeightPx,
   joinReleasePlan,
   joinThresholdPx,
   remainingCloseMs,
+  TREE_JOIN_RADIUS_DURATION_VAR,
 } from "../src/features/navigation/collapsible-region.tsx";
 
 describe("collapsible region", () => {
