@@ -125,6 +125,28 @@ export async function readItem(executor: Executor, itemId: Uuid): Promise<ItemRe
   return models[0] ?? null;
 }
 
+/**
+ * Locks the canonical revision frontier of one workspace item.
+ *
+ * Operational pages deliberately keep a second, content-oriented revision
+ * boundary. Callers that join those two frontiers must serialize against
+ * ordinary item mutations (rename, move, icon, and so on) before proving
+ * their lineage or creating a new semantic revision.
+ */
+export async function lockItemRevisionHead(
+  tx: Transaction,
+  workspaceId: Uuid,
+  itemId: Uuid,
+): Promise<Uuid | null> {
+  const rows = await tx
+    .select({ currentRevisionId: items.currentRevisionId })
+    .from(items)
+    .where(and(eq(items.workspaceId, workspaceId), eq(items.id, itemId)))
+    .for("update")
+    .limit(1);
+  return (rows[0]?.currentRevisionId as Uuid | undefined) ?? null;
+}
+
 /** Lists items by lifecycle and/or active hierarchy parent. */
 export async function listItems(
   executor: Executor,

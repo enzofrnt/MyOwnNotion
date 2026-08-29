@@ -11,6 +11,7 @@ import {
   type Database,
   getRevision,
   insertRevision,
+  lockItemRevisionHead,
   lockPageOperationState,
   readPageOperationCheckpoint,
   revisionDescendsFrom,
@@ -353,20 +354,6 @@ function pageDocumentFromSnapshot(snapshot: unknown): BlockDocumentV3 | null {
   return migrated.ok ? normaliseDocumentV3(migrated.document) : null;
 }
 
-async function lockItemRevisionHead(
-  tx: Transaction,
-  workspaceId: Uuid,
-  pageId: Uuid,
-): Promise<Uuid | null> {
-  const rows = await tx
-    .select({ currentRevisionId: schema.items.currentRevisionId })
-    .from(schema.items)
-    .where(and(eq(schema.items.workspaceId, workspaceId), eq(schema.items.id, pageId)))
-    .for("update")
-    .limit(1);
-  return (rows[0]?.currentRevisionId as Uuid | undefined) ?? null;
-}
-
 export class PageHistoryService {
   readonly #deps: Omit<PageHistoryServiceDeps, "now"> & { readonly now: () => Date };
 
@@ -562,8 +549,9 @@ export class PageHistoryService {
       }
       // The canonical item head can advance through a rename, move or another
       // non-editor mutation while the operational content boundary stays put.
-      // Lock and compare both heads before touching the page so that such a
-      // race is an explicit stale-base conflict, never a 500 or an overwrite.
+      // The restore token guards the canonical head the user previewed; the
+      // operational boundary is allowed to be its ancestor, but never a
+      // concurrent lineage.
       const itemRevisionHead = await lockItemRevisionHead(
         tx,
         this.#deps.workspaceId,
@@ -572,16 +560,23 @@ export class PageHistoryService {
       if (itemRevisionHead === null) {
         throw new PageHistoryServiceError("revision.not-found", "Revision is not operational", 404);
       }
-      const competingRevisionIds = [state.lastRevisionId as Uuid, itemRevisionHead].filter(
-        (revisionId, index, all) =>
-          revisionId !== input.expectedCurrentRevisionId && all.indexOf(revisionId) === index,
-      );
-      if (competingRevisionIds.length > 0) {
+      if (itemRevisionHead !== input.expectedCurrentRevisionId) {
         throw new PageHistoryServiceError(
           "revision.stale-base",
           "The page has advanced since this restore was prepared",
           409,
-          competingRevisionIds,
+          [itemRevisionHead],
+        );
+      }
+      const operationalBoundary = state.lastRevisionId as Uuid;
+      if (!(await revisionDescendsFrom(tx, itemRevisionHead, operationalBoundary))) {
+        throw new PageHistoryServiceError(
+          "revision.stale-base",
+          "The canonical and operational page histories no longer share a safe frontier",
+          409,
+          [itemRevisionHead, operationalBoundary].filter(
+            (revisionId, index, all) => all.indexOf(revisionId) === index,
+          ),
         );
       }
       // A restore is a semantic boundary. Preserve any live editing window as

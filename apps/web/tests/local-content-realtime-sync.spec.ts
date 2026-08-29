@@ -177,6 +177,46 @@ describe("LocalContentService realtime integration", () => {
     await vi.waitFor(() => expect(drain).toHaveBeenCalledOnce());
   });
 
+  it("coalesces simultaneous operational wake-ups without overlapping recovery passes", async () => {
+    const service = new LocalContentService(contentApi(), `operational-drain-${generateUuidV7()}`);
+    services.push(service);
+    await service.initialize();
+
+    let releaseFirst!: () => void;
+    const firstPassBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let invocations = 0;
+    let activePasses = 0;
+    let maximumConcurrentPasses = 0;
+    vi.spyOn(service.legacyConflictRecovery, "recoverAvailable").mockImplementation(async () => {
+      invocations += 1;
+      activePasses += 1;
+      maximumConcurrentPasses = Math.max(maximumConcurrentPasses, activePasses);
+      if (invocations === 1) await firstPassBlocked;
+      activePasses -= 1;
+      return {
+        classified: 0,
+        prepared: 0,
+        completed: 0,
+        quarantined: 0,
+        offline: false,
+        pageIds: [],
+      };
+    });
+
+    const first = service.synchronizeOperationalPages();
+    await vi.waitFor(() => expect(invocations).toBe(1));
+    const joined = service.synchronizeOperationalPages();
+    await Promise.resolve();
+    expect(invocations).toBe(1);
+
+    releaseFirst();
+    await expect(Promise.all([first, joined])).resolves.toEqual([true, true]);
+    expect(invocations).toBe(2);
+    expect(maximumConcurrentPasses).toBe(1);
+  });
+
   it("routes a newer announcement to that page's reconciler and ignores a dominated one", async () => {
     const { service } = serviceWithSocket();
     const pageId = generateUuidV7();

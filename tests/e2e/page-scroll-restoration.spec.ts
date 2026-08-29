@@ -3,8 +3,8 @@
  *
  * The anchor is content, not pixels: blocks above may have grown or shrunk by
  * the time the owner returns, so the assertion is about the remembered
- * paragraph being back under the viewport top — not about an identical
- * scrollY. A late jump after first paint is exactly the failure FR-009
+ * paragraph being back under the editing viewport top — not about an identical
+ * scrollTop. A late jump after first paint is exactly the failure FR-009
  * forbids, so the position must already be settled when the editor appears.
  */
 
@@ -46,24 +46,36 @@ test.describe("scroll restoration", () => {
     await createRootItem(page, "folder", otherName);
     await selectItem(page, pageName);
     await fillLongPage(page);
+    const scroller = page.getByTestId("workspace-main");
+    const header = page.locator(".workspace-stage__header");
+    const sidebar = page.getByTestId("sidebar");
+    const fixedBefore = {
+      header: await header.boundingBox(),
+      sidebar: await sidebar.boundingBox(),
+    };
 
     // Scroll deep into the document by absolute position: a session upgrade
     // can remount the surface under a kept scroll offset, leaving the
     // viewport in empty space, so the target is the last block itself.
-    await page.evaluate(() => {
-      const blocks = Array.from(document.querySelectorAll(".bn-block-outer[data-id]"));
+    await scroller.evaluate((element) => {
+      const blocks = Array.from(element.querySelectorAll(".bn-block-outer[data-id]"));
       const last = blocks.at(-1);
       if (last === undefined) return;
-      const top = last.getBoundingClientRect().top + window.scrollY;
-      window.scrollTo(0, Math.max(0, top - window.innerHeight / 2));
+      const viewport = element.getBoundingClientRect();
+      const top = last.getBoundingClientRect().top - viewport.top + element.scrollTop;
+      element.scrollTo(0, Math.max(0, top - element.clientHeight / 2));
     });
-    await page.waitForFunction(() => window.scrollY > 100);
+    await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
+    await expect.poll(() => page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
+    expect(await header.boundingBox()).toEqual(fixedBefore.header);
+    expect(await sidebar.boundingBox()).toEqual(fixedBefore.sidebar);
     // The promise (FR-009, SC-008) is about the remembered neighbourhood,
     // not about pixels: whatever block topped the viewport when the owner
     // left must be back in view when they return.
-    const rememberedBlockId = await page.evaluate(() => {
-      for (const block of Array.from(document.querySelectorAll(".bn-block-outer[data-id]"))) {
-        if (block.getBoundingClientRect().bottom > 0) {
+    const rememberedBlockId = await scroller.evaluate((element) => {
+      const viewportTop = element.getBoundingClientRect().top;
+      for (const block of Array.from(element.querySelectorAll(".bn-block-outer[data-id]"))) {
+        if (block.getBoundingClientRect().bottom > viewportTop) {
           return block.getAttribute("data-id");
         }
       }
@@ -71,8 +83,8 @@ test.describe("scroll restoration", () => {
     });
     if (rememberedBlockId === null) {
       const diagnosis = await page.evaluate(() => ({
-        scrollY: window.scrollY,
-        innerHeight: window.innerHeight,
+        scrollTop: document.querySelector<HTMLElement>(".workspace-main")?.scrollTop,
+        clientHeight: document.querySelector<HTMLElement>(".workspace-main")?.clientHeight,
         blocks: document.querySelectorAll(".bn-block-outer[data-id]").length,
         editors: document.querySelectorAll(".ProseMirror").length,
       }));
@@ -85,13 +97,14 @@ test.describe("scroll restoration", () => {
     await expect(page.getByTestId("block-editor")).toBeVisible({ timeout: 30_000 });
 
     await expect
-      .poll(() => page.evaluate(() => window.scrollY), { timeout: 10_000 })
+      .poll(() => scroller.evaluate((element) => element.scrollTop), { timeout: 10_000 })
       .toBeGreaterThan(100);
-    const restoredVisible = await page.evaluate((id) => {
-      const element = document.querySelector(`.bn-block-outer[data-id="${id}"]`);
-      if (element === null) return false;
-      const rect = element.getBoundingClientRect();
-      return rect.bottom > 0 && rect.top < window.innerHeight;
+    const restoredVisible = await scroller.evaluate((scrollElement, id) => {
+      const block = document.querySelector(`.bn-block-outer[data-id="${id}"]`);
+      if (block === null) return false;
+      const rect = block.getBoundingClientRect();
+      const viewport = scrollElement.getBoundingClientRect();
+      return rect.bottom > viewport.top && rect.top < viewport.bottom;
     }, rememberedBlockId);
     expect(restoredVisible).toBe(true);
   });

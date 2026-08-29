@@ -92,6 +92,27 @@ describe("page title editor", () => {
     expect(title.value).toBe("Sans titre");
   });
 
+  it("opens every newly created identity on one focused blank title", async () => {
+    const onCommit = vi.fn(async () => undefined);
+    const onAutoFocusHandled = vi.fn();
+    await act(async () => {
+      root.render(
+        <PageTitleEditor
+          autoFocusBlank
+          title="Sans titre"
+          onCommit={onCommit}
+          onAutoFocusHandled={onAutoFocusHandled}
+        />,
+      );
+    });
+
+    const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
+    expect(title).toBe(document.activeElement);
+    expect(title?.value).toBe("");
+    await vi.waitFor(() => expect(onAutoFocusHandled).toHaveBeenCalledTimes(1));
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it("edits a folder through the same canonical identity component", async () => {
     const onCommit = vi.fn(async () => undefined);
     await act(async () => {

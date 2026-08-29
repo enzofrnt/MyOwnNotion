@@ -4,7 +4,15 @@ import { Button } from "../../ui/primitives/index.ts";
 
 export interface NavigationInlineCreateProps {
   readonly itemName: string;
+  readonly label?: string;
   readonly open: boolean;
+  readonly variant?: "item" | "root";
+  readonly testIds?: {
+    readonly root?: string;
+    readonly toggle?: string;
+    readonly page?: string;
+    readonly folder?: string;
+  };
   readonly onOpenChange: (open: boolean) => void;
   readonly onCreatePage: () => void;
   readonly onCreateFolder: () => void;
@@ -19,10 +27,13 @@ export interface NavigationInlineCreateProps {
  */
 export function NavigationInlineCreate({
   itemName,
+  label,
   onCreateFolder,
   onCreatePage,
   onOpenChange,
   open,
+  testIds,
+  variant = "item",
 }: NavigationInlineCreateProps) {
   const firstChoice = useRef<HTMLButtonElement | null>(null);
   const toggle = useRef<HTMLButtonElement | null>(null);
@@ -52,8 +63,9 @@ export function NavigationInlineCreate({
   return (
     <span
       className="navigation-inline-create"
-      data-testid={`inline-create-${itemName}`}
+      data-testid={testIds?.root ?? `inline-create-${itemName}`}
       data-open={open || undefined}
+      data-variant={variant}
     >
       <span className="navigation-inline-create__surface">
         <span
@@ -67,7 +79,7 @@ export function NavigationInlineCreate({
             size="square"
             variant="ghost"
             tabIndex={open ? 0 : -1}
-            data-testid={`new-page-inline-${itemName}`}
+            data-testid={testIds?.page ?? `new-page-inline-${itemName}`}
             aria-label={`Nouvelle page dans ${itemName}`}
             title="Nouvelle page"
             onPointerDown={stopPointer}
@@ -81,7 +93,7 @@ export function NavigationInlineCreate({
             size="square"
             variant="ghost"
             tabIndex={open ? 0 : -1}
-            data-testid={`new-folder-inline-${itemName}`}
+            data-testid={testIds?.folder ?? `new-folder-inline-${itemName}`}
             aria-label={`Nouveau dossier dans ${itemName}`}
             title="Nouveau dossier"
             onPointerDown={stopPointer}
@@ -97,10 +109,16 @@ export function NavigationInlineCreate({
           size="square"
           variant="ghost"
           className="navigation-inline-create__toggle"
-          data-testid={`toggle-inline-create-${itemName}`}
-          aria-label={open ? `Fermer la création dans ${itemName}` : `Ajouter dans ${itemName}`}
+          data-testid={testIds?.toggle ?? `toggle-inline-create-${itemName}`}
+          aria-label={
+            open
+              ? `Fermer la création dans ${itemName}`
+              : variant === "root"
+                ? "Créer un nouvel élément"
+                : `Ajouter dans ${itemName}`
+          }
           aria-expanded={open}
-          title={open ? "Fermer" : "Ajouter dans cette page"}
+          title={open ? "Fermer" : variant === "root" ? "Nouveau" : "Ajouter dans cette page"}
           onPointerDown={stopPointer}
           onKeyDown={closeFromKeyboard}
           onClick={(event) => {
@@ -111,6 +129,9 @@ export function NavigationInlineCreate({
           }}
         >
           <AppIcon name="add" size="small" />
+          {label === undefined ? null : (
+            <span className="navigation-inline-create__label">{label}</span>
+          )}
         </Button>
       </span>
     </span>

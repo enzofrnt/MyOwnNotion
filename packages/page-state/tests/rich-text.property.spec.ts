@@ -148,6 +148,59 @@ describe("rich text convergence", () => {
     ]);
   });
 
+  it("does not reattach a deleted page link to replacement typing", async () => {
+    const pageId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const targetItemId = generateUuidV7();
+    const page = OperationalPageDocument.create({
+      pageId,
+      document: {
+        blocks: [
+          {
+            type: "paragraph",
+            id: blockId,
+            content: [
+              { text: "ancienne " },
+              { text: "référence", marks: [{ type: "pageLink", targetItemId }] },
+            ],
+          },
+        ],
+      },
+    });
+
+    page.transact([
+      {
+        type: "set-mark",
+        blockId,
+        from: "ancienne ".length,
+        to: "ancienne référence".length,
+        mark: { type: "pageLink", targetItemId },
+        enabled: false,
+      },
+      {
+        type: "replace-text",
+        blockId,
+        from: 0,
+        to: "ancienne référence".length,
+        text: "t",
+      },
+    ]);
+    page.transact([
+      {
+        type: "replace-text",
+        blockId,
+        from: 1,
+        to: 1,
+        text: "exte entièrement neuf",
+      },
+    ]);
+
+    const block = (await page.project()).document.blocks[0];
+    expect(block?.type).toBe("paragraph");
+    if (block?.type !== "paragraph") return;
+    expect(block.content).toEqual([{ text: "texte entièrement neuf" }]);
+  });
+
   it("uses UTF-16 offsets without splitting emoji surrogate pairs", async () => {
     const { blockId, left } = await replicas("A🦜B");
     left.transact([{ type: "replace-text", blockId, from: 1, to: 3, text: "🚀" }]);

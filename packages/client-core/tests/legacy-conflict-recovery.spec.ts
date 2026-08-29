@@ -9,6 +9,7 @@ import {
   type LocalDatabase,
   LocalKeyManager,
   LocalRecordCodec,
+  losslessLegacyDocument,
   MemorySecureStorage,
   Outbox,
   openLocalDatabase,
@@ -18,8 +19,10 @@ import { PAGE_OPERATIONAL_VERSION } from "@myownnotion/contracts";
 import {
   type BlockDocument,
   type BlockDocumentV3,
+  type CanonicalBlockV3,
   canonicalDocumentJsonV3,
   generateUuidV7,
+  type MarkV3,
   migrateDocumentV2ToV3,
   type Uuid,
 } from "@myownnotion/domain";
@@ -69,6 +72,130 @@ function editedDocument(base: BlockDocument, text: string): BlockDocumentV3 {
   page.transact([{ type: "replace-text", blockId, from: 0, to: length, text }]);
   return page.snapshot();
 }
+
+function completeLegacyDocument(): BlockDocument {
+  const targetItemId = generateUuidV7();
+  const unknownBlockId = generateUuidV7();
+  return {
+    blocks: [
+      {
+        type: "paragraph",
+        id: generateUuidV7(),
+        content: [
+          { text: "b", marks: [{ type: "bold" }] },
+          { text: "a", marks: [{ type: "italic" }] },
+          { text: "s", marks: [{ type: "strikethrough" }] },
+          { text: "e", marks: [{ type: "code" }] },
+          { text: " link", marks: [{ type: "link", href: "https://example.com" }] },
+          { text: " page", marks: [{ type: "pageLink", targetItemId }] },
+        ],
+      },
+      {
+        type: "heading",
+        id: generateUuidV7(),
+        level: 2,
+        content: [{ text: "Heading" }],
+      },
+      {
+        type: "bulletedListItem",
+        id: generateUuidV7(),
+        content: [{ text: "Bullet" }],
+        children: [{ type: "paragraph", id: generateUuidV7(), content: [{ text: "Nested" }] }],
+      },
+      {
+        type: "numberedListItem",
+        id: generateUuidV7(),
+        content: [{ text: "Number" }],
+      },
+      {
+        type: "quote",
+        id: generateUuidV7(),
+        content: [{ text: "Quote" }],
+        children: [{ type: "divider", id: generateUuidV7() }],
+      },
+      {
+        type: "checkbox",
+        id: generateUuidV7(),
+        checked: true,
+        content: [{ text: "Checked" }],
+        children: [{ type: "paragraph", id: generateUuidV7(), content: [{ text: "Child" }] }],
+      },
+      {
+        type: "checkbox",
+        id: generateUuidV7(),
+        checked: false,
+        content: [{ text: "Unchecked" }],
+      },
+      { type: "code", id: generateUuidV7(), text: "const value = 1;", language: "ts" },
+      { type: "divider", id: generateUuidV7() },
+      {
+        type: "fileEmbed",
+        id: generateUuidV7(),
+        fileItemId: generateUuidV7(),
+        caption: "Reference",
+      },
+      {
+        type: "unknown",
+        id: unknownBlockId,
+        declaredType: "futureWidget",
+        raw: {
+          type: "futureWidget",
+          id: unknownBlockId,
+          payload: { preserved: true },
+        },
+        syntheticId: false,
+      },
+    ],
+  };
+}
+
+const unsupportedMarks: readonly MarkV3[] = [
+  { type: "underline" },
+  { type: "textColor", color: "red" },
+  { type: "backgroundColor", color: "blue" },
+  { type: "unknown", declaredType: "futureMark", raw: { type: "futureMark" } },
+];
+
+const unsupportedBlocks: readonly CanonicalBlockV3[] = [
+  {
+    type: "toggle",
+    id: generateUuidV7(),
+    content: [{ text: "Toggle" }],
+  },
+  {
+    type: "callout",
+    id: generateUuidV7(),
+    content: [{ text: "Callout" }],
+    icon: "💡",
+    tone: "yellow",
+  },
+  {
+    type: "table",
+    id: generateUuidV7(),
+    columns: [{ id: generateUuidV7(), width: null }],
+    rows: [
+      {
+        id: generateUuidV7(),
+        cells: [{ id: generateUuidV7(), content: [{ text: "Cell" }] }],
+      },
+    ],
+  },
+  {
+    type: "image",
+    id: generateUuidV7(),
+    fileItemId: generateUuidV7(),
+    caption: null,
+    altText: null,
+    displayWidth: null,
+  },
+  {
+    type: "embed",
+    id: generateUuidV7(),
+    provider: "bookmark",
+    sourceUrl: "https://example.com",
+    caption: null,
+  },
+];
 
 async function storePage(pageId: Uuid, document: BlockDocument | BlockDocumentV3): Promise<void> {
   const isV3 =
@@ -167,6 +294,23 @@ function recovery(): LegacyConflictRecovery {
   });
 }
 
+function setV3Ancestor(baseRevisionId: Uuid, pageId: Uuid, document: BlockDocumentV3): void {
+  revisions.set(baseRevisionId, {
+    ok: true,
+    value: {
+      id: baseRevisionId,
+      itemId: pageId,
+      snapshot: {
+        pageDocument: {
+          format: "myownnotion.document+json",
+          formatVersion: 3,
+          body: document,
+        },
+      },
+    },
+  });
+}
+
 async function checkpointResponse(
   pageId: Uuid,
   document: BlockDocumentV3,
@@ -233,6 +377,158 @@ describe("historical page-conflict recovery", () => {
     if (branch === null) throw new Error("the exact branch was not stored");
     const replayed = await verifyLegacyOfflineBranch(branch.branch);
     expect(canonicalDocumentJsonV3(replayed.document)).toBe(canonicalDocumentJsonV3(local));
+    expect(await db.conflicts.get(mutationId)).toBeDefined();
+  });
+
+  it("recovers through a v3 ancestor when its legacy projection is provably lossless", async () => {
+    const pageId = generateUuidV7();
+    const base = baseDocument();
+    const local = editedDocument(base, "draft after v3 activation");
+    const { baseRevisionId, mutationId } = await addConflict({ pageId, base, local });
+    revisions.set(baseRevisionId, {
+      ok: true,
+      value: {
+        id: baseRevisionId,
+        itemId: pageId,
+        snapshot: {
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 3,
+            body: migrateDocumentV2ToV3(base),
+          },
+        },
+      },
+    });
+
+    await expect(recovery().recoverAvailable()).resolves.toMatchObject({
+      prepared: 1,
+      quarantined: 0,
+      pageIds: [pageId],
+    });
+    expect(await db.legacySyncRecoveries.get(mutationId)).toMatchObject({
+      status: "converting",
+      reasonCode: null,
+    });
+    const branch = await log.getLegacyBranch(pageId);
+    if (branch === null) throw new Error("the v3 ancestor branch was not stored");
+    const replayed = await verifyLegacyOfflineBranch(branch.branch);
+    expect(canonicalDocumentJsonV3(replayed.document)).toBe(canonicalDocumentJsonV3(local));
+  });
+
+  it("projects every historical block and mark shape from v3 without loss", () => {
+    const base = completeLegacyDocument();
+    const migrated = migrateDocumentV2ToV3(base);
+    const projected = losslessLegacyDocument(migrated);
+
+    expect(projected).not.toBeNull();
+    expect(canonicalDocumentJsonV3(migrateDocumentV2ToV3(projected ?? { blocks: [] }))).toBe(
+      canonicalDocumentJsonV3(migrated),
+    );
+  });
+
+  it.each(unsupportedMarks)(
+    "retains a v3 ancestor carrying the non-v2 $type mark",
+    async (mark) => {
+      const pageId = generateUuidV7();
+      const base = baseDocument();
+      const local = editedDocument(base, "draft beside a v3-only mark");
+      const { baseRevisionId, mutationId } = await addConflict({ pageId, base, local });
+      const migrated = migrateDocumentV2ToV3(base);
+      const paragraph = migrated.blocks[0];
+      if (paragraph?.type !== "paragraph") throw new Error("expected a paragraph fixture");
+      setV3Ancestor(baseRevisionId, pageId, {
+        blocks: [{ ...paragraph, content: [{ text: "base", marks: [mark] }] }],
+      });
+
+      await expect(recovery().recoverAvailable()).resolves.toMatchObject({
+        prepared: 0,
+        quarantined: 1,
+      });
+      expect(await db.legacySyncRecoveries.get(mutationId)).toMatchObject({
+        status: "quarantined",
+        reasonCode: "legacy-recovery.schema-unsupported",
+      });
+    },
+  );
+
+  it.each(unsupportedBlocks)(
+    "retains a v3 ancestor carrying the non-v2 $type block",
+    async (block) => {
+      const pageId = generateUuidV7();
+      const base = baseDocument();
+      const local = editedDocument(base, "draft beside a v3-only block");
+      const { baseRevisionId, mutationId } = await addConflict({ pageId, base, local });
+      setV3Ancestor(baseRevisionId, pageId, { blocks: [block] });
+
+      await expect(recovery().recoverAvailable()).resolves.toMatchObject({
+        prepared: 0,
+        quarantined: 1,
+      });
+      expect(await db.legacySyncRecoveries.get(mutationId)).toMatchObject({
+        status: "quarantined",
+        reasonCode: "legacy-recovery.schema-unsupported",
+      });
+    },
+  );
+
+  it("retains a v3 ancestor carrying opaque properties on a known block", async () => {
+    const pageId = generateUuidV7();
+    const base = baseDocument();
+    const local = editedDocument(base, "draft beside opaque ancestor data");
+    const { baseRevisionId, mutationId } = await addConflict({ pageId, base, local });
+    const migrated = migrateDocumentV2ToV3(base);
+    const paragraph = migrated.blocks[0];
+    if (paragraph?.type !== "paragraph") throw new Error("expected a paragraph fixture");
+    setV3Ancestor(baseRevisionId, pageId, {
+      blocks: [{ ...paragraph, rawExtraProperties: { futureField: "preserved" } }],
+    });
+
+    await expect(recovery().recoverAvailable()).resolves.toMatchObject({
+      prepared: 0,
+      quarantined: 1,
+    });
+    expect(await db.legacySyncRecoveries.get(mutationId)).toMatchObject({
+      status: "quarantined",
+      reasonCode: "legacy-recovery.schema-unsupported",
+    });
+  });
+
+  it("retains a draft when its v3 ancestor cannot be represented by v2 without loss", async () => {
+    const pageId = generateUuidV7();
+    const base = baseDocument();
+    const local = editedDocument(base, "draft beside a v3-only base");
+    const { baseRevisionId, mutationId } = await addConflict({ pageId, base, local });
+    revisions.set(baseRevisionId, {
+      ok: true,
+      value: {
+        id: baseRevisionId,
+        itemId: pageId,
+        snapshot: {
+          pageDocument: {
+            format: "myownnotion.document+json",
+            formatVersion: 3,
+            body: {
+              blocks: [
+                {
+                  type: "toggle",
+                  id: generateUuidV7(),
+                  content: [{ text: "v3-only ancestor" }],
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    await expect(recovery().recoverAvailable()).resolves.toMatchObject({
+      prepared: 0,
+      quarantined: 1,
+    });
+    expect(await db.legacySyncRecoveries.get(mutationId)).toMatchObject({
+      status: "quarantined",
+      reasonCode: "legacy-recovery.schema-unsupported",
+    });
     expect(await db.conflicts.get(mutationId)).toBeDefined();
   });
 

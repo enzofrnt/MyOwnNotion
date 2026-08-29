@@ -32,6 +32,7 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await openWorkspace(page);
     const name = uniqueName("A11y");
     await createRootItem(page, "folder", name);
+    await ensureNavigationVisible(page);
 
     // Semantic structure.
     const tree = page.getByRole("tree", { name: "Arborescence" });
@@ -60,10 +61,14 @@ test.describe("accessibility (all viewports/browsers)", () => {
   test("interactive elements expose visible focus", async ({ page }) => {
     await openWorkspace(page);
     await ensureNavigationVisible(page);
-    await openRootCreation(page);
-    const nameInput = page.getByLabel("Nom", { exact: true });
-    await nameInput.focus();
-    const outline = await nameInput.evaluate((element) => getComputedStyle(element).outlineStyle);
+    const rootCreation = page.getByTestId("toggle-root-creation");
+    await rootCreation.focus();
+    await page.keyboard.press("Enter");
+    const creationChoice = page.getByTestId("new-root-page");
+    await expect(creationChoice).toBeFocused();
+    const outline = await creationChoice.evaluate(
+      (element) => getComputedStyle(element).outlineStyle,
+    );
     expect(outline).not.toBe("none");
   });
 
@@ -72,11 +77,24 @@ test.describe("accessibility (all viewports/browsers)", () => {
     await ensureNavigationVisible(page);
     await openRootCreation(page);
     const name = uniqueName("KeyboardOnly");
-    await page.getByLabel("Nom", { exact: true }).fill(name);
     // Reach and activate the create button with the keyboard only.
     await page.getByTestId("new-root-folder").focus();
     await page.keyboard.press("Enter");
-    await expect(page.getByTestId(`tree-item-${name}`)).toBeVisible();
+    const title = page.getByTestId("active-item-title");
+    await expect(title).toBeFocused();
+    await expect(title).toHaveValue("");
+    await title.fill(name);
+    await title.press("Enter");
+    const row = page.getByTestId(`tree-item-${name}`);
+    const mobileTrigger = page.getByTestId("toggle-tree");
+    if (await mobileTrigger.isVisible()) {
+      // Creation deliberately closes the phone drawer and transfers focus to
+      // the blank title. Reopen navigation with the keyboard before continuing
+      // the keyboard-only tree scenario.
+      await mobileTrigger.focus();
+      await page.keyboard.press("Enter");
+    }
+    await expect(row).toBeVisible();
 
     // Select with keyboard and navigate.
     //
@@ -85,7 +103,6 @@ test.describe("accessibility (all viewports/browsers)", () => {
     // `focus()` followed by `page.keyboard.press()` leaves a gap where that
     // replacement sends focus back to the document; the locator-targeted press
     // resolves the current row and performs the keyboard action as one step.
-    const row = page.getByTestId(`tree-item-${name}`);
     await row.press("Enter");
     await expect(row).toHaveAttribute("aria-selected", "true");
   });

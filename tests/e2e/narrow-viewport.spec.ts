@@ -200,6 +200,9 @@ test.describe("the collapsible tree", () => {
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
 
+    // Creation closes the phone drawer so the new blank title can own focus.
+    // Reopen navigation before testing its explicit close/reopen cycle.
+    await ensureNavigationVisible(page);
     await expect(page.getByTestId("workspace-tree")).toBeVisible();
     await closeMobileNavigation(page);
     await expect(page.getByTestId("workspace-tree")).toBeHidden();
@@ -217,6 +220,7 @@ test.describe("the collapsible tree", () => {
     await createRootItem(page, "folder", name);
     await waitForSynchronized(page);
 
+    await ensureNavigationVisible(page);
     await page.getByTestId(`tree-item-${name}`).focus();
     await page.keyboard.press("Escape");
 

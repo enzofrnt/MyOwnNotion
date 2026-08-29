@@ -32,7 +32,11 @@ export function configureRichText(doc: LoroDoc): void {
     backgroundColor: { expand: "both" },
     code: { expand: "before" },
     link: { expand: "before" },
-    pageLink: { expand: "before" },
+    // Internal page references are atomic application objects, not a typing
+    // style. Once their text is removed, no insertion at the surviving CRDT
+    // boundary may inherit the old target — otherwise deleting a linked line
+    // and immediately rewriting it resurrects that page link on the new text.
+    pageLink: { expand: "none" },
     [UNKNOWN_MARKS_ATTRIBUTE]: { expand: "none" },
   });
 }

@@ -13,7 +13,8 @@ import {
   openWorkspace,
   renameItem,
   returnToWorkspace,
-  sampleCssTransition,
+  selectItem,
+  triggerAndSampleCssTransition,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -71,13 +72,20 @@ test.describe("focused workspace shell", () => {
     await expect(close).toBeVisible();
     await expect(open).toBeHidden();
 
-    await close.click();
-    const closing = await sampleCssTransition(slot, "width");
+    const closing = await triggerAndSampleCssTransition(close, slot, "width");
     expect(closing.width).toBeGreaterThan(1);
     expect(closing.width).toBeLessThan(initial?.width ?? 0);
 
     await expect(open).toBeVisible();
     await expect(open).toBeFocused();
+    const topRow = await page.locator(".workspace-stage__header").boundingBox();
+    const openControl = await open.boundingBox();
+    expect(topRow).not.toBeNull();
+    expect(openControl).not.toBeNull();
+    expect(openControl?.y ?? 0).toBeGreaterThanOrEqual((topRow?.y ?? 0) - 0.5);
+    expect((openControl?.y ?? 0) + (openControl?.height ?? 0)).toBeLessThanOrEqual(
+      (topRow?.y ?? 0) + (topRow?.height ?? 0) + 0.5,
+    );
     await expect(shell).toHaveAttribute("data-sidebar-open", "false");
     await expect.poll(async () => (await slot.boundingBox())?.width ?? 0).toBeLessThan(1);
     const closedShell = await shell.boundingBox();
@@ -93,8 +101,7 @@ test.describe("focused workspace shell", () => {
     await page.reload();
     await expect(page.getByTestId("workspace-shell")).toHaveAttribute("data-sidebar-open", "false");
     await expect(open).toBeVisible();
-    await open.click();
-    const opening = await sampleCssTransition(slot, "width");
+    const opening = await triggerAndSampleCssTransition(open, slot, "width");
     expect(opening.width).toBeGreaterThan(1);
     expect(opening.width).toBeLessThan(initial?.width ?? 0);
     await expect(close).toBeVisible();
@@ -118,6 +125,11 @@ test.describe("focused workspace shell", () => {
     await expect(page.getByTestId("active-item-title")).toHaveValue(originalPage);
     await createRootItem(page, "folder", archive);
 
+    // Root and nested creation now share the same navigation contract: the
+    // created item opens immediately with its title focused. Return to the
+    // original page before exercising the remaining identity mutations.
+    await expect(page.getByTestId("active-item-title")).toHaveValue(archive);
+    await selectItem(page, originalPage);
     await expect(page.getByTestId("active-item-title")).toHaveValue(originalPage);
     await expect(page.getByRole("navigation", { name: "Fil d’Ariane" })).toContainText(projects);
 
@@ -180,8 +192,8 @@ test.describe("focused workspace shell", () => {
     await createRootItem(page, "page", pageName);
 
     await expect(drawer).toBeHidden();
-    await expect(trigger).toBeFocused();
-    await expect(page.getByTestId("active-item-title")).toHaveValue(pageName);
+    const createdTitle = page.getByTestId("active-item-title");
+    await expect(createdTitle).toHaveValue(pageName);
 
     await trigger.click();
     await expect(drawer).toBeVisible();

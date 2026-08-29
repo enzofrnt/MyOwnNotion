@@ -264,6 +264,10 @@ export class LocalContentService {
   #inFlightSync: Promise<SyncState> | null = null;
   /** Set when a caller arrives mid-pass; triggers exactly one follow-up pass. */
   #resyncRequested = false;
+  /** The complete operational-page drain currently running, if any. */
+  #inFlightOperationalSync: Promise<boolean> | null = null;
+  /** Coalesces every wake received while that operational drain is running. */
+  #operationalResyncRequested = false;
   #snapshot: LocalContentSnapshot;
   readonly #keys: LocalKeyManager;
   readonly #codec: LocalRecordCodec;
@@ -385,10 +389,17 @@ export class LocalContentService {
         // outbox, so it needs its own projection notification.
         onDurablePage: async () => {
           await this.#emitProjection({ kind: "upsert", itemIds: [pageId] });
-          // The page exchange just installed a server-confirmed frontier. The
-          // aggregate notifier will keep this as `pending` when any other
-          // workspace or page queue still owns local work.
-          await this.#notify("synced");
+          // Accepting page operations also records a workspace change carrying
+          // the new canonical revision head. Import it before the page exchange
+          // may call itself synchronized: otherwise history/settings can still
+          // hold the previous item revision for a few seconds and manufacture
+          // a stale-base refusal immediately after this device's own edit.
+          //
+          // `synchronize()` is serialized and coalesced, so a simultaneous SSE
+          // wake-up joins this exact catch-up instead of racing another outbox
+          // pass. Its notifier also keeps unrelated workspace/page work visible
+          // as pending and preserves offline/conflict truth.
+          await this.synchronize();
         },
         onFileRequirements: (requirements) => {
           if (this.#fileSynchronization.recordRequirements(pageId, requirements)) {
@@ -654,6 +665,28 @@ export class LocalContentService {
    * turn crash recovery into a manual synchronization protocol (FR-073).
    */
   async synchronizeOperationalPages(): Promise<boolean> {
+    if (this.#inFlightOperationalSync !== null) {
+      this.#operationalResyncRequested = true;
+      return await this.#inFlightOperationalSync;
+    }
+    let shared!: Promise<boolean>;
+    shared = this.#drainOperationalPageSynchronization().finally(() => {
+      if (this.#inFlightOperationalSync === shared) this.#inFlightOperationalSync = null;
+    });
+    this.#inFlightOperationalSync = shared;
+    return await shared;
+  }
+
+  async #drainOperationalPageSynchronization(): Promise<boolean> {
+    let settled = false;
+    do {
+      this.#operationalResyncRequested = false;
+      settled = await this.#runOperationalPageSynchronization();
+    } while (this.#operationalResyncRequested);
+    return settled;
+  }
+
+  async #runOperationalPageSynchronization(): Promise<boolean> {
     await this.#unlock();
     const historicalPageConflicts = await this.db.conflicts
       .filter(({ commandType }) => commandType === "page.document.replace")
@@ -923,6 +956,44 @@ export class LocalContentService {
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {
     return this.repository.getItem(itemId);
+  }
+
+  /**
+   * Finishes the page protocol handover before retiring its page authority.
+   *
+   * A newly opened page can still be activating or submitting its bootstrap
+   * paragraph while the owner chooses "convert to folder" from the tree. The
+   * conversion itself is atomic, but allowing its workspace mutation to race
+   * that final page exchange makes the client observe two legitimate server
+   * changes in the opposite local order and retain a false conflict. Waiting
+   * here keeps the destructive boundary linear: everything already durable in
+   * the page journal is reconciled and its canonical workspace head is pulled
+   * before the conversion snapshots and retires that journal.
+   *
+   * Offline remains supported. Both drains return their honest offline state;
+   * the following local conversion still commits atomically and synchronizes
+   * when connectivity returns.
+   */
+  async #settlePageBeforeFolderConversion(itemId: Uuid): Promise<void> {
+    const opening = this.#openingPages.get(itemId);
+    if (opening !== undefined) await opening;
+
+    const reconciler = this.#pageReconcilers.get(itemId);
+    if (reconciler !== undefined) await reconciler.synchronize();
+
+    // A successful page exchange records its canonical revision through the
+    // workspace feed. This also joins any callback/SSE catch-up already in
+    // flight, so the conversion starts from one fully observed frontier.
+    await this.synchronize();
+
+    // The operational journal remains the freshest authority while offline.
+    // Cache its exact projection into the item row before local conversion so
+    // the shared destructive-content predicate can still demand confirmation
+    // for text that has not reached the server yet.
+    const state = await this.pageOperationLog.getState(itemId);
+    if (state?.projection !== null && state?.projection !== undefined) {
+      await this.repository.cacheOperationalPageProjection(itemId, state.projection.document);
+    }
   }
 
   /**
@@ -1514,6 +1585,13 @@ export class LocalContentService {
     baseRevisionIds: Uuid[] = [],
   ): Promise<{ ok: true } | { ok: false; error: SafeError }> {
     await this.#unlock();
+    if (
+      commandType === "item.convert" &&
+      payload["targetKind"] === "folder" &&
+      typeof payload["itemId"] === "string"
+    ) {
+      await this.#settlePageBeforeFolderConversion(payload["itemId"] as Uuid);
+    }
     const result = await applyLocalMutation(
       this.db,
       {

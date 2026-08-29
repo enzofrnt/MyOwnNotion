@@ -3,8 +3,8 @@ import {
   type CSSProperties,
   type PointerEvent,
   type ReactNode,
+  type Ref,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
@@ -32,7 +32,9 @@ function currentMode(): SidebarMode {
 
 export interface ResponsiveSidebarProps {
   readonly children: ReactNode;
+  readonly closeControlRef?: Ref<HTMLButtonElement>;
   readonly mobileOpen: boolean;
+  readonly restoreMobileFocusOnClose?: boolean;
   readonly open: boolean;
   readonly width: number;
   readonly onMobileOpenChange: (open: boolean) => void;
@@ -42,39 +44,23 @@ export interface ResponsiveSidebarProps {
 
 export function ResponsiveSidebar({
   children,
+  closeControlRef,
   mobileOpen,
   onMobileOpenChange,
   onOpenChange,
   onWidthChange,
   open,
+  restoreMobileFocusOnClose = true,
   width,
 }: ResponsiveSidebarProps) {
   const [mode, setMode] = useState<SidebarMode>(currentMode);
   const [resizeOrigin, setResizeOrigin] = useState<{ x: number; width: number } | null>(null);
-  const openControl = useRef<HTMLButtonElement | null>(null);
-  const closeControl = useRef<HTMLButtonElement | null>(null);
-  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const update = (): void => setMode(currentMode());
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
-
-  useEffect(
-    () => () => {
-      if (focusTimer.current !== null) clearTimeout(focusTimer.current);
-    },
-    [],
-  );
-
-  const focusAfterMotion = (target: "open" | "close"): void => {
-    if (focusTimer.current !== null) clearTimeout(focusTimer.current);
-    focusTimer.current = setTimeout(() => {
-      focusTimer.current = null;
-      (target === "open" ? openControl : closeControl).current?.focus();
-    }, SIDEBAR_MOTION_DURATION_MS);
-  };
 
   const style = {
     "--workspace-sidebar-width": `${clampSidebarWidth(width)}px`,
@@ -98,6 +84,7 @@ export function ResponsiveSidebar({
             className="workspace-sidebar-drawer"
             side="left"
             data-testid="workspace-navigation-drawer"
+            autoFocusOnHide={restoreMobileFocusOnClose}
           >
             <DrawerHeading className="ui-visually-hidden">Navigation</DrawerHeading>
             <DrawerDismiss />
@@ -123,23 +110,6 @@ export function ResponsiveSidebar({
 
   return (
     <div className="workspace-sidebar-slot" data-mode={mode} data-open={open} style={style}>
-      <Button
-        ref={openControl}
-        className="workspace-sidebar-trigger"
-        data-testid="toggle-tree"
-        size="square"
-        variant="ghost"
-        aria-label="Afficher la barre latérale"
-        aria-expanded={open}
-        aria-controls="workspace-navigation"
-        onClick={() => {
-          onOpenChange(true);
-          focusAfterMotion("close");
-        }}
-      >
-        <AppIcon name="panelOpen" />
-        <span className="ui-visually-hidden">Afficher la barre latérale</span>
-      </Button>
       <aside
         id="workspace-navigation"
         className="workspace-sidebar-panel"
@@ -152,17 +122,14 @@ export function ResponsiveSidebar({
           {children}
         </div>
         <Button
-          ref={closeControl}
+          ref={closeControlRef}
           className="workspace-sidebar-close"
           data-testid="close-sidebar"
           size="square"
           variant="ghost"
           aria-label="Masquer la barre latérale"
           title="Masquer la barre latérale"
-          onClick={() => {
-            onOpenChange(false);
-            focusAfterMotion("open");
-          }}
+          onClick={() => onOpenChange(false)}
         >
           <AppIcon name="panelClose" />
         </Button>

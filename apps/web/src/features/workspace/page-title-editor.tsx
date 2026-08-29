@@ -17,21 +17,25 @@ function committedTitle(value: string): string {
  * page adoption.
  */
 export function PageTitleEditor({
+  autoFocusBlank = false,
   icon,
   kind = "page",
   title,
   onCommit,
   onIconChange,
+  onAutoFocusHandled,
   onMoveToContent,
 }: {
+  readonly autoFocusBlank?: boolean;
   readonly icon?: string | null;
   readonly kind?: "page" | "folder";
   readonly title: string;
   readonly onCommit: (title: string) => Promise<void>;
   readonly onIconChange?: (icon: string | null) => void;
+  readonly onAutoFocusHandled?: () => void;
   readonly onMoveToContent?: () => void;
 }) {
-  const [draft, setDraft] = useState(title || UNTITLED_PAGE);
+  const [draft, setDraft] = useState(autoFocusBlank ? "" : title || UNTITLED_PAGE);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
@@ -41,9 +45,12 @@ export function PageTitleEditor({
   const latestDraft = useRef(draft);
   const lastRequested = useRef<string | null>(title || UNTITLED_PAGE);
   const onCommitRef = useRef(onCommit);
+  const onAutoFocusHandledRef = useRef(onAutoFocusHandled);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const autoFocusConsumed = useRef(false);
 
   onCommitRef.current = onCommit;
+  onAutoFocusHandledRef.current = onAutoFocusHandled;
 
   const resize = useCallback((value: string) => {
     const element = textarea.current;
@@ -61,6 +68,45 @@ export function PageTitleEditor({
   }, [title]);
 
   useEffect(() => resize(draft), [draft, resize]);
+
+  useEffect(() => {
+    if (!autoFocusBlank || autoFocusConsumed.current) return;
+    autoFocusConsumed.current = true;
+    latestDraft.current = "";
+    setDraft("");
+    const element = textarea.current;
+    element?.focus();
+    element?.setSelectionRange(0, 0);
+    let cancelled = false;
+    let frame: number | null = null;
+    let attempts = 0;
+    let remainedFocused = document.activeElement === element;
+    const retainFocus = (): void => {
+      if (cancelled) return;
+      const current = textarea.current;
+      if (current === null) return;
+      if (document.activeElement === current) {
+        if (remainedFocused) {
+          onAutoFocusHandledRef.current?.();
+          return;
+        }
+        remainedFocused = true;
+      } else {
+        current.focus();
+        current.setSelectionRange(0, 0);
+        remainedFocused = false;
+      }
+      attempts += 1;
+      if (attempts < 16 || document.activeElement === current) {
+        frame = requestAnimationFrame(retainFocus);
+      }
+    };
+    frame = requestAnimationFrame(retainFocus);
+    return () => {
+      cancelled = true;
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [autoFocusBlank]);
 
   const commit = useCallback((value: string, reflectInEditor = true) => {
     const next = committedTitle(value);

@@ -109,6 +109,13 @@ seule.
 - les surfaces asynchrones utilisent skeleton ou état explicite, pas un écran
   vide.
 
+Le shell occupe la hauteur visible et ne délègue pas son scroll au document
+racine. Le chrome supérieur et la barre latérale restent en place ; le contenu
+principal défile sous son en-tête et la seule partie scrollable de la
+navigation desktop est sa liste centrale, entre l'identité du workspace et le
+pied Réglages/statut. Lorsque la barre est masquée, sa commande de réouverture
+est ancrée dans la ligne supérieure du chrome du contenu.
+
 L'arbre conserve sélection, focus et branches ouvertes. Le DnD montre parent,
 position et action refusée ; l'équivalent clavier permet déplacer avant/après
 ou dans une page.
@@ -140,6 +147,13 @@ puis des lignes compactes nom/taille ou une unique ligne
 `Aucune pièce jointe`. Les descendants et panneaux utilisent la même transition
 symétrique, n'occupent aucune place une fois fermés et suivent la préférence de
 réduction des animations.
+
+La création racine `+ Nouveau` réutilise la machine d'état de création enfant :
+le même plus devient une croix, les choix page/dossier apparaissent sans champ
+de nom préalable et la fermeture inverse le mouvement. Toute création page ou
+dossier ouvre ensuite l'élément et place le caret dans son grand titre vide ;
+le fallback `Sans titre` n'est matérialisé qu'en quittant ce titre. La création
+de base reste une action secondaire distincte avec son propre formulaire.
 
 ### 5.1 Frontière du workspace
 
@@ -182,6 +196,8 @@ espacement équivalent. Le DnD n'est jamais l'unique méthode.
   conteneurs de scroll ;
 - sélection multi-blocs perceptible dans les deux thèmes ;
 - placeholders différents pour titre, paragraphe vide et bloc inconnu ;
+- préparation de page rendue par un squelette éditorial neutre, jamais par une
+  grande bannière colorée dans le canevas ;
 - largeur de code/table/média contrôlée sans casser la colonne de lecture ;
 - état local/sync toujours accessible mais visuellement secondaire ;
 - ambiguïté présentée près du bloc et dans un centre d'attention global.
@@ -207,6 +223,11 @@ contextuelle, au clic droit et par un chemin clavier simple.
 Le focus ne saute pas lors d'une update distante. Une suppression distante du
 bloc actif place le focus sur le voisin logique et affiche un retour d'état
 compréhensible.
+
+Supprimer au clavier toute la ligne d'une référence interne supprime son nœud
+de l'autorité avant la saisie suivante. Ni un commit retardé, ni une projection
+distante, ni le drainage de synchronisation ne peut rattacher cette référence
+au texte normal saisi ensuite.
 
 ## 8. États communs et copie
 
@@ -290,6 +311,12 @@ en masse sans expliquer le changement n'est pas une validation.
 - le statut de page reste épinglé en bas sans modifier la géométrie du document ;
 - les liens internes et externes offrent le même cycle ouvrir/modifier/retirer,
   sans destruction de leur cible ;
+- le document racine du workspace ne défile pas : contenu et arbre possèdent
+  leurs zones indépendantes et le chrome reste fixe ;
+- `+ Nouveau`, la création enfant et `/page` ouvrent le nouvel item avec un
+  titre vide déjà ciblé, sans préformulaire de nom ;
+- une attente éditoriale utilise un squelette neutre et une référence supprimée
+  ne réapparaît jamais après stabilisation ;
 - les parcours principaux passent Chromium, Firefox et WebKit ;
 - aucune fonction essentielle n'est accessible uniquement par drag, hover ou
   couleur.

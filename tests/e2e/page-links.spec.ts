@@ -379,6 +379,63 @@ test("keeps page and Web actions separate and shows a caret on an empty line", a
     .not.toBe("rgba(0, 0, 0, 0)");
 });
 
+test("never resurrects a page link after its whole line is deleted and rewritten", async ({
+  page,
+}) => {
+  await openWorkspace(page);
+  const source = uniqueName("Deleted link source");
+  const target = uniqueName("Deleted link target");
+  await createRootItem(page, "page", source);
+  await createRootItem(page, "page", target);
+  await waitForSynchronized(page);
+  await selectItem(page, source);
+
+  const editor = editorSurface(page);
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await editor.pressSequentially("ancienne référence");
+  await selectPreviousWord(page, "référence");
+  await linkSelectionToPage(page, target);
+  await saveDocument(page, { until: "synced" });
+  await expect(pageLinks(page)).toHaveCount(1);
+
+  // This is the reported gesture: remove the line while its internal node is
+  // still present, then immediately reuse that same empty line for plain text.
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await editor.pressSequentially("texte entièrement neuf");
+  await expect(pageLinks(page)).toHaveCount(0);
+  await expect(editor).toContainText("texte entièrement neuf");
+
+  await saveDocument(page, { until: "synced" });
+  await waitForSynchronized(page);
+  const afterSynchronization = {
+    links: await pageLinks(page).count(),
+    text: await editor.innerText(),
+  };
+
+  await page.reload();
+  await openWorkspace(page);
+  await selectItem(page, source);
+  expect(
+    {
+      afterSynchronization,
+      afterReload: {
+        links: await pageLinks(page).count(),
+        text: await editorSurface(page).innerText(),
+      },
+    },
+    "the deleted internal node must stay absent both live and after reopening",
+  ).toMatchObject({
+    afterSynchronization: { links: 0, text: expect.stringContaining("texte entièrement neuf") },
+    afterReload: { links: 0, text: expect.stringContaining("texte entièrement neuf") },
+  });
+  await expect(editorSurface(page)).toContainText("texte entièrement neuf");
+  await expect(editorSurface(page)).not.toContainText(target);
+});
+
 test("/page creates one linked subpage under the current page", async ({ page }) => {
   await openWorkspace(page);
   const parent = uniqueName("Parent slash");
@@ -400,14 +457,19 @@ test("/page creates one linked subpage under the current page", async ({ page })
   await expect(menu).toBeVisible();
   await menu.getByRole("option", { name: /^Sous-page/u }).click();
 
-  await expect(page.getByTestId("active-item-title")).toHaveValue("Sans titre");
+  const childTitle = page.getByTestId("active-item-title");
+  await expect(childTitle).toBeFocused({ timeout: 15_000 });
+  await expect(childTitle).toHaveValue("");
+  const childName = uniqueName("Sous-page créée");
+  await childTitle.fill(childName);
+  await childTitle.press("Enter");
   await ensureNavigationVisible(page);
   const child = page.locator(`[role="treeitem"][data-item-id="${sourceBlockId}"]`);
   await expect(child).toHaveAttribute("aria-selected", "true");
   await selectItem(page, parent);
 
   const link = pageLinks(page).first();
-  await expect(link.locator(".page-link__label")).toHaveText("Sans titre");
+  await expect(link.locator(".page-link__label")).toHaveText(childName);
   // This is the canonical child created by /page, not a reference to an item
   // elsewhere in the hierarchy, so it keeps the page identity without the
   // small reference badge.
@@ -423,7 +485,7 @@ test("/page creates one linked subpage under the current page", async ({ page })
     await page.getByRole("button", { name: `Déplier ${parent}` }).click();
   }
   await expect(child).toHaveCount(1);
-  await expect(child).toContainText("Sans titre");
+  await expect(child).toContainText(childName);
   await waitForSynchronized(page);
 
   await page.reload();

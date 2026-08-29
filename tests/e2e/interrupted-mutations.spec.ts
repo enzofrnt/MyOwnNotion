@@ -66,7 +66,7 @@ test.describe("interrupted mutations (US4)", () => {
     await createChildItem(page, parent, "folder", child);
 
     // Try to move the parent into its child: rejected explicitly, tree intact.
-    await page.getByTestId(`tree-item-${parent}`).click();
+    await (await ensureNavigationRowVisible(page, parent)).click();
     await moveSelectedItemInto(page, child);
     const problem = page.getByTestId("problem-banner");
     await expect(problem).toBeVisible();

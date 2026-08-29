@@ -593,4 +593,81 @@ describe("visible history consolidation", () => {
       competingRevisionIds: [renameRevisionId],
     });
   });
+
+  it("restores from the canonical metadata head when its operational boundary is an ancestor", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage("Restore through metadata");
+    const checkpoint = await activate(page, headers);
+    const author = await replica(page.itemId, checkpoint);
+    const blockId = generateUuidV7();
+    const firstEdit = author.transact([
+      {
+        type: "insert-block",
+        block: { type: "paragraph", id: blockId, content: [{ text: "Version one" }] },
+        parentBlockId: null,
+        beforeBlockId: null,
+      },
+    ]);
+    const first = await sync({
+      pageId: page.itemId,
+      headers,
+      replica: author,
+      transaction: firstEdit,
+      revisionBoundary: "editor-closed",
+    });
+    const firstRevisionId = first.canonical.lastConsolidatedRevisionId as Uuid;
+
+    const secondEdit = author.transact([
+      { type: "replace-text", blockId, from: 0, to: 11, text: "Version two" },
+    ]);
+    const second = await sync({
+      pageId: page.itemId,
+      headers,
+      replica: author,
+      transaction: secondEdit,
+      revisionBoundary: "editor-closed",
+    });
+    const operationalBoundaryId = second.canonical.lastConsolidatedRevisionId as Uuid;
+
+    const rename = await harness.api.built.app.inject({
+      method: "PATCH",
+      url: `/v1/items/${page.itemId}`,
+      headers: { ...headers, "idempotency-key": generateUuidV7() },
+      payload: { baseRevisionId: operationalBoundaryId, name: "Metadata head retained" },
+    });
+    expect(rename.statusCode, rename.body).toBe(200);
+    const metadataRevisionId = rename.json().revisionIds[0] as Uuid;
+
+    const restored = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/revisions/${firstRevisionId}/restore`,
+      headers: { ...headers, "idempotency-key": generateUuidV7() },
+      payload: { currentRevisionId: metadataRevisionId },
+    });
+    expect(restored.statusCode, restored.body).toBe(200);
+    const restoredRevisionId = restored.json().revisionIds[0] as Uuid;
+
+    const stored = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${page.itemId}`,
+      headers,
+    });
+    expect(stored.json()).toMatchObject({
+      name: "Metadata head retained",
+      currentRevisionId: restoredRevisionId,
+      pageDocument: { body: { blocks: [{ content: [{ text: "Version one" }] }] } },
+    });
+    const parents = await harness.api.built.database.db.execute(sql`
+      SELECT parent_revision_id
+        FROM revision_parents
+       WHERE revision_id = ${restoredRevisionId}::uuid
+    `);
+    expect(
+      (
+        parents as unknown as {
+          rows: Array<{ parent_revision_id: Uuid }>;
+        }
+      ).rows,
+    ).toEqual([{ parent_revision_id: metadataRevisionId }]);
+  });
 });

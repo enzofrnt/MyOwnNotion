@@ -16,18 +16,18 @@ import {
   insertPageAmbiguity,
   listOpenPageAmbiguities,
   listPageOperationUpdatesAfter,
-  loadParentEdges,
+  lockItemRevisionHead,
   lockLegacyBranchConversion,
   readPageAmbiguityByLogicalKey,
   readPageOperationCheckpoint,
   recordChange,
+  revisionDescendsFrom,
   runMutation,
   schema,
   type Transaction,
 } from "@myownnotion/database";
 import {
   type BlockDocument,
-  classifyLineage,
   documentDigestV3,
   generateUuidV7,
   migrateDocumentV2ToV3,
@@ -167,6 +167,7 @@ export class LegacyBranchService {
     tx: Transaction,
     pageId: Uuid,
     request: LegacyOfflineBranchSyncRequestDto,
+    operationalBoundaryId: Uuid | null,
   ): Promise<LegacyOfflineBranch> {
     const revision = await getRevision(tx, request.baseRevisionId as Uuid);
     if (revision === null || revision.itemId !== pageId) {
@@ -210,25 +211,32 @@ export class LegacyBranchService {
       }
     }
 
-    const state = await this.#deps.operations.loadForMutation(tx, pageId);
-    const headRevisionId = state.state.lastRevisionId as Uuid | null;
-    if (headRevisionId === null) {
+    if (operationalBoundaryId === null) {
       throw new PageOperationServiceError(
         "page-operations.projection-invalid",
         "The active page has no canonical revision boundary.",
         409,
       );
     }
-    const edges = await loadParentEdges(tx, [headRevisionId]);
-    const lineage = classifyLineage(
-      request.baseRevisionId as Uuid,
-      headRevisionId,
-      (id) => edges.get(id) ?? [],
-    );
-    if (lineage !== "identical" && lineage !== "left-ancestor") {
+    const itemRevisionHead = await lockItemRevisionHead(tx, this.#deps.workspaceId, pageId);
+    if (itemRevisionHead === null) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The active page has no canonical item head.",
+        409,
+      );
+    }
+    if (!(await revisionDescendsFrom(tx, itemRevisionHead, operationalBoundaryId))) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The canonical and operational page histories no longer share a safe frontier.",
+        409,
+      );
+    }
+    if (!(await revisionDescendsFrom(tx, itemRevisionHead, request.baseRevisionId as Uuid))) {
       throw new PageOperationServiceError(
         "page-operations.dependencies-missing",
-        "The legacy branch base is not an ancestor of the active page.",
+        "The legacy branch base is not an ancestor of the canonical page.",
         409,
       );
     }
@@ -482,7 +490,12 @@ export class LegacyBranchService {
         );
       }
 
-      const branch = await this.#branch(tx, input.pageId, input.request);
+      const branch = await this.#branch(
+        tx,
+        input.pageId,
+        input.request,
+        loaded.state.lastRevisionId as Uuid | null,
+      );
       await insertLegacyBranchConversion(tx, {
         branchId: branch.branchId,
         pageId: input.pageId,

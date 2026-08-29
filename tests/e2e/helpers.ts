@@ -79,6 +79,76 @@ export async function sampleCssTransition(
   );
 }
 
+/**
+ * Starts an interaction and freezes its transition without a driver round trip.
+ *
+ * Firefox runs in a Linux container on macOS. Clicking through Playwright and
+ * asking for the animation in a second command can therefore arrive after a
+ * short production transition has already finished. Starting the click and
+ * observing the resulting animation in one browser task proves the same real
+ * intermediate frame without making the assertion depend on host latency.
+ */
+export async function triggerAndSampleCssTransition(
+  trigger: Locator,
+  locator: Locator,
+  transitionProperty: string,
+  progress = 0.5,
+): Promise<CssTransitionSample> {
+  await expect(trigger).toBeVisible();
+  await expect(locator).toBeAttached();
+  const triggerElement = await trigger.elementHandle();
+  if (triggerElement === null) throw new Error("The transition trigger is not attached");
+  try {
+    return await locator.evaluate(
+      async (element, options): Promise<CssTransitionSample> => {
+        const button = options.trigger as unknown as HTMLElement;
+        button.focus();
+        button.click();
+
+        const findTransition = (): CSSTransition | undefined =>
+          element
+            .getAnimations()
+            .find(
+              (animation): animation is CSSTransition =>
+                "transitionProperty" in animation &&
+                animation.transitionProperty === options.transitionProperty,
+            );
+
+        let transition = findTransition();
+        for (let frame = 0; transition === undefined && frame < 12; frame += 1) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          transition = findTransition();
+        }
+        if (transition === undefined) {
+          throw new Error(`No active ${options.transitionProperty} transition was found`);
+        }
+
+        transition.pause();
+        const timing = transition.effect?.getComputedTiming();
+        const duration = typeof timing?.duration === "number" ? timing.duration : 0;
+        if (duration <= 0) {
+          throw new Error(`${options.transitionProperty} transition has no measurable duration`);
+        }
+        transition.currentTime = duration * options.progress;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+        const rectangle = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const sample = {
+          height: rectangle.height,
+          transform: style.transform,
+          width: rectangle.width,
+        };
+        transition.finish();
+        return sample;
+      },
+      { progress, transitionProperty, trigger: triggerElement },
+    );
+  } finally {
+    await triggerElement.dispose();
+  }
+}
+
 interface E2ELocalContentService {
   synchronize(): Promise<string>;
   getItem(itemId: string): Promise<{
@@ -117,7 +187,13 @@ interface E2ELocalContentService {
     };
   };
   readonly legacyConflictRecovery: {
-    list(): Promise<Array<{ readonly mutationId: string; readonly status: string }>>;
+    list(): Promise<
+      Array<{
+        readonly mutationId: string;
+        readonly reasonCode: string | null;
+        readonly status: string;
+      }>
+    >;
   };
   readonly pageOperationLog: {
     getState(pageId: string): Promise<{ readonly status: string } | null>;
@@ -246,37 +322,22 @@ export async function openWorkspace(page: Page): Promise<void> {
   }
 }
 
-/**
- * Types a name into the shared field and makes sure it is still there.
- *
- * The field is a controlled input, and the explorer clears it when a creation
- * starts. React batches that clear, so its render can land *after* a later
- * `fill()` and wipe what was just typed — which is what a human would see as
- * their typing vanishing, and what CI saw as an empty field where a name
- * belonged.
- *
- * So the value is retyped until it sticks, which is also what a person would
- * do. `toHaveValue` alone only waits; it cannot put the name back.
- */
-async function typeItemName(page: Page, name: string): Promise<void> {
-  await ensureNavigationVisible(page);
-  await openRootCreation(page);
-  const field = page.getByLabel("Nom", { exact: true });
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    await field.fill(name);
-    if ((await field.inputValue()) === name) {
-      return;
-    }
-  }
-  // Asserted so a persistent failure reports the value rather than a timeout.
-  await expect(field).toHaveValue(name);
-}
-
 export async function openRootCreation(page: Page): Promise<void> {
   await ensureNavigationVisible(page);
   const trigger = page.getByTestId("toggle-root-creation");
   if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
-  await expect(page.getByLabel("Nom", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("new-root-page")).toBeVisible();
+  await expect(page.getByTestId("new-root-folder")).toBeVisible();
+}
+
+async function nameNewlyCreatedItem(page: Page, name: string): Promise<void> {
+  const title = page.getByTestId("active-item-title");
+  await expect(title).toBeVisible({ timeout: 15_000 });
+  await expect(title).toBeFocused({ timeout: 15_000 });
+  await expect(title).toHaveValue("");
+  await title.fill(name);
+  await title.press("Enter");
+  await expect(title).toHaveValue(name);
 }
 
 export async function createRootItem(
@@ -284,8 +345,9 @@ export async function createRootItem(
   kind: "page" | "folder",
   name: string,
 ): Promise<void> {
-  await typeItemName(page, name);
+  await openRootCreation(page);
   await page.getByTestId(kind === "page" ? "new-root-page" : "new-root-folder").click();
+  await nameNewlyCreatedItem(page, name);
   // A successful page creation deliberately closes the mobile drawer and
   // opens the new page. Assert its projected presence without reopening navigation:
   // doing so would both undo the product outcome and race the asynchronous
@@ -300,17 +362,8 @@ export async function createChildItem(
   kind: "page" | "folder",
   name: string,
 ): Promise<void> {
-  // Retyped until it sticks: the field is shared with the previous creation,
-  // whose clear can land here. Without this the item arrived called "Untitled
-  // page" and the failure surfaced fifteen seconds later as "the row never
-  // appeared", which points at everything except the cause.
-  await typeItemName(page, name);
-  // No explicit `scrollIntoViewIfNeeded`: `click()` already scrolls, and it
-  // retries when the element is replaced. The explicit call was the only step
-  // here that does not retry, so a re-render landing between resolving the
-  // locator and scrolling it detached the element and failed the journey —
-  // intermittently, which is the worst way for it to fail.
   await clickItemAction(page, parentName, `new-${kind}-inside-${parentName}`);
+  await nameNewlyCreatedItem(page, name);
   // Page creation is navigation on mobile, so the drawer closing is success,
   // not a reason for this helper to reopen it. The child remains mounted in the
   // tree and later row interactions reopen navigation explicitly.

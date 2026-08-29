@@ -239,7 +239,7 @@ describe("operational page opening", () => {
     await Promise.resolve();
   });
 
-  it("does not resurrect page authority when conversion wins an in-flight activation", async () => {
+  it("settles an in-flight activation before retiring the page authority", async () => {
     vi.stubGlobal("navigator", { onLine: true });
     const service = new LocalContentService(workspaceApi(), `activation-conversion-${Date.now()}`);
     services.push(service);
@@ -277,24 +277,96 @@ describe("operational page opening", () => {
         };
       });
 
+    const reconciler = service.pageReconciler(pageId);
+    vi.spyOn(reconciler, "synchronize").mockResolvedValue({
+      kind: "synced",
+      exchanges: 0,
+      latestPageSequence: 0,
+      fileRequirements: [],
+    });
+
     const opening = service.openOperationalPage(pageId);
     await vi.waitFor(() => expect(activate).toHaveBeenCalledOnce());
+
+    const conversion = service.mutate("item.convert", {
+      itemId: pageId,
+      targetKind: "folder",
+      confirmedDestruction: false,
+    });
+
+    // Conversion must not overtake activation: doing so lets the operational
+    // and workspace feeds report two valid changes in opposite local order and
+    // creates a false conflict on slow browsers.
+    await Promise.resolve();
+    expect(await service.getItem(pageId)).toMatchObject({ kind: "page" });
+
+    releaseActivation?.();
+    const opened = await opening;
+    const converted = await conversion;
+
+    expect(opened).toMatchObject({ ok: true, mode: "active" });
+    expect(converted).toEqual({ ok: true });
+    expect(await service.pageOperationLog.getState(pageId)).toBeNull();
+    expect(await service.pageOperationLog.listUpdates(pageId)).toEqual([]);
+    expect(await service.getItem(pageId)).toMatchObject({ kind: "folder", pageDocument: null });
+    if (opened.ok) opened.close();
+  });
+
+  it("checks unsynchronized operational text before allowing destructive conversion", async () => {
+    vi.stubGlobal("navigator", { onLine: true });
+    const service = new LocalContentService(workspaceApi(), `conversion-content-${Date.now()}`);
+    services.push(service);
+    await service.initialize();
+
+    const pageId = generateUuidV7();
+    const revisionId = generateUuidV7();
+    const blockId = generateUuidV7();
+    const document: BlockDocumentV3 = {
+      blocks: [{ type: "paragraph", id: blockId, content: [] }],
+    };
+    await service.repository.applyServerItems([pageItem(pageId, revisionId, document)]);
+    vi.spyOn(service.pageOperationsApi, "checkpoint").mockImplementation(
+      async (checkpointPageId, requestId) => ({
+        ok: true,
+        value: await checkpointResponse({
+          pageId: checkpointPageId,
+          requestId: requestId as Uuid,
+          revisionId,
+          document,
+        }),
+      }),
+    );
+    vi.spyOn(service, "synchronize").mockResolvedValue("offline");
+    vi.spyOn(service.pageReconciler(pageId), "synchronize").mockResolvedValue({
+      kind: "offline",
+      exchanges: 0,
+      latestPageSequence: 0,
+      fileRequirements: [],
+    });
+
+    const opened = await service.openOperationalPage(pageId);
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    await opened.session.transact({
+      type: "replace-text",
+      blockId,
+      from: 0,
+      to: 0,
+      text: "offline words that must not disappear",
+    });
 
     const converted = await service.mutate("item.convert", {
       itemId: pageId,
       targetKind: "folder",
       confirmedDestruction: false,
     });
-    expect(converted).toEqual({ ok: true });
-    expect(await service.getItem(pageId)).toMatchObject({ kind: "folder", pageDocument: null });
 
-    releaseActivation?.();
-    const opened = await opening;
-
-    expect(opened).toMatchObject({ ok: false, offline: false, code: "item.not-found" });
-    expect(await service.pageOperationLog.getState(pageId)).toBeNull();
-    expect(await service.pageOperationLog.listUpdates(pageId)).toEqual([]);
-    expect(await service.getItem(pageId)).toMatchObject({ kind: "folder", pageDocument: null });
+    expect(converted).toMatchObject({
+      ok: false,
+      error: { code: "conversion.confirmation-required" },
+    });
+    expect(await service.getItem(pageId)).toMatchObject({ kind: "page" });
+    opened.close();
   });
 
   it("keeps a never-activated page editable on a durable branch when truly offline", async () => {

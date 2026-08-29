@@ -724,6 +724,40 @@ la sélection. Enfin, `PageTitleEditor` est généralisé en éditeur d'identit�
 d'item paramétré par `page|folder`, afin que le dossier ouvert réutilise
 strictement les mutations `item.rename` et `item.icon` existantes.
 
+La correction de viewport fait du shell desktop une grille bornée à `100dvh` :
+le chrome supérieur occupe la première ligne et `workspace-main` est l'unique
+zone de défilement du contenu. Le slot de navigation garde la même hauteur et
+son pied reste hors du scroller ; seule la section d'arbre reçoit un overflow
+vertical indépendant. Le déclencheur `PanelLeftOpen` quitte le positionnement
+fixe global et est ancré dans le conteneur de la ligne supérieure, dont le
+padding réserve sa place. `WorkspaceShell` possède les deux références de
+bascule afin de conserver le transfert de focus après la transition sans
+dupliquer un bouton invisible.
+
+`NavigationInlineCreate` porte désormais les deux présentations d'une même
+machine d'état : `item` pour la surface 88 × 30 px validée et `root` pour
+`+ Nouveau`. La variante racine conserve le même contrôle `Plus`, sa rotation,
+les choix page/dossier, le focus clavier et la fermeture symétrique, mais ne
+monte plus de champ de nom. La création d'une base existante reste une action
+secondaire indépendante afin de ne pas mélanger son formulaire au chemin
+rapide page/dossier.
+
+Tous les chemins de création appellent une seule commande qui retourne
+l'identité créée, sélectionne aussi bien une page qu'un dossier et enregistre
+une intention locale de focus à usage unique. `PageTitleEditor` consomme cette
+intention au montage : il présente un brouillon vide, place le caret dans le
+grand titre, puis applique la règle existante `Sans titre` au blur. La commande
+`/page` prépare la même intention, mais `PageEditor` n'ouvre l'enfant qu'après
+le drainage durable de la transaction contenant le `pageLink`.
+
+L'attente initiale de `EditorView` n'utilise plus le composant de statut
+générique coloré. Une primitive de squelette éditorial neutre garde le titre
+déjà rendu et réserve la géométrie des premières lignes. La correction du lien
+est testée sur le geste exact : suppression clavier du nœud `pageLink` et de
+toute sa ligne, saisie normale, drainage local, adoption distante puis délai de
+stabilisation. L'adaptateur et la projection ne peuvent conserver ou réinjecter
+un nœud absent de l'autorité après cette frontière.
+
 ### 10. Validation et ordre de livraison
 
 Les tranches d'implémentation sont :
@@ -743,9 +777,11 @@ Les tranches d'implémentation sont :
     feuilles normalisées, sélection sans rail et caret ;
 11. identité visuelle et références : emoji canonique d'item, chevron dans le
     même emplacement, sélecteur de page compact et bookmark Web séparé ;
-12. migration de toutes les surfaces V1, français, thèmes, visuels et
+12. verrouillage du viewport, création sans préformulaire, focus de titre
+    factorisé, squelette éditorial et suppression définitive des liens ;
+13. migration de toutes les surfaces V1, français, thèmes, visuels et
     performance ;
-13. suppression du chemin éditorial legacy après preuve de migration.
+14. suppression du chemin éditorial legacy après preuve de migration.
 
 Chaque tranche garde l'application lisible et fournit un test indépendant. Le
 chemin legacy reste derrière une frontière de compatibilité jusqu'à ce que les
