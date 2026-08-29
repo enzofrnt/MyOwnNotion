@@ -4,7 +4,6 @@ import { Button } from "../../ui/primitives/index.ts";
 
 export interface NavigationInlineCreateProps {
   readonly itemName: string;
-  readonly label?: string;
   readonly open: boolean;
   readonly variant?: "item" | "root";
   readonly testIds?: {
@@ -27,7 +26,6 @@ export interface NavigationInlineCreateProps {
  */
 export function NavigationInlineCreate({
   itemName,
-  label,
   onCreateFolder,
   onCreatePage,
   onOpenChange,
@@ -35,6 +33,7 @@ export function NavigationInlineCreate({
   testIds,
   variant = "item",
 }: NavigationInlineCreateProps) {
+  const root = useRef<HTMLSpanElement | null>(null);
   const firstChoice = useRef<HTMLButtonElement | null>(null);
   const toggle = useRef<HTMLButtonElement | null>(null);
   const focusChoiceOnOpen = useRef(false);
@@ -52,6 +51,17 @@ export function NavigationInlineCreate({
     firstChoice.current?.focus();
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: globalThis.PointerEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node) || root.current?.contains(target)) return;
+      onOpenChange(false);
+    };
+    document.addEventListener("pointerdown", dismiss, true);
+    return () => document.removeEventListener("pointerdown", dismiss, true);
+  }, [open, onOpenChange]);
+
   const closeFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>): void => {
     if (!open || event.key !== "Escape") return;
     event.preventDefault();
@@ -62,6 +72,7 @@ export function NavigationInlineCreate({
 
   return (
     <span
+      ref={root}
       className="navigation-inline-create"
       data-testid={testIds?.root ?? `inline-create-${itemName}`}
       data-open={open || undefined}
@@ -129,9 +140,6 @@ export function NavigationInlineCreate({
           }}
         >
           <AppIcon name="add" size="small" />
-          {label === undefined ? null : (
-            <span className="navigation-inline-create__label">{label}</span>
-          )}
         </Button>
       </span>
     </span>

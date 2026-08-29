@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ItemEmojiPicker } from "../../ui/emoji-picker.tsx";
+import { AppIcon } from "../../ui/icons.tsx";
+import { itemKindIconName } from "../../ui/item-icon.tsx";
 
 const UNTITLED_PAGE = "Sans titre";
 const TITLE_COMMIT_DELAY_MS = 450;
+const KIND_CAPTION = {
+  page: "Page",
+  folder: "Dossier",
+} as const;
 
 function committedTitle(value: string): string {
   return value.trim() || UNTITLED_PAGE;
@@ -179,6 +185,10 @@ export function PageTitleEditor({
           onChange={onIconChange}
         />
       )}
+      <span className="workspace-page-title__kind" data-testid="active-item-kind">
+        <AppIcon name={itemKindIconName(kind)} size="small" />
+        {KIND_CAPTION[kind]}
+      </span>
       <textarea
         ref={textarea}
         rows={1}

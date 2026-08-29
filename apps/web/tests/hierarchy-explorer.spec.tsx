@@ -79,6 +79,9 @@ describe("hierarchy item identity geometry", () => {
     expect(css).toMatch(
       /\.navigation-item-actions\[data-inline-open="true"\][^{]*\.workspace-page-attachments-trigger[^}]*visibility:\s*hidden/u,
     );
+    expect(css).toMatch(
+      /\.navigation-item-actions\[data-inline-open="true"\][^{]*\.workspace-page-attachments-trigger[^}]*width:\s*0/u,
+    );
     expect(prototype).toMatch(/\.mn-v3-create-surface\s*\{[^}]*width:\s*30px/u);
     expect(prototype).toMatch(
       /\.mn-v3-row\.is-create-open\s+\.mn-v3-create-surface\s*\{[^}]*width:\s*88px/u,
@@ -88,7 +91,34 @@ describe("hierarchy item identity geometry", () => {
       /\.mn-v3-row\.is-create-open\s+\.mn-v3-create-surface\s*\{[^}]*background:\s*light-dark/u,
     );
     expect(css).toMatch(
-      /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*width:\s*5\.5rem/u,
+      /\.navigation-inline-create\s*\{[^}]*--inline-create-gutter:\s*2px/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create__surface\s*\{[^}]*border-radius:\s*calc\(var\(--inline-create-inner-radius\) \+ var\(--inline-create-gutter\)\)/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create\[data-open="true"\]\s*\{[^}]*width:\s*var\(--inline-create-open-width\)/u,
+    );
+    expect(css).toMatch(
+      /\.workspace-navigation \.tree\s*\{[^}]*--tree-row-gap:\s*2px/u,
+    );
+    expect(css).toMatch(
+      /\.workspace-navigation \.tree\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u,
+    );
+    expect(css).toMatch(
+      /\.workspace-navigation \.tree ul\s*\{[^}]*margin-left:\s*calc\(var\(--space-1\) \+ 0\.75rem\)/u,
+    );
+    expect(css).toMatch(
+      /\.workspace-navigation \.tree ul\s*\{[^}]*gap:\s*var\(--tree-row-gap\)/u,
+    );
+    expect(css).toMatch(
+      /\.tree-drop-target:has\(\+ \.workspace-page-attachments\[data-joined\]\)[^{]*\{[^}]*border-bottom-left-radius:\s*0/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*gap:\s*var\(--inline-create-gutter\)/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create\[data-open="true"\][^{]*\.ui-button\[data-size="square"\]\s*\{[^}]*border-radius:\s*var\(--inline-create-inner-radius\)/u,
     );
     expect(css).toMatch(
       /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*box-shadow:\s*none/u,
@@ -99,5 +129,13 @@ describe("hierarchy item identity geometry", () => {
     expect(css).not.toMatch(
       /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*border-color:\s*var\(--color-border\)/u,
     );
+    expect(css).not.toMatch(
+      /\.workspace-navigation \.tree-row\[aria-selected="true"\][^{]*width:\s*calc/u,
+    );
+    expect(css).toMatch(/\.tree-item-identity-slot \.tree-twisty:hover\s*\{[^}]*background:/u);
+    expect(css).not.toMatch(
+      /\.tree-item-identity-slot \.tree-twisty\[data-expanded="true"\][^{]*background:/u,
+    );
+    expect(css).toMatch(/\.collapsible-region\[data-open="true"\]\s*\{[^}]*210ms ease/u);
   });
 });

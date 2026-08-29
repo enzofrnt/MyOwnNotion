@@ -1,14 +1,22 @@
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ItemIcon, TreeItemIdentitySlot } from "../src/ui/item-icon.tsx";
 
 describe("item identity icon", () => {
-  it("renders the canonical emoji instead of the fallback type icon", () => {
-    const markup = renderToStaticMarkup(<ItemIcon kind="page" icon="🧠" />);
+  it("keeps the type icon as a corner badge over the canonical emoji", () => {
+    const page = renderToStaticMarkup(<ItemIcon kind="page" icon="🧠" />);
+    const folder = renderToStaticMarkup(<ItemIcon kind="folder" icon="📁" />);
 
-    expect(markup).toContain("🧠");
-    expect(markup).toContain('data-item-emoji="true"');
-    expect(markup).not.toContain('data-icon="file-text"');
+    expect(page).toContain("🧠");
+    expect(page).toContain('data-item-emoji="true"');
+    expect(page).toContain('data-item-kind-badge="page"');
+    expect(page).toContain('data-icon="fileText"');
+    expect(folder).toContain('data-item-kind-badge="folder"');
+    expect(folder).toContain('data-icon="folder"');
+    expect(renderToStaticMarkup(<ItemIcon kind="page" icon="😀" size="page" />)).not.toContain(
+      "data-item-kind-badge",
+    );
   });
 
   it("uses one stable fallback for items without an emoji", () => {
@@ -17,8 +25,11 @@ describe("item identity icon", () => {
     const file = renderToStaticMarkup(<ItemIcon kind="file" icon={null} />);
 
     expect(page).toContain('data-icon="fileText"');
+    expect(page).not.toContain("data-item-kind-badge");
     expect(folder).toContain('data-icon="folder"');
+    expect(folder).not.toContain("data-item-kind-badge");
     expect(file).toContain('data-icon="file"');
+    expect(file).not.toContain("data-item-kind-badge");
   });
 
   it("adds the reference badge without changing the item emoji", () => {
@@ -27,6 +38,7 @@ describe("item identity icon", () => {
     expect(markup).toContain("📚");
     expect(markup).toContain('data-item-reference="true"');
     expect(markup).toContain('data-icon="reference"');
+    expect(markup).toContain('data-item-kind-badge="page"');
   });
 
   it("puts a branch disclosure and its item icon in the same fixed slot", () => {
@@ -78,5 +90,11 @@ describe("item identity icon", () => {
     expect(open).not.toContain('data-icon="chevronDown"');
     expect(closed).toContain('data-expanded="false"');
     expect(open).toContain('data-expanded="true"');
+  });
+
+  it("releases pointer focus so the hover surface cannot stick after a click", () => {
+    const source = readFileSync(new URL("../src/ui/item-icon.tsx", import.meta.url), "utf8");
+    expect(source).toContain("event.detail > 0");
+    expect(source).toContain("event.currentTarget.blur()");
   });
 });

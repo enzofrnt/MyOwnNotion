@@ -13,6 +13,14 @@ describe("realtime reverse-proxy contract", () => {
     expect(vite.match(/proxy:\s*apiProxy\(\)/g)).toHaveLength(2);
   });
 
+  it("upgrades Vite HMR through the local Caddy helper when HTTPS proxy mode is on", () => {
+    const vite = read("apps/web/vite.config.ts");
+    expect(vite).toContain('process.env["MYOWNNOTION_DEV_HTTPS_PROXY"]');
+    expect(vite).toContain("https://localhost:8443");
+    expect(vite).toContain("usePolling: true");
+    expect(vite).toMatch(/protocol:\s*url\.protocol === "https:" \? "wss" : "ws"/);
+  });
+
   it("keeps WebSocket upgrade headers and heartbeat-safe timeouts in bundled nginx", () => {
     const nginx = read("docker/web-nginx.conf");
     expect(nginx).toMatch(/map\s+\$http_upgrade\s+\$connection_upgrade\s*\{/);

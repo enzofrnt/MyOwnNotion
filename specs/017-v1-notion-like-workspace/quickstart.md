@@ -144,7 +144,7 @@ Pour la convergence d'interface courante, vérifier dans cet ordre :
 10. masquer la barre latérale : sa commande de réouverture doit rester dans la
     ligne supérieure, sans recouvrir le titre, puis rendre le focus à la
     commande de fermeture après réouverture ;
-11. créer une page et un dossier depuis `+ Nouveau`, depuis le `+` d'une ligne,
+11. créer une page et un dossier depuis le `+` du titre Notes, depuis le `+` d'une ligne,
     puis une sous-page avec `/page` : aucun champ de nom préalable, chaque
     nouvel item s'ouvre avec un titre vide ciblé et devient `Sans titre`
     uniquement après sortie sans saisie ;

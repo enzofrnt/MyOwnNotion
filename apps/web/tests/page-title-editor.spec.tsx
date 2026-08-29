@@ -122,5 +122,19 @@ describe("page title editor", () => {
     const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
     expect(title?.getAttribute("aria-label")).toBe("Nom du dossier");
     expect(container.querySelector('[data-kind="folder"]')).not.toBeNull();
+    const kind = container.querySelector('[data-testid="active-item-kind"]');
+    expect(kind?.textContent).toContain("Dossier");
+    expect(kind?.querySelector('[data-icon="folder"]')).not.toBeNull();
+  });
+
+  it("shows a quiet page caption above the canvas title, next to the type icon", async () => {
+    await act(async () => {
+      root.render(<PageTitleEditor title="Notes" onCommit={async () => undefined} />);
+    });
+    const kind = container.querySelector('[data-testid="active-item-kind"]');
+    const title = container.querySelector('[data-testid="active-item-title"]');
+    expect(kind?.textContent).toContain("Page");
+    expect(kind?.querySelector('[data-icon="fileText"]')).not.toBeNull();
+    expect(kind?.nextElementSibling).toBe(title);
   });
 });

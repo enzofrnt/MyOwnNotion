@@ -119,12 +119,44 @@ describe("inline child creation", () => {
     expect(toggle?.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("closes when the pointer lands outside the cluster", async () => {
+    const onOpenChange = vi.fn();
+    const outside = document.createElement("button");
+    outside.type = "button";
+    outside.textContent = "Ailleurs";
+    document.body.append(outside);
+    await act(async () => {
+      root.render(
+        <NavigationInlineCreate
+          itemName="Projet"
+          open
+          onOpenChange={onOpenChange}
+          onCreatePage={() => undefined}
+          onCreateFolder={() => undefined}
+        />,
+      );
+    });
+
+    await act(async () => {
+      outside.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    onOpenChange.mockClear();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="new-page-inline-Projet"]')
+        ?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    outside.remove();
+  });
+
   it("reuses the same rotating control for root page and folder creation", async () => {
     await act(async () => {
       root.render(
         <NavigationInlineCreate
           itemName="Notes"
-          label="Nouveau"
           variant="root"
           open
           testIds={{
@@ -143,7 +175,7 @@ describe("inline child creation", () => {
     const cluster = container.querySelector('[data-testid="root-inline-create"]');
     expect(cluster?.getAttribute("data-variant")).toBe("root");
     expect(cluster?.getAttribute("data-open")).toBe("true");
-    expect(cluster?.querySelector(".navigation-inline-create__label")?.textContent).toBe("Nouveau");
+    expect(cluster?.querySelector(".navigation-inline-create__label")).toBeNull();
     expect(cluster?.querySelector('[data-testid="toggle-root-creation"] .ui-icon')).not.toBeNull();
     expect(cluster?.querySelector('[data-testid="new-root-page"]')).not.toBeNull();
     expect(cluster?.querySelector('[data-testid="new-root-folder"]')).not.toBeNull();

@@ -116,6 +116,18 @@ describe("shortcut presentation", () => {
     expect(markup).not.toContain('data-testid="favourites"');
   });
 
+  it("places root creation on the Notes heading instead of a dedicated row", () => {
+    const markup = renderSidebar({});
+    const notes = markup.indexOf('id="sidebar-tree-heading"');
+    const create = markup.indexOf(">Nouveau<");
+    const tree = markup.indexOf(">Arbre<");
+    expect(notes).toBeGreaterThanOrEqual(0);
+    expect(create).toBeGreaterThan(notes);
+    expect(create).toBeLessThan(tree);
+    expect(markup).not.toContain("workspace-navigation__create");
+    expect(markup).not.toContain("workspace-navigation__database-create");
+  });
+
   it("does not render a shortcut section disabled in settings", () => {
     const markup = renderSidebar({ favouritesVisible: false, recentsVisible: true });
     expect(markup).not.toContain('id="sidebar-favourites-heading"');

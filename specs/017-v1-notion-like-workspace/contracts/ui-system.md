@@ -125,7 +125,9 @@ repli/dépli indépendant. Leur visibilité est réglable dans la destination
 Réglages et ces choix de présentation restent locaux à l'appareil. La
 hiérarchie principale s'appelle `Notes`. Ses descendants sont rapprochés du
 bord gauche tout en conservant une indentation et un guide visuel assez nets
-pour rendre le parent immédiatement identifiable.
+pour rendre le parent immédiatement identifiable. Ce guide reste centré sur
+l'emoji du parent à chaque niveau. Les lignes laissent 2 px entre elles, comme
+la référence versionnée, afin que les surfaces de survol restent distinctes.
 
 Chaque ligne de hiérarchie expose trois destinations de déplacement : avant,
 dans et après. Avant/après affichent une ligne entre les éléments ; dans met en
@@ -138,8 +140,9 @@ six points n'est ajoutée dans l'arborescence. Les contrôles internes ne
 déclenchent pas le glisser-déposer. Les actions contextuelles sont ordonnées
 `pièces jointes`, `+`, `…` pour une page et `+`, `…` pour un dossier. `+`
 déploie sur la ligne une surface compacte contenant une page avec plus, un
-dossier avec plus et la même commande tournée en croix ; cette surface recouvre
-au besoin la fin du titre mais ne modifie jamais la géométrie de la ligne.
+dossier avec plus et la même commande tournée en croix ; cette surface fait
+reculer les points de suspension du titre au même rythme et ne modifie jamais
+la géométrie de la ligne. Un clic hors de la surface, ou Échap, la referme.
 
 Les pièces jointes prolongent directement la surface sélectionnée sans changer
 sa largeur ni sa hauteur. La continuation affiche `Pièces jointes`, le nombre,
@@ -148,12 +151,15 @@ puis des lignes compactes nom/taille ou une unique ligne
 symétrique, n'occupent aucune place une fois fermés et suivent la préférence de
 réduction des animations.
 
-La création racine `+ Nouveau` réutilise la machine d'état de création enfant :
-le même plus devient une croix, les choix page/dossier apparaissent sans champ
-de nom préalable et la fermeture inverse le mouvement. Toute création page ou
-dossier ouvre ensuite l'élément et place le caret dans son grand titre vide ;
-le fallback `Sans titre` n'est matérialisé qu'en quittant ce titre. La création
-de base reste une action secondaire distincte avec son propre formulaire.
+La création racine réutilise la machine d'état de création enfant : le même
+plus siège à droite du libellé `Notes`, se déplie vers la gauche, devient une
+croix, les choix page/dossier apparaissent sans champ de nom préalable et la
+fermeture inverse le mouvement. Il n'existe plus de rangée `+ Nouveau` dédiée
+ni d'icône de base dans ce titre. Toute création page ou dossier ouvre ensuite
+l'élément et place le caret dans son grand titre vide ; le fallback
+`Sans titre` n'est matérialisé qu'en quittant ce titre. La création de base
+reste une action secondaire distincte, depuis le menu d'un item, avec son
+propre formulaire.
 
 ### 5.1 Frontière du workspace
 
@@ -207,12 +213,18 @@ tant que le propriétaire le modifie ; `Sans titre` n'est affiché qu'après la
 sortie du champ, une validation explicite ou le départ de la page.
 
 Une page ou un dossier expose un seul composant d'identité : emoji canonique si
-présent, sinon icône de type. Dans l'arbre, ce composant et le chevron de
-branche partagent exactement la même boîte ; le chevron remplace l'icône au
-survol ou au focus sans déplacer le texte. Dans le canevas d'une page, l'emoji
-est placé au-dessus du titre et ouvre un sélecteur Unicode compact, disponible
-hors ligne et refermable avec Échap. Le canevas d'un dossier réutilise ce même
-éditeur d'identité pour son emoji et son titre, sans document éditorial.
+présent, sinon icône de type. Dans l'arbre et les représentations compactes,
+un emoji conserve l'icône de type en badge très petit et atténué, superposé
+en bas à droite. Le canevas n'ajoute pas ce badge sur l'emoji : juste au-dessus
+du grand titre, proche de l'emoji, un libellé discret « Page » ou « Dossier »
+est précédé de la petite icône de type. Dans l'arbre, ce composant et le
+chevron de branche partagent exactement la même boîte ; le chevron remplace
+l'icône au survol ou au focus sans déplacer le texte. Dans le canevas d'une
+page, l'emoji est placé au-dessus du titre et ouvre un sélecteur Unicode
+compact, disponible hors ligne et refermable avec Échap. Le canevas d'un
+dossier réutilise ce même éditeur d'identité pour son emoji et son titre, sans
+document éditorial. Le chrome supérieur d'un dossier reste aussi compact que
+celui d'une page : fil d'Ariane seulement, sans identité dupliquée.
 
 Une référence interne ou un bookmark Web déjà présent est reconnaissable au
 pointeur et offre les actions ouvrir, modifier la cible et retirer la

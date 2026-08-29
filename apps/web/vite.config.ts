@@ -33,6 +33,33 @@ function portPolicy() {
 }
 
 /**
+ * When Caddy terminates TLS in `compose.dev.yaml`, the browser talks to
+ * https://localhost:8443. HMR must use that public origin, not the internal
+ * Vite port, and bind-mounted sources on Docker Desktop need polling.
+ */
+function httpsProxyServer() {
+  if (process.env["MYOWNNOTION_DEV_HTTPS_PROXY"] !== "1") {
+    return {};
+  }
+  const origin = process.env["MYOWNNOTION_PUBLIC_ORIGIN"] ?? "https://localhost:8443";
+  const url = new URL(origin);
+  const defaultPort = url.protocol === "https:" ? 443 : 80;
+  return {
+    origin,
+    allowedHosts: true as const,
+    hmr: {
+      protocol: url.protocol === "https:" ? "wss" : "ws",
+      host: url.hostname,
+      clientPort: url.port === "" ? defaultPort : Number(url.port),
+    },
+    watch: {
+      usePolling: true,
+      interval: 400,
+    },
+  };
+}
+
+/**
  * Workbox retains only the versioned application shell (T021): precached
  * build assets let the app boot offline, while canonical content always
  * comes from the Dexie projection — never from HTTP caches.
@@ -64,9 +91,10 @@ export default defineConfig({
   },
   plugins: [tailwindcss(), react()],
   server: {
-    host: "127.0.0.1",
+    host: process.env["MYOWNNOTION_DEV_HTTPS_PROXY"] === "1" ? "0.0.0.0" : "127.0.0.1",
     ...portPolicy(),
     proxy: apiProxy(),
+    ...httpsProxyServer(),
   },
   preview: {
     host: "127.0.0.1",

@@ -1505,6 +1505,7 @@ export function HierarchyExplorer({
           <CollapsibleRegion
             open={attachmentsOpen}
             lazy
+            joinPrevious
             id={`page-attachments-${node.item.id}`}
             className="workspace-page-attachments"
             data-testid={`page-attachments-${node.item.name}`}
@@ -1592,34 +1593,33 @@ export function HierarchyExplorer({
   );
 
   const creationControls = (
-    <div className="workspace-navigation__create">
-      <NavigationInlineCreate
-        itemName="Notes"
-        label="Nouveau"
-        variant="root"
-        open={rootCreationOpen}
-        testIds={{
-          root: "root-inline-create",
-          toggle: "toggle-root-creation",
-          page: "new-root-page",
-          folder: "new-root-folder",
-        }}
-        onOpenChange={setRootCreationOpen}
-        onCreatePage={() => void createItem("page", null)}
-        onCreateFolder={() => void createItem("folder", null)}
-      />
+    <>
+      <span className="workspace-navigation__heading-actions">
+        <NavigationInlineCreate
+          itemName="Notes"
+          variant="root"
+          open={rootCreationOpen}
+          testIds={{
+            root: "root-inline-create",
+            toggle: "toggle-root-creation",
+            page: "new-root-page",
+            folder: "new-root-folder",
+          }}
+          onOpenChange={setRootCreationOpen}
+          onCreatePage={() => void createItem("page", null)}
+          onCreateFolder={() => void createItem("folder", null)}
+        />
+      </span>
       <Button
-        size="square"
-        variant="ghost"
-        className="workspace-navigation__database-create"
+        className="visually-hidden"
+        tabIndex={-1}
         data-testid="new-root-database"
         aria-label="Créer une base de données"
-        title="Nouvelle base de données"
         onClick={() => openDatabaseCreation(null)}
       >
-        <AppIcon name="table" size="small" />
+        Créer une base de données
       </Button>
-    </div>
+    </>
   );
   const noticeCount = (backupStale ? 1 : 0) + (problem === null ? 0 : 1);
 

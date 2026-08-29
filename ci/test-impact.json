@@ -28,8 +28,13 @@
       "biome.jsonc",
       "docker/api.Dockerfile",
       "docker/base-images.json",
+      "docker/Caddyfile.dev",
+      "docker/dev.Dockerfile",
       "docker/web-nginx.conf",
       "docker/web.Dockerfile",
+      "compose.dev.yaml",
+      "apps/web/vite.config.ts",
+      "scripts/dev/stack.ts",
       "scripts/ci/build-images.ts",
       "scripts/ci/check-compose.ts",
       "scripts/ci/check-release-gate.ts",
@@ -163,11 +168,25 @@
     },
     {
       "paths": {
-        "exact": [".env.example", "compose.override.yaml", "compose.yaml", "docker/web-nginx.conf"],
+        "exact": [
+          ".env.example",
+          "apps/web/vite.config.ts",
+          "compose.dev.yaml",
+          "compose.override.yaml",
+          "compose.yaml",
+          "docker/Caddyfile.dev",
+          "docker/dev.Dockerfile",
+          "docker/web-nginx.conf",
+          "scripts/dev/stack.ts"
+        ],
         "prefixes": [],
         "suffixes": []
       },
-      "tests": ["tests/contract/compose-security.spec.ts"],
+      "tests": [
+        "tests/contract/compose-dev.spec.ts",
+        "tests/contract/compose-security.spec.ts",
+        "tests/contract/realtime-proxy.spec.ts"
+      ],
       "groups": ["contract"]
     },
     {
