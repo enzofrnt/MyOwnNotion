@@ -990,9 +990,12 @@ jamais déplacer ses offsets.
 | Fermeture WebKit ciblée | journey du chevron desktop répété cinq fois dans Linux | 5/5 passés sans retry |
 | Retrait de lien Firefox ciblé | journey exact de la CI répété vingt fois dans Linux | 20/20 passés sans retry ; texte conservé et aucun lien ressuscité |
 | Statique et types ciblés | Biome sur les fichiers corrigés, `git diff --check`, puis `bun run typecheck` | aucun diagnostic ; 9 workspaces et le projet racine typés |
+| Gate pré-push exact | `PATH=/tmp/myownnotion-ci-tools:$PATH bun run checks:local` sur `8fe63ac2` | passé avec code nul : outillage et shell, format/lint/types, 316 fichiers et 3 236 tests de couverture, 7 suites de performance, 332 intégrations PostgreSQL, migrations, 108 fichiers et 1 232 contrats, Playwright 5/5 en 1 375 s, builds Bun, images API/Web `amd64`/`arm64`, audit, secrets, analyse statique, licences et contrat Compose |
 
-Le gate complet, la seconde CI, la fusion, la CI de `main` et le redéploiement
-local restent la frontière de clôture T306.
+Le gate complet a terminé avec un code nul sur `8fe63ac2`. Cette clôture
+documentaire ne possède aucun consommateur exécutable et suit donc le gate
+documentation-only de `docs/development.md`. La seconde CI, la fusion, la CI de
+`main` et le redéploiement local restent la frontière de clôture T306.
 
 ## Limites encore ouvertes
 
