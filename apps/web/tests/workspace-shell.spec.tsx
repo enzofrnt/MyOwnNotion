@@ -116,7 +116,11 @@ describe("workspace shell", () => {
 
   it("keeps folder identity out of the chrome like a page", () => {
     const markup = renderToStaticMarkup(
-      <PageHeader title="Archives" kind="folder" breadcrumbs={[{ id: "archives", label: "Archives" }]} />,
+      <PageHeader
+        title="Archives"
+        kind="folder"
+        breadcrumbs={[{ id: "archives", label: "Archives" }]}
+      />,
     );
     expect(markup).toContain('data-compact="true"');
     expect(markup).toContain('aria-label="Fil d’Ariane"');
@@ -172,9 +176,7 @@ describe("workspace shell", () => {
       "utf8",
     );
 
-    expect(css).toMatch(
-      /\.workspace-main\[data-content-mode="page"\]\s*\{[^}]*padding:\s*0/u,
-    );
+    expect(css).toMatch(/\.workspace-main\[data-content-mode="page"\]\s*\{[^}]*padding:\s*0/u);
     expect(css).toMatch(/\.workspace-page-canvas\s*\{[^}]*flex:\s*1 0 auto/u);
     expect(css).not.toMatch(/\.workspace-page-canvas\s*\{[^}]*100dvh/u);
   });
