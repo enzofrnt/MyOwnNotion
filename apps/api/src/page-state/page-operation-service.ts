@@ -19,6 +19,7 @@ import {
   insertRevision,
   listOpenPageAmbiguities,
   listPageOperationUpdatesAfter,
+  lockItemRevisionHead,
   lockPageOperationState,
   PageOperationRepositoryError,
   type PageOperationStateRow,
@@ -31,6 +32,7 @@ import {
   readPageOperationUpdateAtSequence,
   readPageOperationUpdates,
   recordChange,
+  revisionDescendsFrom,
   runMutation,
   schema,
   supersedeRevision,
@@ -1009,6 +1011,25 @@ export class PageOperationService {
   }> {
     const loaded = await this.#load(tx, input.pageId);
     const document = loaded.document;
+    const operationalBoundaryId = loaded.state.lastRevisionId as Uuid | null;
+    if (operationalBoundaryId === null) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The operational page has no retained revision boundary.",
+        409,
+      );
+    }
+    const itemRevisionHead = await lockItemRevisionHead(tx, this.#deps.workspaceId, input.pageId);
+    if (
+      itemRevisionHead === null ||
+      !(await revisionDescendsFrom(tx, itemRevisionHead, operationalBoundaryId))
+    ) {
+      throw new PageOperationServiceError(
+        "page-operations.projection-invalid",
+        "The canonical and operational page histories no longer share a safe frontier.",
+        409,
+      );
+    }
     // The resolution applies on top of the current merged state; its causal
     // base is therefore exactly what the page holds before transacting.
     const baseVersionVector = document.versionVectorBytes();
@@ -1027,7 +1048,7 @@ export class PageOperationService {
     await this.#deps.materializer.materialize(tx, {
       workspaceId: this.#deps.workspaceId,
       pageId: input.pageId,
-      revisionId: loaded.state.lastRevisionId as Uuid,
+      revisionId: itemRevisionHead,
       projection,
     });
 
@@ -1065,15 +1086,12 @@ export class PageOperationService {
       id: revisionId,
       itemId: input.pageId,
       mutationId: input.mutationId,
-      parentRevisionIds:
-        loaded.state.lastRevisionId === null ? [] : [loaded.state.lastRevisionId as Uuid],
+      parentRevisionIds: [itemRevisionHead],
       snapshot,
       acceptedAt,
     });
     await this.#deps.protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot });
-    if (loaded.state.lastRevisionId !== null) {
-      await supersedeRevision(tx, loaded.state.lastRevisionId as Uuid, acceptedAt);
-    }
+    await supersedeRevision(tx, itemRevisionHead, acceptedAt);
     await tx
       .update(schema.pageOperationStates)
       .set({

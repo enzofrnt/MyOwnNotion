@@ -1072,21 +1072,12 @@ statique, licences et contrat Compose. La CI, la fusion, la vérification de
 
 ### Cohérence entre frontière opérationnelle et révision canonique
 
-La première CI de la PR a validé toutes les couches statiques, unitaires,
-contractuelles, de performance et de construction, ainsi que Chromium et
-WebKit mobile. Firefox et WebKit desktop ont cependant exposé la même course
-d'historique : le moteur de page avait déjà confirmé sa frontière
-opérationnelle tandis que la projection workspace portait encore l'ancien
-identifiant de révision canonique. Une restauration lancée dans cette courte
-fenêtre était donc refusée comme obsolète après une modification provenant du
-même appareil.
-
-Le callback de frontière durable importe désormais le changement workspace
-qui accompagne l'opération avant de laisser la page annoncer « synchronisé ».
-Cette récupération rejoint le drain workspace sérialisé existant ; une annonce
-SSE simultanée ne crée donc pas de second passage concurrent.
-
-Deux frontières utilisateur ont en plus été rendues linéaires :
+Avant la première exécution de CI, le callback de frontière durable a été rendu
+linéaire : il importe le changement workspace qui accompagne l'opération avant
+de laisser la page annoncer « synchronisé ». Cette récupération rejoint le
+drain workspace sérialisé existant ; une annonce SSE simultanée ne crée donc pas
+de second passage concurrent. Deux autres frontières utilisateur ont été
+alignées :
 
 - convertir une page en dossier attend une activation en cours, réconcilie son
   journal opérationnel, importe sa tête canonique, puis seulement retire
@@ -1105,14 +1096,41 @@ Playwright ne peut plus interrompre à 60 secondes une migration séquentielle �
 laquelle l'assertion accordait davantage de temps sur un runner Firefox
 contraint.
 
+La CI de la PR a validé toutes les couches statiques, unitaires, contractuelles,
+de performance et de construction, Chromium desktop/mobile et WebKit mobile.
+Firefox et WebKit desktop ont ensuite reproduit deux refus identiques. Les
+traces réseau et transactionnelles ont établi une cause plus profonde qu'un
+délai de navigateur :
+
+- une révision de renommage était la tête canonique courante et descendait de la
+  dernière frontière éditoriale consolidée ; la restauration envoyait bien
+  cette tête courante, mais le serveur exigeait à tort qu'elle soit aussi égale
+  à l'ancienne frontière éditoriale ;
+- les cinq anciens brouillons avaient cette même révision canonique comme base.
+  Le serveur la comparait seulement à son ancêtre éditorial, rejetait les cinq
+  conversions, puis quatre ne réussissaient qu'après la consolidation
+  périodique ; la session ouverte restait inutilement en attente.
+
+Ce décalage est légitime : une mutation de titre, d'emoji ou de placement peut
+faire avancer l'élément sans ouvrir une nouvelle fenêtre de frappes. Le serveur
+verrouille désormais la tête canonique et prouve deux relations distinctes :
+la tête canonique doit descendre de la frontière éditoriale, et la base legacy
+doit être un ancêtre de cette tête canonique. La restauration compare son jeton
+à la seule tête canonique préparée, puis accepte l'ancienne frontière
+éditoriale uniquement comme ancêtre. Toute nouvelle révision sémantique prend
+la tête canonique comme parent : le titre, l'emoji, le placement et leur
+historique ne disparaissent pas. Une lignée réellement divergente reste un 409
+conservateur.
+
 | Couche | Commande | Résultat |
 | --- | --- | --- |
 | Services Web ciblés | Vitest sur ouverture opérationnelle, synchronisation temps réel et sérialisation | course activation/conversion et protection du texte hors ligne incluses |
-| Courses CI ciblées | conversion vide, restauration normale/concurrente et récupération de cinq brouillons | Chromium desktop/mobile, Firefox desktop et WebKit desktop/mobile passés |
+| Frontières serveur ciblées | `bun scripts/ci/run-vitest-with-postgres.ts run --project api-contract apps/api/tests/page-operation-migration.integration.spec.ts apps/api/tests/page-history-consolidation.integration.spec.ts` | 2 fichiers, 12 tests passés ; conversion immédiate depuis une tête de métadonnées et restauration rattachée à cette tête |
+| Courses CI ciblées | `MYOWNNOTION_E2E_JOBS=5 bun run test:e2e:local -- tests/e2e/legacy-sync-self-healing.spec.ts tests/e2e/revision-restore.spec.ts --fail-on-flaky-tests` | 3 parcours × 5 profils, 15/15 passés en 45 s sans retry |
 
-Le nouveau gate complet est exécuté sur le commit exact destiné au second
-push ; la CI, la fusion, la vérification de `main` et le redéploiement restent
-les frontières de clôture de T314.
+Le nouveau gate complet doit encore être exécuté sur le commit exact destiné au
+second push ; la CI, la fusion, la vérification de `main` et le redéploiement
+restent les frontières de clôture de T314.
 
 ## Limites encore ouvertes
 

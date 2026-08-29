@@ -1003,7 +1003,13 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **FR-069**: L'historique visible MUST consolider les frappes en révisions
   compréhensibles plutôt que créer une entrée par caractère, tout en conservant
   la causalité nécessaire à la convergence et les deux lignées de toute
-  ambiguïté explicite.
+  ambiguïté explicite. Une révision canonique de métadonnées — titre, icône,
+  placement ou autre propriété de l'élément — MAY avancer pendant que la
+  frontière éditoriale reste sur son ancêtre. Une conversion historique ou une
+  restauration MUST accepter cet écart lorsque l'ascendance est prouvée,
+  conserver les métadonnées courantes et rattacher sa nouvelle révision à la
+  tête canonique ; une vraie divergence de lignées MUST rester refusée sans
+  écrasement.
 - **FR-070**: Un bloc, une propriété ou une marque inconnue MUST conserver sa
   représentation opaque, son identité et son emplacement à travers les mises à
   jour opérationnelles, la migration, la projection canonique, l'export et la

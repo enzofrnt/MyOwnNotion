@@ -117,6 +117,68 @@ async function sendBranch(pageId: Uuid, headers: Record<string, string>, payload
 }
 
 describe("legacy branch migration", () => {
+  it("converts immediately when a metadata revision is ahead of the operational boundary", async () => {
+    const headers = await harness.authenticate();
+    const page = await harness.createLegacyPage("Legacy metadata frontier");
+    const activation = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/page-operations/${page.itemId}/activate`,
+      headers,
+      payload: {
+        requestId: generateUuidV7(),
+        expectedRevisionId: page.revisionId,
+        expectedCanonicalDigest: page.canonicalDigest,
+      },
+    });
+    expect(activation.statusCode, activation.body).toBe(200);
+
+    const rename = await harness.api.built.app.inject({
+      method: "PATCH",
+      url: `/v1/items/${page.itemId}`,
+      headers: { ...headers, "idempotency-key": generateUuidV7() },
+      payload: { baseRevisionId: page.revisionId, name: "Renamed before conversion" },
+    });
+    expect(rename.statusCode, rename.body).toBe(200);
+    const metadataRevisionId = rename.json().revisionIds[0] as Uuid;
+    const blockId = generateUuidV7();
+    const payload = await branchPayload({
+      pageId: page.itemId,
+      baseRevisionId: metadataRevisionId,
+      baseDocument: { blocks: [] },
+      commands: [
+        {
+          type: "insert-block",
+          block: { type: "paragraph", id: blockId, content: [{ text: "offline journal" }] },
+          parentBlockId: null,
+          beforeBlockId: null,
+        },
+      ],
+    });
+
+    const converted = await sendBranch(page.itemId, headers, payload);
+    expect(converted.statusCode, converted.body).toBe(200);
+    expect(converted.json()).toMatchObject({
+      mode: "checkpoint",
+      convertedBranchId: payload.branchId,
+    });
+    const stored = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${page.itemId}`,
+      headers,
+    });
+    expect(stored.json()).toMatchObject({
+      name: "Renamed before conversion",
+      currentRevisionId: metadataRevisionId,
+      pageDocument: {
+        body: {
+          blocks: [
+            expect.objectContaining({ id: blockId, content: [{ text: "offline journal" }] }),
+          ],
+        },
+      },
+    });
+  });
+
   it("lazily activates, converts granularly and replays the same branch idempotently", async () => {
     const headers = await harness.authenticate();
     const page = await harness.createLegacyPage();
