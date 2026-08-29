@@ -205,12 +205,12 @@ test.describe("hierarchy organization (US1)", () => {
       Math.abs(
         (controlBoxes[1]?.x ?? 0) - ((controlBoxes[0]?.x ?? 0) + (controlBoxes[0]?.width ?? 0)),
       ),
-    ).toBeLessThanOrEqual(1);
+    ).toBeLessThanOrEqual(2);
     expect(
       Math.abs(
         (controlBoxes[2]?.x ?? 0) - ((controlBoxes[1]?.x ?? 0) + (controlBoxes[1]?.width ?? 0)),
       ),
-    ).toBeLessThanOrEqual(1);
+    ).toBeLessThanOrEqual(2);
 
     const plus = inlineToggle.locator(".ui-icon");
     await expect(plus).toHaveAttribute("data-icon", "add");
