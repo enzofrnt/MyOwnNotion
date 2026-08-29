@@ -90,8 +90,16 @@ describe("hierarchy item identity geometry", () => {
     expect(prototype).toMatch(
       /\.mn-v3-row\.is-create-open\s+\.mn-v3-create-surface\s*\{[^}]*background:\s*light-dark/u,
     );
+    expect(css).toMatch(/\.navigation-inline-create\s*\{[^}]*--inline-create-gutter:\s*2px/u);
     expect(css).toMatch(
-      /\.navigation-inline-create\s*\{[^}]*--inline-create-gutter:\s*2px/u,
+      /\.navigation-inline-create\s*\{[^}]*--inline-create-slot:\s*var\(--ui-target-compact\)/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create\s*\{[^}]*width:\s*var\(--inline-create-slot\)/u,
+    );
+    expect(css).toMatch(/\.navigation-item-menu\s*\{[^}]*width:\s*var\(--ui-target-compact\)/u);
+    expect(css).toMatch(
+      /\.workspace-page-attachments-trigger\[data-size="square"\]\s*\{[^}]*width:\s*var\(--ui-target-compact\)/u,
     );
     expect(css).toMatch(
       /\.navigation-inline-create__surface\s*\{[^}]*border-radius:\s*calc\(var\(--inline-create-inner-radius\) \+ var\(--inline-create-gutter\)\)/u,
@@ -99,18 +107,14 @@ describe("hierarchy item identity geometry", () => {
     expect(css).toMatch(
       /\.navigation-inline-create\[data-open="true"\]\s*\{[^}]*width:\s*var\(--inline-create-open-width\)/u,
     );
-    expect(css).toMatch(
-      /\.workspace-navigation \.tree\s*\{[^}]*--tree-row-gap:\s*2px/u,
-    );
+    expect(css).toMatch(/\.workspace-navigation \.tree\s*\{[^}]*--tree-row-gap:\s*2px/u);
     expect(css).toMatch(
       /\.workspace-navigation \.tree\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u,
     );
     expect(css).toMatch(
       /\.workspace-navigation \.tree ul\s*\{[^}]*margin-left:\s*calc\(var\(--space-1\) \+ 0\.75rem\)/u,
     );
-    expect(css).toMatch(
-      /\.workspace-navigation \.tree ul\s*\{[^}]*gap:\s*var\(--tree-row-gap\)/u,
-    );
+    expect(css).toMatch(/\.workspace-navigation \.tree ul\s*\{[^}]*gap:\s*var\(--tree-row-gap\)/u);
     expect(css).toMatch(
       /\.tree-drop-target:has\(\+ \.workspace-page-attachments\[data-joined\]\)[^{]*\{[^}]*border-bottom-left-radius:\s*0/u,
     );
@@ -125,6 +129,21 @@ describe("hierarchy item identity geometry", () => {
     );
     expect(css).toMatch(
       /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*background:\s*var\(--ui-color-surface-hover\)/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create\[data-open="true"\]\[data-closing="true"\]\s*\{[^}]*width:\s*var\(--inline-create-slot\)/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create\[data-open="true"\]:not\(\[data-closing="true"\]\)/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create\[data-closing="true"\][^{]*\.navigation-inline-create__choices\s*\{[^}]*opacity:\s*0/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-inline-create__toggle\[aria-expanded="true"\][^{]*\.ui-icon\s*\{[^}]*transform:\s*rotate\(45deg\)/u,
+    );
+    expect(css).toMatch(
+      /\.navigation-item-actions:has\(\.navigation-inline-create\[data-open="true"\]\)[^{]*\.workspace-page-attachments-trigger/u,
     );
     expect(css).not.toMatch(
       /\.navigation-inline-create\[data-open="true"\][^{]*\.navigation-inline-create__surface\s*\{[^}]*border-color:\s*var\(--color-border\)/u,
