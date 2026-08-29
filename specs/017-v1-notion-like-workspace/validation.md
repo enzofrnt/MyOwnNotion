@@ -1070,6 +1070,50 @@ PostgreSQL, migrations, 108 fichiers et 1 232 contrats, Playwright 5/5 en
 statique, licences et contrat Compose. La CI, la fusion, la vérification de
 `main` et le redéploiement restent les frontières de clôture de T314.
 
+### Cohérence entre frontière opérationnelle et révision canonique
+
+La première CI de la PR a validé toutes les couches statiques, unitaires,
+contractuelles, de performance et de construction, ainsi que Chromium et
+WebKit mobile. Firefox et WebKit desktop ont cependant exposé la même course
+d'historique : le moteur de page avait déjà confirmé sa frontière
+opérationnelle tandis que la projection workspace portait encore l'ancien
+identifiant de révision canonique. Une restauration lancée dans cette courte
+fenêtre était donc refusée comme obsolète après une modification provenant du
+même appareil.
+
+Le callback de frontière durable importe désormais le changement workspace
+qui accompagne l'opération avant de laisser la page annoncer « synchronisé ».
+Cette récupération rejoint le drain workspace sérialisé existant ; une annonce
+SSE simultanée ne crée donc pas de second passage concurrent.
+
+Deux frontières utilisateur ont en plus été rendues linéaires :
+
+- convertir une page en dossier attend une activation en cours, réconcilie son
+  journal opérationnel, importe sa tête canonique, puis seulement retire
+  l'autorité de page ;
+- préparer une restauration associe l'aperçu à la tête canonique relue sur le
+  serveur. Une modification déjà acceptée de cet appareil ne produit donc plus
+  de faux conflit, tandis qu'une modification réellement concurrente après
+  l'aperçu reste refusée.
+
+Avant une conversion destructive, la projection opérationnelle locale est
+aussi recopiée dans l'élément. Du texte encore hors ligne déclenche ainsi la
+même confirmation conservatrice que du texte déjà synchronisé. Le parcours de
+récupération de cinq anciens brouillons conserve enfin son attente fondée sur
+l'état. Son budget de parcours englobe explicitement sa fenêtre d'assertion :
+Playwright ne peut plus interrompre à 60 secondes une migration séquentielle à
+laquelle l'assertion accordait davantage de temps sur un runner Firefox
+contraint.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Services Web ciblés | Vitest sur ouverture opérationnelle, synchronisation temps réel et sérialisation | course activation/conversion et protection du texte hors ligne incluses |
+| Courses CI ciblées | conversion vide, restauration normale/concurrente et récupération de cinq brouillons | Chromium desktop/mobile, Firefox desktop et WebKit desktop/mobile passés |
+
+Le nouveau gate complet est exécuté sur le commit exact destiné au second
+push ; la CI, la fusion, la vérification de `main` et le redéploiement restent
+les frontières de clôture de T314.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

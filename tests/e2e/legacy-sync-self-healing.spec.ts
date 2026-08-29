@@ -15,6 +15,12 @@ test("five retained page conflicts self-heal while persistent storage remains a 
   context,
   request,
 }) => {
+  // This one journey intentionally performs five sequential protocol
+  // migrations and then verifies each canonical server document. Its
+  // state-based recovery assertion needs a larger budget than Playwright's
+  // generic 60-second journey cap on constrained Firefox runners.
+  test.setTimeout(150_000);
+
   await context.addInitScript(() => {
     // Playwright's Linux WebKit mobile profile omits StorageManager entirely.
     // Install the missing surface so every browser actually exercises the
@@ -131,7 +137,14 @@ test("five retained page conflicts self-heal while persistent storage remains a 
               ?.getAttribute("data-state"),
           };
         }),
-      { timeout: 45_000 },
+      {
+        // Recovery deliberately serializes each page's one-time v2 -> v3
+        // handover. Five retained drafts fit comfortably on a normal device,
+        // while constrained Firefox runners can need a little over 45 seconds
+        // without being stalled. Keep the assertion state-based and give the
+        // complete bounded migration enough time to finish.
+        timeout: 120_000,
+      },
     )
     .toEqual({
       activeConflicts: 0,
