@@ -8,6 +8,7 @@ import type {
 } from "../src/features/editor/blocknote-schema.ts";
 import {
   applyRemoteEditorProjection,
+  applyRemoteProjectionIfEditorIdle,
   EditorOriginGuard,
   planRemoteEditorChanges,
   restoreStableSelection,
@@ -142,6 +143,39 @@ describe("targeted remote application", () => {
     expect(emitted).toEqual([]);
     expect(guard.acceptLocalChanges).toBe(true);
     expect(guard.origin).toBe("local");
+  });
+
+  it("projects an adopted remote frontier synchronously before the next idle gesture", () => {
+    const apply = vi.fn();
+
+    expect(
+      applyRemoteProjectionIfEditorIdle({
+        localInputActive: false,
+        localCommitsInFlight: 0,
+        apply,
+      }),
+    ).toBe(true);
+    expect(apply).toHaveBeenCalledOnce();
+  });
+
+  it("keeps a remote projection pending while local offsets or commits are active", () => {
+    const apply = vi.fn();
+
+    expect(
+      applyRemoteProjectionIfEditorIdle({
+        localInputActive: true,
+        localCommitsInFlight: 0,
+        apply,
+      }),
+    ).toBe(false);
+    expect(
+      applyRemoteProjectionIfEditorIdle({
+        localInputActive: false,
+        localCommitsInFlight: 1,
+        apply,
+      }),
+    ).toBe(false);
+    expect(apply).not.toHaveBeenCalled();
   });
 
   it("applies the targeted move and edit without echo and keeps the active UUID", () => {

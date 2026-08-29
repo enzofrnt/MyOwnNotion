@@ -1,5 +1,12 @@
 import { clampSidebarWidth, MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@myownnotion/client-core";
-import { type CSSProperties, type PointerEvent, type ReactNode, useEffect, useState } from "react";
+import {
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import {
   Button,
@@ -11,6 +18,7 @@ import {
 } from "../../ui/primitives/index.ts";
 
 export type SidebarMode = "desktop" | "tablet" | "mobile";
+export const SIDEBAR_MOTION_DURATION_MS = 220;
 
 export function sidebarModeForWidth(width: number): SidebarMode {
   if (width < 768) return "mobile";
@@ -43,12 +51,30 @@ export function ResponsiveSidebar({
 }: ResponsiveSidebarProps) {
   const [mode, setMode] = useState<SidebarMode>(currentMode);
   const [resizeOrigin, setResizeOrigin] = useState<{ x: number; width: number } | null>(null);
+  const openControl = useRef<HTMLButtonElement | null>(null);
+  const closeControl = useRef<HTMLButtonElement | null>(null);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const update = (): void => setMode(currentMode());
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (focusTimer.current !== null) clearTimeout(focusTimer.current);
+    },
+    [],
+  );
+
+  const focusAfterMotion = (target: "open" | "close"): void => {
+    if (focusTimer.current !== null) clearTimeout(focusTimer.current);
+    focusTimer.current = setTimeout(() => {
+      focusTimer.current = null;
+      (target === "open" ? openControl : closeControl).current?.focus();
+    }, SIDEBAR_MOTION_DURATION_MS);
+  };
 
   const style = {
     "--workspace-sidebar-width": `${clampSidebarWidth(width)}px`,
@@ -98,26 +124,48 @@ export function ResponsiveSidebar({
   return (
     <div className="workspace-sidebar-slot" data-mode={mode} data-open={open} style={style}>
       <Button
+        ref={openControl}
         className="workspace-sidebar-trigger"
         data-testid="toggle-tree"
+        size="square"
         variant="ghost"
+        aria-label="Afficher la barre latérale"
         aria-expanded={open}
         aria-controls="workspace-navigation"
-        onClick={() => onOpenChange(!open)}
+        onClick={() => {
+          onOpenChange(true);
+          focusAfterMotion("close");
+        }}
       >
-        <AppIcon name="panel" />
-        <span>Navigation</span>
+        <AppIcon name="panelOpen" />
+        <span className="ui-visually-hidden">Afficher la barre latérale</span>
       </Button>
       <aside
         id="workspace-navigation"
         className="workspace-sidebar-panel"
         aria-label="Navigation de l’espace de travail"
-        hidden={!open}
+        aria-hidden={!open}
+        data-open={open}
+        inert={!open ? true : undefined}
       >
-        {/* biome-ignore lint/a11y/noNoninteractiveTabindex: this is the element that scrolls; keyboard users need to focus it to scroll when its descendants do not reach the clipped content. */}
-        <div className="workspace-sidebar-panel__content" tabIndex={0}>
+        <div className="workspace-sidebar-panel__content" tabIndex={open ? 0 : -1}>
           {children}
         </div>
+        <Button
+          ref={closeControl}
+          className="workspace-sidebar-close"
+          data-testid="close-sidebar"
+          size="square"
+          variant="ghost"
+          aria-label="Masquer la barre latérale"
+          title="Masquer la barre latérale"
+          onClick={() => {
+            onOpenChange(false);
+            focusAfterMotion("open");
+          }}
+        >
+          <AppIcon name="panelClose" />
+        </Button>
         <hr
           className="workspace-sidebar-resizer"
           data-testid="sidebar-resizer"
@@ -126,7 +174,7 @@ export function ResponsiveSidebar({
           aria-valuemin={MIN_SIDEBAR_WIDTH}
           aria-valuemax={MAX_SIDEBAR_WIDTH}
           aria-valuenow={clampSidebarWidth(width)}
-          tabIndex={0}
+          tabIndex={open ? 0 : -1}
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft") onWidthChange(width - 8);
             else if (event.key === "ArrowRight") onWidthChange(width + 8);

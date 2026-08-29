@@ -1,0 +1,1009 @@
+<div id="mn-sidebar-attachments-v3">
+  <div class="mn-v3-state-picker" role="group" aria-label="Exemple de pièces jointes">
+    <span>Exemple</span>
+    <button type="button" aria-pressed="true" data-state="files">Avec fichiers</button>
+    <button type="button" aria-pressed="false" data-state="empty">Sans fichier</button>
+  </div>
+
+  <div class="mn-v3-app-shell" data-app-shell>
+    <aside class="mn-v3-sidebar" aria-label="Navigation des notes" data-sidebar>
+      <div class="mn-v3-header">
+        <div class="mn-v3-brand"><span aria-hidden="true">◈</span><span>MyOwnNotion</span></div>
+        <button type="button" class="mn-v3-header-action" aria-label="Masquer la barre latérale" data-sidebar-close data-tooltip="Masquer la barre latérale">
+          <i data-lucide="panel-left-close" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <button type="button" class="mn-v3-search">
+        <i data-lucide="search" aria-hidden="true"></i>
+        <span>Rechercher</span>
+      </button>
+
+      <div class="mn-v3-section-title">
+        <i data-lucide="notebook-tabs" aria-hidden="true"></i>
+        <span>Notes</span>
+      </div>
+
+      <div class="mn-v3-tree" role="tree" aria-label="Notes">
+        <div class="mn-v3-tree-item" role="treeitem" aria-expanded="true">
+          <div class="mn-v3-row is-selected is-demo-hover has-attachments-open" draggable="true" data-main-row>
+            <button type="button" class="mn-v3-identity" aria-label="Replier Projet Atlas" aria-expanded="true" data-disclosure>
+              <span class="mn-v3-emoji" aria-hidden="true">📘</span>
+              <i class="mn-v3-chevron" data-lucide="chevron-right" aria-hidden="true"></i>
+            </button>
+
+            <button type="button" class="mn-v3-title" aria-label="Ouvrir Projet Atlas">
+              <span>Projet Atlas</span>
+            </button>
+
+            <div class="mn-v3-actions" data-default-actions>
+              <button type="button" class="mn-v3-action mn-v3-attachment-action" aria-label="Masquer les pièces jointes" aria-expanded="true" data-attachments data-tooltip="Pièces jointes">
+                <i data-lucide="paperclip" aria-hidden="true"></i>
+              </button>
+              <div class="mn-v3-create-cluster" data-create-cluster>
+                <span class="mn-v3-create-surface" data-create-surface>
+                  <span class="mn-v3-create-overlay" data-create-overlay aria-label="Créer dans Projet Atlas" hidden>
+                    <button type="button" class="mn-v3-create-kind" aria-label="Créer une page" data-create-kind="page" data-tooltip="Nouvelle page">
+                      <i data-lucide="file-plus-2" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="mn-v3-create-kind" aria-label="Créer un dossier" data-create-kind="folder" data-tooltip="Nouveau dossier">
+                      <i data-lucide="folder-plus" aria-hidden="true"></i>
+                    </button>
+                  </span>
+                  <button type="button" class="mn-v3-action mn-v3-create-toggle" aria-label="Créer une page ou un dossier" aria-expanded="false" data-create-toggle data-tooltip="Ajouter dans cette page">
+                    <i data-lucide="plus" aria-hidden="true"></i>
+                  </button>
+                </span>
+              </div>
+              <button type="button" class="mn-v3-action" aria-label="Plus d’actions" aria-expanded="false" data-more data-tooltip="Plus d’actions">
+                <i data-lucide="ellipsis" aria-hidden="true"></i>
+              </button>
+            </div>
+
+            <div class="mn-v3-more-menu" data-more-menu hidden>
+              <button type="button"><i data-lucide="pencil" aria-hidden="true"></i><span>Renommer</span></button>
+              <button type="button"><i data-lucide="smile-plus" aria-hidden="true"></i><span>Changer l’emoji</span></button>
+              <button type="button"><i data-lucide="link" aria-hidden="true"></i><span>Copier le lien</span></button>
+              <button type="button"><i data-lucide="copy" aria-hidden="true"></i><span>Dupliquer</span></button>
+              <button type="button"><i data-lucide="folder-sync" aria-hidden="true"></i><span>Convertir en dossier</span></button>
+              <button type="button" class="mn-v3-danger"><i data-lucide="trash-2" aria-hidden="true"></i><span>Supprimer</span></button>
+            </div>
+          </div>
+
+          <div class="mn-v3-attachment-panel" data-attachment-panel aria-hidden="false">
+            <div class="mn-v3-attachment-content">
+              <div class="mn-v3-attachment-heading" data-attachment-heading>
+                <span>Pièces jointes</span>
+                <span data-attachment-count>2</span>
+              </div>
+
+              <div class="mn-v3-file-list" data-files-state>
+                <button type="button" class="mn-v3-file-row">
+                  <i data-lucide="file-text" aria-hidden="true"></i>
+                  <span class="mn-v3-file-name">cahier-des-charges.pdf</span>
+                  <span class="mn-v3-file-size">2,4 Mo</span>
+                </button>
+                <button type="button" class="mn-v3-file-row">
+                  <i data-lucide="image" aria-hidden="true"></i>
+                  <span class="mn-v3-file-name">maquette-accueil.png</span>
+                  <span class="mn-v3-file-size">862 Ko</span>
+                </button>
+              </div>
+
+              <div class="mn-v3-empty-row" data-empty-state hidden>
+                <i data-lucide="paperclip" aria-hidden="true"></i>
+                <span>Aucune pièce jointe</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mn-v3-children" role="group" data-children>
+            <div class="mn-v3-child-row" draggable="true">
+              <span class="mn-v3-tree-guide" aria-hidden="true"></span>
+              <span aria-hidden="true">📄</span>
+              <span>Plan produit</span>
+            </div>
+            <div class="mn-v3-child-row" draggable="true">
+              <span class="mn-v3-tree-guide" aria-hidden="true"></span>
+              <span aria-hidden="true">🗂️</span>
+              <span>Archives</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mn-v3-row" draggable="true">
+          <span class="mn-v3-static-icon" aria-hidden="true">✅</span>
+          <button type="button" class="mn-v3-title"><span>Tasks Tracker</span></button>
+        </div>
+
+        <div class="mn-v3-row" draggable="true">
+          <span class="mn-v3-static-icon" aria-hidden="true">🔒</span>
+          <button type="button" class="mn-v3-title"><span>Perso</span></button>
+        </div>
+      </div>
+
+      <button type="button" class="mn-v3-settings">
+        <i data-lucide="settings" aria-hidden="true"></i>
+        <span>Réglages</span>
+      </button>
+    </aside>
+
+    <main class="mn-v3-editor" aria-label="Édition de Projet Atlas">
+      <div class="mn-v3-editor-topbar">
+        <button type="button" class="mn-v3-reopen" aria-label="Afficher la barre latérale" data-sidebar-open data-tooltip="Afficher la barre latérale">
+          <i data-lucide="panel-left-open" aria-hidden="true"></i>
+        </button>
+        <span>Projet Atlas</span>
+        <button type="button" class="mn-v3-editor-menu" aria-label="Plus d’actions sur la page">
+          <i data-lucide="ellipsis" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <article class="mn-v3-document">
+        <button type="button" class="mn-v3-page-emoji" aria-label="Modifier l’emoji">📘</button>
+        <h1>Projet Atlas</h1>
+        <p>La page reste entièrement disponible lorsque la navigation est masquée.</p>
+        <p>Les sous-pages et les fichiers restent attachés à la même note dans l’arborescence.</p>
+      </article>
+    </main>
+  </div>
+
+  <div class="sr-only" aria-live="polite" data-feedback></div>
+</div>
+
+<style>
+  #mn-sidebar-attachments-v3 {
+    color-scheme: light dark;
+    width: 100%;
+    color: light-dark(#292724, #ece9e5);
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  #mn-sidebar-attachments-v3 * {
+    box-sizing: border-box;
+  }
+
+  #mn-sidebar-attachments-v3 button {
+    font: inherit;
+    color: inherit;
+  }
+
+  #mn-sidebar-attachments-v3 [hidden] {
+    display: none !important;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-state-picker {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-state-picker > span {
+    margin-right: 4px;
+    color: light-dark(#6b6761, #aaa6a0);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-state-picker button {
+    min-height: 32px;
+    border: 1px solid light-dark(#d8d4ce, #45423f);
+    border-radius: 7px;
+    background: light-dark(#f4f2ef, #292826);
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-state-picker button[aria-pressed="true"] {
+    border-color: light-dark(#aaa49b, #77716b);
+    background: light-dark(#e4e1dc, #3a3835);
+    font-weight: 500;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-app-shell {
+    display: grid;
+    grid-template-columns: minmax(280px, 350px) minmax(0, 1fr);
+    min-height: 530px;
+    overflow: hidden;
+    border: 1px solid light-dark(#d9d5cf, #3e3c39);
+    border-radius: 14px;
+    background: light-dark(#ffffff, #191918);
+    box-shadow: 0 16px 42px light-dark(rgb(34 30 26 / 10%), rgb(0 0 0 / 28%));
+    transition: grid-template-columns 220ms ease;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-app-shell.is-sidebar-collapsed {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-sidebar {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 10px 8px 12px;
+    overflow: hidden;
+    border-right: 1px solid light-dark(#ddd9d3, #3b3936);
+    background: light-dark(#f7f6f3, #20201f);
+    opacity: 1;
+    transform: translateX(0);
+    visibility: visible;
+    transition: padding 220ms ease, opacity 150ms ease, transform 220ms ease, visibility 0ms linear;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-app-shell.is-sidebar-collapsed .mn-v3-sidebar {
+    padding-right: 0;
+    padding-left: 0;
+    border-right: 0;
+    opacity: 0;
+    transform: translateX(-20px);
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 120ms ease, transform 220ms ease, visibility 0ms linear 220ms;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-header,
+  #mn-sidebar-attachments-v3 .mn-v3-brand,
+  #mn-sidebar-attachments-v3 .mn-v3-search,
+  #mn-sidebar-attachments-v3 .mn-v3-section-title,
+  #mn-sidebar-attachments-v3 .mn-v3-row,
+  #mn-sidebar-attachments-v3 .mn-v3-actions,
+  #mn-sidebar-attachments-v3 .mn-v3-create-cluster,
+  #mn-sidebar-attachments-v3 .mn-v3-create-overlay,
+  #mn-sidebar-attachments-v3 .mn-v3-more-menu button,
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-heading,
+  #mn-sidebar-attachments-v3 .mn-v3-file-row,
+  #mn-sidebar-attachments-v3 .mn-v3-empty-row,
+  #mn-sidebar-attachments-v3 .mn-v3-child-row,
+  #mn-sidebar-attachments-v3 .mn-v3-settings,
+  #mn-sidebar-attachments-v3 .mn-v3-editor-topbar {
+    display: flex;
+    align-items: center;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-header {
+    justify-content: space-between;
+    min-height: 34px;
+    padding: 0 4px 8px 8px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-brand {
+    gap: 8px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-header-action,
+  #mn-sidebar-attachments-v3 .mn-v3-identity,
+  #mn-sidebar-attachments-v3 .mn-v3-action,
+  #mn-sidebar-attachments-v3 .mn-v3-create-kind,
+  #mn-sidebar-attachments-v3 .mn-v3-reopen,
+  #mn-sidebar-attachments-v3 .mn-v3-editor-menu {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-header-action:hover,
+  #mn-sidebar-attachments-v3 .mn-v3-identity:hover,
+  #mn-sidebar-attachments-v3 .mn-v3-action:hover,
+  #mn-sidebar-attachments-v3 .mn-v3-create-kind:hover,
+  #mn-sidebar-attachments-v3 .mn-v3-reopen:hover,
+  #mn-sidebar-attachments-v3 .mn-v3-editor-menu:hover {
+    background: light-dark(#dcdbd7, #44413e);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-search {
+    gap: 8px;
+    width: 100%;
+    min-height: 34px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    padding: 5px 8px;
+    color: light-dark(#625e58, #c6c2bc);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-search:hover {
+    background: light-dark(#ebe9e5, #302f2d);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-section-title {
+    gap: 8px;
+    min-height: 32px;
+    margin-top: 9px;
+    padding: 0 8px;
+    color: light-dark(#625e58, #c6c2bc);
+    font-weight: 500;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-tree {
+    display: grid;
+    gap: 2px;
+    margin-top: 2px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-tree-item {
+    min-width: 0;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row {
+    position: relative;
+    min-width: 0;
+    min-height: 38px;
+    padding: 3px 4px;
+    border-radius: 7px;
+    cursor: grab;
+    transition: background-color 120ms ease, opacity 120ms ease, transform 120ms ease, border-radius 150ms ease;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row:active {
+    cursor: grabbing;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row:hover,
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-demo-hover,
+  #mn-sidebar-attachments-v3 .mn-v3-row:focus-within {
+    background: light-dark(#e9e7e3, #302f2d);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-selected {
+    width: calc(100% - 8px);
+    margin: 0 4px;
+    background: light-dark(#e3e0db, #34322f);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row.has-attachments-open {
+    border-radius: 8px 8px 0 0;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-identity,
+  #mn-sidebar-attachments-v3 .mn-v3-static-icon {
+    position: relative;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-static-icon {
+    display: inline-grid;
+    place-items: center;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-emoji,
+  #mn-sidebar-attachments-v3 .mn-v3-chevron {
+    position: absolute;
+    transition: opacity 110ms ease, transform 190ms ease;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-emoji {
+    opacity: 1;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-chevron {
+    opacity: 0;
+    transform: rotate(90deg);
+    color: light-dark(#6b6761, #bbb7b1);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row:hover .mn-v3-emoji,
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-demo-hover .mn-v3-emoji,
+  #mn-sidebar-attachments-v3 .mn-v3-row:focus-within .mn-v3-emoji {
+    opacity: 0;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row:hover .mn-v3-chevron,
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-demo-hover .mn-v3-chevron,
+  #mn-sidebar-attachments-v3 .mn-v3-row:focus-within .mn-v3-chevron {
+    opacity: 1;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-collapsed .mn-v3-chevron {
+    transform: rotate(0deg);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    border: 0;
+    background: transparent;
+    padding: 6px 4px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-title span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-actions {
+    flex: 0 0 auto;
+    opacity: 0;
+    transition: opacity 100ms ease;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row:hover .mn-v3-actions,
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-demo-hover .mn-v3-actions,
+  #mn-sidebar-attachments-v3 .mn-v3-row:focus-within .mn-v3-actions {
+    opacity: 1;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-action {
+    flex: 0 0 28px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-action {
+    opacity: 0.43;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-action:hover,
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-action[aria-expanded="true"] {
+    opacity: 0.9;
+  }
+
+  #mn-sidebar-attachments-v3 [data-create-toggle] svg {
+    transform: rotate(0deg);
+    transform-origin: center;
+    transition: transform 200ms cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  #mn-sidebar-attachments-v3 [data-create-toggle][aria-expanded="true"] svg {
+    transform: rotate(45deg);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-create-cluster {
+    position: relative;
+    z-index: 15;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 30px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-create-surface {
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    right: -1px;
+    display: flex;
+    width: 30px;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 1px;
+    overflow: hidden;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0;
+    border-radius: 7px;
+    background: transparent;
+    box-shadow: none;
+    transform-origin: right center;
+    transition:
+      width 200ms cubic-bezier(0.42, 0, 0.58, 1),
+      background-color 160ms cubic-bezier(0.42, 0, 0.58, 1);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-create-open .mn-v3-create-surface {
+    width: 88px;
+    gap: 1px;
+    background: light-dark(#efede8, #302f2d);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-create-overlay {
+    z-index: 1;
+    display: flex;
+    width: 57px;
+    height: 28px;
+    flex: 0 0 57px;
+    gap: 1px;
+    transform-origin: right center;
+    animation: mn-v3-overlay-in 200ms cubic-bezier(0.42, 0, 0.58, 1) both;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-create-kind {
+    flex: 0 0 28px;
+    width: 28px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-create-kind,
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-create-open .mn-v3-create-toggle {
+    background: light-dark(#e5e2dc, #3a3935);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-create-toggle {
+    position: relative;
+    z-index: 2;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-create-open [data-attachments] {
+    visibility: hidden;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-create-overlay.is-closing {
+    pointer-events: none;
+    animation: mn-v3-overlay-out 200ms cubic-bezier(0.42, 0, 0.58, 1) both;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-row.is-create-open .mn-v3-create-surface.is-closing {
+    width: 30px;
+    background: transparent;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-more-menu {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 5px);
+    right: 0;
+    display: grid;
+    width: min(238px, calc(100% - 8px));
+    padding: 6px;
+    border: 1px solid light-dark(#d9d5cf, #474440);
+    border-radius: 10px;
+    background: light-dark(#ffffff, #282725);
+    box-shadow: 0 12px 28px light-dark(rgb(35 31 27 / 15%), rgb(0 0 0 / 42%));
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-more-menu button {
+    gap: 10px;
+    width: 100%;
+    min-height: 36px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    padding: 7px 9px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-more-menu button:hover {
+    background: light-dark(#efede9, #3a3835);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-more-menu button svg {
+    flex: 0 0 16px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-danger {
+    color: light-dark(#b42318, #ff7b72);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-panel {
+    max-height: 160px;
+    margin: 0 4px;
+    overflow: hidden;
+    border-radius: 0 0 8px 8px;
+    background: light-dark(#f0eeea, #292826);
+    opacity: 1;
+    visibility: visible;
+    transition: max-height 210ms ease, opacity 140ms ease, visibility 0ms linear;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-panel.is-collapsed {
+    max-height: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: max-height 210ms ease, opacity 120ms ease, visibility 0ms linear 210ms;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-content {
+    border-top: 1px solid light-dark(#dbd7d1, #413e3b);
+    padding: 5px 7px 7px 36px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-heading {
+    justify-content: space-between;
+    min-height: 25px;
+    color: light-dark(#716c65, #aaa6a0);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-attachment-heading span:last-child {
+    min-width: 20px;
+    text-align: center;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-file-list {
+    display: grid;
+    gap: 1px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-file-row {
+    gap: 8px;
+    width: 100%;
+    min-height: 32px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    padding: 4px 5px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-file-row:hover {
+    background: light-dark(#e3e0db, #373532);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-file-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-file-size {
+    flex: 0 0 auto;
+    color: light-dark(#77716b, #aaa6a0);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-empty-row {
+    gap: 8px;
+    min-height: 34px;
+    color: light-dark(#77716b, #aaa6a0);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-children {
+    max-height: 92px;
+    opacity: 1;
+    overflow: hidden;
+    visibility: visible;
+    transition: max-height 210ms ease, opacity 140ms ease, visibility 0ms linear;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-children.is-collapsed {
+    max-height: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: max-height 210ms ease, opacity 120ms ease, visibility 0ms linear 210ms;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-child-row {
+    position: relative;
+    gap: 8px;
+    min-height: 36px;
+    margin-left: 20px;
+    padding: 4px 8px 4px 16px;
+    border-radius: 7px;
+    cursor: grab;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-child-row:hover {
+    background: light-dark(#ece9e5, #2d2c2a);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-tree-guide {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 4px;
+    width: 1px;
+    background: light-dark(#d7d3cd, #45423f);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-settings {
+    gap: 9px;
+    width: 100%;
+    min-height: 36px;
+    margin-top: auto;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    padding: 6px 8px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-settings:hover {
+    background: light-dark(#ebe9e5, #302f2d);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-editor {
+    position: relative;
+    min-width: 0;
+    background: light-dark(#ffffff, #191918);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-editor-topbar {
+    min-height: 48px;
+    gap: 8px;
+    padding: 7px 12px;
+    color: light-dark(#5d5953, #c4c0ba);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-editor-topbar > span {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-reopen {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-8px);
+    transition: opacity 140ms ease, transform 180ms ease, visibility 0ms linear 180ms;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-app-shell.is-sidebar-collapsed .mn-v3-reopen {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
+    transition: opacity 160ms ease 80ms, transform 180ms ease 80ms, visibility 0ms linear;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-editor-menu {
+    margin-left: auto;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-document {
+    width: min(100%, 760px);
+    margin: 70px auto 0;
+    padding: 0 46px 60px;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-page-emoji {
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    padding: 4px;
+    cursor: pointer;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-page-emoji:hover {
+    background: light-dark(#efede9, #302f2d);
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-document h1 {
+    margin: 12px 0 22px;
+    font-weight: 500;
+  }
+
+  #mn-sidebar-attachments-v3 .mn-v3-document p {
+    margin: 0 0 15px;
+    color: light-dark(#4e4a45, #cbc7c1);
+  }
+
+  @keyframes mn-v3-overlay-in {
+    from {
+      opacity: 0;
+      transform: scaleX(0.82) translateX(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scaleX(1) translateX(0);
+    }
+  }
+
+  @keyframes mn-v3-overlay-out {
+    from {
+      opacity: 1;
+      transform: scaleX(1) translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: scaleX(0.82) translateX(8px);
+    }
+  }
+
+  @media (max-width: 620px) {
+    #mn-sidebar-attachments-v3 .mn-v3-app-shell,
+    #mn-sidebar-attachments-v3 .mn-v3-app-shell.is-sidebar-collapsed {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    #mn-sidebar-attachments-v3 .mn-v3-sidebar {
+      min-height: 470px;
+      border-right: 0;
+      border-bottom: 1px solid light-dark(#ddd9d3, #3b3936);
+      transition: max-height 220ms ease, min-height 220ms ease, padding 220ms ease, opacity 150ms ease, transform 220ms ease, visibility 0ms linear;
+    }
+
+    #mn-sidebar-attachments-v3 .mn-v3-app-shell.is-sidebar-collapsed .mn-v3-sidebar {
+      min-height: 0;
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    #mn-sidebar-attachments-v3 .mn-v3-editor {
+      min-height: 370px;
+    }
+
+    #mn-sidebar-attachments-v3 .mn-v3-document {
+      margin-top: 32px;
+      padding-right: 24px;
+      padding-left: 24px;
+    }
+  }
+
+  @media (max-width: 380px) {
+    #mn-sidebar-attachments-v3 .mn-v3-state-picker {
+      align-items: stretch;
+      flex-wrap: wrap;
+    }
+
+    #mn-sidebar-attachments-v3 .mn-v3-state-picker > span {
+      flex-basis: 100%;
+    }
+
+    #mn-sidebar-attachments-v3 .mn-v3-attachment-content {
+      padding-left: 24px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #mn-sidebar-attachments-v3 *,
+    #mn-sidebar-attachments-v3 *::before,
+    #mn-sidebar-attachments-v3 *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+
+<script>
+  (() => {
+    const root = document.getElementById("mn-sidebar-attachments-v3");
+    if (!root) return;
+
+    const appShell = root.querySelector("[data-app-shell]");
+    const row = root.querySelector("[data-main-row]");
+    const createToggle = root.querySelector("[data-create-toggle]");
+    const createOverlay = root.querySelector("[data-create-overlay]");
+    const createSurface = root.querySelector("[data-create-surface]");
+    const moreToggle = root.querySelector("[data-more]");
+    const moreMenu = root.querySelector("[data-more-menu]");
+    const attachmentToggle = root.querySelector("[data-attachments]");
+    const attachmentPanel = root.querySelector("[data-attachment-panel]");
+    const filesState = root.querySelector("[data-files-state]");
+    const emptyState = root.querySelector("[data-empty-state]");
+    const attachmentHeading = root.querySelector("[data-attachment-heading]");
+    const attachmentCount = root.querySelector("[data-attachment-count]");
+    const feedback = root.querySelector("[data-feedback]");
+    let creationCloseTimer = null;
+
+    const closeCreation = () => {
+      if (createOverlay.hidden || createOverlay.classList.contains("is-closing")) return;
+      createToggle.setAttribute("aria-expanded", "false");
+      createOverlay.classList.add("is-closing");
+      createSurface.classList.add("is-closing");
+      creationCloseTimer = window.setTimeout(() => {
+        createOverlay.hidden = true;
+        createOverlay.classList.remove("is-closing");
+        createSurface.classList.remove("is-closing");
+        row.classList.remove("is-create-open");
+        creationCloseTimer = null;
+      }, 210);
+    };
+
+    const openCreation = () => {
+      if (creationCloseTimer !== null) {
+        window.clearTimeout(creationCloseTimer);
+        creationCloseTimer = null;
+      }
+      createOverlay.hidden = false;
+      createOverlay.classList.remove("is-closing");
+      createSurface.classList.remove("is-closing");
+      createToggle.setAttribute("aria-expanded", "true");
+      row.classList.add("is-create-open");
+    };
+
+    const closeMore = () => {
+      moreMenu.hidden = true;
+      moreToggle.setAttribute("aria-expanded", "false");
+    };
+
+    const setAttachmentsOpen = (open) => {
+      attachmentPanel.classList.toggle("is-collapsed", !open);
+      attachmentPanel.setAttribute("aria-hidden", String(!open));
+      attachmentToggle.setAttribute("aria-expanded", String(open));
+      attachmentToggle.setAttribute("aria-label", `${open ? "Masquer" : "Afficher"} les pièces jointes`);
+      row.classList.toggle("has-attachments-open", open);
+    };
+
+    root.querySelectorAll("[data-state]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const mode = button.getAttribute("data-state");
+        root.querySelectorAll("[data-state]").forEach((candidate) => {
+          candidate.setAttribute("aria-pressed", String(candidate === button));
+        });
+        const hasFiles = mode === "files";
+        attachmentHeading.hidden = !hasFiles;
+        filesState.hidden = !hasFiles;
+        emptyState.hidden = hasFiles;
+        attachmentCount.textContent = hasFiles ? "2" : "0";
+        setAttachmentsOpen(true);
+        feedback.textContent = hasFiles ? "Exemple avec deux pièces jointes." : "Exemple compact sans pièce jointe.";
+      });
+    });
+
+    root.querySelector("[data-sidebar-close]").addEventListener("click", () => {
+      closeCreation();
+      closeMore();
+      appShell.classList.add("is-sidebar-collapsed");
+      feedback.textContent = "La barre latérale est masquée.";
+      window.setTimeout(() => root.querySelector("[data-sidebar-open]").focus(), 230);
+    });
+
+    root.querySelector("[data-sidebar-open]").addEventListener("click", () => {
+      appShell.classList.remove("is-sidebar-collapsed");
+      feedback.textContent = "La barre latérale est affichée.";
+      window.setTimeout(() => root.querySelector("[data-sidebar-close]").focus(), 230);
+    });
+
+    createToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const opening = createToggle.getAttribute("aria-expanded") !== "true";
+      closeMore();
+      if (opening) {
+        openCreation();
+        createOverlay.querySelector("button")?.focus();
+      } else {
+        closeCreation();
+      }
+    });
+
+    root.querySelectorAll("[data-create-kind]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const kind = button.getAttribute("data-create-kind") === "folder" ? "dossier" : "page";
+        closeCreation();
+        feedback.textContent = `Une nouvelle ${kind} sera créée sous Projet Atlas.`;
+      });
+    });
+
+    moreToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const opening = moreMenu.hidden;
+      closeCreation();
+      if (opening) {
+        moreMenu.hidden = false;
+        moreToggle.setAttribute("aria-expanded", "true");
+        moreMenu.querySelector("button")?.focus();
+      } else {
+        closeMore();
+      }
+    });
+
+    root.querySelector("[data-disclosure]").addEventListener("click", (event) => {
+      event.stopPropagation();
+      const children = root.querySelector("[data-children]");
+      const collapsed = row.classList.toggle("is-collapsed");
+      children.classList.toggle("is-collapsed", collapsed);
+      event.currentTarget.setAttribute("aria-expanded", String(!collapsed));
+      event.currentTarget.setAttribute("aria-label", `${collapsed ? "Déplier" : "Replier"} Projet Atlas`);
+      row.closest("[role='treeitem']").setAttribute("aria-expanded", String(!collapsed));
+    });
+
+    attachmentToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const opening = attachmentPanel.classList.contains("is-collapsed");
+      setAttachmentsOpen(opening);
+      feedback.textContent = opening ? "Les pièces jointes sont affichées." : "Les pièces jointes sont masquées.";
+    });
+
+    root.addEventListener("click", (event) => {
+      if (!event.target.closest("[data-create-overlay], [data-create-toggle]")) closeCreation();
+      if (!event.target.closest("[data-more-menu], [data-more]")) closeMore();
+    });
+
+    root.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      closeCreation();
+      closeMore();
+      createToggle.focus();
+    });
+  })();
+</script>

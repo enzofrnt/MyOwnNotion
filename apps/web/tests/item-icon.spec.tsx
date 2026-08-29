@@ -54,4 +54,29 @@ describe("item identity icon", () => {
     expect(leaf).not.toContain("tree-twisty--leaf");
     expect(leaf).toContain('data-icon="fileText"');
   });
+
+  it("rotates one right chevron instead of replacing it with a second icon", () => {
+    const closed = renderToStaticMarkup(
+      <TreeItemIdentitySlot
+        item={{ kind: "folder", icon: "📁", name: "Projets" }}
+        branch
+        expanded={false}
+        onToggle={() => undefined}
+      />,
+    );
+    const open = renderToStaticMarkup(
+      <TreeItemIdentitySlot
+        item={{ kind: "folder", icon: "📁", name: "Projets" }}
+        branch
+        expanded
+        onToggle={() => undefined}
+      />,
+    );
+
+    expect(closed).toContain('data-icon="chevronRight"');
+    expect(open).toContain('data-icon="chevronRight"');
+    expect(open).not.toContain('data-icon="chevronDown"');
+    expect(closed).toContain('data-expanded="false"');
+    expect(open).toContain('data-expanded="true"');
+  });
 });

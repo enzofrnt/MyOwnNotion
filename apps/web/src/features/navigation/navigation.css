@@ -1,7 +1,9 @@
 .workspace-sidebar-slot {
   width: var(--workspace-sidebar-width);
   min-width: 0;
+  overflow: hidden;
   background: var(--ui-color-sidebar);
+  transition: width 220ms var(--ui-ease-standard);
 }
 
 .workspace-sidebar-slot[data-open="false"] {
@@ -15,6 +17,25 @@
   height: 100dvh;
   background: var(--ui-color-sidebar);
   border-right: 1px solid var(--color-border);
+  opacity: 1;
+  transform: translateX(0);
+  visibility: visible;
+  transition:
+    opacity 150ms var(--ui-ease-standard),
+    transform 220ms var(--ui-ease-standard),
+    visibility 0ms linear;
+}
+
+.workspace-sidebar-panel[data-open="false"] {
+  border-right-color: transparent;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-1.25rem);
+  visibility: hidden;
+  transition:
+    opacity 120ms var(--ui-ease-standard),
+    transform 220ms var(--ui-ease-standard),
+    visibility 0ms linear 220ms;
 }
 
 .workspace-sidebar-panel__content,
@@ -35,10 +56,31 @@
   top: var(--space-3);
   left: var(--space-3);
   z-index: var(--layer-menu);
+  opacity: 1;
+  transform: translateX(0);
+  visibility: visible;
+  transition:
+    opacity 160ms var(--ui-ease-standard) 80ms,
+    transform 180ms var(--ui-ease-standard) 80ms,
+    visibility 0ms linear;
 }
 
 .workspace-sidebar-slot[data-open="true"] > .workspace-sidebar-trigger {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-0.5rem);
+  visibility: hidden;
+  transition:
+    opacity 100ms var(--ui-ease-standard),
+    transform 180ms var(--ui-ease-standard),
+    visibility 0ms linear 180ms;
+}
+
+.workspace-sidebar-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
 }
 
 .workspace-sidebar-resizer {
@@ -97,6 +139,7 @@
   padding-inline: var(--space-2);
   align-items: center;
   gap: var(--space-2);
+  padding-right: calc(var(--ui-target-compact) + var(--space-2));
 }
 
 .workspace-navigation__brand h2 {
@@ -323,7 +366,7 @@
   position: relative;
   width: 100%;
   max-width: 100%;
-  min-height: 2.125rem;
+  min-height: 2.375rem;
   padding: 0 var(--space-1);
   flex-wrap: nowrap;
   gap: var(--space-1);
@@ -339,6 +382,9 @@
 }
 
 .workspace-navigation .tree-row[aria-selected="true"] {
+  width: calc(100% - 0.5rem);
+  margin-right: 0.25rem;
+  margin-left: 0.25rem;
   background: var(--ui-color-surface-active);
   border: 0;
   box-shadow: none;
@@ -402,10 +448,31 @@
   border: 0;
   background: transparent;
   border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
   opacity: 0;
   pointer-events: auto;
   place-items: center;
-  transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
+  transition:
+    color var(--ui-duration-fast) var(--ui-ease-standard),
+    background-color var(--ui-duration-fast) var(--ui-ease-standard),
+    opacity 110ms var(--ui-ease-standard);
+}
+
+.tree-item-identity-slot .tree-twisty:hover,
+.tree-item-identity-slot .tree-twisty:focus-visible {
+  color: var(--color-text);
+  background: var(--ui-color-surface-hover);
+  outline: none;
+}
+
+.tree-twisty__icon {
+  transform: rotate(0deg);
+  transform-origin: center;
+  transition: transform 210ms var(--ui-ease-standard);
+}
+
+.tree-twisty__icon[data-expanded="true"] {
+  transform: rotate(90deg);
 }
 
 .workspace-tree-item-icon {
@@ -466,32 +533,34 @@
   position: relative;
   z-index: 2;
   display: inline-flex;
-  width: var(--ui-target-compact);
-  height: var(--ui-target-compact);
-  flex: 0 0 var(--ui-target-compact);
+  width: 1.75rem;
+  height: 1.875rem;
+  flex: 0 0 1.75rem;
   overflow: visible;
 }
 
 .navigation-inline-create__surface {
   position: absolute;
   top: 50%;
-  right: -2px;
+  right: -1px;
   display: flex;
-  width: calc(var(--ui-target-compact) + 4px);
-  height: calc(var(--ui-target-compact) + 4px);
-  padding: 2px;
+  width: 1.875rem;
+  height: 1.875rem;
+  box-sizing: border-box;
+  padding: 1px;
   overflow: hidden;
   align-items: center;
   justify-content: flex-end;
+  gap: 0;
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border: 0;
+  border-radius: var(--radius-sm);
   box-shadow: none;
   transform: translateY(-50%);
+  transform-origin: right center;
   transition:
-    width var(--ui-duration-normal) var(--ui-ease-standard),
+    width 200ms var(--ui-ease-standard),
     background-color var(--ui-duration-fast) var(--ui-ease-standard),
-    border-color var(--ui-duration-fast) var(--ui-ease-standard),
     box-shadow var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
@@ -500,10 +569,10 @@
 }
 
 .navigation-inline-create[data-open="true"] .navigation-inline-create__surface {
-  width: calc(3 * var(--ui-target-compact) + 8px);
-  background: var(--color-surface-raised);
-  border-color: var(--color-border);
-  box-shadow: var(--shadow-popover);
+  width: 5.5rem;
+  gap: 1px;
+  background: var(--ui-color-surface-hover);
+  box-shadow: none;
 }
 
 .navigation-inline-create__choices {
@@ -511,21 +580,46 @@
   width: 0;
   min-width: 0;
   overflow: hidden;
+  gap: 1px;
   opacity: 0;
   transform: translateX(0.5rem);
   transition:
-    width var(--ui-duration-normal) var(--ui-ease-standard),
+    width 200ms var(--ui-ease-standard),
     opacity var(--ui-duration-fast) var(--ui-ease-standard),
-    transform var(--ui-duration-normal) var(--ui-ease-standard);
+    transform 200ms var(--ui-ease-standard);
 }
 
 .navigation-inline-create__choices[data-visible="true"] {
-  width: calc(2 * var(--ui-target-compact));
+  width: 3.5625rem;
   opacity: 1;
   transform: translateX(0);
 }
 
-.navigation-inline-create .ui-button[data-size="square"],
+.navigation-inline-create__choices .ui-button,
+.navigation-inline-create[data-open="true"] .navigation-inline-create__toggle {
+  background: var(--ui-color-surface-active);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.navigation-inline-create__choices .ui-button:hover,
+.navigation-inline-create__choices .ui-button:focus-visible,
+.navigation-inline-create[data-open="true"] .navigation-inline-create__toggle:hover,
+.navigation-inline-create[data-open="true"] .navigation-inline-create__toggle:focus-visible {
+  background: var(--ui-color-surface-raised);
+  border-color: transparent;
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+.navigation-inline-create .ui-button[data-size="square"] {
+  width: 1.75rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  flex: 0 0 1.75rem;
+  padding: var(--space-1);
+}
+
 .navigation-item-menu__trigger[data-size="square"] {
   width: var(--ui-target-compact);
   min-width: var(--ui-target-compact);
@@ -535,7 +629,8 @@
 }
 
 .navigation-inline-create__toggle .ui-icon {
-  transition: transform var(--ui-duration-normal) var(--ui-ease-standard);
+  transform-origin: center;
+  transition: transform 200ms var(--ui-ease-standard);
 }
 
 .navigation-inline-create[data-open="true"] .navigation-inline-create__toggle .ui-icon {
@@ -566,8 +661,8 @@
 }
 
 .workspace-page-attachments {
-  width: 100%;
-  margin: 0;
+  width: calc(100% - 0.5rem);
+  margin: 0 0.25rem;
 }
 
 .workspace-attachment-panel {
@@ -575,7 +670,7 @@
   min-width: 0;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-2) var(--space-2);
-  background: color-mix(in srgb, var(--ui-color-surface-active) 72%, var(--color-surface));
+  background: color-mix(in srgb, var(--ui-color-surface-active) 82%, var(--color-surface));
   border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
   border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
@@ -739,20 +834,32 @@
   min-width: 0;
   grid-template-rows: 0fr;
   opacity: 0;
+  visibility: hidden;
   transition:
-    grid-template-rows var(--ui-duration-normal) var(--ui-ease-standard),
-    opacity var(--ui-duration-fast) var(--ui-ease-standard);
+    grid-template-rows 210ms var(--ui-ease-standard),
+    opacity 140ms var(--ui-ease-standard),
+    visibility 0ms linear 210ms;
 }
 
 .collapsible-region[data-open="true"] {
   grid-template-rows: 1fr;
   opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 210ms var(--ui-ease-standard),
+    opacity 140ms var(--ui-ease-standard),
+    visibility 0ms linear;
 }
 
 .collapsible-region__inner {
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  /* `hidden` creates a programmatically scrollable box. A nested drop target
+     extends two pixels for its before/after hit zones, so focusing or hovering
+     a child could make the browser scroll this otherwise invisible scroller
+     and nudge the whole branch by two pixels. `clip` keeps the animation mask
+     without creating scroll state. */
+  overflow: clip;
 }
 
 .navigation-item-actions > .ui-button[data-size="square"] {
@@ -763,6 +870,10 @@
 }
 
 @media (pointer: coarse) {
+  .workspace-navigation .tree-row {
+    min-height: var(--ui-target);
+  }
+
   .workspace-navigation .tree-name {
     min-width: 6rem;
     flex-basis: 6rem;
@@ -784,16 +895,19 @@
   }
 
   .navigation-inline-create__surface {
-    width: calc(var(--ui-target) + 4px);
-    height: calc(var(--ui-target) + 4px);
+    width: var(--ui-target);
+    height: var(--ui-target);
+    padding: 0;
+    gap: 0;
   }
 
   .navigation-inline-create[data-open="true"] .navigation-inline-create__surface {
-    width: calc(3 * var(--ui-target) + 8px);
+    width: calc(3 * var(--ui-target));
   }
 
   .navigation-inline-create__choices[data-visible="true"] {
     width: calc(2 * var(--ui-target));
+    gap: 0;
   }
 }
 
@@ -820,11 +934,32 @@
   }
 }
 
+.workspace-page-attachments-trigger .ui-icon {
+  opacity: 0.48;
+  transition: opacity var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.workspace-page-attachments-trigger:hover .ui-icon,
+.workspace-page-attachments-trigger:focus-visible .ui-icon,
+.workspace-page-attachments-trigger[aria-expanded="true"] .ui-icon {
+  opacity: 0.92;
+}
+
+.navigation-item-actions[data-inline-open="true"] .workspace-page-attachments-trigger {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .workspace-sidebar-slot,
+  .workspace-sidebar-panel,
+  .workspace-sidebar-trigger,
   .collapsible-region,
   .navigation-inline-create__surface,
   .navigation-inline-create__choices,
-  .navigation-inline-create__toggle .ui-icon {
+  .navigation-inline-create__toggle .ui-icon,
+  .tree-twisty__icon {
     transition: none;
   }
 }

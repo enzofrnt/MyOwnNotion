@@ -1,6 +1,6 @@
 # Validation — Feature 017
 
-Dernière mise à jour : 2026-08-28
+Dernière mise à jour : 2026-08-29
 Tranches validées : US3, US5, synchronisation éditoriale convergente et migration v2 ; frontière workspace/réglages T182/T222 ; ergonomie clavier/toucher US7 ; cohérence multi-surfaces US6
 
 Ce document consigne les preuves exécutées. Il ne remplace ni les critères de
@@ -830,6 +830,83 @@ régression fonctionnelle observée. La portée d'ergonomie reste le clavier, le
 focus visible, le pointeur, le toucher et les navigateurs pris en charge, sans
 campagne VoiceOver.
 
+### Conformité stricte à la maquette versionnée — 2026-08-29
+
+La passe précédente avait traduit la proposition visuelle en exigences puis en
+tâches, mais cette double reformulation avait laissé passer plusieurs écarts. La
+maquette approuvée est désormais conservée directement dans
+[`assets/sidebar-attachments-v3.html`](./assets/sidebar-attachments-v3.html) et
+constitue le contrat d'interaction normatif de cette tranche. La première copie
+exacte portait le SHA-256
+`a5425e7ea4da476a0982f4b07f3b5cdbbbaaceaa2e51221e2f469804962d6032`.
+Après inspection de la première capture réelle, le propriétaire a supprimé
+l’ombre et le volume excessif de la surface. Une première correction à
+84 × 30 px portait le SHA-256
+`e7d431951eef79099125996dfd8cb19c6b79fb56052d880ee6b954caef939636`, mais sa
+capture a révélé une nouvelle perte : le fond avait été supprimé avec l’ombre et
+les commandes semblaient libres dans la ligne. Le contrat courant exige donc
+une enveloppe visible de 88 × 30 px, une respiration régulière de 1 px autour
+et entre ses trois commandes, et toujours aucune ombre extérieure. Son SHA-256
+courant est
+`a191207f6bb1b4d0b9fddf246949dcab5a2c86be0959e829ae449d84caf69bbb`. Les états
+précédents restent disponibles dans l’historique Git. La maquette est exclue
+très précisément des réécritures automatiques afin que formatage et lint ne
+puissent pas modifier le contrat visuel.
+
+La comparaison a conduit aux corrections suivantes : commande de fermeture
+dans l'en-tête et commande opposée dans le document, panneau desktop conservé
+pendant sa transition puis inerté, chevron droit unique tournant de 0 à 90
+degrés, ouverture/fermeture symétrique des descendants et pièces jointes,
+surface page-plus/dossier-plus/croix entièrement contenue dans la ligne, et
+trombone discret raccordé au panneau compact. Les captures de contrôle ont été
+produites sur un workspace jetable sombre pour les états normal, création
+ouverte, zéro fichier, un fichier et sidebar masquée. La première capture de
+création a été rejetée par le propriétaire : les boutons conservaient des fonds
+séparés, la surface mesurait 92 px et une ombre la faisait lire comme un popover.
+La deuxième capture réelle a aussi été rejetée : elle montrait bien trois
+commandes compactes dans la ligne et aucune ombre, mais plus l’enveloppe visible
+qui doit les contenir. La cible courante est la troisième correction : fond
+distinct de la ligne, arrondis et respiration uniformes, trois commandes
+réellement enfants de cette enveloppe, sans ombre ni déplacement de ligne. Les
+rectangles, le fond calculé et les frames intermédiaires sont verrouillés par
+les journeys permanents.
+
+La validation a aussi découvert que deux anciens serveurs Vite écoutant
+uniquement sur `::1` pouvaient échapper au contrôle de ports IPv4 et faire
+réutiliser un ancien bundle par les profils mobiles. Le lanceur local refuse
+maintenant les ports web occupés sur `127.0.0.1` **et** `::1`. Les assertions de
+transition ne reposent plus sur une attente temporelle fragile : elles mettent
+en pause la vraie transition CSS à 50 %, mesurent sa géométrie, puis la terminent.
+
+Le premier gate complet a enfin détecté un déplacement vertical reproductible
+de 2 px au survol d'une sous-page. Les zones de dépôt dépassent volontairement
+de la ligne pour rendre les intentions `before` et `after` faciles à viser ; le
+masque `overflow: hidden` de la région animée transformait alors cette région en
+scroller programmable de deux pixels. Le déplacement automatique effectué par
+le navigateur avant un survol repositionnait ce scroller invisible. Le masque
+utilise désormais `overflow: clip` : il conserve exactement l'ouverture
+progressive de la maquette sans introduire d'état de scroll. Le test garde sa
+tolérance stricte d'un pixel, enrichit son diagnostic géométrique et passe dans
+les deux thèmes sans mise à jour opportuniste des captures de référence.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composants ciblés | Vitest Web sur `workspace-shell`, `item-icon`, `hierarchy-explorer` et `navigation-inline-create` | 4 fichiers, 21 tests passés |
+| Maquette canonique | SHA-256 de l'asset versionné et assertions 88 × 30 px / enveloppe visible / trois commandes / aucune ombre | contrat courant `a191207f6bb1b4d0b9fddf246949dcab5a2c86be0959e829ae449d84caf69bbb` |
+| Journeys de conformité | matrice locale ciblée sur fermeture de sidebar, création intégrée, chevron/descendants, trombone/pièces jointes et stabilité au survol | 5/5 profils passés en 39 s, deux stacks au maximum en parallèle |
+| Correction sans ombre | même parcours page/dossier/croix, géométrie adaptée au pointeur et aucune ombre | 5/5 profils passés en 51 s ; capture ensuite rejetée faute d’enveloppe visible |
+| Enveloppe visible intégrée | fond distinct, 88 × 30 px, respiration de 1 px et trois commandes enfants | 5/5 profils passés en 38 s ; fond calculé non transparent et ombre `none` |
+| Capture des cinq états | profil Chromium desktop isolé et base jetable | deux captures de création rejetées ; troisième capture inspectée dans la ligne et isolément sur son rectangle réel de 88 × 30 px |
+| Statique et types | `bunx biome check .` puis `bun run typecheck` | 896 fichiers sans diagnostic ; 9 workspaces et le projet racine typés |
+| Premier gate pré-push | `PATH=/tmp/myownnotion-ci-tools:$PATH bun run checks:local` sur `f35181e2` | interrompu volontairement pendant les performances dès réception du retour visuel ; ce commit n'est pas publiable |
+| Deuxième gate pré-push | même commande sur `c5fa48da` | interrompu volontairement pendant les performances dès réception du retour sur l’enveloppe absente ; ce commit n’est pas publiable |
+| Gate pré-push exact | `PATH=/tmp/myownnotion-ci-tools:$PATH bun run checks:local` sur `d70ec9ca` | passé avec code nul : politique d’outillage et shell, format/lint/types, 315 fichiers et 3 232 tests de couverture, 7 suites de performance, 332 intégrations PostgreSQL, migrations, 108 fichiers et 1 232 contrats, matrice Playwright 5/5 en 1 373 s à concurrence bornée, builds Bun, images API/Web `amd64`/`arm64`, audit, secrets, analyse statique, licences et contrat Compose |
+
+La commande a terminé avec un code nul sur `d70ec9ca`, le commit exact qui porte
+le code destiné à la branche. La clôture documentaire de T303 est isolée dans un
+commit sans consommateur exécutable ; elle suit donc le gate documentaire défini
+dans `docs/development.md` sans invalider la preuve applicative du commit testé.
+
 ### Stabilisation du menu de pièce jointe après merge
 
 La CI du merge `bc12367a` a reproduit deux fois sous forte charge WebKit desktop
@@ -886,6 +963,39 @@ l'appel du callback le plus récent.
 | Matrice ciblée finale | même journey, cinq profils lancés en parallèle | Chromium desktop/mobile, Firefox desktop et WebKit desktop/mobile passés en 28 s |
 
 Le gate complet est exécuté sur le nouveau commit exact avant le prochain push.
+
+### Stabilisation de la conformité sous charge CI
+
+La première CI de la PR de conformité a validé 23 jobs et révélé deux courses
+réelles dans les journeys desktop. WebKit démontait le contenu paresseux avec
+un timer égal aux 210 ms CSS : lorsque le test mettait la transition réelle en
+pause à mi-course, le timer pouvait supprimer le contenu avant la dernière
+frame. La région attend désormais son propre événement `transitionend` ; un
+fallback de deux secondes ne sert qu'aux moteurs ou préférences qui omettent
+l'événement, alors que la région fermée reste déjà sans hauteur, cachée et
+inerte.
+
+La trace Firefox a montré un second défaut produit : après le retrait d'un lien
+interne et la saisie de « Nouveau texte », la projection visible était correcte,
+puis l'ancien lien réapparaissait. Le moteur avait adopté un front distant mais
+BlockNote attendait encore la fenêtre calme avant de l'afficher. Une nouvelle
+frappe pouvait donc utiliser l'ancien arbre visible comme base. Une adoption
+distante est maintenant projetée synchroniquement quand aucun geste ni commit
+local n'est actif ; elle reste différée pendant une véritable saisie afin de ne
+jamais déplacer ses offsets.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composants et adaptateurs | Vitest Web sur région repliable, projection distante, saisie et liens | 4 fichiers, 34 tests passés |
+| Fermeture WebKit ciblée | journey du chevron desktop répété cinq fois dans Linux | 5/5 passés sans retry |
+| Retrait de lien Firefox ciblé | journey exact de la CI répété vingt fois dans Linux | 20/20 passés sans retry ; texte conservé et aucun lien ressuscité |
+| Statique et types ciblés | Biome sur les fichiers corrigés, `git diff --check`, puis `bun run typecheck` | aucun diagnostic ; 9 workspaces et le projet racine typés |
+| Gate pré-push exact | `PATH=/tmp/myownnotion-ci-tools:$PATH bun run checks:local` sur `8fe63ac2` | passé avec code nul : outillage et shell, format/lint/types, 316 fichiers et 3 236 tests de couverture, 7 suites de performance, 332 intégrations PostgreSQL, migrations, 108 fichiers et 1 232 contrats, Playwright 5/5 en 1 375 s, builds Bun, images API/Web `amd64`/`arm64`, audit, secrets, analyse statique, licences et contrat Compose |
+
+Le gate complet a terminé avec un code nul sur `8fe63ac2`. Cette clôture
+documentaire ne possède aucun consommateur exécutable et suit donc le gate
+documentation-only de `docs/development.md`. La seconde CI, la fusion, la CI de
+`main` et le redéploiement local restent la frontière de clôture T306.
 
 ## Limites encore ouvertes
 

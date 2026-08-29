@@ -13,6 +13,7 @@ import {
   openWorkspace,
   renameItem,
   returnToWorkspace,
+  sampleCssTransition,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -51,6 +52,56 @@ async function storedPresentationState(page: Page): Promise<StoredPresentationSt
 }
 
 test.describe("focused workspace shell", () => {
+  test("collapses and restores the desktop sidebar through a real intermediate width", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name.endsWith("-mobile"),
+      "The whole-sidebar control is desktop-only",
+    );
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+
+    const shell = page.getByTestId("workspace-shell");
+    const slot = page.locator(".workspace-sidebar-slot");
+    const close = page.getByRole("button", { name: "Masquer la barre latérale" });
+    const open = page.getByRole("button", { name: "Afficher la barre latérale" });
+    const initial = await slot.boundingBox();
+    expect(initial).not.toBeNull();
+    await expect(close).toBeVisible();
+    await expect(open).toBeHidden();
+
+    await close.click();
+    const closing = await sampleCssTransition(slot, "width");
+    expect(closing.width).toBeGreaterThan(1);
+    expect(closing.width).toBeLessThan(initial?.width ?? 0);
+
+    await expect(open).toBeVisible();
+    await expect(open).toBeFocused();
+    await expect(shell).toHaveAttribute("data-sidebar-open", "false");
+    await expect.poll(async () => (await slot.boundingBox())?.width ?? 0).toBeLessThan(1);
+    const closedShell = await shell.boundingBox();
+    const closedStage = await shell.locator(".workspace-stage").boundingBox();
+    expect(closedShell).not.toBeNull();
+    expect(closedStage).not.toBeNull();
+    expect(Math.abs((closedStage?.x ?? 0) - (closedShell?.x ?? 0))).toBeLessThanOrEqual(1);
+    expect(Math.abs((closedStage?.width ?? 0) - (closedShell?.width ?? 0))).toBeLessThanOrEqual(1);
+    await expect
+      .poll(async () => await storedPresentationState(page))
+      .toMatchObject({ sidebarOpen: false });
+
+    await page.reload();
+    await expect(page.getByTestId("workspace-shell")).toHaveAttribute("data-sidebar-open", "false");
+    await expect(open).toBeVisible();
+    await open.click();
+    const opening = await sampleCssTransition(slot, "width");
+    expect(opening.width).toBeGreaterThan(1);
+    expect(opening.width).toBeLessThan(initial?.width ?? 0);
+    await expect(close).toBeVisible();
+    await expect(close).toBeFocused();
+    await expect(shell).toHaveAttribute("data-sidebar-open", "true");
+  });
+
   test("keeps identity, path and device context coherent through mutations and reload", async ({
     page,
   }) => {

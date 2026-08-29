@@ -571,6 +571,15 @@ sauvegarde.
 
 ### 9. Système d'interface et migration visuelle
 
+La tranche de navigation prend désormais
+[`assets/sidebar-attachments-v3.html`](assets/sidebar-attachments-v3.html)
+comme référence d’interaction normative et versionnée. La spec décrit les
+résultats attendus et le présent plan décrit leur réalisation, mais ni l’une ni
+l’autre ne remplace les états visuels de la maquette. Les tests de cette tranche
+doivent donc vérifier ses états fermés, intermédiaires et ouverts ainsi que ses
+rectangles, et pas seulement la présence de classes ou la valeur finale des
+attributs ARIA.
+
 Tailwind v4 génère les styles sans runtime. Des variables CSS sémantiques
 définissent couleurs, typographie, espaces, rayons, ombres, mouvement et z-index
 pour thèmes clair/sombre/système. Les primitives Ariakit portent menu, dialogue,
@@ -672,6 +681,40 @@ avant la première ouverture. Les actions de création sont une surface absolue
 ancrée à droite de la ligne : deux boutons `FilePlus`/`FolderPlus` se révèlent
 à gauche d'un `Plus` tourné de 45 degrés, devant le libellé si nécessaire,
 avant le menu `…`, sans changement de largeur.
+
+La correction de conformité conserve le panneau desktop monté pendant son
+mouvement : le slot de navigation anime sa largeur jusqu’à zéro tandis que le
+panneau anime translation, opacité et visibilité. Une commande
+`PanelLeftClose` est placée dans l’en-tête de la barre ouverte ; une commande
+`PanelLeftOpen` reste dans le coin supérieur du contenu lorsqu’elle est fermée.
+`inert`, la visibilité différée et un transfert de focus après la transition
+empêchent les commandes masquées de rester actives. L’état `sidebarOpen` déjà
+persisté reste l’unique source de vérité.
+
+`TreeItemIdentitySlot` rend toujours un seul `ChevronRight` et applique sa
+rotation par transform selon `aria-expanded`; il ne remplace plus le SVG par
+`ChevronDown`. Emoji et chevron restent superposés dans la même boîte, et le
+bouton reçoit les états de survol/focus de la maquette. La région des
+descendants et celle des pièces jointes partagent une durée de 210 ms, restent
+montées pendant la fermeture et exposent une vraie géométrie intermédiaire.
+
+La création enfant reprend la géométrie de la référence : cluster fixe de
+28 px, enveloppe plate et visible de 88 × 30 px ancrée à droite avant `…`, puis
+trois commandes de 28 px séparées et entourées par une respiration uniforme de
+1 px. Les deux choix occupent la gauche et le même `Plus` occupe la droite. À
+l’ouverture, la commande
+de pièces jointes devient invisible afin que la surface reste incluse dans la
+ligne ; l’enveloppe possède une teinte distincte de la ligne active mais aucune
+ombre ou apparence de panneau détaché. Les trois commandes restent ses enfants
+directs et la fermeture garde toute cette surface montée jusqu’à la fin de
+l’animation inverse.
+
+Enfin, la commande de pièces jointes utilise `Paperclip`. Son panneau compact
+porte la largeur et la marge de la ligne sélectionnée, raccorde ses coins
+supérieurs à cette ligne et anime simultanément hauteur et opacité. Le chargement
+asynchrone des fichiers ne doit pas supprimer l’état intermédiaire : le cadre
+compact est présent dès le premier frame, puis son contenu se remplit sans
+remonter la ligne source.
 
 `AttachmentPanel` gagne une présentation compacte dédiée à l'arborescence :
 en-tête avec compteur et import discret, état vide sur une ligne, puis nom et

@@ -13,6 +13,7 @@ import {
   openSettingsSection,
   openWorkspace,
   returnToWorkspace,
+  sampleCssTransition,
   selectItem,
   trashItem,
   uniqueName,
@@ -161,6 +162,61 @@ test.describe("hierarchy organization (US1)", () => {
     expect(Math.abs((before?.width ?? 0) - (after?.width ?? 0))).toBeLessThanOrEqual(1);
     expect(Math.abs((before?.height ?? 0) - (after?.height ?? 0))).toBeLessThanOrEqual(1);
 
+    const surface = row.locator(".navigation-inline-create__surface");
+    const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
+    const expectedSurfaceWidth = coarsePointer ? 132 : 88;
+    const expectedSurfaceHeight = coarsePointer ? 44 : 30;
+    await expect
+      .poll(async () => Math.round((await surface.boundingBox())?.width ?? 0))
+      .toBe(expectedSurfaceWidth);
+    const surfaceBox = await surface.boundingBox();
+    expect(surfaceBox).not.toBeNull();
+    expect(Math.abs((surfaceBox?.height ?? 0) - expectedSurfaceHeight)).toBeLessThanOrEqual(1);
+    await expect(surface).toHaveCSS("box-shadow", "none");
+    const surfaceBackground = await surface.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    );
+    expect(surfaceBackground).not.toBe("transparent");
+    expect(surfaceBackground).not.toBe("rgba(0, 0, 0, 0)");
+    expect((surfaceBox?.y ?? 0) + 0.5).toBeGreaterThanOrEqual(before?.y ?? 0);
+    expect((surfaceBox?.y ?? 0) + (surfaceBox?.height ?? 0)).toBeLessThanOrEqual(
+      (before?.y ?? 0) + (before?.height ?? 0) + 0.5,
+    );
+    expect((surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0)).toBeLessThanOrEqual(
+      (before?.x ?? 0) + (before?.width ?? 0) + 0.5,
+    );
+
+    const creationControls = [
+      page.getByTestId(`new-page-inline-${parent}`),
+      page.getByTestId(`new-folder-inline-${parent}`),
+      inlineToggle,
+    ];
+    const controlBoxes = await Promise.all(
+      creationControls.map(async (control) => control.boundingBox()),
+    );
+    for (const controlBox of controlBoxes) {
+      expect(controlBox).not.toBeNull();
+      expect(controlBox?.x ?? 0).toBeGreaterThanOrEqual((surfaceBox?.x ?? 0) - 0.5);
+      expect((controlBox?.x ?? 0) + (controlBox?.width ?? 0)).toBeLessThanOrEqual(
+        (surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0) + 0.5,
+      );
+    }
+    expect(
+      Math.abs(
+        (controlBoxes[1]?.x ?? 0) - ((controlBoxes[0]?.x ?? 0) + (controlBoxes[0]?.width ?? 0)),
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        (controlBoxes[2]?.x ?? 0) - ((controlBoxes[1]?.x ?? 0) + (controlBoxes[1]?.width ?? 0)),
+      ),
+    ).toBeLessThanOrEqual(1);
+
+    const plus = inlineToggle.locator(".ui-icon");
+    await expect(plus).toHaveAttribute("data-icon", "add");
+    const openTransform = await plus.evaluate((element) => getComputedStyle(element).transform);
+    expect(openTransform).not.toBe("none");
+
     const name = page.getByLabel("Nom", { exact: true });
     await page.getByTestId("toggle-root-creation").click();
     await name.fill(childPage);
@@ -179,6 +235,46 @@ test.describe("hierarchy organization (US1)", () => {
     await page.getByTestId(`toggle-inline-create-${parent}`).click();
     await page.getByTestId(`new-folder-inline-${parent}`).click();
     await expect(page.getByTestId(`tree-item-${childFolder}`)).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("rotates one chevron while descendants open and close progressively", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+    const parent = uniqueName("Animated branch");
+    const child = uniqueName("Animated child");
+    await createRootItem(page, "folder", parent);
+    await createChildItem(page, parent, "page", child);
+    await waitForSynchronized(page);
+    await ensureNavigationVisible(page);
+
+    const row = page.getByTestId(`tree-item-${parent}`);
+    const toggle = page.getByTestId(`toggle-${parent}`);
+    const chevron = toggle.locator(".ui-icon");
+    const children = page.getByTestId(`children-${parent}`);
+    await row.hover();
+    await expect(chevron).toHaveAttribute("data-icon", "chevronRight");
+    await expect(toggle).toHaveAttribute("data-expanded", "true");
+    const openHeight = (await children.boundingBox())?.height ?? 0;
+    expect(openHeight).toBeGreaterThan(1);
+
+    await toggle.click();
+    const [closingRegion, closingChevron] = await Promise.all([
+      sampleCssTransition(children, "grid-template-rows"),
+      sampleCssTransition(chevron, "transform"),
+    ]);
+    expect(closingRegion.height).toBeGreaterThan(0);
+    expect(closingRegion.height).toBeLessThan(openHeight);
+    expect(closingChevron.transform).not.toBe("none");
+    expect(closingChevron.transform).not.toBe("matrix(0, 1, -1, 0, 0, 0)");
+
+    await expect(children).toHaveCount(0);
+    await expect(toggle).toHaveAttribute("data-expanded", "false");
+    await expect(chevron).toHaveAttribute("data-icon", "chevronRight");
+    await toggle.click();
+    const opening = await sampleCssTransition(children, "grid-template-rows");
+    expect(opening.height).toBeGreaterThan(0);
+    expect(opening.height).toBeLessThan(openHeight);
+    await expect(children).toBeVisible();
   });
 
   test("turns a page back into a leaf after its last child moves away", async ({ page }) => {
