@@ -1,8 +1,10 @@
 .workspace-shell {
   display: grid;
+  height: 100%;
   grid-template-columns: auto minmax(0, 1fr);
   min-width: 0;
-  min-height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   color: var(--color-text);
   background: var(--color-canvas);
 }
@@ -26,12 +28,26 @@
 
 .workspace-stage {
   position: relative;
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.workspace-stage__header {
+  position: relative;
+  z-index: var(--layer-sticky);
   min-width: 0;
 }
 
 .workspace-main {
   min-width: 0;
+  min-height: 0;
   padding: var(--space-6) clamp(var(--space-4), 5vw, var(--space-12)) var(--space-12);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   outline: none;
 }
 
@@ -51,9 +67,7 @@
 }
 
 .workspace-page-header {
-  position: sticky;
-  top: 0;
-  z-index: var(--layer-sticky);
+  position: relative;
   min-height: 7.25rem;
   padding: var(--space-3) clamp(var(--space-4), 5vw, var(--space-12));
   background: color-mix(in srgb, var(--color-canvas) 92%, transparent);
@@ -277,6 +291,18 @@
 
 .workspace-skeleton--line-short {
   width: min(25rem, 65%);
+}
+
+.workspace-page-content-skeleton {
+  display: grid;
+  width: 100%;
+  padding: var(--space-6) var(--ui-space-11);
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.workspace-page-content-skeleton .workspace-skeleton {
+  height: 0.75rem;
 }
 
 .workspace-state__diagnostics {

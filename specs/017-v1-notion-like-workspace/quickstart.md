@@ -138,6 +138,22 @@ Pour la convergence d'interface courante, vérifier dans cet ordre :
 8. une ligne vide et une saisie suivant la suppression complète d'un lien sur
    Chromium, Firefox et WebKit : le caret doit rester visible et le nouveau
    texte ne doit porter aucune ancienne relation.
+9. un document et une arborescence plus hauts que le viewport : faire défiler
+   le contenu puis l'arbre et vérifier que le document racine, le chrome, la
+   barre latérale et son pied ne changent pas de position ;
+10. masquer la barre latérale : sa commande de réouverture doit rester dans la
+    ligne supérieure, sans recouvrir le titre, puis rendre le focus à la
+    commande de fermeture après réouverture ;
+11. créer une page et un dossier depuis `+ Nouveau`, depuis le `+` d'une ligne,
+    puis une sous-page avec `/page` : aucun champ de nom préalable, chaque
+    nouvel item s'ouvre avec un titre vide ciblé et devient `Sans titre`
+    uniquement après sortie sans saisie ;
+12. prolonger artificiellement l'ouverture d'une page : le titre reste présent,
+    seul un squelette éditorial neutre apparaît et aucun grand statut orange ne
+    prend la place du document ;
+13. créer une référence de page, supprimer au clavier toute sa ligne, saisir du
+    texte normal, attendre le drainage et une adoption distante : la référence
+    ne doit jamais réapparaître à la suite du texte.
 
 Ces parcours visent l'ergonomie personnelle de base : clavier, focus visible,
 pointeur et toucher. Ils n'ouvrent pas de campagne VoiceOver ou de conformité

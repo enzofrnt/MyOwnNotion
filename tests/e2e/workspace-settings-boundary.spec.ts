@@ -52,15 +52,20 @@ test("settings stay outside the document and returning restores item, focus and 
   await expect(workspaceMain.locator('[data-testid="revision-restore"]')).toHaveCount(0);
   await expect(workspaceMain.locator(`[data-testid="trash-item-${discardedName}"]`)).toHaveCount(0);
 
-  const rememberedBlockId = await page.evaluate(() => {
-    const blocks = Array.from(document.querySelectorAll<HTMLElement>(".bn-block-outer[data-id]"));
+  const rememberedBlockId = await workspaceMain.evaluate((scroller) => {
+    const blocks = Array.from(scroller.querySelectorAll<HTMLElement>(".bn-block-outer[data-id]"));
     const target = blocks.at(-2);
     if (target === undefined) return null;
-    target.scrollIntoView({ block: "center" });
+    const viewport = scroller.getBoundingClientRect();
+    const top = target.getBoundingClientRect().top - viewport.top + scroller.scrollTop;
+    scroller.scrollTo({ top: Math.max(0, top - scroller.clientHeight / 2) });
     return target.dataset["id"] ?? null;
   });
   expect(rememberedBlockId).not.toBeNull();
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+  await expect
+    .poll(() => workspaceMain.evaluate((scroller) => scroller.scrollTop))
+    .toBeGreaterThan(100);
+  await expect.poll(() => page.evaluate(() => document.scrollingElement?.scrollTop ?? 0)).toBe(0);
 
   const settingsTrigger = page.getByTestId("open-settings");
   await openSettings(page);
@@ -87,13 +92,16 @@ test("settings stay outside the document and returning restores item, focus and 
   await expect(page.getByTestId("workspace-surface")).toBeVisible();
   await expect(page.getByTestId("active-item-title")).toHaveValue(pageName);
   await expect(settingsTrigger).toBeFocused();
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+  await expect
+    .poll(() => workspaceMain.evaluate((scroller) => scroller.scrollTop))
+    .toBeGreaterThan(100);
 
-  const rememberedBlockVisible = await page.evaluate((blockId) => {
-    const block = document.querySelector<HTMLElement>(`.bn-block-outer[data-id="${blockId}"]`);
+  const rememberedBlockVisible = await workspaceMain.evaluate((scroller, blockId) => {
+    const block = scroller.querySelector<HTMLElement>(`.bn-block-outer[data-id="${blockId}"]`);
     if (block === null) return false;
     const rect = block.getBoundingClientRect();
-    return rect.bottom > 0 && rect.top < window.innerHeight;
+    const viewport = scroller.getBoundingClientRect();
+    return rect.bottom > viewport.top && rect.top < viewport.bottom;
   }, rememberedBlockId);
   expect(rememberedBlockVisible).toBe(true);
 });

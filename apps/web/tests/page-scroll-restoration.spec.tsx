@@ -75,6 +75,37 @@ describe("scroll restoration by content anchor", () => {
     expect(scrolledTo).toBe(4120);
   });
 
+  it("captures and restores the workspace scroller without moving the document", () => {
+    document.body.innerHTML = `
+      <main class="workspace-main">
+        <div class="ProseMirror">
+          <div class="bn-block-outer" data-id="${BLOCK_A}">A</div>
+          <div class="bn-block-outer" data-id="${BLOCK_B}">B</div>
+        </div>
+      </main>`;
+    const scroller = document.querySelector<HTMLElement>(".workspace-main");
+    if (scroller === null) throw new Error("workspace scroller missing");
+    scroller.scrollTop = 600;
+    Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this === scroller) return { top: 44, bottom: 844 } as DOMRect;
+      const top = this.getAttribute("data-id") === BLOCK_A ? -156 : 844;
+      return { top, bottom: top + 1_000 } as DOMRect;
+    };
+    let scrolledTo = 0;
+    scroller.scrollTo = ((options: ScrollToOptions) => {
+      scrolledTo = Number(options.top ?? 0);
+    }) as typeof scroller.scrollTo;
+
+    expect(captureScrollAnchor()).toEqual({
+      blockId: BLOCK_A,
+      offset: 200,
+      fallbackPixel: 600,
+    });
+    expect(restoreScrollAnchor({ blockId: BLOCK_B, offset: 120, fallbackPixel: 9999 })).toBe(true);
+    expect(scrolledTo).toBe(1_520);
+    expect(window.scrollY).toBe(0);
+  });
+
   it("falls back to the recorded pixel when the block no longer exists", () => {
     mountBlocks();
     let scrolledTo = 0;

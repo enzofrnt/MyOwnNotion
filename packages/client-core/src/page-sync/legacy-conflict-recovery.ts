@@ -2,11 +2,18 @@
 
 import type { RevisionDto } from "@myownnotion/contracts";
 import {
+  type Block,
   type BlockDocument,
   type BlockDocumentV3,
+  type CanonicalBlockV3,
   canonicalDocumentJsonV3,
   generateUuidV7,
+  type Inline,
+  type InlineV3,
+  isUnknownBlockV3,
   isUuid,
+  type Mark,
+  type MarkV3,
   migrateDocumentV2ToV3,
   migrateStoredPageDocumentToV3,
   normaliseDocument,
@@ -71,11 +78,130 @@ function documentV3(envelope: unknown): BlockDocumentV3 | null {
   return migrated.ok ? normaliseDocumentV3(migrated.document) : null;
 }
 
+function losslessLegacyMark(mark: MarkV3): Mark | null {
+  switch (mark.type) {
+    case "bold":
+    case "italic":
+    case "strikethrough":
+    case "code":
+      return { type: mark.type };
+    case "link":
+      return { type: "link", href: mark.href };
+    case "pageLink":
+      return { type: "pageLink", targetItemId: mark.targetItemId };
+    case "underline":
+    case "textColor":
+    case "backgroundColor":
+    case "unknown":
+      return null;
+  }
+}
+
+function losslessLegacyInline(content: readonly InlineV3[]): readonly Inline[] | null {
+  const converted: Inline[] = [];
+  for (const inline of content) {
+    const marks: Mark[] = [];
+    for (const mark of inline.marks ?? []) {
+      const legacy = losslessLegacyMark(mark);
+      if (legacy === null) return null;
+      marks.push(legacy);
+    }
+    converted.push(marks.length === 0 ? { text: inline.text } : { text: inline.text, marks });
+  }
+  return converted;
+}
+
+function losslessLegacyBlocks(blocks: readonly CanonicalBlockV3[]): readonly Block[] | null {
+  const converted: Block[] = [];
+  for (const block of blocks) {
+    if (isUnknownBlockV3(block)) {
+      converted.push(block);
+      continue;
+    }
+    if (
+      block.rawExtraProperties !== undefined &&
+      Object.keys(block.rawExtraProperties).length > 0
+    ) {
+      return null;
+    }
+    switch (block.type) {
+      case "paragraph":
+      case "heading": {
+        const content = losslessLegacyInline(block.content);
+        if (content === null) return null;
+        converted.push(
+          block.type === "heading"
+            ? { type: "heading", id: block.id, level: block.level, content }
+            : { type: "paragraph", id: block.id, content },
+        );
+        break;
+      }
+      case "bulletedListItem":
+      case "numberedListItem":
+      case "quote": {
+        const content = losslessLegacyInline(block.content);
+        const children = losslessLegacyBlocks(block.children ?? []);
+        if (content === null || children === null) return null;
+        const legacy = { type: block.type, id: block.id, content };
+        converted.push(children.length === 0 ? legacy : { ...legacy, children });
+        break;
+      }
+      case "checkbox": {
+        const content = losslessLegacyInline(block.content);
+        const children = losslessLegacyBlocks(block.children ?? []);
+        if (content === null || children === null) return null;
+        const legacy = { type: "checkbox" as const, id: block.id, checked: block.checked, content };
+        converted.push(children.length === 0 ? legacy : { ...legacy, children });
+        break;
+      }
+      case "code":
+        converted.push({
+          type: "code",
+          id: block.id,
+          text: block.text,
+          language: block.language,
+        });
+        break;
+      case "divider":
+        converted.push({ type: "divider", id: block.id });
+        break;
+      case "fileEmbed":
+        converted.push({
+          type: "fileEmbed",
+          id: block.id,
+          fileItemId: block.fileItemId,
+          caption: block.caption,
+        });
+        break;
+      case "toggle":
+      case "callout":
+      case "table":
+      case "image":
+      case "embed":
+        return null;
+    }
+  }
+  return converted;
+}
+
+/** Returns a v2 transport base only when v2→v3 reproduces every canonical byte. */
+export function losslessLegacyDocument(document: BlockDocumentV3): BlockDocument | null {
+  const blocks = losslessLegacyBlocks(document.blocks);
+  if (blocks === null) return null;
+  const legacy = normaliseDocument({ blocks });
+  return canonicalDocumentJsonV3(migrateDocumentV2ToV3(legacy)) ===
+    canonicalDocumentJsonV3(normaliseDocumentV3(document))
+    ? legacy
+    : null;
+}
+
 function baseDocumentV2(snapshot: unknown): BlockDocument | null {
   if (snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
   const envelope = (snapshot as Record<string, unknown>)["pageDocument"];
   const read = readVersionedDocumentEnvelope(envelope);
   if (read.kind === "v2") return read.result.ok ? normaliseDocument(read.result.document) : null;
+  if (read.kind === "v3")
+    return read.result.ok ? losslessLegacyDocument(read.result.document) : null;
   if (
     envelope !== null &&
     typeof envelope === "object" &&

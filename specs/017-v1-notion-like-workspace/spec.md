@@ -244,6 +244,38 @@ du plan et des tests concernés.
   ligne gagne et perd progressivement sa hauteur et son opacité ; il ne surgit
   jamais en un seul rendu.
 
+### Session 2026-08-29 — viewport, création et reprise éditoriale
+
+- Q: Quelle partie du workspace doit porter le défilement vertical ? → R: La
+  fenêtre de l'application reste fixe. Le contenu principal défile dans sa
+  propre zone sous le chrome supérieur, tandis que la barre latérale conserve
+  sa position et fait défiler seulement sa liste lorsque celle-ci dépasse la
+  hauteur disponible. Le document racine ne doit pas entraîner l'ensemble du
+  shell.
+- Q: Où se place la commande de réouverture de la barre latérale ? → R: Dans
+  la ligne supérieure du contenu, à l'emplacement préparé par le chrome ; elle
+  ne flotte pas arbitrairement au-dessus du titre ou du document.
+- Q: Comment fonctionne `+ Nouveau` à la racine de Notes ? → R: Comme la
+  création enfant validée : le même `+` tourne progressivement en croix et
+  révèle les choix page et dossier dans une surface compacte. Aucun champ de
+  nom préalable n'est demandé.
+- Q: Que se passe-t-il après toute création de page ou dossier ? → R: L'élément
+  créé devient immédiatement actif et son grand titre reçoit le curseur avec
+  un brouillon vide. Si le propriétaire quitte ce titre sans écrire, le
+  libellé `Sans titre` apparaît alors. Cette règle est commune à `+ Nouveau`,
+  `+ Ajouter dans cette page` et `/page`; pour `/page`, la navigation attend
+  toujours que la référence de la page source soit durable.
+- Q: Quel chargement est acceptable à l'ouverture d'une page ? → R: Une page
+  locale déjà disponible doit apparaître sans bannière de chargement. Si une
+  préparation asynchrone reste nécessaire, un squelette neutre de la forme du
+  document conserve le titre et la géométrie ; un grand statut coloré n'est
+  pas un placeholder éditorial.
+- Q: Supprimer un lien signifie-t-il seulement utiliser l'action « retirer le
+  lien » ? → R: Non. Effacer au clavier tout le contenu de la ligne, y compris
+  une référence de page, supprime aussi durablement cette référence. Une
+  projection, une synchronisation ou un commit différé ne doit jamais la faire
+  réapparaître après que du texte normal a été saisi.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Entrer dans un espace de travail focalisé (Priority: P1)
@@ -323,6 +355,23 @@ une page sur ordinateur puis sur un écran de 320 pixels.
     propriétaire active le trombone, **Then** une continuation de même largeur
     s’ouvre progressivement sous la ligne sans modifier celle-ci et présente
     soit les fichiers compacts, soit l’unique état vide validé.
+17. **Given** un document plus haut que la fenêtre, **When** le propriétaire le
+    parcourt, **Then** seul le contenu principal défile ; le chrome supérieur,
+    la barre latérale et son pied restent à leur place, tandis que la liste de
+    navigation possède son propre défilement si nécessaire.
+18. **Given** la barre latérale masquée sur écran large, **When** le propriétaire
+    consulte le contenu, **Then** l'unique commande de réouverture reste alignée
+    dans la ligne supérieure du chrome et ne recouvre ni le titre ni un bloc.
+19. **Given** `+ Nouveau` ou `+ Ajouter dans cette page`, **When** le propriétaire
+    choisit page ou dossier, **Then** aucun nom préalable n'est demandé,
+    l'élément devient actif et le curseur apparaît dans son grand titre vide ;
+    quitter ce titre sans saisir affiche alors `Sans titre`.
+20. **Given** la commande `/page`, **When** la sous-page et sa référence ont été
+    rendues durables, **Then** la sous-page s'ouvre avec le même titre vide
+    ciblé que les créations depuis la navigation.
+21. **Given** une page dont la préparation n'est pas instantanée, **When** elle
+    s'ouvre, **Then** la surface conserve son titre et affiche seulement un
+    squelette éditorial neutre sans bannière colorée ni déplacement du shell.
 
 ---
 
@@ -738,7 +787,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   un curseur de saisie visible. Lorsque le dernier caractère d'un lien est
   supprimé, son état de lien MUST être retiré avant la frappe, le collage ou la
   composition suivante afin qu'aucun texte nouveau n'hérite d'une cible
-  supprimée.
+  supprimée. Effacer toute une ligne contenant une référence interne MUST
+  supprimer cette référence de l'autorité éditoriale avant toute projection ou
+  synchronisation différée ; elle ne MUST pas réapparaître ensuite à la suite
+  du nouveau texte.
 - **FR-085**: Chaque page ou dossier MUST posséder une icône canonique
   facultative contenant au plus un grapheme emoji Unicode ou `null`. Cette
   icône MUST être modifiable et retirable depuis la page et les actions de
@@ -754,7 +806,8 @@ en charge, une fois sans pointeur puis une fois au toucher.
   et le faire tourner progressivement de 90 degrés pour l’état ouvert, dans la
   même surface compacte de survol ou de focus que celle de la référence
   versionnée ; elle ne MUST pas remplacer brutalement une icône droite par une
-  seconde icône basse.
+  seconde icône basse. Cette surface MUST être perceptible au survol, au focus
+  et lorsque la branche est ouverte.
 - **FR-087**: Une référence interne MUST afficher dynamiquement le titre et
   l'icône actuels de sa cible et MUST interdire leur édition indépendante. Une
   référence explicite vers un autre emplacement MUST porter un indicateur de
@@ -818,7 +871,29 @@ en charge, une fois sans pointeur puis une fois au toucher.
   pour la réafficher. Les contrôles de la barre masquée MUST quitter l’ordre de
   focus, le focus MUST rejoindre la commande opposée après le mouvement et
   l’état MUST être restauré localement conformément à FR-004. Ce comportement
-  MUST reprendre les états et le mouvement de la référence versionnée.
+  MUST reprendre les états et le mouvement de la référence versionnée. Lorsque
+  la barre est masquée, la commande opposée MUST être intégrée à la ligne
+  supérieure du chrome du contenu et ne MUST pas flotter au-dessus du titre ou
+  des blocs.
+- **FR-096**: Sur écran large, le shell MUST occuper exactement la hauteur
+  visible sans défilement du document racine. Le contenu principal MUST être la
+  zone de défilement éditoriale ; la barre latérale et le chrome supérieur MUST
+  rester fixes, et seule la liste de navigation MUST défiler indépendamment
+  lorsque son contenu dépasse l'espace disponible.
+- **FR-097**: La création d'une page ou d'un dossier depuis la racine, depuis
+  un parent ou depuis `/page` MUST utiliser le même résultat : l'élément devient
+  actif et son titre reçoit immédiatement le focus avec un brouillon vide. Le
+  libellé `Sans titre` MUST apparaître seulement à la sortie si ce brouillon
+  reste vide. `/page` MUST conserver sa frontière durable avant navigation.
+- **FR-098**: La commande racine `+ Nouveau` MUST révéler page et dossier sans
+  champ de nom préalable. Son `+` MUST devenir progressivement la croix de
+  fermeture dans une surface compacte de la même famille que la création
+  enfant, puis produire le mouvement inverse à la fermeture sans espace
+  résiduel.
+- **FR-099**: L'ouverture d'une page disponible localement MUST éviter tout
+  statut coloré occupant le canevas. Si une attente asynchrone est encore
+  observable, elle MUST conserver le titre et utiliser un squelette éditorial
+  neutre, stable et géométriquement proche des premières lignes du document.
 - **FR-023**: Images et fichiers insérés dans une page MUST réutiliser le cycle
   de vie, la sécurité, les limites, la déduplication et la disponibilité locale
   définis par la feature 005.
@@ -1154,7 +1229,9 @@ en charge, une fois sans pointeur puis une fois au toucher.
 - **SC-030**: Les parcours distincts « Lien vers une page » et « Lien Web »
   réussissent chacun au clic et au clavier sans résultat de l'autre famille ;
   dans cent suppressions du dernier caractère lié suivies d'une frappe, aucun
-  caractère nouveau ne porte l'ancienne cible et le curseur demeure visible.
+  caractère nouveau ne porte l'ancienne cible et le curseur demeure visible ;
+  aucune référence supprimée ne réapparaît après deux secondes, une adoption
+  distante ou un cycle complet de synchronisation.
 - **SC-031**: Après cent renommages, déplacements et changements d'emoji d'une
   cible, toutes ses références visibles affichent son titre et son icône
   courants sans réécriture manuelle ni identité cassée.
@@ -1188,6 +1265,18 @@ en charge, une fois sans pointeur puis une fois au toucher.
   trombone conservent le rectangle de la ligne à moins d’un pixel, raccordent le
   panneau à la même largeur à moins d’un pixel, traversent une hauteur
   intermédiaire et reviennent à moins d’un pixel de hauteur résiduelle.
+- **SC-039**: Sur cent parcours d'un document long, la position de la barre
+  latérale, de son pied et du chrome supérieur varie de moins d'un pixel pendant
+  que le contenu principal parcourt toute sa hauteur ; le document racine reste
+  à sa position initiale et la liste de navigation peut défiler séparément.
+- **SC-040**: Cent créations réparties entre `+ Nouveau`, `+ Ajouter dans cette
+  page` et `/page` ouvrent toutes l'identité créée avec le titre vide ciblé ;
+  cent sorties sans saisie produisent exactement une fois `Sans titre`, sans
+  champ de nom préalable ni perte de la référence `/page`.
+- **SC-041**: Sur les cinq profils navigateur, cent ouvertures de pages locales
+  n'affichent aucune bannière colorée dans le canevas ; lorsqu'une attente est
+  artificiellement prolongée, le squelette conserve le titre et déplace le
+  premier bloc final de moins d'un pixel horizontalement.
 
 ## Assumptions
 

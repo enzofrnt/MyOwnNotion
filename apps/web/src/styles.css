@@ -49,9 +49,11 @@ textarea {
 }
 
 .app-shell--workspace {
+  height: 100dvh;
   max-width: none;
   margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 .app-shell[hidden] {

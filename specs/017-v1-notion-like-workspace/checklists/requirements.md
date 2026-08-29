@@ -61,3 +61,8 @@
   one-pixel regular spacing and no exterior shadow. Three loose icons do not
   satisfy the requirement. The normative asset, FR-091 and SC-037 carry the
   same measurable correction.
+- The 2026-08-29 viewport and creation refinement fixes scroll ownership,
+  aligns the collapsed-sidebar control with the top chrome, unifies all
+  page/folder creation paths around a focused empty title, replaces the
+  editorial loading banner with a neutral skeleton, and makes deletion of a
+  complete page-link line durable across delayed projection and synchronization.

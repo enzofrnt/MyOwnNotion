@@ -115,9 +115,29 @@ test("five retained page conflicts self-heal while persistent storage remains a 
   await context.setOffline(false);
   await page.reload();
   await openWorkspace(page);
-  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced", {
-    timeout: 45_000,
-  });
+  await expect
+    .poll(
+      async () =>
+        await page.evaluate(async () => {
+          const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+          if (service === undefined) throw new Error("the E2E local-content hook is unavailable");
+          return {
+            activeConflicts: (await service.outbox.activeConflicts()).length,
+            recoveries: (await service.legacyConflictRecovery.list()).map(
+              ({ reasonCode, status }) => `${status}:${reasonCode ?? "none"}`,
+            ),
+            state: document
+              .querySelector('[data-testid="sync-status"]')
+              ?.getAttribute("data-state"),
+          };
+        }),
+      { timeout: 45_000 },
+    )
+    .toEqual({
+      activeConflicts: 0,
+      recoveries: Array.from({ length: 5 }, () => "converted:none"),
+      state: "synced",
+    });
   await ensureNavigationVisible(page);
   await expect(page.getByTestId("storage-persistence-advisory")).toBeVisible();
   await expect(page.getByTestId("sync-status")).not.toContainText(/conflit/iu);

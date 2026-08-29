@@ -264,6 +264,10 @@ export class LocalContentService {
   #inFlightSync: Promise<SyncState> | null = null;
   /** Set when a caller arrives mid-pass; triggers exactly one follow-up pass. */
   #resyncRequested = false;
+  /** The complete operational-page drain currently running, if any. */
+  #inFlightOperationalSync: Promise<boolean> | null = null;
+  /** Coalesces every wake received while that operational drain is running. */
+  #operationalResyncRequested = false;
   #snapshot: LocalContentSnapshot;
   readonly #keys: LocalKeyManager;
   readonly #codec: LocalRecordCodec;
@@ -654,6 +658,28 @@ export class LocalContentService {
    * turn crash recovery into a manual synchronization protocol (FR-073).
    */
   async synchronizeOperationalPages(): Promise<boolean> {
+    if (this.#inFlightOperationalSync !== null) {
+      this.#operationalResyncRequested = true;
+      return await this.#inFlightOperationalSync;
+    }
+    let shared!: Promise<boolean>;
+    shared = this.#drainOperationalPageSynchronization().finally(() => {
+      if (this.#inFlightOperationalSync === shared) this.#inFlightOperationalSync = null;
+    });
+    this.#inFlightOperationalSync = shared;
+    return await shared;
+  }
+
+  async #drainOperationalPageSynchronization(): Promise<boolean> {
+    let settled = false;
+    do {
+      this.#operationalResyncRequested = false;
+      settled = await this.#runOperationalPageSynchronization();
+    } while (this.#operationalResyncRequested);
+    return settled;
+  }
+
+  async #runOperationalPageSynchronization(): Promise<boolean> {
     await this.#unlock();
     const historicalPageConflicts = await this.db.conflicts
       .filter(({ commandType }) => commandType === "page.document.replace")

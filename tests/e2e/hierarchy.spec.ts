@@ -217,23 +217,24 @@ test.describe("hierarchy organization (US1)", () => {
     const openTransform = await plus.evaluate((element) => getComputedStyle(element).transform);
     expect(openTransform).not.toBe("none");
 
-    const name = page.getByLabel("Nom", { exact: true });
-    await page.getByTestId("toggle-root-creation").click();
-    await name.fill(childPage);
-    await page.getByTestId("toggle-root-creation").click();
     await row.hover();
     await page.getByTestId(`new-page-inline-${parent}`).click();
-    await expect(page.getByTestId("active-item-title")).toHaveValue(childPage, {
-      timeout: 15_000,
-    });
+    const pageTitle = page.getByTestId("active-item-title");
+    await expect(pageTitle).toBeFocused({ timeout: 15_000 });
+    await expect(pageTitle).toHaveValue("");
+    await pageTitle.fill(childPage);
+    await pageTitle.press("Enter");
+    await expect(pageTitle).toHaveValue(childPage);
 
     await ensureNavigationVisible(page);
-    await page.getByTestId("toggle-root-creation").click();
-    await page.getByLabel("Nom", { exact: true }).fill(childFolder);
-    await page.getByTestId("toggle-root-creation").click();
     await row.hover();
     await page.getByTestId(`toggle-inline-create-${parent}`).click();
     await page.getByTestId(`new-folder-inline-${parent}`).click();
+    const folderTitle = page.getByTestId("active-item-title");
+    await expect(folderTitle).toBeFocused({ timeout: 15_000 });
+    await expect(folderTitle).toHaveValue("");
+    await folderTitle.fill(childFolder);
+    await folderTitle.press("Enter");
     await expect(page.getByTestId(`tree-item-${childFolder}`)).toBeVisible({ timeout: 15_000 });
   });
 

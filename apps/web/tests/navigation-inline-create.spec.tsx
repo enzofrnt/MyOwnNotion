@@ -118,4 +118,35 @@ describe("inline child creation", () => {
     expect(toggle).toBe(document.activeElement);
     expect(toggle?.getAttribute("aria-expanded")).toBe("false");
   });
+
+  it("reuses the same rotating control for root page and folder creation", async () => {
+    await act(async () => {
+      root.render(
+        <NavigationInlineCreate
+          itemName="Notes"
+          label="Nouveau"
+          variant="root"
+          open
+          testIds={{
+            root: "root-inline-create",
+            toggle: "toggle-root-creation",
+            page: "new-root-page",
+            folder: "new-root-folder",
+          }}
+          onOpenChange={() => undefined}
+          onCreatePage={() => undefined}
+          onCreateFolder={() => undefined}
+        />,
+      );
+    });
+
+    const cluster = container.querySelector('[data-testid="root-inline-create"]');
+    expect(cluster?.getAttribute("data-variant")).toBe("root");
+    expect(cluster?.getAttribute("data-open")).toBe("true");
+    expect(cluster?.querySelector(".navigation-inline-create__label")?.textContent).toBe("Nouveau");
+    expect(cluster?.querySelector('[data-testid="toggle-root-creation"] .ui-icon')).not.toBeNull();
+    expect(cluster?.querySelector('[data-testid="new-root-page"]')).not.toBeNull();
+    expect(cluster?.querySelector('[data-testid="new-root-folder"]')).not.toBeNull();
+    expect(container.querySelector('input[aria-label="Nom"]')).toBeNull();
+  });
 });

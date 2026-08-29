@@ -29,10 +29,15 @@ import { FR_COPY } from "../../ui/copy/fr.ts";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { PageAmbiguityNotice } from "../sync/page-ambiguity-notice.tsx";
 import { usePageReconciler } from "../sync/use-page-reconciler.ts";
+import { PageContentSkeleton } from "../workspace/page-content-skeleton.tsx";
 import type { CreateSubpage } from "./editor-menus/slash-menu.tsx";
 import { EditorSurface, type EditorSurfaceHandle } from "./editor-surface.tsx";
 import { type EditorDurableSession, EditorSyncStatus } from "./editor-sync-status.tsx";
-import { captureScrollAnchor, restoreScrollAnchor } from "./editor-view-state.ts";
+import {
+  captureScrollAnchor,
+  editorScrollContainer,
+  restoreScrollAnchor,
+} from "./editor-view-state.ts";
 
 type LoadState =
   | { readonly kind: "loading" }
@@ -115,8 +120,12 @@ export function EditorView({
     restorePending.current = null;
     let attempts = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const settled = (): boolean =>
-      window.scrollY > 0 || document.documentElement.scrollHeight <= window.innerHeight;
+    const settled = (): boolean => {
+      const scroller = editorScrollContainer();
+      return scroller === null
+        ? window.scrollY > 0 || document.documentElement.scrollHeight <= window.innerHeight
+        : scroller.scrollTop > 0 || scroller.scrollHeight <= scroller.clientHeight;
+    };
     const attempt = (): void => {
       restoreScrollAnchor(anchor);
       attempts += 1;
@@ -156,9 +165,10 @@ export function EditorView({
         if (moved) onCaptureScrollAnchor?.(itemId, anchor);
       });
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    const scrollTarget: EventTarget = editorScrollContainer() ?? window;
+    scrollTarget.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      scrollTarget.removeEventListener("scroll", onScroll);
       if (raf !== 0) cancelAnimationFrame(raf);
       const anchor = latestAnchorRef.current;
       if (anchor !== null) onCaptureScrollAnchor?.(itemId, anchor);
@@ -251,7 +261,7 @@ export function EditorView({
   if (state.kind === "loading") {
     return (
       <section className="workspace-page-editor" aria-label={FR_COPY.editor.surface.contentLabel}>
-        <AsyncState compact kind="loading" description={FR_COPY.editor.surface.loading} />
+        <PageContentSkeleton testId="editor-loading-skeleton" />
       </section>
     );
   }

@@ -997,6 +997,79 @@ documentaire ne possède aucun consommateur exécutable et suit donc le gate
 documentation-only de `docs/development.md`. La seconde CI, la fusion, la CI de
 `main` et le redéploiement local restent la frontière de clôture T306.
 
+La PR [#159](https://github.com/enzofrnt/MyOwnNotion/pull/159) a ensuite passé
+la totalité de la CI, y compris les cinq profils Playwright, puis a été fusionnée
+dans `main` par `2a369bdeca0a1bc9901f36c925d5228aa50e2308`. La CI de ce commit
+sur `main` a terminé sans échec. Les images API et Web adressées par ce SHA ont
+été tirées puis déployées sur l'instance HTTPS locale ; PostgreSQL, les fichiers
+et les sauvegardes ont conservé leurs volumes, la migration a terminé avec le
+code zéro et `/health` a répondu `200` avec l'index `5/5` prêt. T306 est donc
+close sans exception de gate ni réinitialisation de données.
+
+## Convergence du viewport, de la création et des liens supprimés
+
+La phase 21 ferme les écarts observés après la première conformité à la
+maquette. Le document navigateur ne porte plus le défilement du workspace : le
+canevas éditorial et le corps de navigation possèdent chacun leur propre zone,
+alors que l'en-tête, la sidebar et son pied restent fixes. La commande de
+réouverture desktop appartient à la ligne supérieure et conserve un transfert
+de focus symétrique avec la commande de fermeture.
+
+La création racine, enfant et `/page` utilise désormais la même interaction
+compacte et la même destination : l'item est créé sous le nom durable de repli,
+ouvert immédiatement, puis son titre est présenté comme un brouillon réellement
+vide et focalisé. Sur mobile, la fermeture programmée du tiroir ne restaure pas
+son ancien déclencheur par-dessus ce focus ; une fermeture ordinaire par
+`Échap` le fait toujours.
+
+La reproduction exacte du lien a localisé le défaut sous l'adaptateur visuel.
+La marque Loro `pageLink` utilisait une frontière expansive « avant » : après
+suppression de toute la ligne, le texte retapé pouvait hériter de l'identité
+CRDT de l'ancienne référence lors d'une projection suivante. Une référence de
+page est un objet atomique, pas un style de frappe ; sa frontière utilise donc
+désormais `expand: "none"`. Le test bas niveau et le journey serveur prouvent
+que la référence reste supprimée après synchronisation et rechargement.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composants Web ciblés | Vitest sur shell, hiérarchie, création, titre et restauration du scroll | 5 fichiers et 27 tests passés |
+| Propriétés du texte partagé | Vitest `page-state` sur convergence et frontière de `pageLink` | 20/20 passés |
+| Typage | `bun run typecheck` | 9 workspaces et projet racine passés |
+| Parcours ciblés | shell, hiérarchie, liens, scroll et clavier sur cinq profils en parallèle | 38 parcours par profil ; Chromium/Firefox/WebKit desktop et Chromium/WebKit mobile passés |
+| Focus mobile | scénarios de création et fermeture du tiroir sur Chromium et WebKit mobile | titre vide focalisé après création ; retour au déclencheur conservé après `Échap` |
+
+La première exécution complète a aussi exposé quatre incompatibilités qui ne
+réduisent pas les attentes produit. Les tests mobiles rouvraient désormais le
+tiroir avant d'agir sur son arbre ; l'échantillonnage des transitions Firefox
+s'effectue dans la même tâche navigateur que le clic afin d'observer réellement
+la frame intermédiaire ; l'intention de focus du titre est réaffirmée jusqu'à la
+fin de la fermeture programmée du tiroir ; enfin, les demandes concurrentes de
+resynchronisation opérationnelle sont coalescées puis drainées séquentiellement
+au lieu de lancer deux passages sur la même projection.
+
+Le journey de réparation historique Firefox a révélé qu'un ancêtre de conflit
+pouvait déjà être un document canonique v3 après activation. La récupération
+accepte désormais cet ancêtre uniquement lorsqu'une projection v3 vers v2 puis
+v2 vers v3 reproduit exactement le JSON canonique initial. Les blocs, marques ou
+données supplémentaires propres à v3 restent donc explicitement en quarantaine
+et ne sont jamais simplifiés silencieusement.
+
+| Stabilisation avant gate | Résultat |
+| --- | --- |
+| Titre et synchronisation Web ciblés | 2 fichiers, 13 tests passés |
+| Récupération historique `client-core` | 23/23 passés : toutes les formes v2 projetables et chaque marque, bloc ou propriété v3 non projetable conservés |
+| Typage après stabilisation | 9 workspaces et projet racine passés |
+| Création mobile ciblée | Chromium mobile et WebKit mobile passés |
+| Réparation historique ciblée | Firefox desktop passé du premier coup en 32 s |
+
+Le gate pré-push exact `bun run checks:local` a ensuite terminé avec un code
+nul : outillage et shell, format/lint/types, 316 fichiers et 3 254 tests de
+couverture, 7 suites de performance, 33 fichiers et 332 intégrations
+PostgreSQL, migrations, 108 fichiers et 1 232 contrats, Playwright 5/5 en
+1 499 s, builds Bun, images API/Web `amd64`/`arm64`, audit, secrets, analyse
+statique, licences et contrat Compose. La CI, la fusion, la vérification de
+`main` et le redéploiement restent les frontières de clôture de T314.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

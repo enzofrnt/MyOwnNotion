@@ -34,6 +34,7 @@ import {
  * waits for a row that is no longer rendered.
  */
 async function openBranch(page: import("@playwright/test").Page, name: string): Promise<void> {
+  await ensureNavigationVisible(page);
   const toggle = page.getByTestId(`toggle-${name}`);
   if ((await page.getByTestId(`tree-item-${name}`).getAttribute("aria-expanded")) !== "true") {
     await toggle.click();

@@ -42,7 +42,7 @@ import { FR_COPY } from "../../ui/copy/index.ts";
 import { ItemEmojiDialog } from "../../ui/emoji-picker.tsx";
 import { AppIcon } from "../../ui/icons.tsx";
 import { TreeItemIdentitySlot } from "../../ui/item-icon.tsx";
-import { AsyncState, Button, ConfirmDialog, Field } from "../../ui/primitives/index.ts";
+import { AsyncState, Button, ConfirmDialog } from "../../ui/primitives/index.ts";
 import { AttachmentPanel } from "../attachments/attachment-panel.tsx";
 import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
 import { DatabaseConflictResolution } from "../databases/database-conflict-resolution.tsx";
@@ -70,6 +70,7 @@ import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
 import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
 import { WorkspaceSyncStatus } from "../sync/workspace-sync-status.tsx";
+import { PageContentSkeleton } from "../workspace/page-content-skeleton.tsx";
 import { PageHeader } from "../workspace/page-header.tsx";
 import { PageTitleEditor } from "../workspace/page-title-editor.tsx";
 import { useActiveItem } from "../workspace/use-active-item.ts";
@@ -314,9 +315,9 @@ export function HierarchyExplorer({
   // the stored state has been read and write the empty set back, erasing every
   // open branch on the way in.
   const [navigationLoaded, setNavigationLoaded] = useState(false);
-  const [newItemName, setNewItemName] = useState("");
   const [rootCreationOpen, setRootCreationOpen] = useState(false);
   const [inlineCreationItemId, setInlineCreationItemId] = useState<Uuid | null>(null);
+  const [pendingTitleFocusItemId, setPendingTitleFocusItemId] = useState<Uuid | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
@@ -364,7 +365,9 @@ export function HierarchyExplorer({
       const target =
         previous?.isConnected === true && previous.getClientRects().length > 0
           ? previous
-          : document.querySelector<HTMLElement>('[data-testid="toggle-tree"]');
+          : document.querySelector<HTMLElement>(
+              '[data-testid="toggle-tree"], [data-testid="toggle-sidebar"]',
+            );
       target?.focus();
     });
   }, []);
@@ -964,15 +967,7 @@ export function HierarchyExplorer({
 
   const createItem = useCallback(
     async (kind: "page" | "folder", parentItemId: Uuid | null) => {
-      const name = newItemName.trim() || "Sans titre";
-      // Cleared before the write, not after it. The name is already captured
-      // above, and clearing afterwards means the field is emptied whenever the
-      // mutation happens to finish — including after the owner has started
-      // typing the next name, which then vanishes as they type it. It showed up
-      // as an intermittent WebKit failure where an item arrived called
-      // "Untitled page": the clear from the previous creation had landed
-      // between the test filling the field and clicking the button.
-      setNewItemName("");
+      const name = "Sans titre";
       setRootCreationOpen(false);
       setInlineCreationItemId(null);
       const keys = siblingKeys(parentItemId);
@@ -1000,11 +995,13 @@ export function HierarchyExplorer({
         // the creation having failed.
         setExpanded((current) => new Set(current).add(parentItemId));
       }
-      // Creation is navigation, not merely a tree mutation. A page that has
-      // just been created is the owner's next destination on every viewport.
-      if (kind === "page") openItem(itemId);
+      // Creation is navigation, not merely a tree mutation. Pages and folders
+      // share the same identity header, so every entry point lands in the same
+      // blank focused title and lets blur apply the fallback only if needed.
+      setPendingTitleFocusItemId(itemId);
+      openItem(itemId);
     },
-    [newItemName, openItem, runCommand, siblingKeys],
+    [openItem, runCommand, siblingKeys],
   );
 
   const createSubpage = useCallback(
@@ -1057,6 +1054,7 @@ export function HierarchyExplorer({
       // the page before that refresh lets the stale-branch cleanup observe a
       // childless page and immediately collapse it again.
       setExpanded((current) => new Set(current).add(parentItemId));
+      setPendingTitleFocusItemId(itemId);
       return { id: itemId, title: request.title.trim() || "Sans titre" };
     },
     [items, refresh, service],
@@ -1595,58 +1593,32 @@ export function HierarchyExplorer({
 
   const creationControls = (
     <div className="workspace-navigation__create">
+      <NavigationInlineCreate
+        itemName="Notes"
+        label="Nouveau"
+        variant="root"
+        open={rootCreationOpen}
+        testIds={{
+          root: "root-inline-create",
+          toggle: "toggle-root-creation",
+          page: "new-root-page",
+          folder: "new-root-folder",
+        }}
+        onOpenChange={setRootCreationOpen}
+        onCreatePage={() => void createItem("page", null)}
+        onCreateFolder={() => void createItem("folder", null)}
+      />
       <Button
-        size="compact"
+        size="square"
         variant="ghost"
-        className="workspace-navigation__create-trigger"
-        data-testid="toggle-root-creation"
-        aria-expanded={rootCreationOpen}
-        onClick={() => setRootCreationOpen((open) => !open)}
+        className="workspace-navigation__database-create"
+        data-testid="new-root-database"
+        aria-label="Créer une base de données"
+        title="Nouvelle base de données"
+        onClick={() => openDatabaseCreation(null)}
       >
-        <AppIcon name="add" size="small" />
-        Nouveau
+        <AppIcon name="table" size="small" />
       </Button>
-      {rootCreationOpen ? (
-        <div className="workspace-navigation__create-popover">
-          <Field
-            id="new-item-name"
-            label="Nom"
-            size="compact"
-            value={newItemName}
-            placeholder="Sans titre"
-            onChange={(event) => setNewItemName(event.target.value)}
-          />
-          <div className="workspace-navigation__create-actions">
-            <Button
-              size="compact"
-              variant="ghost"
-              data-testid="new-root-page"
-              onClick={() => void createItem("page", null)}
-            >
-              <AppIcon name="fileText" size="small" />
-              Page
-            </Button>
-            <Button
-              size="compact"
-              variant="ghost"
-              data-testid="new-root-folder"
-              onClick={() => void createItem("folder", null)}
-            >
-              <AppIcon name="folder" size="small" />
-              Dossier
-            </Button>
-            <Button
-              size="compact"
-              variant="ghost"
-              data-testid="new-root-database"
-              onClick={() => openDatabaseCreation(null)}
-            >
-              <AppIcon name="table" size="small" />
-              Base
-            </Button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
   const noticeCount = (backupStale ? 1 : 0) + (problem === null ? 0 : 1);
@@ -1657,6 +1629,7 @@ export function HierarchyExplorer({
         selectedItem?.kind === "page" || selectedItem?.kind === "folder" ? "page" : "bounded"
       }
       mobileNavigationOpen={mobileNavigationOpen}
+      restoreMobileFocusOnClose={pendingTitleFocusItemId === null}
       sidebarOpen={sidebarOpen}
       sidebarWidth={sidebarWidth}
       onMobileNavigationOpenChange={setMobileNavigationOpen}
@@ -1801,17 +1774,43 @@ export function HierarchyExplorer({
       ) : null}
 
       {selectedItem !== null && selectedItem.kind === "page" && structuredSelectionLoading ? (
-        <AsyncState compact kind="loading" description="Ouverture de la page structurée…" />
+        <article className="workspace-page-canvas" data-testid="workspace-page-opening">
+          <PageTitleEditor
+            key={`title-${selectedItem.id}`}
+            autoFocusBlank={pendingTitleFocusItemId === selectedItem.id}
+            icon={selectedItem.icon}
+            title={selectedItem.name}
+            onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
+            onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
+            onAutoFocusHandled={() =>
+              setPendingTitleFocusItemId((current) =>
+                current === selectedItem.id ? null : current,
+              )
+            }
+            onMoveToContent={() => {
+              document
+                .querySelector<HTMLElement>('[data-testid="operational-editor"] .ProseMirror')
+                ?.focus();
+            }}
+          />
+          <PageContentSkeleton />
+        </article>
       ) : selectedItem !== null &&
         selectedDatabase !== null &&
         selectedDatabase.databaseId === selectedItem.id ? (
         <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
           <PageTitleEditor
             key={`title-${selectedItem.id}`}
+            autoFocusBlank={pendingTitleFocusItemId === selectedItem.id}
             icon={selectedItem.icon}
             title={selectedItem.name}
             onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
             onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
+            onAutoFocusHandled={() =>
+              setPendingTitleFocusItemId((current) =>
+                current === selectedItem.id ? null : current,
+              )
+            }
             onMoveToContent={() => {
               document
                 .querySelector<HTMLElement>(
@@ -2066,10 +2065,16 @@ export function HierarchyExplorer({
         <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
           <PageTitleEditor
             key={`title-${selectedItem.id}`}
+            autoFocusBlank={pendingTitleFocusItemId === selectedItem.id}
             icon={selectedItem.icon}
             title={selectedItem.name}
             onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
             onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
+            onAutoFocusHandled={() =>
+              setPendingTitleFocusItemId((current) =>
+                current === selectedItem.id ? null : current,
+              )
+            }
             onMoveToContent={() => {
               const editable = document.querySelector<HTMLElement>(
                 '[data-testid="operational-editor"] .ProseMirror',
@@ -2099,11 +2104,17 @@ export function HierarchyExplorer({
         >
           <PageTitleEditor
             key={`title-${selectedItem.id}`}
+            autoFocusBlank={pendingTitleFocusItemId === selectedItem.id}
             kind="folder"
             icon={selectedItem.icon}
             title={selectedItem.name}
             onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
             onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
+            onAutoFocusHandled={() =>
+              setPendingTitleFocusItemId((current) =>
+                current === selectedItem.id ? null : current,
+              )
+            }
           />
         </article>
       ) : null}

@@ -1,4 +1,5 @@
 .workspace-sidebar-slot {
+  height: 100%;
   width: var(--workspace-sidebar-width);
   min-width: 0;
   overflow: hidden;
@@ -11,10 +12,9 @@
 }
 
 .workspace-sidebar-panel {
-  position: sticky;
-  top: 0;
+  position: relative;
   width: var(--workspace-sidebar-width);
-  height: 100dvh;
+  height: 100%;
   background: var(--ui-color-sidebar);
   border-right: 1px solid var(--color-border);
   opacity: 1;
@@ -38,7 +38,13 @@
     visibility 0ms linear 220ms;
 }
 
-.workspace-sidebar-panel__content,
+.workspace-sidebar-panel__content {
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  overflow-x: hidden;
+}
+
 .workspace-sidebar-drawer {
   min-width: 0;
   height: 100%;
@@ -74,6 +80,32 @@
     opacity 100ms var(--ui-ease-standard),
     transform 180ms var(--ui-ease-standard),
     visibility 0ms linear 180ms;
+}
+
+.workspace-sidebar-desktop-trigger {
+  position: absolute;
+  top: 50%;
+  left: var(--space-2);
+  z-index: var(--layer-menu);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-0.5rem, -50%);
+  visibility: hidden;
+  transition:
+    opacity 160ms var(--ui-ease-standard) 80ms,
+    transform 180ms var(--ui-ease-standard) 80ms,
+    visibility 0ms linear 180ms;
+}
+
+.workspace-sidebar-desktop-trigger[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, -50%);
+  visibility: visible;
+  transition:
+    opacity 160ms var(--ui-ease-standard) 80ms,
+    transform 180ms var(--ui-ease-standard) 80ms,
+    visibility 0ms linear;
 }
 
 .workspace-sidebar-close {
@@ -127,8 +159,20 @@
 
 .workspace-navigation {
   display: flex;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   padding: var(--space-3) var(--space-2);
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.workspace-navigation__body {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
   flex-direction: column;
   gap: var(--space-2);
 }
@@ -274,40 +318,19 @@
 }
 
 .workspace-navigation__create {
-  display: grid;
+  display: flex;
   padding: var(--space-1) var(--space-1) var(--space-2);
   gap: var(--space-1);
-}
-
-.workspace-navigation__create-trigger {
-  width: 100%;
-  justify-content: flex-start;
-}
-
-.workspace-navigation__create-trigger .ui-button__label,
-.workspace-navigation__create-actions .ui-button__label {
-  display: flex;
   align-items: center;
-  gap: var(--space-2);
 }
 
-.workspace-navigation__create-popover {
-  display: grid;
-  padding: var(--space-2);
-  gap: var(--space-2);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-popover);
-}
-
-.workspace-navigation__create-actions {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.workspace-navigation__create-actions > .ui-button {
-  flex: 1;
+.workspace-navigation__database-create[data-size="square"] {
+  width: var(--ui-target-compact);
+  min-width: var(--ui-target-compact);
+  min-height: var(--ui-target-compact);
+  flex: 0 0 var(--ui-target-compact);
+  padding: var(--space-1);
+  color: var(--color-text-muted);
 }
 
 .workspace-navigation .tree {
@@ -459,10 +482,15 @@
 }
 
 .tree-item-identity-slot .tree-twisty:hover,
-.tree-item-identity-slot .tree-twisty:focus-visible {
+.tree-item-identity-slot .tree-twisty:focus-visible,
+.tree-item-identity-slot .tree-twisty[data-expanded="true"] {
   color: var(--color-text);
   background: var(--ui-color-surface-hover);
   outline: none;
+}
+
+.tree-item-identity-slot .tree-twisty[data-expanded="true"] {
+  opacity: 1;
 }
 
 .tree-twisty__icon {
@@ -483,7 +511,9 @@
 }
 
 .tree-row:hover .tree-item-identity-slot[data-branch="true"] .workspace-tree-item-icon,
-.tree-row:focus-within .tree-item-identity-slot[data-branch="true"] .workspace-tree-item-icon {
+.tree-row:focus-within .tree-item-identity-slot[data-branch="true"] .workspace-tree-item-icon,
+.tree-item-identity-slot[data-branch="true"]:has(.tree-twisty[data-expanded="true"])
+  .workspace-tree-item-icon {
   opacity: 0;
 }
 
@@ -635,6 +665,78 @@
 
 .navigation-inline-create[data-open="true"] .navigation-inline-create__toggle .ui-icon {
   transform: rotate(45deg);
+}
+
+.navigation-inline-create__label {
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    max-width 180ms var(--ui-ease-standard),
+    opacity 120ms var(--ui-ease-standard);
+  white-space: nowrap;
+}
+
+.navigation-inline-create[data-variant="root"] {
+  width: auto;
+  height: 2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.navigation-inline-create[data-variant="root"] .navigation-inline-create__surface {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 100%;
+  height: 2rem;
+  padding: 2px;
+  justify-content: flex-start;
+  transform: none;
+  transform-origin: left center;
+}
+
+.navigation-inline-create[data-variant="root"][data-open="true"]
+  .navigation-inline-create__surface {
+  width: 100%;
+}
+
+.navigation-inline-create[data-variant="root"] .navigation-inline-create__toggle {
+  order: -1;
+  width: 100%;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  transition:
+    width 200ms var(--ui-ease-standard),
+    background-color var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.navigation-inline-create[data-variant="root"] .navigation-inline-create__toggle .ui-button__label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.navigation-inline-create[data-variant="root"][data-open="true"] .navigation-inline-create__toggle {
+  width: 1.75rem;
+  min-width: 1.75rem;
+  padding: var(--space-1);
+  flex: 0 0 1.75rem;
+  gap: 0;
+}
+
+.navigation-inline-create[data-variant="root"][data-open="true"] .navigation-inline-create__label {
+  max-width: 0;
+  opacity: 0;
+}
+
+.navigation-inline-create[data-variant="root"]
+  .navigation-inline-create__choices[data-visible="true"] {
+  width: 3.5625rem;
 }
 
 .workspace-page-attachments-trigger[data-size="square"] {
@@ -913,7 +1015,7 @@
 
 @media (pointer: fine) {
   .workspace-page-attachments-trigger,
-  .navigation-inline-create,
+  .navigation-inline-create:not([data-variant="root"]),
   .navigation-item-menu__trigger {
     opacity: 0;
     pointer-events: none;
@@ -955,6 +1057,7 @@
   .workspace-sidebar-slot,
   .workspace-sidebar-panel,
   .workspace-sidebar-trigger,
+  .workspace-sidebar-desktop-trigger,
   .collapsible-region,
   .navigation-inline-create__surface,
   .navigation-inline-create__choices,
@@ -1036,5 +1139,9 @@
 
   .workspace-sidebar-trigger {
     display: inline-flex;
+  }
+
+  .workspace-sidebar-desktop-trigger {
+    display: none;
   }
 }
