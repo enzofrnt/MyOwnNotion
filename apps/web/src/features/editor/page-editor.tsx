@@ -58,6 +58,7 @@ import {
 } from "./editor-menus/web-bookmark-dialog.tsx";
 import {
   applyRemoteEditorProjection,
+  applyRemoteProjectionIfEditorIdle,
   type EditorChangeOrigin,
   EditorOriginGuard,
 } from "./editor-remote-apply.ts";
@@ -478,11 +479,20 @@ export function PageEditor({
         if (change.origin === "remote") {
           remoteProjectionPending.current = true;
           markEditorActivity("remote");
+          // A session notification is synchronous with the operational
+          // adoption. If no browser gesture owns the visible offsets, project
+          // that frontier now so the next key cannot be translated from the
+          // pre-adoption tree and resurrect content the owner just removed.
+          applyRemoteProjectionIfEditorIdle({
+            localInputActive: localActivityInCurrentBurst.current,
+            localCommitsInFlight: inFlight.current,
+            apply: applyPendingRemoteProjection,
+          });
           scheduleProjectionSettlement();
         }
       },
     );
-  }, [markEditorActivity, scheduleProjectionSettlement, session]);
+  }, [applyPendingRemoteProjection, markEditorActivity, scheduleProjectionSettlement, session]);
 
   useEffect(() => {
     editor.isEditable = editable;

@@ -1,6 +1,7 @@
 import {
   type HTMLAttributes,
   type ReactNode,
+  type TransitionEvent as ReactTransitionEvent,
   useCallback,
   useEffect,
   useRef,
@@ -9,6 +10,7 @@ import {
 import { classNames } from "../../ui/class-names.ts";
 
 export const COLLAPSIBLE_REGION_DURATION_MS = 210;
+export const COLLAPSIBLE_REGION_CLEANUP_FALLBACK_MS = 2_000;
 
 export interface CollapsibleRegionProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   readonly children: ReactNode;
@@ -21,6 +23,7 @@ export function CollapsibleRegion({
   children,
   className,
   lazy = false,
+  onTransitionEnd,
   open,
   ...props
 }: CollapsibleRegionProps) {
@@ -62,12 +65,38 @@ export function CollapsibleRegion({
 
     setVisible(false);
     if (lazy && present) {
+      // The element leaves the tree when its real grid transition completes.
+      // A timer equal to the CSS duration races the final painted frame and,
+      // under a busy event loop, can remove the content while the browser still
+      // reports an active transition. Keep only a generous fallback for reduced
+      // motion or engines that omit transitionend entirely; the closed region is
+      // already zero-height, hidden and inert while that fallback is pending.
       closingTimer.current = setTimeout(() => {
         closingTimer.current = null;
         setPresent(false);
-      }, COLLAPSIBLE_REGION_DURATION_MS);
+      }, COLLAPSIBLE_REGION_CLEANUP_FALLBACK_MS);
     }
   }, [cancelOpeningFrames, lazy, open, present]);
+
+  const handleTransitionEnd = useCallback(
+    (event: ReactTransitionEvent<HTMLDivElement>): void => {
+      onTransitionEnd?.(event);
+      if (
+        event.target !== event.currentTarget ||
+        event.propertyName !== "grid-template-rows" ||
+        open ||
+        !lazy
+      ) {
+        return;
+      }
+      if (closingTimer.current !== null) {
+        clearTimeout(closingTimer.current);
+        closingTimer.current = null;
+      }
+      setPresent(false);
+    },
+    [lazy, onTransitionEnd, open],
+  );
 
   useEffect(
     () => () => {
@@ -87,6 +116,7 @@ export function CollapsibleRegion({
       data-state={visible ? "open" : "closed"}
       aria-hidden={!visible}
       inert={!visible ? true : undefined}
+      onTransitionEnd={handleTransitionEnd}
     >
       <div className="collapsible-region__inner">{children}</div>
     </div>

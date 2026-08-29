@@ -964,6 +964,36 @@ l'appel du callback le plus récent.
 
 Le gate complet est exécuté sur le nouveau commit exact avant le prochain push.
 
+### Stabilisation de la conformité sous charge CI
+
+La première CI de la PR de conformité a validé 23 jobs et révélé deux courses
+réelles dans les journeys desktop. WebKit démontait le contenu paresseux avec
+un timer égal aux 210 ms CSS : lorsque le test mettait la transition réelle en
+pause à mi-course, le timer pouvait supprimer le contenu avant la dernière
+frame. La région attend désormais son propre événement `transitionend` ; un
+fallback de deux secondes ne sert qu'aux moteurs ou préférences qui omettent
+l'événement, alors que la région fermée reste déjà sans hauteur, cachée et
+inerte.
+
+La trace Firefox a montré un second défaut produit : après le retrait d'un lien
+interne et la saisie de « Nouveau texte », la projection visible était correcte,
+puis l'ancien lien réapparaissait. Le moteur avait adopté un front distant mais
+BlockNote attendait encore la fenêtre calme avant de l'afficher. Une nouvelle
+frappe pouvait donc utiliser l'ancien arbre visible comme base. Une adoption
+distante est maintenant projetée synchroniquement quand aucun geste ni commit
+local n'est actif ; elle reste différée pendant une véritable saisie afin de ne
+jamais déplacer ses offsets.
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composants et adaptateurs | Vitest Web sur région repliable, projection distante, saisie et liens | 4 fichiers, 34 tests passés |
+| Fermeture WebKit ciblée | journey du chevron desktop répété cinq fois dans Linux | 5/5 passés sans retry |
+| Retrait de lien Firefox ciblé | journey exact de la CI répété vingt fois dans Linux | 20/20 passés sans retry ; texte conservé et aucun lien ressuscité |
+| Statique et types ciblés | Biome sur les fichiers corrigés, `git diff --check`, puis `bun run typecheck` | aucun diagnostic ; 9 workspaces et le projet racine typés |
+
+Le gate complet, la seconde CI, la fusion, la CI de `main` et le redéploiement
+local restent la frontière de clôture T306.
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

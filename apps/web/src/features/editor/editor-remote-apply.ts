@@ -28,6 +28,25 @@ export class EditorOriginGuard {
   }
 }
 
+/**
+ * Projects an adopted remote frontier before the next browser gesture can use
+ * the stale visible tree as its editing baseline.
+ *
+ * A projection is delayed only while a local gesture still owns visible
+ * offsets or while one of its commits is crossing the durable boundary. When
+ * both are idle, applying synchronously closes the gap between the operational
+ * replica adopting a remote update and BlockNote displaying that update.
+ */
+export function applyRemoteProjectionIfEditorIdle(input: {
+  readonly localInputActive: boolean;
+  readonly localCommitsInFlight: number;
+  readonly apply: () => void;
+}): boolean {
+  if (input.localInputActive || input.localCommitsInFlight > 0) return false;
+  input.apply();
+  return true;
+}
+
 export type RemoteEditorChange =
   | {
       readonly type: "insert";
