@@ -294,6 +294,7 @@ test.describe("focused workspace shell", () => {
     const original = uniqueName("Dossier éditable");
     const renamed = uniqueName("Dossier renommé");
     await createRootItem(page, "folder", original);
+    await waitForSynchronized(page);
     await page.getByTestId(`tree-item-${original}`).click();
 
     const title = page.getByRole("textbox", { name: "Nom du dossier" });
