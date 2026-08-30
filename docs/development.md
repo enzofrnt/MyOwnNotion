@@ -12,6 +12,7 @@ commands you run locally, and what blocks a merge.
 | Format + lint (TS/TSX/JSON/CSS) | Biome | `biome.jsonc` |
 | Types | TypeScript strict | `tsconfig.base.json` |
 | Shell | ShellCheck + shfmt, pinned versions | `scripts/ci/check-shell.ts`, `.github/workflows/ci.yml` |
+| Line endings | LF only | `.gitattributes` (`* text=auto eol=lf`), `.editorconfig` |
 | Tests | Vitest + fast-check + Playwright | `vitest.config.ts`, `playwright.config.ts` |
 | Database | PostgreSQL 18 | `compose.yaml` |
 | Sync protocol | version 3 | `packages/domain/src/sync/protocol-version.ts` |

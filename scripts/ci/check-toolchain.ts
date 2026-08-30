@@ -14,6 +14,9 @@
  * 4. The delivery gate inventory is stable: the local-checks -> pull-request ->
  *    `main` path always resolves to the same named root scripts, so the gate
  *    cannot silently lose a check (feature 002, FR-033/FR-035).
+ * 5. Tracked text is LF only: `.gitattributes` pins `eol=lf`, and a CR byte
+ *    in a text file fails the gate (bash and several contract parsers treat
+ *    `\r` as part of the token).
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -241,6 +244,53 @@ for (const file of ignoredSources) {
   failures.push(
     `first-party source file is excluded by .gitignore and would never reach the repository: ${file}`,
   );
+}
+
+// Policy 5: LF line endings only.
+const gitAttributesPath = path.join(repoRoot, ".gitattributes");
+const gitAttributes = existsSync(gitAttributesPath)
+  ? readFileSync(gitAttributesPath, "utf8")
+  : "";
+if (!/^\*\s+text=auto\s+eol=lf\s*$/m.test(gitAttributes)) {
+  failures.push(".gitattributes must pin `* text=auto eol=lf` so checkouts stay LF");
+}
+const binaryExtensions = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".ico",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".eot",
+  ".otf",
+  ".wasm",
+  ".pdf",
+  ".zip",
+  ".gz",
+  ".tgz",
+  ".7z",
+]);
+const crlfFiles: string[] = [];
+for (const file of files) {
+  if (binaryExtensions.has(path.extname(file).toLowerCase())) {
+    continue;
+  }
+  const bytes = readFileSync(path.join(repoRoot, file));
+  if (bytes.includes(0)) {
+    continue;
+  }
+  if (bytes.includes(0x0d)) {
+    crlfFiles.push(file);
+  }
+}
+for (const file of crlfFiles.slice(0, 20)) {
+  failures.push(`CRLF or bare CR in tracked text file (LF only): ${file}`);
+}
+if (crlfFiles.length > 20) {
+  failures.push(`…and ${crlfFiles.length - 20} more tracked text files with CR`);
 }
 
 if (failures.length > 0) {

@@ -1,0 +1,27 @@
+# Line endings are LF everywhere. Windows checkouts must not convert to CRLF:
+# bash rejects `set -o pipefail\r`, and several contract tests parse files with
+# `\n` regexes.
+* text=auto eol=lf
+
+# Scripts stay executable text with LF even if a host mis-detects them.
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Binary payloads are never normalized.
+*.png binary -text -eol
+*.jpg binary -text -eol
+*.jpeg binary -text -eol
+*.gif binary -text -eol
+*.webp binary -text -eol
+*.ico binary -text -eol
+*.woff binary -text -eol
+*.woff2 binary -text -eol
+*.ttf binary -text -eol
+*.eot binary -text -eol
+*.otf binary -text -eol
+*.wasm binary -text -eol
+*.pdf binary -text -eol
+*.zip binary -text -eol
+*.gz binary -text -eol
+*.tgz binary -text -eol
+*.7z binary -text -eol
