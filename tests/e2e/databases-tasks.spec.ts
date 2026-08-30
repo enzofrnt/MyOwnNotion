@@ -3,7 +3,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   editorApplyCount,
-  openRootCreation,
+  openRootDatabaseCreation,
   openWorkspace,
   saveDocument,
   saveEntryProperties,
@@ -34,8 +34,7 @@ test("tracks one task page through roles, notes, relations, search and an indepe
   const editorialNote = uniqueName("editorial-checkbox");
 
   await createRootItem(page, "page", projectName);
-  await openRootCreation(page);
-  await page.getByTestId("new-root-database").click();
+  await openRootDatabaseCreation(page);
   const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
   await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();

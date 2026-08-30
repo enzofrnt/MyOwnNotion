@@ -4,7 +4,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createRootItem,
   ensureNavigationVisible,
-  openRootCreation,
+  openRootDatabaseCreation,
   openSettingsSection,
   openWorkspace,
   waitForDatabaseDefinitionSaved,
@@ -78,8 +78,7 @@ test("matches the dark empty-database surface", async ({ page }, testInfo) => {
   );
   await prepareVisualSurface(page, "dark", DESKTOP);
   await ensureNavigationVisible(page);
-  await openRootCreation(page);
-  await page.getByTestId("new-root-database").click();
+  await openRootDatabaseCreation(page);
   const form = page.getByRole("form", { name: "Créer une base de données" });
   await form.getByLabel("Créer une base de données").fill("Suivi visuel");
   await form.getByRole("button", { name: "Créer la base de données" }).click();

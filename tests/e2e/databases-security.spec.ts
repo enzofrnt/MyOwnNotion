@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
   ensureNavigationVisible,
-  openRootCreation,
+  openRootDatabaseCreation,
   openWorkspace,
   openWorkspaceDiagnostics,
   returnToWorkspace,
@@ -65,8 +65,7 @@ async function indexedDbContents(page: Page): Promise<string> {
 
 async function createStructuredContent(page: Page): Promise<string> {
   await ensureNavigationVisible(page);
-  await openRootCreation(page);
-  await page.getByTestId("new-root-database").click();
+  await openRootDatabaseCreation(page);
   const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
   await createDatabase.getByLabel("Créer une base de données").fill(SENTINELS.database);
   await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();

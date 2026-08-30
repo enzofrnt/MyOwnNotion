@@ -3,7 +3,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
   ensureNavigationVisible,
-  openRootCreation,
+  openRootDatabaseCreation,
   openWorkspace,
   saveEntryProperties,
   uniqueName,
@@ -77,8 +77,7 @@ test("uses one canonical entry across board, gallery and calendar at pointer, ke
   const secondDate = `${month}-11`;
 
   await ensureNavigationVisible(page);
-  await openRootCreation(page);
-  await page.getByTestId("new-root-database").click();
+  await openRootDatabaseCreation(page);
   const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
   await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
   const createDatabaseButton = createDatabase.getByRole("button", {

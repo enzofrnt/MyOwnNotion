@@ -330,6 +330,20 @@ export async function openRootCreation(page: Page): Promise<void> {
   await expect(page.getByTestId("new-root-folder")).toBeVisible();
 }
 
+export async function openRootDatabaseCreation(page: Page): Promise<void> {
+  await ensureNavigationVisible(page);
+  // The database control is a visually-hidden test hook. A pointer click lands
+  // on the Notes heading that covers its 1×1 box, and opening the adjacent
+  // create envelope first treats that click as outside the envelope. Activate
+  // the node directly; owners reach the same form through the product UI.
+  await page.getByTestId("new-root-database").evaluate((element) => {
+    if (!(element instanceof HTMLButtonElement)) {
+      throw new Error("new-root-database is not a button");
+    }
+    element.click();
+  });
+}
+
 async function nameNewlyCreatedItem(page: Page, name: string): Promise<void> {
   const title = page.getByTestId("active-item-title");
   await expect(title).toBeVisible({ timeout: 15_000 });

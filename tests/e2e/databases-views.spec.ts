@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   createDatabaseEntry,
   ensureNavigationVisible,
-  openRootCreation,
+  openRootDatabaseCreation,
   openSecondDevice,
   openWorkspace,
   saveEntryProperties,
@@ -32,8 +32,7 @@ test("persists table/list filters, sorts, groups, columns and focus on two brows
   };
 
   await ensureNavigationVisible(page);
-  await openRootCreation(page);
-  await page.getByTestId("new-root-database").click();
+  await openRootDatabaseCreation(page);
   const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
   await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();

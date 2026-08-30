@@ -15,6 +15,7 @@ import {
   openItemActions,
   openPageAttachments,
   openRootCreation,
+  openRootDatabaseCreation,
   openSettingsSection,
   openWorkspace,
   openWorkspaceDiagnostics,
@@ -367,8 +368,7 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await ensureNavigationVisible(page);
     const databaseName = uniqueName("Accessible planning");
     const entryName = uniqueName("Keyboard card");
-    await openRootCreation(page);
-    await page.getByTestId("new-root-database").click();
+    await openRootDatabaseCreation(page);
     const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
     await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
     const createDatabaseButton = createDatabase.getByRole("button", {
