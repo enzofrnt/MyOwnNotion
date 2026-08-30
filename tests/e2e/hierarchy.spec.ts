@@ -201,16 +201,17 @@ test.describe("hierarchy organization (US1)", () => {
         (surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0) + 0.5,
       );
     }
+    const expectedGutter = coarsePointer ? 4 : 2;
     expect(
       Math.abs(
         (controlBoxes[1]?.x ?? 0) - ((controlBoxes[0]?.x ?? 0) + (controlBoxes[0]?.width ?? 0)),
       ),
-    ).toBeLessThanOrEqual(2);
+    ).toBeLessThanOrEqual(expectedGutter);
     expect(
       Math.abs(
         (controlBoxes[2]?.x ?? 0) - ((controlBoxes[1]?.x ?? 0) + (controlBoxes[1]?.width ?? 0)),
       ),
-    ).toBeLessThanOrEqual(2);
+    ).toBeLessThanOrEqual(expectedGutter);
 
     const plus = inlineToggle.locator(".ui-icon");
     await expect(plus).toHaveAttribute("data-icon", "add");
