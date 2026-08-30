@@ -480,6 +480,7 @@ html[data-tree-grabbing="true"] * {
   background: var(--color-surface-raised);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-drag);
+  opacity: 0.8;
   cursor: grabbing;
 }
 

@@ -671,7 +671,8 @@ compose `useDraggable` avec la cible intérieure sur la ligne elle-même. Le
 capteur pointeur conserve son seuil d'activation ; les boutons, champs et menus
 imbriqués n'amorcent pas un déplacement, tandis que les actions de menu gardent
 les déplacements clavier explicites. La ligne affiche un curseur de prise ; dès
-qu'un déplacement est amorcé, `DragOverlay` rend un fantôme de la ligne sous le
+qu'un déplacement est amorcé, `DragOverlay` rend un fantôme un peu transparent
+de la ligne sous le
 pointeur, la ligne d'origine reste en place atténuée, et un marqueur document
 force le curseur de prise en cours y compris au-dessus d'autres commandes. Le
 DnD des blocs de l'éditeur reste inchangé.

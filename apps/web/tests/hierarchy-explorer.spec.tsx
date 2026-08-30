@@ -81,6 +81,7 @@ describe("hierarchy item identity geometry", () => {
     expect(css).toMatch(/\.workspace-navigation \.tree-row\s*\{[^}]*cursor:\s*grab/u);
     expect(css).toContain('html[data-tree-grabbing="true"]');
     expect(css).toContain(".tree-drag-phantom");
+    expect(css).toMatch(/\.tree-drag-phantom\s*\{[^}]*opacity:\s*0\.8/u);
     expect(prototype).toMatch(/\.mn-v3-row\s*\{[^}]*cursor:\s*grab/u);
     expect(css).toMatch(
       /\.navigation-item-actions\[data-inline-open="true"\][^{]*\.workspace-page-attachments-trigger[^}]*visibility:\s*hidden/u,

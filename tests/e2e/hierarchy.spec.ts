@@ -127,6 +127,7 @@ test.describe("hierarchy organization (US1)", () => {
     const phantom = page.getByTestId("tree-drag-phantom");
     await expect(phantom).toBeVisible();
     await expect(phantom).toContainText(second);
+    await expect(phantom).toHaveCSS("opacity", "0.8");
     await expect(page.locator("html")).toHaveAttribute("data-tree-grabbing", "true");
 
     const search = page.locator(".workspace-navigation__search");
