@@ -248,9 +248,7 @@ for (const file of ignoredSources) {
 
 // Policy 5: LF line endings only.
 const gitAttributesPath = path.join(repoRoot, ".gitattributes");
-const gitAttributes = existsSync(gitAttributesPath)
-  ? readFileSync(gitAttributesPath, "utf8")
-  : "";
+const gitAttributes = existsSync(gitAttributesPath) ? readFileSync(gitAttributesPath, "utf8") : "";
 if (!/^\*\s+text=auto\s+eol=lf\s*$/m.test(gitAttributes)) {
   failures.push(".gitattributes must pin `* text=auto eol=lf` so checkouts stay LF");
 }
