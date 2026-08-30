@@ -379,6 +379,12 @@ une page sur ordinateur puis sur un écran de 320 pixels.
 21. **Given** une page dont la préparation n'est pas instantanée, **When** elle
     s'ouvre, **Then** la surface conserve son titre et affiche seulement un
     squelette éditorial neutre sans bannière colorée ni déplacement du shell.
+22. **Given** la liste des pages, **When** le propriétaire survole une ligne,
+    **Then** le pointeur indique qu'il peut la saisir sur toute sa surface ;
+    **When** il la déplace, **Then** un fantôme de cette ligne suit le pointeur
+    jusqu'à la destination, les repères avant/intérieur/après restent visibles,
+    et le curseur de prise en cours reste affiché même au-dessus d'une autre
+    commande.
 
 ---
 
@@ -839,9 +845,13 @@ en charge, une fois sans pointeur puis une fois au toucher.
   synchronisation.
 - **FR-090**: Une ligne de page ou de dossier dans l'arborescence MUST être
   déplaçable au pointeur depuis sa surface, sans poignée de déplacement
-  permanente. Le seuil de geste MUST distinguer un clic d'un glisser-déposer,
-  les commandes imbriquées MUST rester activables et les alternatives clavier
-  de réorganisation MUST rester disponibles.
+  permanente. Le pointeur MUST afficher un curseur de prise sur toute la
+  surface de la ligne. Pendant le déplacement, un fantôme de cette ligne MUST
+  suivre le pointeur, les repères de destination MUST rester visibles, et le
+  curseur MUST rester celui d'une prise en cours y compris au-dessus d'autres
+  commandes. Le seuil de geste MUST distinguer un clic d'un glisser-déposer,
+  les commandes imbriquées MUST rester activables hors déplacement et les
+  alternatives clavier de réorganisation MUST rester disponibles.
 - **FR-091**: Les actions contextuelles d'une page MUST apparaître dans l'ordre
   pièces jointes, création enfant, menu complémentaire ; un dossier MUST
   conserver l'ordre création enfant, menu complémentaire. La création enfant
@@ -1313,6 +1323,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   n'affichent aucune bannière colorée dans le canevas ; lorsqu'une attente est
   artificiellement prolongée, le squelette conserve le titre et déplace le
   premier bloc final de moins d'un pixel horizontalement.
+- **SC-042**: Sur un pointeur fin, le survol d'une ligne d'arbre affiche un
+  curseur de prise ; pendant le déplacement, un fantôme de cette ligne reste
+  visible jusqu'au dépôt et le curseur de prise en cours est conservé y compris
+  au-dessus d'une autre commande visible de la navigation.
 
 ## Assumptions
 

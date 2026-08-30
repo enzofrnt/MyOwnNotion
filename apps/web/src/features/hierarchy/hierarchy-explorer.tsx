@@ -204,6 +204,8 @@ function treeDragItems(nodes: readonly TreeNode[]): TreeDragItem[] {
         parentId,
         siblingIndex,
         canContainChildren: node.item.kind !== "file",
+        kind: node.item.kind,
+        icon: node.item.icon,
       },
       ...treeDragItems(node.children),
     ];

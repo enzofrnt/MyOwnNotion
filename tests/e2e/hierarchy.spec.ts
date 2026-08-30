@@ -107,6 +107,7 @@ test.describe("hierarchy organization (US1)", () => {
     await sourceRow.hover();
     await expect(page.getByTestId(`drag-${second}`)).toHaveCount(0);
     const dragSurface = sourceRow.locator(".tree-name");
+    await expect(dragSurface).toHaveCSS("cursor", "grab");
     const target = page.getByTestId(`drop-before-${first}`);
     const sourceBox = await dragSurface.boundingBox();
     const targetBox = await target.boundingBox();
@@ -123,14 +124,38 @@ test.describe("hierarchy organization (US1)", () => {
       (sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2 - 8,
       { steps: 2 },
     );
+    const phantom = page.getByTestId("tree-drag-phantom");
+    await expect(phantom).toBeVisible();
+    await expect(phantom).toContainText(second);
+    await expect(page.locator("html")).toHaveAttribute("data-tree-grabbing", "true");
+
+    const search = page.locator(".workspace-navigation__search");
+    const searchBox = await search.boundingBox();
+    expect(searchBox).not.toBeNull();
+    const searchX = (searchBox?.x ?? 0) + (searchBox?.width ?? 0) / 2;
+    const searchY = (searchBox?.y ?? 0) + (searchBox?.height ?? 0) / 2;
+    await page.mouse.move(searchX, searchY, { steps: 6 });
+    await expect(phantom).toBeVisible();
+    const cursorOverSearch = await page.evaluate(
+      ({ x, y }) => {
+        const node = document.elementFromPoint(x, y);
+        return node === null ? "" : getComputedStyle(node).cursor;
+      },
+      { x: searchX, y: searchY },
+    );
+    expect(cursorOverSearch).toBe("grabbing");
+
     await page.mouse.move(
       (targetBox?.x ?? 0) + (targetBox?.width ?? 0) / 2,
       (targetBox?.y ?? 0) + (targetBox?.height ?? 0) / 2,
       { steps: 8 },
     );
     await expect(target).toHaveAttribute("data-active", "true");
+    await expect(phantom).toBeVisible();
     await page.mouse.up();
 
+    await expect(phantom).toHaveCount(0);
+    await expect(page.locator("html")).not.toHaveAttribute("data-tree-grabbing", "true");
     await expectTreeOrder(page, second, first);
     await waitForSynchronized(page);
   });

@@ -417,9 +417,20 @@
   gap: var(--space-1);
   border: 0;
   border-radius: var(--radius-sm);
-  cursor: default;
+  cursor: grab;
+  user-select: none;
   touch-action: pan-y;
   transition: border-radius var(--tree-join-radius-duration, 70ms) ease;
+}
+
+.workspace-navigation .tree-row:active {
+  cursor: grabbing;
+}
+
+.workspace-navigation
+  .tree-row
+  :is(button, a, input, select, textarea, [role="menuitem"], [data-no-tree-drag]) {
+  cursor: pointer;
 }
 
 .workspace-navigation .tree-row:hover,
@@ -443,6 +454,42 @@
 .workspace-navigation .tree-row[data-dragging="true"] {
   cursor: grabbing;
   opacity: 0.52;
+}
+
+html[data-tree-grabbing="true"],
+html[data-tree-grabbing="true"] * {
+  /* The held-row cursor must win over nested `.ui-button { cursor: pointer }`. */
+  /* biome-ignore lint/complexity/noImportantStyles: grabbing must outrank every nested control */
+  cursor: grabbing !important;
+}
+
+.tree-drag-overlay {
+  cursor: grabbing;
+}
+
+.tree-drag-phantom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  min-height: 2.375rem;
+  padding: 0 var(--space-1);
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-drag);
+  cursor: grabbing;
+}
+
+.tree-drag-phantom .tree-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace-navigation .tree-row[data-drop-target="true"] {

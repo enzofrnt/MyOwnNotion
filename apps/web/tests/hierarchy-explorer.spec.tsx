@@ -30,6 +30,8 @@ describe("hierarchy item identity geometry", () => {
     expect(source).toContain("rowDragListeners");
     expect(source).toContain("data-attachments-open");
     expect(source).toContain("<NavigationInlineCreate");
+    expect(source).toContain("kind: node.item.kind");
+    expect(source).toContain("icon: node.item.icon");
 
     const attachments = source.indexOf('className="workspace-page-attachments-trigger"');
     const creation = source.indexOf("<NavigationInlineCreate");
@@ -76,6 +78,10 @@ describe("hierarchy item identity geometry", () => {
     expect(prototype).toContain('data-lucide="paperclip"');
     expect(prototype).toContain("transition: max-height 210ms ease");
     expect(prototype).toContain("transform: rotate(45deg)");
+    expect(css).toMatch(/\.workspace-navigation \.tree-row\s*\{[^}]*cursor:\s*grab/u);
+    expect(css).toContain('html[data-tree-grabbing="true"]');
+    expect(css).toContain(".tree-drag-phantom");
+    expect(prototype).toMatch(/\.mn-v3-row\s*\{[^}]*cursor:\s*grab/u);
     expect(css).toMatch(
       /\.navigation-item-actions\[data-inline-open="true"\][^{]*\.workspace-page-attachments-trigger[^}]*visibility:\s*hidden/u,
     );

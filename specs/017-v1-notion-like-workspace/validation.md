@@ -1132,6 +1132,19 @@ Le nouveau gate complet doit encore être exécuté sur le commit exact destiné
 second push ; la CI, la fusion, la vérification de `main` et le redéploiement
 restent les frontières de clôture de T314.
 
+### Prise de ligne, fantôme et curseur de déplacement — 2026-08-30
+
+La ligne d'arbre affiche désormais un curseur de prise sur toute sa surface.
+Pendant le glisser, un fantôme nommé suit le pointeur, la ligne d'origine reste
+en place atténuée, et le curseur de prise en cours est forcé y compris au-dessus
+d'une autre commande de la navigation (FR-090, SC-042, US1/AC22).
+
+| Couche | Commande | Résultat |
+| --- | --- | --- |
+| Composants ciblés | `bun run --bun vitest run --project web tests/hierarchy-explorer.spec.tsx tests/tree-drag-preview.spec.tsx tests/tree-drag-drop.spec.ts` | 3 fichiers, 19 tests passés ; curseur de prise, marqueur document, overlay fantôme et prise depuis la ligne plutôt qu'une commande imbriquée |
+| Journeys ciblés | `PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright" MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts -- --project=chromium-desktop --project=chromium-mobile --project=firefox-desktop tests/e2e/hierarchy.spec.ts -g "reorders siblings by dragging"` | 3/3 profils passés ; curseur `grab`, fantôme nommé, curseur `grabbing` au-dessus de Rechercher, puis dépôt |
+| WebKit hôte | même journey `--project=webkit-desktop` | indisponible sur cet hôte WSL (bibliothèques GTK/WebKit manquantes) ; la CI conserve WebKit |
+
 ## Limites encore ouvertes
 
 Cette validation ne clôt pas les tâches transverses de la phase 10 : budgets de

@@ -510,9 +510,11 @@ fermé, les sections de raccourcis visibles ou repliées et les branches
 dépliées sont restaurés sur l'appareil.
 
 La surface complète d'une ligne sert de prise de déplacement au pointeur ; la
-barre latérale n'ajoute pas de poignée à six points devant l'identité. Un geste
-court ouvre l'élément et un glissement révèle les destinations avant, dans et
-après. Les actions à droite restent compactes : pièces jointes lorsqu'elles
+barre latérale n'ajoute pas de poignée à six points devant l'identité. Le
+pointeur indique cette prise sur toute la ligne. Un geste court ouvre l'élément
+et un glissement emporte un fantôme de la ligne, révèle les destinations avant,
+dans et après, et conserve le curseur de prise en cours même au-dessus d'autres
+commandes. Les actions à droite restent compactes : pièces jointes lorsqu'elles
 existent, création d'un enfant, puis menu complémentaire. La création d'une
 page ou d'un dossier enfant se choisit dans une surface intégrée à la ligne qui
 ne décale ni son titre ni ses voisines.

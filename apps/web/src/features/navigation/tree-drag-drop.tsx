@@ -3,15 +3,20 @@ import {
   closestCenter,
   DndContext,
   type DragEndEvent,
+  DragOverlay,
   PointerSensor,
   pointerWithin,
+  useDndContext,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
 import type { ReactNode, PointerEvent as ReactPointerEvent, RefCallback } from "react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { ItemIcon, type ItemIconKind } from "../../ui/item-icon.tsx";
+
+export const TREE_GRABBING_ATTRIBUTE = "data-tree-grabbing";
 
 export interface TreeDragItem {
   readonly id: string;
@@ -19,6 +24,17 @@ export interface TreeDragItem {
   readonly parentId: string | null;
   readonly siblingIndex: number;
   readonly canContainChildren: boolean;
+  readonly kind?: ItemIconKind;
+  readonly icon?: string | null;
+}
+
+export function setDocumentTreeGrabbing(active: boolean): void {
+  if (typeof document === "undefined") return;
+  if (active) {
+    document.documentElement.setAttribute(TREE_GRABBING_ATTRIBUTE, "true");
+  } else {
+    document.documentElement.removeAttribute(TREE_GRABBING_ATTRIBUTE);
+  }
 }
 
 export type TreeDropZone = "before" | "inside" | "after";
@@ -175,8 +191,25 @@ export function TreeDragDropProvider({
   readonly onRejected?: (intent: Extract<TreeDropIntent, { readonly kind: "rejected" }>) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const dragging = useRef(false);
+
+  useEffect(() => {
+    const releaseHold = (): void => {
+      if (!dragging.current) setDocumentTreeGrabbing(false);
+    };
+    window.addEventListener("pointerup", releaseHold, true);
+    window.addEventListener("pointercancel", releaseHold, true);
+    return () => {
+      window.removeEventListener("pointerup", releaseHold, true);
+      window.removeEventListener("pointercancel", releaseHold, true);
+      dragging.current = false;
+      setDocumentTreeGrabbing(false);
+    };
+  }, []);
 
   const finishDrag = (event: DragEndEvent): void => {
+    dragging.current = false;
+    setDocumentTreeGrabbing(false);
     if (event.over === null) return;
     const intent = resolveTreeDrop(items, String(event.active.id), String(event.over.id));
     if (intent === null) return;
@@ -192,10 +225,41 @@ export function TreeDragDropProvider({
       sensors={sensors}
       collisionDetection={treeCollisionDetection}
       autoScroll
+      onDragStart={() => {
+        dragging.current = true;
+        setDocumentTreeGrabbing(true);
+      }}
+      onDragCancel={() => {
+        dragging.current = false;
+        setDocumentTreeGrabbing(false);
+      }}
       onDragEnd={finishDrag}
     >
       {children}
+      <TreeDragOverlay items={items} />
     </DndContext>
+  );
+}
+
+function TreeDragOverlay({ items }: { readonly items: readonly TreeDragItem[] }) {
+  const { active } = useDndContext();
+  const item =
+    active === null ? undefined : items.find((candidate) => candidate.id === String(active.id));
+  const width = active?.rect.current.initial?.width;
+  return (
+    <DragOverlay className="tree-drag-overlay" dropAnimation={null} zIndex={60}>
+      {item === undefined ? null : (
+        <div
+          className="tree-drag-phantom"
+          data-testid="tree-drag-phantom"
+          aria-hidden="true"
+          style={width === undefined ? undefined : { width }}
+        >
+          <ItemIcon kind={item.kind ?? "page"} icon={item.icon ?? null} size="tree" />
+          <span className="tree-name">{item.name}</span>
+        </div>
+      )}
+    </DragOverlay>
   );
 }
 
@@ -247,6 +311,7 @@ export function TreeDropTarget({
       ) {
         return;
       }
+      setDocumentTreeGrabbing(true);
       draggable.listeners?.["onPointerDown"]?.(event);
     },
     [draggable.listeners],
