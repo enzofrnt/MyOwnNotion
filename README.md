@@ -55,6 +55,19 @@ bun run db:migrate
 bun run dev
 ```
 
+Pour le HTTPS local (passkeys, cookie `__Host-`), une stack de développement
+séparée lance PostgreSQL, l’API et Vite, et Caddy. Elle reste détachée :
+Bun `--watch` et le HMR de Vite rechargent le code dans les conteneurs.
+
+```bash
+bun run dev:stack
+```
+
+Ouvrir `https://localhost:8443`. Au premier passage, faire confiance à
+l’autorité locale : `bun run dev:trust`. Journaux : `bun run dev:stack:logs`.
+Arrêt : `bun run dev:stack:down`. Pour vider Postgres, les fichiers et les
+sauvegardes de cette stack : `bun run dev:stack:reset`.
+
 `bun --version` doit afficher exactement `1.4.0`. Avant de pousser une
 modification de code, de dépendance, de build, de configuration ou de
 déploiement, exécuter la porte complète :

@@ -12,6 +12,7 @@ commands you run locally, and what blocks a merge.
 | Format + lint (TS/TSX/JSON/CSS) | Biome | `biome.jsonc` |
 | Types | TypeScript strict | `tsconfig.base.json` |
 | Shell | ShellCheck + shfmt, pinned versions | `scripts/ci/check-shell.ts`, `.github/workflows/ci.yml` |
+| Line endings | LF only | `.gitattributes` (`* text=auto eol=lf`), `.editorconfig` |
 | Tests | Vitest + fast-check + Playwright | `vitest.config.ts`, `playwright.config.ts` |
 | Database | PostgreSQL 18 | `compose.yaml` |
 | Sync protocol | version 3 | `packages/domain/src/sync/protocol-version.ts` |
@@ -90,6 +91,33 @@ bun run dev
 ```
 
 Every published port binds to `127.0.0.1` only.
+
+### HTTPS development stack (passkeys)
+
+`http://127.0.0.1:5173` is not a secure context, so the browser will not offer
+passkeys. The local helper `compose.dev.yaml` runs PostgreSQL, the schema job,
+the Bun API and Vite with hot reload, and a small Caddy with an internal
+certificate. The Compose project stays detached: containers keep running, and
+file edits are picked up by `bun --watch` and Vite HMR inside those processes.
+
+```bash
+bun run dev:stack
+```
+
+Open **https://localhost:8443** — the hostname must be `localhost`, not an IP.
+Trust Caddy's local CA once:
+
+```bash
+bun run dev:trust
+```
+
+Follow container logs with `bun run dev:stack:logs` without attaching the
+project. Stop the stack with `bun run dev:stack:down`. Wipe the development
+database, encrypted files, and local backups (Caddy's CA stays) with
+`bun run dev:stack:reset`. A lockfile or image change needs a deliberate
+`docker compose -f compose.dev.yaml build`, not a container restart on every
+edit. This helper is not the official deployment; `compose.yaml` still
+publishes HTTP only.
 
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.

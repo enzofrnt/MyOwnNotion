@@ -181,7 +181,9 @@ du plan et des tests concernés.
   canonique facultative contient un seul grapheme emoji Unicode et se retrouve
   dans l'arborescence, l'en-tête de page, la recherche et toutes les
   représentations de cette identité. L'absence d'emoji utilise l'icône de type
-  existante.
+  existante. Dans l'arborescence et les représentations compactes, un emoji
+  conserve l'icône de type en petit overlay. Sur le canevas, le type est un
+  libellé proche de l'emoji, pas un badge sur l'emoji.
 - Q: Où le chevron d'une branche apparaît-il par rapport à son icône ? → R:
   Dans le même emplacement fixe. Lorsqu'une branche est ciblée au pointeur ou
   au clavier, le chevron remplace visuellement l'emoji ou l'icône sans ajouter
@@ -238,7 +240,9 @@ du plan et des tests concernés.
   visible, avec sa propre teinte et ses arrondis, qui contient réellement trois
   commandes — page, dossier, même `+` devenu croix. Cette enveloppe reste plate,
   sans ombre extérieure ni lecture de popover détaché ; une respiration
-  régulière d’un pixel l’entoure et sépare ses commandes.
+  régulière de 2 px l’entoure et sépare ses commandes. Quand la surface
+  s’étend sur le titre, les points de suspension de ce titre reculent en
+  même temps.
 - Q: Quelle commande et quel mouvement représentent les pièces jointes ? → R:
   Un trombone discret, identique à la maquette. Le panneau raccordé sous la
   ligne gagne et perd progressivement sa hauteur et son opacité ; il ne surgit
@@ -251,19 +255,22 @@ du plan et des tests concernés.
   propre zone sous le chrome supérieur, tandis que la barre latérale conserve
   sa position et fait défiler seulement sa liste lorsque celle-ci dépasse la
   hauteur disponible. Le document racine ne doit pas entraîner l'ensemble du
-  shell.
+  shell. Une page trop courte pour dépasser cette zone MUST ne pas inventer
+  de défilement.
 - Q: Où se place la commande de réouverture de la barre latérale ? → R: Dans
   la ligne supérieure du contenu, à l'emplacement préparé par le chrome ; elle
   ne flotte pas arbitrairement au-dessus du titre ou du document.
-- Q: Comment fonctionne `+ Nouveau` à la racine de Notes ? → R: Comme la
-  création enfant validée : le même `+` tourne progressivement en croix et
-  révèle les choix page et dossier dans une surface compacte. Aucun champ de
-  nom préalable n'est demandé.
+- Q: Comment fonctionne la création à la racine de Notes ? → R: Le même `+`
+  que sur une ligne de page siège à droite du titre `Notes` et se déplie vers
+  la gauche. Il tourne progressivement en croix et révèle les choix page et
+  dossier dans une surface compacte. Aucun champ de nom préalable n'est
+  demandé. Il n'existe plus de rangée `+ Nouveau` dédiée sous le titre.
 - Q: Que se passe-t-il après toute création de page ou dossier ? → R: L'élément
   créé devient immédiatement actif et son grand titre reçoit le curseur avec
   un brouillon vide. Si le propriétaire quitte ce titre sans écrire, le
-  libellé `Sans titre` apparaît alors. Cette règle est commune à `+ Nouveau`,
-  `+ Ajouter dans cette page` et `/page`; pour `/page`, la navigation attend
+  libellé `Sans titre` apparaît alors. Cette règle est commune au `+` de
+  `Notes`, à `+ Ajouter dans cette page` et à `/page`; pour `/page`, la
+  navigation attend
   toujours que la référence de la page source soit durable.
 - Q: Quel chargement est acceptable à l'ouverture d'une page ? → R: Une page
   locale déjà disponible doit apparaître sans bannière de chargement. Si une
@@ -362,7 +369,7 @@ une page sur ordinateur puis sur un écran de 320 pixels.
 18. **Given** la barre latérale masquée sur écran large, **When** le propriétaire
     consulte le contenu, **Then** l'unique commande de réouverture reste alignée
     dans la ligne supérieure du chrome et ne recouvre ni le titre ni un bloc.
-19. **Given** `+ Nouveau` ou `+ Ajouter dans cette page`, **When** le propriétaire
+19. **Given** le `+` de `Notes` ou `+ Ajouter dans cette page`, **When** le propriétaire
     choisit page ou dossier, **Then** aucun nom préalable n'est demandé,
     l'élément devient actif et le curseur apparaît dans son grand titre vide ;
     quitter ce titre sans saisir affiche alors `Sans titre`.
@@ -372,6 +379,13 @@ une page sur ordinateur puis sur un écran de 320 pixels.
 21. **Given** une page dont la préparation n'est pas instantanée, **When** elle
     s'ouvre, **Then** la surface conserve son titre et affiche seulement un
     squelette éditorial neutre sans bannière colorée ni déplacement du shell.
+22. **Given** la liste des pages, **When** le propriétaire survole une ligne,
+    **Then** le pointeur indique qu'il peut la saisir sur toute sa surface ;
+    **When** il la déplace, **Then** un fantôme un peu transparent de cette ligne
+    suit le pointeur
+    jusqu'à la destination, les repères avant/intérieur/après restent visibles,
+    et le curseur de prise en cours reste affiché même au-dessus d'une autre
+    commande.
 
 ---
 
@@ -777,7 +791,8 @@ en charge, une fois sans pointeur puis une fois au toucher.
   afficher aucun état vide sous sa ligne. La sélection courante MUST être
   indiquée par la surface complète de la ligne sans barre, arc ou bordure
   d'accent latérale ; l'indentation et les guides discrets MUST suffire à
-  expliquer les niveaux parent-enfant.
+  expliquer les niveaux parent-enfant. Chaque guide descendant MUST rester
+  aligné sur le centre de l'emoji du parent.
 - **FR-083**: La création d'une référence interne et celle d'un lien Web MUST
   utiliser deux actions nommées et deux outils compacts distincts. Le premier
   MUST rechercher uniquement une page ou un dossier par nom ou chemin ; le
@@ -796,7 +811,12 @@ en charge, une fois sans pointeur puis une fois au toucher.
   icône MUST être modifiable et retirable depuis la page et les actions de
   l'élément, converger entre appareils, rester disponible hors ligne et être
   conservée par export, sauvegarde et restauration. Aucun lien ne MUST posséder
-  une copie indépendante de cette icône.
+  une copie indépendante de cette icône. Dans l'arborescence et les
+  représentations compactes, un emoji MUST conserver l'icône de type page ou
+  dossier superposée en bas à droite, de façon petite et atténuée. Le canevas
+  MUST ne pas superposer ce badge à l'emoji : le type y est porté par le
+  libellé d'identité. Sans emoji, l'icône de type demeure le glyphe principal
+  et ne MUST pas être dupliquée.
 - **FR-086**: L'arborescence MUST réserver un seul emplacement stable à
   l'emoji, l'icône de type et au chevron de branche. Pour un élément ayant des
   enfants, le chevron MUST remplacer visuellement l'icône lorsque la commande
@@ -804,10 +824,11 @@ en charge, une fois sans pointeur puis une fois au toucher.
   feuille MUST ne rendre aucun chevron ni espace supplémentaire propre au
   dépliage. Une branche MUST conserver un unique chevron orienté vers la droite
   et le faire tourner progressivement de 90 degrés pour l’état ouvert, dans la
-  même surface compacte de survol ou de focus que celle de la référence
-  versionnée ; elle ne MUST pas remplacer brutalement une icône droite par une
-  seconde icône basse. Cette surface MUST être perceptible au survol, au focus
-  et lorsque la branche est ouverte.
+  même surface compacte de survol que celle de la référence versionnée ; elle
+  ne MUST pas remplacer brutalement une icône droite par une seconde icône
+  basse. Cette surface MUST noircir seulement au survol de la commande, jamais
+  du seul fait que la branche est ouverte ou que le bouton reste focalisé après
+  un clic.
 - **FR-087**: Une référence interne MUST afficher dynamiquement le titre et
   l'icône actuels de sa cible et MUST interdire leur édition indépendante. Une
   référence explicite vers un autre emplacement MUST porter un indicateur de
@@ -825,9 +846,13 @@ en charge, une fois sans pointeur puis une fois au toucher.
   synchronisation.
 - **FR-090**: Une ligne de page ou de dossier dans l'arborescence MUST être
   déplaçable au pointeur depuis sa surface, sans poignée de déplacement
-  permanente. Le seuil de geste MUST distinguer un clic d'un glisser-déposer,
-  les commandes imbriquées MUST rester activables et les alternatives clavier
-  de réorganisation MUST rester disponibles.
+  permanente. Le pointeur MUST afficher un curseur de prise sur toute la
+  surface de la ligne. Pendant le déplacement, un fantôme un peu transparent de
+  cette ligne MUST suivre le pointeur, les repères de destination MUST rester
+  visibles, et le curseur MUST rester celui d'une prise en cours y compris
+  au-dessus d'autres commandes. Le seuil de geste MUST distinguer un clic d'un glisser-déposer,
+  les commandes imbriquées MUST rester activables hors déplacement et les
+  alternatives clavier de réorganisation MUST rester disponibles.
 - **FR-091**: Les actions contextuelles d'une page MUST apparaître dans l'ordre
   pièces jointes, création enfant, menu complémentaire ; un dossier MUST
   conserver l'ordre création enfant, menu complémentaire. La création enfant
@@ -838,11 +863,15 @@ en charge, une fois sans pointeur puis une fois au toucher.
   sélectionnée ; elle MAY recouvrir la fin du titre vers la gauche et MUST
   prendre temporairement la place de la commande de pièces jointes comme dans
   la référence versionnée. Sur desktop, elle MUST contenir trois commandes de
-  28 px, une respiration périphérique de 1 px et deux séparations internes de
-  1 px, soit une enveloppe de 88 × 30 px. Son fond MUST être visible et distinct
-  de la ligne sélectionnée ; elle MUST rester plate, sans ombre extérieure ni
-  fond de popover détaché, et ses trois commandes MUST être des enfants du même
-  groupe visuel.
+  28 px et une respiration uniforme de 2 px autour et entre ces commandes, soit
+  une enveloppe de 92 × 32 px. L'arrondi des commandes MUST rester concentrique
+  avec celui de l'enveloppe : rayon interne = rayon externe − respiration. Quand
+  la surface s'étend, le titre MUST céder la place et tronquer avec des points
+  de suspension au même rythme, plutôt que d'être recouvert. Son fond MUST être
+  visible et distinct de la ligne sélectionnée ; elle MUST rester plate, sans
+  ombre extérieure ni fond de popover détaché, et ses trois commandes MUST être
+  des enfants du même groupe visuel. Un pointeur hors de cette surface MUST la
+  refermer, comme Échap.
 - **FR-092**: Le panneau de pièces jointes ouvert depuis une page MUST prolonger
   visuellement sa ligne sélectionnée avec la même largeur, sans modifier la
   hauteur, la largeur ou la position de cette ligne. Il MUST afficher un en-tête
@@ -851,7 +880,12 @@ en charge, une fois sans pointeur puis une fois au toucher.
   fichier sans transformer l'arborescence en panneau de gestion complet. Sa
   commande MUST employer l’icône trombone de la référence versionnée, avec une
   présence discrète au repos et un état explicite au survol, au focus ou quand
-  le panneau est ouvert.
+  le panneau est ouvert. Les coins inférieurs de la ligne sélectionnée MUST
+  rester plats tant que la hauteur restante dépasse deux rayons de cette ligne ;
+  ils MUST alors retrouver leur arrondi pendant exactement le temps de
+  fermeture encore dû, afin que l'arrondi et la hauteur finissent ensemble.
+  L'ouverture et la fermeture MUST partager la même durée et la même courbe
+  pour la hauteur et l'opacité.
 - **FR-093**: Les descendants, la création en ligne et les pièces jointes MUST
   s'ouvrir et se fermer avec des transitions courtes, progressives et
   symétriques de la même famille visuelle que la référence versionnée. Leur
@@ -864,7 +898,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   emoji canonique et son titre au moyen du même composant d'identité et des
   mêmes règles de validation que pour une page. La modification MUST utiliser
   les mutations d'item existantes et se refléter immédiatement dans toutes les
-  représentations de cet item.
+  représentations de cet item. Le chrome supérieur MUST rester compact, sans
+  second titre ni libellé de type. Le canevas d'une page ou d'un dossier MUST
+  afficher, juste au-dessus du grand titre et proche de l'emoji, un libellé
+  discret « Page » ou « Dossier » précédé de la petite icône de type.
 - **FR-095**: Sur écran large, l’en-tête de la barre latérale MUST exposer une
   commande pour la masquer entièrement. Le contenu principal MUST récupérer
   progressivement l’espace libéré et exposer alors une commande persistante
@@ -885,11 +922,14 @@ en charge, une fois sans pointeur puis une fois au toucher.
   actif et son titre reçoit immédiatement le focus avec un brouillon vide. Le
   libellé `Sans titre` MUST apparaître seulement à la sortie si ce brouillon
   reste vide. `/page` MUST conserver sa frontière durable avant navigation.
-- **FR-098**: La commande racine `+ Nouveau` MUST révéler page et dossier sans
-  champ de nom préalable. Son `+` MUST devenir progressivement la croix de
-  fermeture dans une surface compacte de la même famille que la création
-  enfant, puis produire le mouvement inverse à la fermeture sans espace
-  résiduel.
+- **FR-098**: La commande racine MUST siéger à droite du libellé `Notes` du
+  titre de section, se déplier vers la gauche, réutiliser le même `+` que la
+  création enfant, et MUST révéler page et dossier sans champ de nom
+  préalable. Son `+` MUST devenir progressivement la croix de fermeture dans
+  une surface compacte de la même famille que la création enfant, puis
+  produire le mouvement inverse à la fermeture sans espace résiduel. Elle MUST
+  NOT occuper une rangée dédiée sous le titre ni afficher d'autre commande
+  visible dans ce titre.
 - **FR-099**: L'ouverture d'une page disponible localement MUST éviter tout
   statut coloré occupant le canevas. Si une attente asynchrone est encore
   observable, elle MUST conserver le titre et utiliser un squelette éditorial
@@ -1264,9 +1304,10 @@ en charge, une fois sans pointeur puis une fois au toucher.
   rectangle de la ligne varie de moins d’un pixel et tous les contrôles révélés
   restent à l’intérieur de ses limites supérieure, inférieure et droite ; le
   `+` et sa croix sont le même contrôle animé et la fermeture possède un état
-  intermédiaire visible. À l’état ouvert desktop, l’enveloppe mesure 88 × 30 px,
-  les trois commandes sont séparées d’un pixel, son fond calculé n’est pas
-  transparent et son ombre calculée vaut `none`.
+  intermédiaire visible. À l’état ouvert desktop, l’enveloppe mesure 92 × 32 px,
+  les trois commandes sont séparées et bordées du même 2 px, leurs arrondis
+  restent concentriques avec l’enveloppe, le titre tronque au même rythme, son
+  fond calculé n’est pas transparent et son ombre calculée vaut `none`.
 - **SC-038**: Dans les cas zéro, un et plusieurs fichiers, cent cycles du
   trombone conservent le rectangle de la ligne à moins d’un pixel, raccordent le
   panneau à la même largeur à moins d’un pixel, traversent une hauteur
@@ -1275,14 +1316,19 @@ en charge, une fois sans pointeur puis une fois au toucher.
   latérale, de son pied et du chrome supérieur varie de moins d'un pixel pendant
   que le contenu principal parcourt toute sa hauteur ; le document racine reste
   à sa position initiale et la liste de navigation peut défiler séparément.
-- **SC-040**: Cent créations réparties entre `+ Nouveau`, `+ Ajouter dans cette
-  page` et `/page` ouvrent toutes l'identité créée avec le titre vide ciblé ;
+- **SC-040**: Cent créations réparties entre le `+` de `Notes`, `+ Ajouter dans
+  cette page` et `/page` ouvrent toutes l'identité créée avec le titre vide ciblé ;
   cent sorties sans saisie produisent exactement une fois `Sans titre`, sans
   champ de nom préalable ni perte de la référence `/page`.
 - **SC-041**: Sur les cinq profils navigateur, cent ouvertures de pages locales
   n'affichent aucune bannière colorée dans le canevas ; lorsqu'une attente est
   artificiellement prolongée, le squelette conserve le titre et déplace le
   premier bloc final de moins d'un pixel horizontalement.
+- **SC-042**: Sur un pointeur fin, le survol d'une ligne d'arbre affiche un
+  curseur de prise ; pendant le déplacement, un fantôme un peu transparent de
+  cette ligne reste
+  visible jusqu'au dépôt et le curseur de prise en cours est conservé y compris
+  au-dessus d'une autre commande visible de la navigation.
 
 ## Assumptions
 

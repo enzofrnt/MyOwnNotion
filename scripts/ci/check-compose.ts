@@ -14,6 +14,9 @@
  *   4. images are selected by digest or exact tag, never `latest`;
  *   5. the loopback-HTTP cookie exception is enabled only by the development
  *      override, never by the official stack.
+ *
+ * `compose.dev.yaml` is a local HTTPS helper (Caddy + hot reload). It is not
+ * the official topology and is checked by `tests/contract/compose-dev.spec.ts`.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";

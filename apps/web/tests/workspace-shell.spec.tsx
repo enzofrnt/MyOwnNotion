@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { ProjectedItem } from "@myownnotion/client-core";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { createElement } from "react";
@@ -110,6 +111,21 @@ describe("workspace shell", () => {
     expect(markup).not.toContain('data-testid="page-context-actions"');
     expect(markup).not.toContain("Synchronisé");
     expect(markup).not.toContain("Plus d’actions");
+    expect(markup).not.toContain("workspace-page-header__identity");
+  });
+
+  it("keeps folder identity out of the chrome like a page", () => {
+    const markup = renderToStaticMarkup(
+      <PageHeader
+        title="Archives"
+        kind="folder"
+        breadcrumbs={[{ id: "archives", label: "Archives" }]}
+      />,
+    );
+    expect(markup).toContain('data-compact="true"');
+    expect(markup).toContain('aria-label="Fil d’Ariane"');
+    expect(markup).not.toContain("workspace-page-header__identity");
+    expect(markup).not.toContain('data-testid="active-item-heading"');
   });
 
   it("keeps loading geometry explicit instead of returning a blank page", () => {
@@ -152,6 +168,17 @@ describe("workspace shell", () => {
     expect(active.item?.id).toBe(page.id);
     expect(active.item?.name).toBe("Atlas 2027");
     expect(active.path.map((entry) => entry.name)).toEqual(["Archives", "Atlas 2027"]);
+  });
+
+  it("lets a short page fill the main pane without inventing extra scroll", () => {
+    const css = readFileSync(
+      new URL("../src/features/workspace/workspace.css", import.meta.url),
+      "utf8",
+    );
+
+    expect(css).toMatch(/\.workspace-main\[data-content-mode="page"\]\s*\{[^}]*padding:\s*0/u);
+    expect(css).toMatch(/\.workspace-page-canvas\s*\{[^}]*flex:\s*1 0 auto/u);
+    expect(css).not.toMatch(/\.workspace-page-canvas\s*\{[^}]*100dvh/u);
   });
 
   it("uses the documented desktop, tablet and mobile breakpoints", () => {

@@ -19,7 +19,7 @@ export interface ItemIconProps {
   readonly className?: string;
 }
 
-function fallbackName(kind: ItemIconKind): AppIconName {
+export function itemKindIconName(kind: ItemIconKind): AppIconName {
   if (kind === "folder") return "folder";
   if (kind === "file") return "file";
   return "fileText";
@@ -27,8 +27,9 @@ function fallbackName(kind: ItemIconKind): AppIconName {
 
 /**
  * One item identity renderer shared by navigation, search, page chrome and
- * internal references. The optional badge describes a reference; the emoji
- * remains a property of the target item itself.
+ * internal references. Compact surfaces keep a small type badge over the
+ * emoji; the canvas-sized glyph does not. The optional reference badge
+ * describes a link.
  */
 export function ItemIcon({
   className,
@@ -38,6 +39,7 @@ export function ItemIcon({
   size = "inline",
 }: ItemIconProps) {
   const canonicalIcon = kind === "file" ? null : (icon ?? null);
+  const showKindBadge = canonicalIcon !== null && kind !== "file" && size !== "page";
   return (
     <span
       className={classNames("item-icon", className)}
@@ -46,12 +48,17 @@ export function ItemIcon({
       aria-hidden="true"
     >
       {canonicalIcon === null ? (
-        <AppIcon name={fallbackName(kind)} size={size === "tree" ? "small" : "medium"} />
+        <AppIcon name={itemKindIconName(kind)} size={size === "tree" ? "small" : "medium"} />
       ) : (
         <span className="item-icon__emoji" data-item-emoji="true">
           {canonicalIcon}
         </span>
       )}
+      {showKindBadge ? (
+        <span className="item-icon__kind-badge" data-item-kind-badge={kind}>
+          <AppIcon name={itemKindIconName(kind)} size="small" />
+        </span>
+      ) : null}
       {reference ? (
         <span className="item-icon__reference-badge">
           <AppIcon name="reference" size="small" />
@@ -82,6 +89,7 @@ export function TreeItemIdentitySlot({
   const stopAndToggle = (event: MouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation();
     onToggle();
+    if (event.detail > 0) event.currentTarget.blur();
   };
   return (
     <span className="tree-item-identity-slot" data-branch={branch || undefined}>

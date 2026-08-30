@@ -11,7 +11,7 @@ import {
   createRootItem,
   ensureNavigationVisible,
   moveSelectedItemInto,
-  openRootCreation,
+  openRootDatabaseCreation,
   openWorkspace,
   renameItem,
   saveEntryProperties,
@@ -37,8 +37,7 @@ test("creates a typed database whose entry and relations keep canonical page ide
   await createRootItem(page, "folder", folderName);
   await createRootItem(page, "page", targetName);
 
-  await openRootCreation(page);
-  await page.getByTestId("new-root-database").click();
+  await openRootDatabaseCreation(page);
   const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
   await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();
@@ -119,8 +118,7 @@ test("announces the active entry count before trashing a database", async ({ pag
   const entryNames = [uniqueName("First entry"), uniqueName("Second entry")];
 
   await ensureNavigationVisible(page);
-  await openRootCreation(page);
-  await page.getByTestId("new-root-database").click();
+  await openRootDatabaseCreation(page);
   const createDatabase = page.getByRole("form", { name: "Créer une base de données" });
   await createDatabase.getByLabel("Créer une base de données").fill(databaseName);
   await createDatabase.getByRole("button", { name: "Créer la base de données" }).click();

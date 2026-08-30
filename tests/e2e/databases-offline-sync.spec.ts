@@ -12,7 +12,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   closeMobileNavigation,
   ensureNavigationVisible,
-  openRootCreation,
+  openRootDatabaseCreation,
   openSecondDevice,
   openWorkspace,
   openWorkspaceDiagnostics,
@@ -46,8 +46,7 @@ async function goOnline(page: Page): Promise<void> {
 
 async function createDatabase(page: Page, name: string): Promise<void> {
   await ensureNavigationVisible(page);
-  await openRootCreation(page);
-  await page.getByTestId("new-root-database").click();
+  await openRootDatabaseCreation(page);
   const form = page.getByRole("form", { name: "Créer une base de données" });
   await form.getByLabel("Créer une base de données").fill(name);
   await form.getByRole("button", { name: "Créer la base de données" }).click();

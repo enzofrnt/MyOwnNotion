@@ -2,7 +2,10 @@
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NavigationInlineCreate } from "../src/features/navigation/navigation-inline-create.tsx";
+import {
+  INLINE_CREATE_CLOSE_FALLBACK_MS,
+  NavigationInlineCreate,
+} from "../src/features/navigation/navigation-inline-create.tsx";
 
 describe("inline child creation", () => {
   let container: HTMLDivElement;
@@ -18,6 +21,7 @@ describe("inline child creation", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.useRealTimers();
   });
 
   it("groups page, folder and the rotated close command in one ordered surface", async () => {
@@ -119,12 +123,44 @@ describe("inline child creation", () => {
     expect(toggle?.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("closes when the pointer lands outside the cluster", async () => {
+    const onOpenChange = vi.fn();
+    const outside = document.createElement("button");
+    outside.type = "button";
+    outside.textContent = "Ailleurs";
+    document.body.append(outside);
+    await act(async () => {
+      root.render(
+        <NavigationInlineCreate
+          itemName="Projet"
+          open
+          onOpenChange={onOpenChange}
+          onCreatePage={() => undefined}
+          onCreateFolder={() => undefined}
+        />,
+      );
+    });
+
+    await act(async () => {
+      outside.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    onOpenChange.mockClear();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="new-page-inline-Projet"]')
+        ?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    });
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    outside.remove();
+  });
+
   it("reuses the same rotating control for root page and folder creation", async () => {
     await act(async () => {
       root.render(
         <NavigationInlineCreate
           itemName="Notes"
-          label="Nouveau"
           variant="root"
           open
           testIds={{
@@ -143,10 +179,90 @@ describe("inline child creation", () => {
     const cluster = container.querySelector('[data-testid="root-inline-create"]');
     expect(cluster?.getAttribute("data-variant")).toBe("root");
     expect(cluster?.getAttribute("data-open")).toBe("true");
-    expect(cluster?.querySelector(".navigation-inline-create__label")?.textContent).toBe("Nouveau");
+    expect(cluster?.querySelector(".navigation-inline-create__label")).toBeNull();
     expect(cluster?.querySelector('[data-testid="toggle-root-creation"] .ui-icon')).not.toBeNull();
     expect(cluster?.querySelector('[data-testid="new-root-page"]')).not.toBeNull();
     expect(cluster?.querySelector('[data-testid="new-root-folder"]')).not.toBeNull();
     expect(container.querySelector('input[aria-label="Nom"]')).toBeNull();
+  });
+
+  it("keeps the expanded chrome while close motion runs after an outside click", async () => {
+    function ControlledCreation() {
+      const [open, setOpen] = useState(true);
+      return (
+        <NavigationInlineCreate
+          itemName="Projet"
+          open={open}
+          onOpenChange={setOpen}
+          onCreatePage={() => undefined}
+          onCreateFolder={() => undefined}
+        />
+      );
+    }
+
+    const outside = document.createElement("button");
+    outside.type = "button";
+    document.body.append(outside);
+    await act(async () => root.render(<ControlledCreation />));
+
+    const cluster = container.querySelector('[data-testid="inline-create-Projet"]');
+    expect(cluster?.getAttribute("data-open")).toBe("true");
+
+    await act(async () => {
+      outside.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    });
+
+    expect(cluster?.getAttribute("data-open")).toBe("true");
+    expect(cluster?.getAttribute("data-closing")).toBe("true");
+    expect(
+      cluster?.querySelector(".navigation-inline-create__toggle")?.getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(
+      cluster?.querySelector(".navigation-inline-create__choices")?.getAttribute("data-visible"),
+    ).toBe("true");
+
+    const surface = cluster?.querySelector(".navigation-inline-create__surface");
+    await act(async () => {
+      surface?.dispatchEvent(new TransitionEvent("transitionend", { propertyName: "width" }));
+    });
+
+    expect(cluster?.getAttribute("data-open")).toBeNull();
+    expect(cluster?.getAttribute("data-closing")).toBeNull();
+    expect(
+      cluster?.querySelector(".navigation-inline-create__choices")?.getAttribute("data-visible"),
+    ).toBeNull();
+    outside.remove();
+  });
+
+  it("still finishes the close if the engine omits transitionend", async () => {
+    vi.useFakeTimers();
+    function ControlledCreation() {
+      const [open, setOpen] = useState(true);
+      return (
+        <NavigationInlineCreate
+          itemName="Projet"
+          open={open}
+          onOpenChange={setOpen}
+          onCreatePage={() => undefined}
+          onCreateFolder={() => undefined}
+        />
+      );
+    }
+
+    await act(async () => root.render(<ControlledCreation />));
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="toggle-inline-create-Projet"]',
+    );
+    await act(async () => toggle?.click());
+
+    const cluster = container.querySelector('[data-testid="inline-create-Projet"]');
+    expect(cluster?.getAttribute("data-closing")).toBe("true");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(INLINE_CREATE_CLOSE_FALLBACK_MS);
+    });
+    expect(cluster?.getAttribute("data-closing")).toBeNull();
+    expect(cluster?.getAttribute("data-open")).toBeNull();
+    vi.useRealTimers();
   });
 });

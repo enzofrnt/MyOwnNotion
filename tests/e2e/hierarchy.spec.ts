@@ -107,6 +107,7 @@ test.describe("hierarchy organization (US1)", () => {
     await sourceRow.hover();
     await expect(page.getByTestId(`drag-${second}`)).toHaveCount(0);
     const dragSurface = sourceRow.locator(".tree-name");
+    await expect(dragSurface).toHaveCSS("cursor", "grab");
     const target = page.getByTestId(`drop-before-${first}`);
     const sourceBox = await dragSurface.boundingBox();
     const targetBox = await target.boundingBox();
@@ -123,14 +124,39 @@ test.describe("hierarchy organization (US1)", () => {
       (sourceBox?.y ?? 0) + (sourceBox?.height ?? 0) / 2 - 8,
       { steps: 2 },
     );
+    const phantom = page.getByTestId("tree-drag-phantom");
+    await expect(phantom).toBeVisible();
+    await expect(phantom).toContainText(second);
+    await expect(phantom).toHaveCSS("opacity", "0.8");
+    await expect(page.locator("html")).toHaveAttribute("data-tree-grabbing", "true");
+
+    const search = page.locator(".workspace-navigation__search");
+    const searchBox = await search.boundingBox();
+    expect(searchBox).not.toBeNull();
+    const searchX = (searchBox?.x ?? 0) + (searchBox?.width ?? 0) / 2;
+    const searchY = (searchBox?.y ?? 0) + (searchBox?.height ?? 0) / 2;
+    await page.mouse.move(searchX, searchY, { steps: 6 });
+    await expect(phantom).toBeVisible();
+    const cursorOverSearch = await page.evaluate(
+      ({ x, y }) => {
+        const node = document.elementFromPoint(x, y);
+        return node === null ? "" : getComputedStyle(node).cursor;
+      },
+      { x: searchX, y: searchY },
+    );
+    expect(cursorOverSearch).toBe("grabbing");
+
     await page.mouse.move(
       (targetBox?.x ?? 0) + (targetBox?.width ?? 0) / 2,
       (targetBox?.y ?? 0) + (targetBox?.height ?? 0) / 2,
       { steps: 8 },
     );
     await expect(target).toHaveAttribute("data-active", "true");
+    await expect(phantom).toBeVisible();
     await page.mouse.up();
 
+    await expect(phantom).toHaveCount(0);
+    await expect(page.locator("html")).not.toHaveAttribute("data-tree-grabbing", "true");
     await expectTreeOrder(page, second, first);
     await waitForSynchronized(page);
   });
@@ -164,8 +190,8 @@ test.describe("hierarchy organization (US1)", () => {
 
     const surface = row.locator(".navigation-inline-create__surface");
     const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-    const expectedSurfaceWidth = coarsePointer ? 132 : 88;
-    const expectedSurfaceHeight = coarsePointer ? 44 : 30;
+    const expectedSurfaceWidth = coarsePointer ? 140 : 92;
+    const expectedSurfaceHeight = coarsePointer ? 44 : 32;
     await expect
       .poll(async () => Math.round((await surface.boundingBox())?.width ?? 0))
       .toBe(expectedSurfaceWidth);
@@ -201,16 +227,17 @@ test.describe("hierarchy organization (US1)", () => {
         (surfaceBox?.x ?? 0) + (surfaceBox?.width ?? 0) + 0.5,
       );
     }
+    const expectedGutter = coarsePointer ? 4 : 2;
     expect(
       Math.abs(
         (controlBoxes[1]?.x ?? 0) - ((controlBoxes[0]?.x ?? 0) + (controlBoxes[0]?.width ?? 0)),
       ),
-    ).toBeLessThanOrEqual(1);
+    ).toBeLessThanOrEqual(expectedGutter);
     expect(
       Math.abs(
         (controlBoxes[2]?.x ?? 0) - ((controlBoxes[1]?.x ?? 0) + (controlBoxes[1]?.width ?? 0)),
       ),
-    ).toBeLessThanOrEqual(1);
+    ).toBeLessThanOrEqual(expectedGutter);
 
     const plus = inlineToggle.locator(".ui-icon");
     await expect(plus).toHaveAttribute("data-icon", "add");

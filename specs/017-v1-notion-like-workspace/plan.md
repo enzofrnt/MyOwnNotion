@@ -670,8 +670,12 @@ La convergence visuelle suivante retire `TreeDragHandle` de l'arborescence et
 compose `useDraggable` avec la cible intérieure sur la ligne elle-même. Le
 capteur pointeur conserve son seuil d'activation ; les boutons, champs et menus
 imbriqués n'amorcent pas un déplacement, tandis que les actions de menu gardent
-les déplacements clavier explicites. Le DnD des blocs de l'éditeur reste
-inchangé.
+les déplacements clavier explicites. La ligne affiche un curseur de prise ; dès
+qu'un déplacement est amorcé, `DragOverlay` rend un fantôme un peu transparent
+de la ligne sous le
+pointeur, la ligne d'origine reste en place atténuée, et un marqueur document
+force le curseur de prise en cours y compris au-dessus d'autres commandes. Le
+DnD des blocs de l'éditeur reste inchangé.
 
 Une primitive locale de région repliable conserve le contenu uniquement le
 temps de la transition de fermeture, applique une grille `0fr → 1fr` et retire
@@ -693,15 +697,18 @@ persisté reste l’unique source de vérité.
 
 `TreeItemIdentitySlot` rend toujours un seul `ChevronRight` et applique sa
 rotation par transform selon `aria-expanded`; il ne remplace plus le SVG par
-`ChevronDown`. Emoji et chevron restent superposés dans la même boîte, et le
-bouton reçoit les états de survol/focus de la maquette. La région des
-descendants et celle des pièces jointes partagent une durée de 210 ms, restent
+`ChevronDown`. Emoji et chevron restent superposés dans la même boîte. Le
+bouton noircit seulement au survol, comme `mn-v3-identity` ; un clic pointeur
+retire le focus pour que l'emoji revienne hors survol. La région des descendants
+et celle des pièces jointes partagent une durée de 210 ms `ease`, restent
 montées pendant la fermeture et exposent une vraie géométrie intermédiaire.
 
 La création enfant reprend la géométrie de la référence : cluster fixe de
-28 px, enveloppe plate et visible de 88 × 30 px ancrée à droite avant `…`, puis
-trois commandes de 28 px séparées et entourées par une respiration uniforme de
-1 px. Les deux choix occupent la gauche et le même `Plus` occupe la droite. À
+28 px, enveloppe plate et visible de 92 × 32 px ancrée à droite avant `…`, puis
+trois commandes de 28 px séparées et bordées du même 2 px, avec des arrondis
+concentriques (rayon interne = rayon externe − respiration). L'ouverture
+agrandit le cluster dans le flux pour que le titre tronque au même rythme.
+Les deux choix occupent la gauche et le même `Plus` occupe la droite. À
 l’ouverture, la commande
 de pièces jointes devient invisible afin que la surface reste incluse dans la
 ligne ; l’enveloppe possède une teinte distincte de la ligne active mais aucune
@@ -711,7 +718,10 @@ l’animation inverse.
 
 Enfin, la commande de pièces jointes utilise `Paperclip`. Son panneau compact
 porte la largeur et la marge de la ligne sélectionnée, raccorde ses coins
-supérieurs à cette ligne et anime simultanément hauteur et opacité. Le chargement
+supérieurs à cette ligne et anime hauteur et opacité sur 210 ms `ease` à
+l'ouverture comme à la fermeture. Le raccord d'arrondi reste plat jusqu'à deux
+rayons de hauteur restante, puis les coins reviennent pendant le temps de
+fermeture encore mesuré, pour finir avec la hauteur. Le chargement
 asynchrone des fichiers ne doit pas supprimer l’état intermédiaire : le cadre
 compact est présent dès le premier frame, puis son contenu se remplit sans
 remonter la ligne source.
@@ -726,7 +736,9 @@ strictement les mutations `item.rename` et `item.icon` existantes.
 
 La correction de viewport fait du shell desktop une grille bornée à `100dvh` :
 le chrome supérieur occupe la première ligne et `workspace-main` est l'unique
-zone de défilement du contenu. Le slot de navigation garde la même hauteur et
+zone de défilement du contenu. Une page courte remplit cette zone sans
+`min-height` calé sur le viewport, afin de ne pas créer de scroll fantôme.
+Le slot de navigation garde la même hauteur et
 son pied reste hors du scroller ; seule la section d'arbre reçoit un overflow
 vertical indépendant. Le déclencheur `PanelLeftOpen` quitte le positionnement
 fixe global et est ancré dans le conteneur de la ligne supérieure, dont le
@@ -735,12 +747,13 @@ bascule afin de conserver le transfert de focus après la transition sans
 dupliquer un bouton invisible.
 
 `NavigationInlineCreate` porte désormais les deux présentations d'une même
-machine d'état : `item` pour la surface 88 × 30 px validée et `root` pour
-`+ Nouveau`. La variante racine conserve le même contrôle `Plus`, sa rotation,
-les choix page/dossier, le focus clavier et la fermeture symétrique, mais ne
-monte plus de champ de nom. La création d'une base existante reste une action
-secondaire indépendante afin de ne pas mélanger son formulaire au chemin
-rapide page/dossier.
+machine d'état : `item` pour la surface 92 × 32 px validée et `root` pour le
+`+` ancré à droite du titre `Notes`, qui se déplie vers la gauche comme une
+ligne. La variante racine conserve le même contrôle `Plus`, sa rotation, les
+choix page/dossier, le focus clavier et la fermeture symétrique, sans rangée
+dédiée ni champ de nom. La création d'une base existante reste une action
+secondaire indépendante, hors de ce titre, afin de ne pas mélanger son
+formulaire au chemin rapide page/dossier.
 
 Tous les chemins de création appellent une seule commande qui retourne
 l'identité créée, sélectionne aussi bien une page qu'un dossier et enregistre

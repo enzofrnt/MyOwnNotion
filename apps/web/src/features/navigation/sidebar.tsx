@@ -198,8 +198,8 @@ export function Sidebar({
         <section className="workspace-navigation__section workspace-navigation__tree">
           <div className="workspace-navigation__section-heading">
             <h3 id="sidebar-tree-heading">Notes</h3>
+            {creationControls}
           </div>
-          {creationControls}
           {tree}
         </section>
       </div>

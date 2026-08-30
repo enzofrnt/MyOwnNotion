@@ -1,10 +1,19 @@
-import { type KeyboardEvent, type MouseEvent, type PointerEvent, useEffect, useRef } from "react";
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/index.ts";
 
+/** Matches the CSS width transition. */
+export const INLINE_CREATE_CLOSE_FALLBACK_MS = 240;
+
 export interface NavigationInlineCreateProps {
   readonly itemName: string;
-  readonly label?: string;
   readonly open: boolean;
   readonly variant?: "item" | "root";
   readonly testIds?: {
@@ -18,16 +27,21 @@ export interface NavigationInlineCreateProps {
   readonly onCreateFolder: () => void;
 }
 
+function prefersReducedMotion(): boolean {
+  return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+}
+
 /**
  * Compact child creation that expands over the row instead of widening it.
  *
  * The two choices stay mounted for a symmetric close transition, but leave the
- * tab order while hidden. The final control is always the same `+`: rotation
- * turns it into the close cross, so there is no second floating affordance.
+ * tab order while hidden. Closing keeps the geometry until width finishes,
+ * including after a click outside, but drops the selected fill immediately so
+ * the collapsed `+` does not flash before it hides. The final control is always
+ * the same `+`: rotation turns it into the close cross.
  */
 export function NavigationInlineCreate({
   itemName,
-  label,
   onCreateFolder,
   onCreatePage,
   onOpenChange,
@@ -35,9 +49,21 @@ export function NavigationInlineCreate({
   testIds,
   variant = "item",
 }: NavigationInlineCreateProps) {
+  const root = useRef<HTMLSpanElement | null>(null);
+  const surface = useRef<HTMLSpanElement | null>(null);
   const firstChoice = useRef<HTMLButtonElement | null>(null);
   const toggle = useRef<HTMLButtonElement | null>(null);
   const focusChoiceOnOpen = useRef(false);
+  const [phase, setPhase] = useState<"closed" | "open" | "closing">(open ? "open" : "closed");
+
+  if (open) {
+    if (phase !== "open") setPhase("open");
+  } else if (phase === "open") {
+    setPhase(prefersReducedMotion() ? "closed" : "closing");
+  }
+
+  const exiting = phase === "closing";
+  const expandedChrome = phase === "open" || exiting;
   const stopPointer = (event: PointerEvent<HTMLButtonElement>): void => event.stopPropagation();
   const create = (event: MouseEvent<HTMLButtonElement>, kind: "page" | "folder"): void => {
     event.stopPropagation();
@@ -52,6 +78,33 @@ export function NavigationInlineCreate({
     firstChoice.current?.focus();
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: globalThis.PointerEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node) || root.current?.contains(target)) return;
+      onOpenChange(false);
+    };
+    document.addEventListener("pointerdown", dismiss, true);
+    return () => document.removeEventListener("pointerdown", dismiss, true);
+  }, [open, onOpenChange]);
+
+  useEffect(() => {
+    if (!exiting) return;
+    const node = surface.current;
+    const finish = (): void => setPhase((current) => (current === "closing" ? "closed" : current));
+    const onTransitionEnd = (event: globalThis.TransitionEvent): void => {
+      if (event.target !== node || event.propertyName !== "width") return;
+      finish();
+    };
+    node?.addEventListener("transitionend", onTransitionEnd);
+    const timer = window.setTimeout(finish, INLINE_CREATE_CLOSE_FALLBACK_MS);
+    return () => {
+      node?.removeEventListener("transitionend", onTransitionEnd);
+      window.clearTimeout(timer);
+    };
+  }, [exiting]);
+
   const closeFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>): void => {
     if (!open || event.key !== "Escape") return;
     event.preventDefault();
@@ -62,16 +115,18 @@ export function NavigationInlineCreate({
 
   return (
     <span
+      ref={root}
       className="navigation-inline-create"
       data-testid={testIds?.root ?? `inline-create-${itemName}`}
-      data-open={open || undefined}
+      data-open={expandedChrome || undefined}
+      data-closing={exiting || undefined}
       data-variant={variant}
     >
-      <span className="navigation-inline-create__surface">
+      <span ref={surface} className="navigation-inline-create__surface">
         <span
           className="navigation-inline-create__choices"
           aria-hidden={!open}
-          data-visible={open || undefined}
+          data-visible={expandedChrome || undefined}
         >
           <Button
             ref={firstChoice}
@@ -129,9 +184,6 @@ export function NavigationInlineCreate({
           }}
         >
           <AppIcon name="add" size="small" />
-          {label === undefined ? null : (
-            <span className="navigation-inline-create__label">{label}</span>
-          )}
         </Button>
       </span>
     </span>

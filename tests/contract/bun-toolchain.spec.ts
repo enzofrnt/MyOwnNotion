@@ -27,6 +27,11 @@ describe("the canonical Bun toolchain", () => {
     expect(read("bunfig.toml")).toMatch(/^\[run\]\s+bun\s*=\s*true\s*$/m);
   });
 
+  it("pins LF line endings for every checkout", () => {
+    expect(read(".gitattributes")).toMatch(/^\*\s+text=auto\s+eol=lf\s*$/m);
+    expect(read(".editorconfig")).toMatch(/^end_of_line\s*=\s*lf\s*$/m);
+  });
+
   it("commits one Bun lock and no retired package-manager metadata", () => {
     expect(existsSync(path.join(repoRoot, "bun.lock"))).toBe(true);
     for (const retired of [

@@ -27,11 +27,11 @@ export function PageHeader({
   kind = "workspace",
   title,
 }: PageHeaderProps) {
-  const pageChromeOnly = kind === "page";
+  const compactChrome = kind === "page" || kind === "folder";
   return (
     <header
       className="workspace-page-header"
-      data-compact={pageChromeOnly || undefined}
+      data-compact={compactChrome || undefined}
       data-testid="workspace-page-header"
     >
       <div className="workspace-page-header__path-row">
@@ -62,7 +62,7 @@ export function PageHeader({
           </ol>
         </nav>
       </div>
-      {pageChromeOnly ? null : (
+      {compactChrome ? null : (
         <div className="workspace-page-header__title-row">
           <div className="workspace-page-header__identity">
             <span className="workspace-page-header__kind">{KIND_LABELS[kind]}</span>

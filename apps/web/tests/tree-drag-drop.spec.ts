@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -9,6 +10,7 @@ import {
   parseTreeDropTargetId,
   prioritizeTreeDropCollisions,
   resolveTreeDrop,
+  TREE_GRABBING_ATTRIBUTE,
   type TreeDragItem,
   treeDropTargetId,
 } from "../src/features/navigation/tree-drag-drop.tsx";
@@ -141,6 +143,19 @@ describe("expanded tree state", () => {
     expect([...retainExpandableItemIds(new Set(["temporarily-absent"]), [])]).toEqual([
       "temporarily-absent",
     ]);
+  });
+});
+
+describe("tree drag overlay source", () => {
+  it("renders a named phantom overlay and a document grabbing marker", () => {
+    const source = readFileSync(
+      new URL("../src/features/navigation/tree-drag-drop.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("DragOverlay");
+    expect(source).toContain('data-testid="tree-drag-phantom"');
+    expect(source).toContain("setDocumentTreeGrabbing(true)");
+    expect(source).toContain(TREE_GRABBING_ATTRIBUTE);
   });
 });
 

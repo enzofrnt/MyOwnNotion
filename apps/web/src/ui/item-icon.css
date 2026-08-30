@@ -1,6 +1,7 @@
 .item-icon {
   position: relative;
   display: inline-grid;
+  overflow: visible;
   width: 1.25rem;
   height: 1.25rem;
   flex: 0 0 1.25rem;
@@ -32,10 +33,33 @@
   font-size: 4.75rem;
 }
 
+.item-icon__kind-badge {
+  position: absolute;
+  right: -0.06rem;
+  bottom: -0.06rem;
+  z-index: 1;
+  display: grid;
+  width: 0.625rem;
+  height: 0.625rem;
+  place-items: center;
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-canvas) 78%, transparent);
+  border-radius: 0.12rem;
+  opacity: 0.68;
+  pointer-events: none;
+}
+
+.item-icon__kind-badge .ui-icon {
+  width: 0.5rem;
+  height: 0.5rem;
+  stroke-width: 2;
+}
+
 .item-icon__reference-badge {
   position: absolute;
   right: -0.25rem;
   bottom: -0.2rem;
+  z-index: 2;
   display: grid;
   width: 0.75rem;
   height: 0.75rem;
@@ -43,6 +67,11 @@
   color: var(--color-text);
   background: var(--color-surface);
   border-radius: var(--radius-pill);
+}
+
+.item-icon[data-item-reference] .item-icon__reference-badge {
+  top: -0.2rem;
+  bottom: auto;
 }
 
 .item-icon__reference-badge .ui-icon {
@@ -81,7 +110,7 @@
 .item-emoji-picker__trigger[data-picker-variant="page"] {
   min-width: 0;
   min-height: 0;
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--space-2);
   padding: 0;
   background: transparent;
 }

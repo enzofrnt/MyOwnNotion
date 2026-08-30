@@ -1,0 +1,57 @@
+# Local HTTPS helper for `compose.dev.yaml`.
+#
+# This is not the official stack. Certificates come from Caddy's internal CA
+# (`tls internal` / `local_certs`) so passkeys and `__Host-` cookies work on
+# https://localhost:8443. Trust the CA once with `bun run dev:trust`.
+{
+	admin 127.0.0.1:2019
+	local_certs
+	auto_https disable_redirects
+}
+
+localhost:8443 {
+	tls internal
+
+	request_body {
+		max_size 2GB
+	}
+
+	handle /v1* {
+		reverse_proxy api:3001 {
+			header_up Host {host}
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-For {remote_host}
+			flush_interval -1
+			transport http {
+				read_timeout 75s
+				write_timeout 75s
+			}
+		}
+	}
+
+	handle /health {
+		reverse_proxy api:3001 {
+			header_up Host {host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	handle {
+		reverse_proxy web:5173 {
+			header_up Host {host}
+			header_up X-Forwarded-Host {host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-For {remote_host}
+			flush_interval -1
+			transport http {
+				read_timeout 75s
+				write_timeout 75s
+			}
+		}
+	}
+}
+
+:80 {
+	redir https://localhost:8443{uri} permanent
+}

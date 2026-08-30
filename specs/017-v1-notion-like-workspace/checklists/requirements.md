@@ -57,10 +57,11 @@
   SC-035–SC-038 expose its geometry and intermediate motion as testable
   outcomes instead of relying on a prose-only approximation.
 - The screenshot review of 2026-08-29 further fixes the open creation cluster
-  as a visible 88 × 30 px enclosing surface around three 28 px controls, with
-  one-pixel regular spacing and no exterior shadow. Three loose icons do not
-  satisfy the requirement. The normative asset, FR-091 and SC-037 carry the
-  same measurable correction.
+  as a visible enclosing surface around three 28 px controls, with regular
+  internal spacing and no exterior shadow. Three loose icons do not satisfy
+  the requirement. FR-091 and SC-037 measure 92 × 32 px with a uniform 2 px
+  gutter, concentric nested radii and a title that truncates as the cluster
+  grows; the versioned HTML remains the motion and structure reference.
 - The 2026-08-29 viewport and creation refinement fixes scroll ownership,
   aligns the collapsed-sidebar control with the top chrome, unifies all
   page/folder creation paths around a focused empty title, replaces the
