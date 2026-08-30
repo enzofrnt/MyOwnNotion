@@ -276,6 +276,10 @@ test.describe("the contextual BlockNote controls", () => {
     await expect(toolbar).toBeVisible();
     await toolbar.getByRole("button", { name: "Gras" }).click();
     await expect(editor.locator("strong")).toContainText("relier");
+    // Formatting is one durable editor action. Wait for its projection to
+    // settle before the separate link action so a toolbar replacement cannot
+    // swallow the pointer release that opens the picker (notably in Firefox).
+    await waitForEditorSettled(page);
 
     // The selected range remains active after formatting: open the dedicated
     // internal-page picker, then choose the target with the keyboard. Web

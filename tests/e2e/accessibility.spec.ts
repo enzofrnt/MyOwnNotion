@@ -91,9 +91,11 @@ test.describe("accessibility (all viewports/browsers)", () => {
     if (await mobileTrigger.isVisible()) {
       // Creation deliberately closes the phone drawer and transfers focus to
       // the blank title. Reopen navigation with the keyboard before continuing
-      // the keyboard-only tree scenario.
-      await mobileTrigger.focus();
-      await page.keyboard.press("Enter");
+      // the keyboard-only tree scenario. Keep focus and Enter in one locator
+      // action so a projection refresh cannot replace the focused trigger
+      // between the two operations.
+      await mobileTrigger.press("Enter");
+      await expect(mobileTrigger).toHaveAttribute("aria-expanded", "true");
     }
     await expect(row).toBeVisible();
 
