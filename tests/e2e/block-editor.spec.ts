@@ -26,6 +26,7 @@ import { expect, test } from "./fixtures.ts";
 import {
   apiOrigin,
   CURRENT_PROTOCOL_HEADERS,
+  clickEditorInsertBlock,
   createRootItem,
   createUnopenedPage,
   editorApplyCount,
@@ -214,7 +215,7 @@ test.describe("the contextual BlockNote controls", () => {
     // One click on the contextual plus opens the adjacent insertion point and
     // its localized choices. An existing empty trailing block is reused.
     await editor.locator(".bn-block-outer[data-id]").last().hover();
-    await page.getByRole("button", { name: "Ajouter un bloc" }).click();
+    await clickEditorInsertBlock(page);
     await expect(page.getByRole("listbox")).toBeVisible();
     const addMenu = page.getByRole("listbox");
     await addMenu.getByRole("option", { name: /^Liste de tâches/u }).click();

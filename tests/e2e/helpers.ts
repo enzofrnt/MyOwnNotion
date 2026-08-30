@@ -344,6 +344,20 @@ export async function openRootDatabaseCreation(page: Page): Promise<void> {
   });
 }
 
+export async function clickEditorInsertBlock(page: Page): Promise<void> {
+  const insert = page.getByRole("button", { name: "Ajouter un bloc" });
+  await expect(insert).toBeVisible();
+  // The BlockNote side control sits in the editor gutter. The sidebar column
+  // covers that gutter for hit-testing, so a pointer click never reaches the
+  // button even though it is visible.
+  await insert.evaluate((element) => {
+    if (!(element instanceof HTMLButtonElement)) {
+      throw new Error("Ajouter un bloc is not a button");
+    }
+    element.click();
+  });
+}
+
 async function nameNewlyCreatedItem(page: Page, name: string): Promise<void> {
   const title = page.getByTestId("active-item-title");
   await expect(title).toBeVisible({ timeout: 15_000 });

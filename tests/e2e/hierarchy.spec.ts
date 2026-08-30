@@ -164,7 +164,7 @@ test.describe("hierarchy organization (US1)", () => {
 
     const surface = row.locator(".navigation-inline-create__surface");
     const coarsePointer = await page.evaluate(() => matchMedia("(pointer: coarse)").matches);
-    const expectedSurfaceWidth = coarsePointer ? 132 : 92;
+    const expectedSurfaceWidth = coarsePointer ? 140 : 92;
     const expectedSurfaceHeight = coarsePointer ? 44 : 32;
     await expect
       .poll(async () => Math.round((await surface.boundingBox())?.width ?? 0))

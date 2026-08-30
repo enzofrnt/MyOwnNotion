@@ -2,6 +2,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures.ts";
 import {
+  clickEditorInsertBlock,
   convertItem,
   createChildItem,
   createRootItem,
@@ -69,7 +70,7 @@ async function selectPreviousWord(page: Page, expected: string): Promise<void> {
 async function appendLinkedParagraph(page: Page, label: string, targetName: string): Promise<void> {
   const editor = editorSurface(page);
   await editor.locator(":scope > .bn-block-group > .bn-block-outer[data-id]").last().hover();
-  await page.getByRole("button", { name: "Ajouter un bloc" }).click();
+  await clickEditorInsertBlock(page);
   const addMenu = page.getByRole("listbox");
   await expect(addMenu).toBeVisible();
   await addMenu.getByRole("option", { name: /^Paragraphe/u }).click();
