@@ -10,6 +10,12 @@
 008 de recherche V1, avant les bases structurées, le graphe, les tableaux
 blancs, le partage public et MCP."
 
+> **Décision produit du 31 août 2026** — La recherche initiale reste livrée par
+> la 008, mais les features 010 de backlinks/graphe et 021 de journaux serveur
+> lisibles sont désormais des conditions de sortie de la V1. La 008 ne reprend
+> pas leurs règles ; elle participe à la validation croisée
+> recherche–relations et à la validation d'exploitation finale.
+
 ## Product Direction, Dependencies, and Scope
 
 Cette feature concrétise les sections 6.1, 12, 17 à 21, 28, 29, 33, 42 et 43
@@ -51,6 +57,14 @@ Le produit reste strictement mono-utilisateur. Les résultats privés sont
 accessibles au propriétaire authentifié uniquement. Les futures surfaces
 publiques ou MCP devront réutiliser des projections séparées et explicitement
 autorisées plutôt qu'élargir implicitement cette recherche.
+
+La validation formelle de release portée transversalement par la 008 reste
+ouverte jusqu'à ce que la 010 soit livrée, que ses contenus soient retrouvables
+par les parcours existants lorsque pertinent et que la convergence finale V1
+ait confirmé l'absence de divergence entre recherche, relations et navigation.
+Elle reste également ouverte jusqu'à la livraison de la 021 et à la preuve que
+la vraie stack fournit à la fois une vue locale lisible et une sortie machine
+collectable, sans contenu de recherche privé dans aucune présentation.
 
 ## User Scenarios & Testing *(mandatory)*
 

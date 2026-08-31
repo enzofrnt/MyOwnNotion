@@ -27,7 +27,7 @@ convergent sans remplacement du document entier ni perte silencieuse."
 
 ## Product Direction, Dependencies, and Scope
 
-Cette feature concrétise les sections 3, 6.1, 7, 9 à 21, 28 à 32 et 42 à 47 du
+Cette feature concrétise les sections 3, 6.1, 7, 9 à 22, 28 à 32 et 42 à 47 du
 [canevas produit](../../docs/product/product-canvas.md). La vision y promet déjà
 une organisation et une édition proches de Notion, mais le périmètre V1 ne
 rendait pas encore leur niveau d'interaction et de finition vérifiable. Cette
@@ -41,6 +41,19 @@ base (003), conversion page/dossier (004), fichiers (005), transport,
 autorisation des appareils et rattrapage (006), sauvegarde et restauration
 (007), recherche (008), bases et tâches structurées (009). La 017 remplace leur
 présentation et enrichit leurs interactions.
+
+La feature 010 est désormais une dépendance de sortie de la V1. Elle reste
+seule propriétaire des backlinks, périmètres, filtres et règles du graphe ; la
+convergence finale de la 017 intègre ses surfaces au shell, au système visuel,
+aux thèmes, au responsive et aux parcours clavier communs sans dupliquer sa
+logique métier.
+
+La feature 021 est une autre dépendance de sortie de la V1, indépendante de la
+convergence visuelle de la 017. Elle reste seule propriétaire de la lisibilité,
+du bruit et de l'actionnabilité des journaux serveur. La 017 doit préserver ses
+identifiants de corrélation et son absence de contenu privé, tandis que la 008
+porte la validation d'exploitation croisée ; aucun panneau de logs bruts n'est
+ajouté au workspace par la présente feature.
 
 Cette feature affine toutefois délibérément deux fondations devenues
 insuffisantes pour la V1. Elle remplace le bouton de sauvegarde et l'écriture du
@@ -56,8 +69,8 @@ concurrente.
 
 Le périmètre obligatoire couvre l'ensemble du produit visible dans la version
 livrée : installation initiale, connexion, workspace, barre latérale, pages,
-éditeur, fichiers, recherche, bases déjà présentes, sauvegardes, sécurité,
-états hors ligne et conflits. « Proche de Notion » désigne ici un modèle
+éditeur, fichiers, recherche, graphe, bases déjà présentes, sauvegardes,
+sécurité, états hors ligne et conflits. « Proche de Notion » désigne ici un modèle
 d'interaction mesurable et une qualité cohérente ; cela ne signifie ni copie
 pixel par pixel, ni parité avec toutes les fonctions de Notion.
 
@@ -1371,8 +1384,13 @@ en charge, une fois sans pointeur puis une fois au toucher.
   la convergence de contenu n'a pas besoin de simuler une équipe.
 - Assistance d'écriture ou génération de contenu par IA.
 - Nouveaux types de bases, propriétés, filtres ou vues au-delà de la 009.
-- Graphe, tableaux blancs, partage public, annotations et MCP, qui conservent
-  leurs features dédiées.
+- Règles métier, données, filtres et parcours propres au graphe, qui restent
+  définis par la feature 010 ; la 017 couvre seulement son intégration visuelle
+  et interactive lors de la convergence finale V1.
+- Présentation, filtrage, bruit et vocabulaire des journaux serveur, qui restent
+  définis par la feature 021 et validés transversalement par la 008.
+- Tableaux blancs, partage public, annotations et MCP, qui conservent leurs
+  features dédiées.
 - Prévisualisation ou édition Draw.io. Les fichiers restent téléchargeables via
   la fondation 005 ; un futur moteur de diagrammes interne appartient à la
   feature tableaux blancs ou à une feature de suivi postérieure.

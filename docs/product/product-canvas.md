@@ -63,6 +63,10 @@ Les spécifications de fonctionnalité détaillées peuvent préciser ce documen
     connaissance livrées. Réglages, sécurité, appareils, stockage, sauvegardes
     et diagnostics détaillés vivent dans des surfaces dédiées, accessibles
     depuis le workspace sans être rendus sous le document courant.
+14. La V1 comprend les backlinks et un graphe de connaissances privé, local et
+    global. Ce graphe reste une vue reconstruisible des objets et relations
+    canoniques ; il ne devient ni un tableau blanc ni une seconde source de
+    vérité.
 
 ---
 
@@ -174,6 +178,8 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - fichiers et pièces jointes ;
 - prévisualisation des formats obligatoires ;
 - recherche dans les contenus pris en charge ;
+- backlinks, graphe local et graphe global avec périmètres, profondeur,
+  filtres combinables et état de complétude explicite ;
 - stockage local chiffré ;
 - fonctionnement hors ligne ;
 - synchronisation multi-appareils convergente, y compris lorsque deux appareils
@@ -194,7 +200,6 @@ Les capacités suivantes appartiennent à la cible complète, mais peuvent être
 
 - bases de données avancées et toutes leurs vues ;
 - tâches structurées avancées ;
-- graphe de connaissances complet ;
 - tableaux blancs ;
 - partage public et annotations publiques ;
 - serveur MCP ;
@@ -957,6 +962,11 @@ Les index contenant des données sensibles sont soumis aux mêmes exigences de c
 
 ## 22. Graphe de connaissances
 
+Les backlinks et le graphe de connaissances privé font partie du périmètre
+obligatoire de la V1. La feature 010 en fixe les parcours et critères
+d'acceptation ; les futurs tableaux blancs, surfaces publiques et accès MCP
+étendront leurs propres types de relations sans retarder ce socle V1.
+
 Le graphe représente les relations entre :
 
 - pages ;
@@ -988,7 +998,11 @@ Il peut filtrer par :
 - dates ;
 - éléments isolés.
 
-Les filtres sont combinables, visibles et réinitialisables. Le graphe ne doit pas créer une seconde source de vérité : il visualise les objets et relations canoniques.
+Les filtres sont combinables, visibles et réinitialisables. Le graphe ne doit
+pas créer une seconde source de vérité : il visualise les objets et relations
+canoniques. Hors ligne ou avec une projection locale partielle, il doit indiquer
+explicitement la complétude du périmètre présenté plutôt que laisser croire que
+les données absentes n'existent pas.
 
 ---
 
@@ -1401,6 +1415,21 @@ exploitables par une machine, sans code de contrôle de terminal. Un forçage
 explicite peut remplacer cette détection pour un environnement atypique. Le choix
 automatique ou configuré de présentation ne doit modifier ni les événements
 émis, ni leur niveau, ni leurs champs, ni les règles d'expurgation.
+
+Le format, l'usage de la couleur et le niveau de verbosité sont trois décisions
+indépendantes. La commande locale standard de suivi de la stack doit fournir par
+défaut une présentation humaine compacte, même lorsque les conteneurs écrivent
+vers une sortie non interactive ; une présentation machine structurée reste
+disponible explicitement pour les collecteurs. La vue humaine monochrome ne doit
+donc pas nécessiter de simuler un terminal coloré.
+
+Au niveau d'exploitation courant, une requête réussie ne doit produire au plus
+qu'un résumé informatif et un contrôle de vie ou de disponibilité réussi et
+répétitif ne doit pas masquer les événements utiles. Les erreurs, refus,
+ralentissements et changements d'état doivent rester visibles avec un code
+diagnostique sûr, l'opération concernée, un résultat, un identifiant de
+corrélation et une piste d'action qui n'expose ni contenu privé, ni secret, ni
+message ou trace d'erreur bruts.
 
 Un journal d'audit doit couvrir au minimum :
 
@@ -1844,7 +1873,9 @@ La V1 doit fournir une interface française cohérente et préparer l'externalis
   la suite du document courant. Il garde seulement les états compacts utiles à
   l'action immédiate et ouvre les détails dans une surface dédiée, avec retour
   au même contexte de lecture.
-- Les parcours de référence du workspace, de l'éditeur, de la recherche, des fichiers, des bases, de la sécurité, des sauvegardes et de l'installation font l'objet d'une revue visuelle en thèmes clair et sombre.
+- Les parcours de référence du workspace, de l'éditeur, de la recherche, du
+  graphe, des fichiers, des bases, de la sécurité, des sauvegardes et de
+  l'installation font l'objet d'une revue visuelle en thèmes clair et sombre.
 - À 320 pixels de large et à un zoom de 200 %, les parcours essentiels restent utilisables sans défilement horizontal de la page entière.
 - Un écran ne peut pas être considéré terminé s'il expose encore les structures internes ou les contrôles provisoires à la place d'une hiérarchie compréhensible par le propriétaire.
 
@@ -1957,25 +1988,27 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 17. historique et conflits ;
 18. sauvegarde, restauration et export ;
 19. mises à jour et retour arrière ;
-20. convergence V1 de l'espace de travail et de l'éditeur proche de Notion.
+20. backlinks et graphe de connaissances privé, local et global ;
+21. journaux serveur lisibles, actionnables et toujours collectables ;
+22. convergence V1 de l'espace de travail, de l'éditeur et des vues de
+    connaissance proches de Notion.
 
 L'achèvement de cette phase, y compris la convergence visuelle et interactive, constitue la V1 fonctionnelle, sous réserve de satisfaire tous les critères de qualité et d'exploitation.
 
 ### Phase 4 — Fonctions avancées
 
-21. bases de données et tâches avancées ;
-22. graphe ;
-23. tableaux blancs puis, si le besoin est confirmé, import ou édition de
+23. bases de données et tâches avancées ;
+24. tableaux blancs puis, si le besoin est confirmé, import ou édition de
     diagrammes par un moteur interne à MyOwnNotion ;
-24. partage public et annotations ;
-25. MCP.
+25. partage public et annotations ;
+26. MCP.
 
 ### Phase 5 — Clients supplémentaires
 
-26. application Electron Windows ;
-27. application Electron macOS ;
-28. adaptation iOS avancée ;
-29. éventuelle application iOS native.
+27. application Electron Windows ;
+28. application Electron macOS ;
+29. adaptation iOS avancée ;
+30. éventuelle application iOS native.
 
 Chaque étape doit rester utilisable, testable et compatible avec la trajectoire globale. Une phase peut être divisée en plusieurs spécifications de fonctionnalité, mais aucune dépendance critique ne doit rester implicite.
 
@@ -2078,3 +2111,24 @@ Ces références expliquent des contraintes de stockage des navigateurs ; elles 
   Non. Il reste le contrat sémantique durable et la projection vérifiée ; une
   représentation opérationnelle indépendante de l'éditeur porte seulement la
   causalité et la convergence de l'édition.
+
+---
+
+## Annexe D — Clarification validée le 31 août 2026
+
+- Q : Le graphe de connaissances peut-il rester une capacité après la V1 ? →
+  R : Non. Les backlinks, le graphe local et le graphe global privé font partie
+  de la V1. Ils visualisent les objets et relations canoniques, restent
+  utilisables sur les données disponibles hors ligne et précèdent la
+  convergence finale de la release.
+
+---
+
+## Annexe E — Clarification validée le 31 août 2026
+
+- Q : Une sortie serveur structurée et collectable suffit-elle lorsqu'elle est
+  difficile à lire dans la commande locale de suivi ? → R : Non. La V1 doit
+  séparer le format, la couleur et la verbosité, fournir une vue humaine locale
+  par défaut, réduire le bruit routinier et conserver en parallèle une sortie
+  machine expurgée. Les erreurs doivent orienter le diagnostic avec des champs
+  sûrs sans réintroduire de contenu privé ni de trace brute.
