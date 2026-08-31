@@ -615,7 +615,7 @@ html[data-tree-grabbing="true"] * {
   margin-left: auto;
   align-items: center;
   justify-content: flex-end;
-  gap: 0;
+  gap: 3px;
   isolation: isolate;
 }
 
