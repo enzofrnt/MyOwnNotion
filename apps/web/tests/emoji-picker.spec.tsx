@@ -43,6 +43,9 @@ describe("local emoji picker", () => {
         searchPosition: "sticky",
         set: "native",
         data: expect.any(Object),
+        i18n: expect.objectContaining({
+          search: "Rechercher",
+        }),
       }),
     );
     await act(async () => {

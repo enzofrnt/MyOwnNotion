@@ -1,4 +1,5 @@
 import emojiData from "@emoji-mart/data";
+import frenchEmojiPickerText from "@emoji-mart/data/i18n/fr.json";
 import { Picker } from "emoji-mart";
 import { useEffect, useRef, useState } from "react";
 import { AppIcon } from "./icons.tsx";
@@ -20,6 +21,7 @@ export interface EmojiSelection {
 
 export interface EmojiPickerOptions {
   readonly data: object;
+  readonly i18n: object;
   readonly locale: "fr";
   readonly set: "native";
   readonly theme: "light" | "dark";
@@ -62,6 +64,7 @@ export function EmojiPickerPanel({
     if (host === null) return;
     const picker = factory({
       data: emojiData as object,
+      i18n: frenchEmojiPickerText as object,
       locale: "fr",
       set: "native",
       theme: currentTheme(),
