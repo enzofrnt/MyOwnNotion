@@ -128,8 +128,16 @@ describe("local HTTPS development stack", () => {
     const stack = read("scripts/dev/stack.ts");
     const pkg = JSON.parse(read("package.json")) as { scripts?: Record<string, string> };
     expect(pkg.scripts?.["dev:stack:logs"]).toBe("bun scripts/dev/stack.ts --logs");
-    expect(stack).toContain('compose(["up", "-d", "--wait", "--remove-orphans"])');
+    expect(stack).toContain('["up", "-d", "--build", "--wait", "--remove-orphans"]');
+    expect(stack).toContain("compose([...upArgs])");
     expect(stack).toContain('args.includes("--logs")');
+    expect(stack).not.toMatch(/compose\(\[[^\]]*--watch/);
+    expect(stack).not.toContain("compose watch");
+    expect(raw).not.toMatch(/^\s+develop:/m);
+    expect(raw).not.toMatch(/action:\s*(rebuild|sync\+restart)/);
+    const toolchain = read("specs/019-bun-toolchain/contracts/toolchain.md");
+    expect(toolchain).toContain("`bun run dev:stack`");
+    expect(toolchain).toContain("up --build");
     expect(stack).not.toMatch(/compose\(\[[^\]]*--watch/);
     expect(stack).not.toContain("compose watch");
     expect(raw).not.toMatch(/^\s+develop:/m);

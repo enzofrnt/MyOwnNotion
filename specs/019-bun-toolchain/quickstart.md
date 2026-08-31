@@ -59,6 +59,18 @@ Vite peut apparaître comme serveur de développement. Le processus qui
 l'exécute doit être Bun, et `vite build` ne doit appartenir à aucune commande de
 production.
 
+Pour le HTTPS local (passkeys, cookie `__Host-`), la stack détachée
+`compose.dev.yaml` reconstruit les images au démarrage et au reset :
+
+~~~sh
+bun run dev:stack
+~~~
+
+Attendu : `docker compose up --build` s'exécute, puis le projet reste
+détaché à `https://localhost:8443`. Un changement de source bind-monté
+recharge l'API ou Vite dans le conteneur déjà lancé, sans rebuild. Arrêt :
+`bun run dev:stack:down`. Cette helper n'est pas la topologie officielle.
+
 ## 3. Boucle ciblée d'implémentation
 
 Les familles indépendantes peuvent tourner simultanément sur une machine qui a

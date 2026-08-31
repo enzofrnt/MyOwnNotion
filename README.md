@@ -56,8 +56,9 @@ bun run dev
 ```
 
 Pour le HTTPS local (passkeys, cookie `__Host-`), une stack de développement
-séparée lance PostgreSQL, l’API et Vite, et Caddy. Elle reste détachée :
-Bun `--watch` et le HMR de Vite rechargent le code dans les conteneurs.
+séparée lance PostgreSQL, l’API et Vite, et Caddy. Le lancement reconstruit
+les images. Elle reste ensuite détachée : Bun `--watch` et le HMR de Vite
+rechargent le code dans les conteneurs.
 
 ```bash
 bun run dev:stack
