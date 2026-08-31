@@ -555,6 +555,7 @@ preserving machine-safe container output and one reusable developer contract.
 - [X] T126 Add/update Compose contract assertions for logging configuration, standard-stream collection, and absence of application log-file mounts in `tests/contract/compose-security.spec.ts` (FR-030, SC-011). *(The contract also requires both variables to remain documented.)*
 - [X] T127 Run the focused API/Compose contract tests and build the API image; record implementation notes and results on these tasks (FR-023, FR-030, SC-011). *(`31` focused tests passed; API typecheck and bundle passed; the official multi-architecture `pnpm images:build` gate passed for both API and web images.)*
 - [X] T128 Run SpecKit Analyze and Converge for the changed artifacts, then run the repository pre-push gate once for the final candidate (FR-035, SC-011). *(Analyze and Converge found no remaining structured-logging gap. The final gate passed coverage (1,956), integration (281), migrations (6), and contract tests (836), then exposed one unrelated page-link E2E race after 877 passes and 32 skips. Its two reconciliation races were corrected and verified with 10 Chromium repetitions plus all five browser/device projects; the official multi-architecture image build had already passed.)*
+- [X] T129 Make both local Compose development paths render compact colored API logs by default through a dedicated `MYOWNNOTION_DEV_LOG_COLOR` override, while preserving destination-aware JSON in the official stack; cover the split in Compose contracts and operator documentation (FR-023, FR-030, SC-011). *(The 12 API logging tests and 33 focused Compose contracts pass; the Compose static gate, repository formatting, lint, and type checks also pass.)*
 
 ## Dependencies & Execution Order
 
@@ -676,14 +677,14 @@ the exact implementation, test, workflow, or evidence paths above.
 | FR-020 | `spec.md` §Requirements; `validation.md` FR-020 | T008, T022, T073, T082, T086, T115 |
 | FR-021 | `spec.md` §Requirements; `validation.md` FR-021 | T008, T022, T073, T086, T115 |
 | FR-022 | `spec.md` §Requirements; `validation.md` FR-022 | T012, T017, T019, T020, T034, T048, T061, T072, T087, T115 |
-| FR-023 | `spec.md` §Requirements; `validation.md` FR-023 | T008, T012, T013, T015, T016, T017, T020, T032, T037, T039, T040, T042, T043, T045, T046, T053, T060, T061, T069, T073, T086, T115, T121, T122, T123, T125, T127, T128 |
+| FR-023 | `spec.md` §Requirements; `validation.md` FR-023 | T008, T012, T013, T015, T016, T017, T020, T032, T037, T039, T040, T042, T043, T045, T046, T053, T060, T061, T069, T073, T086, T115, T121, T122, T123, T125, T127, T128, T129 |
 | FR-024 | `spec.md` §Requirements; `validation.md` FR-024 | T002, T007, T010, T011, T018, T019, T020, T021, T029, T031, T055, T057, T058, T059, T064, T065, T067, T068, T070, T082, T108, T111, T114, T115 |
 | FR-025 | `spec.md` §Requirements; `validation.md` FR-025 | T003, T013, T018, T074, T075, T083, T084, T085, T088, T089, T115 |
 | FR-026 | `spec.md` §Requirements; `validation.md` FR-026 | T018, T074, T075, T076, T080, T085, T088, T089, T115 |
 | FR-027 | `spec.md` §Requirements; `validation.md` FR-027 | T003, T018, T074, T076, T080, T083, T084, T085, T088, T089, T115 |
 | FR-028 | `spec.md` §Requirements; `validation.md` FR-028 | T009, T013, T019, T090, T091, T095, T096, T097, T105, T115 |
 | FR-029 | `spec.md` §Requirements; `validation.md` FR-029 | T003, T011, T090, T091, T095, T096, T097, T105, T115 |
-| FR-030 | `spec.md` §Requirements; `validation.md` FR-030 | T004, T007, T092, T098, T099, T107, T110, T115, T117, T118, T119, T121, T122, T123, T124, T126, T127, T128 |
+| FR-030 | `spec.md` §Requirements; `validation.md` FR-030 | T004, T007, T092, T098, T099, T107, T110, T115, T117, T118, T119, T121, T122, T123, T124, T126, T127, T128, T129 |
 | FR-031 | `spec.md` §Requirements; `validation.md` FR-031 | T004, T092, T098, T099, T107, T115, T118 |
 | FR-032 | `spec.md` §Requirements; `validation.md` FR-032 | T004, T005, T007, T092, T094, T098, T099, T101, T102, T103, T107, T115, T117 |
 | FR-033 | `spec.md` §Requirements; `validation.md` FR-033 | T001, T002, T005, T006, T007, T093, T100, T101, T102, T103, T104, T107, T109, T110, T115, T120 |
@@ -699,4 +700,4 @@ the exact implementation, test, workflow, or evidence paths above.
 | SC-008 | `spec.md` §Success Criteria; `validation.md` SC-008 | T033, T041, T066, T071, T080, T088, T106, T115 |
 | SC-009 | `spec.md` §Success Criteria; `validation.md` SC-009 | T003, T074, T075, T076, T077, T085, T089, T115 |
 | SC-010 | `spec.md` §Success Criteria; `validation.md` SC-010 | T003, T090, T091, T097, T105, T115 |
-| SC-011 | `spec.md` §Success Criteria; `validation.md` SC-011 | T121, T122, T123, T124, T125, T126, T127, T128 |
+| SC-011 | `spec.md` §Success Criteria; `validation.md` SC-011 | T121, T122, T123, T124, T125, T126, T127, T128, T129 |

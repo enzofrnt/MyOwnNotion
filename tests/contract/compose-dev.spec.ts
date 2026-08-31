@@ -72,6 +72,15 @@ describe("local HTTPS development stack", () => {
     );
   });
 
+  it("renders local API logs as colored, human-readable lines by default", () => {
+    const envExample = read(".env.example");
+    expect(raw).toMatch(/MYOWNNOTION_LOG_COLOR: \$\{MYOWNNOTION_DEV_LOG_COLOR:-always\}/);
+    expect(envExample).toContain("MYOWNNOTION_DEV_LOG_COLOR=always");
+    expect(official.services?.["api"]?.environment?.["MYOWNNOTION_LOG_COLOR"]).toContain(
+      "MYOWNNOTION_LOG_COLOR:-auto",
+    );
+  });
+
   it("publishes only loopback ports and pins images without latest", () => {
     for (const [name, service] of Object.entries(compose.services ?? {})) {
       for (const port of service.ports ?? []) {

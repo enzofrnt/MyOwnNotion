@@ -419,6 +419,10 @@ from the destination rather than from `NODE_ENV`:
   parseable JSON object per line with no ANSI escape sequence;
 - `MYOWNNOTION_LOG_COLOR=auto|always|never` can force or suppress color for a
   known destination, while `auto` remains the deployment-safe default;
+- local development Compose helpers map
+  `MYOWNNOTION_DEV_LOG_COLOR=always|never|auto` to that API setting and default
+  to `always`, because Compose otherwise reports a non-TTY even while a
+  developer follows its output; the official stack remains `auto`;
 - `MYOWNNOTION_LOG_LEVEL` controls verbosity and defaults to `info`.
 
 Compose passes both variables to `api` and relies on the process standard

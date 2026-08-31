@@ -299,20 +299,24 @@ for diagnostics only and cannot publish images or release artifacts.
 Run the focused contract suite, then inspect both output modes:
 
 ```sh
-pnpm vitest run --project api-contract apps/api/tests/logging.spec.ts
-MYOWNNOTION_LOG_COLOR=always pnpm --filter @myownnotion/api dev
+bun run --bun vitest run --project api-contract apps/api/tests/logging.spec.ts
+MYOWNNOTION_LOG_COLOR=always bun run --filter @myownnotion/api dev
 docker compose up -d --build api web
+docker compose logs api
+MYOWNNOTION_DEV_LOG_COLOR=auto docker compose up -d --force-recreate api
 docker compose logs --no-color api
 ```
 
-The interactive process must show compact colored levels. Every Compose API
-line must remain a parseable JSON object without ANSI escape sequences and must
-arrive through the container standard streams. Exercise one request and one
-safe failure; confirm request ID, method/path, status, level, timestamp,
+The interactive process and the local Compose override must show compact
+colored levels. After recreating it in automatic mode, every API line must be a
+parseable JSON object without ANSI escape sequences and must arrive through
+the container standard streams; the Compose contract separately verifies that
+the official `compose.yaml` keeps this mode as its default. Exercise one request
+and one safe failure; confirm request ID, method/path, status, level, timestamp,
 service, environment, and message remain useful while bodies, authorization,
 cookies, credentials, tokens, private names/content, and key material do not
-appear. Repeat with `MYOWNNOTION_LOG_COLOR=never` to verify monochrome terminal
-output and with an invalid value to verify startup refusal.
+appear. Repeat with `MYOWNNOTION_DEV_LOG_COLOR=never` to verify explicitly
+ANSI-free JSON and with an invalid value to verify startup refusal.
 
 ## Evidence handoff
 

@@ -22,7 +22,10 @@ x-dev-environment: &dev-environment
   CI: "1"
   NODE_ENV: development
   MYOWNNOTION_LOG_LEVEL: ${MYOWNNOTION_LOG_LEVEL:-info}
-  MYOWNNOTION_LOG_COLOR: ${MYOWNNOTION_LOG_COLOR:-never}
+  # Compose captures stdout through a non-TTY even when a developer follows
+  # it from a color-capable terminal. Force Pino's human renderer for this
+  # local-only helper; the official stack keeps destination-aware JSON.
+  MYOWNNOTION_LOG_COLOR: ${MYOWNNOTION_DEV_LOG_COLOR:-always}
   DATABASE_URL: postgres://${MYOWNNOTION_DB_USER:-myownnotion}:${MYOWNNOTION_DB_PASSWORD:-myownnotion-dev}@postgres:5432/${MYOWNNOTION_DB_NAME:-myownnotion}
   MYOWNNOTION_API_HOST: 0.0.0.0
   MYOWNNOTION_API_PORT: 3001

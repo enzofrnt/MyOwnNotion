@@ -241,12 +241,19 @@ describe("container hardening", () => {
 });
 
 describe("structured container logging", () => {
-  it("passes the documented level and destination-aware color policy to the API", () => {
+  it("keeps destination-aware JSON in the official API stack", () => {
     const environment = base.services?.["api"]?.environment;
     expect(environment?.["MYOWNNOTION_LOG_LEVEL"]).toContain("MYOWNNOTION_LOG_LEVEL:-info");
     expect(environment?.["MYOWNNOTION_LOG_COLOR"]).toContain("MYOWNNOTION_LOG_COLOR:-auto");
     expect(envExample).toContain("MYOWNNOTION_LOG_LEVEL=info");
     expect(envExample).toContain("MYOWNNOTION_LOG_COLOR=auto");
+  });
+
+  it("renders the local-build API logs for people by default", () => {
+    expect(override.services?.["api"]?.environment?.["MYOWNNOTION_LOG_COLOR"]).toContain(
+      "MYOWNNOTION_DEV_LOG_COLOR:-always",
+    );
+    expect(envExample).toContain("MYOWNNOTION_DEV_LOG_COLOR=always");
   });
 
   it("uses standard streams rather than mounting an application log file", () => {
