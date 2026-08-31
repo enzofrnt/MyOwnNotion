@@ -2,12 +2,15 @@ import type { DatabaseDto } from "@myownnotion/contracts";
 import { type DatabaseDefinition, type DatabaseView, generateUuidV7 } from "@myownnotion/domain";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { DatabasePage } from "../src/features/databases/database-page.tsx";
 import { createSavedView, DatabaseToolbar } from "../src/features/databases/database-toolbar.tsx";
 import { FilterEditor } from "../src/features/databases/filter-editor.tsx";
 import { SortGroupEditor } from "../src/features/databases/sort-group-editor.tsx";
 import {
+  databaseSearchForView,
+  databaseViewIdFromSearch,
   readDatabaseViewContext,
   resolveActiveDatabaseViewId,
   writeDatabaseViewContext,
@@ -202,6 +205,17 @@ describe("saved database views (T041)", () => {
     expect(readDatabaseViewContext(state, ids.database, ids.list)).toBeNull();
   });
 
+  it("keeps the active view in the query while removing the obsolete entry parameter", () => {
+    const search = databaseSearchForView(`?entry=${ids.entry}&unrelated=kept`, ids.table);
+    const params = new URLSearchParams(search);
+
+    expect(params.get("view")).toBe(ids.table);
+    expect(params.has("entry")).toBe(false);
+    expect(params.get("unrelated")).toBe("kept");
+    expect(databaseViewIdFromSearch(definition(), search)).toBe(ids.table);
+    expect(databaseViewIdFromSearch(definition(), `?view=${generateUuidV7()}`)).toBeNull();
+  });
+
   it("keeps an explicit tab selection when an older definition effect settles", () => {
     expect(
       resolveActiveDatabaseViewId({
@@ -227,24 +241,28 @@ describe("saved database views (T041)", () => {
       definition: current,
     };
     const markup = renderToStaticMarkup(
-      createElement(DatabasePage, {
-        database,
-        entries: [
-          {
-            databaseId: ids.database,
-            entryId: ids.entry,
-            revisionId: generateUuidV7(),
-            lifecycle: "active",
-            title: "Alpha",
-            document: null,
-            values: { [ids.status]: { kind: "status", optionId: ids.todo } },
-            relationTargets: {},
-          },
-        ],
-        onReplaceDefinition: vi.fn(),
-        onCreateEntry: vi.fn(),
-        onOpenEntry: vi.fn(),
-      }),
+      createElement(
+        MemoryRouter,
+        { initialEntries: [`/notes/${ids.database}?view=${ids.table}`] },
+        createElement(DatabasePage, {
+          database,
+          entries: [
+            {
+              databaseId: ids.database,
+              entryId: ids.entry,
+              revisionId: generateUuidV7(),
+              lifecycle: "active",
+              title: "Alpha",
+              document: null,
+              values: { [ids.status]: { kind: "status", optionId: ids.todo } },
+              relationTargets: {},
+            },
+          ],
+          onReplaceDefinition: vi.fn(),
+          onCreateEntry: vi.fn(),
+          onOpenEntry: vi.fn(),
+        }),
+      ),
     );
     expect(markup).toContain("Résultat complet · 1 entrée");
     expect(markup).toContain("database-list");

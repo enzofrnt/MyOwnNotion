@@ -11,6 +11,7 @@ import {
   renderImpactSummary,
   validateImpactPolicy,
 } from "../../scripts/ci/test-impact.js";
+import { BROWSER_PROJECTS } from "../e2e/projects.js";
 
 const repoRoot = path.resolve(import.meta.dirname, "../..");
 const policy = loadImpactPolicy(repoRoot);
@@ -63,6 +64,14 @@ describe("impact policy", () => {
 
   it("keeps the E2E matrix aligned with Playwright projects", () => {
     expect(policy.e2eProjects).toEqual(playwrightConfig.projects?.map(({ name }) => name));
+  });
+
+  it("routes every unreliable macOS browser runtime through the pinned Linux image", () => {
+    expect(
+      BROWSER_PROJECTS.filter((project) => project.containerOnMac === true).map(
+        (project) => project.name,
+      ),
+    ).toEqual(["firefox-desktop", "webkit-desktop", "webkit-mobile"]);
   });
 
   it.each([

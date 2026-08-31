@@ -13,10 +13,10 @@ import {
   openSettingsSection,
   openWorkspace,
   returnToWorkspace,
-  sampleCssTransition,
   selectItem,
   trashItem,
   triggerAndSampleCssTransitions,
+  triggerAndSampleMountedCssTransition,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -301,8 +301,11 @@ test.describe("hierarchy organization (US1)", () => {
     await expect(children).toHaveCount(0);
     await expect(toggle).toHaveAttribute("data-expanded", "false");
     await expect(chevron).toHaveAttribute("data-icon", "chevronRight");
-    await toggle.click();
-    const opening = await sampleCssTransition(children, "grid-template-rows");
+    const opening = await triggerAndSampleMountedCssTransition(
+      toggle,
+      `children-${parent}`,
+      "grid-template-rows",
+    );
     expect(opening.height).toBeGreaterThan(0);
     expect(opening.height).toBeLessThan(openHeight);
     await expect(children).toBeVisible();

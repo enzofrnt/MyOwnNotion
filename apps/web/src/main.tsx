@@ -26,7 +26,7 @@ if (window.location.pathname === "/__ui-lab") {
 } else {
   // The deterministic UI lab must stay independent from API and CRDT startup.
   // The normal workspace remains a separate chunk and is loaded only here.
-  void import("./app.tsx").then(({ App }) => render(<App />));
+  void import("./routing/app-router.tsx").then(({ AppRouter }) => render(<AppRouter />));
 }
 
 // Playwright intercepts requests at the page/context layer, while requests made

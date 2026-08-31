@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PageTitleEditor } from "../src/features/workspace/page-title-editor.tsx";
@@ -66,6 +66,85 @@ describe("page title editor", () => {
     expect(title.selectionStart).toBe(9);
   });
 
+  it("keeps the submitted title while an older projection arrives during commit", async () => {
+    let resolveCommit: (() => void) | undefined;
+    const onCommit = vi.fn(
+      async () =>
+        await new Promise<void>((resolve) => {
+          resolveCommit = resolve;
+        }),
+    );
+    await act(async () => {
+      root.render(<PageTitleEditor title="Sans titre" onCommit={onCommit} />);
+    });
+    const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
+    if (title === null) throw new Error("title editor missing");
+
+    await act(async () => {
+      title.focus();
+      typeInto(title, "Titre local");
+      title.blur();
+      await Promise.resolve();
+    });
+    expect(onCommit).toHaveBeenCalledWith("Titre local");
+
+    await act(async () => {
+      root.render(<PageTitleEditor title="Projection obsolète" onCommit={onCommit} />);
+    });
+    expect(title.value).toBe("Titre local");
+
+    await act(async () => {
+      resolveCommit?.();
+      await Promise.resolve();
+      root.render(<PageTitleEditor title="Titre local" onCommit={onCommit} />);
+    });
+    expect(title.value).toBe("Titre local");
+  });
+
+  it("retains the focused draft when route projection churn remounts the title", async () => {
+    const onCommit = vi.fn(async () => undefined);
+
+    function Harness({ surface }: { readonly surface: number }) {
+      const [session, setSession] = useState<{
+        readonly draft: string;
+        readonly focused: boolean;
+      }>({ draft: "", focused: true });
+      return (
+        <PageTitleEditor
+          key={surface}
+          initialDraft={session.draft}
+          restoreFocus={session.focused}
+          title="Sans titre"
+          onDraftStateChange={(draft, focused) => setSession({ draft, focused })}
+          onCommit={onCommit}
+        />
+      );
+    }
+
+    await act(async () => {
+      root.render(<Harness surface={0} />);
+    });
+    const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
+    if (title === null) throw new Error("title editor missing");
+    await act(async () => {
+      typeInto(title, "Titre conservé");
+    });
+    await act(async () => {
+      root.render(<Harness surface={1} />);
+    });
+
+    const remounted = container.querySelector<HTMLTextAreaElement>(
+      '[data-testid="active-item-title"]',
+    );
+    expect(remounted?.value).toBe("Titre conservé");
+    expect(remounted).toBe(document.activeElement);
+    await act(async () => {
+      remounted?.blur();
+      await Promise.resolve();
+    });
+    expect(onCommit).toHaveBeenCalledWith("Titre conservé");
+  });
+
   it("keeps a focused empty draft blank until the owner leaves the field", async () => {
     vi.useFakeTimers();
     const onCommit = vi.fn(async () => undefined);
@@ -94,22 +173,15 @@ describe("page title editor", () => {
 
   it("opens every newly created identity on one focused blank title", async () => {
     const onCommit = vi.fn(async () => undefined);
-    const onAutoFocusHandled = vi.fn();
     await act(async () => {
       root.render(
-        <PageTitleEditor
-          autoFocusBlank
-          title="Sans titre"
-          onCommit={onCommit}
-          onAutoFocusHandled={onAutoFocusHandled}
-        />,
+        <PageTitleEditor initialDraft="" restoreFocus title="Sans titre" onCommit={onCommit} />,
       );
     });
 
     const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
     expect(title).toBe(document.activeElement);
     expect(title?.value).toBe("");
-    await vi.waitFor(() => expect(onAutoFocusHandled).toHaveBeenCalledTimes(1));
     expect(onCommit).not.toHaveBeenCalled();
   });
 

@@ -23,25 +23,29 @@ function committedTitle(value: string): string {
  * page adoption.
  */
 export function PageTitleEditor({
-  autoFocusBlank = false,
+  initialDraft,
   icon,
   kind = "page",
   title,
   onCommit,
+  onDraftStateChange,
   onIconChange,
-  onAutoFocusHandled,
   onMoveToContent,
+  restoreFocus = false,
 }: {
-  readonly autoFocusBlank?: boolean;
+  /** Route-level draft retained across a transient surface replacement. */
+  readonly initialDraft?: string;
   readonly icon?: string | null;
   readonly kind?: "page" | "folder";
   readonly title: string;
   readonly onCommit: (title: string) => Promise<void>;
+  readonly onDraftStateChange?: (draft: string, focused: boolean) => void;
   readonly onIconChange?: (icon: string | null) => void;
-  readonly onAutoFocusHandled?: () => void;
   readonly onMoveToContent?: () => void;
+  readonly restoreFocus?: boolean;
 }) {
-  const [draft, setDraft] = useState(autoFocusBlank ? "" : title || UNTITLED_PAGE);
+  const startingDraft = initialDraft ?? (title || UNTITLED_PAGE);
+  const [draft, setDraft] = useState(startingDraft);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
@@ -50,13 +54,15 @@ export function PageTitleEditor({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestDraft = useRef(draft);
   const lastRequested = useRef<string | null>(title || UNTITLED_PAGE);
+  const pendingCommitCount = useRef(0);
   const onCommitRef = useRef(onCommit);
-  const onAutoFocusHandledRef = useRef(onAutoFocusHandled);
+  const onDraftStateChangeRef = useRef(onDraftStateChange);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const autoFocusConsumed = useRef(false);
+  const retainedDraftNeedsFirstProjectionSkip = useRef(initialDraft !== undefined);
 
   onCommitRef.current = onCommit;
-  onAutoFocusHandledRef.current = onAutoFocusHandled;
+  onDraftStateChangeRef.current = onDraftStateChange;
 
   const resize = useCallback((value: string) => {
     const element = textarea.current;
@@ -66,8 +72,22 @@ export function PageTitleEditor({
   }, []);
 
   useEffect(() => {
+    // A remounted editor starts from the route-level draft. Its first title
+    // effect still sees the older durable projection, so consuming that effect
+    // would immediately undo the continuity this remount is meant to provide.
+    if (retainedDraftNeedsFirstProjectionSkip.current) {
+      retainedDraftNeedsFirstProjectionSkip.current = false;
+      return;
+    }
     if (focused.current) return;
     const next = title || UNTITLED_PAGE;
+    // A projection refresh may still carry the pre-edit title while the local
+    // rename is being committed. Blur deliberately ends focus before that
+    // asynchronous boundary, so focus alone cannot protect the acknowledged
+    // draft from being reset to the stale value (most visible on WebKit).
+    // The requested value itself is allowed through because it is the remote
+    // acknowledgement that closes this race.
+    if (pendingCommitCount.current > 0 && next !== lastRequested.current) return;
     lastRequested.current = next;
     latestDraft.current = next;
     setDraft(next);
@@ -76,13 +96,12 @@ export function PageTitleEditor({
   useEffect(() => resize(draft), [draft, resize]);
 
   useEffect(() => {
-    if (!autoFocusBlank || autoFocusConsumed.current) return;
+    if (!restoreFocus || autoFocusConsumed.current) return;
     autoFocusConsumed.current = true;
-    latestDraft.current = "";
-    setDraft("");
     const element = textarea.current;
     element?.focus();
-    element?.setSelectionRange(0, 0);
+    const selection = latestDraft.current.length;
+    element?.setSelectionRange(selection, selection);
     let cancelled = false;
     let frame: number | null = null;
     let attempts = 0;
@@ -92,14 +111,12 @@ export function PageTitleEditor({
       const current = textarea.current;
       if (current === null) return;
       if (document.activeElement === current) {
-        if (remainedFocused) {
-          onAutoFocusHandledRef.current?.();
-          return;
-        }
+        if (remainedFocused) return;
         remainedFocused = true;
       } else {
         current.focus();
-        current.setSelectionRange(0, 0);
+        const nextSelection = latestDraft.current.length;
+        current.setSelectionRange(nextSelection, nextSelection);
         remainedFocused = false;
       }
       attempts += 1;
@@ -112,7 +129,7 @@ export function PageTitleEditor({
       cancelled = true;
       if (frame !== null) cancelAnimationFrame(frame);
     };
-  }, [autoFocusBlank]);
+  }, [restoreFocus]);
 
   const commit = useCallback((value: string, reflectInEditor = true) => {
     const next = committedTitle(value);
@@ -122,12 +139,14 @@ export function PageTitleEditor({
     }
     latestDraft.current = next;
     if (reflectInEditor && mounted.current) setDraft(next);
+    onDraftStateChangeRef.current?.(next, focused.current);
     if (next === lastRequested.current) return queue.current;
     lastRequested.current = next;
     if (mounted.current) {
       setBusy(true);
       setFailed(false);
     }
+    pendingCommitCount.current += 1;
     const operation = async (): Promise<void> => {
       try {
         await onCommitRef.current(next);
@@ -139,6 +158,7 @@ export function PageTitleEditor({
         if (mounted.current) setFailed(true);
         throw error;
       } finally {
+        pendingCommitCount.current -= 1;
         if (mounted.current) setBusy(false);
       }
     };
@@ -201,10 +221,12 @@ export function PageTitleEditor({
         spellCheck
         onFocus={() => {
           focused.current = true;
+          onDraftStateChangeRef.current?.(latestDraft.current, true);
         }}
         onChange={(event) => {
           latestDraft.current = event.target.value;
           setDraft(event.target.value);
+          onDraftStateChangeRef.current?.(event.target.value, true);
           scheduleCommit(event.target.value);
         }}
         onBlur={(event) => {
@@ -222,6 +244,7 @@ export function PageTitleEditor({
             const restored = title || UNTITLED_PAGE;
             latestDraft.current = restored;
             setDraft(restored);
+            onDraftStateChangeRef.current?.(restored, false);
             event.currentTarget.blur();
           }
         }}

@@ -230,6 +230,74 @@ export async function triggerAndSampleCssTransition(
   return sample;
 }
 
+/**
+ * Starts an interaction that mounts its animated target, then freezes it.
+ *
+ * A collapsed hierarchy region is deliberately absent from the DOM. Resolving
+ * its locator before the opening click therefore cannot be correct. Querying
+ * the stable test identity after the click, in the same browser task, keeps
+ * Firefox's host/container latency outside the transition window.
+ */
+export async function triggerAndSampleMountedCssTransition(
+  trigger: Locator,
+  targetTestId: string,
+  transitionProperty: string,
+  progress = 0.5,
+): Promise<CssTransitionSample> {
+  await expect(trigger).toBeVisible();
+  return await trigger.evaluate(
+    async (button, options): Promise<CssTransitionSample> => {
+      const triggerElement = button as HTMLElement;
+      triggerElement.focus();
+      triggerElement.click();
+
+      let target: HTMLElement | undefined;
+      let transition: CSSTransition | undefined;
+      for (let frame = 0; transition === undefined && frame < 12; frame += 1) {
+        target = Array.from(document.querySelectorAll<HTMLElement>("[data-testid]")).find(
+          (element) => element.dataset["testid"] === options.targetTestId,
+        );
+        transition = target
+          ?.getAnimations()
+          .find(
+            (animation): animation is CSSTransition =>
+              "transitionProperty" in animation &&
+              animation.transitionProperty === options.transitionProperty,
+          );
+        if (transition === undefined) {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        }
+      }
+      if (target === undefined) {
+        throw new Error(`The mounted transition target ${options.targetTestId} was not found`);
+      }
+      if (transition === undefined) {
+        throw new Error(`No active ${options.transitionProperty} transition was found`);
+      }
+
+      transition.pause();
+      const timing = transition.effect?.getComputedTiming();
+      const duration = typeof timing?.duration === "number" ? timing.duration : 0;
+      if (duration <= 0) {
+        throw new Error(`${options.transitionProperty} transition has no measurable duration`);
+      }
+      transition.currentTime = duration * options.progress;
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+      const rectangle = target.getBoundingClientRect();
+      const style = getComputedStyle(target);
+      const sample = {
+        height: rectangle.height,
+        transform: style.transform,
+        width: rectangle.width,
+      };
+      transition.finish();
+      return sample;
+    },
+    { progress, targetTestId, transitionProperty },
+  );
+}
+
 interface E2ELocalContentService {
   synchronize(): Promise<string>;
   getItem(itemId: string): Promise<{
@@ -348,11 +416,12 @@ export async function openWorkspace(page: Page): Promise<void> {
   // deliberately offline. Initial pages still start at `about:blank` and take
   // the ordinary navigation path.
   const currentUrl = page.url();
-  const atWorkspaceRoot =
+  const atWorkspaceRoute =
     currentUrl !== "about:blank" &&
     (() => {
       try {
-        return new URL(currentUrl).pathname === "/";
+        const pathname = new URL(currentUrl).pathname;
+        return pathname === "/" || pathname === "/notes" || pathname.startsWith("/notes/");
       } catch {
         return false;
       }
@@ -364,10 +433,10 @@ export async function openWorkspace(page: Page): Promise<void> {
       transientNetworkChanges.push(request.url());
     }
   };
-  if (!atWorkspaceRoot) page.on("requestfailed", recordTransientNetworkChange);
+  if (!atWorkspaceRoute) page.on("requestfailed", recordTransientNetworkChange);
 
   try {
-    if (!atWorkspaceRoot) await page.goto("/", { waitUntil: "domcontentloaded" });
+    if (!atWorkspaceRoute) await page.goto("/notes", { waitUntil: "domcontentloaded" });
     const shell = page.getByTestId("workspace-shell");
     try {
       await expect(shell).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
@@ -379,7 +448,7 @@ export async function openWorkspace(page: Page): Promise<void> {
       // exact transport failure, and only for a navigation performed here; an
       // application boot error or a deliberately offline existing page still
       // fails at the original assertion.
-      if (atWorkspaceRoot || transientNetworkChanges.length === 0) throw error;
+      if (atWorkspaceRoute || transientNetworkChanges.length === 0) throw error;
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(shell).toBeVisible({ timeout: WORKSPACE_BOOT_TIMEOUT_MS });
     }
@@ -399,7 +468,7 @@ export async function openWorkspace(page: Page): Promise<void> {
       timeout: 15_000,
     });
   } finally {
-    if (!atWorkspaceRoot) page.off("requestfailed", recordTransientNetworkChange);
+    if (!atWorkspaceRoute) page.off("requestfailed", recordTransientNetworkChange);
   }
 }
 

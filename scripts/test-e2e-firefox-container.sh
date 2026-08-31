@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Generic pinned Playwright Linux runtime for browser projects that are not
+# reliable in Playwright's native macOS runtime. The historical filename is
+# retained because the public Firefox command remains a supported alias.
+
 # `CDPATH=''` rather than `CDPATH=`: the two are identical to the shell, but
 # ShellCheck reads the bare form as a mistyped `var= value` and raises SC1007,
 # which the pinned gate treats as a failure (`--severity=style`). The assignment
