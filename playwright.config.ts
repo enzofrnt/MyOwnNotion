@@ -67,8 +67,9 @@ export default defineConfig({
   // Every project is declared on every platform, deliberately. A project list
   // that changed with the host would make "CI runs all five" unverifiable from a
   // developer machine — and one of the contract tests checks exactly that.
-  // Firefox-on-macOS is refused at the start of a test instead, in
-  // tests/e2e/fixtures.ts, where it can say what to run.
+  // Engines assigned to the pinned Linux runtime on macOS are refused at the
+  // start of a raw test instead, in tests/e2e/fixtures.ts, where the failure can
+  // direct the caller to the isolated local matrix.
   projects: BROWSER_PROJECTS.map(({ name, device }) => ({
     name,
     use: { ...devices[device] },

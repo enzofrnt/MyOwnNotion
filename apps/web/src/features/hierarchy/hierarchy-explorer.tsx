@@ -48,7 +48,7 @@ import { CreateDatabaseForm } from "../databases/create-database-form.tsx";
 import { DatabaseConflictResolution } from "../databases/database-conflict-resolution.tsx";
 import { DATABASE_COPY } from "../databases/database-copy.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
-import { EntryPanel } from "../databases/entry-panel.tsx";
+import { type EntryDrafts, EntryPanel } from "../databases/entry-panel.tsx";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
 import { initializeEditorFileTransfers } from "../editor/editor-file-state.tsx";
 import type { CreateSubpageRequest } from "../editor/editor-menus/slash-menu.tsx";
@@ -92,6 +92,33 @@ interface TrashConfirmation {
   readonly node: TreeNode;
   readonly description: string;
   readonly returnToMobileNavigation: boolean;
+}
+
+export type RoutedItemState = "none" | "active" | "trashed" | "unavailable-local" | "not-found";
+
+export function resolveInitialRoutedItemId(
+  routeItemId: Uuid | null,
+  lastVisitedItemId: string | null,
+  items: readonly ProjectedItem[],
+): Uuid | null {
+  if (routeItemId !== null) return routeItemId;
+  return lastVisitedItemId !== null &&
+    isUuid(lastVisitedItemId) &&
+    items.some((item) => item.id === lastVisitedItemId && item.lifecycle === "active")
+    ? lastVisitedItemId
+    : null;
+}
+
+export function resolveRoutedItemState(
+  items: readonly ProjectedItem[],
+  trashedItems: readonly ProjectedItem[],
+  routeItemId: Uuid | null,
+  online: boolean,
+): RoutedItemState {
+  if (routeItemId === null) return "none";
+  if (items.some((item) => item.id === routeItemId && item.lifecycle === "active")) return "active";
+  if (trashedItems.some((item) => item.id === routeItemId)) return "trashed";
+  return online ? "not-found" : "unavailable-local";
 }
 
 function buildTree(items: ProjectedItem[]): TreeNode[] {
@@ -225,29 +252,35 @@ function searchBranchOptions(
   });
 }
 
-export function HierarchyExplorer({
-  active,
-  backupStale,
-  pageOperationCsrfToken,
-  onActiveItemChange,
-  onOpenBackups,
-  onOpenDiagnostics,
-  onOpenSettings,
-  onProblemChange,
-  onTrashedItemsChange,
-}: {
+export interface HierarchyExplorerProps {
   /** False while the retained workspace is hidden behind a settings destination. */
   readonly active: boolean;
   readonly backupStale: boolean;
+  readonly selectedItemId: Uuid | null;
   readonly pageOperationCsrfToken: () => string | null;
   readonly onActiveItemChange: (item: ProjectedItem | null) => void;
   readonly onOpenBackups: () => void;
   readonly onOpenDiagnostics: () => void;
   /** Settings live outside the workspace, so the shortcut asks rather than routes. */
   readonly onOpenSettings: () => void;
+  readonly onOpenItem: (itemId: Uuid | null, options?: { readonly replace?: boolean }) => void;
   readonly onProblemChange: (problem: SafeError | null) => void;
   readonly onTrashedItemsChange: (items: readonly ProjectedItem[]) => void;
-}) {
+}
+
+export function HierarchyExplorer({
+  active,
+  backupStale,
+  selectedItemId,
+  pageOperationCsrfToken,
+  onActiveItemChange,
+  onOpenBackups,
+  onOpenDiagnostics,
+  onOpenSettings,
+  onOpenItem,
+  onProblemChange,
+  onTrashedItemsChange,
+}: HierarchyExplorerProps) {
   const service = useMemo(() => {
     const content = localContent();
     content.configurePageOperationAuthorization(pageOperationCsrfToken);
@@ -256,25 +289,35 @@ export function HierarchyExplorer({
   useRealtimeSync(service);
   const databaseViews = useMemo(() => new DatabaseViewService(service), [service]);
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
+  const [projectionRevision, setProjectionRevision] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [loadPhase, setLoadPhase] = useState<LoadPhase>("initializing");
   const [problem, setProblem] = useState<SafeError | null>(null);
   const [noticesOpen, setNoticesOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<Uuid | null>(null);
+  const selectedId = selectedItemId;
   // A passive effect can still be finishing the previous database read after
   // the owner has opened an entry. The synchronous generation makes that old
   // result stale immediately, before React gets a chance to run its cleanup;
   // otherwise a sync notification can remount the form and erase typed drafts.
-  const selectedIdRef = useRef<Uuid | null>(null);
+  const selectedIdRef = useRef<Uuid | null>(selectedItemId);
   const selectionGeneration = useRef(0);
-  const selectItemById = useCallback((itemId: Uuid | null): void => {
-    if (selectedIdRef.current === itemId) return;
-    selectedIdRef.current = itemId;
+  if (selectedIdRef.current !== selectedItemId) {
+    selectedIdRef.current = selectedItemId;
     selectionGeneration.current += 1;
-    setSelectedId(itemId);
-  }, []);
+  }
+  const selectItemById = useCallback(
+    (itemId: Uuid | null, options?: { readonly replace?: boolean }): void => {
+      if (selectedIdRef.current === itemId) return;
+      selectedIdRef.current = itemId;
+      selectionGeneration.current += 1;
+      onOpenItem(itemId, options);
+    },
+    [onOpenItem],
+  );
   /** Device-local scroll anchors, kept beside the rest of the ergonomics. */
   const presentationRef = useRef<WorkspacePresentationState | null>(null);
   const onCaptureScrollAnchor = useCallback(
@@ -291,10 +334,27 @@ export function HierarchyExplorer({
     [service],
   );
   const refreshGeneration = useRef(0);
+  const refreshMounted = useRef(false);
+  useEffect(() => {
+    refreshMounted.current = true;
+    return () => {
+      refreshMounted.current = false;
+      refreshGeneration.current += 1;
+    };
+  }, []);
   const [selectedDatabase, setSelectedDatabase] = useState<DatabaseDto | null>(null);
   const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<DatabaseEntryDto | null>(null);
   const [entryDefinition, setEntryDefinition] = useState<DatabaseDefinition | null>(null);
+  const [titleDraftSession, setTitleDraftSession] = useState<{
+    readonly itemId: Uuid;
+    readonly draft: string;
+    readonly focused: boolean;
+  } | null>(null);
+  const [entryDraftSession, setEntryDraftSession] = useState<{
+    readonly entryId: Uuid;
+    readonly drafts: EntryDrafts;
+  } | null>(null);
   const [structuredSelectionLoading, setStructuredSelectionLoading] = useState(false);
   const structuredSelectionItemId = useRef<Uuid | null>(null);
   const definitionMutationQueue = useRef<Promise<void>>(Promise.resolve());
@@ -319,7 +379,6 @@ export function HierarchyExplorer({
   const [navigationLoaded, setNavigationLoaded] = useState(false);
   const [rootCreationOpen, setRootCreationOpen] = useState(false);
   const [inlineCreationItemId, setInlineCreationItemId] = useState<Uuid | null>(null);
-  const [pendingTitleFocusItemId, setPendingTitleFocusItemId] = useState<Uuid | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
@@ -425,9 +484,13 @@ export function HierarchyExplorer({
     // older IndexedDB read must never replace the projection produced by a
     // newer refresh: doing so can briefly remove the selected entry and
     // remount its form, discarding an unsaved property draft.
-    if (generation === refreshGeneration.current) {
+    if (refreshMounted.current && generation === refreshGeneration.current) {
       setItems(activeItems);
       setTrashedItems(trash);
+      // Structured values can hydrate after the item row without changing the
+      // item's visible metadata. Give an already-open database entry the same
+      // accepted projection signal so it re-reads those late values.
+      setProjectionRevision((current) => current + 1);
     }
     return activeItems;
   }, [service]);
@@ -466,12 +529,14 @@ export function HierarchyExplorer({
       setLoadPhase("refreshing");
       const activeItems = await refresh();
       if (!cancelled) {
-        selectItemById(
-          navigation.lastVisitedItemId !== null &&
-            activeItems.some((item) => item.id === navigation.lastVisitedItemId)
-            ? (navigation.lastVisitedItemId as Uuid)
-            : null,
+        const initialItemId = resolveInitialRoutedItemId(
+          selectedIdRef.current,
+          navigation.lastVisitedItemId,
+          activeItems,
         );
+        if (activeRef.current && selectedIdRef.current === null && initialItemId !== null) {
+          selectItemById(initialItemId, { replace: true });
+        }
         // Subscription notifications can refresh the projection while the
         // service initializes. The workspace must not become interactive until
         // navigation hydration has also completed, or that late hydration can
@@ -555,12 +620,29 @@ export function HierarchyExplorer({
     return counts;
   }, [items]);
   const { item: selectedItem, path: activePath } = useActiveItem(items, selectedId);
+  const routedItemState = resolveRoutedItemState(items, trashedItems, selectedId, navigator.onLine);
   const iconPickerItem = useMemo(() => {
     if (iconPickerItemId === null) return null;
     const item = items.find((candidate) => candidate.id === iconPickerItemId);
     if (item === undefined || (item.kind !== "page" && item.kind !== "folder")) return null;
     return { kind: item.kind, icon: item.icon, name: item.name, id: item.id };
   }, [iconPickerItemId, items]);
+
+  useEffect(() => {
+    if (titleDraftSession === null || titleDraftSession.focused) return;
+    const projectedTitle = items.find((item) => item.id === titleDraftSession.itemId)?.name;
+    if (projectedTitle !== titleDraftSession.draft) return;
+    // A successful mutation can resolve one render before its refreshed item
+    // projection reaches the canvas. Keep the route-bound draft through that
+    // gap, then release it only once the durable title is actually visible.
+    setTitleDraftSession((current) =>
+      current?.itemId === titleDraftSession.itemId &&
+      !current.focused &&
+      current.draft === projectedTitle
+        ? null
+        : current,
+    );
+  }, [items, titleDraftSession]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -585,6 +667,9 @@ export function HierarchyExplorer({
   }, [onProblemChange, problem]);
 
   useEffect(() => {
+    // This revision is a signal: its value is irrelevant, but every accepted
+    // projection must re-run the structured read below.
+    void projectionRevision;
     let cancelled = false;
     const selection = selectionGeneration.current;
     const selectionChanged = (): boolean => cancelled || selection !== selectionGeneration.current;
@@ -594,6 +679,13 @@ export function HierarchyExplorer({
       setSelectedEntry(null);
       setEntryDefinition(null);
     };
+    // A route navigation records its target synchronously, while the
+    // controlled selectedItemId prop reaches this render on the next router
+    // update. Never start (or restart) structured reads for the page that is
+    // already being left: that stale read can otherwise claim the shared
+    // discriminator ref and replace the destination form after its first
+    // input event.
+    if (selectedItem !== null && selectedItem.id !== selectedIdRef.current) return;
     if (selectedItem === null || selectedItem.kind !== "page") {
       clearStructuredSelection();
       structuredSelectionItemId.current = null;
@@ -679,6 +771,7 @@ export function HierarchyExplorer({
       if (selectionChanged()) return;
       if (ownerDatabase === null) {
         clearStructuredSelection();
+        structuredSelectionItemId.current = selectedItem.id;
         setStructuredSelectionLoading(false);
         return;
       }
@@ -701,7 +794,7 @@ export function HierarchyExplorer({
     return () => {
       cancelled = true;
     };
-  }, [service, selectedItem]);
+  }, [projectionRevision, service, selectedItem]);
 
   const openPageLink = useCallback(
     (rawItemId: string) => {
@@ -895,6 +988,31 @@ export function HierarchyExplorer({
     [refresh, service],
   );
 
+  const titleEditingProps = useCallback(
+    (itemId: Uuid, durableTitle: string) => ({
+      ...(titleDraftSession?.itemId === itemId
+        ? {
+            initialDraft: titleDraftSession.draft,
+            restoreFocus: titleDraftSession.focused,
+          }
+        : {}),
+      onDraftStateChange: (draft: string, focused: boolean) => {
+        const projectedTitle = durableTitle || "Sans titre";
+        setTitleDraftSession((current) =>
+          focused || draft !== projectedTitle
+            ? { itemId, draft, focused }
+            : current?.itemId === itemId
+              ? null
+              : current,
+        );
+      },
+      onCommit: async (name: string) => {
+        await renameSelectedItem(itemId, name);
+      },
+    }),
+    [renameSelectedItem, titleDraftSession],
+  );
+
   const changeItemIcon = useCallback(
     async (itemId: Uuid, icon: string | null): Promise<void> => {
       for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -999,8 +1117,10 @@ export function HierarchyExplorer({
       }
       // Creation is navigation, not merely a tree mutation. Pages and folders
       // share the same identity header, so every entry point lands in the same
-      // blank focused title and lets blur apply the fallback only if needed.
-      setPendingTitleFocusItemId(itemId);
+      // blank focused title. Keep that draft with the route identity itself:
+      // an asynchronous page-classification render may replace the canvas,
+      // but it must never replace what the owner is typing.
+      setTitleDraftSession({ itemId, draft: "", focused: true });
       openItem(itemId);
     },
     [openItem, runCommand, siblingKeys],
@@ -1056,7 +1176,12 @@ export function HierarchyExplorer({
       // the page before that refresh lets the stale-branch cleanup observe a
       // childless page and immediately collapse it again.
       setExpanded((current) => new Set(current).add(parentItemId));
-      setPendingTitleFocusItemId(itemId);
+      // The slash flow opens the child after its generated page-link change
+      // crosses the durable editor boundary. Prepare the same identity-bound
+      // blank draft as sidebar creation before that later navigation happens,
+      // so the title receives focus without a render-time focus flag racing
+      // the first keystroke.
+      setTitleDraftSession({ itemId, draft: "", focused: true });
       return { id: itemId, title: request.title.trim() || "Sans titre" };
     },
     [items, refresh, service],
@@ -1631,7 +1756,7 @@ export function HierarchyExplorer({
         selectedItem?.kind === "page" || selectedItem?.kind === "folder" ? "page" : "bounded"
       }
       mobileNavigationOpen={mobileNavigationOpen}
-      restoreMobileFocusOnClose={pendingTitleFocusItemId === null}
+      restoreMobileFocusOnClose={titleDraftSession?.focused !== true}
       sidebarOpen={sidebarOpen}
       sidebarWidth={sidebarWidth}
       onMobileNavigationOpenChange={setMobileNavigationOpen}
@@ -1757,14 +1882,28 @@ export function HierarchyExplorer({
       {loadState === "loading" ? (
         <WorkspaceState kind="loading" phase={loadPhase} />
       ) : selectedItem === null ? (
-        <WorkspaceState
-          kind="empty"
-          detail={
-            items.length === 0
-              ? "Créez une première page depuis la barre latérale."
-              : "Choisissez une page dans la barre latérale pour reprendre votre travail."
-          }
-        />
+        routedItemState === "unavailable-local" ? (
+          <WorkspaceState
+            kind="offline"
+            detail="Cette note n’est pas présente sur cet appareil. Reconnectez-vous pour la charger."
+          />
+        ) : routedItemState === "trashed" ? (
+          <WorkspaceState
+            kind="error"
+            detail="Cette note se trouve dans la corbeille. Ouvrez la corbeille pour la restaurer."
+          />
+        ) : routedItemState === "not-found" ? (
+          <WorkspaceState kind="error" detail="Cette note est introuvable ou a été supprimée." />
+        ) : (
+          <WorkspaceState
+            kind="empty"
+            detail={
+              items.length === 0
+                ? "Créez une première page depuis la barre latérale."
+                : "Choisissez une page dans la barre latérale pour reprendre votre travail."
+            }
+          />
+        )
       ) : null}
 
       {selectedItem !== null && selectedItem.kind === "page" ? (
@@ -1775,26 +1914,15 @@ export function HierarchyExplorer({
         />
       ) : null}
 
-      {selectedItem !== null && selectedItem.kind === "page" && structuredSelectionLoading ? (
+      {selectedItem !== null &&
+      selectedItem.kind === "page" &&
+      (structuredSelectionItemId.current !== selectedItem.id || structuredSelectionLoading) ? (
         <article className="workspace-page-canvas" data-testid="workspace-page-opening">
-          <PageTitleEditor
-            key={`title-${selectedItem.id}`}
-            autoFocusBlank={pendingTitleFocusItemId === selectedItem.id}
-            icon={selectedItem.icon}
-            title={selectedItem.name}
-            onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
-            onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
-            onAutoFocusHandled={() =>
-              setPendingTitleFocusItemId((current) =>
-                current === selectedItem.id ? null : current,
-              )
-            }
-            onMoveToContent={() => {
-              document
-                .querySelector<HTMLElement>('[data-testid="operational-editor"] .ProseMirror')
-                ?.focus();
-            }}
-          />
+          {/* Passive effects run after paint. The resolved identity ref, unlike
+              the loading state they schedule, already tells this render that
+              the route target has not been classified. This prevents one
+              editable frame from appearing before the skeleton and losing a
+              title typed during that frame. */}
           <PageContentSkeleton />
         </article>
       ) : selectedItem !== null &&
@@ -1803,16 +1931,10 @@ export function HierarchyExplorer({
         <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
           <PageTitleEditor
             key={`title-${selectedItem.id}`}
-            autoFocusBlank={pendingTitleFocusItemId === selectedItem.id}
+            {...titleEditingProps(selectedItem.id, selectedItem.name)}
             icon={selectedItem.icon}
             title={selectedItem.name}
-            onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
             onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
-            onAutoFocusHandled={() =>
-              setPendingTitleFocusItemId((current) =>
-                current === selectedItem.id ? null : current,
-              )
-            }
             onMoveToContent={() => {
               document
                 .querySelector<HTMLElement>(
@@ -1989,8 +2111,13 @@ export function HierarchyExplorer({
         selectedEntry.entryId === selectedItem.id &&
         entryDefinition !== null ? (
         <EntryPanel
+          key={selectedItem.id}
           entry={selectedEntry}
           definition={entryDefinition}
+          {...(entryDraftSession?.entryId === selectedItem.id
+            ? { initialDrafts: entryDraftSession.drafts }
+            : {})}
+          onDraftsChange={(drafts) => setEntryDraftSession({ entryId: selectedItem.id, drafts })}
           relationOptions={items
             .filter((item) => item.kind === "page" && item.lifecycle === "active")
             .map((item) => ({ id: item.id, label: item.name }))}
@@ -2041,10 +2168,10 @@ export function HierarchyExplorer({
           }}
           onClose={() => {
             const databaseId = selectedEntry.databaseId as Uuid;
-            const url = new URL(window.location.href);
-            url.searchParams.delete("entry");
-            window.history.replaceState(window.history.state, "", url);
-            selectItemById(databaseId);
+            setEntryDraftSession((current) =>
+              current?.entryId === selectedItem.id ? null : current,
+            );
+            selectItemById(databaseId, { replace: true });
             remotelyOpenedEntry.current = null;
           }}
           pageContent={
@@ -2067,16 +2194,10 @@ export function HierarchyExplorer({
         <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
           <PageTitleEditor
             key={`title-${selectedItem.id}`}
-            autoFocusBlank={pendingTitleFocusItemId === selectedItem.id}
+            {...titleEditingProps(selectedItem.id, selectedItem.name)}
             icon={selectedItem.icon}
             title={selectedItem.name}
-            onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
             onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
-            onAutoFocusHandled={() =>
-              setPendingTitleFocusItemId((current) =>
-                current === selectedItem.id ? null : current,
-              )
-            }
             onMoveToContent={() => {
               const editable = document.querySelector<HTMLElement>(
                 '[data-testid="operational-editor"] .ProseMirror',
@@ -2106,17 +2227,11 @@ export function HierarchyExplorer({
         >
           <PageTitleEditor
             key={`title-${selectedItem.id}`}
-            autoFocusBlank={pendingTitleFocusItemId === selectedItem.id}
+            {...titleEditingProps(selectedItem.id, selectedItem.name)}
             kind="folder"
             icon={selectedItem.icon}
             title={selectedItem.name}
-            onCommit={(name) => renameSelectedItem(selectedItem.id, name)}
             onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
-            onAutoFocusHandled={() =>
-              setPendingTitleFocusItemId((current) =>
-                current === selectedItem.id ? null : current,
-              )
-            }
           />
         </article>
       ) : null}

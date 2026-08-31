@@ -8,7 +8,12 @@
  * synchronized state.
  */
 /// <reference lib="WebWorker" />
-import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
+import {
+  cleanupOutdatedCaches,
+  createHandlerBoundToURL,
+  precacheAndRoute,
+} from "workbox-precaching";
+import { NavigationRoute, registerRoute } from "workbox-routing";
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
@@ -16,6 +21,17 @@ declare const self: ServiceWorkerGlobalScope & {
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
+
+registerRoute(
+  new NavigationRoute(createHandlerBoundToURL("/index.html"), {
+    denylist: [
+      /^\/v1(?:\/|$)/u,
+      /^\/health(?:\/|$)/u,
+      /^\/assets(?:\/|$)/u,
+      /^\/service-worker\.js$/u,
+    ],
+  }),
+);
 
 self.addEventListener("install", () => {
   void self.skipWaiting();

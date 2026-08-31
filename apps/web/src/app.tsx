@@ -13,24 +13,53 @@
  * looking at the screen.
  */
 import type { ProjectedItem } from "@myownnotion/client-core";
-import type { SafeError } from "@myownnotion/domain";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BootstrapPage } from "./features/auth/bootstrap-page.tsx";
+import type { SafeError, Uuid } from "@myownnotion/domain";
+import {
+  type ComponentType,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { type NavigateOptions, useLocation, useNavigate } from "react-router-dom";
+import { BootstrapPage, type BootstrapPageProps } from "./features/auth/bootstrap-page.tsx";
 import { LoginPage } from "./features/auth/login-page.tsx";
 import { BackupPanel } from "./features/backup/backup-panel.tsx";
 import { ConnectionStatus } from "./features/connection/connection-status.tsx";
-import { HierarchyExplorer } from "./features/hierarchy/hierarchy-explorer.tsx";
+import {
+  HierarchyExplorer,
+  type HierarchyExplorerProps,
+} from "./features/hierarchy/hierarchy-explorer.tsx";
+import { NotFoundPage } from "./features/routing/not-found-page.tsx";
 import { SecuritySettings } from "./features/security/security-settings.tsx";
 import { type SettingsSection, SettingsShell } from "./features/settings/settings-shell.tsx";
 import { WorkspaceManagementSettings } from "./features/settings/workspace-management-settings.tsx";
 import { WorkspaceNavigationSettings } from "./features/settings/workspace-navigation-settings.tsx";
+import {
+  type ApplicationDestination,
+  isProtectedDestination,
+  notePath,
+  pageSettingsPath,
+  recognizeDestination,
+  settingsPath,
+} from "./routing/paths.ts";
+import {
+  loginPath,
+  returnDestinationFromSearch,
+  safeReturnDestination,
+  setupPath,
+  workspaceReturnDestinationFromState,
+  workspaceReturnState,
+} from "./routing/return-destination.ts";
 import { ContentApi } from "./services/content-api.ts";
 import { localContent } from "./services/local-content.ts";
 import { SecurityApi } from "./services/security-api.ts";
 
 declare const __MYOWNNOTION_E2E__: boolean;
 
-if (__MYOWNNOTION_E2E__) {
+if (typeof __MYOWNNOTION_E2E__ !== "undefined" && __MYOWNNOTION_E2E__) {
   Object.defineProperty(window, "__MYOWNNOTION_E2E_LOCAL_CONTENT__", {
     configurable: false,
     enumerable: false,
@@ -40,12 +69,53 @@ if (__MYOWNNOTION_E2E__) {
 }
 
 type Gate = "checking" | "bootstrap" | "login" | "workspace";
-type WorkspaceView = "workspace" | SettingsSection;
 const BACKUP_STATUS_POLL_MS = 15 * 60 * 1000;
+
+function settingsSectionFromDestination(
+  destination: ApplicationDestination,
+): SettingsSection | null {
+  if (destination.kind === "page-settings") return "page-details";
+  if (destination.kind !== "settings") return null;
+  return destination.section === "storage-sync" ? "local-data" : destination.section;
+}
+
+function settingsDestination(section: SettingsSection, itemId: Uuid | null): string | null {
+  if (section === "page-details") return itemId === null ? null : pageSettingsPath(itemId);
+  if (section === "local-data") return settingsPath("storage-sync");
+  return settingsPath(section);
+}
+
+function itemIdFromDestination(
+  destination: ApplicationDestination,
+  retainedItemId: Uuid | null,
+): Uuid | null {
+  if (destination.kind === "note" || destination.kind === "page-settings") {
+    return destination.itemId;
+  }
+  if (destination.kind === "settings") return retainedItemId;
+  return null;
+}
+
+function contentReturnFromState(state: unknown, itemId: Uuid): string | null {
+  if (typeof state !== "object" || state === null || !("contentReturn" in state)) return null;
+  const raw = (state as { readonly contentReturn?: unknown }).contentReturn;
+  if (typeof raw !== "string") return null;
+  const safe = safeReturnDestination(raw);
+  if (safe === null) return null;
+  const url = new URL(safe, "https://myownnotion.invalid");
+  const destination = recognizeDestination(url.pathname);
+  return destination.kind === "note" && destination.itemId === itemId ? safe : null;
+}
 
 export interface AppProps {
   /** Injected in tests; defaults to the same-origin client. */
   readonly api?: SecurityApi;
+  /** Test seam for the retained workspace; production always uses the real explorer. */
+  readonly hierarchy?: ComponentType<HierarchyExplorerProps>;
+  /** Test seam for completing first-run setup without a browser authenticator. */
+  readonly bootstrap?: ComponentType<BootstrapPageProps>;
+  /** Test seam for deterministic History API refusal. */
+  readonly navigate?: (path: string, options?: NavigateOptions) => void | Promise<void>;
 }
 
 export function App(props: AppProps = {}) {
@@ -56,20 +126,54 @@ export function App(props: AppProps = {}) {
   // One instance for the connection panel. It only issues a health check, so it
   // shares nothing with the content service and needs no coordination.
   const connectionApi = useMemo(() => new ContentApi(), []);
+  const location = useLocation();
+  const locationRef = useRef(location);
+  locationRef.current = location;
+  const browserNavigate = useNavigate();
+  const routeNavigate = props.navigate ?? browserNavigate;
+  const destination = useMemo(() => recognizeDestination(location.pathname), [location.pathname]);
 
   const [api] = useState(() => props.api ?? new SecurityApi());
+  const WorkspaceHierarchy = props.hierarchy ?? HierarchyExplorer;
+  const SetupPage = props.bootstrap ?? BootstrapPage;
   const [gate, setGate] = useState<Gate>("checking");
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [view, setView] = useState<WorkspaceView>("workspace");
   const [workspaceBackupStale, setWorkspaceBackupStale] = useState(false);
   const [activeItem, setActiveItem] = useState<ProjectedItem | null>(null);
   const [operationalProblem, setOperationalProblem] = useState<SafeError | null>(null);
   const [trashedItems, setTrashedItems] = useState<readonly ProjectedItem[]>([]);
+  const [navigationProblem, setNavigationProblem] = useState<string | null>(null);
   const contentService = useMemo(() => localContent(), []);
   const workspaceReturn = useRef<{
     readonly focus: HTMLElement | null;
+    readonly path: string;
     readonly scrollY: number;
   } | null>(null);
+  const settingsSection = settingsSectionFromDestination(destination);
+  const workspaceVisible = destination.kind === "notes" || destination.kind === "note";
+  const protectedLayoutMounted = isProtectedDestination(destination);
+  const routedItemId = itemIdFromDestination(destination, activeItem?.id ?? null);
+
+  const navigateSafely = useCallback(
+    (path: string, options?: NavigateOptions): void => {
+      const reportRefusal = (): void => {
+        setNavigationProblem(
+          "Le navigateur a refusé ce changement d’adresse. Le contenu actuel reste ouvert.",
+        );
+      };
+      try {
+        const result = routeNavigate(path, options);
+        if (result instanceof Promise) {
+          void result.then(() => setNavigationProblem(null)).catch(reportRefusal);
+          return;
+        }
+        setNavigationProblem(null);
+      } catch {
+        reportRefusal();
+      }
+    },
+    [routeNavigate],
+  );
 
   const loadBackupStatus = useCallback(async () => {
     const result = await api.backupStatus();
@@ -130,7 +234,45 @@ export function App(props: AppProps = {}) {
   }, [resolveGate]);
 
   useEffect(() => {
-    if (gate !== "workspace" || view !== "workspace") {
+    if (gate === "checking") return;
+
+    if ("canonicalPath" in destination && destination.canonicalPath !== location.pathname) {
+      navigateSafely(`${destination.canonicalPath}${location.search}`, { replace: true });
+      return;
+    }
+
+    const requestedPath = isProtectedDestination(destination)
+      ? safeReturnDestination(`${location.pathname}${location.search}`)
+      : null;
+
+    if (gate === "bootstrap") {
+      if (destination.kind !== "setup") {
+        navigateSafely(setupPath(requestedPath), { replace: true });
+      }
+      return;
+    }
+    if (gate === "login") {
+      if (destination.kind !== "login") {
+        navigateSafely(loginPath(requestedPath), { replace: true });
+      }
+      return;
+    }
+
+    if (destination.kind === "root") {
+      navigateSafely("/notes", { replace: true });
+      return;
+    }
+    if (destination.kind === "settings-root") {
+      navigateSafely(settingsPath("security"), { replace: true });
+      return;
+    }
+    if (destination.kind === "setup" || destination.kind === "login") {
+      navigateSafely(returnDestinationFromSearch(location.search) ?? "/notes", { replace: true });
+    }
+  }, [destination, gate, location.pathname, location.search, navigateSafely]);
+
+  useEffect(() => {
+    if (gate !== "workspace" || !workspaceVisible) {
       return;
     }
     let cancelled = false;
@@ -154,7 +296,7 @@ export function App(props: AppProps = {}) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [gate, loadBackupStatus, view]);
+  }, [gate, loadBackupStatus, workspaceVisible]);
 
   const onSignedIn = useCallback(() => {
     void resolveGate();
@@ -162,27 +304,63 @@ export function App(props: AppProps = {}) {
 
   const onSignedOut = useCallback(() => {
     setSessionId(null);
-    setView("workspace");
     workspaceReturn.current = null;
     setGate("login");
   }, []);
   const pageOperationCsrfToken = useCallback(() => api.csrfTokenForSameOriginWrite(), [api]);
 
-  const openSettings = useCallback((section: SettingsSection) => {
-    workspaceReturn.current = {
-      focus: document.activeElement instanceof HTMLElement ? document.activeElement : null,
-      scrollY: window.scrollY,
-    };
-    setView(section);
-  }, []);
+  const openSettings = useCallback(
+    (section: SettingsSection) => {
+      const path =
+        safeReturnDestination(`${location.pathname}${location.search}`) ??
+        (activeItem === null ? "/notes" : notePath(activeItem.id));
+      const target = settingsDestination(section, activeItem?.id ?? null);
+      if (target === null) return;
+      workspaceReturn.current = {
+        focus: document.activeElement instanceof HTMLElement ? document.activeElement : null,
+        path,
+        scrollY: window.scrollY,
+      };
+      navigateSafely(target, { state: workspaceReturnState(path, window.scrollY) });
+    },
+    [activeItem, location.pathname, location.search, navigateSafely],
+  );
+
+  const changeSettingsSection = useCallback(
+    (section: SettingsSection) => {
+      const target = settingsDestination(section, activeItem?.id ?? routedItemId);
+      if (target !== null) navigateSafely(target, { state: location.state });
+    },
+    [activeItem?.id, location.state, navigateSafely, routedItemId],
+  );
 
   const returnToWorkspace = useCallback(() => {
-    setView("workspace");
-  }, []);
+    const remembered =
+      workspaceReturnDestinationFromState(location.state) ?? workspaceReturn.current;
+    navigateSafely(remembered?.path ?? "/notes");
+  }, [location.state, navigateSafely]);
+
+  const openItem = useCallback(
+    (itemId: Uuid | null, options?: { readonly replace?: boolean }) => {
+      const currentLocation = locationRef.current;
+      let target = itemId === null ? "/notes" : notePath(itemId);
+      if (itemId !== null && options?.replace === true) {
+        target = contentReturnFromState(currentLocation.state, itemId) ?? target;
+      }
+      const currentPath = safeReturnDestination(
+        `${currentLocation.pathname}${currentLocation.search}`,
+      );
+      navigateSafely(target, {
+        ...(options?.replace === undefined ? {} : { replace: options.replace }),
+        ...(currentPath === null ? {} : { state: { contentReturn: currentPath } }),
+      });
+    },
+    [navigateSafely],
+  );
 
   useLayoutEffect(() => {
     if (gate !== "workspace") return;
-    if (view !== "workspace") {
+    if (!workspaceVisible) {
       window.scrollTo({ top: 0, left: 0 });
       return;
     }
@@ -191,7 +369,7 @@ export function App(props: AppProps = {}) {
     window.scrollTo({ top: destination.scrollY, left: 0 });
     destination.focus?.focus({ preventScroll: true });
     workspaceReturn.current = null;
-  }, [gate, view]);
+  }, [gate, workspaceVisible]);
 
   if (gate === "checking") {
     return (
@@ -206,7 +384,7 @@ export function App(props: AppProps = {}) {
   if (gate === "bootstrap") {
     return (
       <div className="app-shell">
-        <BootstrapPage api={api} onReady={onSignedIn} />
+        <SetupPage api={api} onReady={onSignedIn} />
       </div>
     );
   }
@@ -221,41 +399,55 @@ export function App(props: AppProps = {}) {
 
   return (
     <>
-      <div
-        className="app-shell app-shell--workspace"
-        hidden={view !== "workspace"}
-        data-testid="workspace-surface"
-      >
-        <HierarchyExplorer
-          active={view === "workspace"}
-          backupStale={workspaceBackupStale}
-          pageOperationCsrfToken={pageOperationCsrfToken}
-          onActiveItemChange={setActiveItem}
-          onOpenBackups={() => openSettings("backups")}
-          onOpenDiagnostics={() => openSettings("local-data")}
-          onOpenSettings={() => openSettings("security")}
-          onProblemChange={setOperationalProblem}
-          onTrashedItemsChange={setTrashedItems}
-        />
-      </div>
+      {protectedLayoutMounted ? (
+        <div
+          className="app-shell app-shell--workspace"
+          hidden={!workspaceVisible}
+          data-testid="workspace-surface"
+        >
+          <WorkspaceHierarchy
+            active={workspaceVisible}
+            backupStale={workspaceBackupStale}
+            selectedItemId={routedItemId}
+            pageOperationCsrfToken={pageOperationCsrfToken}
+            onActiveItemChange={setActiveItem}
+            onOpenBackups={() => openSettings("backups")}
+            onOpenDiagnostics={() => openSettings("local-data")}
+            onOpenSettings={() => openSettings("security")}
+            onOpenItem={openItem}
+            onProblemChange={setOperationalProblem}
+            onTrashedItemsChange={setTrashedItems}
+          />
+        </div>
+      ) : null}
 
-      {view === "workspace" ? null : (
-        <SettingsShell activeSection={view} onBack={returnToWorkspace} onSectionChange={setView}>
-          {view === "security" ? (
+      {navigationProblem === null ? null : (
+        <p role="alert" data-testid="route-navigation-error">
+          {navigationProblem}
+        </p>
+      )}
+
+      {settingsSection === null ? null : (
+        <SettingsShell
+          activeSection={settingsSection}
+          onBack={returnToWorkspace}
+          onSectionChange={changeSettingsSection}
+        >
+          {settingsSection === "security" ? (
             <>
               {/* Trust information belongs to the security destination, not
                   alongside the owner's current note. */}
               <ConnectionStatus api={connectionApi} />
               <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
             </>
-          ) : view === "backups" ? (
+          ) : settingsSection === "backups" ? (
             <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />
-          ) : view === "navigation" ? (
+          ) : settingsSection === "navigation" ? (
             <WorkspaceNavigationSettings db={contentService.db} />
           ) : (
             <WorkspaceManagementSettings
               activeItem={activeItem}
-              section={view}
+              section={settingsSection}
               service={contentService}
               problem={operationalProblem}
               trashedItems={trashedItems}
@@ -263,6 +455,10 @@ export function App(props: AppProps = {}) {
           )}
         </SettingsShell>
       )}
+
+      {destination.kind === "not-found" ? (
+        <NotFoundPage onReturn={() => navigateSafely("/notes")} />
+      ) : null}
     </>
   );
 }

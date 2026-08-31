@@ -6,7 +6,7 @@ import type {
   RelationTargets,
   Uuid,
 } from "@myownnotion/domain";
-import { type ReactNode, useMemo, useRef, useState } from "react";
+import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AsyncState } from "../../ui/primitives/async-state.tsx";
 import { StableActionButton } from "../../ui/stable-action-button.tsx";
 import { DATABASE_COPY } from "./database-copy.ts";
@@ -16,6 +16,8 @@ import {
   ValueEditor,
   validateValueDraft,
 } from "./value-editor.tsx";
+
+export type EntryDrafts = Readonly<Record<string, ValueDraft>>;
 
 function initialDraft(property: DatabaseProperty, entry: DatabaseEntryDto): ValueDraft {
   if (property.type === "relation") return entry.relationTargets[property.id] ?? [];
@@ -49,6 +51,8 @@ export function EntryPanel({
   definition,
   relationOptions = [],
   pageContent,
+  initialDrafts,
+  onDraftsChange,
   onSaveValues,
   onClose,
 }: {
@@ -56,6 +60,9 @@ export function EntryPanel({
   readonly definition: DatabaseDefinition;
   readonly relationOptions?: readonly RelationOption[];
   readonly pageContent?: ReactNode;
+  /** Edited fields retained while a transient projection remounts this form. */
+  readonly initialDrafts?: EntryDrafts;
+  readonly onDraftsChange?: (drafts: EntryDrafts) => void;
   readonly onSaveValues: (
     values: Readonly<Record<Uuid, NonRelationPropertyValue>>,
     relationTargets: RelationTargets,
@@ -91,26 +98,52 @@ export function EntryPanel({
     () => editableProperties.filter(({ id }) => !taskPropertyIds.has(id)),
     [editableProperties, taskPropertyIds],
   );
-  const [drafts, setDrafts] = useState<Readonly<Record<string, ValueDraft>>>(() =>
-    Object.fromEntries(
-      editableProperties.map((property) => [property.id, initialDraft(property, entry)]),
-    ),
+  const projectionDrafts = useMemo<EntryDrafts>(
+    () =>
+      Object.fromEntries(
+        editableProperties.map((property) => [property.id, initialDraft(property, entry)]),
+      ),
+    [editableProperties, entry],
   );
+  const [drafts, setDrafts] = useState<EntryDrafts>(() => ({
+    ...projectionDrafts,
+    ...initialDrafts,
+  }));
   // Pointer activation may run before React commits the render scheduled by
   // the last input event (observed on WebKit). Keep the authoritative draft in
   // a synchronously updated ref so Save can never submit the previous render's
   // value while the field already shows the owner's final text.
   const draftsRef = useRef(drafts);
+  // Only owner-edited fields survive a projection refresh or a route remount.
+  // Untouched fields must keep following synchronization, including the short
+  // interval where an entry row exists before all its values finish hydrating.
+  const editedDraftsRef = useRef<EntryDrafts>(initialDrafts ?? {});
+  const initialDraftsRef = useRef(initialDrafts);
+  initialDraftsRef.current = initialDrafts;
+  const draftEntryIdRef = useRef(entry.entryId);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const [saving, setSaving] = useState(false);
   const saveInFlight = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveConfirmation, setSaveConfirmation] = useState<string | null>(null);
 
-  const updateDraft = (propertyId: Uuid, input: ValueDraft): void => {
-    const next = { ...draftsRef.current, [propertyId]: input };
+  useLayoutEffect(() => {
+    if (draftEntryIdRef.current !== entry.entryId) {
+      draftEntryIdRef.current = entry.entryId;
+      editedDraftsRef.current = initialDraftsRef.current ?? {};
+    }
+    const next = { ...projectionDrafts, ...editedDraftsRef.current };
     draftsRef.current = next;
     setDrafts(next);
+  }, [entry.entryId, projectionDrafts]);
+
+  const updateDraft = (propertyId: Uuid, input: ValueDraft): void => {
+    const next = { ...draftsRef.current, [propertyId]: input };
+    const editedDrafts = { ...editedDraftsRef.current, [propertyId]: input };
+    draftsRef.current = next;
+    editedDraftsRef.current = editedDrafts;
+    setDrafts(next);
+    onDraftsChange?.(editedDrafts);
     setSaveConfirmation(null);
     setErrors((current) => {
       const { [propertyId]: _removed, ...remaining } = current;

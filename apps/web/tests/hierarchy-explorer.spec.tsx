@@ -1,5 +1,47 @@
 import { readFileSync } from "node:fs";
+import type { ProjectedItem } from "@myownnotion/client-core";
+import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
+import {
+  resolveInitialRoutedItemId,
+  resolveRoutedItemState,
+} from "../src/features/hierarchy/hierarchy-explorer.tsx";
+
+function routedItem(id: Uuid, lifecycle: ProjectedItem["lifecycle"] = "active"): ProjectedItem {
+  return { id, lifecycle } as ProjectedItem;
+}
+
+describe("route-controlled hierarchy selection", () => {
+  it("keeps an explicit route identity even before local hydration can resolve it", () => {
+    const routeItemId = generateUuidV7();
+    const previousItemId = generateUuidV7();
+
+    expect(resolveInitialRoutedItemId(routeItemId, previousItemId, [])).toBe(routeItemId);
+  });
+
+  it("uses the last active item only for the untargeted /notes destination", () => {
+    const activeId = generateUuidV7();
+    const missingId = generateUuidV7();
+    const items = [routedItem(activeId)];
+
+    expect(resolveInitialRoutedItemId(null, activeId, items)).toBe(activeId);
+    expect(resolveInitialRoutedItemId(null, missingId, items)).toBeNull();
+  });
+
+  it("distinguishes active, trashed, offline-unavailable and missing route targets", () => {
+    const activeId = generateUuidV7();
+    const trashedId = generateUuidV7();
+    const missingId = generateUuidV7();
+    const items = [routedItem(activeId)];
+    const trash = [routedItem(trashedId, "trashed")];
+
+    expect(resolveRoutedItemState(items, trash, activeId, true)).toBe("active");
+    expect(resolveRoutedItemState(items, trash, trashedId, true)).toBe("trashed");
+    expect(resolveRoutedItemState(items, trash, missingId, false)).toBe("unavailable-local");
+    expect(resolveRoutedItemState(items, trash, missingId, true)).toBe("not-found");
+    expect(resolveRoutedItemState(items, trash, null, true)).toBe("none");
+  });
+});
 
 describe("hierarchy item identity geometry", () => {
   it("uses the shared identity slot and never restores a disclosure spacer for leaves", () => {
