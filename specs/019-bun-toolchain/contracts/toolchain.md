@@ -23,6 +23,7 @@ installed host runtime.
 | Frozen clean install | `bun ci` |
 | Toolchain policy | `bun run toolchain:check` |
 | Development stack | `bun run dev` |
+| HTTPS development stack | `bun run dev:stack` |
 | Type checking | `bun run typecheck` |
 | Production builds | `bun run build` |
 | Complete pre-push gate | `bun run checks:local` |
@@ -30,6 +31,11 @@ installed host runtime.
 | Administration | `bun run admin -- <command>` |
 | Production dependency audit | `bun audit --prod --audit-level=high` |
 | Production license inventory | `bun pm licenses --prod --json` |
+
+`bun run dev:stack` MUST rebuild images on start and on reset (`docker compose
+up --build`). File edits MUST NOT rebuild or restart those containers; Bun
+`--watch` and Vite HMR MUST reload bind-mounted sources inside the running
+processes. The helper is not the official deployment topology.
 
 Every command MUST return the underlying failure code. A missing or unavailable
 tool MUST fail rather than produce a skipped success.

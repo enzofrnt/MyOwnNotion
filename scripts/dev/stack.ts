@@ -1,9 +1,10 @@
 /**
  * Local HTTPS development stack (postgres + hot-reload API/web + Caddy).
  *
- * The Compose project stays detached. File changes are picked up by Bun
- * `--watch` and Vite HMR inside the running containers — not by rebuilding
- * or restarting those containers.
+ * Starting (and resetting) the stack rebuilds images (`docker compose up
+ * --build`). The Compose project then stays detached: file changes are
+ * picked up by Bun `--watch` and Vite HMR inside the running containers —
+ * not by rebuilding or restarting those containers.
  *
  * Usage:
  *   bun run dev:stack
@@ -29,6 +30,7 @@ const resetVolumes = [
   `${projectName}_file-store`,
   `${projectName}_backup-store`,
 ] as const;
+const upArgs = ["up", "-d", "--build", "--wait", "--remove-orphans"] as const;
 
 function fail(message: string, status = 1): void {
   console.error(message);
@@ -69,7 +71,7 @@ function resetDevData(): void {
     removeVolume(volume);
   }
   ensureDeploymentKey();
-  if (compose(["up", "-d", "--wait", "--remove-orphans"]) !== 0) {
+  if (compose([...upArgs]) !== 0) {
     fail("Could not recreate the development stack after the reset.");
   }
   console.info("Development data reset. Open https://localhost:8443");
@@ -119,7 +121,7 @@ if (args.includes("--logs")) {
 }
 
 ensureDeploymentKey();
-if (compose(["up", "-d", "--wait", "--remove-orphans"]) !== 0) {
+if (compose([...upArgs]) !== 0) {
   fail("Could not start the development stack.");
 }
 console.info("Stack is detached. Open https://localhost:8443");

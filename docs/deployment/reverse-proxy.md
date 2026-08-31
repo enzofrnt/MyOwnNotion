@@ -97,8 +97,8 @@ context for passkeys, and Caddy's internal certificate is issued for the name.
 This repository also ships a **local-only** helper, `compose.dev.yaml`, that
 runs that internal-CA Caddy in front of API and Vite processes that stay
 running and reload themselves. It is not part of the official stack. Start
-it detached with `bun run dev:stack` and open `https://localhost:8443`. See
-`docs/development.md`.
+it detached with `bun run dev:stack` (images rebuild on start and reset) and
+open `https://localhost:8443`. See `docs/development.md`.
 
 ## nginx
 

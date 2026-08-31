@@ -8,7 +8,8 @@
 #
 #   bun run dev:stack
 #
-# The project stays detached. API (`bun --watch`) and Vite HMR reload the
+# `bun run dev:stack` rebuilds images on start (`docker compose up --build`).
+# The project then stays detached. API (`bun --watch`) and Vite HMR reload the
 # bind-mounted sources inside the running containers. Do not use Compose
 # Watch: a file edit must not rebuild or restart a container.
 #

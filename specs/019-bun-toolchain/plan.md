@@ -240,7 +240,15 @@ compatibilité fournies par Bun, pas un processus Node.js.
 L'API utilise `bun --watch src/server.ts`. Le Web conserve Vite pour le HMR
 React et le proxy same-origin `/v1` + `/health`, lancé par Bun avec l'alias de
 runtime forcé. Un prototype Bun 1.4.0 a validé l'upgrade WebSocket à travers ce
-proxy ; aucune passerelle de développement spécifique n'est nécessaire.
+proxy.
+
+Le HTTPS local (passkeys, cookie `__Host-`) utilise le helper détaché
+`compose.dev.yaml`, lancé par `bun run dev:stack`. Le démarrage et le reset
+passent `docker compose up --build` afin qu'un changement de Dockerfile,
+d'image de base ou de lockfile soit pris en compte. Une édition de source
+bind-montée ne reconstruit pas et ne redémarre pas les conteneurs : Bun
+`--watch` et le HMR de Vite rechargent les processus déjà lancés. Cette
+helper n'est pas la topologie officielle de `compose.yaml`.
 
 Les scripts workspace indépendants (`typecheck`, `build`, `dev`) emploient le
 filtrage et le parallélisme Bun. Les familles de tests ciblées peuvent toujours

@@ -129,9 +129,10 @@ bun run dev:trust
 Follow container logs with `bun run dev:stack:logs` without attaching the
 project. Stop the stack with `bun run dev:stack:down`. Wipe the development
 database, encrypted files, and local backups (Caddy's CA stays) with
-`bun run dev:stack:reset`. A lockfile or image change needs a deliberate
-`docker compose -f compose.dev.yaml build`, not a container restart on every
-edit. This helper is not the official deployment; `compose.yaml` still
+`bun run dev:stack:reset`. Starting or resetting the stack rebuilds images
+(`docker compose up --build`). File edits do not rebuild or restart
+containers; Bun `--watch` and Vite HMR pick them up inside the running
+processes. This helper is not the official deployment; `compose.yaml` still
 publishes HTTP only.
 
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
