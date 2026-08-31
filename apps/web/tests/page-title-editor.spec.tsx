@@ -85,6 +85,43 @@ describe("page title editor", () => {
     expect(title.value).toBe("Titre immédiat");
   });
 
+  it("keeps a native replacement through a concurrent projection render", async () => {
+    const onCommit = vi.fn(async () => undefined);
+    const editor = (
+      <PageTitleEditor initialDraft="" restoreFocus title="Sans titre" onCommit={onCommit} />
+    );
+    await act(async () => {
+      root.render(editor);
+    });
+    const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
+    if (title === null) throw new Error("title editor missing");
+
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(
+      title,
+      "Dossier immédiat",
+    );
+    await act(async () => {
+      // WebKit can let a projection render run after applying the replacement
+      // but before React receives the native input event. That render must not
+      // put the previous blank draft back into the textarea.
+      root.render(editor);
+    });
+    expect(title.value).toBe("Dossier immédiat");
+
+    await act(async () => {
+      title.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          data: "Dossier immédiat",
+          inputType: "insertReplacementText",
+        }),
+      );
+      title.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+      await Promise.resolve();
+    });
+    expect(onCommit).toHaveBeenCalledWith("Dossier immédiat");
+  });
+
   it("does not replace the draft or cursor when a remote title arrives during editing", async () => {
     const onCommit = vi.fn(async () => undefined);
     await act(async () => {
