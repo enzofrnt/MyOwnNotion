@@ -90,6 +90,7 @@ export function PageTitleEditor({
     if (pendingCommitCount.current > 0 && next !== lastRequested.current) return;
     lastRequested.current = next;
     latestDraft.current = next;
+    if (textarea.current !== null) textarea.current.value = next;
     setDraft(next);
   }, [title]);
 
@@ -138,7 +139,10 @@ export function PageTitleEditor({
       timer.current = null;
     }
     latestDraft.current = next;
-    if (reflectInEditor && mounted.current) setDraft(next);
+    if (reflectInEditor && mounted.current) {
+      if (textarea.current !== null) textarea.current.value = next;
+      setDraft(next);
+    }
     onDraftStateChangeRef.current?.(next, focused.current);
     if (next === lastRequested.current) return queue.current;
     lastRequested.current = next;
@@ -212,7 +216,13 @@ export function PageTitleEditor({
       <textarea
         ref={textarea}
         rows={1}
-        value={draft}
+        // Keep the browser's live value authoritative while the owner types.
+        // A controlled textarea lets an unrelated concurrent render project
+        // the previous React state back into the DOM between WebKit's native
+        // replacement and its input event. `defaultValue` initializes each
+        // route-bound editor; acknowledged remote changes are projected
+        // explicitly by the title effect above.
+        defaultValue={startingDraft}
         aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
         aria-invalid={failed || undefined}
         aria-busy={busy || undefined}
@@ -248,6 +258,7 @@ export function PageTitleEditor({
             event.preventDefault();
             const restored = title || UNTITLED_PAGE;
             latestDraft.current = restored;
+            event.currentTarget.value = restored;
             setDraft(restored);
             onDraftStateChangeRef.current?.(restored, false);
             event.currentTarget.blur();
