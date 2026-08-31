@@ -9,6 +9,7 @@ import {
   type APIRequestContext,
   type Browser,
   type BrowserContext,
+  type ElementHandle,
   expect,
   type Locator,
   type Page,
@@ -79,74 +80,154 @@ export async function sampleCssTransition(
   );
 }
 
+export interface CssTransitionTarget {
+  readonly locator: Locator;
+  readonly property: string;
+}
+
 /**
- * Starts an interaction and freezes its transition without a driver round trip.
+ * Starts an interaction and freezes its transitions without a driver round trip.
  *
  * Firefox runs in a Linux container on macOS. Clicking through Playwright and
  * asking for the animation in a second command can therefore arrive after a
  * short production transition has already finished. Starting the click and
- * observing the resulting animation in one browser task proves the same real
+ * observing the resulting animations in one browser task proves the same real
  * intermediate frame without making the assertion depend on host latency.
  */
+export async function triggerAndSampleCssTransitions(
+  trigger: Locator,
+  targets: readonly CssTransitionTarget[],
+  progress = 0.5,
+): Promise<CssTransitionSample[]> {
+  if (targets.length === 0) {
+    throw new Error("At least one CSS transition target is required");
+  }
+  await expect(trigger).toBeVisible();
+  for (const target of targets) {
+    await expect(target.locator).toBeAttached();
+  }
+
+  const triggerElement = await trigger.elementHandle();
+  if (triggerElement === null) throw new Error("The transition trigger is not attached");
+  const targetHandles: ElementHandle[] = [];
+  try {
+    for (const target of targets) {
+      const handle = await target.locator.elementHandle();
+      if (handle === null) {
+        throw new Error(`The ${target.property} transition target is not attached`);
+      }
+      targetHandles.push(handle);
+    }
+
+    return await triggerElement.evaluate(
+      async (button, options): Promise<CssTransitionSample[]> => {
+        const nextFrame = (): Promise<void> =>
+          new Promise((resolve) => {
+            requestAnimationFrame(() => resolve());
+          });
+        const findTransition = (
+          element: Element,
+          transitionProperty: string,
+        ): CSSTransition | undefined =>
+          element
+            .getAnimations()
+            .find(
+              (animation): animation is CSSTransition =>
+                "transitionProperty" in animation &&
+                animation.transitionProperty === transitionProperty,
+            );
+
+        const control = button as HTMLElement;
+        control.focus();
+        control.click();
+
+        const elements = options.targets.map((target) => target.element as unknown as Element);
+        const transitions: Array<CSSTransition | undefined> = elements.map((element, index) => {
+          const property = options.targets[index]?.property;
+          return property === undefined ? undefined : findTransition(element, property);
+        });
+        for (
+          let frame = 0;
+          transitions.some((transition) => transition === undefined) && frame < 12;
+          frame += 1
+        ) {
+          await nextFrame();
+          for (const [index, element] of elements.entries()) {
+            const property = options.targets[index]?.property;
+            if (transitions[index] === undefined && property !== undefined) {
+              transitions[index] = findTransition(element, property);
+            }
+          }
+        }
+
+        const missing = transitions.indexOf(undefined);
+        if (missing !== -1) {
+          throw new Error(
+            `No active ${options.targets[missing]?.property ?? "unknown"} transition was found`,
+          );
+        }
+
+        for (const [index, transition] of transitions.entries()) {
+          if (transition === undefined) continue;
+          transition.pause();
+          const timing = transition.effect?.getComputedTiming();
+          const duration = typeof timing?.duration === "number" ? timing.duration : 0;
+          if (duration <= 0) {
+            throw new Error(
+              `${options.targets[index]?.property ?? "unknown"} transition has no measurable duration`,
+            );
+          }
+          transition.currentTime = duration * options.progress;
+        }
+        await nextFrame();
+
+        const samples: CssTransitionSample[] = [];
+        for (const [index, transition] of transitions.entries()) {
+          if (transition === undefined) continue;
+          const element = elements[index];
+          if (element === undefined) continue;
+          const rectangle = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          samples.push({
+            height: rectangle.height,
+            transform: style.transform,
+            width: rectangle.width,
+          });
+          transition.finish();
+        }
+        return samples;
+      },
+      {
+        progress,
+        targets: targets.map((target, index) => ({
+          element: targetHandles[index],
+          property: target.property,
+        })),
+      },
+    );
+  } finally {
+    await Promise.all([
+      triggerElement.dispose(),
+      ...targetHandles.map((handle) => handle.dispose()),
+    ]);
+  }
+}
+
 export async function triggerAndSampleCssTransition(
   trigger: Locator,
   locator: Locator,
   transitionProperty: string,
   progress = 0.5,
 ): Promise<CssTransitionSample> {
-  await expect(trigger).toBeVisible();
-  await expect(locator).toBeAttached();
-  const triggerElement = await trigger.elementHandle();
-  if (triggerElement === null) throw new Error("The transition trigger is not attached");
-  try {
-    return await locator.evaluate(
-      async (element, options): Promise<CssTransitionSample> => {
-        const button = options.trigger as unknown as HTMLElement;
-        button.focus();
-        button.click();
-
-        const findTransition = (): CSSTransition | undefined =>
-          element
-            .getAnimations()
-            .find(
-              (animation): animation is CSSTransition =>
-                "transitionProperty" in animation &&
-                animation.transitionProperty === options.transitionProperty,
-            );
-
-        let transition = findTransition();
-        for (let frame = 0; transition === undefined && frame < 12; frame += 1) {
-          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-          transition = findTransition();
-        }
-        if (transition === undefined) {
-          throw new Error(`No active ${options.transitionProperty} transition was found`);
-        }
-
-        transition.pause();
-        const timing = transition.effect?.getComputedTiming();
-        const duration = typeof timing?.duration === "number" ? timing.duration : 0;
-        if (duration <= 0) {
-          throw new Error(`${options.transitionProperty} transition has no measurable duration`);
-        }
-        transition.currentTime = duration * options.progress;
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-        const rectangle = element.getBoundingClientRect();
-        const style = getComputedStyle(element);
-        const sample = {
-          height: rectangle.height,
-          transform: style.transform,
-          width: rectangle.width,
-        };
-        transition.finish();
-        return sample;
-      },
-      { progress, transitionProperty, trigger: triggerElement },
-    );
-  } finally {
-    await triggerElement.dispose();
+  const [sample] = await triggerAndSampleCssTransitions(
+    trigger,
+    [{ locator, property: transitionProperty }],
+    progress,
+  );
+  if (sample === undefined) {
+    throw new Error(`No active ${transitionProperty} transition was found`);
   }
+  return sample;
 }
 
 interface E2ELocalContentService {
@@ -364,8 +445,9 @@ async function nameNewlyCreatedItem(page: Page, name: string): Promise<void> {
   await expect(title).toBeFocused({ timeout: 15_000 });
   await expect(title).toHaveValue("");
   await title.fill(name);
-  await title.press("Enter");
   await expect(title).toHaveValue(name);
+  await title.press("Enter");
+  await expect(title).toHaveValue(name, { timeout: 15_000 });
 }
 
 export async function createRootItem(

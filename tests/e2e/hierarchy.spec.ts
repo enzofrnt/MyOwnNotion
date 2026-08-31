@@ -16,6 +16,7 @@ import {
   sampleCssTransition,
   selectItem,
   trashItem,
+  triggerAndSampleCssTransitions,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -285,11 +286,13 @@ test.describe("hierarchy organization (US1)", () => {
     const openHeight = (await children.boundingBox())?.height ?? 0;
     expect(openHeight).toBeGreaterThan(1);
 
-    await toggle.click();
-    const [closingRegion, closingChevron] = await Promise.all([
-      sampleCssTransition(children, "grid-template-rows"),
-      sampleCssTransition(chevron, "transform"),
+    const [closingRegion, closingChevron] = await triggerAndSampleCssTransitions(toggle, [
+      { locator: children, property: "grid-template-rows" },
+      { locator: chevron, property: "transform" },
     ]);
+    if (closingRegion === undefined || closingChevron === undefined) {
+      throw new Error("Expected closing region and chevron transition samples");
+    }
     expect(closingRegion.height).toBeGreaterThan(0);
     expect(closingRegion.height).toBeLessThan(openHeight);
     expect(closingChevron.transform).not.toBe("none");
