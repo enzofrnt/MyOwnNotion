@@ -35,6 +35,10 @@ test.describe("interrupted mutations (US4)", () => {
 
     // Simulate a process interruption: reload while the queue is pending.
     await page.reload();
+    // Diagnostics now have their own durable URL. Reloading correctly keeps
+    // that destination, so return through the product control before reading
+    // the retained workspace projection.
+    await returnToWorkspace(page);
     await ensureNavigationRowVisible(page, name);
     await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();

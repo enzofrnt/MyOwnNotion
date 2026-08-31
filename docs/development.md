@@ -92,6 +92,21 @@ bun run dev
 
 Every published port binds to `127.0.0.1` only.
 
+### Application URLs
+
+The browser path is the source of truth for the visible destination. Use
+`/notes` for the workspace, `/notes/<item-id>` for every page-backed item
+(pages, folders, databases, and database entries), and the dedicated settings
+paths under `/settings/`: `security`, `navigation`, `backups`, `storage-sync`,
+`trash`, plus `/settings/page/<item-id>` for one item's details. `/setup` and
+`/login` preserve only a validated internal return destination.
+
+Opening a deep path directly must return the application shell. Vite provides
+that fallback during development; the Web image provides it through nginx;
+the production service worker serves its precached `index.html` for offline
+same-origin navigations. API, health, immutable assets, and the service worker
+itself are excluded from those fallbacks.
+
 ### HTTPS development stack (passkeys)
 
 `http://127.0.0.1:5173` is not a secure context, so the browser will not offer
@@ -637,7 +652,7 @@ base commit is valid unchanged-input evidence; the PR reruns and confirms it.
 SARIF upload and GitHub Security-tab publication are GitHub-only presentation
 steps, not local product validation.
 
-### Firefox end-to-end tests on macOS
+### Containerized end-to-end browsers on macOS
 
 The patched Firefox binary downloaded by Playwright currently hangs during
 startup on the macOS development workstation, in both headless and headed
@@ -645,9 +660,15 @@ modes, before the first page is created. The symptom is a Firefox process at
 100% CPU with a `RenderCompositorSWGL failed mapping default framebuffer` log.
 This is a browser/runtime issue, not an application-test failure.
 
+Patched WebKit can also enter an internal `WebLoaderStrategy` failure late in a
+long desktop or mobile corpus on macOS. Once that engine failure occurs, later
+pages cannot reach `domcontentloaded` and context cleanup times out. Short
+focused tests may stay green, so the complete local gate must not use native
+WebKit as evidence.
+
 `bun run checks:local` invokes `bun run test:e2e:gate`. On macOS that wrapper runs
-Chromium and WebKit directly, then runs Firefox in the official Playwright
-Linux container. The
+Chromium directly, then runs Firefox, WebKit desktop and WebKit mobile in the
+official Playwright Linux container. The
 container uses the same Playwright version as the repository and reaches the
 host PostgreSQL service through `host.docker.internal`:
 
@@ -655,6 +676,13 @@ host PostgreSQL service through `host.docker.internal`:
 docker compose up -d --wait postgres
 bun run db:migrate
 bun run test:e2e:firefox-container -- --project=firefox-desktop
+```
+
+The generic command can run any containerized lane directly:
+
+```bash
+bun run test:e2e:browser-container -- --project=webkit-desktop
+bun run test:e2e:browser-container -- --project=webkit-mobile
 ```
 
 To rerun one lane with the same isolated database and deployment-key lifecycle
@@ -667,15 +695,16 @@ bun run test:e2e:gate -- --project=firefox-desktop
 Additional Playwright arguments are forwarded after `--`, for example:
 
 ```bash
-bun run test:e2e:firefox-container -- --project=firefox-desktop --grep "first-run gate"
+bun run test:e2e:browser-container -- --project=webkit-desktop --grep "first-run gate"
 ```
 
-This is the required local path for Firefox on macOS. Chromium and WebKit may
-still run directly on the host. The container is headless by default; failed
-journeys retain the usual Playwright traces and screenshots for debugging.
+This is the required local path for Firefox and WebKit on macOS. Chromium still
+runs directly on the host. The container is headless by default; failed journeys
+retain the usual Playwright traces and screenshots for debugging. The historical
+`test:e2e:firefox-container` command remains an alias for Firefox-only reruns.
 
 When invoking the raw `bun run test:e2e` and
-`bun run test:e2e:firefox-container` commands yourself, run them one after the
+`bun run test:e2e:browser-container` commands yourself, run them one after the
 other. Those commands use the default PostgreSQL database, and concurrent
 journeys can delete each other's fixtures. `bun run test:e2e:local` is the safe
 parallel exception: its matrix runner allocates an isolated database, ports,

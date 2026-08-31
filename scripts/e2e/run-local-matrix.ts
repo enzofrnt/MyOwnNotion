@@ -24,11 +24,12 @@
  * What is *not* isolated is PostgreSQL itself — one server, several databases.
  * Starting five servers would cost more than the parallelism saves.
  *
- * On macOS, Firefox runs inside the pinned Linux image, because Playwright's
- * patched Firefox hangs before opening a page on the macOS development runtime.
- * That stack talks to the same PostgreSQL through `host.docker.internal` and
- * starts its own servers inside the container, so it needs a database of its own
- * plus host-side migration fixtures before the container starts.
+ * On macOS, browser engines marked `containerOnMac` run inside the pinned Linux
+ * image. Playwright's patched Firefox hangs before opening a page there, while
+ * patched WebKit can enter an internal loader failure late in a long corpus.
+ * Those stacks talk to PostgreSQL through `host.docker.internal` and start their
+ * own servers inside the container, so each still receives its own database and
+ * host-side migration fixtures before the container starts.
  */
 
 import { spawn } from "node:child_process";

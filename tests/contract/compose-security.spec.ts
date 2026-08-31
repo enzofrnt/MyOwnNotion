@@ -83,6 +83,15 @@ describe("compose security (loopback only)", () => {
     expect(nginx).toMatch(/location\s+=\s+\/health\s*\{[^}]*proxy_pass\s+http:\/\/api:3001/s);
   });
 
+  it("falls back to the application shell for direct canonical routes only", () => {
+    const nginx = readFileSync(path.join(repoRoot, "docker/web-nginx.conf"), "utf8");
+    expect(nginx).toMatch(/location\s+\/\s*\{[^}]*try_files\s+\$uri\s+\$uri\/\s+\/index\.html/s);
+    expect(nginx).toMatch(/location\s+\/assets\/\s*\{[^}]*try_files\s+\$uri\s+=404/s);
+    expect(nginx).toMatch(/location\s+=\s+\/service-worker\.js\s*\{[^}]*try_files\s+\$uri\s+=404/s);
+    expect(nginx).toMatch(/location\s+=\s+\/v1\s*\{[^}]*return\s+404/s);
+    expect(nginx).toMatch(/location\s+\^~\s+\/health\/\s*\{[^}]*return\s+404/s);
+  });
+
   it("applies the schema through a one-shot job the API waits for", () => {
     // The image carries the reviewed SQL, but nothing applied it: a fresh
     // deployment started the API against an empty database and crashed on its

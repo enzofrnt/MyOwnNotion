@@ -3,6 +3,7 @@ import type { DatabaseDto } from "@myownnotion/contracts";
 import { type DatabaseDefinition, generateUuidV7 } from "@myownnotion/domain";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabasePage } from "../src/features/databases/database-page.tsx";
 
@@ -73,13 +74,15 @@ describe("database page interaction durability", () => {
     const onReplaceDefinition = vi.fn();
     const initialDatabase = database();
     const renderPage = (value: DatabaseDto) => (
-      <DatabasePage
-        database={value}
-        entries={[]}
-        onReplaceDefinition={onReplaceDefinition}
-        onCreateEntry={vi.fn()}
-        onOpenEntry={vi.fn()}
-      />
+      <MemoryRouter initialEntries={[`/notes/${value.databaseId}`]}>
+        <DatabasePage
+          database={value}
+          entries={[]}
+          onReplaceDefinition={onReplaceDefinition}
+          onCreateEntry={vi.fn()}
+          onOpenEntry={vi.fn()}
+        />
+      </MemoryRouter>
     );
     act(() => root.render(renderPage(initialDatabase)));
 
@@ -145,13 +148,15 @@ describe("database page interaction durability", () => {
     const onCreateEntry = vi.fn().mockResolvedValue(undefined);
     const initialDatabase = database();
     const renderPage = (value: DatabaseDto) => (
-      <DatabasePage
-        database={value}
-        entries={[]}
-        onReplaceDefinition={vi.fn()}
-        onCreateEntry={onCreateEntry}
-        onOpenEntry={vi.fn()}
-      />
+      <MemoryRouter initialEntries={[`/notes/${value.databaseId}`]}>
+        <DatabasePage
+          database={value}
+          entries={[]}
+          onReplaceDefinition={vi.fn()}
+          onCreateEntry={onCreateEntry}
+          onOpenEntry={vi.fn()}
+        />
+      </MemoryRouter>
     );
     act(() => root.render(renderPage(initialDatabase)));
 

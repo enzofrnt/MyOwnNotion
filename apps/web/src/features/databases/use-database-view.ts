@@ -1,5 +1,6 @@
 import { type DatabaseDefinition, isUuid, type Uuid } from "@myownnotion/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 export interface DatabaseViewContext {
   readonly activeViewId: Uuid;
@@ -56,30 +57,22 @@ export function writeDatabaseViewContext(
   };
 }
 
-function viewFromUrl(definition: DatabaseDefinition): Uuid | null {
-  if (typeof window === "undefined") return null;
-  const candidate = new URL(window.location.href).searchParams.get("view");
+export function databaseViewIdFromSearch(
+  definition: DatabaseDefinition,
+  search: string,
+): Uuid | null {
+  const candidate = new URLSearchParams(search).get("view");
   return (
     definition.views.find(({ id, state }) => id === candidate && state === "active")?.id ?? null
   );
 }
 
-function replaceHistory(state: unknown, url: URL | string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.history.replaceState(state, "", url);
-  } catch {
-    // WebKit rate-limits History API writes. View context is also kept in
-    // sessionStorage, so a refused cosmetic URL update must never unmount the
-    // database surface or prevent an entry from opening.
-  }
-}
-
-function writeViewToUrl(viewId: Uuid): void {
-  if (typeof window === "undefined") return;
-  const url = new URL(window.location.href);
-  url.searchParams.set("view", viewId);
-  replaceHistory(window.history.state, url);
+export function databaseSearchForView(search: string, viewId: Uuid): string {
+  const params = new URLSearchParams(search);
+  params.set("view", viewId);
+  params.delete("entry");
+  const serialized = params.toString();
+  return serialized === "" ? "" : `?${serialized}`;
 }
 
 function sessionContextKey(databaseId: Uuid, viewId: Uuid): string {
@@ -142,8 +135,17 @@ export function resolveActiveDatabaseViewId({
 export function useDatabaseView(definition: DatabaseDefinition) {
   const firstActive = definition.views.find(({ state }) => state === "active");
   if (firstActive === undefined) throw new Error("A database needs one active view");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const serializedSearch = searchParams.toString();
+  const writeViewToUrl = useCallback(
+    (viewId: Uuid): void => {
+      const next = new URLSearchParams(databaseSearchForView(serializedSearch, viewId));
+      setSearchParams(next, { replace: true, preventScrollReset: true });
+    },
+    [serializedSearch, setSearchParams],
+  );
   const [context, setContext] = useState<DatabaseViewContext>(() => {
-    const activeViewId = viewFromUrl(definition) ?? firstActive.id;
+    const activeViewId = databaseViewIdFromSearch(definition, serializedSearch) ?? firstActive.id;
     return (
       storedContext(definition.databaseId, activeViewId) ?? {
         activeViewId,
@@ -169,7 +171,7 @@ export function useDatabaseView(definition: DatabaseDefinition) {
     const databaseChanged = databaseId.current !== definition.databaseId;
     databaseId.current = definition.databaseId;
     if (databaseChanged) requestedView.current = null;
-    const urlView = viewFromUrl(definition);
+    const urlView = databaseViewIdFromSearch(definition, serializedSearch);
     setContext((current) => {
       const currentIsActive = activeViewIds.includes(current.activeViewId);
       const requested = requestedView.current;
@@ -201,7 +203,7 @@ export function useDatabaseView(definition: DatabaseDefinition) {
       writeViewToUrl(activeViewId);
       return next;
     });
-  }, [activeViewIds, definition, firstActive.id]);
+  }, [activeViewIds, definition, firstActive.id, serializedSearch, writeViewToUrl]);
 
   const updateContext = useCallback(
     (update: (current: DatabaseViewContext) => DatabaseViewContext): void => {
@@ -229,7 +231,7 @@ export function useDatabaseView(definition: DatabaseDefinition) {
           },
       );
     },
-    [activeViewIds, definition.databaseId, updateContext],
+    [activeViewIds, definition.databaseId, updateContext, writeViewToUrl],
   );
 
   const rememberScroll = useCallback(
@@ -249,9 +251,6 @@ export function useDatabaseView(definition: DatabaseDefinition) {
   const openEntry = useCallback(
     (entryId: Uuid): void => {
       updateContext((current) => ({ ...current, selectedEntryId: entryId }));
-      const url = new URL(window.location.href);
-      url.searchParams.set("entry", entryId);
-      replaceHistory(window.history.state, url);
     },
     [updateContext],
   );
@@ -263,9 +262,6 @@ export function useDatabaseView(definition: DatabaseDefinition) {
   const closeEntry = useCallback((): void => {
     const entryId = contextRef.current.selectedEntryId;
     finishEntryReturn();
-    const url = new URL(window.location.href);
-    url.searchParams.delete("entry");
-    replaceHistory(window.history.state, url);
     queueMicrotask(() => {
       const trigger = entryId === null ? null : triggers.current.get(entryId);
       trigger?.focus();

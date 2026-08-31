@@ -13,12 +13,12 @@ export interface BrowserProject {
   /** A Playwright device descriptor name. */
   readonly device: string;
   /**
-   * Whether Playwright's patched Firefox can run on the host on macOS.
+   * Whether this Playwright engine must use the pinned Linux image on macOS.
    *
-   * It cannot: it hangs before opening a page on the macOS development runtime,
-   * so that project runs inside the pinned Linux image instead. Recorded here
-   * rather than as a name check in the runner, so the reason travels with the
-   * fact.
+   * Patched Firefox hangs before opening a page there. Patched WebKit can enter
+   * an internal WebLoaderStrategy failure after a long corpus and strand later
+   * contexts. Recorded here rather than as name checks in the runner, so the
+   * runtime decision stays aligned with the matrix declaration.
    */
   readonly containerOnMac?: boolean;
 }
@@ -26,7 +26,7 @@ export interface BrowserProject {
 export const BROWSER_PROJECTS: readonly BrowserProject[] = [
   { name: "chromium-desktop", device: "Desktop Chrome" },
   { name: "firefox-desktop", device: "Desktop Firefox", containerOnMac: true },
-  { name: "webkit-desktop", device: "Desktop Safari" },
+  { name: "webkit-desktop", device: "Desktop Safari", containerOnMac: true },
   { name: "chromium-mobile", device: "Pixel 7" },
-  { name: "webkit-mobile", device: "iPhone 14" },
+  { name: "webkit-mobile", device: "iPhone 14", containerOnMac: true },
 ];

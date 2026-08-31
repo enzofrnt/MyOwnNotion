@@ -13,19 +13,19 @@
  * new journey cannot silently opt out of the reset.
  */
 import { test as base } from "@playwright/test";
+import { BROWSER_PROJECTS } from "./projects.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { seedCommittedOwner, seedSession } from "./reset-installation.ts";
 
 /**
- * Refuses a Firefox run on a macOS host, before a browser is launched.
+ * Refuses engines that require the pinned Linux runtime on a macOS host,
+ * before a browser is launched.
  *
  * Playwright's patched Firefox hangs before opening a page on the macOS
- * development runtime, and the way it hangs is what makes this worth a guard: it
- * does not fail. It sits at 100% of a core until somebody notices, and one
- * forgotten instance burned more than twenty hours of CPU in a single day on a
- * laptop — slowing every other suite, including the ones with nothing to do with
- * it. A trap that expensive is closed where somebody steps in it, not in a
- * paragraph they read afterwards.
+ * development runtime. Patched WebKit can fail internally after a long corpus,
+ * leaving later page loads and context teardown to time out. Both failures
+ * describe the host runtime rather than the application, so the local matrix
+ * runs those projects in the same pinned Linux image used by CI instead.
  *
  * Refused here rather than by leaving the project out of the config: the project
  * list must be the same on every platform, or "CI runs all five" stops being
@@ -35,9 +35,10 @@ import { seedCommittedOwner, seedSession } from "./reset-installation.ts";
  * which is the whole point.
  */
 function assertBrowserRunsHere(projectName: string): void {
-  if (projectName === "firefox-desktop" && process.platform === "darwin") {
+  const project = BROWSER_PROJECTS.find((candidate) => candidate.name === projectName);
+  if (project?.containerOnMac === true && process.platform === "darwin") {
     throw new Error(
-      "firefox-desktop cannot run on a macOS host: Playwright's Firefox hangs before opening a page and then burns a core indefinitely. Run `bun run test:e2e:local` (which routes it to the pinned Linux image) or `bun run test:e2e:firefox-container` to run it alone.",
+      `${projectName} cannot run reliably in Playwright's macOS runtime. Run \`bun run test:e2e:local -- --project=${projectName}\` (which routes it to the pinned Linux image) or \`bun run test:e2e:browser-container -- --project=${projectName}\` to run it alone.`,
     );
   }
 }

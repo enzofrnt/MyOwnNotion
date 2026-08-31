@@ -42,6 +42,9 @@ test("settings stay outside the document and returning restores item, focus and 
   await createRootItem(page, "folder", discardedName);
   await trashItem(page, discardedName);
   await selectItem(page, pageName);
+  const noteUrl = page.url();
+  const itemId = new URL(noteUrl).pathname.split("/").at(-1);
+  expect(itemId).toBeTruthy();
   await fillLongPage(page);
 
   const workspaceMain = page.getByTestId("workspace-main");
@@ -69,26 +72,39 @@ test("settings stay outside the document and returning restores item, focus and 
 
   const settingsTrigger = page.getByTestId("open-settings");
   await openSettings(page);
+  await expect(page).toHaveURL(/\/settings\/security$/u);
   await expect(page.getByTestId("workspace-surface")).toBeHidden();
 
   await page.getByTestId("settings-nav-backups").click();
+  await expect(page).toHaveURL(/\/settings\/backups$/u);
+  await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/settings\/security$/u);
+  await expect(page.getByTestId("security-settings")).toBeVisible({ timeout: 30_000 });
+  await page.goForward();
+  await expect(page).toHaveURL(/\/settings\/backups$/u);
   await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
 
   await page.getByTestId("settings-nav-local-data").click();
+  await expect(page).toHaveURL(/\/settings\/storage-sync$/u);
   await expect(page.getByTestId("storage-panel")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("mutation-status-empty")).toBeVisible();
 
   await page.getByTestId("settings-nav-trash").click();
+  await expect(page).toHaveURL(/\/settings\/trash$/u);
   await expect(page.getByTestId(`trash-item-${discardedName}`)).toBeVisible();
 
   await page.getByTestId("settings-nav-page-details").click();
+  await expect(page).toHaveURL(`/settings/page/${itemId}`);
   await expect(page.getByTestId("item-details")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("revision-restore")).toBeVisible();
 
   await page.getByTestId("settings-nav-security").click();
+  await expect(page).toHaveURL(/\/settings\/security$/u);
   await expect(page.getByTestId("security-settings")).toBeVisible({ timeout: 30_000 });
 
   await page.getByTestId("back-to-workspace").click();
+  await expect(page).toHaveURL(noteUrl);
   await expect(page.getByTestId("workspace-surface")).toBeVisible();
   await expect(page.getByTestId("active-item-title")).toHaveValue(pageName);
   await expect(settingsTrigger).toBeFocused();

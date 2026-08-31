@@ -168,6 +168,15 @@
     },
     {
       "paths": {
+        "exact": ["apps/web/src/service-worker.ts"],
+        "prefixes": [],
+        "suffixes": []
+      },
+      "tests": ["tests/contract/web-offline-shell.spec.ts"],
+      "groups": ["contract"]
+    },
+    {
+      "paths": {
         "exact": [
           ".env.example",
           "apps/web/vite.config.ts",
@@ -876,6 +885,23 @@
           "apps/web/src/features/editor/",
           "packages/domain/src/document/",
           "packages/page-state/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
+      "test": "tests/e2e/routing.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/app.tsx",
+          "apps/web/src/main.tsx",
+          "apps/web/src/service-worker.ts"
+        ],
+        "prefixes": [
+          "apps/web/src/routing/",
+          "apps/web/src/features/databases/",
+          "apps/web/src/features/hierarchy/",
+          "apps/web/src/features/settings/"
         ],
         "suffixes": []
       }

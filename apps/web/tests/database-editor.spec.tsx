@@ -6,6 +6,7 @@ import {
 } from "@myownnotion/domain";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { CreateDatabaseForm } from "../src/features/databases/create-database-form.tsx";
 import { DATABASE_COPY, formatDatabaseDecimal } from "../src/features/databases/database-copy.ts";
@@ -121,13 +122,17 @@ describe("database editor surfaces (T022)", () => {
 
   it("renders the schema and fixed actions without turning the database into a new item kind", () => {
     const markup = renderToStaticMarkup(
-      createElement(DatabasePage, {
-        database,
-        entries: [],
-        onReplaceDefinition: vi.fn(),
-        onCreateEntry: vi.fn(),
-        onOpenEntry: vi.fn(),
-      }),
+      createElement(
+        MemoryRouter,
+        { initialEntries: [`/notes/${databaseId}`] },
+        createElement(DatabasePage, {
+          database,
+          entries: [],
+          onReplaceDefinition: vi.fn(),
+          onCreateEntry: vi.fn(),
+          onOpenEntry: vi.fn(),
+        }),
+      ),
     );
     expect(markup).toContain("Contenu de la base de données");
     expect(markup).toContain("Estimate");

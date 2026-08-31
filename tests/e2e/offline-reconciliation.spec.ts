@@ -63,6 +63,9 @@ test.describe("offline continuity (US6)", () => {
 
     // 4. Restart the client while still offline: state and queue survive.
     await page.reload();
+    // The diagnostics destination survives reload by design. Re-enter the
+    // retained workspace explicitly before checking its offline hierarchy.
+    await returnToWorkspace(page);
     await ensureNavigationRowVisible(page, offlineItem);
     await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
