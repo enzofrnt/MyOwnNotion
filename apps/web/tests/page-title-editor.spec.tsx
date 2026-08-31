@@ -47,6 +47,44 @@ describe("page title editor", () => {
     expect(onCommit).toHaveBeenCalledWith("Sans titre");
   });
 
+  it("captures a replacement input before an immediate Enter commit", async () => {
+    const onCommit = vi.fn(async () => undefined);
+    const onDraftStateChange = vi.fn();
+    await act(async () => {
+      root.render(
+        <PageTitleEditor
+          initialDraft=""
+          restoreFocus
+          title="Sans titre"
+          onCommit={onCommit}
+          onDraftStateChange={onDraftStateChange}
+        />,
+      );
+    });
+    const title = container.querySelector<HTMLTextAreaElement>('[data-testid="active-item-title"]');
+    if (title === null) throw new Error("title editor missing");
+
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(
+        title,
+        "Titre immédiat",
+      );
+      title.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          data: "Titre immédiat",
+          inputType: "insertReplacementText",
+        }),
+      );
+      title.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+      await Promise.resolve();
+    });
+
+    expect(onDraftStateChange).toHaveBeenCalledWith("Titre immédiat", true);
+    expect(onCommit).toHaveBeenCalledWith("Titre immédiat");
+    expect(title.value).toBe("Titre immédiat");
+  });
+
   it("does not replace the draft or cursor when a remote title arrives during editing", async () => {
     const onCommit = vi.fn(async () => undefined);
     await act(async () => {

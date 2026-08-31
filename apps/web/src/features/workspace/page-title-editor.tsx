@@ -223,11 +223,16 @@ export function PageTitleEditor({
           focused.current = true;
           onDraftStateChangeRef.current?.(latestDraft.current, true);
         }}
-        onChange={(event) => {
-          latestDraft.current = event.target.value;
-          setDraft(event.target.value);
-          onDraftStateChangeRef.current?.(event.target.value, true);
-          scheduleCommit(event.target.value);
+        // `input` is the browser event produced by typing, paste and
+        // Playwright's fill primitive. Reading it directly avoids WebKit's
+        // synthetic change-value tracking window while a newly-created page
+        // finishes replacing its loading surface.
+        onInput={(event) => {
+          const next = event.currentTarget.value;
+          latestDraft.current = next;
+          setDraft(next);
+          onDraftStateChangeRef.current?.(next, true);
+          scheduleCommit(next);
         }}
         onBlur={(event) => {
           focused.current = false;
