@@ -94,6 +94,12 @@ interface TrashConfirmation {
   readonly returnToMobileNavigation: boolean;
 }
 
+interface TitleDraftSession {
+  readonly itemId: Uuid;
+  readonly draft: string;
+  readonly focused: boolean;
+}
+
 export type RoutedItemState = "none" | "active" | "trashed" | "unavailable-local" | "not-found";
 
 export function resolveInitialRoutedItemId(
@@ -346,11 +352,17 @@ export function HierarchyExplorer({
   const [databaseEntries, setDatabaseEntries] = useState<readonly DatabaseEntryDto[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<DatabaseEntryDto | null>(null);
   const [entryDefinition, setEntryDefinition] = useState<DatabaseDefinition | null>(null);
-  const [titleDraftSession, setTitleDraftSession] = useState<{
-    readonly itemId: Uuid;
-    readonly draft: string;
-    readonly focused: boolean;
-  } | null>(null);
+  const [titleDraftSession, setTitleDraftSession] = useState<TitleDraftSession | null>(null);
+  // React state carries the draft across ordinary renders. The matching ref is
+  // updated in the input event itself, so a concurrent classification render
+  // cannot remount the title from the previous (usually blank) state before
+  // React has committed the state update. This matters on WebKit, where a
+  // newly-created page can finish opening between a fill and the next key.
+  const titleDraftSessionRef = useRef<TitleDraftSession | null>(null);
+  const replaceTitleDraftSession = useCallback((next: TitleDraftSession | null): void => {
+    titleDraftSessionRef.current = next;
+    setTitleDraftSession(next);
+  }, []);
   const [entryDraftSession, setEntryDraftSession] = useState<{
     readonly entryId: Uuid;
     readonly drafts: EntryDrafts;
@@ -629,20 +641,18 @@ export function HierarchyExplorer({
   }, [iconPickerItemId, items]);
 
   useEffect(() => {
+    // State schedules the projection check; the ref supplies the newest draft
+    // if another input arrived before this effect was allowed to run.
     if (titleDraftSession === null || titleDraftSession.focused) return;
-    const projectedTitle = items.find((item) => item.id === titleDraftSession.itemId)?.name;
-    if (projectedTitle !== titleDraftSession.draft) return;
+    const current = titleDraftSessionRef.current;
+    if (current === null || current.focused) return;
+    const projectedTitle = items.find((item) => item.id === current.itemId)?.name;
+    if (projectedTitle !== current.draft) return;
     // A successful mutation can resolve one render before its refreshed item
     // projection reaches the canvas. Keep the route-bound draft through that
     // gap, then release it only once the durable title is actually visible.
-    setTitleDraftSession((current) =>
-      current?.itemId === titleDraftSession.itemId &&
-      !current.focused &&
-      current.draft === projectedTitle
-        ? null
-        : current,
-    );
-  }, [items, titleDraftSession]);
+    replaceTitleDraftSession(null);
+  }, [items, replaceTitleDraftSession, titleDraftSession]);
 
   useEffect(() => {
     if (loadState !== "ready") return;
@@ -990,15 +1000,16 @@ export function HierarchyExplorer({
 
   const titleEditingProps = useCallback(
     (itemId: Uuid, durableTitle: string) => ({
-      ...(titleDraftSession?.itemId === itemId
+      ...(titleDraftSessionRef.current?.itemId === itemId
         ? {
-            initialDraft: titleDraftSession.draft,
-            restoreFocus: titleDraftSession.focused,
+            initialDraft: titleDraftSessionRef.current.draft,
+            restoreFocus: titleDraftSessionRef.current.focused,
           }
         : {}),
       onDraftStateChange: (draft: string, focused: boolean) => {
         const projectedTitle = durableTitle || "Sans titre";
-        setTitleDraftSession((current) =>
+        const current = titleDraftSessionRef.current;
+        replaceTitleDraftSession(
           focused || draft !== projectedTitle
             ? { itemId, draft, focused }
             : current?.itemId === itemId
@@ -1010,7 +1021,7 @@ export function HierarchyExplorer({
         await renameSelectedItem(itemId, name);
       },
     }),
-    [renameSelectedItem, titleDraftSession],
+    [renameSelectedItem, replaceTitleDraftSession],
   );
 
   const changeItemIcon = useCallback(
@@ -1120,10 +1131,10 @@ export function HierarchyExplorer({
       // blank focused title. Keep that draft with the route identity itself:
       // an asynchronous page-classification render may replace the canvas,
       // but it must never replace what the owner is typing.
-      setTitleDraftSession({ itemId, draft: "", focused: true });
+      replaceTitleDraftSession({ itemId, draft: "", focused: true });
       openItem(itemId);
     },
-    [openItem, runCommand, siblingKeys],
+    [openItem, replaceTitleDraftSession, runCommand, siblingKeys],
   );
 
   const createSubpage = useCallback(
@@ -1181,10 +1192,10 @@ export function HierarchyExplorer({
       // blank draft as sidebar creation before that later navigation happens,
       // so the title receives focus without a render-time focus flag racing
       // the first keystroke.
-      setTitleDraftSession({ itemId, draft: "", focused: true });
+      replaceTitleDraftSession({ itemId, draft: "", focused: true });
       return { id: itemId, title: request.title.trim() || "Sans titre" };
     },
-    [items, refresh, service],
+    [items, refresh, replaceTitleDraftSession, service],
   );
 
   const importHierarchyFile = useCallback(
