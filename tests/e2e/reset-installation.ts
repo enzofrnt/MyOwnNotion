@@ -405,15 +405,20 @@ export async function seedSession(): Promise<string | null> {
  * revoke both. This inserts a device of its own and returns both identities, so a
  * test can revoke one and watch the other keep working.
  */
-export async function seedSessionOnNewDevice(
+async function seedSessionOnNewDeviceOnce(
   name = "Second end-to-end device",
 ): Promise<{ secret: string; deviceId: string } | null> {
-  const client = new pg.Client({ connectionString: connectionString() });
+  const client = boundedSetupClient("myownnotion-e2e-second-device-seed");
   await client.connect();
+  let transactionOpen = false;
   try {
+    await client.query("BEGIN");
+    transactionOpen = true;
     const { rows: owners } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
     const ownerId = owners[0]?.id;
     if (ownerId === undefined) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
       return null;
     }
     const deviceId = randomUUID();
@@ -438,15 +443,28 @@ export async function seedSessionOnNewDevice(
         new Date(now.getTime() + 30 * 24 * 60 * 60_000),
       ],
     );
+    await client.query("COMMIT");
+    transactionOpen = false;
     return { secret, deviceId };
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query("ROLLBACK").catch(() => undefined);
+    }
+    throw error;
   } finally {
     await client.end();
   }
 }
 
+export async function seedSessionOnNewDevice(
+  name = "Second end-to-end device",
+): Promise<{ secret: string; deviceId: string } | null> {
+  return withSetupRetries(() => seedSessionOnNewDeviceOnce(name));
+}
+
 /** Revokes one device, the way the owner's device screen does. */
-export async function revokeDevice(deviceId: string): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
+async function revokeDeviceOnce(deviceId: string): Promise<void> {
+  const client = boundedSetupClient("myownnotion-e2e-device-revocation");
   await client.connect();
   try {
     await client.query(
@@ -456,4 +474,8 @@ export async function revokeDevice(deviceId: string): Promise<void> {
   } finally {
     await client.end();
   }
+}
+
+export async function revokeDevice(deviceId: string): Promise<void> {
+  await withSetupRetries(() => revokeDeviceOnce(deviceId));
 }
