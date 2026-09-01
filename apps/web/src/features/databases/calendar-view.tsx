@@ -339,7 +339,12 @@ export function CalendarView({
           </Button>
         </div>
       </div>
-      <div className="database-calendar__month-scroll">
+      <section
+        className="database-calendar__month-scroll"
+        aria-label={monthLabel(visibleMonth, timeZone)}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: Axe requires scrollable regions to be keyboard-focusable.
+        tabIndex={0}
+      >
         <ol className="database-calendar__weekdays" aria-hidden="true">
           {DATABASE_COPY.calendar.weekdays.map((day) => (
             <li key={day}>{day}</li>
@@ -371,7 +376,7 @@ export function CalendarView({
             ),
           )}
         </ol>
-      </div>
+      </section>
       <section
         className="database-calendar__unscheduled"
         aria-labelledby={`unscheduled-${view.id}`}

@@ -412,8 +412,10 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await status.selectOption({ label: "To do" });
     await expect(status.locator("option:checked")).toHaveText("To do");
     const due = panel.getByLabel("Due", { exact: true });
-    await due.fill("2026-08-20");
-    await expect(due).toHaveValue("2026-08-20");
+    const now = new Date();
+    const currentMonthDate = `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, "0")}-15`;
+    await due.fill(currentMonthDate);
+    await expect(due).toHaveValue(currentMonthDate);
     const saveProperties = panel.getByRole("button", { name: "Enregistrer les propriétés" });
     await saveProperties.click();
     await expect(page.getByTestId("entry-properties-saved")).toHaveText(
