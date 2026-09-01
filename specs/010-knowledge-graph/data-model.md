@@ -41,12 +41,18 @@ reste unique même lorsqu'une page-base est membre d'une autre base.
 | `targetId` | UUID | Direction d'arrivée |
 | `relationType` | chaîne namespacée | Conservée même inconnue |
 | `origin` | relationship, hierarchy, attachment | Explique l'éditabilité et la provenance |
+| `layer` | knowledge, hierarchy, attachment | Détermine si l'arête participe à la vue et au voisinage courants |
 | `availability` | active, source-trashed, target-trashed, unavailable | Calculé depuis les endpoints |
 
 Projections de placement :
 
 - hiérarchie : parent → enfant, `hierarchy:contains` ;
 - pièce jointe : parent → fichier, `file:attachment`.
+
+Toutes les lignes `relationships`, notamment celles de type `page:link`
+réconciliées depuis les documents, appartiennent à `knowledge`. Les deux
+projections de placement appartiennent à leur couche structurelle homonyme.
+Cette classification est dérivée et ne modifie aucune source canonique.
 
 Un type doit respecter le contrat namespacé du domaine. Une ligne invalide
 produit un `GraphDiagnostic` et n'entre pas dans les arêtes actives.
@@ -76,9 +82,9 @@ interface GraphQuery {
     | { kind: "neighborhood"; centerId: Uuid; depth: 1 | 2 | 3 }
     | { kind: "selection"; itemIds: Uuid[] };
   filters: {
+    edgeLayers: ("knowledge" | "hierarchy" | "attachment")[];
     nodeKinds: GraphNodeKind[];
     relationTypes: string[];
-    attachment: "all" | "only" | "exclude";
     mediaTypes: string[];
     lifecycle: "active" | "including-trashed";
     structured: StructuredGraphFilter[];
@@ -91,6 +97,8 @@ interface GraphQuery {
 Invariants :
 
 - profondeur bornée à 1..3 ;
+- couche `knowledge` seule par défaut ; couches normalisées, triées et
+  dédupliquées ;
 - sélection dédupliquée et bornée à 200 identités ;
 - `maxNodes` borné à 20..200 et `maxEdges` à 20..400 ;
 - filtres normalisés, triés et dédupliqués ;
@@ -135,14 +143,32 @@ partielle prétendument valide.
 | --- | --- | --- |
 | mode canvas/liste | appareil | réinitialisable |
 | profondeur 1..3 | appareil | défaut 2 |
+| couches actives | appareil | défaut `knowledge`, valeurs techniques bornées |
 | types techniques | appareil | liste bornée |
 | isolés visibles | appareil | défaut faux |
 | zoom | appareil | borné 0,5..2 |
 | périmètre courant | mémoire | peut contenir une identité privée |
 | sélection | mémoire | non persistée |
 | coordonnées/pan | mémoire | jamais canonique |
+| nœud survolé | mémoire | détermine uniquement l'atténuation visuelle |
 
-## 9. Transitions
+## 9. DemoPageDocument
+
+| Champ | Type | Règle |
+| --- | --- | --- |
+| `itemId` | UUID | Page source existante |
+| `concept` | identifiant de concept | L'un des 23 thèmes documentés du corpus |
+| `branch` | identifiant de branche | L'une des huit perspectives produit |
+| `blocks` | document canonique | Titre, explication lisible et liens internes visibles |
+| `targetItemIds` | UUID[] | Exactement les cibles uniques présentes dans les marques `pageLink` |
+
+Le manifeste compte séparément les pages ayant un document, les pages sources
+ayant au moins un lien et les relations `page:link`. Pour chacune, le contrôle
+relit le document canonique et exige l'égalité exacte entre les cibles extraites
+et les relations actives. Le rangement par branche n'entre jamais dans cette
+preuve relationnelle.
+
+## 10. Transitions
 
 - ajout/retrait offline : mutation canonique → projection optimiste → nouveau
   calcul ; au redémarrage la source Dexie et l'outbox restituent le même état ;
@@ -154,3 +180,7 @@ partielle prétendument valide.
 - snapshot/restauration : remplacement atomique puis reconstruction totale ;
 - erreur : dernière projection conservée, couverture dégradée et reprise
   explicite.
+- activation d'une couche structurelle : nouvelle projection de présentation,
+  sans mutation de contenu ni changement des préférences canoniques ;
+- déplacement hiérarchique avec `knowledge` seule : les parentés changent mais
+  les nœuds, arêtes et voisinages de connaissance restent identiques.

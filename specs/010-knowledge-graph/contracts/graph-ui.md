@@ -32,6 +32,8 @@ pas une copie de la page.
 - choix du périmètre : espace, branche, voisinage, sélection ;
 - profondeur 1, 2 ou 3 pour un voisinage ;
 - filtres combinables visibles sous forme de contrôles nommés ;
+- couches « Connaissances », « Hiérarchie » et « Pièces jointes », avec seule
+  « Connaissances » active au premier affichage ;
 - action unique « Réinitialiser les filtres » ;
 - bascule « Carte / Liste » ;
 - zoom +/−, recentrage et ouverture du nœud sélectionné.
@@ -47,8 +49,24 @@ actifs utilisent texte et attributs, jamais uniquement la couleur.
 - Échap ferme l'inspecteur et rend le focus au nœud ;
 - `+`, `-` et `0` zooment ou recentrent lorsque la carte a le focus.
 
+## Canvas pointer model
+
+- glisser le fond avec le bouton principal déplace la carte et affiche un
+  curseur de prise ; relâcher termine le déplacement même hors du SVG ;
+- la molette au-dessus de la carte zoome autour des coordonnées du pointeur,
+  empêche seulement le défilement correspondant dans la carte et respecte les
+  bornes 50–200 % ;
+- survoler un nœud conserve ce nœud, ses arêtes directes et ses voisins à pleine
+  intensité et atténue le reste sans le masquer ;
+- cliquer sélectionne et ouvre le détail ; double-cliquer ou activer l'action
+  visible « Ouvrir la page » ouvre l'identité canonique ;
+- quitter la carte ou appuyer sur Échap retire le survol/sélection sans modifier
+  les données.
+
 Le pan au pointeur ne capture pas le défilement de la page hors de la carte.
-Avec `prefers-reduced-motion`, les transitions sont supprimées.
+Avec `prefers-reduced-motion`, les transitions sont supprimées. La taille des
+nœuds rend les hubs visibles à partir du nombre de références entrantes, dans
+des bornes qui préservent leurs cibles de clic et leurs libellés.
 
 ## List equivalence
 

@@ -4,11 +4,16 @@
 
 **Created**: 2026-08-31
 
-**Status**: Complete
+**Status**: In revision after product review
 
 **Input**: User description: "Faire arriver le Knowledge graph avant la V1 et
 poser ses bases dans les specs avant la convergence finale du correctif en
 cours sur main."
+
+**Product review correction (2026-09-01)**: "Le graphe doit mettre en relation
+le contenu des pages au lieu de reproduire l'arborescence de fichiers, disposer
+d'un corpus cohérent qui révèle un vrai réseau de connaissances et être
+navigable à la souris, avec Obsidian comme référence de comportement."
 
 ## Product Direction, Dependencies, and Scope
 
@@ -28,15 +33,19 @@ crée ni modèle canonique concurrent, ni seconde façon de modifier leur vérit
 
 Le périmètre V1 couvre :
 
-- les backlinks et relations sortantes de l'élément courant ;
+- les backlinks dérivés des liens internes réellement écrits dans les pages et
+  les relations sortantes de l'élément courant ;
 - un graphe local centré sur une page ou un autre élément canonique ;
 - un graphe global et des périmètres dossier, sélection et voisinage ;
 - les pages, dossiers, bases, tâches, fichiers et pièces jointes déjà
   représentables par le modèle canonique ;
-- les liens internes, placements hiérarchiques, relations structurées et liens
-  de fichier, avec direction, type et multiplicité explicites ;
+- un réseau de connaissances principal formé par les liens éditoriaux et les
+  relations métier explicites, avec direction, type et multiplicité ;
+- les placements hiérarchiques et liens de fichier comme couches structurelles
+  optionnelles, désactivées par défaut et distinctes du réseau principal ;
 - des filtres combinables, une représentation non spatiale équivalente et une
-  navigation utilisable hors ligne avec un état de complétude honnête.
+  navigation au clavier et à la souris utilisable hors ligne avec un état de
+  complétude honnête.
 
 Les tableaux blancs seront ajoutés comme type de nœud et de relation par la
 feature 011 lorsqu'ils existeront. Les graphes publics et les accès MCP restent
@@ -55,9 +64,10 @@ les deux sens sans reconstruire mentalement ces connexions.
 internes déjà disponibles et constituent la base vérifiable de toutes les vues
 de graphe.
 
-**Independent Test**: Créer trois pages, ajouter plusieurs liens de deux pages
-vers la troisième, ouvrir chaque page, vérifier les directions et les nombres
-d'occurrences, puis naviguer par les backlinks et relations sortantes.
+**Independent Test**: Créer trois pages, écrire dans le contenu de deux pages
+plusieurs liens internes vers la troisième, ouvrir chaque page, vérifier les
+directions et les nombres d'occurrences, puis naviguer par les backlinks et
+relations sortantes sans créer de relation depuis un écran technique séparé.
 
 **Acceptance Scenarios**:
 
@@ -80,6 +90,9 @@ d'occurrences, puis naviguer par les backlinks et relations sortantes.
 6. **Given** la suppression de la dernière occurrence d'un lien interne,
    **When** cette modification est enregistrée localement, **Then** la relation
    sortante et le backlink disparaissent ensemble sans attendre le réseau.
+7. **Given** une page placée sous un dossier mais sans lien éditorial,
+   **When** ses backlinks et relations de connaissance sont consultés,
+   **Then** ce placement n'est pas présenté comme une référence de contenu.
 
 ---
 
@@ -93,9 +106,11 @@ workspace.
 **Why this priority**: Le voisinage local transforme les backlinks en outil de
 découverte tout en restant lisible sur un workspace volumineux.
 
-**Independent Test**: Construire un réseau avec relations entrantes,
-sortantes, réciproques et hiérarchiques sur trois niveaux, ouvrir le graphe
-local, changer la profondeur, sélectionner chaque nœud et ouvrir une cible.
+**Independent Test**: Construire dans le contenu des pages un réseau avec liens
+entrants, sortants et réciproques sur trois niveaux, le répartir dans des
+dossiers sans lien avec cette topologie, ouvrir le graphe local, changer la
+profondeur, le parcourir à la souris, sélectionner chaque nœud et ouvrir une
+cible.
 
 **Acceptance Scenarios**:
 
@@ -114,6 +129,14 @@ local, changer la profondeur, sélectionner chaque nœud et ouvrir une cible.
 5. **Given** un écran étroit ou un usage au clavier, **When** le graphe local est
    exploré, **Then** une représentation en liste fournit les mêmes nœuds,
    relations, sélections et actions de navigation.
+6. **Given** une page possède des enfants hiérarchiques mais aucun lien de
+   contenu, **When** son graphe local s'ouvre avec les réglages par défaut,
+   **Then** ces enfants ne constituent pas son voisinage de connaissances.
+7. **Given** la carte est utilisée à la souris, **When** le propriétaire fait
+   glisser le fond, utilise la molette, survole, sélectionne puis active un
+   nœud, **Then** il peut respectivement déplacer le point de vue, zoomer autour
+   du pointeur, isoler visuellement les connexions directes, inspecter puis
+   ouvrir la page canonique.
 
 ---
 
@@ -150,6 +173,10 @@ les périmètres et filtres, révéler les éléments isolés et réinitialiser 
 5. **Given** plusieurs filtres et une sélection active, **When** le propriétaire
    réinitialise la vue, **Then** le périmètre par défaut et l'absence de filtre
    sont restaurés en une seule action sans modifier les contenus.
+6. **Given** le propriétaire ouvre le graphe global pour la première fois,
+   **When** aucun réglage local n'a encore été choisi, **Then** seules les
+   relations de connaissance sont actives ; hiérarchie et pièces jointes sont
+   disponibles comme couches nommées mais désactivées.
 
 ---
 
@@ -204,8 +231,9 @@ relationnels de la V1.
 **Independent Test**: Sur une installation locale de démonstration contenant
 des données quelconques, suivre la procédure de remise à zéro, vérifier
 l'absence d'état serveur et navigateur résiduel, générer le workspace de
-démonstration, se connecter avec l'identifiant factice documenté puis exercer
-les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites.
+démonstration, se connecter avec l'identifiant factice documenté, lire des
+pages reliées par leur contenu puis exercer les backlinks, périmètres, couches,
+filtres, isolés, cycles, multiplicités et limites.
 
 **Acceptance Scenarios**:
 
@@ -233,6 +261,12 @@ les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites
    autorisée, **When** la génération ou la remise à zéro est demandée, **Then**
    elle est refusée sans modifier les données ; aucun compte ou mot de passe
    factice n'est créé par un démarrage ou un déploiement normal.
+7. **Given** le workspace de démonstration vient d'être généré, **When** une
+   personne ouvre plusieurs nœuds reliés, **Then** chaque arête éditoriale est
+   explicable par un lien visible dans une page au contenu lisible et cohérent,
+   au moins 360 des 480 occurrences proviennent de ces contenus, et les liens
+   traversent volontairement les dossiers pour former des thèmes, hubs,
+   passerelles et cycles qui ne reproduisent pas l'arborescence.
 
 ### Edge Cases
 
@@ -264,6 +298,15 @@ les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites
   cache applicatif ou un cookie après redéploiement.
 - La procédure de démonstration vise par erreur une installation distante, une
   base non locale ou un workspace qui n'est pas explicitement jetable.
+- Une page mentionne exactement le titre ou un alias d'une autre page sans
+  créer de lien interne : cette mention ne devient pas silencieusement une
+  arête du graphe.
+- Une paire d'éléments est reliée à la fois par un lien de contenu et par un
+  placement hiérarchique : les deux couches restent distinguables et leur
+  activation ne change pas la multiplicité du lien éditorial.
+- Un déplacement de dossier change toute l'arborescence sans modifier les
+  liens écrits dans les pages : le réseau de connaissances principal reste
+  identique.
 
 ## Requirements *(mandatory)*
 
@@ -271,9 +314,10 @@ les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites
 
 - **FR-001**: La V1 MUST fournir au propriétaire authentifié des backlinks, un
   graphe local et un graphe global privés.
-- **FR-002**: Toute vue de graphe MUST être dérivée des objets, placements,
-  contenus et relations canoniques ; elle MUST être reconstruisible et ne
-  MUST jamais devenir une seconde source de vérité éditable.
+- **FR-002**: Toute vue de graphe MUST être dérivée des objets, contenus,
+  relations et, lorsqu'elles sont demandées, connexions structurelles
+  canoniques ; elle MUST être reconstruisible et ne MUST jamais devenir une
+  seconde source de vérité éditable.
 - **FR-003**: Le graphe V1 MUST représenter les pages, dossiers, bases, tâches,
   fichiers et pièces jointes présents dans son périmètre sans dupliquer leur
   identité canonique.
@@ -393,15 +437,45 @@ les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites
   un jeu n'est déclaré prêt que si ses nombres attendus, l'unicité du
   propriétaire, l'authentification factice, les extrémités de relation et les
   catégories de couverture sont tous valides.
+- **FR-042**: Le graphe de connaissances principal MUST utiliser par défaut les
+  liens internes issus du contenu des pages et les relations métier explicites ;
+  un placement hiérarchique ou une pièce jointe ne MUST pas devenir une arête
+  de connaissance par défaut.
+- **FR-043**: La hiérarchie et les pièces jointes MUST être proposées comme des
+  couches structurelles nommées, indépendamment activables et visuellement
+  distinguables des relations de connaissance.
+- **FR-044**: Une mention textuelle non liée ou une ressemblance calculée entre
+  contenus ne MUST pas créer automatiquement une relation canonique ni une
+  arête présentée comme certaine en V1.
+- **FR-045**: Sur une interface à pointeur, le propriétaire MUST pouvoir faire
+  glisser le fond pour déplacer la carte et utiliser la molette pour zoomer en
+  conservant sous le pointeur la zone visée.
+- **FR-046**: Le survol d'un nœud MUST mettre en évidence ce nœud, ses relations
+  directes et ses voisins ; la sélection MUST révéler son détail et une action
+  au pointeur MUST ouvrir son identité canonique sans passer par
+  l'arborescence.
+- **FR-047**: Le corpus de démonstration MUST contenir des pages lisibles et
+  thématiquement cohérentes dont les liens internes visibles produisent au
+  moins 360 occurrences relationnelles, couvrent la majorité des pages
+  connectées et forment des hubs, passerelles, cycles et liens entre branches
+  indépendants de leur classement hiérarchique.
+- **FR-048**: La proéminence visuelle d'un nœud MUST refléter de façon bornée le
+  nombre de pages qui le référencent afin de rendre les hubs repérables sans
+  masquer les nœuds moins connectés.
 
 ### Key Entities
 
 - **Nœud de graphe**: représentation reconstruisible d'un élément canonique,
   avec son identité stable, son type, sa présentation courante, son état de
   cycle de vie et ses comptes relationnels.
-- **Relation canonique**: connexion orientée et typée entre deux identités,
-  issue d'un lien éditorial, d'un placement, d'une propriété structurée ou d'un
-  rattachement de fichier.
+- **Relation de connaissance**: connexion orientée et explicable entre deux
+  identités, issue d'un lien visible dans un contenu ou d'une relation métier
+  délibérée ; elle forme le réseau principal.
+- **Connexion structurelle**: placement parent-enfant ou rattachement de
+  fichier utile pour situer un élément, mais affiché seulement dans une couche
+  optionnelle et jamais confondu par défaut avec une relation de connaissance.
+- **Relation canonique**: occurrence source de l'une de ces connexions,
+  conservant sa source, sa cible, son type et son origine.
 - **Relation agrégée**: résumé de lecture regroupant des occurrences de même
   source, cible et type, avec une multiplicité exacte ; ce résumé n'est pas une
   nouvelle relation éditable.
@@ -473,6 +547,18 @@ les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites
 - **SC-017**: Le contrôle du jeu de démonstration prouve à chaque génération la
   présence de 100 % des catégories exigées par FR-039 et refuse de déclarer
   prêt tout jeu incomplet.
+- **SC-018**: Dans 100 % des jeux où l'arborescence et les liens de contenu
+  décrivent des topologies différentes, la vue initiale et le voisinage local
+  reproduisent exactement la topologie des liens de contenu et restent
+  inchangés après un déplacement purement hiérarchique.
+- **SC-019**: Dix parcours au pointeur permettent chacun de déplacer la carte,
+  zoomer sur une zone choisie, identifier le voisinage direct d'un nœud et
+  ouvrir une page reliée en moins de 20 secondes sans utiliser
+  l'arborescence ni le clavier.
+- **SC-020**: Dans le workspace de démonstration, 100 % des arêtes éditoriales
+  échantillonnées renvoient à un lien visible dans le contenu source, au moins
+  160 pages contiennent un lien interne et au moins 360 occurrences sont issues
+  de documents lisibles et cohérents.
 
 ## Assumptions
 
@@ -480,6 +566,12 @@ les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites
 - Les liens internes et relations canoniques déjà disponibles sont la
   fondation du graphe ; cette feature ajoute leur lecture relationnelle et leur
   exploration, pas une nouvelle syntaxe de lien obligatoire.
+- La vue graphe d'Obsidian sert de référence comportementale pour le rôle des
+  liens internes, le graphe local, le survol, le clic, le déplacement et le
+  zoom ; la présentation visuelle n'est pas copiée.
+- Une arête certaine de la V1 doit rester explicable par une action délibérée du
+  propriétaire. La détection de mentions non liées ou de similarités peut
+  devenir une suggestion séparée plus tard, jamais une relation silencieuse.
 - Les types livrés par la feature 009 peuvent apparaître comme nœuds et
   relations lorsqu'ils sont présents, sans que la feature 010 redéfinisse les
   capacités de bases de données ou de tâches.
@@ -506,6 +598,7 @@ les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites
 - Graphe multi-utilisateur, présence, curseurs partagés ou collaboration entre
   plusieurs identités.
 - Vue tridimensionnelle, réalité augmentée, recommandations automatiques,
-  embeddings, regroupement ou génération assistés par IA.
+  embeddings, regroupement, liens sémantiques inférés ou génération assistés
+  par IA.
 - Transclusion du contenu d'une page dans une autre et édition depuis le graphe.
 - Reproduction exacte de la présentation d'un produit tiers.

@@ -371,6 +371,26 @@ async function verifyDemo(
   );
   if (Number(future.rows[0]?.count) < 1) fail("future relation type is missing");
 
+  const storedDocumentLinks = await client.query<{ source_id: string; target_id: string }>(`
+    SELECT source_item_id::text AS source_id, target_item_id::text AS target_id
+      FROM relationships
+     WHERE relation_type = 'page:link' AND removed_revision_id IS NULL
+     ORDER BY source_item_id, target_item_id
+  `);
+  const storedDocumentLinkKeys = storedDocumentLinks.rows.map(
+    ({ source_id: sourceId, target_id: targetId }) => `${sourceId}/${targetId}`,
+  );
+  const expectedDocumentLinkKeys = fixture.relationships
+    .filter(({ origin }) => origin === "document")
+    .map(({ sourceItemId, targetItemId }) => `${sourceItemId}/${targetItemId}`)
+    .sort();
+  if (
+    storedDocumentLinkKeys.length !== expectedDocumentLinkKeys.length ||
+    storedDocumentLinkKeys.some((key, index) => key !== expectedDocumentLinkKeys[index])
+  ) {
+    fail("the stored page:link graph does not match the links authored in the demo documents");
+  }
+
   const crossBranchIds = fixture.relationships
     .filter(({ origin, crossBranch }) => origin === "explicit" && crossBranch)
     .map(({ id }) => id);
@@ -385,10 +405,8 @@ async function verifyDemo(
 
   const topology = await client.query<{ source_id: string; target_id: string }>(`
     SELECT source_item_id::text AS source_id, target_item_id::text AS target_id
-      FROM relationships WHERE removed_revision_id IS NULL
-    UNION ALL
-    SELECT parent_item_id::text AS source_id, item_id::text AS target_id
-      FROM placements WHERE removed_at IS NULL AND parent_item_id IS NOT NULL
+      FROM relationships
+     WHERE removed_revision_id IS NULL AND relation_type = 'page:link'
   `);
   const adjacency = new Map<string, Set<string>>();
   for (const { source_id: sourceId, target_id: targetId } of topology.rows) {
@@ -399,7 +417,11 @@ async function verifyDemo(
     adjacency.set(sourceId, sourceNeighbors);
     adjacency.set(targetId, targetNeighbors);
   }
-  const remaining = new Set(fixture.items.map(({ id }) => id as string));
+  const remaining = new Set(
+    fixture.items
+      .filter(({ role, branchIndex }) => role === "page" && branchIndex !== null)
+      .map(({ id }) => id as string),
+  );
   let componentCount = 0;
   while (remaining.size > 0) {
     componentCount += 1;
@@ -415,8 +437,8 @@ async function verifyDemo(
       }
     }
   }
-  if (componentCount < DEMO_EXPECTED.isolatedItems + 1) {
-    fail("the required connected and isolated components are incomplete");
+  if (componentCount !== 1) {
+    fail("the content-authored page graph must form one connected knowledge component");
   }
 
   const response = await fetch(`${apiOrigin}/v1/databases/${fixture.database.itemId}`, {
@@ -552,21 +574,12 @@ async function main(): Promise<void> {
     );
     await uploadDemoFile(api, fixture);
 
-    const documentRelationships = fixture.relationships.filter(
-      ({ origin }) => origin === "document",
-    );
-    const documentCommands: MutationCommand[] = [];
-    for (let index = 0; index < documentRelationships.length; index += 3) {
-      const links = documentRelationships.slice(index, index + 3);
-      const sourceItemId = links[0]?.sourceItemId;
-      if (sourceItemId === undefined || links.some((link) => link.sourceItemId !== sourceItemId)) {
-        fail("document relationship groups are not coherent");
-      }
-      const baseRevisionId = revisions.get(sourceItemId);
-      if (baseRevisionId === undefined) fail(`page ${sourceItemId} has no base revision`);
-      documentCommands.push({
+    const documentCommands: MutationCommand[] = fixture.documents.map((document) => {
+      const baseRevisionId = revisions.get(document.itemId);
+      if (baseRevisionId === undefined) fail(`page ${document.itemId} has no base revision`);
+      return {
         type: "page.document.replace",
-        itemId: sourceItemId,
+        itemId: document.itemId,
         baseRevisionId,
         document: {
           format: "myownnotion.document+json",
@@ -574,19 +587,34 @@ async function main(): Promise<void> {
           body: {
             blocks: [
               {
+                type: "heading",
+                id: generateUuidV7(),
+                level: 2,
+                content: [{ text: document.heading }],
+              },
+              {
                 type: "paragraph",
                 id: generateUuidV7(),
-                content: links.map(({ targetItemId }, linkIndex) => ({
-                  text: `Référence ${linkIndex + 1}`,
-                  marks: [{ type: "pageLink", targetItemId }],
-                })),
+                content: [{ text: document.summary }],
               },
+              ...document.links.map((link) => ({
+                type: "paragraph" as const,
+                id: generateUuidV7(),
+                content: [
+                  { text: `${link.leadIn} : ` },
+                  {
+                    text: link.targetName,
+                    marks: [{ type: "pageLink" as const, targetItemId: link.targetItemId }],
+                  },
+                  { text: "." },
+                ],
+              })),
             ],
           },
         },
-        pageLinkTargetIds: links.map(({ targetItemId }) => targetItemId),
-      });
-    }
+        pageLinkTargetIds: document.links.map(({ targetItemId }) => targetItemId),
+      };
+    });
     await api.batch(documentCommands);
     await api.batch(
       fixture.relationships

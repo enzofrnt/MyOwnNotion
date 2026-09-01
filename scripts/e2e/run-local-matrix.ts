@@ -17,9 +17,12 @@
  *   - **its own deployment key**, because the security journeys mount one and a
  *     shared file is a shared fate if a run rewrites it.
  *
- * The web application is built once before the matrix. Every preview server
- * reads the same immutable production bundle, so parallel stacks neither race
- * a dependency optimiser nor rebuild into a shared output directory.
+ * The web application is built once before the matrix for host projects.
+ * Container projects receive an immutable source snapshot and build the same
+ * E2E bundle into a private container-local temporary directory. Docker
+ * Desktop can retain stale file handles when the host replaces a file or
+ * directory, so executing or serving the live bind mount is not reliable.
+ * Every output directory remains immutable while its preview server is running.
  *
  * What is *not* isolated is PostgreSQL itself — one server, several databases.
  * Starting five servers would cost more than the parallelism saves.
@@ -27,12 +30,14 @@
  * On macOS, browser engines marked `containerOnMac` run inside the pinned Linux
  * image. Playwright's patched Firefox hangs before opening a page there, while
  * patched WebKit can enter an internal loader failure late in a long corpus.
+ * The container wrapper bounds that lifetime by recycling complete WebKit
+ * projects across three sequential shards without relaxing test timeouts.
  * Those stacks talk to PostgreSQL through `host.docker.internal` and start their
  * own servers inside the container, so each still receives its own database and
  * host-side migration fixtures before the container starts.
  */
 
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -85,6 +90,33 @@ const WEB_PORT_BASE = Number(process.env["MYOWNNOTION_E2E_WEB_PORT_BASE"] ?? 547
 const JOBS = Number(process.env["MYOWNNOTION_E2E_JOBS"] ?? 2);
 
 const onMac = os.platform() === "darwin";
+const activeChildren = new Set<ChildProcess>();
+let interruptedSignal: NodeJS.Signals | undefined;
+
+function stopChildProcessTree(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (child.pid === undefined) return;
+  if (process.platform !== "win32") {
+    try {
+      // Preserve SIGINT so Playwright runs its own webServer shutdown hooks.
+      // SIGTERM skips that graceful path and can orphan its detached servers.
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // The group may already have exited between the close event and signal.
+    }
+  }
+  child.kill(signal);
+}
+
+function rememberInterruption(signal: NodeJS.Signals): void {
+  if (interruptedSignal !== undefined) return;
+  interruptedSignal = signal;
+  console.error(`Received ${signal}; stopping E2E child stacks before cleanup.`);
+  for (const child of activeChildren) stopChildProcessTree(child, signal);
+}
+
+process.once("SIGINT", rememberInterruption);
+process.once("SIGTERM", rememberInterruption);
 
 interface Stack {
   readonly project: string;
@@ -268,7 +300,11 @@ function run(
       cwd: repoRoot,
       env: { ...process.env, ...env },
       stdio: ["ignore", "pipe", "pipe"],
+      // A separate group lets an interrupted matrix terminate Playwright and
+      // every API/preview descendant it started, then run database cleanup.
+      detached: process.platform !== "win32",
     });
+    activeChildren.add(child);
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => {
       output += chunk.toString();
@@ -276,8 +312,14 @@ function run(
     child.stderr.on("data", (chunk: Buffer) => {
       output += chunk.toString();
     });
-    child.once("error", reject);
-    child.once("close", (code) => resolve({ code: code ?? 1, output }));
+    child.once("error", (error) => {
+      activeChildren.delete(child);
+      reject(error);
+    });
+    child.once("close", (code) => {
+      activeChildren.delete(child);
+      resolve({ code: code ?? 1, output });
+    });
   });
 }
 
@@ -302,6 +344,22 @@ async function buildWebApplication(): Promise<void> {
   if (code !== 0) {
     throw new Error(`building the browser application failed:\n${output}`);
   }
+}
+
+async function prepareContainerBrowserImage(stacks: readonly Stack[]): Promise<string | undefined> {
+  if (!stacks.some((stack) => stack.inContainer)) return undefined;
+  const { code, output } = await run("bash", ["scripts/e2e/prepare-container-image.sh"], {});
+  if (code !== 0) {
+    throw new Error(`preparing the pinned browser image failed:\n${output}`);
+  }
+  const marker = output
+    .split("\n")
+    .find((line) => line.startsWith("MYOWNNOTION_PREPARED_PLAYWRIGHT_IMAGE="));
+  const image = marker?.slice("MYOWNNOTION_PREPARED_PLAYWRIGHT_IMAGE=".length);
+  if (image === undefined || image.length === 0) {
+    throw new Error(`prepared browser image did not report its tag:\n${output}`);
+  }
+  return image;
 }
 
 function prepareStack(stack: Stack): void {
@@ -336,6 +394,7 @@ function cleanUpStack(stack: Stack): void {
 async function runStack(
   stack: Stack,
   extraArgs: readonly string[],
+  preparedContainerImage: string | undefined,
 ): Promise<{ code: number; output: string }> {
   if (stack.inContainer) {
     return run(
@@ -343,17 +402,17 @@ async function runStack(
       [
         "scripts/test-e2e-firefox-container.sh",
         `--project=${stack.project}`,
-        // The container mounts this repository at /work, so its Playwright and
-        // the host's share one `test-results/` — and each clears that directory
-        // when it starts. Without its own subdirectory the container run dies on
-        // `ENOTEMPTY` trying to remove a directory the host is writing into.
+        // The container exposes only `test-results/` back to the host, and each
+        // Playwright project clears its output directory when it starts. Without
+        // its own subdirectory the container run can remove artefacts another
+        // project is still writing.
         `--output=test-results/${stack.project}`,
         ...extraArgs,
       ],
       {
         DATABASE_URL: containerDatabaseUrlFor(stack.databaseName),
         MYOWNNOTION_DEPLOYMENT_KEY_FILE: stack.deploymentKeyFile as string,
-        MYOWNNOTION_E2E_PREBUILT_WEB: "1",
+        MYOWNNOTION_PLAYWRIGHT_IMAGE: preparedContainerImage as string,
       },
     );
   }
@@ -440,6 +499,7 @@ async function main(): Promise<void> {
     `Running ${stacks.length} browser projects, ${Math.min(JOBS, stacks.length)} at a time, each on its own database.`,
   );
 
+  const preparedContainerImage = await prepareContainerBrowserImage(stacks);
   await createDatabases(stacks);
   try {
     for (const stack of stacks) {
@@ -467,7 +527,10 @@ async function main(): Promise<void> {
 
     const started = Date.now();
     const outcomes = await mapWithLimit(stacks, JOBS, async (stack) => {
-      const result = await runStack(stack, extraArgs);
+      const result =
+        interruptedSignal === undefined
+          ? await runStack(stack, extraArgs, preparedContainerImage)
+          : { code: 130, output: `Skipped ${stack.project} after ${interruptedSignal}.\n` };
       const logFile = path.join(logDirectory, `${stack.project}.log`);
       // Created at write time rather than once up front, so nothing that ran in
       // between can have removed it.
@@ -489,7 +552,9 @@ async function main(): Promise<void> {
     console.info(
       `\n${outcomes.length - failed.length}/${outcomes.length} projects passed in ${elapsed}s.`,
     );
-    if (failed.length > 0) {
+    if (interruptedSignal !== undefined) {
+      process.exitCode = interruptedSignal === "SIGINT" ? 130 : 143;
+    } else if (failed.length > 0) {
       process.exitCode = 1;
     }
   } finally {

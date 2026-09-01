@@ -64,9 +64,12 @@ Les spécifications de fonctionnalité détaillées peuvent préciser ce documen
     et diagnostics détaillés vivent dans des surfaces dédiées, accessibles
     depuis le workspace sans être rendus sous le document courant.
 14. La V1 comprend les backlinks et un graphe de connaissances privé, local et
-    global. Ce graphe reste une vue reconstruisible des objets et relations
-    canoniques ; il ne devient ni un tableau blanc ni une seconde source de
-    vérité.
+    global. Son réseau principal représente les liens internes réellement
+    écrits dans les contenus et les relations métier explicites ; la hiérarchie
+    de rangement et les pièces jointes restent des couches structurelles
+    optionnelles. Ce graphe reste une vue reconstruisible des objets et
+    relations canoniques ; il ne devient ni un tableau blanc ni une seconde
+    source de vérité.
 
 ---
 
@@ -178,8 +181,9 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - fichiers et pièces jointes ;
 - prévisualisation des formats obligatoires ;
 - recherche dans les contenus pris en charge ;
-- backlinks, graphe local et graphe global avec périmètres, profondeur,
-  filtres combinables et état de complétude explicite ;
+- backlinks, graphe local et graphe global fondés par défaut sur les liens de
+  contenu, avec périmètres, profondeur, filtres combinables, navigation au
+  pointeur et état de complétude explicite ;
 - stockage local chiffré ;
 - fonctionnement hors ligne ;
 - synchronisation multi-appareils convergente, y compris lorsque deux appareils
@@ -977,6 +981,20 @@ Le graphe représente les relations entre :
 - pièces jointes ;
 - tableaux blancs lorsque pertinent.
 
+Le réseau de connaissances affiché par défaut est construit à partir des liens
+internes présents dans le contenu des pages et des relations métier explicites.
+Un placement parent-enfant, un classement dans un dossier ou le rattachement
+d'une pièce jointe n'exprime pas à lui seul une relation de connaissance : ces
+connexions structurelles peuvent être affichées comme couches optionnelles,
+mais ne doivent ni dominer la vue initiale ni déterminer le voisinage sémantique
+d'une page. Les backlinks sont dérivés des liens internes entrants et ne sont
+pas une seconde relation à maintenir.
+
+Une simple ressemblance de texte ou une mention non liée ne crée pas
+silencieusement d'arête canonique en V1. Elle peut être signalée séparément
+comme suggestion, mais le réseau visible doit rester explicable par des liens
+et relations que le propriétaire peut retrouver dans ses contenus.
+
 Le propriétaire peut choisir un périmètre :
 
 - espace complet ;
@@ -1003,6 +1021,12 @@ pas créer une seconde source de vérité : il visualise les objets et relations
 canoniques. Hors ligne ou avec une projection locale partielle, il doit indiquer
 explicitement la complétude du périmètre présenté plutôt que laisser croire que
 les données absentes n'existent pas.
+
+Sur une interface à pointeur, le propriétaire peut déplacer le point de vue en
+faisant glisser le fond, zoomer à la molette autour de la position visée,
+mettre en évidence le voisinage direct au survol, sélectionner un nœud et
+ouvrir sa page sans passer par l'arborescence. Ces comportements s'inspirent de
+la vue graphe d'Obsidian sans imposer une reproduction visuelle du produit.
 
 ---
 

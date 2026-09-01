@@ -24,17 +24,21 @@ La commande refuse une origine distante, une base inattendue, un environnement
 autre que `development`, une installation ambiguë ou déjà remplie. Le corpus
 inclut 8 branches, 40 tâches structurées, un fichier attaché, 8 isolés, des
 cycles, doublons, réciproques, liens inter-branches, un type futur et un élément
-à la corbeille.
+à la corbeille. Il contient 190 pages lisibles ; 180 d'entre elles portent deux
+liens internes visibles, soit 360 relations documentaires vérifiées, complétées
+par 120 relations métier explicables.
 
 ## Preuves ciblées
 
-1. Lancer les tests du package graphe : agrégation, backlinks, cycles,
-   permutations, périmètres, filtres et limites.
+1. Lancer les tests du package graphe : couches par défaut, indépendance à la
+   hiérarchie, agrégation, backlinks, cycles, permutations, périmètres, filtres,
+   disposition relationnelle et limites.
 2. Lancer les tests client : lecture Dexie, ouverture différée des titres,
    complétude et reconstruction après snapshot.
 3. Lancer les tests Web : routes, contrôles, liste/carte et dernière vue sûre.
 4. Lancer le parcours Playwright `knowledge-graph.spec.ts` aux largeurs desktop
-   et 320 px.
+   et 320 px, dont glisser du fond, zoom à la molette, survol, sélection et
+   ouverture au pointeur.
 5. Lancer la fixture de performance 100 000 éléments / 100 000 relations et
    vérifier les budgets documentés.
 
@@ -46,9 +50,26 @@ cycles, doublons, réciproques, liens inter-branches, un type futur et un élém
 3. Vérifier « Référencé par » : A avec multiplicité 2, puis C avec multiplicité
    1 ; vérifier que les relations sortantes sont séparées.
 4. Ouvrir le voisinage à profondeur 2, sélectionner A, recentrer et ouvrir A.
-5. Ouvrir le graphe global depuis la barre latérale, filtrer les pages, masquer
+5. Vérifier que les enfants hiérarchiques sans lien de contenu sont absents,
+   puis activer « Hiérarchie » et vérifier qu'ils apparaissent dans une couche
+   distincte.
+6. Faire glisser le fond, zoomer à la molette sur B, survoler B pour mettre en
+   évidence A et C, puis ouvrir A sans utiliser l'arborescence.
+7. Ouvrir le graphe global depuis la barre latérale, filtrer les pages, masquer
    un type de relation, révéler les isolés puis réinitialiser en une action.
-6. Basculer en liste et retrouver exactement les mêmes nœuds et relations.
+8. Basculer en liste et retrouver exactement les mêmes nœuds et relations.
+
+## Vérification du corpus éditorial
+
+1. Ouvrir trois pages de branches différentes reliées dans le graphe de
+   démonstration.
+2. Pour chaque arête sélectionnée, vérifier que la page source contient un lien
+   interne lisible portant le nom exact de la cible et que le paragraphe explique
+   le passage entre les deux concepts. Le seed a déjà comparé les 360 couples
+   source/cible réconciliés avec les 360 liens déclarés dans les documents.
+3. Déplacer une page vers un autre dossier, attendre la confirmation locale et
+   vérifier que le graphe avec la seule couche « Connaissances » ne change pas.
+4. Activer « Hiérarchie » et vérifier que seul ce calque reflète le déplacement.
 
 ## Offline et reprise
 

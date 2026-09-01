@@ -8,24 +8,29 @@
 ## Summary
 
 Livrer avant la V1 les backlinks, un voisinage local et une vue globale privée
-à partir des objets déjà canoniques. Le graphe n'ajoute ni table métier, ni
-flux de synchronisation, ni endpoint de recherche : il projette les éléments,
-placements, appartenances de base et relations présents dans la projection
-Dexie chiffrée, elle-même reconstruite par le snapshot et le journal ordonné.
+à partir des liens réellement présents dans les contenus et des relations
+métier déjà canoniques. Le graphe n'ajoute ni table métier, ni flux de
+synchronisation, ni endpoint de recherche : il projette les éléments et
+relations présents dans la projection Dexie chiffrée, elle-même reconstruite
+par le snapshot et le journal ordonné. Les placements et pièces jointes restent
+disponibles dans des couches structurelles explicites, désactivées par défaut.
 
 Un nouveau package pur `@myownnotion/graph` porte normalisation, agrégation,
-périmètres, parcours bornés, filtres et disposition déterministe. Le client
+périmètres, parcours bornés, couches, filtres et disposition relationnelle
+déterministe. Le client
 lit d'abord la topologie structurelle non sensible, calcule au plus 200 nœuds
 visibles, puis ouvre seulement les libellés nécessaires. Cette séparation
 permet un premier résultat progressif sur le jeu de référence sans créer un
 index privé persistant. L'interface React ajoute `/graph` et `/graph/:itemId`,
-une vue SVG navigable et son équivalent complet en liste.
+une vue SVG navigable au pointeur et au clavier et son équivalent complet en
+liste.
 
 La validation de release reçoit en plus un environnement de démonstration
 strictement local et jetable. Une commande explicite remet à zéro la stack de
 développement, génère par les parcours canoniques 240 éléments et 480 relations
 avec un propriétaire/mot de passe publics de démonstration, puis vérifie les
-invariants avant d'annoncer que le jeu est prêt. Une procédure distincte remet
+invariants, le contenu lisible de 190 pages et la traçabilité de 360 liens
+internes avant d'annoncer que le jeu est prêt. Une procédure distincte remet
 à zéro l'état du site dans le navigateur afin qu'un ancien service worker,
 cache, cookie ou IndexedDB ne fausse pas un test après redéploiement.
 
@@ -34,15 +39,17 @@ cache, cookie ou IndexedDB ne fausse pas un test après redéploiement.
 **Language/Version**: TypeScript 5.9.3 sous Bun 1.4.0 ; React 19.2
 
 **Primary Dependencies**: React, Dexie et contrats/domaines existants ; SVG
-natif pour le rendu, sans moteur de graphe externe
+natif et solveur relationnel pur borné pour le rendu, sans moteur de graphe
+externe
 
 **Storage**: aucune nouvelle donnée canonique ; PostgreSQL et Dexie existants
 pour les sources, préférences visuelles bornées à l'appareil dans `localStorage`
 
-**Testing**: Vitest et fast-check pour projection, agrégation, déterminisme,
-cycles et convergence ; Testing Library pour les composants ; Playwright pour
-les parcours local/global, clavier, offline et responsive ; contrat de seed et
-contrôle d'intégrité sur la base locale de démonstration
+**Testing**: Vitest et fast-check pour projection, couches, agrégation,
+déterminisme, cycles et convergence ; Testing Library pour les composants ;
+Playwright pour les parcours local/global, pointeur, clavier, offline et
+responsive ; contrat de seed et contrôle d'intégrité contenu/relation sur la
+base locale de démonstration
 
 **Target Platform**: serveur Linux auto-hébergé et client Web responsive sur
 les deux dernières versions majeures de Chrome, Edge, Firefox et Safari
@@ -55,8 +62,8 @@ secondes au p95 ; aucun lot de calcul UI supérieur à 100 ms
 
 **Constraints**: mono-propriétaire ; offline ; sources et libellés chiffrés au
 repos ; aucun filtre ou titre privé dans une URL ou un journal ; 200 nœuds et
-400 relations rendus au maximum ; vue liste et parcours clavier obligatoires ;
-320 px, zoom 200 % et réduction des animations
+400 relations rendus au maximum ; vue liste et parcours pointeur/clavier
+obligatoires ; 320 px, zoom 200 % et réduction des animations
 
 **Demo Safety**: génération désactivée hors environnement de développement,
 origine publique et hôte de base locale attendus exactement, intention
@@ -77,7 +84,7 @@ bases, tâches et fichiers ; quatre périmètres, filtres combinables, profondeu
 | III. Incremental, Verifiable Delivery | Projection pure, lecture locale, backlinks, graphe local/global puis environnement de validation constituent des tranches testables | PASS |
 | IV. Privacy and Security by Default | Aucun index dérivé persistant ; les libellés sont ouverts après sélection et les filtres restent sur l'appareil | PASS |
 | V. Simple, Modular Architecture | Une frontière pure `packages/graph` réutilise projection, sync et relations existantes sans service ni base supplémentaire | PASS |
-| VI. Practical and Predictable Experience | Vue liste équivalente, focus visible, boutons nommés, limites annoncées et état de complétude explicite | PASS |
+| VI. Practical and Predictable Experience | Vue liste équivalente, glisser/molette/survol/clic prévisibles, focus visible, boutons nommés, limites annoncées et état de complétude explicite | PASS |
 | VII. Reproducible Toolchains | Aucun runtime ni bundler ajouté ; scripts et contrôles utilisent exclusivement Bun verrouillé | PASS |
 | VIII. Canonical Product Direction | Le plan concrétise les sections 5, 10, 14, 17, 22, 27 à 33 et 42 sans absorber whiteboard, public ou MCP | PASS |
 
@@ -169,17 +176,19 @@ les rôles de tâche sont configurés est présentée comme tâche. Les autres p
 dossiers et fichiers gardent leur type canonique. Une identité n'apparaît
 jamais deux fois lorsqu'elle possède plusieurs rôles.
 
-Les lignes `relationships` créent les relations éditoriales et structurées.
-Les placements `hierarchy` deviennent `hierarchy:contains` ; les placements
-`attachment` deviennent `file:attachment`. Ces deux types sont dérivés et non
-éditables. Une relation inconnue mais syntaxiquement valide reste visible sous
-un libellé générique ; une ligne invalide rejoint le diagnostic de projection
-sans interrompre les autres relations.
+Les lignes `relationships` créent la couche `knowledge`, dont `page:link`
+provient exclusivement des liens présents dans le document canonique. Les
+placements `hierarchy` deviennent `hierarchy:contains` dans la couche
+`hierarchy` ; les placements `attachment` deviennent `file:attachment` dans la
+couche `attachment`. Ces deux couches sont dérivées, non éditables et
+désactivées par défaut. Une relation inconnue mais syntaxiquement valide reste
+visible sous un libellé générique ; une ligne invalide rejoint le diagnostic de
+projection sans interrompre les autres relations.
 
 ### Projection, agrégation et complétude
 
-Le calcul suit un ordre fixe : normaliser les sources, choisir le périmètre,
-parcourir le voisinage, appliquer les filtres, agréger par
+Le calcul suit un ordre fixe : normaliser les sources, activer les couches,
+choisir le périmètre, parcourir le voisinage, appliquer les filtres, agréger par
 `sourceId/targetId/type`, calculer les compteurs, puis borner le rendu. Les
 identités constituent le départage final, ce qui rend le résultat indépendant
 de l'ordre de réception et stable entre appareils.
@@ -197,22 +206,29 @@ avec une explication explicite.
 - `workspace` part de tous les éléments non purgés ;
 - `branch` part d'un dossier ou d'une page et suit ses descendants de
   hiérarchie ;
-- `neighborhood` part d'un élément et suit les relations dans les deux sens sur
-  une profondeur 1 à 3 ;
+- `neighborhood` part d'un élément et suit dans les deux sens uniquement les
+  couches actives, donc les relations de connaissance avec les réglages par
+  défaut, sur une profondeur 1 à 3 ;
 - `selection` part d'un ensemble borné d'identités choisies.
 
-Les filtres de type d'élément, type de relation, pièce jointe, format de fichier,
-cycle de vie, profondeur et éléments isolés s'appliquent localement. Les
+Les couches `knowledge`, `hierarchy` et `attachment` se combinent explicitement,
+avec `knowledge` seule par défaut. Les filtres de type d'élément, type de
+relation, format de fichier, cycle de vie, profondeur et éléments isolés
+s'appliquent ensuite localement. Les
 dimensions structurées (propriété, statut, dates) sont exposées lorsque la
 définition de base locale les rend évaluables ; une valeur déchargée produit
 une couverture partielle plutôt qu'un résultat négatif implicite.
 
 ### Disposition et interaction
 
-Le package calcule une disposition SVG déterministe par composantes, anneaux
-de profondeur et identité. La vue ne simule pas de physique et ne persiste pas
-de coordonnées. Panoramique, zoom, recentrage, sélection et ouverture sont des
-préférences ou actions locales. La vue liste expose exactement la même
+Le package calcule une disposition SVG relationnelle déterministe : positions
+initiales stables, répulsion, attraction des arêtes et centrage sont résolus en
+un nombre fixe d'itérations, sans animation permanente ni coordonnée persistée.
+La taille visuelle d'un nœud dépend de façon bornée de ses références entrantes.
+Le fond de carte se déplace au glisser, la molette zoome autour du pointeur, le
+survol atténue les éléments hors voisinage, le clic sélectionne et une action
+directe ouvre la page. Panoramique, zoom, recentrage, sélection et ouverture
+sont des préférences ou actions locales. La vue liste expose exactement la même
 projection, les directions et multiplicités, et devient la présentation par
 défaut sous 480 px ou avec animations réduites.
 
@@ -250,17 +266,22 @@ dans les images ou commandes de production.
 Le propriétaire et le mot de passe factices sont insérés seulement après ces
 gardes, puis le contenu est soumis par les mêmes routes de mutation et les
 mêmes contrôles de chiffrement que l'interface. Le corpus déterministe contient
-huit branches, pages thématiques, une base de tâches avec statut/priorité/date,
-un fichier attaché, huit éléments réellement isolés, 120 liens internes et 360
-relations typées incluant doublons, cycles, réciprocité, liens inter-branches
-et un type futur valide. Un élément relié est placé dans la corbeille. Les
+huit branches, 190 pages lisibles organisées autour de 23 concepts transversaux,
+une base de tâches avec statut/priorité/date, un fichier attaché et huit
+éléments réellement isolés. Cent quatre-vingts pages contiennent chacune deux
+liens internes visibles, soit 360 relations documentaires ; 120 relations
+métier explicables complètent le jeu avec doublons, cycles, réciprocité, liens
+inter-branches et un type futur valide. Un élément relié est placé dans la
+corbeille. Les
 comptes attendus sont constants même si les UUID sont régénérés.
 
 La génération se termine par des requêtes de preuve : un propriétaire et un
 mot de passe actifs, 240 éléments, 480 relations canoniques, aucune extrémité
 orpheline, une base et quarante tâches, la pièce jointe, les isolés, la
-multiplicité, les relations réciproques/inter-branches, le type inconnu et
-l'état corbeille. Une interruption laisse donc éventuellement une base locale
+multiplicité, les relations réciproques/inter-branches, le type inconnu,
+l'état corbeille, 180 documents sources et la correspondance exacte entre
+leurs 360 arêtes et les liens de leurs blocs. Une interruption laisse donc
+éventuellement une base locale
 partielle, mais jamais un message « prêt » ; la reprise documentée recommence
 par le reset complet.
 
@@ -274,8 +295,9 @@ avoir effacé un état qu'elle ne peut pas contrôler dans le profil du navigate
 ## Phase 0 Output
 
 [research.md](research.md) fixe la projection locale comme source, la frontière
-pure, la normalisation des relations, le rendu SVG natif, la stratégie de
-volume et le contrat de complétude.
+pure, les couches relationnelles, le contrat comportemental observé dans les
+sources publiques d'Obsidian, le rendu SVG relationnel, la stratégie de volume,
+le corpus éditorial et le contrat de complétude.
 
 ## Phase 1 Output
 
@@ -284,7 +306,7 @@ volume et le contrat de complétude.
 - [contracts/graph-projection.md](contracts/graph-projection.md) fixe le contrat
   pur partagé par les tests et l'interface.
 - [contracts/graph-ui.md](contracts/graph-ui.md) fixe routes, états, actions et
-  comportement responsive/clavier.
+  comportement responsive/pointeur/clavier.
 - [quickstart.md](quickstart.md) décrit les preuves locales et manuelles.
 
 ## Complexity Tracking

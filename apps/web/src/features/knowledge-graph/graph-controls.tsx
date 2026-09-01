@@ -2,6 +2,7 @@ import type { ProjectedItem } from "@myownnotion/client-core";
 import {
   defaultGraphQuery,
   describeRelationType,
+  type GraphEdgeLayer,
   type GraphNodeKind,
   type GraphQuery,
   type GraphScope,
@@ -13,9 +14,9 @@ import { GRAPH_KIND_LABELS } from "./graph-copy.ts";
 export interface GraphControlState {
   initialScope: GraphScope;
   scope: GraphScope;
+  edgeLayers: GraphEdgeLayer[];
   nodeKinds: GraphNodeKind[];
   relationTypes: string[];
-  attachment: "all" | "only" | "exclude";
   mediaTypes: string[];
   lifecycle: "active" | "including-trashed";
   structured: StructuredGraphFilter[];
@@ -33,9 +34,9 @@ export function createDefaultGraphControlState(initialScope: GraphScope): GraphC
   return {
     initialScope,
     scope: initialScope,
+    edgeLayers: ["knowledge"],
     nodeKinds: [],
     relationTypes: [],
-    attachment: "all",
     mediaTypes: [],
     lifecycle: "active",
     structured: [],
@@ -49,9 +50,9 @@ export function resetGraphControlState(state: GraphControlState): GraphControlSt
 
 export function graphQueryFromControls(state: GraphControlState): GraphQuery {
   const query = defaultGraphQuery(state.scope);
+  query.filters.edgeLayers = [...state.edgeLayers];
   query.filters.nodeKinds = [...state.nodeKinds];
   query.filters.relationTypes = [...state.relationTypes];
-  query.filters.attachment = state.attachment;
   query.filters.mediaTypes = [...state.mediaTypes];
   query.filters.lifecycle = state.lifecycle;
   query.filters.structured = [...state.structured];
@@ -190,6 +191,30 @@ export function GraphControls({
           </label>
         ) : null}
         <fieldset>
+          <legend>Calques du graphe</legend>
+          {(
+            [
+              ["knowledge", "Connaissances"],
+              ["hierarchy", "Hiérarchie"],
+              ["attachment", "Pièces jointes"],
+            ] as const
+          ).map(([layer, label]) => (
+            <label key={layer}>
+              <input
+                type="checkbox"
+                checked={state.edgeLayers.includes(layer)}
+                onChange={(event) =>
+                  onChange({
+                    ...state,
+                    edgeLayers: toggled(state.edgeLayers, layer, event.currentTarget.checked),
+                  })
+                }
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+        <fieldset>
           <legend>Types d’élément</legend>
           {KIND_OPTIONS.map(([kind, label]) => (
             <label key={kind}>
@@ -302,22 +327,6 @@ export function GraphControls({
             </label>
           );
         })}
-        <label>
-          Pièces jointes
-          <select
-            value={state.attachment}
-            onChange={(event) =>
-              onChange({
-                ...state,
-                attachment: event.currentTarget.value as GraphControlState["attachment"],
-              })
-            }
-          >
-            <option value="all">Inclure</option>
-            <option value="only">Uniquement</option>
-            <option value="exclude">Exclure</option>
-          </select>
-        </label>
         <label>
           Format de fichier
           <select

@@ -14,6 +14,7 @@ describe("global graph controls", () => {
     const rootId = generateUuidV7();
     const state = createDefaultGraphControlState({ kind: "workspace" });
     state.scope = { kind: "branch", rootId };
+    state.edgeLayers = ["knowledge", "hierarchy"];
     state.nodeKinds = ["page", "file"];
     state.relationTypes = ["page:link"];
     state.structured = [{ field: "status", operator: "equals", value: "En cours" }];
@@ -22,6 +23,7 @@ describe("global graph controls", () => {
     expect(query).toMatchObject({
       scope: { kind: "branch", rootId },
       filters: {
+        edgeLayers: ["knowledge", "hierarchy"],
         nodeKinds: ["page", "file"],
         relationTypes: ["page:link"],
         structured: [{ field: "status", operator: "equals", value: "En cours" }],
@@ -31,6 +33,24 @@ describe("global graph controls", () => {
     expect(resetGraphControlState(state)).toEqual(
       createDefaultGraphControlState({ kind: "workspace" }),
     );
+  });
+
+  it("starts with knowledge only and exposes structural layers separately", () => {
+    const state = createDefaultGraphControlState({ kind: "workspace" });
+    expect(state.edgeLayers).toEqual(["knowledge"]);
+    const markup = renderToStaticMarkup(
+      createElement(GraphControls, {
+        state,
+        items: [],
+        relationTypes: [],
+        structuredDimensions: [],
+        onChange: () => undefined,
+      }),
+    );
+    expect(markup).toContain("Calques du graphe");
+    expect(markup).toContain("Connaissances");
+    expect(markup).toContain("Hiérarchie");
+    expect(markup).toContain("Pièces jointes");
   });
 
   it("exposes manual selection and user-facing relation and structured labels", () => {

@@ -37,6 +37,29 @@ describe("knowledge graph demo fixture", () => {
     expect(fixture.items.filter(({ role }) => role === "database")).toHaveLength(1);
     expect(fixture.items.filter(({ role }) => role === "task")).toHaveLength(40);
     expect(fixture.items.filter(({ role }) => role === "file")).toHaveLength(1);
+    expect(fixture.documents).toHaveLength(190);
+    expect(
+      fixture.documents.every(({ heading, summary }) => heading.length > 10 && summary.length > 80),
+    ).toBe(true);
+    expect(fixture.documents.filter(({ links }) => links.length === 2)).toHaveLength(180);
+    expect(fixture.documents.filter(({ links }) => links.length === 0)).toHaveLength(10);
+    const documentRelationshipKeys = new Set(
+      fixture.relationships
+        .filter(({ origin }) => origin === "document")
+        .map(({ sourceItemId, targetItemId }) => `${sourceItemId}/${targetItemId}`),
+    );
+    expect(
+      fixture.documents.flatMap(({ itemId, links }) =>
+        links.map(({ targetItemId, targetName, leadIn }) => ({
+          key: `${itemId}/${targetItemId}`,
+          readable: targetName.length > 10 && leadIn.length > 20,
+        })),
+      ),
+    ).toSatisfy(
+      (links: { readonly key: string; readonly readable: boolean }[]) =>
+        links.length === DEMO_EXPECTED.documentRelationships &&
+        links.every(({ key, readable }) => readable && documentRelationshipKeys.has(key)),
+    );
     expect(fixture.isolatedItemIds).toHaveLength(8);
     expect(
       fixture.isolatedItemIds.every((id) => {
@@ -110,6 +133,7 @@ describe("knowledge graph demo fixture", () => {
             fixture.relationships.filter((relationship) => relationship.origin === origin).length,
           ]),
         ),
+        documents: fixture.documents.map(({ links }) => links.length),
         isolated: fixture.isolatedItemIds.length,
       };
     });

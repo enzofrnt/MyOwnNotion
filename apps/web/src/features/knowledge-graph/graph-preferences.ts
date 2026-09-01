@@ -1,11 +1,13 @@
-import type { GraphNodeKind } from "@myownnotion/graph";
+import type { GraphEdgeLayer, GraphNodeKind } from "@myownnotion/graph";
 
 const GRAPH_PREFERENCES_KEY = "myownnotion.graph.presentation.v1";
 const NODE_KINDS = new Set<GraphNodeKind>(["page", "folder", "file", "database", "task"]);
+const EDGE_LAYERS = new Set<GraphEdgeLayer>(["knowledge", "hierarchy", "attachment"]);
 
 export interface GraphPreferences {
   readonly mode: "canvas" | "list";
   readonly depth: 1 | 2 | 3;
+  readonly edgeLayers: readonly GraphEdgeLayer[];
   readonly nodeKinds: readonly GraphNodeKind[];
   readonly relationTypes: readonly string[];
   readonly includeIsolated: boolean;
@@ -15,6 +17,7 @@ export interface GraphPreferences {
 export const DEFAULT_GRAPH_PREFERENCES: GraphPreferences = {
   mode: "canvas",
   depth: 2,
+  edgeLayers: ["knowledge"],
   nodeKinds: [],
   relationTypes: [],
   includeIsolated: false,
@@ -47,9 +50,19 @@ export function parseGraphPreferences(raw: string | null): GraphPreferences {
           .toSorted()
           .slice(0, 32)
       : [];
+    const edgeLayers = Array.isArray(value["edgeLayers"])
+      ? [
+          ...new Set(
+            value["edgeLayers"].filter((layer): layer is GraphEdgeLayer =>
+              EDGE_LAYERS.has(layer as GraphEdgeLayer),
+            ),
+          ),
+        ].toSorted()
+      : ["knowledge" as const];
     return {
       mode: value["mode"] === "list" ? "list" : "canvas",
       depth,
+      edgeLayers,
       nodeKinds,
       relationTypes,
       includeIsolated: value["includeIsolated"] === true,

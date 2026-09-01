@@ -189,7 +189,7 @@ contrôlé et une session neuve en moins de cinq minutes.
 ## Phase 9: Convergence & Full Gate
 
 - [x] T044 Harmoniser les artefacts 010 avec l'implémentation et consigner les écarts résolus dans `specs/010-knowledge-graph/spec.md`, `specs/010-knowledge-graph/plan.md` et `specs/010-knowledge-graph/tasks.md`
-- [x] T045 Exécuter les preuves de `specs/010-knowledge-graph/quickstart.md` puis le gate de code courant de `docs/development.md`
+- [x] T045 Consigner la tentative de gate de la première implémentation comme invalidée par la revue produit du 1er septembre 2026 et reporter la preuve finale corrigée à T072 dans `specs/010-knowledge-graph/tasks.md`
 
 ---
 
@@ -295,3 +295,61 @@ T022 — vue liste
 - [x] T055 Stabiliser l'identité de navigation du graphe entre les rendus parent afin qu'une actualisation de projection n'annule pas continuellement le Web Worker, avec test de non-régression React et parcours Chromium, per FR-023, SC-003 et SC-004
 - [x] T056 Donner la priorité à une branche hors ligne durable lors de la réouverture, avant toute lecture du checkpoint distant, afin que sa conversion sérialisée conserve les deux éditions concurrentes, avec test unitaire de routage et parcours Firefox, per FR-024 et SC-006
 - [x] T057 N'accuser réception d'une préférence locale de navigation qu'après son écriture IndexedDB afin qu'un retour immédiat au workspace ne restaure pas l'ancienne valeur, avec test React et parcours Chromium mobile, per SC-010
+- [x] T058 Construire le bundle E2E des navigateurs conteneurisés dans un répertoire temporaire local au conteneur afin qu'un remplacement de `dist` sur Docker Desktop ne transforme pas les assets en réponses HTML, avec garde de chemin, contrat et parcours Firefox
+- [x] T059 Borner l'attente des resets de contenu E2E et récupérer uniquement les transactions abandonnées dans la base jetable isolée afin qu'un lecteur résiduel WebKit ne transforme pas un test réussi au retry en gate flaky, avec contrat et parcours WebKit mobile complet
+
+## Phase 11: Product Review Correction — Content Graph and Pointer Navigation
+
+**Purpose**: Remplacer la vue dominée par l'arborescence et le corpus
+artificiel par un réseau explicable depuis le contenu, puis rendre la carte
+réellement navigable au pointeur conformément à la revue produit du 1er
+septembre 2026.
+
+### User Story 2 and 3 — Semantic default, structural layers and pointer map
+
+**Independent Test**: Créer une topologie de liens internes différente de la
+hiérarchie, déplacer les pages entre dossiers et vérifier que le graphe par
+défaut ne change pas ; activer ensuite la couche hiérarchie, puis parcourir la
+carte par glisser, molette, survol, sélection et ouverture sans utiliser
+l'arborescence.
+
+- [x] T060 [P] [US2] Écrire les contrats de couche `knowledge` par défaut, de couches structurelles opt-in et d'indépendance du voisinage aux déplacements hiérarchiques dans `packages/graph/tests/contracts.spec.ts`, `packages/graph/tests/neighborhood.spec.ts` et `packages/graph/tests/filters.spec.ts`
+- [x] T061 [US2] Implémenter la classification des arêtes et les couches actives normalisées dans `packages/graph/src/types.ts`, `packages/graph/src/normalize.ts`, `packages/graph/src/project.ts`, `packages/client-core/src/local-store/local-repository.ts` et `apps/web/src/features/knowledge-graph/graph-preferences.ts`
+- [x] T062 [US3] Ajouter les contrôles « Connaissances », « Hiérarchie » et « Pièces jointes », avec reset vers `knowledge` seule, dans `apps/web/tests/knowledge-graph-global.spec.tsx` et `apps/web/src/features/knowledge-graph/graph-controls.tsx`
+- [x] T063 [P] [US2] Écrire les preuves de disposition relationnelle déterministe sous le budget de 100 ms à 200 nœuds/400 arêtes, rayon borné par backlinks, glisser du fond, zoom ancré au pointeur, survol du voisinage et ouverture canonique dans `packages/graph/tests/layout.spec.ts`, `tests/performance/knowledge-graph.perf.spec.ts` et `apps/web/tests/knowledge-graph-view.spec.tsx`
+- [x] T064 [US2] Remplacer les anneaux BFS globaux par une disposition relationnelle déterministe à itérations bornées et calculer la taille des hubs dans `packages/graph/src/layout.ts`, `packages/graph/src/types.ts` et `apps/web/src/features/knowledge-graph/graph-canvas.tsx`
+- [x] T065 [US2] Implémenter le modèle pointeur complet, l'atténuation du voisinage et l'ouverture directe dans `apps/web/src/features/knowledge-graph/graph-canvas.tsx`, `apps/web/src/features/knowledge-graph/knowledge-graph-view.tsx` et `apps/web/src/styles.css`
+- [x] T066 [US2] Ajouter un parcours Playwright où les liens de contenu diffèrent de l'arborescence puis exercer dix fois glisser, molette, survol, sélection et ouverture au pointeur sous 20 secondes dans `tests/e2e/knowledge-graph.spec.ts`
+
+### User Story 5 — Coherent editorial demo workspace
+
+**Independent Test**: Générer le workspace jetable, prouver que 180 pages
+contiennent deux liens internes visibles, ouvrir un échantillon d'arêtes et
+retrouver chaque cible dans le document source, puis vérifier que le réseau
+thématique traverse les huit branches sans reproduire leur arbre.
+
+- [x] T067 [P] [US5] Remplacer le contrat de simple comptage par des preuves de 190 documents lisibles, 180 sources, 360 liens documentaires, 120 relations métier et topologie indépendante des dossiers dans `tests/contract/knowledge-graph-demo.spec.ts`
+- [x] T068 [US5] Reconcevoir le manifeste autour de 23 concepts transversaux, huit perspectives, deux liens explicables par page source et relations métier cohérentes dans `scripts/dev/knowledge-graph-demo-fixture.ts`
+- [x] T069 [US5] Générer les blocs éditoriaux canoniques, réconcilier leurs cibles et vérifier document par document la correspondance avec `page:link` avant de déclarer le seed prêt dans `scripts/dev/seed-knowledge-graph-demo.ts`
+- [x] T070 [P] [US5] Mettre à jour le protocole de lecture et de vérification du corpus, des couches et du déplacement hiérarchique dans `docs/testing/knowledge-graph-demo.md` et `specs/010-knowledge-graph/quickstart.md`
+
+### Re-analysis, convergence and gate
+
+- [x] T071 Exécuter l'analyse croisée de `spec.md`, `plan.md` et `tasks.md`, corriger toute incohérence de priorité, couche, interaction ou corpus et consigner le résultat dans `specs/010-knowledge-graph/tasks.md`
+- [x] T072 Exécuter les preuves ciblées du package, du client, du seed et du parcours pointeur, puis le gate courant de `docs/development.md` sans pousser tant qu'une preuve requise manque
+- [x] T073 Relancer la convergence finale code/spec et rouvrir T060–T072 si une arête par défaut ne vient toujours pas du contenu, si une interaction pointeur échoue ou si une page de démonstration ne justifie pas ses liens
+
+### Dependencies for Product Review Correction
+
+```text
+T060 → T061 → T062
+T063 → T064 → T065 → T066
+T067 → T068 → T069 → T070
+(T061 + T066 + T069 + T070) → T071 → T072 → T073
+```
+
+T060 et T063 peuvent avancer en parallèle car ils touchent respectivement la
+sémantique de projection et l'interaction/disposition. T067 peut avancer en
+parallèle des deux autres chaînes. T045 décrit seulement l'invalidation de la
+première tentative ; le gate produit est satisfait uniquement par la réussite
+de T072 sur l'état corrigé final.

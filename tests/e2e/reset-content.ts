@@ -8,7 +8,17 @@
 import pg from "pg";
 
 const MAX_RESET_ATTEMPTS = 5;
-const RETRYABLE_TRANSACTION_CODES = new Set(["40P01", "40001"]);
+const RESET_QUERY_TIMEOUT_MS = 10_000;
+const RETRYABLE_TRANSACTION_CODES = new Set([
+  "40P01", // deadlock_detected
+  "40001", // serialization_failure
+  "55P03", // lock_not_available (our bounded lock_timeout)
+  "57014", // query_canceled (our bounded statement_timeout)
+]);
+const BLOCKED_RESET_CODES = new Set([
+  "55P03", // lock_not_available
+  "57014", // query_canceled
+]);
 
 function postgresErrorCode(error: unknown): string | null {
   if (typeof error !== "object" || error === null || !("code" in error)) return null;
@@ -19,10 +29,20 @@ async function resetCanonicalContentOnce(): Promise<void> {
   const connectionString =
     process.env["DATABASE_URL"] ??
     "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion";
-  const client = new pg.Client({ connectionString });
+  const client = new pg.Client({
+    connectionString,
+    application_name: "myownnotion-e2e-content-reset",
+    connectionTimeoutMillis: RESET_QUERY_TIMEOUT_MS,
+    query_timeout: RESET_QUERY_TIMEOUT_MS,
+  });
   await client.connect();
   try {
     await client.query("BEGIN");
+    // A background read may overlap the boundary between two journeys. Wait a
+    // bounded amount, roll back, and retry instead of consuming the test's
+    // entire timeout inside an opaque fixture setup.
+    await client.query(`SET LOCAL lock_timeout = '2s'`);
+    await client.query(`SET LOCAL statement_timeout = '10s'`);
     // One TRUNCATE first, before any DELETE: deleting from the guarded
     // page-operation tables queues FK-check trigger events, and a later
     // TRUNCATE touching those tables then aborts with "pending trigger
@@ -69,14 +89,57 @@ async function resetCanonicalContentOnce(): Promise<void> {
   }
 }
 
+/**
+ * Recovers a lock left by a dead E2E request, but only after a reset has
+ * actually timed out waiting for it and the transaction has been abandoned
+ * for at least thirty seconds.
+ *
+ * Doing this before every reset is unsafe even in a disposable database: the
+ * API pool can still hold the terminated socket and return one transient 500
+ * before it evicts that connection. A bounded lock timeout is therefore the
+ * evidence that recovery may be needed; the age threshold distinguishes an
+ * abandoned request from the few milliseconds between an API statement and
+ * its commit. Deadlocks and serialization retries never enter this path.
+ */
+async function recoverAbandonedTransactions(): Promise<void> {
+  const connectionString =
+    process.env["DATABASE_URL"] ??
+    "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion";
+  const client = new pg.Client({
+    connectionString,
+    application_name: "myownnotion-e2e-content-reset-recovery",
+    connectionTimeoutMillis: RESET_QUERY_TIMEOUT_MS,
+    query_timeout: RESET_QUERY_TIMEOUT_MS,
+  });
+  await client.connect();
+  try {
+    // Every matrix stack owns this disposable database. Restrict recovery to
+    // transactions that are already idle there: healthy idle pool connections
+    // and active requests are deliberately left alone.
+    await client.query(
+      `SELECT pg_terminate_backend(pid)
+         FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND backend_type = 'client backend'
+          AND state LIKE 'idle in transaction%'
+          AND xact_start < clock_timestamp() - interval '30 seconds'`,
+    );
+  } finally {
+    await client.end();
+  }
+}
+
 export async function resetCanonicalContent(): Promise<void> {
   for (let attempt = 1; attempt <= MAX_RESET_ATTEMPTS; attempt += 1) {
     try {
       await resetCanonicalContentOnce();
       return;
     } catch (error) {
-      const retryable = RETRYABLE_TRANSACTION_CODES.has(postgresErrorCode(error) ?? "");
+      const code = postgresErrorCode(error) ?? "";
+      const retryable = RETRYABLE_TRANSACTION_CODES.has(code);
       if (!retryable || attempt === MAX_RESET_ATTEMPTS) throw error;
+      if (BLOCKED_RESET_CODES.has(code)) await recoverAbandonedTransactions();
       await new Promise<void>((resolve) => setTimeout(resolve, attempt * 50));
     }
   }

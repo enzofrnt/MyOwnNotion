@@ -3,6 +3,7 @@ import type {
   AggregatedGraphEdge,
   GraphAvailability,
   GraphCoverage,
+  GraphEdgeLayer,
   GraphNode,
   GraphProjection,
   GraphQuery,
@@ -27,9 +28,9 @@ export function defaultGraphQuery(scope: GraphScope): GraphQuery {
   return {
     scope,
     filters: {
+      edgeLayers: ["knowledge"],
       nodeKinds: [],
       relationTypes: [],
-      attachment: "all",
       mediaTypes: [],
       lifecycle: "active",
       structured: [],
@@ -56,6 +57,7 @@ export function normalizeGraphQuery(input: GraphQuery): GraphQuery {
     scope,
     filters: {
       ...input.filters,
+      edgeLayers: uniqueSorted(input.filters.edgeLayers),
       nodeKinds: uniqueSorted(input.filters.nodeKinds),
       relationTypes: uniqueSorted(input.filters.relationTypes),
       mediaTypes: uniqueSorted(input.filters.mediaTypes),
@@ -160,6 +162,10 @@ function graphAdjacency(edges: readonly RawGraphEdge[]): Map<Uuid, Uuid[]> {
   );
 }
 
+export function graphEdgeLayer(edge: Pick<RawGraphEdge, "origin">): GraphEdgeLayer {
+  return edge.origin === "relationship" ? "knowledge" : edge.origin;
+}
+
 function neighborhood(
   start: Uuid,
   maxDepth: number,
@@ -184,6 +190,7 @@ function neighborhood(
 function scopeIdentities(
   source: NormalizedGraphSource,
   scope: GraphScope,
+  activeEdges: readonly RawGraphEdge[],
 ): { ids: Set<Uuid>; depths: Map<Uuid, number>; focusId: Uuid | null } {
   const nodes = new Map(source.nodes.map((node) => [node.id, node]));
   if (scope.kind === "workspace") {
@@ -196,7 +203,7 @@ function scopeIdentities(
   if (scope.kind === "neighborhood") {
     if (!nodes.has(scope.centerId))
       return { ids: new Set(), depths: new Map(), focusId: scope.centerId };
-    const depths = neighborhood(scope.centerId, scope.depth, graphAdjacency(source.edges));
+    const depths = neighborhood(scope.centerId, scope.depth, graphAdjacency(activeEdges));
     return { ids: new Set(depths.keys()), depths, focusId: scope.centerId };
   }
 
@@ -265,7 +272,9 @@ export function projectGraph(
 ): GraphProjection {
   const query = normalizeGraphQuery(rawQuery);
   const nodesById = new Map(rawSource.nodes.map((node) => [node.id, node]));
-  const { ids: scopeIds, depths, focusId } = scopeIdentities(rawSource, query.scope);
+  const activeLayerSet = new Set(query.filters.edgeLayers);
+  const activeEdges = rawSource.edges.filter((edge) => activeLayerSet.has(graphEdgeLayer(edge)));
+  const { ids: scopeIds, depths, focusId } = scopeIdentities(rawSource, query.scope, activeEdges);
   const missingStructuredValues =
     query.filters.structured.length > 0 &&
     [...scopeIds].some((id) =>
@@ -289,7 +298,7 @@ export function projectGraph(
     return query.filters.structured.every((filter) => structuredMatch(node, filter));
   });
   let eligibleIds = new Set(eligibleNodes.map(({ id }) => id));
-  let eligibleEdges = rawSource.edges.filter((edge) => {
+  let eligibleEdges = activeEdges.filter((edge) => {
     if (!eligibleIds.has(edge.sourceId) || !eligibleIds.has(edge.targetId)) return false;
     if (
       query.filters.relationTypes.length > 0 &&
@@ -297,8 +306,6 @@ export function projectGraph(
     ) {
       return false;
     }
-    if (query.filters.attachment === "only" && edge.origin !== "attachment") return false;
-    if (query.filters.attachment === "exclude" && edge.origin === "attachment") return false;
     return true;
   });
 

@@ -400,6 +400,13 @@ through an active worker bypass those routes. The ordinary production bundle
 still builds, precaches, and registers the worker; the Bun build rejects either
 bundle if it contains the wrong registration behavior.
 
+The auto fixture resets canonical content, seeds the owner and creates the
+session before Playwright asks the engine for a browser context. The context
+then receives that session through its initial `storageState`. Keep this order:
+making reset depend on an already-created context couples database preparation
+to a long-lived WebKit process and can turn an engine stall into an opaque
+fixture timeout before the test body starts.
+
 PostgreSQL itself is *not* isolated: one server, several databases. Starting
 five servers would cost more than the parallelism saves.
 
@@ -432,12 +439,37 @@ mercy of whatever the caller piped it through. Failure artefacts go to
 output directory when it starts, so a shared one means each stack deleting the
 traces and screenshots of the others.
 
+Interrupt the matrix once with `Ctrl+C`; its runner forwards termination to the
+complete process group for every active browser stack, waits for those children
+to close, then removes their temporary files and databases. A second manual
+cleanup should not be necessary. If the host itself is killed and cannot run
+that handler, verify the configured API/web port ranges and remove only
+`mon_e2e_*` databases before the next run.
+
 On macOS, Firefox runs inside the pinned Linux image, because Playwright's
 patched Firefox hangs before opening a page on the macOS development runtime.
 That project starts its servers inside the container and reaches PostgreSQL
-through `host.docker.internal`. During the parallel matrix it serves the same
-prebuilt bundle mounted from the host, so it never rewrites assets another
-preview server is reading. It runs alongside the others rather than after them.
+through `host.docker.internal`. The launcher streams an immutable source
+snapshot into the container, explicitly excluding local `.env`, secrets,
+dependencies, builds and test artefacts, then rebuilds the same E2E bundle in a
+private temporary directory. Docker Desktop can otherwise expose stale or
+truncated file handles after the host replaces a file or `dist`; the snapshot
+and private output remain immutable for the whole run. It runs alongside the
+others rather than after them and never rewrites the host bundle another
+project is reading. The `secrets/` directory remains excluded: only the exact
+generated E2E deployment key is appended as one additional archive member and
+made read-only immediately after extraction. This also prevents a newly
+replaced host key from becoming a stale bind-mounted file.
+
+Before creating any browser database, the matrix prepares one local image from
+the pinned Playwright runtime and copies Bun from the project's pinned Bun base
+image. Its locked dependency layer is shared by Firefox and both WebKit lanes,
+so a later profile never redownloads the toolchain or packages. Only that one
+idempotent dependency bootstrap retries, at most four times with a bounded
+backoff, so a short package-mirror or DNS interruption does not invalidate a
+long gate. The web build and every test remain single-attempt failures; a
+persistent initial bootstrap outage blocks the matrix before it creates test
+databases.
 
 `bun run test:e2e` remains the single-stack command to reach for when debugging
 one journey; it builds the web bundle before starting Playwright. CI performs
@@ -701,6 +733,15 @@ The generic command can run any containerized lane directly:
 bun run test:e2e:browser-container -- --project=webkit-desktop
 bun run test:e2e:browser-container -- --project=webkit-mobile
 ```
+
+A complete WebKit lane is split into three sequential shards inside the
+container. Each shard starts a fresh WebKit process, which bounds the engine's
+long-corpus resource accumulation while preserving `--fail-on-flaky-tests`.
+WebKit projects use a 120-second total watchdog because the Linux engine can
+occasionally spend more than 60 seconds inside `browser.newPage()` before any
+application code runs. Functional expectations keep their 10–30 second limits.
+Focused diagnostics using `--grep`, and an explicit caller-provided `--shard`,
+run once exactly as requested.
 
 To rerun one lane with the same isolated database and deployment-key lifecycle
 as the complete local gate, select the exact project on the matrix command:

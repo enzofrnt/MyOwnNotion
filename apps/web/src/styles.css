@@ -1401,7 +1401,21 @@ textarea {
   width: 100%;
   min-height: 32rem;
   max-height: 70vh;
-  touch-action: pan-y;
+  cursor: grab;
+  touch-action: none;
+}
+
+.knowledge-graph-canvas svg[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.knowledge-graph-canvas__edges > g,
+.knowledge-graph-canvas__nodes > g {
+  transition: opacity var(--ui-duration-fast, 120ms) ease;
+}
+
+.knowledge-graph-canvas [data-emphasis="dimmed"] {
+  opacity: 0.14;
 }
 
 .knowledge-graph-canvas__edges line {
@@ -1426,6 +1440,13 @@ textarea {
 .knowledge-graph-canvas__nodes > g {
   cursor: pointer;
   outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-graph-canvas__edges > g,
+  .knowledge-graph-canvas__nodes > g {
+    transition: none;
+  }
 }
 
 .knowledge-graph-canvas__nodes circle {

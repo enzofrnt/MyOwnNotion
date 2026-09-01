@@ -1,5 +1,12 @@
 import { describeRelationType, type GraphProjection, layoutGraph } from "@myownnotion/graph";
-import { type KeyboardEvent, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppIcon } from "../../ui/icons.tsx";
 import { Button } from "../../ui/primitives/index.ts";
 import { GRAPH_COPY } from "./graph-copy.ts";
@@ -14,6 +21,7 @@ export function GraphCanvas({
   selectedId,
   initialZoom = 1,
   onSelect,
+  onOpen,
   onClearSelection,
   onZoomChange,
 }: {
@@ -21,6 +29,7 @@ export function GraphCanvas({
   readonly selectedId: string | null;
   readonly initialZoom?: number;
   readonly onSelect: (itemId: GraphProjection["nodes"][number]["id"]) => void;
+  readonly onOpen?: (itemId: GraphProjection["nodes"][number]["id"]) => void;
   readonly onClearSelection?: () => void;
   readonly onZoomChange?: (zoom: number) => void;
 }) {
@@ -30,13 +39,83 @@ export function GraphCanvas({
     [layout.positions],
   );
   const container = useRef<HTMLElement>(null);
+  const svg = useRef<SVGSVGElement>(null);
+  const drag = useRef<{
+    readonly pointerId: number;
+    readonly clientX: number;
+    readonly clientY: number;
+    readonly panX: number;
+    readonly panY: number;
+  } | null>(null);
   const [zoom, setZoom] = useState(initialZoom);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [hoveredId, setHoveredId] = useState<GraphProjection["nodes"][number]["id"] | null>(null);
   const viewWidth = layout.width / zoom;
   const viewHeight = layout.height / zoom;
   const changeZoom = (next: number): void => {
     setZoom(next);
     onZoomChange?.(next);
+  };
+  const highlightedIds = useMemo(() => {
+    if (hoveredId === null) return null;
+    const highlighted = new Set([hoveredId]);
+    for (const edge of projection.edges) {
+      if (edge.sourceId === hoveredId) highlighted.add(edge.targetId);
+      if (edge.targetId === hoveredId) highlighted.add(edge.sourceId);
+    }
+    return highlighted;
+  }, [hoveredId, projection.edges]);
+  const handleWheel = (event: WheelEvent): void => {
+    event.preventDefault();
+    const next = Math.max(0.5, Math.min(2, zoom + (event.deltaY < 0 ? 0.1 : -0.1)));
+    if (next === zoom) return;
+    const rect = svg.current?.getBoundingClientRect();
+    if (rect === undefined) return;
+    const fractionX = rect.width <= 0 ? 0.5 : (event.clientX - rect.left) / rect.width;
+    const fractionY = rect.height <= 0 ? 0.5 : (event.clientY - rect.top) / rect.height;
+    const nextWidth = layout.width / next;
+    const nextHeight = layout.height / next;
+    setPan((current) => ({
+      x: current.x + fractionX * (viewWidth - nextWidth),
+      y: current.y + fractionY * (viewHeight - nextHeight),
+    }));
+    changeZoom(next);
+  };
+  useEffect(() => {
+    const target = svg.current;
+    if (target === null) return;
+    target.addEventListener("wheel", handleWheel, { passive: false });
+    return () => target.removeEventListener("wheel", handleWheel);
+  });
+  const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    if ((event.target as Element).closest("[data-graph-node]") !== null) return;
+    drag.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDragging(true);
+  };
+  const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    const start = drag.current;
+    if (start === null || start.pointerId !== event.pointerId) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    setPan({
+      x: start.panX - (event.clientX - start.clientX) * (viewWidth / rect.width),
+      y: start.panY - (event.clientY - start.clientY) * (viewHeight / rect.height),
+    });
+  };
+  const finishPointerDrag = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    const start = drag.current;
+    if (start === null || start.pointerId !== event.pointerId) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    drag.current = null;
+    setDragging(false);
   };
 
   const focusDirectional = (
@@ -169,7 +248,15 @@ export function GraphCanvas({
           <AppIcon name="arrowDown" />
         </Button>
       </div>
-      <svg viewBox={`${pan.x} ${pan.y} ${viewWidth} ${viewHeight}`}>
+      <svg
+        ref={svg}
+        viewBox={`${pan.x} ${pan.y} ${viewWidth} ${viewHeight}`}
+        data-dragging={dragging}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishPointerDrag}
+        onPointerCancel={finishPointerDrag}
+      >
         <title>Carte interactive du graphe de connaissances</title>
         <defs>
           <marker
@@ -191,7 +278,16 @@ export function GraphCanvas({
             if (source === undefined || target === undefined) return null;
             const label = describeRelationType(edge.relationType).label;
             return (
-              <g key={edge.key} data-availability={edge.availability}>
+              <g
+                key={edge.key}
+                data-availability={edge.availability}
+                data-emphasis={
+                  highlightedIds === null ||
+                  (highlightedIds.has(edge.sourceId) && highlightedIds.has(edge.targetId))
+                    ? "active"
+                    : "dimmed"
+                }
+              >
                 <line
                   x1={source.x}
                   y1={source.y}
@@ -222,15 +318,25 @@ export function GraphCanvas({
                 data-graph-node={node.id}
                 data-kind={node.kind}
                 data-lifecycle={node.lifecycle}
+                data-emphasis={
+                  highlightedIds === null
+                    ? "normal"
+                    : highlightedIds.has(node.id)
+                      ? "active"
+                      : "dimmed"
+                }
                 transform={`translate(${position.x} ${position.y})`}
                 onClick={() => onSelect(node.id)}
+                onDoubleClick={() => onOpen?.(node.id)}
+                onPointerEnter={() => setHoveredId(node.id)}
+                onPointerLeave={() => setHoveredId(null)}
                 onKeyDown={(event) => onNodeKeyDown(event, node.id)}
               >
-                <circle r={node.id === projection.focusId ? 35 : 29} />
+                <circle r={position.radius + (node.id === projection.focusId ? 4 : 0)} />
                 <text className="knowledge-graph-canvas__icon" y="5">
                   {node.icon || (node.kind === "folder" ? "📁" : "•")}
                 </text>
-                <text className="knowledge-graph-canvas__label" y="49">
+                <text className="knowledge-graph-canvas__label" y={position.radius + 20}>
                   {shortLabel(node.name)}
                 </text>
               </g>

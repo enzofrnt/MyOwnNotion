@@ -4,6 +4,7 @@ export type CanonicalGraphItemKind = "page" | "folder" | "file";
 export type GraphNodeKind = CanonicalGraphItemKind | "database" | "task";
 export type GraphLifecycle = "active" | "trashed" | "purged";
 export type GraphEdgeOrigin = "relationship" | "hierarchy" | "attachment";
+export type GraphEdgeLayer = "knowledge" | "hierarchy" | "attachment";
 export type GraphAvailability = "active" | "source-trashed" | "target-trashed" | "unavailable";
 
 export type GraphCoverage =
@@ -71,9 +72,9 @@ export interface StructuredGraphFilter {
 }
 
 export interface GraphFilters {
+  edgeLayers: GraphEdgeLayer[];
   nodeKinds: GraphNodeKind[];
   relationTypes: string[];
-  attachment: "all" | "only" | "exclude";
   mediaTypes: string[];
   lifecycle: "active" | "including-trashed";
   structured: StructuredGraphFilter[];
@@ -138,6 +139,7 @@ export interface GraphLayoutPosition {
   readonly id: Uuid;
   readonly x: number;
   readonly y: number;
+  readonly radius: number;
   readonly depth: number;
   readonly component: number;
 }

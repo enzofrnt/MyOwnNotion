@@ -46,6 +46,76 @@ describe("Bun production artifacts", () => {
     expect(read("apps/web/src/main.tsx")).toMatch(/import\.meta\.env\.PROD/);
   });
 
+  it("serves container browsers from a guarded container-local E2E build", () => {
+    const build = read("apps/web/build.ts");
+    expect(build).toContain('process.env["MYOWNNOTION_E2E_WEB_OUTDIR"]');
+    expect(build).toContain('path.basename(resolved).startsWith("myownnotion-e2e-web-")');
+    expect(build).toContain("os.tmpdir()");
+
+    const webPackage = JSON.parse(read("apps/web/package.json")) as {
+      scripts?: Record<string, string>;
+    };
+    expect(webPackage.scripts?.["preview"]).toContain(
+      `--outDir "\${MYOWNNOTION_WEB_DIST_DIR:-dist}"`,
+    );
+
+    const container = read("scripts/test-e2e-firefox-container.sh");
+    expect(container).toContain('container_web_dist="/tmp/myownnotion-e2e-web-dist"');
+    expect(container).toContain(`if [[ ! -f "\${deployment_key_file}" ]]`);
+    expect(container).toContain(`COPYFILE_DISABLE=1 tar --no-xattrs -C "\${repo_root}" -cf -`);
+    for (const excluded of [
+      "./.env",
+      "./.env.*",
+      "./secrets",
+      "./node_modules",
+      "*/node_modules",
+      "*/dist",
+      "./test-results",
+    ]) {
+      expect(container).toContain(`--exclude='${excluded}'`);
+    }
+    expect(container).not.toContain(`--volume "\${repo_root}:/work"`);
+    expect(container).not.toContain(`--volume "\${deployment_key_file}`);
+    expect(container).toContain(`-C "$(dirname -- "\${deployment_key_file}")"`);
+    expect(container).toContain(`chmod 0400 "\${MYOWNNOTION_DEPLOYMENT_KEY_FILE}"`);
+    expect(container).toContain(`--volume "\${repo_root}/test-results:/work/test-results"`);
+    expect(container).toContain(`--env MYOWNNOTION_E2E_WEB_OUTDIR="\${container_web_dist}"`);
+    expect(container).toContain(`--env MYOWNNOTION_WEB_DIST_DIR="\${container_web_dist}"`);
+    expect(container).toContain('test "$(bun --version)" = "1.4.0"');
+    expect(container).toContain("test -d node_modules");
+    expect(container).toContain("MYOWNNOTION_E2E_BUILD=1 bun run --filter @myownnotion/web build");
+    expect(container).toContain('exec bash scripts/e2e/run-container-project.sh "$@"');
+
+    const containerBootstrap = read("scripts/e2e/bootstrap-container.sh");
+    expect(containerBootstrap).toContain("readonly max_attempts=4");
+    expect(containerBootstrap).toContain('retry_bootstrap "installing unzip" install_unzip');
+    expect(containerBootstrap).toContain('retry_bootstrap "installing Bun 1.4.0" install_bun');
+    expect(containerBootstrap).toContain('retry_bootstrap "installing locked dependencies" bun ci');
+    expect(containerBootstrap).toContain('test "$(bun --version)" = "1.4.0"');
+
+    const preparedImage = read("scripts/e2e/prepare-container-image.sh");
+    expect(preparedImage).toContain("docker/e2e-browser.Dockerfile");
+    expect(preparedImage).toContain("MYOWNNOTION_PREPARED_PLAYWRIGHT_IMAGE=");
+    expect(preparedImage).toContain("packages/*/package.json");
+
+    const e2eDockerfile = read("docker/e2e-browser.Dockerfile");
+    expect(e2eDockerfile).toContain("FROM $" + "{BUN_BASE} AS bun-runtime");
+    expect(e2eDockerfile).toContain("FROM $" + "{PLAYWRIGHT_BASE}");
+    expect(e2eDockerfile).toContain("COPY --from=bun-runtime /usr/local/bin/bun");
+    expect(e2eDockerfile).toContain("--mount=type=cache,id=bun-install");
+    expect(e2eDockerfile).toContain("source scripts/e2e/bootstrap-container.sh");
+
+    const containerProject = read("scripts/e2e/run-container-project.sh");
+    expect(containerProject).toContain(`[[ "\${project}" == webkit-* ]]`);
+    expect(containerProject).toContain("for shard in 1/3 2/3 3/3");
+    expect(containerProject).toContain(`"--shard=\${shard}"`);
+    expect(containerProject).toContain("--fail-on-flaky-tests");
+
+    const playwrightConfig = read("playwright.config.ts");
+    expect(playwrightConfig).toContain('timeout: name.startsWith("webkit-") ? 120_000 : 60_000');
+    expect(playwrightConfig).toContain("expect: { timeout: 10_000 }");
+  });
+
   it("packages a Bun-only API runtime and a static nginx web runtime", () => {
     const bases = JSON.parse(read("docker/base-images.json")) as {
       platforms: string[];

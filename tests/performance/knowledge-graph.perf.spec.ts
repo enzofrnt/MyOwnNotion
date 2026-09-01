@@ -1,6 +1,7 @@
 import type { Uuid } from "@myownnotion/domain";
 import {
   defaultGraphQuery,
+  layoutGraph,
   normalizeGraphSource,
   projectGraph,
   type RawGraphEdge,
@@ -88,5 +89,39 @@ describe("knowledge graph reference volume", () => {
     expect(projection.summary.candidateRelationCount).toBe(SCALE);
     expect(projection.truncation.truncated).toBe(true);
     expect(duration).toBeLessThan(2_000);
+  });
+
+  it("settles the maximum visible relation layout without blocking for 100 ms", () => {
+    const nodes: RawGraphNode[] = Array.from({ length: 200 }, (_, index) => ({
+      id: stableUuid(index + 1),
+      canonicalKind: "page",
+      kind: "page",
+      lifecycle: "active",
+      name: null,
+      icon: null,
+      mediaType: null,
+      parentIds: [],
+      structured: {},
+    }));
+    const edges: RawGraphEdge[] = Array.from({ length: 400 }, (_, index) => ({
+      id: `layout-${index}`,
+      sourceId: stableUuid((index % 200) + 1),
+      targetId: stableUuid(((index * 17 + 31) % 200) + 1),
+      relationType: "page:link",
+      origin: "relationship",
+    }));
+    const projection = projectGraph(
+      normalizeGraphSource({
+        nodes,
+        edges,
+        coverage: { state: "complete", cursor: "layout" },
+      }),
+      defaultGraphQuery({ kind: "workspace" }),
+    );
+    const started = performance.now();
+    const layout = layoutGraph(projection);
+    const duration = performance.now() - started;
+    expect(layout.positions).toHaveLength(200);
+    expect(duration).toBeLessThan(100);
   });
 });

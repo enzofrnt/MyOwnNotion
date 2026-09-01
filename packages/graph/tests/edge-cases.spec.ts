@@ -218,11 +218,10 @@ describe("knowledge graph defensive edge cases", () => {
     expect(projectGraph(graph, media).nodes).toEqual([]);
 
     const relation = defaultGraphQuery({ kind: "workspace" });
-    relation.filters.attachment = "exclude";
     expect(projectGraph(graph, relation).edges).toHaveLength(2);
 
     const attachment = defaultGraphQuery({ kind: "workspace" });
-    attachment.filters.attachment = "only";
+    attachment.filters.edgeLayers = ["attachment"];
     expect(projectGraph(graph, attachment).edges).toHaveLength(1);
   });
 

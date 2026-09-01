@@ -102,8 +102,15 @@ export function KnowledgeGraphView({
   readonly initialScope: GraphScope;
   readonly onOpenItem: (itemId: Uuid) => void;
 }) {
-  const [controls, setControls] = useState(() => createDefaultGraphControlState(initialScope));
   const [preferences, setPreferences] = useState<GraphPreferences>(() => readGraphPreferences());
+  const [controls, setControls] = useState(() => {
+    const initial = createDefaultGraphControlState(initialScope);
+    initial.edgeLayers = [...preferences.edgeLayers];
+    initial.nodeKinds = [...preferences.nodeKinds];
+    initial.relationTypes = [...preferences.relationTypes];
+    initial.includeIsolated = preferences.includeIsolated;
+    return initial;
+  });
   const [selectedId, setSelectedId] = useState<Uuid | null>(
     initialScope.kind === "neighborhood" ? initialScope.centerId : null,
   );
@@ -112,6 +119,7 @@ export function KnowledgeGraphView({
     if (next.scope.kind === "neighborhood") {
       next.scope = { ...next.scope, depth: preferences.depth };
     }
+    next.filters.edgeLayers = [...preferences.edgeLayers];
     next.filters.nodeKinds = [...preferences.nodeKinds];
     next.filters.relationTypes = [...preferences.relationTypes];
     next.filters.includeIsolated = preferences.includeIsolated || controls.includeIsolated;
@@ -120,9 +128,20 @@ export function KnowledgeGraphView({
   const graph = useKnowledgeGraph(service, query);
 
   useEffect(() => {
-    setControls(createDefaultGraphControlState(initialScope));
+    const next = createDefaultGraphControlState(initialScope);
+    next.edgeLayers = [...preferences.edgeLayers];
+    next.nodeKinds = [...preferences.nodeKinds];
+    next.relationTypes = [...preferences.relationTypes];
+    next.includeIsolated = preferences.includeIsolated;
+    setControls(next);
     setSelectedId(initialScope.kind === "neighborhood" ? initialScope.centerId : null);
-  }, [initialScope]);
+  }, [
+    initialScope,
+    preferences.edgeLayers,
+    preferences.includeIsolated,
+    preferences.nodeKinds,
+    preferences.relationTypes,
+  ]);
 
   useEffect(() => {
     if (graph.projection === null) return;
@@ -184,6 +203,7 @@ export function KnowledgeGraphView({
           setPreference({
             ...preferences,
             depth: next.scope.kind === "neighborhood" ? next.scope.depth : preferences.depth,
+            edgeLayers: next.edgeLayers,
             nodeKinds: next.nodeKinds,
             relationTypes: next.relationTypes,
             includeIsolated: next.includeIsolated,
@@ -252,6 +272,7 @@ export function KnowledgeGraphView({
                     selectedId={selectedId}
                     initialZoom={preferences.zoom}
                     onSelect={setSelectedId}
+                    onOpen={onOpenItem}
                     onClearSelection={() => setSelectedId(null)}
                     onZoomChange={(zoom) => setPreference({ ...preferences, zoom })}
                   />

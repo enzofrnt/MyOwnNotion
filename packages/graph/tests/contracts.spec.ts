@@ -1,6 +1,11 @@
 import { generateUuidV7 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
-import { describeRelationType, normalizeGraphQuery, normalizeGraphSource } from "../src/index.ts";
+import {
+  defaultGraphQuery,
+  describeRelationType,
+  normalizeGraphQuery,
+  normalizeGraphSource,
+} from "../src/index.ts";
 import { edge, node, source } from "./fixtures.ts";
 
 describe("knowledge graph contracts", () => {
@@ -41,9 +46,9 @@ describe("knowledge graph contracts", () => {
     const query = normalizeGraphQuery({
       scope: { kind: "selection", itemIds: ids },
       filters: {
+        edgeLayers: ["attachment", "knowledge", "knowledge"],
         nodeKinds: [],
         relationTypes: [],
-        attachment: "all",
         mediaTypes: [],
         lifecycle: "active",
         structured: [],
@@ -53,6 +58,11 @@ describe("knowledge graph contracts", () => {
     });
     expect(query.scope.kind).toBe("selection");
     if (query.scope.kind === "selection") expect(query.scope.itemIds).toHaveLength(200);
+    expect(query.filters.edgeLayers).toEqual(["attachment", "knowledge"]);
     expect(query.limits).toEqual({ maxNodes: 200, maxEdges: 400 });
+  });
+
+  it("starts from knowledge relationships without structural placements", () => {
+    expect(defaultGraphQuery({ kind: "workspace" }).filters.edgeLayers).toEqual(["knowledge"]);
   });
 });

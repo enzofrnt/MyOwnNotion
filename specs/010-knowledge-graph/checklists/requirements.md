@@ -42,6 +42,15 @@
 - [x] Interrupted or repeated generation restarts from the full reset and never declares a partial corpus ready
 - [x] Automated proof covers 10 complete reset/generation cycles and 100 remote, ambiguous or non-disposable target refusals
 
+## Content Graph and Pointer Contract
+
+- [x] Internal links visibly present in page content are the primary graph source and backlinks are derived from them
+- [x] Hierarchy and attachments are optional structural layers disabled by default, not implicit knowledge relations
+- [x] Plain-text mentions and similarity do not silently create canonical V1 edges
+- [x] The demo corpus requires readable, coherent content with at least 360 document-link occurrences across at least 160 pages
+- [x] The demo topology deliberately differs from its folder tree and covers thematic hubs, bridges, cycles and cross-branch links
+- [x] Pointer acceptance covers background drag, cursor-anchored wheel zoom, hover neighborhood, selection and canonical opening
+
 ## Notes
 
 - Validation completed on 2026-08-31 after checking the specification against
@@ -54,7 +63,8 @@
 - Revalidated on 2026-09-01 against the implemented seed, reset procedure,
   manifest contract and convergence proofs. Every requested demo-database
   property is mapped above to an executable task or verification.
-- Final implementation gate completed on 2026-09-01: 10 deterministic demo
-  resets, 100 unsafe-target refusals, 3,376 covered tests, 1,253 contracts,
-  five browser projects, production builds, multi-architecture images and
-  security checks all passed.
+- Revalidated on 2026-09-01 after product review exposed that the implemented
+  default still privileged the folder tree and that the demo corpus used
+  generated relations instead of meaningful page content. The corrected
+  content-graph and pointer contracts above invalidate readiness until the
+  plan, tasks, implementation and full gate converge again.

@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures.ts";
 import {
+  createChildItem,
   createRootItem,
   ensureNavigationVisible,
   openSettingsSection,
@@ -9,6 +10,189 @@ import {
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
+
+test("the content graph stays distinct from folders and supports ten pointer journeys", async ({
+  page,
+  browserName,
+}, testInfo) => {
+  test.slow();
+  await openWorkspace(page);
+  const productFolder = uniqueName("GraphProduct");
+  const researchFolder = uniqueName("GraphResearch");
+  const source = uniqueName("ContentSource");
+  const target = uniqueName("ContentTarget");
+  const otherSource = uniqueName("OtherSource");
+  const otherTarget = uniqueName("OtherTarget");
+  const additionalPages = Array.from({ length: 6 }, (_, index) =>
+    uniqueName(`PointerJourney${index + 1}`),
+  );
+  await createRootItem(page, "folder", productFolder);
+  await createRootItem(page, "folder", researchFolder);
+  await createChildItem(page, productFolder, "page", source);
+  await createChildItem(page, researchFolder, "page", target);
+  await createChildItem(page, productFolder, "page", otherSource);
+  await createChildItem(page, researchFolder, "page", otherTarget);
+  for (const [index, name] of additionalPages.entries()) {
+    await createChildItem(page, index % 2 === 0 ? productFolder : researchFolder, "page", name);
+  }
+  await waitForSynchronized(page);
+
+  const pageNames = [source, target, otherSource, otherTarget, ...additionalPages];
+  const identities = Object.fromEntries(
+    await Promise.all(
+      [productFolder, researchFolder, ...pageNames].map(async (name) => [
+        name,
+        await page.getByTestId(`tree-item-${name}`).getAttribute("data-item-id"),
+      ]),
+    ),
+  );
+  if (Object.values(identities).some((itemId) => itemId === null)) {
+    throw new Error("Le scénario pointeur exige des identités locales complètes.");
+  }
+  const sourceId = identities[source] as string;
+  const targetId = identities[target] as string;
+  const otherSourceId = identities[otherSource] as string;
+  const otherTargetId = identities[otherTarget] as string;
+  const productFolderId = identities[productFolder] as string;
+  const researchFolderId = identities[researchFolder] as string;
+
+  const authored = await page.evaluate(
+    async (pairs) => {
+      const service = window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.();
+      if (service === undefined) return false;
+      for (const { sourceItemId, targetItemId } of pairs) {
+        const item = await service.getItem(sourceItemId);
+        if (item === null) return false;
+        const result = await service.mutate(
+          "page.document.replace",
+          {
+            itemId: sourceItemId,
+            baseRevisionId: item.currentRevisionId,
+            document: {
+              format: "myownnotion.document+json",
+              formatVersion: 2,
+              body: {
+                blocks: [
+                  {
+                    type: "paragraph",
+                    id: crypto.randomUUID(),
+                    content: [
+                      { text: "Décision reliée au contenu : " },
+                      {
+                        text: "cible éditoriale",
+                        marks: [{ type: "pageLink", targetItemId }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+            pageLinkTargetIds: [targetItemId],
+          },
+          [item.currentRevisionId],
+        );
+        if (!result.ok) return false;
+      }
+      await service.synchronize();
+      return true;
+    },
+    [
+      { sourceItemId: sourceId, targetItemId: targetId },
+      { sourceItemId: otherSourceId, targetItemId: otherTargetId },
+      {
+        sourceItemId: identities[additionalPages[0] as string] as string,
+        targetItemId: identities[additionalPages[1] as string] as string,
+      },
+      {
+        sourceItemId: identities[additionalPages[2] as string] as string,
+        targetItemId: identities[additionalPages[3] as string] as string,
+      },
+      {
+        sourceItemId: identities[additionalPages[4] as string] as string,
+        targetItemId: identities[additionalPages[5] as string] as string,
+      },
+    ],
+  );
+  expect(authored).toBe(true);
+
+  await ensureNavigationVisible(page);
+  await page.getByTestId("open-knowledge-graph").click();
+  await expect(page).toHaveURL("/graph");
+  const graph = page.getByTestId("knowledge-graph");
+  await expect(graph).toBeVisible();
+  await graph.getByRole("button", { name: /Carte/u }).click();
+  const canvas = page.getByTestId("knowledge-graph-canvas");
+  const journeyItems = pageNames.map((name) => ({ name, id: identities[name] as string }));
+  for (const { id: itemId } of journeyItems) {
+    await expect(canvas.locator(`[data-graph-node="${itemId}"]`)).toHaveCount(1);
+  }
+  for (const folderId of [productFolderId, researchFolderId]) {
+    await expect(canvas.locator(`[data-graph-node="${folderId}"]`)).toHaveCount(0);
+  }
+
+  await page.getByLabel("Hiérarchie").check();
+  await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(1);
+  await expect(canvas.locator(`[data-graph-node="${researchFolderId}"]`)).toHaveCount(1);
+  await page.getByLabel("Hiérarchie").uncheck();
+  await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(0);
+
+  const startedAt = Date.now();
+  for (let journey = 0; journey < 10; journey += 1) {
+    const svg = canvas.locator(":scope > svg");
+    const box = await svg.boundingBox();
+    if (box === null) throw new Error("La carte doit fournir une surface au pointeur.");
+    await page.mouse.move(box.x + 12, box.y + box.height - 12);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 32 + journey, box.y + box.height - 28, { steps: 2 });
+    await page.mouse.up();
+    const deltaY = journey % 2 === 0 ? -120 : 120;
+    if (browserName === "webkit" && testInfo.project.name.endsWith("-mobile")) {
+      await svg.evaluate(
+        (element, wheel) =>
+          element.dispatchEvent(
+            new WheelEvent("wheel", {
+              bubbles: true,
+              cancelable: true,
+              clientX: wheel.clientX,
+              clientY: wheel.clientY,
+              deltaY: wheel.deltaY,
+            }),
+          ),
+        {
+          clientX: box.x + box.width / 2,
+          clientY: box.y + box.height / 2,
+          deltaY,
+        },
+      );
+    } else {
+      await page.mouse.wheel(0, deltaY);
+    }
+
+    const sourceNode = canvas.locator(`[data-graph-node="${sourceId}"]`);
+    const journeyItem = journeyItems[journey];
+    if (journeyItem === undefined) throw new Error("Le parcours pointeur est incomplet.");
+    const targetNode = canvas.locator(`[data-graph-node="${journeyItem.id}"]`);
+    const unrelatedNode = canvas.locator(`[data-graph-node="${otherSourceId}"]`);
+    await sourceNode.hover();
+    await expect(unrelatedNode).toHaveAttribute("data-emphasis", "dimmed");
+    await targetNode.click();
+    const inspector = page.locator(".knowledge-graph-inspector");
+    await expect(inspector).toBeVisible();
+    if (journey === 0) {
+      await targetNode.locator("circle").dblclick();
+    } else {
+      await inspector.getByRole("button", { name: "Ouvrir la page" }).click();
+    }
+    await expect(page).toHaveURL(new RegExp(`/notes/${journeyItem.id}$`, "u"));
+    await expect(page.getByTestId("active-item-title")).toHaveValue(journeyItem.name);
+    await ensureNavigationVisible(page);
+    await page.getByTestId("open-knowledge-graph").click();
+    await expect(page).toHaveURL("/graph");
+    await expect(canvas).toBeVisible();
+    await expect(page.getByTestId("active-item-title")).toHaveCount(0);
+  }
+  expect(Date.now() - startedAt).toBeLessThan(20_000);
+});
 
 test("backlinks, local graph, global filters and offline restart stay coherent", async ({
   page,
@@ -55,7 +239,7 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   const canvasNodes = page.locator('[data-testid="knowledge-graph-canvas"] [data-graph-node]');
   await expect(canvasNodes).toHaveCount(2);
   await canvasNodes.first().focus();
-  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowDown");
   await expect(canvasNodes.nth(1)).toBeFocused();
   await page.keyboard.press("+");
   await expect(page.getByLabel("Niveau de zoom")).toHaveText("125 %");

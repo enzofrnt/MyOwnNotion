@@ -1,11 +1,35 @@
 import { access, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import tailwind from "bun-plugin-tailwind";
 import { injectManifest } from "workbox-build";
 
 const appRoot = import.meta.dir;
-const outdir = path.join(appRoot, "dist");
 const e2eBuild = process.env["MYOWNNOTION_E2E_BUILD"] === "1";
+
+function outputDirectory(): string {
+  const requested = process.env["MYOWNNOTION_E2E_WEB_OUTDIR"];
+  if (requested === undefined) return path.join(appRoot, "dist");
+  if (!e2eBuild) {
+    throw new Error("MYOWNNOTION_E2E_WEB_OUTDIR is restricted to E2E builds");
+  }
+  if (!path.isAbsolute(requested)) {
+    throw new Error("MYOWNNOTION_E2E_WEB_OUTDIR must be an absolute temporary path");
+  }
+  const resolved = path.resolve(requested);
+  const temporaryRoot = `${path.resolve(os.tmpdir())}${path.sep}`;
+  if (
+    !resolved.startsWith(temporaryRoot) ||
+    !path.basename(resolved).startsWith("myownnotion-e2e-web-")
+  ) {
+    throw new Error(
+      "MYOWNNOTION_E2E_WEB_OUTDIR must be a dedicated myownnotion-e2e-web-* directory under the system temporary root",
+    );
+  }
+  return resolved;
+}
+
+const outdir = outputDirectory();
 
 function publicUrl(absolutePath: string): string {
   return `/${path.relative(outdir, absolutePath).split(path.sep).join("/")}`;

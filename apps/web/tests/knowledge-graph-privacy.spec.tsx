@@ -9,6 +9,7 @@ describe("device-local graph preferences", () => {
     const serialized = serializeGraphPreferences({
       mode: "list",
       depth: 3,
+      edgeLayers: ["knowledge", "hierarchy"],
       nodeKinds: ["page"],
       relationTypes: ["page:link"],
       includeIsolated: true,
@@ -16,12 +17,18 @@ describe("device-local graph preferences", () => {
     });
     expect(serialized).not.toContain("title");
     expect(serialized).not.toContain("selectedId");
-    expect(parseGraphPreferences(serialized)).toMatchObject({ mode: "list", depth: 3, zoom: 1.5 });
+    expect(parseGraphPreferences(serialized)).toMatchObject({
+      mode: "list",
+      depth: 3,
+      edgeLayers: ["hierarchy", "knowledge"],
+      zoom: 1.5,
+    });
   });
 
   it("drops malformed or unbounded stored values", () => {
     expect(parseGraphPreferences('{"mode":"canvas","depth":99,"zoom":500}')).toMatchObject({
       depth: 3,
+      edgeLayers: ["knowledge"],
       zoom: 2,
     });
   });

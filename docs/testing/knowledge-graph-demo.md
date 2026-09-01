@@ -75,8 +75,14 @@ Le seed ne signale « ready » qu'après avoir vérifié :
 
 - 240 éléments uniques : 8 dossiers, 190 pages, 1 base structurée, 40 tâches
   et 1 vrai fichier Markdown attaché ;
-- 480 occurrences de relations actives : 120 liens issus de documents et 360
-  relations explicites ;
+- 480 occurrences de relations actives : 360 liens issus des documents et 120
+  relations métier explicites ;
+- 190 documents lisibles organisés autour de 23 concepts transversaux et de
+  8 perspectives ; 180 pages sources contiennent chacune exactement deux
+  liens internes nommés, et les 10 autres couvrent les pages connectées sans
+  lien sortant et les pages volontairement isolées ;
+- une correspondance exacte, vérifiée après écriture, entre chaque cible
+  déclarée dans un document et chaque relation canonique `page:link` ;
 - 8 pages racines réellement isolées ;
 - des doublons intentionnels, relations réciproques, cycles, liens entre
   branches et un type futur inconnu `future:semantic` ;
@@ -96,14 +102,23 @@ garde-fous locaux.
 
 ## 4. Contrôle manuel conseillé
 
-1. Ouvrir le graphe global et comparer les compteurs avec les valeurs ci-dessus.
-2. Tester la carte et la liste, puis les filtres de statut, échéance et priorité.
-3. Afficher les isolés, les doublons, les relations réciproques et le type
+1. Ouvrir le graphe global : seule la couche « Connaissances » doit être active.
+   Les dossiers et leurs arêtes ne doivent pas dominer le réseau.
+2. Sélectionner trois arêtes entre des branches différentes, ouvrir leur page
+   source et retrouver le lien interne portant exactement le nom de la cible.
+3. Faire glisser le fond de la carte, zoomer à la molette autour du pointeur,
+   survoler un nœud pour atténuer le reste, cliquer pour l'inspecter puis
+   double-cliquer pour ouvrir sa page.
+4. Déplacer une page vers un autre dossier : le réseau « Connaissances » doit
+   rester identique. Activer « Hiérarchie » pour voir uniquement cette couche
+   structurelle refléter le déplacement.
+5. Tester la carte et la liste, puis les filtres de statut, échéance et priorité.
+6. Afficher les isolés, les doublons, les relations réciproques et le type
    `future:semantic`.
-4. Ouvrir un graphe local à profondeur 1 puis 2 et revenir au global.
-5. Vérifier le cas de la cible à la corbeille avec et sans contenu masqué.
-6. Réduire la fenêtre à 320 px et confirmer que la liste reste exploitable.
-7. Attendre une synchronisation complète, couper le réseau et vérifier la
+7. Ouvrir un graphe local à profondeur 1 puis 2 et revenir au global.
+8. Vérifier le cas de la cible à la corbeille avec et sans contenu masqué.
+9. Réduire la fenêtre à 320 px et confirmer que la liste reste exploitable.
+10. Attendre une synchronisation complète, couper le réseau et vérifier la
    dernière vue sûre, puis reconnecter.
 
 Pour recommencer depuis zéro, répéter d'abord `bun run dev:stack:demo`, puis la
