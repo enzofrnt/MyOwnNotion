@@ -57,9 +57,14 @@ test("matches the light search surface", async ({ page }, testInfo) => {
   await expect(dialog).toBeVisible({ timeout: 45_000 });
   await dialog.getByRole("textbox", { name: "Recherche" }).fill(SEARCH_REFERENCE);
   await dialog.getByRole("button", { name: "Rechercher", exact: true }).click();
-  await expect(dialog.getByRole("listitem").filter({ hasText: SEARCH_REFERENCE })).toBeVisible({
-    timeout: 15_000,
-  });
+  const matchingResults = dialog
+    .locator("[data-search-result='true']")
+    .filter({ hasText: SEARCH_REFERENCE });
+  // A failed visual assertion can retry before the deleted attempt has left
+  // the complete search index. Wait for that stale hit to disappear instead
+  // of either capturing two rows or tripping Playwright strict mode.
+  await expect(matchingResults).toHaveCount(1, { timeout: 45_000 });
+  await expect(matchingResults).toBeVisible();
   await settlePixels(page);
 
   await expect(page).toHaveScreenshot("v1-search-light.png", {
