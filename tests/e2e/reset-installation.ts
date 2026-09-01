@@ -58,6 +58,7 @@ const MAX_RESET_ATTEMPTS = 5;
 const RETRYABLE_TRANSACTION_CODES = new Set(["40P01", "40001"]);
 const MAX_SETUP_ATTEMPTS = 3;
 const SETUP_QUERY_TIMEOUT_MS = 5_000;
+const SETUP_OPERATION_TIMEOUT_MS = 10_000;
 const RETRYABLE_SETUP_CODES = new Set([
   "40P01", // deadlock_detected
   "40001", // serialization_failure
@@ -93,11 +94,35 @@ function boundedSetupClient(applicationName: string): pg.Client {
   });
 }
 
+/**
+ * Bounds a complete setup attempt, not only each SQL statement.
+ *
+ * A transaction can otherwise consume several query timeouts in sequence and
+ * then wait again while rolling back or closing. Ending an active pg client
+ * destroys its socket, so every pending query rejects and the retry policy can
+ * start from a fresh connection instead of exhausting Playwright's watchdog.
+ */
+function armSetupDeadline(client: pg.Client): ReturnType<typeof setTimeout> {
+  return setTimeout(() => {
+    void client.end().catch(() => undefined);
+  }, SETUP_OPERATION_TIMEOUT_MS);
+}
+
+async function closeSetupClient(
+  client: pg.Client,
+  deadline: ReturnType<typeof setTimeout>,
+): Promise<void> {
+  clearTimeout(deadline);
+  await client.end();
+}
+
 function isRetryableSetupError(error: unknown): boolean {
   const code = postgresErrorCode(error);
   if (code !== null && RETRYABLE_SETUP_CODES.has(code)) return true;
   if (!(error instanceof Error)) return false;
-  return /(?:query read timeout|connection terminated|timeout expired)/iu.test(error.message);
+  return /(?:query read timeout|connection terminated|timeout expired|client was closed)/iu.test(
+    error.message,
+  );
 }
 
 async function withSetupRetries<T>(operation: () => Promise<T>): Promise<T> {
@@ -281,8 +306,9 @@ export async function readCommittedCounts(): Promise<{
  */
 async function seedCommittedOwnerOnce(): Promise<void> {
   const client = boundedSetupClient("myownnotion-e2e-owner-seed");
-  await client.connect();
+  const deadline = armSetupDeadline(client);
   try {
+    await client.connect();
     const { rows: installations } = await client.query<{ id: string; owner_id: string | null }>(
       `SELECT id, owner_id FROM installations LIMIT 1`,
     );
@@ -324,7 +350,7 @@ async function seedCommittedOwnerOnce(): Promise<void> {
       throw error;
     }
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
 }
 
@@ -355,8 +381,9 @@ function digestSessionSecret(secret: string): string {
  */
 async function seedSessionOnce(): Promise<string | null> {
   const client = boundedSetupClient("myownnotion-e2e-session-seed");
-  await client.connect();
+  const deadline = armSetupDeadline(client);
   try {
+    await client.connect();
     const { rows: owners } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
     const ownerId = owners[0]?.id;
     if (ownerId === undefined) {
@@ -388,7 +415,7 @@ async function seedSessionOnce(): Promise<string | null> {
     );
     return secret;
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
 }
 
@@ -409,9 +436,10 @@ async function seedSessionOnNewDeviceOnce(
   name = "Second end-to-end device",
 ): Promise<{ secret: string; deviceId: string } | null> {
   const client = boundedSetupClient("myownnotion-e2e-second-device-seed");
-  await client.connect();
+  const deadline = armSetupDeadline(client);
   let transactionOpen = false;
   try {
+    await client.connect();
     await client.query("BEGIN");
     transactionOpen = true;
     const { rows: owners } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
@@ -452,7 +480,7 @@ async function seedSessionOnNewDeviceOnce(
     }
     throw error;
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
 }
 
@@ -465,14 +493,15 @@ export async function seedSessionOnNewDevice(
 /** Revokes one device, the way the owner's device screen does. */
 async function revokeDeviceOnce(deviceId: string): Promise<void> {
   const client = boundedSetupClient("myownnotion-e2e-device-revocation");
-  await client.connect();
+  const deadline = armSetupDeadline(client);
   try {
+    await client.connect();
     await client.query(
       `UPDATE authorized_devices SET state = 'revoked', revoked_at = now() WHERE id = $1`,
       [deviceId],
     );
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
 }
 
