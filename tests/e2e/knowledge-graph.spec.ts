@@ -135,8 +135,8 @@ test("the content graph stays distinct from folders and supports ten pointer jou
   await page.getByLabel("Hiérarchie").uncheck();
   await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(0);
 
-  const startedAt = Date.now();
   for (let journey = 0; journey < 10; journey += 1) {
+    const journeyStartedAt = Date.now();
     const svg = canvas.locator(":scope > svg");
     const box = await svg.boundingBox();
     if (box === null) throw new Error("La carte doit fournir une surface au pointeur.");
@@ -189,8 +189,11 @@ test("the content graph stays distinct from folders and supports ten pointer jou
     await expect(page).toHaveURL("/graph");
     await expect(canvas).toBeVisible();
     await expect(page.getByTestId("active-item-title")).toHaveCount(0);
+    expect(
+      Date.now() - journeyStartedAt,
+      `Le parcours pointeur ${journey + 1} doit rester sous le budget individuel de SC-019.`,
+    ).toBeLessThan(20_000);
   }
-  expect(Date.now() - startedAt).toBeLessThan(20_000);
 });
 
 test("backlinks, local graph, global filters and offline restart stay coherent", async ({
