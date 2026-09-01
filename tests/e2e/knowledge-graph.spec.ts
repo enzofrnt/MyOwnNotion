@@ -1,11 +1,10 @@
 import { expect, test } from "./fixtures.ts";
 import {
+  createBusinessRelationship,
   createChildItem,
   createRootItem,
   ensureNavigationVisible,
-  openSettingsSection,
   openWorkspace,
-  returnToWorkspace,
   selectItem,
   uniqueName,
   waitForSynchronized,
@@ -213,15 +212,9 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   if (sourceId === null || targetId === null || isolatedId === null) {
     throw new Error("Les éléments du graphe doivent conserver leur identité.");
   }
-  await selectItem(page, source);
-  await openSettingsSection(page, "page-details");
-  const relationshipRows = page.getByTestId("relationship-list").locator("li");
   for (let occurrence = 0; occurrence < 2; occurrence += 1) {
-    await page.getByTestId("relation-target").fill(targetId);
-    await page.getByTestId("create-relation").click();
-    await expect(relationshipRows).toHaveCount(occurrence + 1);
+    await createBusinessRelationship(page.context().request, sourceId, targetId);
   }
-  await returnToWorkspace(page);
   await page.evaluate(async () => {
     await window.__MYOWNNOTION_E2E_LOCAL_CONTENT__?.().synchronize();
   });

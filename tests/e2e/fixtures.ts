@@ -87,7 +87,7 @@ export const test = base.extend<{ runnableHere: null; freshContent: FreshContent
       // reset depend on `context` placed database setup behind WebKit's process
       // lifecycle; a stalled engine then surfaced as a two-minute
       // "freshContent" timeout even though the test body never started.
-      await resetCanonicalContent();
+      await base.step("reset canonical content", resetCanonicalContent);
       // The application shows the first-run page until an owner exists, and
       // the sign-in page until this browser holds a session. Both are seeded
       // directly rather than driven through the UI: the passkey ceremony needs
@@ -96,8 +96,8 @@ export const test = base.extend<{ runnableHere: null; freshContent: FreshContent
       // regression look like a hierarchy failure in thirty places at once.
       // The real flows are exercised by bootstrap.spec.ts and
       // authentication.spec.ts.
-      await seedCommittedOwner();
-      const secret = await seedSession();
+      await base.step("seed committed owner", seedCommittedOwner);
+      const secret = await base.step("seed signed-in session", seedSession);
       const url = baseURL === undefined ? undefined : new URL(baseURL);
       await use({
         cookies:

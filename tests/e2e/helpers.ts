@@ -409,6 +409,34 @@ export async function createUnopenedPage(
   return { itemId, revisionId };
 }
 
+/**
+ * Creates one explicit business relationship as stable graph fixture data.
+ *
+ * Graph journeys exercise projection, navigation and offline convergence. The
+ * relationship settings form has its own E2E journey, so preparing graph data
+ * through that form would couple these tests to a second UI and can lose the
+ * draft if a late projection refresh remounts the settings panel.
+ */
+export async function createBusinessRelationship(
+  request: APIRequestContext,
+  sourceItemId: string,
+  targetItemId: string,
+): Promise<string> {
+  const relationshipId = generateUuidV7();
+  const response = await request.post(`${apiOrigin()}/v1/relationships`, {
+    headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": generateUuidV7() },
+    data: {
+      id: relationshipId,
+      sourceItemId,
+      targetItemId,
+      relationType: "link:references",
+    },
+  });
+  const raw = await response.text();
+  expect(response.status(), raw).toBe(201);
+  return relationshipId;
+}
+
 export async function openWorkspace(page: Page): Promise<void> {
   // A caller that has just reloaded is already on the workspace URL. Sending a
   // second navigation immediately afterwards is redundant for users and trips
