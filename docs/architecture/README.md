@@ -22,13 +22,17 @@ Les décisions transversales validées seront consignées ici sous forme de docu
 - [`feature 019 plan`](../../specs/019-bun-toolchain/plan.md) : chaîne Bun
   unique, artefacts Web/API, module WebSocket intégré, CI et images de
   production sans runtime Node.js de secours.
+- [`feature 010 plan`](../../specs/010-knowledge-graph/plan.md) : projection
+  locale reconstruisible, backlinks, périmètres et rendu borné sans nouvelle
+  source de vérité.
 
 ## Frontières envisagées
 
 - `apps/web` : expérience utilisateur web et orchestration côté client.
 - `apps/api` : API, authentification, partage et synchronisation distante sous Bun.
 - `packages/editor` : modèle et interface d’édition par blocs, avec Tiptap comme candidat initial.
-- `packages/graph` : liens, backlinks, index et projections du graphe.
+- `packages/graph` : projection pure et déterministe des liens, backlinks,
+  périmètres et dispositions du graphe.
 - `packages/database` : schémas, migrations et accès à la persistance.
 - `packages/mcp` : surface MCP séparée du cœur métier.
 

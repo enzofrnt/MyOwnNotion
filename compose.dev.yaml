@@ -69,6 +69,7 @@ x-dev-app: &dev-app
     - ./packages/database/migrations:/app/packages/database/migrations
     - ./packages/domain/src:/app/packages/domain/src
     - ./packages/page-state/src:/app/packages/page-state/src
+    - ./scripts/dev:/app/scripts/dev
     - ./scripts/db:/app/scripts/db
 
 services:

@@ -61,6 +61,11 @@ export function PageHeader({
             ))}
           </ol>
         </nav>
+        {compactChrome && actions !== undefined ? (
+          <div className="workspace-page-header__actions" data-testid="page-context-actions">
+            {actions}
+          </div>
+        ) : null}
       </div>
       {compactChrome ? null : (
         <div className="workspace-page-header__title-row">

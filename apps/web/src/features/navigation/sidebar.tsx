@@ -72,6 +72,7 @@ export interface SidebarProps {
   readonly shortcutPreferences: SidebarShortcutPreferences;
   readonly onShortcutExpandedChange: (section: "favourites" | "recents", expanded: boolean) => void;
   readonly onOpen: (itemId: ProjectedItem["id"]) => void;
+  readonly onOpenGraph: () => void;
   readonly onOpenSettings: () => void;
   readonly onOpenSearch: () => void;
 }
@@ -88,6 +89,7 @@ export function Sidebar({
   footerStatus,
   items,
   onOpen,
+  onOpenGraph,
   onOpenSearch,
   onOpenSettings,
   onShortcutExpandedChange,
@@ -111,6 +113,16 @@ export function Sidebar({
           <AppIcon name="search" />
           <span>Rechercher</span>
           <kbd>⌘ K</kbd>
+        </Button>
+
+        <Button
+          className="workspace-navigation__graph"
+          variant="ghost"
+          data-testid="open-knowledge-graph"
+          onClick={onOpenGraph}
+        >
+          <AppIcon name="graph" />
+          <span>Graphe</span>
         </Button>
 
         {shortcutPreferences.favouritesVisible ? (

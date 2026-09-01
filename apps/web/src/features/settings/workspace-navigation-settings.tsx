@@ -11,6 +11,7 @@ type VisibleShortcut = "favouritesVisible" | "recentsVisible";
 
 export function WorkspaceNavigationSettings({ db }: { readonly db: LocalDatabase }) {
   const [presentation, setPresentation] = useState<WorkspacePresentationState | null>(null);
+  const [saving, setSaving] = useState<VisibleShortcut | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,11 +24,18 @@ export function WorkspaceNavigationSettings({ db }: { readonly db: LocalDatabase
   }, [db]);
 
   const setVisible = (field: VisibleShortcut, visible: boolean): void => {
-    setPresentation((current) => (current === null ? current : { ...current, [field]: visible }));
+    setSaving(field);
     void updateWorkspacePresentationState(db, (current) => ({
       ...current,
       [field]: visible,
-    })).then(setPresentation);
+    })).then((next) => {
+      // The checked state is the acknowledgement that IndexedDB now owns the
+      // preference. An optimistic flip let navigation resume while the write
+      // was still pending, so the workspace could hydrate the previous value
+      // and persist it over the owner's choice on slower mobile runs.
+      setPresentation(next);
+      setSaving((current) => (current === field ? null : current));
+    });
   };
 
   if (presentation === null) {
@@ -49,6 +57,7 @@ export function WorkspaceNavigationSettings({ db }: { readonly db: LocalDatabase
         <Switch
           aria-label="Afficher les favoris"
           checked={presentation.favouritesVisible}
+          disabled={saving === "favouritesVisible"}
           onCheckedChange={(checked) => setVisible("favouritesVisible", checked)}
         />
       </div>
@@ -60,6 +69,7 @@ export function WorkspaceNavigationSettings({ db }: { readonly db: LocalDatabase
         <Switch
           aria-label="Afficher les récents"
           checked={presentation.recentsVisible}
+          disabled={saving === "recentsVisible"}
           onCheckedChange={(checked) => setVisible("recentsVisible", checked)}
         />
       </div>

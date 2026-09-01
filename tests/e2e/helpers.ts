@@ -421,7 +421,13 @@ export async function openWorkspace(page: Page): Promise<void> {
     (() => {
       try {
         const pathname = new URL(currentUrl).pathname;
-        return pathname === "/" || pathname === "/notes" || pathname.startsWith("/notes/");
+        return (
+          pathname === "/" ||
+          pathname === "/notes" ||
+          pathname.startsWith("/notes/") ||
+          pathname === "/graph" ||
+          pathname.startsWith("/graph/")
+        );
       } catch {
         return false;
       }

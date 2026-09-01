@@ -137,6 +137,14 @@ do not rebuild or restart containers; Bun `--watch` and Vite HMR pick them up
 inside the running processes. This helper is not the official deployment;
 `compose.yaml` still publishes HTTP only.
 
+For a reproducible Knowledge Graph acceptance workspace, run
+`bun run dev:stack:demo`. It performs the same destructive local reset, creates
+the dummy owner/password and a verified 240-item / 480-relationship corpus,
+and refuses every non-local, non-empty or non-development target. Follow the
+separate [server and browser reset procedure](testing/knowledge-graph-demo.md)
+before judging a redeployment; a hard reload alone does not clear IndexedDB,
+cookies or service-worker caches.
+
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
 

@@ -8,6 +8,7 @@ export type ApplicationDestination =
   | { readonly kind: "login"; readonly canonicalPath: "/login" }
   | { readonly kind: "notes"; readonly itemId: null; readonly canonicalPath: "/notes" }
   | { readonly kind: "note"; readonly itemId: Uuid; readonly canonicalPath: string }
+  | { readonly kind: "graph"; readonly itemId: Uuid | null; readonly canonicalPath: string }
   | { readonly kind: "settings-root"; readonly canonicalPath: "/settings" }
   | {
       readonly kind: "settings";
@@ -40,6 +41,10 @@ export function notePath(itemId: Uuid): `/notes/${string}` {
   return `/notes/${itemId}`;
 }
 
+export function graphPath(itemId?: Uuid | null): "/graph" | `/graph/${string}` {
+  return itemId == null ? "/graph" : `/graph/${itemId}`;
+}
+
 export function settingsPath(section: SettingsRouteSection): `/settings/${SettingsRouteSection}` {
   return `/settings/${section}`;
 }
@@ -60,6 +65,9 @@ export function recognizeDestination(pathname: string): ApplicationDestination {
   if (canonicalCandidate === "/notes") {
     return { kind: "notes", itemId: null, canonicalPath: "/notes" };
   }
+  if (canonicalCandidate === "/graph") {
+    return { kind: "graph", itemId: null, canonicalPath: "/graph" };
+  }
   if (canonicalCandidate === "/settings") {
     return { kind: "settings-root", canonicalPath: "/settings" };
   }
@@ -69,6 +77,12 @@ export function recognizeDestination(pathname: string): ApplicationDestination {
     const itemId = segments[1];
     if (!isUuid(itemId)) return notFound(pathname, "invalid-item-id");
     return { kind: "note", itemId, canonicalPath: notePath(itemId) };
+  }
+
+  if (segments.length === 2 && segments[0] === "graph") {
+    const itemId = segments[1];
+    if (!isUuid(itemId)) return notFound(pathname, "invalid-item-id");
+    return { kind: "graph", itemId, canonicalPath: graphPath(itemId) };
   }
 
   if (segments.length === 2 && segments[0] === "settings") {
@@ -92,15 +106,16 @@ export function recognizeDestination(pathname: string): ApplicationDestination {
   return notFound(pathname, "unknown-path");
 }
 
-export function isProtectedDestination(
-  destination: ApplicationDestination,
-): destination is Extract<
+export function isProtectedDestination(destination: ApplicationDestination): destination is Extract<
   ApplicationDestination,
-  { readonly kind: "notes" | "note" | "settings-root" | "settings" | "page-settings" }
+  {
+    readonly kind: "notes" | "note" | "graph" | "settings-root" | "settings" | "page-settings";
+  }
 > {
   return (
     destination.kind === "notes" ||
     destination.kind === "note" ||
+    destination.kind === "graph" ||
     destination.kind === "settings-root" ||
     destination.kind === "settings" ||
     destination.kind === "page-settings"

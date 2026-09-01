@@ -70,6 +70,13 @@ l’autorité locale : `bun run dev:trust`. Journaux : `bun run dev:stack:logs`.
 Arrêt : `bun run dev:stack:down`. Pour vider Postgres, les fichiers et les
 sauvegardes de cette stack : `bun run dev:stack:reset`.
 
+Pour tester le Knowledge Graph avec une base locale riche et reproductible,
+utiliser `bun run dev:stack:demo`, puis suivre la
+[procédure de réinitialisation serveur et navigateur](docs/testing/knowledge-graph-demo.md).
+Le mot de passe factice est `knowledge-graph-demo` ; cette commande détruit
+uniquement les volumes de la stack locale `myownnotion-dev` et refuse toute
+cible distante ou déjà remplie.
+
 `bun --version` doit afficher exactement `1.4.0`. Avant de pousser une
 modification de code, de dépendance, de build, de configuration ou de
 déploiement, exécuter la porte complète :

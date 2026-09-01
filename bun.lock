@@ -11,6 +11,7 @@
         "@myownnotion/contracts": "workspace:*",
         "@myownnotion/database": "workspace:*",
         "@myownnotion/domain": "workspace:*",
+        "@myownnotion/graph": "workspace:*",
         "@myownnotion/page-state": "workspace:*",
         "@myownnotion/test-utils": "workspace:*",
         "@playwright/test": "^1.58.1",
@@ -72,6 +73,7 @@
         "@myownnotion/client-core": "workspace:*",
         "@myownnotion/contracts": "workspace:*",
         "@myownnotion/domain": "workspace:*",
+        "@myownnotion/graph": "workspace:*",
         "@myownnotion/page-state": "workspace:*",
         "@tanstack/react-table": "9.1.2",
         "@tanstack/react-virtual": "3.14.10",
@@ -119,6 +121,7 @@
       "dependencies": {
         "@myownnotion/contracts": "workspace:*",
         "@myownnotion/domain": "workspace:*",
+        "@myownnotion/graph": "workspace:*",
         "@myownnotion/page-state": "workspace:*",
         "dexie": "^4.2.1",
       },
@@ -166,6 +169,18 @@
       },
       "devDependencies": {
         "@types/node": "^24.10.9",
+        "fast-check": "^4.5.3",
+        "typescript": "^5.9.3",
+        "vitest": "^3.2.4",
+      },
+    },
+    "packages/graph": {
+      "name": "@myownnotion/graph",
+      "version": "0.1.0",
+      "dependencies": {
+        "@myownnotion/domain": "workspace:*",
+      },
+      "devDependencies": {
         "fast-check": "^4.5.3",
         "typescript": "^5.9.3",
         "vitest": "^3.2.4",
@@ -589,6 +604,8 @@
     "@myownnotion/database": ["@myownnotion/database@workspace:packages/database"],
 
     "@myownnotion/domain": ["@myownnotion/domain@workspace:packages/domain"],
+
+    "@myownnotion/graph": ["@myownnotion/graph@workspace:packages/graph"],
 
     "@myownnotion/page-state": ["@myownnotion/page-state@workspace:packages/page-state"],
 

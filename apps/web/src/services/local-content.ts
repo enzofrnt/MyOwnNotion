@@ -66,6 +66,7 @@ import {
   type Uuid,
   upgradeLegacyBody,
 } from "@myownnotion/domain";
+import type { RawGraphNode, RawGraphSource } from "@myownnotion/graph";
 import { ContentApi } from "./content-api.ts";
 import { IndexedDbKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
 import { PageOperationsApi } from "./page-operations-api.ts";
@@ -950,6 +951,16 @@ export class LocalContentService {
     return this.repository.listItems("active");
   }
 
+  async getKnowledgeGraphTopology(): Promise<RawGraphSource> {
+    await this.#unlock();
+    return await this.repository.readKnowledgeGraphTopology();
+  }
+
+  async hydrateKnowledgeGraphNodes(itemIds: readonly Uuid[]): Promise<RawGraphNode[]> {
+    await this.#unlock();
+    return await this.repository.hydrateKnowledgeGraphNodes(itemIds);
+  }
+
   async listTrashedItems(): Promise<ProjectedItem[]> {
     return this.repository.listItems("trashed");
   }
@@ -1093,6 +1104,19 @@ export class LocalContentService {
   ): Promise<SharedOpenedOperationalPage | OpenOperationalPageFailure> {
     await this.#unlock();
     let state = await this.pageOperationLog.getState(itemId);
+    const retainedLegacyBranch = await this.pageOperationLog.getLegacyBranch(itemId);
+    if (retainedLegacyBranch !== null && retainedLegacyBranch.status !== "converted") {
+      // The durable branch is this device's unsynchronized authority. Opening
+      // an already-active server checkpoint in parallel with its conversion
+      // can install the remote-only projection first and let the editor claim
+      // it is synchronized before the retained local words are visible. Route
+      // through the branch before any remote read; tryOpen handles the narrow
+      // case where a background reconciler finishes conversion meanwhile.
+      return await this.#openLegacyBranchSession(
+        itemId,
+        retainedLegacyBranch.branch.baseDocumentV2,
+      );
+    }
     const online = typeof navigator === "undefined" ? true : navigator.onLine;
     // A page can exist optimistically before the workspace mutation that
     // creates or converts it has committed on the server. Crossing into the
@@ -1126,17 +1150,6 @@ export class LocalContentService {
           message: checkpoint.problem.message,
         };
       }
-    }
-    const retainedLegacyBranch = await this.pageOperationLog.getLegacyBranch(itemId);
-    if (retainedLegacyBranch !== null && retainedLegacyBranch.status !== "converted") {
-      // Pulling another device's active checkpoint must not orphan edits that
-      // this device made while the page was still legacy. Reopen the retained
-      // branch first; its serial queue owns conversion and then hands the same
-      // mounted editor over to the active state in place.
-      return await this.#openLegacyBranchSession(
-        itemId,
-        retainedLegacyBranch.branch.baseDocumentV2,
-      );
     }
     if (state === null) {
       let item = await this.repository.getItem(itemId);

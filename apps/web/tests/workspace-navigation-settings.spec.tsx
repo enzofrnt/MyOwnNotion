@@ -52,8 +52,14 @@ describe("workspace navigation settings", () => {
     expect(favourites.getAttribute("aria-checked")).toBe("true");
     expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
 
-    await act(async () => {
+    act(() => {
       favourites.click();
+    });
+    // The control acknowledges only durable state. Leaving settings after
+    // aria-checked changes must therefore never race the IndexedDB write.
+    expect(favourites.getAttribute("aria-checked")).toBe("true");
+    expect(favourites.disabled).toBe(true);
+    await act(async () => {
       await vi.waitFor(async () => {
         const state = await readWorkspacePresentationState(db);
         expect(state.favouritesVisible).toBe(false);
@@ -62,5 +68,6 @@ describe("workspace navigation settings", () => {
       });
     });
     expect(favourites.getAttribute("aria-checked")).toBe("false");
+    expect(favourites.disabled).toBe(false);
   });
 });

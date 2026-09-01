@@ -28,6 +28,7 @@ COPY packages/client-core/package.json packages/client-core/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/database/package.json packages/database/
 COPY packages/domain/package.json packages/domain/
+COPY packages/graph/package.json packages/graph/
 COPY packages/page-state/package.json packages/page-state/
 COPY packages/test-utils/package.json packages/test-utils/
 COPY scripts/ci/check-toolchain.ts scripts/ci/

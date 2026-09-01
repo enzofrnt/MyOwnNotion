@@ -1,6 +1,7 @@
 import { generateUuidV7 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import {
+  graphPath,
   notePath,
   pageSettingsPath,
   recognizeDestination,
@@ -19,6 +20,8 @@ describe("canonical application paths", () => {
     const itemId = generateUuidV7();
 
     expect(notePath(itemId)).toBe(`/notes/${itemId}`);
+    expect(graphPath()).toBe("/graph");
+    expect(graphPath(itemId)).toBe(`/graph/${itemId}`);
     expect(pageSettingsPath(itemId)).toBe(`/settings/page/${itemId}`);
     expect(settingsPath("storage-sync")).toBe("/settings/storage-sync");
   });
@@ -28,6 +31,7 @@ describe("canonical application paths", () => {
     ["/setup", { kind: "setup", canonicalPath: "/setup" }],
     ["/login", { kind: "login", canonicalPath: "/login" }],
     ["/notes", { kind: "notes", canonicalPath: "/notes", itemId: null }],
+    ["/graph", { kind: "graph", canonicalPath: "/graph", itemId: null }],
     [
       "/settings/security",
       { kind: "settings", canonicalPath: "/settings/security", section: "security" },
@@ -54,11 +58,17 @@ describe("canonical application paths", () => {
       itemId,
       canonicalPath: `/settings/page/${itemId}`,
     });
+    expect(recognizeDestination(`/graph/${itemId}/`)).toEqual({
+      kind: "graph",
+      itemId,
+      canonicalPath: `/graph/${itemId}`,
+    });
   });
 
   it.each([
     "/notes/not-a-uuid",
     "/notes//",
+    "/graph/not-a-uuid",
     "/notes/00000000-0000-0000-0000-000000000000/extra",
     "/settings/local-data",
     "/settings/page/not-a-uuid",

@@ -31,15 +31,17 @@ describe("Bun production artifacts", () => {
     }
   });
 
-  it("builds the browser, search worker, Wasm and PWA through Bun", () => {
+  it("builds the browser, search and graph workers, Wasm and PWA through Bun", () => {
     const build = read("apps/web/build.ts");
-    expect(build.match(/await Bun\.build\(\{/g)).toHaveLength(3);
+    expect(build.match(/await Bun\.build\(\{/g)).toHaveLength(4);
     expect(build).toContain("search.worker-[hash].[ext]");
+    expect(build).toContain("knowledge-graph.worker-[hash].[ext]");
     expect(build).toContain("bun-plugin-tailwind");
     expect(build).toContain("injectManifest");
     expect(build).toContain('file.endsWith(".wasm")');
     expect(build).toContain('file.endsWith(".webmanifest")');
     expect(build).toContain("__MYOWNNOTION_SEARCH_WORKER_URL__");
+    expect(build).toContain("__MYOWNNOTION_GRAPH_WORKER_URL__");
     expect(read("apps/web/index.html")).toContain("manifest.webmanifest");
     expect(read("apps/web/src/main.tsx")).toMatch(/import\.meta\.env\.PROD/);
   });

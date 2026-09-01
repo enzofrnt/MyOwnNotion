@@ -42,6 +42,7 @@ import {
   Minus,
   Monitor,
   Moon,
+  Network,
   PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
@@ -59,6 +60,8 @@ import {
   Undo2,
   Upload,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { forwardRef } from "react";
 import { classNames } from "./class-names.ts";
@@ -101,6 +104,7 @@ export const APP_ICONS = {
   lock: LockKeyhole,
   menu: Menu,
   more: Ellipsis,
+  graph: Network,
   offline: CloudOff,
   panel: PanelLeft,
   panelClose: PanelLeftClose,
@@ -122,6 +126,8 @@ export const APP_ICONS = {
   underline: Underline,
   undo: Undo2,
   upload: Upload,
+  zoomIn: ZoomIn,
+  zoomOut: ZoomOut,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 export type AppIconName = keyof typeof APP_ICONS;
@@ -171,6 +177,7 @@ export const APP_ICON_LABELS: Readonly<Record<AppIconName, string>> = {
   lock: "Verrouillé",
   menu: "Menu",
   more: "Plus d’actions",
+  graph: "Graphe",
   offline: "Hors ligne",
   panel: "Panneau latéral",
   panelClose: "Masquer le panneau latéral",
@@ -192,6 +199,8 @@ export const APP_ICON_LABELS: Readonly<Record<AppIconName, string>> = {
   underline: "Souligné",
   undo: "Annuler",
   upload: "Importer",
+  zoomIn: "Zoomer",
+  zoomOut: "Dézoomer",
 };
 
 export interface AppIconProps extends Omit<LucideProps, "aria-label" | "size"> {

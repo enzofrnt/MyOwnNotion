@@ -92,7 +92,7 @@ describe("workspace shell", () => {
     expect(markup).not.toContain('id="workspace-navigation" hidden=""');
   });
 
-  it("keeps page title, synchronization and settings out of the compact page chrome", () => {
+  it("keeps page identity and synchronization out while exposing its compact contextual action", () => {
     const markup = renderToStaticMarkup(
       <PageHeader
         title="Projet Atlas"
@@ -108,9 +108,9 @@ describe("workspace shell", () => {
     expect(markup).toContain('aria-label="Fil d’Ariane"');
     expect(markup).toContain('aria-current="page"');
     expect(markup).not.toContain('data-testid="active-item-title"');
-    expect(markup).not.toContain('data-testid="page-context-actions"');
+    expect(markup).toContain('data-testid="page-context-actions"');
     expect(markup).not.toContain("Synchronisé");
-    expect(markup).not.toContain("Plus d’actions");
+    expect(markup).toContain("Plus d’actions");
     expect(markup).not.toContain("workspace-page-header__identity");
   });
 

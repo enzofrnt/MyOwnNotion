@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-31
 
-**Status**: Ready for product review
+**Status**: Complete
 
 **Input**: User description: "Faire arriver le Knowledge graph avant la V1 et
 poser ses bases dans les specs avant la convergence finale du correctif en
@@ -185,6 +185,55 @@ appareils puis sauvegarder et restaurer le workspace sur une installation vide.
    marche à suivre sont explicites ; la dernière vue valide n'est pas présentée
    comme actuelle si elle ne l'est plus.
 
+---
+
+### User Story 5 - Valider un redéploiement sur un workspace de démonstration (Priority: P1)
+
+En tant que personne qui valide la release, je peux repartir d'une application
+et d'un navigateur réellement propres puis charger un workspace de
+démonstration riche, afin de tester le graphe dans des conditions répétables
+sans confondre un défaut du nouveau code avec un cache ou des données locales
+issus du déploiement précédent.
+
+**Why this priority**: Le graphe dépend à la fois des données canoniques, de la
+projection locale et du shell installé dans le navigateur. Une validation sur
+un état ancien peut masquer une régression ou en inventer une ; un jeu trop
+petit ne permet pas d'éprouver les filtres, les limites et les cas
+relationnels de la V1.
+
+**Independent Test**: Sur une installation locale de démonstration contenant
+des données quelconques, suivre la procédure de remise à zéro, vérifier
+l'absence d'état serveur et navigateur résiduel, générer le workspace de
+démonstration, se connecter avec l'identifiant factice documenté puis exercer
+les backlinks, périmètres, filtres, isolés, cycles, multiplicités et limites.
+
+**Acceptance Scenarios**:
+
+1. **Given** une version précédente a été utilisée dans le navigateur, **When**
+   la procédure de redéploiement propre est suivie, **Then** elle efface ou
+   remplace explicitement session, données locales, caches, application
+   installée et processus de fond avant de charger la nouvelle version.
+2. **Given** l'installation locale contient des données de test anciennes,
+   **When** la remise à zéro du workspace de démonstration est confirmée,
+   **Then** données canoniques, fichiers et sauvegardes locales de démonstration
+   sont supprimés ensemble et ne sont jamais mélangés au nouveau jeu.
+3. **Given** une installation locale vide, **When** le jeu de démonstration est
+   généré, **Then** un unique propriétaire factice avec mot de passe factice
+   documenté et un workspace cohérent sont prêts sans cérémonie manuelle.
+4. **Given** le workspace de démonstration, **When** son graphe est ouvert,
+   **Then** il contient au moins 240 éléments et 480 occurrences relationnelles,
+   plusieurs branches et composantes, des éléments isolés, cycles, relations
+   réciproques, multiplicités, relations entre branches, éléments structurés,
+   fichiers et états de cycle de vie permettant d'exercer chaque filtre V1.
+5. **Given** le jeu vient d'être généré, **When** son contrôle de cohérence est
+   exécuté ou que la génération est rejouée après une nouvelle remise à zéro,
+   **Then** les nombres, catégories et invariants attendus sont identiques et
+   aucun doublon ni relation orpheline n'est accepté.
+6. **Given** un environnement autre que la démonstration locale explicitement
+   autorisée, **When** la génération ou la remise à zéro est demandée, **Then**
+   elle est refusée sans modifier les données ; aucun compte ou mot de passe
+   factice n'est créé par un démarrage ou un déploiement normal.
+
 ### Edge Cases
 
 - Le workspace ne contient aucune relation, uniquement des éléments isolés ou
@@ -209,6 +258,12 @@ appareils puis sauvegarder et restaurer le workspace sur une installation vide.
   reconstruction locale.
 - Une sauvegarde ou un export contient les objets et relations canoniques mais
   aucune préférence locale de présentation du graphe.
+- La génération de démonstration est interrompue : le contrôle ne doit jamais
+  présenter un jeu partiel comme prêt à tester.
+- Un ancien navigateur conserve un processus de fond, une base locale, un
+  cache applicatif ou un cookie après redéploiement.
+- La procédure de démonstration vise par erreur une installation distante, une
+  base non locale ou un workspace qui n'est pas explicitement jetable.
 
 ## Requirements *(mandatory)*
 
@@ -317,6 +372,27 @@ appareils puis sauvegarder et restaurer le workspace sur une installation vide.
 - **FR-036**: Une erreur de chargement, de projection ou de reconstruction MUST
   conserver la dernière donnée canonique valide, proposer une reprise sûre et
   ne MUST jamais être présentée comme un graphe complet à jour.
+- **FR-037**: La feature MUST fournir une procédure versionnée et vérifiable de
+  redéploiement propre couvrant séparément l'état serveur, la session, le
+  stockage local du navigateur, les caches, l'application installée et ses
+  processus de fond.
+- **FR-038**: Un workspace de démonstration MUST pouvoir être créé uniquement
+  dans un environnement local explicitement jetable avec un propriétaire et
+  un mot de passe factices clairement documentés ; ce comportement MUST être
+  absent et refusé dans tout démarrage ou déploiement normal.
+- **FR-039**: Le jeu de démonstration MUST contenir au moins 240 éléments et 480
+  occurrences relationnelles cohérentes couvrant les types de nœud disponibles,
+  plusieurs branches et composantes, isolés, cycles, réciprocité,
+  multiplicité, liens entre branches, propriétés, statuts, dates, pièces
+  jointes, relations inconnues valides et états de cycle de vie.
+- **FR-040**: La remise à zéro de démonstration MUST demander une intention
+  explicite, annoncer précisément la cible et supprimer ensemble les données
+  de démonstration serveur, fichiers et sauvegardes ; elle MUST refuser une
+  cible distante, ambiguë ou non jetable.
+- **FR-041**: La génération de démonstration MUST être répétable et vérifiée :
+  un jeu n'est déclaré prêt que si ses nombres attendus, l'unicité du
+  propriétaire, l'authentification factice, les extrémités de relation et les
+  catégories de couverture sont tous valides.
 
 ### Key Entities
 
@@ -339,6 +415,12 @@ appareils puis sauvegarder et restaurer le workspace sur une installation vide.
   périmètre ou seulement les données disponibles localement.
 - **État de présentation**: préférences propres à l'appareil, telles que le
   périmètre récent, les filtres, la profondeur, la sélection et le point de vue.
+- **Workspace de démonstration**: installation locale jetable et reproductible,
+  avec identité factice et contenu cohérent conçu pour exercer les parcours et
+  limites du graphe sans devenir une donnée de production.
+- **État navigateur de démonstration**: ensemble de la session, des données
+  locales, caches, application installée et processus de fond qui doivent être
+  remis à zéro pour garantir qu'un redéploiement est réellement testé.
 
 ## Success Criteria *(mandatory)*
 
@@ -380,6 +462,17 @@ appareils puis sauvegarder et restaurer le workspace sur une installation vide.
 - **SC-013**: Les contrôles de confidentialité ne trouvent aucun titre,
   contenu, requête de filtre ou détail de relation privé dans les journaux,
   diagnostics, erreurs et artefacts de test expurgés.
+- **SC-014**: Une personne suivant uniquement la procédure documentée passe
+  d'un ancien redéploiement à un navigateur propre, un workspace de
+  démonstration prêt et une session ouverte en moins de cinq minutes.
+- **SC-015**: Dix remises à zéro suivies d'une génération produisent chacune
+  exactement le même nombre d'éléments, d'occurrences relationnelles, de
+  branches, de composantes et de cas spéciaux, sans extrémité orpheline.
+- **SC-016**: Cent tentatives d'exécuter la génération contre une cible non
+  locale ou non explicitement jetable sont refusées avant toute modification.
+- **SC-017**: Le contrôle du jeu de démonstration prouve à chaque génération la
+  présence de 100 % des catégories exigées par FR-039 et refuse de déclarer
+  prêt tout jeu incomplet.
 
 ## Assumptions
 
@@ -398,6 +491,9 @@ appareils puis sauvegarder et restaurer le workspace sur une installation vide.
   isolés sont révélés par des choix explicites lorsque le contexte le permet.
 - La convergence finale de la feature 017 intégrera les surfaces du graphe au
   système visuel V1 sans déplacer les exigences métier de la feature 010.
+- Le workspace de démonstration est une aide jetable de développement et de
+  validation ; son mot de passe est public par conception, ne protège aucune
+  donnée réelle et ne constitue jamais une valeur par défaut de production.
 
 ## Out of Scope
 
