@@ -19,19 +19,12 @@
 
 import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import pg from "pg";
+import { withBoundedDatabaseClient } from "./bounded-database.ts";
 import { expectNoHorizontalOverflow, openSettings } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import { resetSecurityInstallation, seedCommittedOwner } from "./reset-installation.ts";
 
 const PASSWORD = "correct horse battery staple";
-
-function connectionString(): string {
-  return (
-    process.env["DATABASE_URL"] ??
-    "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion"
-  );
-}
 
 function encodePassword(password: string): string {
   const salt = randomBytes(16);
@@ -39,23 +32,14 @@ function encodePassword(password: string): string {
   return `scrypt$16384$8$1$${salt.toString("base64")}$${derived.toString("base64")}`;
 }
 
-async function withClient<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
-  try {
-    return await work(client);
-  } finally {
-    await client.end();
-  }
-}
-
 async function seedPassword(): Promise<void> {
-  await withClient(async (client) => {
+  await withBoundedDatabaseClient("myownnotion-e2e-recovery-password", async (client) => {
     const { rows } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
     const ownerId = rows[0]?.id;
     if (ownerId === undefined) {
       return;
     }
+    await client.query(`DELETE FROM password_credential_versions WHERE owner_id = $1`, [ownerId]);
     await client.query(
       `INSERT INTO password_credential_versions (id, owner_id, password_hash, hash_algorithm, state)
        VALUES (gen_random_uuid(), $1, $2, 'scrypt', 'active')`,
@@ -66,7 +50,7 @@ async function seedPassword(): Promise<void> {
 
 /** An installation that already holds a confirmed kit, as a live one does. */
 async function seedActiveKit(): Promise<void> {
-  await withClient(async (client) => {
+  await withBoundedDatabaseClient("myownnotion-e2e-recovery-kit", async (client) => {
     const { rows } = await client.query<{ id: string; source_lineage_id: string }>(
       `SELECT id, source_lineage_id FROM installations LIMIT 1`,
     );
@@ -80,6 +64,7 @@ async function seedActiveKit(): Promise<void> {
        ON CONFLICT DO NOTHING`,
       [installation.id],
     );
+    await client.query(`DELETE FROM recovery_kits WHERE installation_id = $1`, [installation.id]);
     await client.query(
       `INSERT INTO recovery_kits
          (id, installation_id, source_lineage_id, recovery_epoch, authorization_state,

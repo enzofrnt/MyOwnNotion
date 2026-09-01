@@ -19,7 +19,7 @@
 
 import { randomBytes, scryptSync } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import pg from "pg";
+import { withBoundedDatabaseClient } from "./bounded-database.ts";
 import { expectNoHorizontalOverflow, openSettings } from "./helpers.ts";
 import { resetCanonicalContent } from "./reset-content.ts";
 import {
@@ -30,16 +30,6 @@ import {
 
 const PASSWORD = "correct horse battery staple";
 const DAY = 24 * 60 * 60 * 1000;
-const MAX_DATABASE_ATTEMPTS = 3;
-const DATABASE_QUERY_TIMEOUT_MS = 5_000;
-const DATABASE_OPERATION_TIMEOUT_MS = 10_000;
-
-function connectionString(): string {
-  return (
-    process.env["DATABASE_URL"] ??
-    "postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion"
-  );
-}
 
 function encodePassword(password: string): string {
   const salt = randomBytes(16);
@@ -47,46 +37,8 @@ function encodePassword(password: string): string {
   return `scrypt$16384$8$1$${salt.toString("base64")}$${derived.toString("base64")}`;
 }
 
-async function withClient<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
-  for (let attempt = 1; attempt <= MAX_DATABASE_ATTEMPTS; attempt += 1) {
-    const client = new pg.Client({
-      connectionString: connectionString(),
-      application_name: "myownnotion-e2e-rotation-seed",
-      connectionTimeoutMillis: DATABASE_QUERY_TIMEOUT_MS,
-      query_timeout: DATABASE_QUERY_TIMEOUT_MS,
-      options: `-c statement_timeout=${DATABASE_QUERY_TIMEOUT_MS} -c lock_timeout=2000`,
-    });
-    const deadline = setTimeout(() => {
-      void client.end().catch(() => undefined);
-    }, DATABASE_OPERATION_TIMEOUT_MS);
-    try {
-      await client.connect();
-      return await work(client);
-    } catch (error) {
-      const code =
-        typeof error === "object" && error !== null && "code" in error ? String(error.code) : null;
-      const retryable =
-        code !== null &&
-        ["40P01", "40001", "55P03", "57014", "57P01", "ECONNRESET", "EPIPE", "ETIMEDOUT"].includes(
-          code,
-        );
-      const retryableMessage =
-        error instanceof Error &&
-        /(?:query read timeout|connection terminated|timeout expired|client was closed)/iu.test(
-          error.message,
-        );
-      if ((!retryable && !retryableMessage) || attempt === MAX_DATABASE_ATTEMPTS) throw error;
-      await new Promise<void>((resolve) => setTimeout(resolve, attempt * 100));
-    } finally {
-      clearTimeout(deadline);
-      await client.end().catch(() => undefined);
-    }
-  }
-  throw new Error("bounded rotation fixture setup exhausted without returning or throwing");
-}
-
 async function seedPassword(): Promise<void> {
-  await withClient(async (client) => {
+  await withBoundedDatabaseClient("myownnotion-e2e-rotation-password", async (client) => {
     const { rows } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
     const ownerId = rows[0]?.id;
     if (ownerId === undefined) {
@@ -126,7 +78,7 @@ async function seedPolicy(input: {
    */
   failedAgoDays?: number;
 }): Promise<void> {
-  await withClient(async (client) => {
+  await withBoundedDatabaseClient("myownnotion-e2e-rotation-policy", async (client) => {
     const { rows } = await client.query<{ id: string }>(`SELECT id FROM installations LIMIT 1`);
     const installationId = rows[0]?.id;
     if (installationId === undefined) {
