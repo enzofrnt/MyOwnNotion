@@ -30,6 +30,9 @@ import {
 
 const PASSWORD = "correct horse battery staple";
 const DAY = 24 * 60 * 60 * 1000;
+const MAX_DATABASE_ATTEMPTS = 3;
+const DATABASE_QUERY_TIMEOUT_MS = 5_000;
+const DATABASE_OPERATION_TIMEOUT_MS = 10_000;
 
 function connectionString(): string {
   return (
@@ -45,13 +48,41 @@ function encodePassword(password: string): string {
 }
 
 async function withClient<T>(work: (client: pg.Client) => Promise<T>): Promise<T> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
-  try {
-    return await work(client);
-  } finally {
-    await client.end();
+  for (let attempt = 1; attempt <= MAX_DATABASE_ATTEMPTS; attempt += 1) {
+    const client = new pg.Client({
+      connectionString: connectionString(),
+      application_name: "myownnotion-e2e-rotation-seed",
+      connectionTimeoutMillis: DATABASE_QUERY_TIMEOUT_MS,
+      query_timeout: DATABASE_QUERY_TIMEOUT_MS,
+      options: `-c statement_timeout=${DATABASE_QUERY_TIMEOUT_MS} -c lock_timeout=2000`,
+    });
+    const deadline = setTimeout(() => {
+      void client.end().catch(() => undefined);
+    }, DATABASE_OPERATION_TIMEOUT_MS);
+    try {
+      await client.connect();
+      return await work(client);
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error ? String(error.code) : null;
+      const retryable =
+        code !== null &&
+        ["40P01", "40001", "55P03", "57014", "57P01", "ECONNRESET", "EPIPE", "ETIMEDOUT"].includes(
+          code,
+        );
+      const retryableMessage =
+        error instanceof Error &&
+        /(?:query read timeout|connection terminated|timeout expired|client was closed)/iu.test(
+          error.message,
+        );
+      if ((!retryable && !retryableMessage) || attempt === MAX_DATABASE_ATTEMPTS) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, attempt * 100));
+    } finally {
+      clearTimeout(deadline);
+      await client.end().catch(() => undefined);
+    }
   }
+  throw new Error("bounded rotation fixture setup exhausted without returning or throwing");
 }
 
 async function seedPassword(): Promise<void> {
@@ -61,6 +92,9 @@ async function seedPassword(): Promise<void> {
     if (ownerId === undefined) {
       return;
     }
+    // Keep retries idempotent if PostgreSQL commits the first attempt but the
+    // client loses its response while the matrix is under load.
+    await client.query(`DELETE FROM password_credential_versions WHERE owner_id = $1`, [ownerId]);
     await client.query(
       `INSERT INTO password_credential_versions (id, owner_id, password_hash, hash_algorithm, state)
        VALUES (gen_random_uuid(), $1, $2, 'scrypt', 'active')`,
@@ -171,8 +205,18 @@ function panel(page: import("@playwright/test").Page) {
 
 test.describe("a healthy installation", () => {
   test("shows both keys without alarming anyone", async ({ page }) => {
-    await seedPolicy({ kind: "wrapping-key", dueInDays: 300, blockInDays: 307, state: "pre-due" });
-    await seedPolicy({ kind: "data-key", dueInDays: 150, blockInDays: 180, state: "pre-due" });
+    await seedPolicy({
+      kind: "wrapping-key",
+      dueInDays: 300,
+      blockInDays: 307,
+      state: "pre-due",
+    });
+    await seedPolicy({
+      kind: "data-key",
+      dueInDays: 150,
+      blockInDays: 180,
+      state: "pre-due",
+    });
     await openSecurity(page);
 
     await expect(panel(page)).toContainText("Clé de l’installation");
@@ -184,7 +228,12 @@ test.describe("a healthy installation", () => {
   test("never uses the schema's words for the keys", async ({ page }) => {
     // "Wrapping key" and "data key" describe the mechanism. On a settings
     // screen an owner needs the consequence instead.
-    await seedPolicy({ kind: "data-key", dueInDays: 150, blockInDays: 180, state: "pre-due" });
+    await seedPolicy({
+      kind: "data-key",
+      dueInDays: 150,
+      blockInDays: 180,
+      state: "pre-due",
+    });
     await openSecurity(page);
 
     const text = (await panel(page).textContent()) ?? "";
@@ -212,14 +261,24 @@ test.describe("a blocked installation", () => {
   test("says the notes are still readable", async ({ page }) => {
     // The journey this file exists for. An owner who concludes their notes are
     // gone does far more damage than the block ever prevents.
-    await seedPolicy({ kind: "data-key", dueInDays: -400, blockInDays: -1, state: "write-block" });
+    await seedPolicy({
+      kind: "data-key",
+      dueInDays: -400,
+      blockInDays: -1,
+      state: "write-block",
+    });
     await openSecurity(page);
 
     await expect(panel(page)).toContainText(/reste lisible/i);
   });
 
   test("says what restores saving", async ({ page }) => {
-    await seedPolicy({ kind: "data-key", dueInDays: -400, blockInDays: -1, state: "write-block" });
+    await seedPolicy({
+      kind: "data-key",
+      dueInDays: -400,
+      blockInDays: -1,
+      state: "write-block",
+    });
     await openSecurity(page);
 
     // Naming the problem without naming the fix leaves an owner stuck at the
@@ -231,7 +290,12 @@ test.describe("a blocked installation", () => {
     // The guarantee the wording is describing. If reads actually failed here,
     // the reassuring sentence would be a lie, and this journey would be
     // asserting the wrong thing entirely.
-    await seedPolicy({ kind: "data-key", dueInDays: -400, blockInDays: -1, state: "write-block" });
+    await seedPolicy({
+      kind: "data-key",
+      dueInDays: -400,
+      blockInDays: -1,
+      state: "write-block",
+    });
     await openSecurity(page);
 
     await page.getByTestId("back-to-workspace").click();
@@ -258,7 +322,12 @@ test.describe("a failed rotation", () => {
 
 test.describe("where rotation happens", () => {
   test("says it is run on the host, not from this screen", async ({ page }) => {
-    await seedPolicy({ kind: "data-key", dueInDays: -1, blockInDays: 29, state: "due" });
+    await seedPolicy({
+      kind: "data-key",
+      dueInDays: -1,
+      blockInDays: 29,
+      state: "due",
+    });
     await openSecurity(page);
 
     // An owner who cannot find a button should learn it is absent by design
@@ -273,7 +342,12 @@ test.describe("at a narrow viewport", () => {
     // The screen an owner reaches for when something is wrong is often the one
     // in their pocket, and a horizontally scrolling warning is one they will
     // not read.
-    await seedPolicy({ kind: "data-key", dueInDays: -400, blockInDays: -1, state: "write-block" });
+    await seedPolicy({
+      kind: "data-key",
+      dueInDays: -400,
+      blockInDays: -1,
+      state: "write-block",
+    });
     await page.setViewportSize({ width: 390, height: 844 });
     await openSecurity(page);
 
