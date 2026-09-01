@@ -28,6 +28,9 @@ services:
       dockerfile: docker/api.Dockerfile
     environment:
       NODE_ENV: development
+      # The local-build override is read by a developer, not a log collector.
+      # Compose stdout is non-TTY, so opt into Pino's readable ANSI renderer.
+      MYOWNNOTION_LOG_COLOR: ${MYOWNNOTION_DEV_LOG_COLOR:-always}
       MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1"
       MYOWNNOTION_PUBLIC_ORIGIN: ${MYOWNNOTION_PUBLIC_ORIGIN:-http://127.0.0.1:5173}
     read_only: false

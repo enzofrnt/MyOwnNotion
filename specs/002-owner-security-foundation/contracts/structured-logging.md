@@ -6,6 +6,7 @@
 | --- | --- | --- | --- |
 | `MYOWNNOTION_LOG_LEVEL` | Pino levels (`trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent`) | `info` | Minimum emitted severity |
 | `MYOWNNOTION_LOG_COLOR` | `auto`, `always`, `never` | `auto` | Color policy for human output |
+| `MYOWNNOTION_DEV_LOG_COLOR` | `auto`, `always`, `never` | `always` | Local Compose override mapped to `MYOWNNOTION_LOG_COLOR`; it does not affect the official stack |
 
 Invalid values refuse logger creation with a message naming the variable and
 allowed values, never secret or request data.
@@ -21,7 +22,11 @@ allowed values, never secret or request data.
 - `never` + non-TTY: newline-delimited JSON.
 
 All modes write through process standard streams. Compose does not persist or
-rotate application-owned log files.
+rotate application-owned log files. The official stack retains `auto` so a
+non-TTY collector receives JSON. The local HTTPS stack and local-build override
+use `MYOWNNOTION_DEV_LOG_COLOR=always` by default so `docker compose logs`
+shows compact colored lines; `auto` restores destination-aware JSON and `never`
+forces JSON without ANSI.
 
 ## Safe fields and developer use
 

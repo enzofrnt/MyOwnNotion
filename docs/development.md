@@ -127,13 +127,15 @@ bun run dev:trust
 ```
 
 Follow container logs with `bun run dev:stack:logs` without attaching the
-project. Stop the stack with `bun run dev:stack:down`. Wipe the development
-database, encrypted files, and local backups (Caddy's CA stays) with
-`bun run dev:stack:reset`. Starting or resetting the stack rebuilds images
-(`docker compose up --build`). File edits do not rebuild or restart
-containers; Bun `--watch` and Vite HMR pick them up inside the running
-processes. This helper is not the official deployment; `compose.yaml` still
-publishes HTTP only.
+project. API and migration entries are compact, human-readable, and colored by
+default; set `MYOWNNOTION_DEV_LOG_COLOR=auto` (or `never` to also prohibit
+ANSI) for newline-delimited JSON. Stop the stack with
+`bun run dev:stack:down`. Wipe the development database, encrypted files, and
+local backups (Caddy's CA stays) with `bun run dev:stack:reset`. Starting or
+resetting the stack rebuilds images (`docker compose up --build`). File edits
+do not rebuild or restart containers; Bun `--watch` and Vite HMR pick them up
+inside the running processes. This helper is not the official deployment;
+`compose.yaml` still publishes HTTP only.
 
 Copy `.env.example` to `.env` to override defaults. Never put real secrets in
 `.env.example`.
@@ -180,9 +182,13 @@ matching backup, and the previous schema and encrypted-record format versions.
 
 The API has one logger factory in `apps/api/src/plugins/logging.ts`. In an
 interactive terminal it renders compact single-line logs with colored severity
-labels. In Docker/Compose it writes one JSON object per line to stdout without
-ANSI codes, so the container runtime can parse and route records. Configure
-verbosity with `MYOWNNOTION_LOG_LEVEL`; use
+labels. The official Docker/Compose stack writes one JSON object per line to
+stdout without ANSI codes, so the container runtime can parse and route
+records. The development helpers (`compose.dev.yaml` and
+`compose.override.yaml`) explicitly select the same human renderer because
+their output is read directly by a developer; configure that choice with
+`MYOWNNOTION_DEV_LOG_COLOR=always|auto|never`. Configure verbosity with
+`MYOWNNOTION_LOG_LEVEL`; use
 `MYOWNNOTION_LOG_COLOR=auto|always|never` only when the destination is known.
 `auto` is the safe default.
 
@@ -202,9 +208,11 @@ request.log.info({ itemId, operation: "move" }, "content item moved");
 - Extend and test the central allowlist/redaction policy when a feature needs a
   new field. Do not locally disable a serializer or redaction path.
 
-Inspect container output with `docker compose logs --no-color api`. Application
-containers do not own log files or rotation; retention belongs to the Docker
-logging driver or the deployment's collector.
+Inspect local container output with `docker compose logs api`, or
+`bun run dev:stack:logs` for the HTTPS helper. Use
+`docker compose -f compose.yaml logs --no-color api` when validating the
+official JSON output. Application containers do not own log files or rotation;
+retention belongs to the Docker logging driver or the deployment's collector.
 
 ### Running the published stack locally
 
