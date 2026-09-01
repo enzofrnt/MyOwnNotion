@@ -133,6 +133,7 @@ describe("database calendar view (T090)", () => {
     expect(markup).toContain("Alpha");
     expect(markup).toContain("Beta");
     expect(markup).toContain('aria-label="Planifier Alpha"');
+    expect(markup).toMatch(/<section[^>]*class="database-calendar__month-scroll"[^>]*tabindex="0"/);
     expect(markup).not.toContain('role="grid"');
   });
 });
