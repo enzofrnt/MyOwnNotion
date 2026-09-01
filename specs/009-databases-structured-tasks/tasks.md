@@ -411,3 +411,7 @@ les phases de story et chemin de fichier explicite.
 - [X] T117 Attendre les accusés locaux de création, d'enregistrement et de configuration de vue avant les attentes de synchronisation dans les parcours structurés, préserver tout nouveau focus utilisateur après le retour depuis une entrée, puis prouver l'absence de flakiness sur les cinq profils Playwright dans apps/web/src/features/databases/database-page.tsx, tests/e2e/helpers.ts et tests/e2e/databases-{schema,views,tasks,visual-views}.spec.ts
 - [X] T118 Permettre au gate Playwright local de respecter un parallélisme borné explicitement configurable, puis documenter dans package.json et docs/development.md la largeur complète fiable de deux et les relances ciblées à cinq profils
 - [X] T119 Verrouiller les formulaires structurés pendant leur écriture, vider le titre d'entrée avant l'attente asynchrone avec restauration sur erreur, synchroniser le nom de vue avant la saisie utilisateur et centraliser l'accusé de création dans apps/web/src/features/databases/database-{page,toolbar}.tsx, tests/e2e/helpers.ts et tests/e2e/databases-{schema,views}.spec.ts
+
+## Phase 11: Maintenance accessibilité du calendrier
+
+- [X] T120 [US4] Rendre le défilement mensuel du calendrier accessible au clavier dans apps/web/src/features/databases/calendar-view.tsx, verrouiller cette sémantique dans apps/web/tests/database-calendar.spec.tsx et rendre la date du parcours tests/e2e/accessibility.spec.ts indépendante du changement de mois (FR-047, FR-049, SC-010, SC-011)
