@@ -13,6 +13,11 @@
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import pg from "pg";
+import {
+  closeBoundedDatabaseClient,
+  forceCloseDatabaseClient,
+  withBoundedDatabaseClient,
+} from "./bounded-database.ts";
 
 /**
  * Every table migration `0004` owns, `installations` excepted.
@@ -55,7 +60,6 @@ const SECURITY_TABLES = [
 ] as const;
 
 const MAX_RESET_ATTEMPTS = 5;
-const RETRYABLE_TRANSACTION_CODES = new Set(["40P01", "40001"]);
 const MAX_SETUP_ATTEMPTS = 3;
 const SETUP_QUERY_TIMEOUT_MS = 5_000;
 const SETUP_OPERATION_TIMEOUT_MS = 10_000;
@@ -104,7 +108,7 @@ function boundedSetupClient(applicationName: string): pg.Client {
  */
 function armSetupDeadline(client: pg.Client): ReturnType<typeof setTimeout> {
   return setTimeout(() => {
-    void client.end().catch(() => undefined);
+    forceCloseDatabaseClient(client);
   }, SETUP_OPERATION_TIMEOUT_MS);
 }
 
@@ -113,7 +117,7 @@ async function closeSetupClient(
   deadline: ReturnType<typeof setTimeout>,
 ): Promise<void> {
   clearTimeout(deadline);
-  await client.end();
+  await closeBoundedDatabaseClient(client);
 }
 
 function isRetryableSetupError(error: unknown): boolean {
@@ -138,9 +142,11 @@ async function withSetupRetries<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 async function resetSecurityInstallationOnce(): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
+  const client = boundedSetupClient("myownnotion-e2e-security-reset");
+  const deadline = armSetupDeadline(client);
+  let transactionOpen = false;
   try {
+    await client.connect();
     const { rows } = await client.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
@@ -157,6 +163,7 @@ async function resetSecurityInstallationOnce(): Promise<void> {
       );
     }
     await client.query("BEGIN");
+    transactionOpen = true;
     // Released before the child rows go, so no foreign key blocks the truncate.
     await client.query(
       `UPDATE installations SET state = 'uninitialized', owner_id = NULL, workspace_id = NULL`,
@@ -173,11 +180,14 @@ async function resetSecurityInstallationOnce(): Promise<void> {
       `TRUNCATE ${SECURITY_TABLES.map((table) => `"${table}"`).join(", ")} CASCADE`,
     );
     await client.query("COMMIT");
+    transactionOpen = false;
   } catch (error) {
-    await client.query("ROLLBACK");
+    if (transactionOpen) {
+      await client.query("ROLLBACK").catch(() => undefined);
+    }
     throw error;
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
 }
 
@@ -187,7 +197,7 @@ export async function resetSecurityInstallation(): Promise<void> {
       await resetSecurityInstallationOnce();
       return;
     } catch (error) {
-      const retryable = RETRYABLE_TRANSACTION_CODES.has(postgresErrorCode(error) ?? "");
+      const retryable = isRetryableSetupError(error);
       if (!retryable || attempt === MAX_RESET_ATTEMPTS) throw error;
       await new Promise<void>((resolve) => setTimeout(resolve, attempt * 50));
     }
@@ -206,9 +216,7 @@ export async function resetSecurityInstallation(): Promise<void> {
  * and the failures land nowhere near the test that caused them.
  */
 export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
-  try {
+  await withBoundedDatabaseClient("myownnotion-e2e-data-key-write-block", async (client) => {
     const { rows } = await client.query<{ id: string }>(`SELECT id FROM installations LIMIT 1`);
     const installationId = rows[0]?.id;
     if (installationId === undefined) {
@@ -233,9 +241,7 @@ export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
              state = EXCLUDED.state`,
       [installationId, new Date(Date.now() - 400 * day), new Date(Date.now() - day)],
     );
-  } finally {
-    await client.end();
-  }
+  });
 }
 
 /**
@@ -248,13 +254,9 @@ export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
  * as "the row never appeared" with nothing pointing back here.
  */
 export async function clearRotationPolicies(): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
-  try {
+  await withBoundedDatabaseClient("myownnotion-e2e-clear-rotation-policies", async (client) => {
     await client.query(`DELETE FROM rotation_policies`);
-  } finally {
-    await client.end();
-  }
+  });
 }
 
 /**
@@ -271,26 +273,27 @@ export async function readCommittedCounts(): Promise<{
   ownerCount: number;
   workspaceCount: number;
 }> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
   try {
-    const { rows } = await client.query<{ owner_count: string; workspace_count: string }>(
-      `SELECT
-         (SELECT count(*) FROM owners)::text AS owner_count,
-         (SELECT count(*) FROM workspaces w
-            JOIN installations i ON i.workspace_id = w.id)::text AS workspace_count`,
+    return await withBoundedDatabaseClient(
+      "myownnotion-e2e-read-committed-counts",
+      async (client) => {
+        const { rows } = await client.query<{ owner_count: string; workspace_count: string }>(
+          `SELECT
+             (SELECT count(*) FROM owners)::text AS owner_count,
+             (SELECT count(*) FROM workspaces w
+                JOIN installations i ON i.workspace_id = w.id)::text AS workspace_count`,
+        );
+        const row = rows[0];
+        return {
+          ownerCount: Number(row?.owner_count ?? 0),
+          workspaceCount: Number(row?.workspace_count ?? 0),
+        };
+      },
     );
-    const row = rows[0];
-    return {
-      ownerCount: Number(row?.owner_count ?? 0),
-      workspaceCount: Number(row?.workspace_count ?? 0),
-    };
   } catch {
     // Before the security migration the `owners` relation does not exist; an
     // installation with no owner table has no owner.
     return { ownerCount: 0, workspaceCount: 0 };
-  } finally {
-    await client.end();
   }
 }
 

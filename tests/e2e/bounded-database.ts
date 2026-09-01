@@ -3,6 +3,7 @@ import pg from "pg";
 const MAX_DATABASE_ATTEMPTS = 3;
 const DATABASE_QUERY_TIMEOUT_MS = 5_000;
 const DATABASE_OPERATION_TIMEOUT_MS = 10_000;
+const DATABASE_CLOSE_TIMEOUT_MS = 1_000;
 const RETRYABLE_CODES = new Set([
   "40P01", // deadlock_detected
   "40001", // serialization_failure
@@ -37,6 +38,43 @@ function isRetryable(error: unknown): boolean {
   );
 }
 
+interface PgClientWithDestroyableStream {
+  readonly connection?: {
+    readonly stream?: {
+      destroy(): void;
+    };
+  };
+}
+
+/**
+ * `pg.Client.end()` normally destroys an active query, but can wait forever
+ * for the server's final socket event after all queries have completed. Bun's
+ * Linux runtime exposed that wait only after long recycled-browser shards.
+ * Destroying the owned fixture socket is safe here: every caller uses a
+ * disposable client and retries idempotent work on a fresh connection.
+ */
+export function forceCloseDatabaseClient(client: pg.Client): void {
+  const connection = (client as unknown as PgClientWithDestroyableStream).connection;
+  connection?.stream?.destroy();
+  void client.end().catch(() => undefined);
+}
+
+/** Never lets connection teardown consume Playwright's whole test timeout. */
+export async function closeBoundedDatabaseClient(client: pg.Client): Promise<void> {
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
+  const forcedClose = new Promise<void>((resolve) => {
+    closeTimer = setTimeout(() => {
+      forceCloseDatabaseClient(client);
+      resolve();
+    }, DATABASE_CLOSE_TIMEOUT_MS);
+  });
+  try {
+    await Promise.race([client.end().catch(() => undefined), forcedClose]);
+  } finally {
+    if (closeTimer !== undefined) clearTimeout(closeTimer);
+  }
+}
+
 /**
  * Runs an idempotent E2E database fixture with bounded connection, query,
  * lock, and whole-operation timeouts.
@@ -60,7 +98,7 @@ export async function withBoundedDatabaseClient<T>(
       options: `-c statement_timeout=${DATABASE_QUERY_TIMEOUT_MS} -c lock_timeout=2000`,
     });
     const deadline = setTimeout(() => {
-      void client.end().catch(() => undefined);
+      forceCloseDatabaseClient(client);
     }, DATABASE_OPERATION_TIMEOUT_MS);
     try {
       await client.connect();
@@ -70,7 +108,7 @@ export async function withBoundedDatabaseClient<T>(
       await new Promise<void>((resolve) => setTimeout(resolve, attempt * 100));
     } finally {
       clearTimeout(deadline);
-      await client.end().catch(() => undefined);
+      await closeBoundedDatabaseClient(client);
     }
   }
   throw new Error("bounded E2E database fixture exhausted without returning or throwing");
