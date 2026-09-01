@@ -604,12 +604,18 @@ export function HierarchyExplorer({
     if (!navigationLoaded) {
       return;
     }
+    // Settings keeps this explorer mounted but inactive. A late projection or
+    // selection change can still reach this effect while the settings screen
+    // is writing shortcut visibility into the same IndexedDB record. Preserve
+    // those fields while inactive so this retained workspace cannot overwrite
+    // the owner's acknowledged switch choice with its stale React snapshot.
+    const workspaceActive = activeRef.current;
     void (async () => {
       const next = await updateWorkspacePresentationState(service.db, (current) => ({
         ...current,
         sidebarOpen,
         sidebarWidth,
-        ...shortcutPreferences,
+        ...(workspaceActive ? shortcutPreferences : {}),
         expandedItemIds: [...expanded],
         lastVisitedItemId: selectedId,
       }));
