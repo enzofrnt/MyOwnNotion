@@ -1,6 +1,10 @@
+import { generateUuidV7 } from "@myownnotion/domain";
 import { describe, expect, it } from "vitest";
 import {
+  createGraphForceRuntime,
+  DEFAULT_GRAPH_FORCES,
   defaultGraphQuery,
+  graphNodeRadius,
   layoutGraph,
   normalizeGraphSource,
   projectGraph,
@@ -77,5 +81,52 @@ describe("relation-driven graph layout", () => {
     const span = Math.hypot(layout.width, layout.height);
     expect(span).toBeLessThan(2500);
     expect(new Set(layout.positions.map(({ component }) => component)).size).toBe(2);
+  });
+
+  it("covers cycles, duplicate pairs, zero forces, pins, and overlapping nodes", () => {
+    const a = node("A");
+    const b = node("B");
+    const c = node("C");
+    const projection = projectGraph(
+      normalizeGraphSource(
+        source([a, b, c], [edge(a.id, b.id), edge(b.id, c.id), edge(c.id, a.id)]),
+      ),
+      defaultGraphQuery({ kind: "workspace" }),
+    );
+    const firstEdge = projection.edges[0];
+    if (firstEdge === undefined) throw new Error("triangle fixture requires an edge");
+    const layout = layoutGraph(
+      {
+        ...projection,
+        edges: [
+          ...projection.edges,
+          { ...firstEdge, key: `${firstEdge.key}-dup` },
+          { ...firstEdge, key: "orphan", targetId: generateUuidV7() },
+        ],
+      },
+      { ...DEFAULT_GRAPH_FORCES, centerForce: 0, repelForce: 0 },
+    );
+    expect(layout.positions).toHaveLength(3);
+    expect(new Set(layout.positions.map(({ component }) => component)).size).toBe(1);
+    expect(graphNodeRadius(-4)).toBe(3.6);
+    expect(graphNodeRadius(10_000)).toBe(13);
+
+    const runtime = createGraphForceRuntime(projection);
+    runtime.pin(generateUuidV7(), 1, 2);
+    runtime.unpin(generateUuidV7());
+    runtime.pin(a.id, 0, 0);
+    runtime.pin(b.id, 0, 0);
+    runtime.tick({ ...DEFAULT_GRAPH_FORCES, repelForce: 0 });
+    runtime.tick(DEFAULT_GRAPH_FORCES);
+    runtime.pin(a.id, 0, 0);
+    runtime.pin(c.id, 8_000, 0);
+    runtime.tick({ ...DEFAULT_GRAPH_FORCES, linkDistance: 30 });
+    runtime.unpin(a.id);
+    runtime.unpin(c.id);
+    expect(runtime.settle(DEFAULT_GRAPH_FORCES, 0).positions).toHaveLength(3);
+    runtime.pin(a.id, Number.NaN, Number.NaN);
+    runtime.pin(b.id, Number.NaN, Number.NaN);
+    runtime.pin(c.id, Number.NaN, Number.NaN);
+    expect(runtime.snapshot()).toEqual({ width: 800, height: 520, positions: [] });
   });
 });

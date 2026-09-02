@@ -220,6 +220,11 @@ describe("knowledge graph defensive edge cases", () => {
     const relation = defaultGraphQuery({ kind: "workspace" });
     expect(projectGraph(graph, relation).edges).toHaveLength(2);
 
+    const typed = defaultGraphQuery({ kind: "workspace" });
+    typed.filters.relationTypes = ["page:link"];
+    expect(projectGraph(graph, typed).edges).toHaveLength(1);
+    expect(projectGraph(graph, typed).edges[0]?.relationType).toBe("page:link");
+
     const attachment = defaultGraphQuery({ kind: "workspace" });
     attachment.filters.edgeLayers = ["attachment"];
     expect(projectGraph(graph, attachment).edges).toHaveLength(1);

@@ -25,5 +25,7 @@ describe("hasExactRealtimeOrigin", () => {
     expect(hasExactRealtimeOrigin(requestWith("http://127.0.0.1:8080"), trusted)).toBe(false);
     expect(hasExactRealtimeOrigin(requestWith("http://localhost:5173"), trusted)).toBe(false);
     expect(hasExactRealtimeOrigin(requestWith(undefined), trusted)).toBe(false);
+    expect(hasExactRealtimeOrigin(requestWith(["https://localhost:8443"]), trusted)).toBe(true);
+    expect(hasExactRealtimeOrigin(requestWith([]), trusted)).toBe(false);
   });
 });

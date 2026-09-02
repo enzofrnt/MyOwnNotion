@@ -192,6 +192,45 @@ describe("structured local durability and coverage (T070)", () => {
     db.close();
   });
 
+  it("detects unsynchronized work stored with a plaintext payload", async () => {
+    const name = `database-plaintext-outbox-${generateUuidV7()}`;
+    databasesToDelete.add(name);
+    const { codec } = await createTestCodec();
+    const db = openLocalDatabase(name);
+    const repository = new LocalDatabaseRepository(db, codec);
+    const databaseId = generateUuidV7();
+    const entryId = generateUuidV7();
+    await seedHost(db, databaseId);
+    await repository.putEntry({
+      entryItemId: entryId,
+      databaseId,
+      valueVersion: 1,
+      availability: "present",
+      values: {
+        format: "myownnotion.database-entry-values+json",
+        formatVersion: 1,
+        databaseId,
+        entryId,
+        values: {},
+        preserved: [],
+      },
+    });
+    await db.outbox.put({
+      mutationId: generateUuidV7(),
+      commandType: "database.entry.values.replace",
+      payload: { databaseId, entryId },
+      baseRevisionIds: [],
+      localRevisionIds: [],
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      lastAttemptAt: null,
+      enqueueOrder: 1,
+    });
+
+    expect(await repository.offloadEntryValues(entryId)).toBe(false);
+    db.close();
+  });
+
   it("keeps related targets scoped, deduplicated, and deterministically ordered", async () => {
     const name = `database-relations-${generateUuidV7()}`;
     databasesToDelete.add(name);

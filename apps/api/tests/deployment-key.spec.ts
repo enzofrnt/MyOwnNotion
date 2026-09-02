@@ -328,6 +328,23 @@ describe("configuration validation", () => {
     ).toThrow(SecurityConfigError);
   });
 
+  it("reads a positive listen port", () => {
+    const config = loadSecurityConfig({
+      MYOWNNOTION_PUBLIC_ORIGIN: "https://workspace.example",
+      MYOWNNOTION_API_PORT: "4001",
+    });
+    expect(config.listenPort).toBe(4001);
+  });
+
+  it("refuses a non-integer listen port", () => {
+    expect(() =>
+      loadSecurityConfig({
+        MYOWNNOTION_PUBLIC_ORIGIN: "https://workspace.example",
+        MYOWNNOTION_API_PORT: "3.5",
+      }),
+    ).toThrow(/positive integer/);
+  });
+
   it("treats an empty trusted-proxy list as trusting no proxy", () => {
     const config = loadSecurityConfig({
       MYOWNNOTION_PUBLIC_ORIGIN: "https://workspace.example",
@@ -374,6 +391,25 @@ describe("configuration validation", () => {
         MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN: "http://workspace.example",
       }),
     ).toThrow(/loopback HTTP origin/);
+  });
+
+  it("refuses a malformed extra HTTP origin", () => {
+    expect(() =>
+      loadSecurityConfig({
+        MYOWNNOTION_PUBLIC_ORIGIN: "https://localhost:8443",
+        MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN: "not a url",
+      }),
+    ).toThrow(/not a valid URL/);
+  });
+
+  it("refuses an extra HTTP origin when the public origin is loopback HTTP", () => {
+    expect(() =>
+      loadSecurityConfig({
+        MYOWNNOTION_PUBLIC_ORIGIN: "http://localhost:8080",
+        MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "1",
+        MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN: "http://127.0.0.1:8080",
+      }),
+    ).toThrow(/loopback HTTPS/);
   });
 
   it("refuses an extra HTTP origin when the public origin is not loopback HTTPS", () => {

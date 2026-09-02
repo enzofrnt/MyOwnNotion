@@ -3,8 +3,10 @@ import {
   createGraphForceRuntime,
   DEFAULT_GRAPH_FORCES,
   defaultGraphQuery,
+  formatGraphForceValue,
   graphCenterGravity,
   graphRepelCharge,
+  graphRepelRange,
   layoutGraph,
   normalizeGraphSource,
   parseGraphForceSettings,
@@ -29,6 +31,12 @@ describe("Obsidian-style graph forces", () => {
     expect(parseGraphForceSettings({ repelForce: 99 }).repelForce).toBe(20);
     expect(graphCenterGravity(0.5)).toBeCloseTo(0.07);
     expect(graphRepelCharge(10, 250)).toBeCloseTo(-4375);
+    expect(graphRepelRange(250)).toBe(500);
+    expect(graphRepelRange(0)).toBe(2);
+    expect(formatGraphForceValue("centerForce", 0.5)).toBe("0.50");
+    expect(formatGraphForceValue("linkDistance", 250)).toBe("250");
+    expect(parseGraphForceSettings({ centerForce: Number.NaN }).centerForce).toBe(0);
+    expect(parseGraphForceSettings(null)).toEqual(DEFAULT_GRAPH_FORCES);
   });
 
   it("lengthens settled links when link distance increases", () => {
@@ -89,5 +97,22 @@ describe("Obsidian-style graph forces", () => {
     for (let tick = 0; tick < 8; tick += 1) runtime.tick(DEFAULT_GRAPH_FORCES);
     const released = runtime.snapshot().positions.find((position) => position.id === leaf.id);
     expect(released?.x).not.toBe(40);
+  });
+
+  it("exposes a no-op runtime when the projection has no nodes", () => {
+    const projection = projectGraph(
+      normalizeGraphSource(source([], [])),
+      defaultGraphQuery({ kind: "workspace" }),
+    );
+    const empty = { width: 800, height: 520, positions: [] };
+    expect(layoutGraph(projection)).toEqual(empty);
+    const runtime = createGraphForceRuntime(projection);
+    expect(runtime.tick(DEFAULT_GRAPH_FORCES)).toEqual(empty);
+    expect(runtime.settle()).toEqual(empty);
+    expect(runtime.snapshot()).toEqual(empty);
+    runtime.pin(node("ghost").id, 1, 2);
+    runtime.unpin(node("ghost").id);
+    runtime.reheat(1);
+    expect(runtime.snapshot()).toEqual(empty);
   });
 });
