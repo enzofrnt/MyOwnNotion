@@ -347,7 +347,8 @@ export function createGraphForceRuntime(projection: GraphProjection): GraphForce
     const target = byId.get(edge.targetId);
     if (source === undefined || target === undefined) continue;
     const pair = [source.id, target.id].toSorted().join(":");
-    if (!seen.add(pair)) continue;
+    if (seen.has(pair)) continue;
+    seen.add(pair);
     const sourceDegree = Math.max(1, source.degree);
     const targetDegree = Math.max(1, target.degree);
     links.push({
