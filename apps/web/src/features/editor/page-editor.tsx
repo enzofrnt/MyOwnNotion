@@ -99,6 +99,7 @@ export function PageEditor({
   onOpenPage,
   onSettlementChange,
   session,
+  discoverable = true,
 }: {
   readonly pageId: Uuid;
   readonly document: BlockDocument;
@@ -111,6 +112,8 @@ export function PageEditor({
   readonly onSettlementChange?: ((settled: boolean) => void) | undefined;
   /** Present when the page is backed by a durable editing session (FR-052). */
   readonly session?: import("./editor-sync-status.tsx").EditorDurableSession | undefined;
+  /** False for keep-alive sessions that must not match Playwright/a11y locators. */
+  readonly discoverable?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
   const [editorError, setEditorError] = useState<string | null>(null);
@@ -634,7 +637,7 @@ export function PageEditor({
         writeEditorSettlementState();
       }}
       className="page-editor"
-      data-testid="block-editor"
+      data-testid={discoverable ? "block-editor" : undefined}
       aria-label={FR_COPY.editor.surface.label}
       onCompositionStart={() => {
         clearStaleLinkTypingState(editor);

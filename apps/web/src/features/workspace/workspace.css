@@ -263,7 +263,7 @@
 .workspace-path {
   position: relative;
   min-width: 0;
-  color: color-mix(in srgb, var(--color-text-muted) 72%, transparent);
+  color: var(--color-text-muted);
   font-size: 0.6875rem;
   font-weight: 450;
   letter-spacing: 0.01em;
@@ -692,9 +692,9 @@
   padding: var(--space-2) var(--space-3);
   align-items: center;
   gap: var(--space-2);
-  color: var(--color-danger);
-  background: var(--color-surface);
-  border: 1px solid currentColor;
+  color: var(--ui-color-danger);
+  background: var(--ui-color-danger-soft);
+  border: 1px solid var(--ui-color-danger);
   border-radius: var(--radius-pill);
   box-shadow: var(--ui-shadow-menu);
   cursor: pointer;

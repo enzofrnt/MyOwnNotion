@@ -650,7 +650,7 @@ export async function openItemActions(page: Page, itemName: string): Promise<voi
 
 /** Dismisses the modal navigation before interacting with mobile page content. */
 export async function closeMobileNavigation(page: Page): Promise<void> {
-  const dismiss = page.getByRole("button", { name: "Fermer" });
+  const dismiss = page.getByTestId("close-mobile-nav");
   if (await dismiss.isVisible()) {
     await dismiss.click();
   }

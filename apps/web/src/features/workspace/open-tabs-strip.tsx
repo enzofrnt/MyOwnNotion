@@ -113,6 +113,7 @@ export function OpenTabsStrip({ activeId, onActivate, onClose, tabs }: OpenTabsS
         return (
           <div
             key={tab.id}
+            role="presentation"
             className="open-tab"
             data-active={active || undefined}
             data-testid="open-tab"
@@ -142,6 +143,7 @@ export function OpenTabsStrip({ activeId, onActivate, onClose, tabs }: OpenTabsS
               type="button"
               className="open-tab__close"
               aria-label={`Fermer l’onglet ${label}`}
+              aria-hidden="true"
               tabIndex={-1}
               onClick={(event) => {
                 event.stopPropagation();

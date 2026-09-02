@@ -1993,15 +1993,21 @@ textarea {
 .editor-history-controls {
   display: flex;
   box-sizing: border-box;
-  width: 100%;
+  width: max-content;
   max-width: 100%;
   min-height: var(--ui-target-compact);
   justify-content: flex-end;
   gap: var(--ui-space-1);
   /* Sit on the same row as the Page/Folder caption under the title. */
-  margin: calc(-1 * var(--ui-target-compact)) 0 0;
-  padding-inline: var(--workspace-page-inline-start, var(--ui-space-6))
-    var(--workspace-page-inline-end, var(--ui-space-2));
+  margin: calc(-1 * var(--ui-target-compact)) 0 0 auto;
+  padding-inline: var(--ui-space-1) var(--workspace-page-inline-end, var(--ui-space-2));
+  /* The empty leading space of a full-width toolbar must not eat clicks on
+     notices or title actions that share this vertical band. */
+  pointer-events: none;
+}
+
+.workspace-page-editor:has(.ui-status[data-kind="conflict"]) .editor-history-controls {
+  margin-top: 0;
 }
 
 .editor-sync-status {
@@ -2107,6 +2113,7 @@ textarea {
   width: var(--ui-target-compact);
   min-width: var(--ui-target-compact);
   min-height: var(--ui-target-compact);
+  pointer-events: auto;
 }
 
 /* BlockNote Community supplies the editing interactions; these variables make

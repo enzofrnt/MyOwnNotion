@@ -2318,6 +2318,7 @@ export function HierarchyExplorer({
                 <PageTitleEditor
                   key={`title-${selectedItem.id}`}
                   {...titleEditingProps(selectedItem.id, selectedItem.name)}
+                  discoverable={graphScope === null}
                   breadcrumbs={
                     <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
                   }
@@ -2565,6 +2566,7 @@ export function HierarchyExplorer({
                     }
                     onCaptureScrollAnchor={onCaptureScrollAnchor}
                     onOpenPage={openPageLink}
+                    discoverable={sessionIsActive}
                   />
                 </div>
               );
@@ -2666,6 +2668,7 @@ export function HierarchyExplorer({
             <PageTitleEditor
               key={`title-${selectedItem.id}`}
               {...titleEditingProps(selectedItem.id, selectedItem.name)}
+              discoverable={graphScope === null}
               breadcrumbs={
                 <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
               }

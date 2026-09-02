@@ -112,8 +112,7 @@
 }
 
 .item-emoji-picker[data-picker-variant="page"][data-empty] {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0.72;
 }
 
 .workspace-page-title__body:hover .item-emoji-picker[data-picker-variant="page"][data-empty],
@@ -151,10 +150,14 @@
   pointer-events: none;
 }
 
-.item-emoji-picker:not([data-picker-variant="page"]):hover .item-emoji-picker__clear,
-.item-emoji-picker:not([data-picker-variant="page"]):focus-within .item-emoji-picker__clear,
 .workspace-page-title__body:hover .item-emoji-picker__clear,
 .workspace-page-title__body:focus-within .item-emoji-picker__clear {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.item-emoji-picker:not([data-picker-variant="page"]):hover .item-emoji-picker__clear,
+.item-emoji-picker:not([data-picker-variant="page"]):focus-within .item-emoji-picker__clear {
   opacity: 1;
   pointer-events: auto;
 }
@@ -165,6 +168,10 @@
   gap: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+}
+
+.workspace-page-title__body .item-emoji-picker__empty {
+  color: var(--color-text);
 }
 
 .emoji-picker-dialog .ui-overlay__dismiss {

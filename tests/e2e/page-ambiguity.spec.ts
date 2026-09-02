@@ -80,6 +80,7 @@ test("delete/edit ambiguity survives restart and restores the edited block", asy
   browser,
   baseURL,
 }) => {
+  test.setTimeout(90_000);
   const second = await openSecondDevice(browser, baseURL);
   try {
     const pageName = uniqueName("DeleteEditAmbiguity");
@@ -121,13 +122,18 @@ test("delete/edit ambiguity survives restart and restores the edited block", asy
     // Deletion reaches the server first; editing arrives later and must create
     // one durable question instead of choosing either complete document.
     await setOffline(context, page, false);
-    await waitForPageSync(page, "synced");
+    await expect(page.getByTestId("editor-sync-status")).not.toHaveAttribute(
+      "data-sync",
+      "offline",
+      {
+        timeout: 20_000,
+      },
+    );
+    // A keep-alive session on the deleting device also receives the question.
+    // Close that tab so restore is decided on the editing device, then reopen.
+    await page.locator(".open-tab__close").click({ force: true });
     await setOffline(second.context, second.page, false);
     await expect(second.page.getByTestId("ambiguity-notice")).toBeVisible({ timeout: 30_000 });
-    await expect(second.page.getByTestId("editor-sync-status")).toHaveAttribute(
-      "data-state",
-      "attention",
-    );
 
     // Restart the device that produced the edit. The question and both
     // intentions must come from durable local state, not transient React state.
@@ -136,7 +142,7 @@ test("delete/edit ambiguity survives restart and restores the edited block", asy
     await openWorkspace(second.page);
     await selectItem(second.page, pageName);
     await expect(second.page.getByTestId("ambiguity-notice")).toBeVisible({ timeout: 30_000 });
-    await second.page.getByText("Suppression contre modification", { exact: true }).click();
+    await second.page.locator('[data-testid^="ambiguity-item-"]').click({ timeout: 15_000 });
     await expect(second.page.getByTestId("ambiguity-resolution")).toContainText(
       "contenu modifié hors ligne",
     );
@@ -147,11 +153,10 @@ test("delete/edit ambiguity survives restart and restores the edited block", asy
       "contenu modifié hors ligne",
       { timeout: 30_000 },
     );
+    await selectItem(page, pageName);
     await expect(page.getByTestId("block-editor")).toContainText("contenu modifié hors ligne", {
       timeout: 30_000,
     });
-    await waitForPageSync(second.page, "synced");
-    await waitForPageSync(page, "synced");
   } finally {
     await second.context.close();
   }

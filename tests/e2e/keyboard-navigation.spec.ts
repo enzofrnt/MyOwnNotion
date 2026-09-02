@@ -166,6 +166,14 @@ test.describe("expanding and collapsing", () => {
     }
     await expect(row(page, child)).toHaveAttribute("aria-expanded", "false");
     await focusTree(page, child);
+    if ((await row(page, child).getAttribute("aria-expanded")) === "true") {
+      await page.getByTestId(`toggle-${child}`).click();
+    }
+    await expect(row(page, child)).toHaveAttribute("aria-expanded", "false");
+    await expect(row(page, child)).toHaveAttribute("aria-selected", "true");
+    await ensureNavigationVisible(page);
+    await row(page, child).focus();
+    await expect(row(page, child)).toBeFocused();
 
     await page.keyboard.press("ArrowLeft");
 

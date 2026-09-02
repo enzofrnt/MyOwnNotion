@@ -87,7 +87,7 @@ export function ResponsiveSidebar({
             autoFocusOnHide={restoreMobileFocusOnClose}
           >
             <DrawerHeading className="ui-visually-hidden">Navigation</DrawerHeading>
-            <DrawerDismiss />
+            <DrawerDismiss data-testid="close-mobile-nav" />
             {children}
           </DrawerContent>
         </DrawerRoot>

@@ -24,6 +24,7 @@ export const EditorSurface = memo(function EditorSurface({
   onOpenPage,
   onSettlementChange,
   session,
+  discoverable = true,
 }: {
   readonly document: BlockDocument;
   readonly editable: boolean;
@@ -34,6 +35,7 @@ export const EditorSurface = memo(function EditorSurface({
   readonly onOpenPage?: ((itemId: string) => void) | undefined;
   readonly onSettlementChange?: ((settled: boolean) => void) | undefined;
   readonly session?: import("./editor-sync-status.tsx").EditorDurableSession | undefined;
+  readonly discoverable?: boolean;
 }) {
   return (
     <PageEditor
@@ -46,6 +48,7 @@ export const EditorSurface = memo(function EditorSurface({
       onOpenPage={onOpenPage}
       onSettlementChange={onSettlementChange}
       session={session}
+      discoverable={discoverable}
     />
   );
 });

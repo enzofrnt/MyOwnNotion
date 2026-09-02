@@ -37,7 +37,7 @@ describe("open tabs strip", () => {
     });
     const strip = container.querySelector('[role="tablist"]');
     expect(strip?.getAttribute("aria-label")).toBe("Éléments ouverts");
-    const buttons = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const buttons = [...container.querySelectorAll<HTMLElement>('[role="tab"]')];
     expect(buttons.map((button) => button.textContent)).toEqual([
       "📁Projets",
       "Feuille de route",
@@ -68,7 +68,7 @@ describe("open tabs strip", () => {
         <OpenTabsStrip tabs={tabs} activeId="a" onActivate={vi.fn()} onClose={vi.fn()} />,
       );
     });
-    const buttons = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const buttons = [...container.querySelectorAll<HTMLElement>('[role="tab"]')];
     const strip = container.querySelector<HTMLElement>('[role="tablist"]');
     buttons[0]?.focus();
     await act(async () => {
@@ -129,7 +129,7 @@ describe("open tabs strip", () => {
         />,
       );
     });
-    const buttons = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const buttons = [...container.querySelectorAll<HTMLElement>('[role="tab"]')];
     expect(buttons[0]?.textContent).toContain("Graphe");
     expect(buttons[0]?.getAttribute("aria-selected")).toBe("true");
     await act(async () => {

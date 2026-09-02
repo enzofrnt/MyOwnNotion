@@ -35,6 +35,7 @@ export function PageTitleEditor({
   kindActions,
   pathActions,
   restoreFocus = false,
+  discoverable = true,
 }: {
   /** Location line rendered above the emoji, never emphasized (spec 022). */
   readonly breadcrumbs?: ReactNode;
@@ -52,6 +53,8 @@ export function PageTitleEditor({
   readonly onIconChange?: (icon: string | null) => void;
   readonly onMoveToContent?: () => void;
   readonly restoreFocus?: boolean;
+  /** False when this title belongs to a hidden keep-alive or graph-covered canvas. */
+  readonly discoverable?: boolean;
 }) {
   const startingDraft = initialDraft ?? (title || UNTITLED_PAGE);
   const [draft, setDraft] = useState(startingDraft);
@@ -242,7 +245,7 @@ export function PageTitleEditor({
           aria-label={kind === "folder" ? "Nom du dossier" : "Titre de la page"}
           aria-invalid={failed || undefined}
           aria-busy={busy || undefined}
-          data-testid="active-item-title"
+          data-testid={discoverable ? "active-item-title" : undefined}
           placeholder={UNTITLED_PAGE}
           spellCheck
           onFocus={() => {

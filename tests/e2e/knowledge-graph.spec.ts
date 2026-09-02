@@ -123,7 +123,6 @@ test("the content graph stays distinct from folders and supports ten pointer jou
     "aria-selected",
     "true",
   );
-  await graph.getByRole("button", { name: /Carte/u }).click();
   const canvas = page.getByTestId("knowledge-graph-canvas");
   const journeyItems = pageNames.map((name) => ({ name, id: identities[name] as string }));
   for (const { id: itemId } of journeyItems) {
@@ -139,7 +138,8 @@ test("the content graph stays distinct from folders and supports ten pointer jou
   await expect(canvas.locator(`[data-graph-node="${researchFolderId}"]`)).toHaveCount(1);
   await page.getByLabel("Hiérarchie").uncheck();
   await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(0);
-  await page.getByTestId("graph-filters-toggle").click();
+  await page.getByRole("button", { name: "Fermer les filtres" }).click();
+  await expect(page.locator("#knowledge-graph-filters")).toHaveCount(0);
 
   for (let journey = 0; journey < 10; journey += 1) {
     const journeyStartedAt = Date.now();
@@ -178,13 +178,24 @@ test("the content graph stays distinct from folders and supports ten pointer jou
     if (journeyItem === undefined) throw new Error("Le parcours pointeur est incomplet.");
     const targetNode = canvas.locator(`[data-graph-node="${journeyItem.id}"]`);
     const unrelatedNode = canvas.locator(`[data-graph-node="${otherSourceId}"]`);
-    await sourceNode.hover();
+    await sourceNode.evaluate((element) => {
+      const init = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        pointerId: 1,
+        pointerType: "mouse",
+      };
+      element.dispatchEvent(new PointerEvent("pointerover", init));
+      element.dispatchEvent(new PointerEvent("pointerenter", init));
+    });
     await expect(unrelatedNode).toHaveAttribute("data-emphasis", "dimmed");
-    await targetNode.click();
+    await targetNode.focus();
+    await page.keyboard.press("Enter");
     const inspector = page.locator(".knowledge-graph-inspector");
     await expect(inspector).toBeVisible();
     if (journey === 0) {
-      await targetNode.locator("circle").dblclick();
+      await targetNode.dispatchEvent("dblclick");
     } else {
       await inspector.getByRole("button", { name: "Ouvrir la page" }).click();
     }
@@ -237,7 +248,7 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   await expect(graph.getByText("2 occurrences", { exact: false })).toBeVisible();
   await expect(graph.getByTestId("graph-status-toggle")).toBeVisible();
   await graph.getByTestId("graph-status-toggle").click();
-  await expect(graph.getByText("Vue complète sur cet appareil")).toBeVisible();
+  await expect(page.getByText("Vue complète sur cet appareil")).toBeVisible();
   await graph.getByTestId("graph-status-toggle").click();
 
   const canvasNodes = page.locator('[data-testid="knowledge-graph-canvas"] [data-graph-node]');
@@ -245,6 +256,8 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   await canvasNodes.first().focus();
   await page.keyboard.press("ArrowDown");
   await expect(canvasNodes.nth(1)).toBeFocused();
+  await page.keyboard.press("0");
+  await expect(page.getByLabel("Niveau de zoom")).toHaveText("100 %");
   await page.keyboard.press("+");
   await expect(page.getByLabel("Niveau de zoom")).toHaveText("125 %");
   await page.keyboard.press("0");
@@ -261,6 +274,8 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(1);
   await page.getByRole("button", { name: "Réinitialiser les filtres" }).click();
   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(0);
+  await page.getByRole("button", { name: "Fermer les filtres" }).click();
+  await expect(page.locator("#knowledge-graph-filters")).toHaveCount(0);
 
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -334,8 +349,10 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
     { sourceItemId: sourceId, targetItemId: targetId },
   );
   expect(addOffline).toEqual({ ok: true });
-  const sourceGraphRow = graph.locator(`[data-graph-node="${sourceId}"]`);
-  await sourceGraphRow.getByRole("button").first().click();
+  const sourceGraphNode = graph.locator(`[data-graph-node="${sourceId}"]`);
+  await expect(sourceGraphNode).toBeVisible();
+  await sourceGraphNode.focus();
+  await page.keyboard.press("Enter");
   await expect(page.locator(".knowledge-graph-inspector")).toContainText("Lien interne");
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(
@@ -344,9 +361,14 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   ).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByText("Hors ligne", { exact: false }).first()).toBeVisible();
+  await graph.getByTestId("graph-status-toggle").click();
+  await expect(
+    page.getByText("Hors ligne · les données déjà présentes restent disponibles."),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(graph.locator(`[data-graph-node="${targetId}"]`)).toHaveCount(1);
-  await graph.locator(`[data-graph-node="${sourceId}"]`).getByRole("button").first().click();
+  await graph.locator(`[data-graph-node="${sourceId}"]`).focus();
+  await page.keyboard.press("Enter");
   await expect(page.locator(".knowledge-graph-inspector")).toContainText("Lien interne");
 
   const removeOffline = await page.evaluate(async (sourceItemId) => {
@@ -368,6 +390,7 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   await expect(page.locator(".knowledge-graph-inspector")).not.toContainText("Lien interne");
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("knowledge-graph")).toBeVisible({ timeout: 20_000 });
-  await graph.locator(`[data-graph-node="${sourceId}"]`).getByRole("button").first().click();
+  await graph.locator(`[data-graph-node="${sourceId}"]`).focus();
+  await page.keyboard.press("Enter");
   await expect(page.locator(".knowledge-graph-inspector")).not.toContainText("Lien interne");
 });

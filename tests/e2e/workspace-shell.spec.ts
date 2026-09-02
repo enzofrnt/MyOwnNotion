@@ -304,7 +304,9 @@ test.describe("focused workspace shell", () => {
     await title.blur();
     await expect(page.getByTestId(`tree-item-${renamed}`)).toBeVisible({ timeout: 15_000 });
 
-    const icon = page.getByTestId("item-icon-picker-trigger");
+    const icon = page
+      .getByTestId("workspace-folder-canvas")
+      .getByTestId("item-icon-picker-trigger");
     await icon.click();
     const picker = page.getByTestId("emoji-picker-panel");
     await expect(picker).toBeVisible();
