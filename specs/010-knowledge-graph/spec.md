@@ -127,16 +127,19 @@ cible.
    deux nœuds, **When** elles sont rendues, **Then** leur sens, leur type et leur
    multiplicité restent distinguables sans dépendre uniquement de la couleur.
 5. **Given** un écran étroit ou un usage au clavier, **When** le graphe local est
-   exploré, **Then** une représentation en liste fournit les mêmes nœuds,
-   relations, sélections et actions de navigation.
+   exploré, **Then** la carte reste la seule représentation : Tab et les
+   flèches parcourent ses nœuds, et l'inspecteur reste disponible.
 6. **Given** une page possède des enfants hiérarchiques mais aucun lien de
    contenu, **When** son graphe local s'ouvre avec les réglages par défaut,
    **Then** ces enfants ne constituent pas son voisinage de connaissances.
 7. **Given** la carte est utilisée à la souris, **When** le propriétaire fait
    glisser le fond, utilise la molette, survole, sélectionne puis active un
    nœud, **Then** il peut respectivement déplacer le point de vue, zoomer autour
-   du pointeur, isoler visuellement les connexions directes, inspecter puis
-   ouvrir la page canonique.
+   du pointeur y compris en deçà de 50 %, isoler visuellement les connexions
+   directes, inspecter puis ouvrir la page canonique.
+8. **Given** un nœud est saisi au pointeur, **When** le propriétaire le fait
+   glisser, **Then** ce nœud se déplace sur la carte et le fond ne panoramique
+   pas.
 
 ---
 
@@ -249,10 +252,11 @@ filtres, isolés, cycles, multiplicités et limites.
    généré, **Then** un unique propriétaire factice avec mot de passe factice
    documenté et un workspace cohérent sont prêts sans cérémonie manuelle.
 4. **Given** le workspace de démonstration, **When** son graphe est ouvert,
-   **Then** il contient au moins 240 éléments et 480 occurrences relationnelles,
-   plusieurs branches et composantes, des éléments isolés, cycles, relations
-   réciproques, multiplicités, relations entre branches, éléments structurés,
-   fichiers et états de cycle de vie permettant d'exercer chaque filtre V1.
+   **Then** il contient 240 éléments et un réseau de connaissances en forêt
+   (arbres par branche, quelques passerelles), plusieurs composantes, des
+   éléments isolés, cycles, relations réciproques, multiplicités, relations
+   entre branches, éléments structurés, fichiers et états de cycle de vie
+   permettant d'exercer chaque filtre V1.
 5. **Given** le jeu vient d'être généré, **When** son contrôle de cohérence est
    exécuté ou que la génération est rejouée après une nouvelle remise à zéro,
    **Then** les nombres, catégories et invariants attendus sont identiques et
@@ -263,10 +267,10 @@ filtres, isolés, cycles, multiplicités et limites.
    factice n'est créé par un démarrage ou un déploiement normal.
 7. **Given** le workspace de démonstration vient d'être généré, **When** une
    personne ouvre plusieurs nœuds reliés, **Then** chaque arête éditoriale est
-   explicable par un lien visible dans une page au contenu lisible et cohérent,
-   au moins 360 des 480 occurrences proviennent de ces contenus, et les liens
-   traversent volontairement les dossiers pour former des thèmes, hubs,
-   passerelles et cycles qui ne reproduisent pas l'arborescence.
+   explicable par un lien visible dans une page au contenu lisible et cohérent.
+   Les liens internes suivent surtout l'arbre de notes de chaque branche, avec
+   quelques passerelles ; ils ne forment pas une pelote qui relie chaque page
+   à toutes les perspectives.
 
 ### Edge Cases
 
@@ -342,8 +346,8 @@ filtres, isolés, cycles, multiplicités et limites.
   séparément et regroupés par élément lié, avec direction, type, présentation
   actuelle, disponibilité et nombre d'occurrences.
 - **FR-011**: Activer un nœud ou une entrée relationnelle active MUST ouvrir la
-  même identité canonique dans le workspace et préserver un retour utile vers
-  le graphe.
+  même identité canonique dans le workspace, l'ajouter à la bande d'onglets
+  comme une page, et préserver l'onglet du graphe pour y revenir.
 - **FR-012**: Les libellés et icônes visibles MUST refléter l'état courant de la
   cible sans rendre leur ancienne valeur indépendante ou éditable dans le
   graphe.
@@ -354,8 +358,10 @@ filtres, isolés, cycles, multiplicités et limites.
 - **FR-015**: Les filtres MUST couvrir les types d'élément et de relation, les
   pièces jointes, formats, propriétés, statuts, branches, profondeurs, dates et
   éléments isolés lorsque ces dimensions existent dans le périmètre.
-- **FR-016**: Les filtres MUST être combinables, visibles, retirables
-  individuellement et réinitialisables en une action.
+- **FR-016**: Les filtres MUST être combinables, retirables individuellement et
+  réinitialisables en une action. Ils MUST être présentés dans un panneau que
+  le propriétaire révèle à la demande ; un indicateur MUST rester visible tant
+  qu'un filtre autre que le défaut est actif.
 - **FR-017**: Afficher les éléments isolés MUST être un choix explicite et MUST
   ne créer aucune relation artificielle.
 - **FR-018**: La direction, le type, la multiplicité, la sélection et les états
@@ -364,9 +370,9 @@ filtres, isolés, cycles, multiplicités et limites.
 - **FR-019**: Sélectionner un nœud MUST afficher une synthèse actionnable de son
   identité, son emplacement, son état et ses relations visibles sans modifier
   le contenu.
-- **FR-020**: Chaque graphe visuel MUST posséder une représentation en liste
-  offrant les mêmes périmètres, filtres, sélections, comptes et actions
-  d'ouverture au clavier.
+- **FR-020**: Le graphe MUST s'afficher uniquement comme carte. Le clavier
+  MUST parcourir les nœuds de cette carte. Il MUST NOT exister de
+  représentation liste parallèle.
 - **FR-021**: La vue visuelle MUST fournir des actions explicites pour zoomer,
   déplacer le point de vue, recentrer, ajuster les éléments visibles et revenir
   au périmètre initial.
@@ -424,9 +430,10 @@ filtres, isolés, cycles, multiplicités et limites.
   dans un environnement local explicitement jetable avec un propriétaire et
   un mot de passe factices clairement documentés ; ce comportement MUST être
   absent et refusé dans tout démarrage ou déploiement normal.
-- **FR-039**: Le jeu de démonstration MUST contenir au moins 240 éléments et 480
-  occurrences relationnelles cohérentes couvrant les types de nœud disponibles,
-  plusieurs branches et composantes, isolés, cycles, réciprocité,
+- **FR-039**: Le jeu de démonstration MUST contenir 240 éléments et un réseau
+  relationnel cohérent en forêt : arbres de notes par branche, quelques
+  passerelles, plus des relations métier. Il MUST couvrir les types de nœud
+  disponibles, plusieurs composantes, isolés, cycles, réciprocité,
   multiplicité, liens entre branches, propriétés, statuts, dates, pièces
   jointes, relations inconnues valides et états de cycle de vie.
 - **FR-040**: La remise à zéro de démonstration MUST demander une intention
@@ -448,20 +455,47 @@ filtres, isolés, cycles, multiplicités et limites.
   contenus ne MUST pas créer automatiquement une relation canonique ni une
   arête présentée comme certaine en V1.
 - **FR-045**: Sur une interface à pointeur, le propriétaire MUST pouvoir faire
-  glisser le fond pour déplacer la carte et utiliser la molette pour zoomer en
-  conservant sous le pointeur la zone visée.
+  glisser le fond pour déplacer la carte. La molette, le pinch trackpad et le
+  glissement deux doigts d'avant en arrière MUST zoomer autour du pointeur,
+  en conservant sous le pointeur la zone visée, et MUST NOT panoramiquer. Un
+  geste trackpad horizontal MUST être ignoré. L'inertie du défilement après
+  relâchement MUST NOT continuer à zoomer. Seul le glisser du fond déplace
+  la vue.
 - **FR-046**: Le survol d'un nœud MUST mettre en évidence ce nœud, ses relations
   directes et ses voisins ; la sélection MUST révéler son détail et une action
   au pointeur MUST ouvrir son identité canonique sans passer par
   l'arborescence.
-- **FR-047**: Le corpus de démonstration MUST contenir des pages lisibles et
-  thématiquement cohérentes dont les liens internes visibles produisent au
-  moins 360 occurrences relationnelles, couvrent la majorité des pages
-  connectées et forment des hubs, passerelles, cycles et liens entre branches
-  indépendants de leur classement hiérarchique.
+- **FR-047**: Le corpus de démonstration MUST contenir des pages lisibles
+  rangées en arbre (dossier, vue d'ensemble, sections, notes filles). Les
+  liens internes visibles MUST suivre surtout cette outline, avec quelques
+  passerelles entre branches, afin que le graphe de connaissances ressemble à
+  un workspace réel plutôt qu'à une grille dense.
 - **FR-048**: La proéminence visuelle d'un nœud MUST refléter de façon bornée le
   nombre de pages qui le référencent afin de rendre les hubs repérables sans
   masquer les nœuds moins connectés.
+- **FR-049**: Ouvrir le graphe global ou le voisinage d'un élément MUST ajouter
+  un onglet dédié à la bande d'onglets du canevas, ou activer l'onglet existant
+  s'il est déjà ouvert ; cet onglet MUST rester dans la bande lorsqu'une page
+  s'ouvre depuis un nœud.
+- **FR-050**: Tant que le graphe est l'onglet actif, la carte MUST occuper tout
+  l'espace du canevas sous la bande d'onglets, sans en-tête de document ni
+  colonne permanente de contrôles.
+- **FR-051**: Les filtres, le périmètre, les couches et le détail d'un nœud
+  MUST apparaître uniquement lorsque le propriétaire les demande, en
+  superposition de la carte, et MUST pouvoir être refermés sans quitter le
+  graphe.
+- **FR-052**: Faire glisser un nœud MUST le déplacer sur la carte sans
+  panoramiquer le fond. La molette MUST pouvoir dézoomer sans plancher afin de
+  voir l'ensemble ; seul le zoom avant reste borné. Les messages de couverture
+  et de vue bornée, ainsi que l'ajustement du point de vue, MUST rester
+  disponibles derrière un contrôle d'information, pas comme un bandeau ou une
+  barre permanente.
+- **FR-053**: Sur la carte, une simulation de forces vivante MUST positionner
+  les nœuds comme un graphe dirigé par les forces (centre, répulsion, liaison,
+  distance). Ces quatre paramètres MUST être réglables, persistés comme
+  préférence d'appareil, et un glisser de nœud MUST échauffer la simulation
+  pour que le voisinage suive. Avec réduction des animations, la simulation
+  MUST se figer après un nombre borné d'itérations.
 
 ### Key Entities
 
@@ -527,7 +561,7 @@ filtres, isolés, cycles, multiplicités et limites.
   automatisé avec focus visible.
 - **SC-010**: À 320 pixels et à 200 % de zoom, les parcours backlinks, graphe
   local et graphe global ne dépassent la largeur visible de la page de plus
-  d'un pixel et restent utilisables par leur vue en liste.
+  d'un pixel et restent utilisables sur la carte.
 - **SC-011**: Sur dix essais guidés uniquement par l'interface, au moins neuf
   participants identifient correctement un groupe fortement relié, un élément
   passerelle et un élément isolé en moins de trois minutes.
@@ -556,9 +590,9 @@ filtres, isolés, cycles, multiplicités et limites.
   ouvrir une page reliée en moins de 20 secondes sans utiliser
   l'arborescence ni le clavier.
 - **SC-020**: Dans le workspace de démonstration, 100 % des arêtes éditoriales
-  échantillonnées renvoient à un lien visible dans le contenu source, au moins
-  160 pages contiennent un lien interne et au moins 360 occurrences sont issues
-  de documents lisibles et cohérents.
+  échantillonnées renvoient à un lien visible dans le contenu source ; les
+  notes connectées forment une forêt d'arbres par branche, pas un graphe
+  unique illisible.
 
 ## Assumptions
 

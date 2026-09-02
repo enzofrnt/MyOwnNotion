@@ -17,6 +17,7 @@ import {
   CloudOff,
   Code2,
   Copy,
+  createLucideIcon,
   Download,
   Ellipsis,
   File,
@@ -42,7 +43,6 @@ import {
   Minus,
   Monitor,
   Moon,
-  Network,
   PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
@@ -65,6 +65,26 @@ import {
 } from "lucide-react";
 import { forwardRef } from "react";
 import { classNames } from "./class-names.ts";
+
+/**
+ * Knowledge-graph mark in Lucide metrics (24×24, round stroke). Satellites sit
+ * near the canvas edges without a corner node pulling the optical centre off
+ * the 24×24 square; neighbour edges stay on the hub rather than a top chord.
+ */
+const KnowledgeGraph = createLucideIcon("knowledge-graph", [
+  ["line", { x1: "10.54", y1: "9.92", x2: "6.25", y2: "5.5", key: "hub-nw" }],
+  ["line", { x1: "14.17", y1: "12.16", x2: "18.73", y2: "13.58", key: "hub-e" }],
+  ["line", { x1: "10.82", y1: "13.31", x2: "7.36", y2: "18.35", key: "hub-sw" }],
+  ["line", { x1: "9.87", y1: "11.58", x2: "4.82", y2: "11.76", key: "hub-w" }],
+  ["line", { x1: "13.6", y1: "9.92", x2: "17.08", y2: "6.33", key: "hub-ne" }],
+  ["line", { x1: "18.17", y1: "6.61", x2: "19.72", y2: "12.64", key: "ne-e" }],
+  ["circle", { cx: "12.07", cy: "11.5", r: "2.2", key: "hub" }],
+  ["circle", { cx: "5.27", cy: "4.5", r: "1.4", key: "nw" }],
+  ["circle", { cx: "17.88", cy: "5.5", r: "1.15", key: "ne" }],
+  ["circle", { cx: "20.07", cy: "14", r: "1.4", key: "e" }],
+  ["circle", { cx: "6.57", cy: "19.5", r: "1.4", key: "sw" }],
+  ["circle", { cx: "3.67", cy: "11.8", r: "1.15", key: "w" }],
+]);
 
 export const APP_ICONS = {
   add: Plus,
@@ -104,7 +124,7 @@ export const APP_ICONS = {
   lock: LockKeyhole,
   menu: Menu,
   more: Ellipsis,
-  graph: Network,
+  graph: KnowledgeGraph,
   offline: CloudOff,
   panel: PanelLeft,
   panelClose: PanelLeftClose,
@@ -220,7 +240,12 @@ export const AppIcon = forwardRef<SVGSVGElement, AppIconProps>(function AppIcon(
     <Icon
       {...props}
       ref={ref}
-      className={classNames("ui-icon", name === "loading" && "ui-icon--spinning", className)}
+      className={classNames(
+        "ui-icon",
+        name === "loading" && "ui-icon--spinning",
+        name === "graph" && "ui-icon--graph",
+        className,
+      )}
       data-icon={name}
       size={APP_ICON_SIZES[size]}
       focusable="false"

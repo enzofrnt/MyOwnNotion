@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDefaultGraphControlState,
   GraphControls,
+  graphControlFilterCount,
   graphQueryFromControls,
   resetGraphControlState,
 } from "../src/features/knowledge-graph/graph-controls.tsx";
@@ -33,6 +34,14 @@ describe("global graph controls", () => {
     expect(resetGraphControlState(state)).toEqual(
       createDefaultGraphControlState({ kind: "workspace" }),
     );
+  });
+
+  it("counts only filters that diverge from the default view", () => {
+    const state = createDefaultGraphControlState({ kind: "workspace" });
+    expect(graphControlFilterCount(state)).toBe(0);
+    state.includeIsolated = true;
+    state.nodeKinds = ["page"];
+    expect(graphControlFilterCount(state)).toBe(2);
   });
 
   it("starts with knowledge only and exposes structural layers separately", () => {

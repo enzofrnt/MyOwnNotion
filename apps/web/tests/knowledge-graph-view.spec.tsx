@@ -7,7 +7,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GraphCanvas } from "../src/features/knowledge-graph/graph-canvas.tsx";
 import { GraphInspector } from "../src/features/knowledge-graph/graph-inspector.tsx";
-import { GraphList } from "../src/features/knowledge-graph/graph-list.tsx";
 
 const id = generateUuidV7();
 const projection: GraphProjection = {
@@ -46,18 +45,19 @@ const projection: GraphProjection = {
 };
 
 describe("graph representations", () => {
-  it("exposes the same identity and counts in canvas and list", () => {
+  it("exposes identity and counts on the canvas", () => {
     const props = { projection, selectedId: id, onSelect: () => undefined };
     const canvas = renderToStaticMarkup(createElement(GraphCanvas, props));
-    const list = renderToStaticMarkup(createElement(GraphList, props));
     expect(canvas).toContain(`data-graph-node="${id}"`);
-    expect(list).toContain(`data-graph-node="${id}"`);
     expect(canvas).toContain("Page centrale");
-    expect(list).toContain("1 entrante");
-    expect(list).toContain("2 sortantes");
+    expect(canvas).toContain("knowledge-graph-canvas__halo");
+    expect(canvas).not.toContain("knowledge-graph-arrow");
+    expect(canvas).not.toContain("🧭");
+    expect(canvas).toContain("1 entrantes");
+    expect(canvas).toContain("2 sortantes");
   });
 
-  it("keeps lifecycle, unavailable relations and readable locations in the list and inspector", () => {
+  it("keeps lifecycle, unavailable relations and readable locations in the inspector", () => {
     const parentId = generateUuidV7();
     const childId = generateUuidV7();
     const baseNode = projection.nodes[0];
@@ -93,16 +93,8 @@ describe("graph representations", () => {
         availability: "target-trashed",
       },
     ];
-    const detailedProjection = { ...projection, nodes, edges };
     const inspectedNode = nodes[1];
     if (inspectedNode === undefined) throw new Error("The graph fixture requires its child node.");
-    const list = renderToStaticMarkup(
-      createElement(GraphList, {
-        projection: detailedProjection,
-        selectedId: childId,
-        onSelect: () => undefined,
-      }),
-    );
     const inspector = renderToStaticMarkup(
       createElement(GraphInspector, {
         node: inspectedNode,
@@ -112,8 +104,8 @@ describe("graph representations", () => {
         onClose: () => undefined,
       }),
     );
-    expect(list).toContain("Dans la corbeille");
-    expect(list).toContain("Indisponible");
+    expect(inspector).toContain("Dans la corbeille");
+    expect(inspector).toContain("Indisponible");
     expect(inspector).toContain("Emplacement : Dossier lisible");
   });
 });
@@ -124,6 +116,16 @@ describe("graph pointer navigation", () => {
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+      onchange: null,
+    })) as typeof window.matchMedia;
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -230,6 +232,19 @@ describe("graph pointer navigation", () => {
     const zoomedViewBox = svg.getAttribute("viewBox");
     await act(async () => {
       svg.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 600,
+          clientY: 130,
+          deltaX: 80,
+          deltaY: 4,
+        }),
+      );
+    });
+    expect(svg.getAttribute("viewBox")).toBe(zoomedViewBox);
+    await act(async () => {
+      svg.dispatchEvent(
         new PointerEvent("pointerdown", {
           bubbles: true,
           clientX: 400,
@@ -260,5 +275,50 @@ describe("graph pointer navigation", () => {
     });
     expect(onSelect).toHaveBeenCalledWith(id);
     expect(onOpen).toHaveBeenCalledWith(id);
+
+    const initialTransform = central.getAttribute("transform");
+    await act(async () => {
+      central.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          clientX: 400,
+          clientY: 260,
+          pointerId: 2,
+        }),
+      );
+      svg.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          clientX: 520,
+          clientY: 260,
+          pointerId: 2,
+        }),
+      );
+      svg.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 2 }));
+    });
+    expect(central.getAttribute("transform")).not.toBe(initialTransform);
+    expect(container.querySelector('[aria-label="Dézoomer"]')).toBeNull();
+    expect(container.querySelector(".knowledge-graph-canvas__toolbar")).toBeNull();
+    expect(
+      [...container.querySelectorAll("button")].some((button) => button.textContent === "Ajuster"),
+    ).toBe(false);
+
+    const zoomedOutViewBox = svg.getAttribute("viewBox");
+    await act(async () => {
+      central.dispatchEvent(new KeyboardEvent("keydown", { key: "-", bubbles: true }));
+    });
+    await act(async () => {
+      central.dispatchEvent(new KeyboardEvent("keydown", { key: "-", bubbles: true }));
+    });
+    await act(async () => {
+      central.dispatchEvent(new KeyboardEvent("keydown", { key: "-", bubbles: true }));
+    });
+    await act(async () => {
+      central.dispatchEvent(new KeyboardEvent("keydown", { key: "-", bubbles: true }));
+    });
+    expect(container.querySelector('[aria-label="Niveau de zoom"]')?.textContent).not.toBe("100 %");
+    expect(svg.getAttribute("viewBox")).not.toBe(zoomedOutViewBox);
+    const zoomLabel = container.querySelector('[aria-label="Niveau de zoom"]')?.textContent ?? "";
+    expect(Number.parseInt(zoomLabel, 10)).toBeLessThan(50);
   });
 });

@@ -8,13 +8,14 @@ dépendances verrouillées.
 ## Workspace de démonstration reproductible
 
 1. Exécuter `bun run dev:stack:demo`. Cette action efface uniquement les
-   volumes locaux `myownnotion-dev`, puis recrée et vérifie 240 éléments et 480
-   relations cohérentes.
+   volumes locaux `myownnotion-dev`, puis recrée et vérifie 240 éléments et un
+   réseau en forêt (243 relations cohérentes).
 2. Suivre intégralement
    `docs/testing/knowledge-graph-demo.md` pour désinscrire le service worker,
    effacer cookies, caches, stockages locaux et IndexedDB, et retirer la PWA si
    elle était installée. Un rechargement forcé ne suffit pas.
-3. Ouvrir `https://localhost:8443` et utiliser le mot de passe factice public
+3. Ouvrir `http://localhost:8080` (Cursor) ou `https://localhost:8443`
+   (Safari/Chrome) et utiliser le mot de passe factice public
    `knowledge-graph-demo` pour l'unique owner local.
 4. Ne jamais lancer le seed isolément. En cas d'interruption ou pour rejouer le
    test, relancer la commande complète afin de repartir d'une base, de fichiers
@@ -23,10 +24,10 @@ dépendances verrouillées.
 La commande refuse une origine distante, une base inattendue, un environnement
 autre que `development`, une installation ambiguë ou déjà remplie. Le corpus
 inclut 8 branches, 40 tâches structurées, un fichier attaché, 8 isolés, des
-cycles, doublons, réciproques, liens inter-branches, un type futur et un élément
-à la corbeille. Il contient 190 pages lisibles ; 180 d'entre elles portent deux
-liens internes visibles, soit 360 relations documentaires vérifiées, complétées
-par 120 relations métier explicables.
+cycles, doublons, réciproques, quelques passerelles entre branches, un type
+futur et un élément à la corbeille. Il contient 190 pages lisibles rangées en
+arbre ; les liens internes suivent surtout cette outline (201 relations
+documentaires, 42 relations métier).
 
 ## Preuves ciblées
 
@@ -35,7 +36,7 @@ par 120 relations métier explicables.
    disposition relationnelle et limites.
 2. Lancer les tests client : lecture Dexie, ouverture différée des titres,
    complétude et reconstruction après snapshot.
-3. Lancer les tests Web : routes, contrôles, liste/carte et dernière vue sûre.
+3. Lancer les tests Web : routes, contrôles, carte et dernière vue sûre.
 4. Lancer le parcours Playwright `knowledge-graph.spec.ts` aux largeurs desktop
    et 320 px, dont glisser du fond, zoom à la molette, survol, sélection et
    ouverture au pointeur.
@@ -57,7 +58,8 @@ par 120 relations métier explicables.
    évidence A et C, puis ouvrir A sans utiliser l'arborescence.
 7. Ouvrir le graphe global depuis la barre latérale, filtrer les pages, masquer
    un type de relation, révéler les isolés puis réinitialiser en une action.
-8. Basculer en liste et retrouver exactement les mêmes nœuds et relations.
+8. Vérifier que les nœuds et relations restent visibles sur la carte après
+   filtrage et réinitialisation.
 
 ## Vérification du corpus éditorial
 
@@ -65,8 +67,9 @@ par 120 relations métier explicables.
    démonstration.
 2. Pour chaque arête sélectionnée, vérifier que la page source contient un lien
    interne lisible portant le nom exact de la cible et que le paragraphe explique
-   le passage entre les deux concepts. Le seed a déjà comparé les 360 couples
-   source/cible réconciliés avec les 360 liens déclarés dans les documents.
+   le passage. Le seed a déjà comparé les couples source/cible réconciliés avec
+   les liens déclarés dans les documents. Le graphe de connaissances doit
+   ressembler à plusieurs arbres, pas à une pelote unique.
 3. Déplacer une page vers un autre dossier, attendre la confirmation locale et
    vérifier que le graphe avec la seule couche « Connaissances » ne change pas.
 4. Activer « Hiérarchie » et vérifier que seul ce calque reflète le déplacement.

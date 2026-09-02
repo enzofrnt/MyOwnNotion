@@ -210,8 +210,10 @@ du plan et des tests concernés.
 
 - Q: Faut-il conserver une poignée à six points devant chaque élément de
   l'arborescence ? → R: Non. Toute la ligne d'une page ou d'un dossier sert de
-  prise au pointeur, tandis qu'un clic sans déplacement ouvre l'élément. Les
-  poignées des blocs à l'intérieur de l'éditeur ne sont pas concernées.
+  prise au pointeur, tandis qu'un clic sans déplacement ouvre une page, un
+  fichier ou une base. Un dossier se déplie ou se replie au clic et s'ouvre au
+  double-clic (voir session 2026-09-02 et feature 022). Les poignées des blocs à
+  l'intérieur de l'éditeur ne sont pas concernées.
 - Q: Dans quel ordre apparaissent les actions contextuelles d'une page ? → R:
   De gauche à droite : la commande discrète des pièces jointes, `+`, puis `…`.
   Un dossier omet seulement la première commande. `+` ouvre, dans la ligne et
@@ -260,6 +262,15 @@ du plan et des tests concernés.
   Un trombone discret, identique à la maquette. Le panneau raccordé sous la
   ligne gagne et perd progressivement sa hauteur et son opacité ; il ne surgit
   jamais en un seul rendu.
+
+### Session 2026-09-02 — clic sur un dossier dans l'arborescence
+
+- Q: Un clic simple sur un dossier doit-il l'ouvrir dans le canevas ? → R: Non.
+  Un clic simple déplie le dossier s'il est replié et le replie s'il est
+  déplié, sans changer la destination. Un double-clic l'ouvre (onglet et
+  canevas) et le déplie, qu'il ait été replié ou déjà déplié. Le chevron reste
+  une commande immédiate de repli ou de dépli. Une page, un fichier ou une
+  base s'ouvrent toujours au clic simple.
 
 ### Session 2026-08-29 — viewport, création et reprise éditoriale
 

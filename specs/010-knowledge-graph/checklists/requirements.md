@@ -33,7 +33,7 @@
 
 - [x] The demo database is disposable, explicitly local-only and refused by normal or production startup paths
 - [x] One fake owner and the public password `knowledge-graph-demo` are documented and verified after generation
-- [x] The deterministic corpus contains 240 elements and 480 canonical relation occurrences with no orphan endpoint
+- [x] The deterministic corpus contains 240 elements and 243 canonical relation occurrences with no orphan endpoint
 - [x] The corpus covers 8 branches, 40 structured tasks, a real attachment, 8 isolates, multiple components, duplicates, cycles, reciprocal and cross-branch relations, a future valid relation type and a trashed element
 - [x] Status, priority and due-date values are verified so every structured Knowledge Graph filter has coherent data
 - [x] Demo content uses canonical mutations and the normal encryption boundaries rather than a parallel test-only data model
@@ -47,9 +47,11 @@
 - [x] Internal links visibly present in page content are the primary graph source and backlinks are derived from them
 - [x] Hierarchy and attachments are optional structural layers disabled by default, not implicit knowledge relations
 - [x] Plain-text mentions and similarity do not silently create canonical V1 edges
-- [x] The demo corpus requires readable, coherent content with at least 360 document-link occurrences across at least 160 pages
-- [x] The demo topology deliberately differs from its folder tree and covers thematic hubs, bridges, cycles and cross-branch links
+- [x] The demo corpus requires readable, coherent content whose internal links mostly follow each branch's note tree, with a few bridges
+- [x] The demo topology is a forest of note trees plus a few cross-branch bridges; knowledge edges stay authored in content, distinct from the optional Hierarchy layer
 - [x] Pointer acceptance covers background drag, cursor-anchored wheel zoom, hover neighborhood, selection and canonical opening
+- [x] Live d3-force simulation exposes Obsidian's four force sliders and reheats when a node is dragged
+- [x] The graph has a single canvas representation; there is no parallel list view
 
 ## Notes
 
@@ -68,3 +70,6 @@
   generated relations instead of meaningful page content. The corrected
   content-graph and pointer contracts above invalidate readiness until the
   plan, tasks, implementation and full gate converge again.
+- Revalidated on 2026-09-02 after replacing the 23×8 dense mesh with a
+  realistic forest of note trees and a few bridges, matching how pages are
+  usually created.

@@ -119,6 +119,10 @@ test("the content graph stays distinct from folders and supports ten pointer jou
   await expect(page).toHaveURL("/graph");
   const graph = page.getByTestId("knowledge-graph");
   await expect(graph).toBeVisible();
+  await expect(page.getByTestId("open-tabs").getByRole("tab", { name: "Graphe" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await graph.getByRole("button", { name: /Carte/u }).click();
   const canvas = page.getByTestId("knowledge-graph-canvas");
   const journeyItems = pageNames.map((name) => ({ name, id: identities[name] as string }));
@@ -129,11 +133,13 @@ test("the content graph stays distinct from folders and supports ten pointer jou
     await expect(canvas.locator(`[data-graph-node="${folderId}"]`)).toHaveCount(0);
   }
 
+  await page.getByTestId("graph-filters-toggle").click();
   await page.getByLabel("Hiérarchie").check();
   await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(1);
   await expect(canvas.locator(`[data-graph-node="${researchFolderId}"]`)).toHaveCount(1);
   await page.getByLabel("Hiérarchie").uncheck();
   await expect(canvas.locator(`[data-graph-node="${productFolderId}"]`)).toHaveCount(0);
+  await page.getByTestId("graph-filters-toggle").click();
 
   for (let journey = 0; journey < 10; journey += 1) {
     const journeyStartedAt = Date.now();
@@ -229,9 +235,11 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   await expect(graph).toBeVisible();
   await expect(graph.locator(`[data-graph-node="${targetId}"]`)).toHaveCount(1);
   await expect(graph.getByText("2 occurrences", { exact: false })).toBeVisible();
+  await expect(graph.getByTestId("graph-status-toggle")).toBeVisible();
+  await graph.getByTestId("graph-status-toggle").click();
   await expect(graph.getByText("Vue complète sur cet appareil")).toBeVisible();
+  await graph.getByTestId("graph-status-toggle").click();
 
-  await graph.getByRole("button", { name: /Carte/u }).click();
   const canvasNodes = page.locator('[data-testid="knowledge-graph-canvas"] [data-graph-node]');
   await expect(canvasNodes).toHaveCount(2);
   await canvasNodes.first().focus();
@@ -248,13 +256,12 @@ test("backlinks, local graph, global filters and offline restart stay coherent",
   await page.getByTestId("open-knowledge-graph").click();
   await expect(page).toHaveURL("/graph");
   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(0);
+  await page.getByTestId("graph-filters-toggle").click();
   await page.getByLabel("Afficher les éléments isolés").check();
   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(1);
   await page.getByRole("button", { name: "Réinitialiser les filtres" }).click();
   await expect(graph.locator(`[data-graph-node="${isolatedId}"]`)).toHaveCount(0);
 
-  await page.getByRole("button", { name: /Liste/u }).click();
-  await expect(page.getByTestId("knowledge-graph-list")).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );

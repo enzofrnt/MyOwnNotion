@@ -141,6 +141,18 @@
   --color-info: var(--ui-color-info);
   --focus-ring: var(--ui-focus-ring);
 
+  /* Public Obsidian graph color bridge (docs.obsidian.md CSS variables). */
+  --graph-bg: var(--ui-color-surface-sunken);
+  --graph-node: var(--ui-color-text-muted);
+  --graph-node-focused: var(--ui-color-accent);
+  --graph-node-unresolved: var(--ui-color-text-disabled);
+  --graph-node-attachment: var(--ui-color-warning);
+  --graph-node-tag: var(--ui-color-success);
+  --graph-line: var(--ui-color-text-subtle);
+  --graph-text: var(--ui-color-text-muted);
+  --graph-fill-highlight: var(--ui-color-accent);
+  --graph-line-highlight: var(--ui-color-accent);
+
   --font-sans: var(--ui-font-sans);
   --font-mono: var(--ui-font-mono);
   --text-xs: var(--ui-text-xs);

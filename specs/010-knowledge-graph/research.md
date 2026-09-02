@@ -66,32 +66,32 @@ restent disponibles pour l'inspection et la reconstruction.
 - dédupliquer les occurrences à l'import : perd la multiplicité demandée ;
 - rendre chaque occurrence : bruit visuel et DOM non borné.
 
-## Decision 4 — Rendu SVG natif et liste équivalente
+## Decision 4 — Rendu SVG natif
 
-**Decision**: Utiliser un SVG contrôlé par React avec une disposition
-relationnelle déterministe et stabilisée calculée par `packages/graph`,
-accompagné d'une vue liste complète. La disposition part d'une graine stable,
-applique un nombre borné d'itérations d'attraction par lien, de répulsion et de
-centrage, puis rend des coordonnées fixes ; elle n'anime pas une simulation
-permanente.
+**Decision**: Utiliser un SVG contrôlé par React avec une simulation
+`d3-force` comme le graphe Obsidian (forum officiel : d3-force pour la
+physique, PixiJS seulement pour leur dessin). Les quatre forces exposées dans
+`graph.json` — `centerStrength`, `repelStrength`, `linkStrength`,
+`linkDistance` — sont réglables, persistées sur l'appareil, et animent la
+carte tant que alpha n'est pas refroidi. Un glisser pose `fx`/`fy` et
+échauffe `alphaTarget` à 0,3, comme le drag d3. Il n'y a pas de vue liste
+parallèle : la carte est la seule représentation. Avec réduction des animations, la simulation se fige après un nombre
+borné d'itérations. Les coordonnées ne sont pas des objets canoniques.
 
-**Rationale**: La V1 borne le rendu à 200 nœuds et 400 arêtes, ne propose ni
-édition d'arête ni disposition manuelle et doit rester légère. Une disposition
-guidée par les arêtes rend réellement visibles hubs, ponts et groupes, là où
-des anneaux de parcours ressemblent à un arbre. Le calcul déterministe évite le
-mouvement continu et reste testable. Le SVG natif fournit pan, zoom, focus,
-survol, sélection et labels sans introduire un moteur dont le modèle d'état
-deviendrait une seconde source. La liste couvre petits écrans, zoom élevé,
-clavier et réduction des animations.
+**Rationale**: La pelote venait d'une disposition gelée, d'une gravité
+mal calibrée et d'une distance de lien trop courte. Obsidian laisse la
+physique courir : `forceX`/`forceY` (slider centre) compactent en un nuage
+circulaire, la répulsion many-body écarte les nœuds à courte portée, les
+ressorts tiennent la longueur des liens, `forceCenter` ne fait que recaler
+le barycentre. Un glisser pose `fx`/`fy` et échauffe `alphaTarget` à 0,3.
 
 **Alternatives considered**:
 
-- moteur force-directed animé en continu : mouvement instable, coût sur le
-  thread UI et dépendance disproportionnée ;
-- anneaux BFS seuls : déterministes mais masquent les proximités et groupes du
-  réseau global ;
-- canvas : performant, mais focus, texte, hit targets et tests sont moins
-  prévisibles ;
+- gel après 120 ticks : déterministe mais le graphe ne se réorganise plus ;
+- `forceCenter` comme force « compacte » : ne contre pas Coulomb, le graphe
+  s'enfuit sans limite ;
+- collide fort : écrase les grappes en un empilement ;
+- canvas/PixiJS : hors scope, focus et tests moins prévisibles ;
 - bibliothèque de diagramme éditable : capacités whiteboard hors scope.
 
 ## Decision 5 — Topologie d'abord, contenu visible ensuite
@@ -134,7 +134,7 @@ limite plutôt que déduire une vérité du réseau.
 
 ## Decision 7 — Préférences minimales et non sensibles
 
-**Decision**: Persister uniquement le mode canvas/liste, la profondeur, les
+**Decision**: Persister uniquement la profondeur, les
 types techniques sélectionnés, l'affichage des isolés et le niveau de zoom.
 Ne pas persister identités sélectionnées, titres, texte de filtre ou
 coordonnées.
@@ -151,32 +151,37 @@ migration canonique.
 - synchroniser les préférences : transforme un état d'appareil en donnée
   canonique sans besoin V1.
 
-## Decision 8 — Reprendre le contrat observable d'Obsidian, pas son apparence
+## Decision 8 — Reprendre le contrat observable d'Obsidian et son langage visuel public
 
 **Decision**: Utiliser comme référence comportementale la documentation et
 l'API publiques d'Obsidian : les lignes représentent les liens internes entre
 notes, le cache conserve pour chaque source les destinations et nombres de
 liens, le local graph suit une profondeur configurable, le survol révèle les
-connexions, le clic ouvre la note, la molette zoome et le glisser déplace la
+connexions, le clic ouvre la note, la molette et le pinch zooment autour du
+pointeur sans panoramiquer (pinch et glissement deux doigts, sans inertie après relâchement), et le glisser du fond déplace la
 vue. La taille des nœuds varie de façon bornée avec le nombre de références.
-MyOwnNotion conserve toutefois le clic simple pour sélectionner et expliquer
-la relation dans son inspecteur déjà spécifié ; le double-clic ou le bouton
-visible ouvre ensuite la page sans passer par l'arborescence.
+Le langage visuel public est repris : disques pleins, traits fins sans
+flèches, libellés sous le nœud qui s'estompent avec le zoom, couleurs via
+le pont CSS `--graph-*`. Le moteur Pixi/WebGL d'Obsidian n'est pas copié ;
+le canevas reste SVG et le layout un tick loop déterministe. MyOwnNotion
+conserve le clic simple pour sélectionner et expliquer la relation dans son
+inspecteur déjà spécifié ; le double-clic ou le bouton visible ouvre ensuite
+la page sans passer par l'arborescence.
 
 **Rationale**: La recherche `org:obsidianmd graph` ne publie pas le moteur de
 rendu de l'application ; elle renvoie l'aide officielle, l'API de métadonnées
 et les variables de thème. Ces sources suffisent à établir le contrat produit
-sans supposer une architecture interne ni copier une présentation. Le modèle
-`resolvedLinks[source][destination] = count` confirme que le graphe repose sur
-les liens du contenu et que les backlinks en sont la lecture inverse. Les
-sources primaires consultées sont l'[aide officielle du graphe](https://github.com/obsidianmd/obsidian-help/blob/a3985b585904ddb9f109bd80849b378085308c15/en/Plugins/Graph%20view.md),
+et le langage visuel (variables `--graph-node`, `--graph-line`,
+`--graph-text`, formule de taille bornée) sans copier le renderer fermé. Le
+modèle `resolvedLinks[source][destination] = count` confirme que le graphe
+repose sur les liens du contenu et que les backlinks en sont la lecture
+inverse. Les sources primaires consultées sont l'[aide officielle du graphe](https://github.com/obsidianmd/obsidian-help/blob/a3985b585904ddb9f109bd80849b378085308c15/en/Plugins/Graph%20view.md),
 le [contrat public `resolvedLinks`](https://github.com/obsidianmd/obsidian-developer-docs/blob/c56c7e770ba25dd0ea392aacf4588f9425970d36/en/Reference/TypeScript%20API/MetadataCache/resolvedLinks.md)
 et les [variables publiques de la vue](https://github.com/obsidianmd/obsidian-developer-docs/blob/c56c7e770ba25dd0ea392aacf4588f9425970d36/en/Reference/CSS%20variables/Plugins/Graph.md).
 
 **Alternatives considered**:
 
-- reproduire visuellement Obsidian : hors scope et sans source publique du
-  moteur ;
+- copier le renderer Pixi d'Obsidian : source non publique, hors licence ;
 - déduire des liens par similarité de texte : ajoute des faux positifs et des
   arêtes non explicables ;
 - traiter les mentions non liées comme arêtes : Obsidian les sépare des liens
@@ -184,18 +189,20 @@ et les [variables publiques de la vue](https://github.com/obsidianmd/obsidian-de
 
 ## Decision 9 — Un corpus éditorial cohérent plutôt qu'un générateur de traits
 
-**Decision**: Construire 190 pages autour de 23 concepts transversaux répartis
-dans huit branches produit. Cent quatre-vingts pages sources contiennent chacune
-deux liens internes visibles : un vers le même concept dans une autre branche
-et un vers le concept suivant de leur propre branche. Le corpus produit ainsi
-360 relations documentaires, tandis que 120 relations métier relient de façon
-explicable tâches, décisions, risques et livrables.
+**Decision**: Ranger 190 pages en arbre dans huit dossiers produit : une vue
+d'ensemble par branche, trois sections, puis des notes filles. Les liens
+internes suivent surtout cette outline (fille → section → vue d'ensemble),
+avec une épine de sections et trois passerelles entre branches. Le graphe de
+connaissances est donc une forêt lisible, comme un workspace réel, plutôt
+qu'une grille 23×8. Les relations métier relient les tâches à quelques hubs ;
+doublons, réciprocité, type futur, isolés, fichier, base et corbeille restent
+couverts.
 
-**Rationale**: Cette grille thématique crée des hubs, cycles, passerelles et
-liens inter-branches indépendants du rangement. Chaque arête documentaire peut
-être vérifiée en ouvrant sa source. Les huit pages isolées restent lisibles mais
-sans lien, et les cas de corbeille, fichier, base, tâches, multiplicité et type
-futur restent couverts sans gonfler artificiellement le réseau principal.
+**Rationale**: En usage courant, on crée un arbre de pages. Un maillage qui
+relie chaque concept à toutes les perspectives produit une pelote illisible
+et n'aide pas à valider le graphe. L'arbre documentaire reste vérifiable en
+ouvrant la source ; déplacer une page dans l'arborescence sans éditer le
+lien laisse la couche Connaissances inchangée.
 
 **Alternatives considered**:
 
@@ -203,5 +210,5 @@ futur restent couverts sans gonfler artificiellement le réseau principal.
   aucune connaissance vérifiable ;
 - copier un vault Obsidian tiers : contenu et licence non maîtrisés, données
   non adaptées aux filtres du produit ;
-- quelques pages très denses : ne teste ni le voisinage de nombreuses sources
-  ni le comportement du graphe global.
+- deux liens par page vers toutes les perspectives : dense, irréaliste, et
+  illisible sur la carte.

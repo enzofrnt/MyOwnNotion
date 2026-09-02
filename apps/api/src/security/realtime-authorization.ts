@@ -24,15 +24,14 @@ export function isWebSocketUpgradeRequest(request: FastifyRequest): boolean {
   return typeof upgrade === "string" && upgrade.toLowerCase() === "websocket";
 }
 
-export function hasExactRealtimeOrigin(request: FastifyRequest, publicOrigin: URL): boolean {
+export function hasExactRealtimeOrigin(
+  request: FastifyRequest,
+  trustedOrigins: readonly URL[],
+): boolean {
   const header = request.headers.origin;
   const presented = Array.isArray(header) ? header[0] : header;
   if (typeof presented !== "string") return false;
-  try {
-    return new URL(presented).origin === publicOrigin.origin && presented === publicOrigin.origin;
-  } catch {
-    return false;
-  }
+  return trustedOrigins.some((origin) => presented === origin.origin);
 }
 
 export async function authorizeRealtimeHello(input: {

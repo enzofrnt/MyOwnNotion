@@ -65,8 +65,11 @@ rechargent le code dans les conteneurs.
 bun run dev:stack
 ```
 
-Ouvrir `https://localhost:8443`. Au premier passage, faire confiance à
-l’autorité locale : `bun run dev:trust`. Journaux : `bun run dev:stack:logs`.
+Ouvrir `http://localhost:8080` (navigateur intégré de Cursor) ou
+`https://localhost:8443` (Safari/Chrome). Pour HTTPS, faire confiance à
+l’autorité locale : `bun run dev:trust` — ajouter le certificat au trousseau
+**session**, pas à « Racines du système ». Cursor n’utilise pas ce trousseau ;
+rester en HTTP dans ce navigateur. Journaux : `bun run dev:stack:logs`.
 Arrêt : `bun run dev:stack:down`. Pour vider Postgres, les fichiers et les
 sauvegardes de cette stack : `bun run dev:stack:reset`.
 

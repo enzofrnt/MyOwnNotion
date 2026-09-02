@@ -30,6 +30,7 @@ import {
   PRODUCTION_SESSION_COOKIE,
   SecurityConfigError,
   sessionCookieAttributes,
+  trustedRealtimeOrigins,
 } from "../src/security/security-config.ts";
 
 let root: string;
@@ -341,5 +342,46 @@ describe("configuration validation", () => {
       MYOWNNOTION_TRUSTED_PROXY_CIDRS: "10.0.0.0/8, 192.168.0.0/16",
     });
     expect(config.trustedProxyCidrs).toEqual(["10.0.0.0/8", "192.168.0.0/16"]);
+  });
+
+  it("accepts a loopback HTTP origin next to loopback HTTPS for the local helper", () => {
+    const config = loadSecurityConfig({
+      MYOWNNOTION_PUBLIC_ORIGIN: "https://localhost:8443",
+      MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN: "http://localhost:8080",
+    });
+    expect(config.loopbackHttpOrigin?.origin).toBe("http://localhost:8080");
+    expect(trustedRealtimeOrigins(config).map((origin) => origin.origin)).toEqual([
+      "https://localhost:8443",
+      "http://localhost:8080",
+    ]);
+  });
+
+  it("ignores a blank extra HTTP origin", () => {
+    const config = loadSecurityConfig({
+      MYOWNNOTION_PUBLIC_ORIGIN: "https://localhost:8443",
+      MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN: "  ",
+    });
+    expect(config.loopbackHttpOrigin).toBeUndefined();
+    expect(trustedRealtimeOrigins(config).map((origin) => origin.origin)).toEqual([
+      "https://localhost:8443",
+    ]);
+  });
+
+  it("refuses an extra HTTP origin that is not loopback", () => {
+    expect(() =>
+      loadSecurityConfig({
+        MYOWNNOTION_PUBLIC_ORIGIN: "https://localhost:8443",
+        MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN: "http://workspace.example",
+      }),
+    ).toThrow(/loopback HTTP origin/);
+  });
+
+  it("refuses an extra HTTP origin when the public origin is not loopback HTTPS", () => {
+    expect(() =>
+      loadSecurityConfig({
+        MYOWNNOTION_PUBLIC_ORIGIN: "https://notes.example.test",
+        MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN: "http://localhost:8080",
+      }),
+    ).toThrow(/loopback HTTPS/);
   });
 });

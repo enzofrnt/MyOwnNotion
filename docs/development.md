@@ -119,12 +119,18 @@ file edits are picked up by `bun --watch` and Vite HMR inside those processes.
 bun run dev:stack
 ```
 
-Open **https://localhost:8443** — the hostname must be `localhost`, not an IP.
-Trust Caddy's local CA once:
+Open **http://localhost:8080** in an embedded browser (Cursor) — that origin
+needs no certificate. Open **https://localhost:8443** in Safari or Chrome; the
+hostname must be `localhost`, not an IP. Trust Caddy's local CA once for HTTPS:
 
 ```bash
 bun run dev:trust
 ```
+
+`dev:trust` writes the CA and opens it in Keychain Access. Add it to the
+**login** keychain (not System Roots), then set SSL to Always Trust. Cursor's
+embedded Chromium does not use that store; use HTTP there instead of clicking
+through `ERR_CERT_AUTHORITY_INVALID`.
 
 Follow container logs with `bun run dev:stack:logs` without attaching the
 project. API and migration entries are compact, human-readable, and colored by
@@ -139,7 +145,7 @@ inside the running processes. This helper is not the official deployment;
 
 For a reproducible Knowledge Graph acceptance workspace, run
 `bun run dev:stack:demo`. It performs the same destructive local reset, creates
-the dummy owner/password and a verified 240-item / 480-relationship corpus,
+the dummy owner/password and a verified 240-item forest corpus (243 relationships),
 and refuses every non-local, non-empty or non-development target. Follow the
 separate [server and browser reset procedure](testing/knowledge-graph-demo.md)
 before judging a redeployment; a hard reload alone does not clear IndexedDB,

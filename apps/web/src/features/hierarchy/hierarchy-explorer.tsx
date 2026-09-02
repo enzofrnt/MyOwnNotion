@@ -8,10 +8,16 @@
  */
 
 import {
+  closeTab,
   DEFAULT_SIDEBAR_WIDTH,
+  GRAPH_TAB_ID,
+  isGraphTabId,
+  neighbourTab,
   normalizeWorkspacePresentationState,
+  openTab,
   type PageScrollAnchor,
   type ProjectedItem,
+  pruneTabs,
   readNavigationState,
   rememberScrollAnchor,
   scrollAnchorFor,
@@ -67,14 +73,22 @@ import {
   type TreeDropIntent,
   TreeDropTarget,
 } from "../navigation/tree-drag-drop.tsx";
+import {
+  applyTreeRowPointerAction,
+  createFolderClickScheduler,
+  resolveTreeRowPointerAction,
+} from "../navigation/tree-row-pointer.ts";
 import { useTreeKeyboard } from "../navigation/use-tree-keyboard.ts";
 import { isSearchShortcut, SearchDialog } from "../search/search-dialog.tsx";
 import type { SearchBranchOption } from "../search/search-filters.tsx";
 import { useRealtimeSync } from "../sync/use-realtime-sync.ts";
 import { WorkspaceSyncStatus } from "../sync/workspace-sync-status.tsx";
+import { FolderChildrenList, FolderInlineCreate } from "../workspace/folder-children-list.tsx";
+import { type OpenTab, OpenTabsStrip } from "../workspace/open-tabs-strip.tsx";
 import { PageContentSkeleton } from "../workspace/page-content-skeleton.tsx";
 import { PageHeader } from "../workspace/page-header.tsx";
 import { PageTitleEditor } from "../workspace/page-title-editor.tsx";
+import { PathBreadcrumbs } from "../workspace/path-breadcrumbs.tsx";
 import { useActiveItem } from "../workspace/use-active-item.ts";
 import { WorkspaceShell } from "../workspace/workspace-shell.tsx";
 import { WorkspaceState } from "../workspace/workspace-state.tsx";
@@ -306,6 +320,8 @@ export function HierarchyExplorer({
   const [search, setSearch] = useState<WorkspaceSearchService | null>(null);
   const activeRef = useRef(active);
   activeRef.current = active;
+  const graphModeRef = useRef(graphMode);
+  graphModeRef.current = graphMode;
   const [items, setItems] = useState<ProjectedItem[]>([]);
   const [trashedItems, setTrashedItems] = useState<ProjectedItem[]>([]);
   const [projectionRevision, setProjectionRevision] = useState(0);
@@ -403,6 +419,10 @@ export function HierarchyExplorer({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  // Pages and folders shown as tabs, in strip order. Device ergonomics like
+  // the sidebar width: hydrated and persisted with the rest of the
+  // presentation state, never synchronized (spec 022, FR-016/FR-017).
+  const [openTabIds, setOpenTabIds] = useState<readonly string[]>([]);
   const [shortcutPreferences, setShortcutPreferences] = useState<SidebarShortcutPreferences>({
     favouritesVisible: true,
     favouritesExpanded: true,
@@ -414,6 +434,7 @@ export function HierarchyExplorer({
   const [trashConfirmation, setTrashConfirmation] = useState<TrashConfirmation | null>(null);
   const [trashing, setTrashing] = useState(false);
   const searchReturnFocus = useRef<HTMLElement | null>(null);
+  const lastGraphCenter = useRef<Uuid | null>(null);
 
   useEffect(() => {
     // Routine backup reminders stay as one compact affordance. A failed owner
@@ -537,6 +558,14 @@ export function HierarchyExplorer({
         return;
       }
       setExpanded(new Set(navigation.expandedItemIds));
+      // Opening `/graph` must not re-run this effect (graphMode is read from a
+      // ref). Hydration still restores IndexedDB tabs, then re-inserts the
+      // graph tab so a late read cannot wipe FR-049.
+      setOpenTabIds(
+        graphModeRef.current === null
+          ? navigation.openTabIds
+          : openTab(navigation.openTabIds, GRAPH_TAB_ID),
+      );
       setSidebarOpen(navigation.sidebarOpen);
       setSidebarWidth(navigation.sidebarWidth);
       setShortcutPreferences({
@@ -557,7 +586,7 @@ export function HierarchyExplorer({
         );
         if (
           activeRef.current &&
-          graphMode === null &&
+          graphModeRef.current === null &&
           selectedIdRef.current === null &&
           initialItemId !== null
         ) {
@@ -577,7 +606,7 @@ export function HierarchyExplorer({
       cancelled = true;
       unsubscribe();
     };
-  }, [service, refresh, selectItemById, graphMode]);
+  }, [service, refresh, selectItemById]);
 
   useEffect(() => {
     if (!active || !navigationLoaded) return;
@@ -617,6 +646,7 @@ export function HierarchyExplorer({
         sidebarWidth,
         ...(workspaceActive ? shortcutPreferences : {}),
         expandedItemIds: [...expanded],
+        openTabIds: [...openTabIds],
         lastVisitedItemId: selectedId,
       }));
       presentationRef.current = next;
@@ -624,6 +654,7 @@ export function HierarchyExplorer({
   }, [
     service,
     expanded,
+    openTabIds,
     selectedId,
     navigationLoaded,
     shortcutPreferences,
@@ -683,6 +714,96 @@ export function HierarchyExplorer({
     }));
     setExpanded((current) => retainExpandableItemIds(current, expandableItems));
   }, [allNodes, loadState]);
+
+  // Opening a page or folder adds its tab; opening the graph adds the graph
+  // view tab. An already-open tab simply becomes active. Files never do.
+  useEffect(() => {
+    if (selectedItem === null || selectedItem.kind === "file") return;
+    setOpenTabIds((current) => openTab(current, selectedItem.id));
+  }, [selectedItem]);
+
+  useEffect(() => {
+    if (graphMode === null || !navigationLoaded) return;
+    lastGraphCenter.current = graphMode.kind === "local" ? graphMode.centerId : null;
+    setOpenTabIds((current) => openTab(current, GRAPH_TAB_ID));
+  }, [graphMode, navigationLoaded]);
+
+  // A trashed or deleted item leaves the strip. When it was the active tab the
+  // neighbour takes over, so the owner is not left on a dead route.
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    const openable = new Set<string>(
+      items.filter((item) => item.kind !== "file").map((item) => item.id),
+    );
+    const pruned = pruneTabs(openTabIds, openable);
+    if (pruned.length === openTabIds.length) return;
+    if (
+      selectedId !== null &&
+      openTabIds.includes(selectedId) &&
+      !openable.has(selectedId) &&
+      trashedItems.some((item) => item.id === selectedId)
+    ) {
+      // Neighbours are looked up among the tabs that survive, with the closing
+      // tab kept in place so "next, else previous" is measured from it.
+      const survivors = openTabIds.filter((id) => openable.has(id) || id === selectedId);
+      selectItemById(neighbourTab(survivors, selectedId) as Uuid | null, { replace: true });
+    }
+    setOpenTabIds(pruned);
+  }, [items, loadState, openTabIds, selectedId, selectItemById, trashedItems]);
+
+  const closeOpenTab = useCallback(
+    (itemId: string) => {
+      const activeTabId = graphMode !== null ? GRAPH_TAB_ID : selectedId;
+      if (itemId === activeTabId) {
+        const neighbour = neighbourTab(openTabIds, itemId);
+        if (neighbour !== null && isGraphTabId(neighbour)) {
+          onOpenGraph(lastGraphCenter.current);
+        } else {
+          selectItemById(neighbour as Uuid | null);
+        }
+      }
+      setOpenTabIds((current) => closeTab(current, itemId));
+    },
+    [graphMode, onOpenGraph, openTabIds, selectItemById, selectedId],
+  );
+
+  const openTabs = useMemo((): OpenTab[] => {
+    const byId = new Map<string, ProjectedItem>(items.map((item) => [item.id, item]));
+    const tabs: OpenTab[] = [];
+    for (const id of openTabIds) {
+      if (isGraphTabId(id)) {
+        tabs.push({ id: GRAPH_TAB_ID, name: "Graphe", kind: "graph", icon: null });
+        continue;
+      }
+      const item = byId.get(id);
+      if (item === undefined || (item.kind !== "page" && item.kind !== "folder")) continue;
+      tabs.push({ id: item.id, name: item.name, kind: item.kind, icon: item.icon });
+    }
+    return tabs;
+  }, [items, openTabIds]);
+
+  const pathCrumbs = useMemo(
+    () =>
+      activePath.map((item) => ({
+        id: item.id,
+        name: item.name,
+        kind: item.kind,
+        icon: item.icon,
+      })),
+    [activePath],
+  );
+
+  const folderChildren = useMemo(() => {
+    if (selectedItem === null || selectedItem.kind !== "folder") return [];
+    const node = allNodes.find((candidate) => candidate.item.id === selectedItem.id);
+    return (node?.children ?? []).map((child) => ({
+      id: child.item.id,
+      name: child.item.name,
+      kind: child.item.kind,
+      icon: child.item.icon,
+      childCount: child.children.length,
+    }));
+  }, [allNodes, selectedItem]);
 
   useEffect(() => {
     onActiveItemChange(selectedItem);
@@ -1418,6 +1539,8 @@ export function HierarchyExplorer({
       return next;
     });
   }, []);
+  const folderClickScheduler = useMemo(() => createFolderClickScheduler(), []);
+  useEffect(() => () => folderClickScheduler.cancel(), [folderClickScheduler]);
 
   const onTreeKeyDown = useTreeKeyboard(keyboardNodes, selectedId, {
     select: (id: string) => {
@@ -1447,7 +1570,11 @@ export function HierarchyExplorer({
       selectItemById(id as Uuid);
     },
     setExpanded: toggleBranch,
-    open: (id: string) => openItem(id as Uuid),
+    open: (id: string) => {
+      const node = visibleNodes.find((entry) => entry.item.id === id);
+      if (node?.item.kind === "folder") toggleBranch(id, true);
+      openItem(id as Uuid);
+    },
     rename: (id: string) => {
       const node = visibleNodes.find((entry) => entry.item.id === id);
       if (node !== undefined) {
@@ -1503,8 +1630,33 @@ export function HierarchyExplorer({
                 data-dragging={rowDragging || undefined}
                 data-attachments-open={attachmentsOpen || undefined}
                 {...rowDragListeners}
-                onClick={() => {
-                  if (!consumeDragClick()) openItem(node.item.id);
+                onClick={(event) => {
+                  if (consumeDragClick()) return;
+                  const action = resolveTreeRowPointerAction(node.item.kind, "click", event.detail);
+                  if (action === "toggle") {
+                    const itemId = node.item.id;
+                    const nextOpen = !branchOpen;
+                    folderClickScheduler.schedule(() => toggleBranch(itemId, nextOpen));
+                    return;
+                  }
+                  folderClickScheduler.cancel();
+                  applyTreeRowPointerAction(action, {
+                    toggle: () => toggleBranch(node.item.id, !branchOpen),
+                    expand: () => toggleBranch(node.item.id, true),
+                    open: () => openItem(node.item.id),
+                  });
+                }}
+                onDoubleClick={() => {
+                  if (consumeDragClick()) return;
+                  folderClickScheduler.cancel();
+                  applyTreeRowPointerAction(
+                    resolveTreeRowPointerAction(node.item.kind, "dblclick"),
+                    {
+                      toggle: () => toggleBranch(node.item.id, true),
+                      expand: () => toggleBranch(node.item.id, true),
+                      open: () => openItem(node.item.id),
+                    },
+                  );
                 }}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -1794,7 +1946,7 @@ export function HierarchyExplorer({
     <WorkspaceShell
       contentMode={
         graphMode !== null
-          ? "bounded"
+          ? "graph"
           : selectedItem?.kind === "page" || selectedItem?.kind === "folder"
             ? "page"
             : "bounded"
@@ -1833,37 +1985,26 @@ export function HierarchyExplorer({
       }
       header={
         <PageHeader
-          kind={graphMode === null ? (selectedItem?.kind ?? "workspace") : "workspace"}
+          kind={graphMode !== null ? "graph" : (selectedItem?.kind ?? "workspace")}
           {...(graphMode !== null
-            ? { title: "Graphe de connaissances" }
+            ? {}
             : selectedItem?.kind === "page" || selectedItem?.kind === "folder"
               ? {}
               : { title: selectedItem?.name ?? "Bienvenue" })}
-          breadcrumbs={
-            graphMode !== null
-              ? [
-                  {
-                    id: "graph",
-                    label: graphMode.kind === "global" ? "Espace complet" : "Voisinage",
-                  },
-                ]
-              : activePath.map((item, index) => ({
-                  id: item.id,
-                  label: item.name,
-                  ...(index === activePath.length - 1 ? {} : { onOpen: () => openItem(item.id) }),
-                }))
-          }
-          actions={
-            graphMode === null && selectedItem !== null ? (
-              <Button
-                size="compact"
-                variant="ghost"
-                data-testid="open-local-graph"
-                onClick={() => onOpenGraph(selectedItem.id)}
-              >
-                <AppIcon name="graph" />
-                Voir les relations
-              </Button>
+          tabs={
+            loadState === "ready" && openTabs.length > 0 ? (
+              <OpenTabsStrip
+                tabs={openTabs}
+                activeId={graphMode !== null ? GRAPH_TAB_ID : selectedId}
+                onActivate={(itemId) => {
+                  if (isGraphTabId(itemId)) {
+                    onOpenGraph(lastGraphCenter.current);
+                    return;
+                  }
+                  openItem(itemId as Uuid);
+                }}
+                onClose={closeOpenTab}
+              />
             ) : undefined
           }
         />
@@ -1964,8 +2105,14 @@ export function HierarchyExplorer({
         )
       ) : (
         <>
-          {loadState === "loading" ? (
-            <WorkspaceState kind="loading" phase={loadPhase} />
+          {loadState === "loading" && selectedItem === null ? (
+            selectedId !== null ? (
+              <article className="workspace-page-canvas" data-testid="workspace-page-opening">
+                <PageContentSkeleton variant="page" />
+              </article>
+            ) : (
+              <WorkspaceState kind="loading" phase={loadPhase} />
+            )
           ) : selectedItem === null ? (
             routedItemState === "unavailable-local" ? (
               <WorkspaceState
@@ -2002,200 +2149,244 @@ export function HierarchyExplorer({
             />
           ) : null}
 
-          {selectedItem !== null &&
-          selectedItem.kind === "page" &&
-          (structuredSelectionItemId.current !== selectedItem.id || structuredSelectionLoading) ? (
-            <article className="workspace-page-canvas" data-testid="workspace-page-opening">
-              {/* Passive effects run after paint. The resolved identity ref, unlike
-              the loading state they schedule, already tells this render that
-              the route target has not been classified. This prevents one
-              editable frame from appearing before the skeleton and losing a
-              title typed during that frame. */}
-              <PageContentSkeleton />
-            </article>
-          ) : selectedItem !== null &&
-            selectedDatabase !== null &&
-            selectedDatabase.databaseId === selectedItem.id ? (
-            <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
+          {selectedItem !== null && selectedItem.kind === "page" ? (
+            <article
+              className="workspace-page-canvas"
+              data-testid={
+                structuredSelectionItemId.current !== selectedItem.id || structuredSelectionLoading
+                  ? "workspace-page-opening"
+                  : "workspace-page-canvas"
+              }
+            >
               <PageTitleEditor
                 key={`title-${selectedItem.id}`}
                 {...titleEditingProps(selectedItem.id, selectedItem.name)}
+                breadcrumbs={
+                  <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
+                }
+                pathActions={
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    className="workspace-page-title__graph"
+                    data-testid="open-local-graph"
+                    title="Voir les relations"
+                    onClick={() => onOpenGraph(selectedItem.id)}
+                  >
+                    <AppIcon name="graph" size="small" />
+                    <span className="workspace-page-title__graph-label">Voir les relations</span>
+                  </Button>
+                }
                 icon={selectedItem.icon}
                 title={selectedItem.name}
                 onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
                 onMoveToContent={() => {
+                  if (
+                    selectedDatabase !== null &&
+                    selectedDatabase.databaseId === selectedItem.id
+                  ) {
+                    document
+                      .querySelector<HTMLElement>(
+                        ".database-page button:not([disabled]), .database-page input:not([disabled])",
+                      )
+                      ?.focus();
+                    return;
+                  }
                   document
-                    .querySelector<HTMLElement>(
-                      ".database-page button:not([disabled]), .database-page input:not([disabled])",
-                    )
+                    .querySelector<HTMLElement>('[data-testid="operational-editor"] .ProseMirror')
                     ?.focus();
                 }}
               />
-              <DatabasePage
-                database={selectedDatabase}
-                entries={databaseEntries}
-                onPreviewDefinitionImpact={async (definition) => {
-                  const current = await service.getItem(selectedItem.id);
-                  return current === null
-                    ? null
-                    : await service.previewDatabaseDefinitionImpact(
-                        selectedItem.id,
-                        current.currentRevisionId,
-                        definition,
-                      );
-                }}
-                onReplaceDefinition={(
-                  definition: DatabaseDefinition,
-                  confirmation?: DefinitionConfirmation,
-                ) => {
-                  const previousDatabase = selectedDatabase;
-                  optimisticDatabaseDefinition.current = {
-                    databaseId: selectedItem.id,
-                    definition,
-                  };
-                  setSelectedDatabase({
-                    ...previousDatabase,
-                    definition,
-                  } as unknown as DatabaseDto);
-                  const rollbackOptimisticDefinition = (): void => {
-                    if (
-                      optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
-                      jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
-                    ) {
-                      optimisticDatabaseDefinition.current = null;
-                    }
-                    setSelectedDatabase((current) =>
-                      current !== null && jsonValuesEqual(current.definition, definition)
-                        ? previousDatabase
-                        : current,
-                    );
-                  };
-                  const operation = async (): Promise<void> => {
-                    for (let attempt = 0; attempt < 3; attempt += 1) {
-                      const [currentItem, currentDatabase] = await Promise.all([
-                        service.getItem(selectedItem.id),
-                        service.getDatabase(selectedItem.id),
-                      ]);
+              {structuredSelectionItemId.current !== selectedItem.id ||
+              structuredSelectionLoading ? (
+                <PageContentSkeleton />
+              ) : selectedDatabase !== null && selectedDatabase.databaseId === selectedItem.id ? (
+                <DatabasePage
+                  database={selectedDatabase}
+                  entries={databaseEntries}
+                  onPreviewDefinitionImpact={async (definition) => {
+                    const current = await service.getItem(selectedItem.id);
+                    return current === null
+                      ? null
+                      : await service.previewDatabaseDefinitionImpact(
+                          selectedItem.id,
+                          current.currentRevisionId,
+                          definition,
+                        );
+                  }}
+                  onReplaceDefinition={(
+                    definition: DatabaseDefinition,
+                    confirmation?: DefinitionConfirmation,
+                  ) => {
+                    const previousDatabase = selectedDatabase;
+                    optimisticDatabaseDefinition.current = {
+                      databaseId: selectedItem.id,
+                      definition,
+                    };
+                    setSelectedDatabase({
+                      ...previousDatabase,
+                      definition,
+                    } as unknown as DatabaseDto);
+                    const rollbackOptimisticDefinition = (): void => {
                       if (
-                        currentItem === null ||
-                        currentDatabase === null ||
-                        !jsonValuesEqual(currentDatabase.definition, previousDatabase.definition)
+                        optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
+                        jsonValuesEqual(optimisticDatabaseDefinition.current.definition, definition)
                       ) {
-                        const error: SafeError = {
-                          code: "database.definition-conflict",
-                          title: DATABASE_COPY.hierarchy.schemaChanged,
-                        };
-                        rollbackOptimisticDefinition();
-                        setProblem(error);
-                        throw new Error(error.title);
+                        optimisticDatabaseDefinition.current = null;
                       }
-                      const body = {
-                        baseRevisionId: currentItem.currentRevisionId,
-                        definition,
-                        ...(confirmation === undefined ? {} : { impactConfirmation: confirmation }),
-                      } as unknown as ReplaceDefinitionRequestDto;
-                      const result = await service.replaceDatabaseDefinition(selectedItem.id, body);
-                      if (result.ok) {
-                        let syncState = await service.synchronize();
-                        for (let pass = 0; pass < 3; pass += 1) {
-                          if (
-                            syncState === "conflict" ||
-                            syncState === "offline" ||
-                            (await service.outbox.pending()).length === 0
-                          ) {
-                            break;
-                          }
-                          syncState = await service.synchronize();
-                        }
-                        if (syncState === "conflict") {
+                      setSelectedDatabase((current) =>
+                        current !== null && jsonValuesEqual(current.definition, definition)
+                          ? previousDatabase
+                          : current,
+                      );
+                    };
+                    const operation = async (): Promise<void> => {
+                      for (let attempt = 0; attempt < 3; attempt += 1) {
+                        const [currentItem, currentDatabase] = await Promise.all([
+                          service.getItem(selectedItem.id),
+                          service.getDatabase(selectedItem.id),
+                        ]);
+                        if (
+                          currentItem === null ||
+                          currentDatabase === null ||
+                          !jsonValuesEqual(currentDatabase.definition, previousDatabase.definition)
+                        ) {
                           const error: SafeError = {
                             code: "database.definition-conflict",
-                            title: DATABASE_COPY.hierarchy.viewChanged,
+                            title: DATABASE_COPY.hierarchy.schemaChanged,
                           };
                           rollbackOptimisticDefinition();
                           setProblem(error);
                           throw new Error(error.title);
                         }
-                        const [updatedItem, updatedDatabase] = await Promise.all([
-                          service.getItem(selectedItem.id),
-                          service.getDatabase(selectedItem.id),
-                        ]);
-                        if (updatedItem !== null && updatedDatabase !== null) {
-                          const refreshed = {
-                            databaseId: selectedItem.id,
-                            definitionRevisionId: updatedItem.currentRevisionId,
-                            lifecycle: updatedItem.lifecycle,
-                            name: updatedItem.name,
-                            definition: updatedDatabase.definition,
-                          } as unknown as DatabaseDto;
-                          setSelectedDatabase((current) =>
-                            current !== null && jsonValuesEqual(current.definition, definition)
-                              ? refreshed
-                              : current,
-                          );
+                        const body = {
+                          baseRevisionId: currentItem.currentRevisionId,
+                          definition,
+                          ...(confirmation === undefined
+                            ? {}
+                            : { impactConfirmation: confirmation }),
+                        } as unknown as ReplaceDefinitionRequestDto;
+                        const result = await service.replaceDatabaseDefinition(
+                          selectedItem.id,
+                          body,
+                        );
+                        if (result.ok) {
+                          let syncState = await service.synchronize();
+                          for (let pass = 0; pass < 3; pass += 1) {
+                            if (
+                              syncState === "conflict" ||
+                              syncState === "offline" ||
+                              (await service.outbox.pending()).length === 0
+                            ) {
+                              break;
+                            }
+                            syncState = await service.synchronize();
+                          }
+                          if (syncState === "conflict") {
+                            const error: SafeError = {
+                              code: "database.definition-conflict",
+                              title: DATABASE_COPY.hierarchy.viewChanged,
+                            };
+                            rollbackOptimisticDefinition();
+                            setProblem(error);
+                            throw new Error(error.title);
+                          }
+                          const [updatedItem, updatedDatabase] = await Promise.all([
+                            service.getItem(selectedItem.id),
+                            service.getDatabase(selectedItem.id),
+                          ]);
+                          if (updatedItem !== null && updatedDatabase !== null) {
+                            const refreshed = {
+                              databaseId: selectedItem.id,
+                              definitionRevisionId: updatedItem.currentRevisionId,
+                              lifecycle: updatedItem.lifecycle,
+                              name: updatedItem.name,
+                              definition: updatedDatabase.definition,
+                            } as unknown as DatabaseDto;
+                            setSelectedDatabase((current) =>
+                              current !== null && jsonValuesEqual(current.definition, definition)
+                                ? refreshed
+                                : current,
+                            );
+                          }
+                          if (
+                            optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
+                            jsonValuesEqual(
+                              optimisticDatabaseDefinition.current.definition,
+                              definition,
+                            )
+                          ) {
+                            optimisticDatabaseDefinition.current = null;
+                          }
+                          return;
                         }
-                        if (
-                          optimisticDatabaseDefinition.current?.databaseId === selectedItem.id &&
-                          jsonValuesEqual(
-                            optimisticDatabaseDefinition.current.definition,
-                            definition,
-                          )
-                        ) {
-                          optimisticDatabaseDefinition.current = null;
+                        if (result.error.code !== "revision.stale-base") {
+                          rollbackOptimisticDefinition();
+                          setProblem(result.error);
+                          throw new Error(result.error.title);
                         }
-                        return;
                       }
-                      if (result.error.code !== "revision.stale-base") {
-                        rollbackOptimisticDefinition();
-                        setProblem(result.error);
-                        throw new Error(result.error.title);
-                      }
-                    }
-                    const error: SafeError = {
-                      code: "revision.stale-base",
-                      title: DATABASE_COPY.hierarchy.propertySaveChanged,
+                      const error: SafeError = {
+                        code: "revision.stale-base",
+                        title: DATABASE_COPY.hierarchy.propertySaveChanged,
+                      };
+                      rollbackOptimisticDefinition();
+                      setProblem(error);
+                      throw new Error(error.title);
                     };
-                    rollbackOptimisticDefinition();
-                    setProblem(error);
-                    throw new Error(error.title);
-                  };
-                  const queued = definitionMutationQueue.current.then(operation, operation);
-                  definitionMutationQueue.current = queued.catch(() => undefined);
-                  return queued;
-                }}
-                onCreateEntry={async (title) => {
-                  const keys = siblingKeys(selectedItem.id);
-                  const result = await service.createDatabaseEntry(selectedItem.id, {
-                    id: generateUuidV7(),
-                    title,
-                    placement: {
+                    const queued = definitionMutationQueue.current.then(operation, operation);
+                    definitionMutationQueue.current = queued.catch(() => undefined);
+                    return queued;
+                  }}
+                  onCreateEntry={async (title) => {
+                    const keys = siblingKeys(selectedItem.id);
+                    const result = await service.createDatabaseEntry(selectedItem.id, {
                       id: generateUuidV7(),
-                      parentItemId: selectedItem.id,
-                      positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
-                    },
-                    document: {
-                      format: "myownnotion.document+json",
-                      formatVersion: 1,
-                      body: {},
-                    },
-                    values: {},
-                    relationTargets: {},
-                  });
-                  if (!result.ok) {
-                    setProblem(result.error);
-                    throw new Error(result.error.title);
+                      title,
+                      placement: {
+                        id: generateUuidV7(),
+                        parentItemId: selectedItem.id,
+                        positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
+                      },
+                      document: {
+                        format: "myownnotion.document+json",
+                        formatVersion: 1,
+                        body: {},
+                      },
+                      values: {},
+                      relationTargets: {},
+                    });
+                    if (!result.ok) {
+                      setProblem(result.error);
+                      throw new Error(result.error.title);
+                    }
+                    setExpanded((current) => new Set(current).add(selectedItem.id));
+                  }}
+                  onQueryView={querySelectedDatabaseView}
+                  onUpdateEntry={updateSelectedDatabaseEntry}
+                  relationOptions={items
+                    .filter((item) => item.kind === "page" && item.lifecycle === "active")
+                    .map((item) => ({ id: item.id, label: item.name }))}
+                  returnFocusEntryId={entryReturnFocusId}
+                  onReturnFocusRestored={clearEntryReturnFocus}
+                  onOpenEntry={openSelectedDatabaseEntry}
+                />
+              ) : (
+                <EditorView
+                  key={`page-${selectedItem.id}`}
+                  service={service}
+                  itemId={selectedItem.id}
+                  items={items}
+                  onCreateSubpage={(request) => createSubpage(selectedItem.id, request)}
+                  initialScrollAnchor={
+                    presentationRef.current === null
+                      ? null
+                      : scrollAnchorFor(presentationRef.current, selectedItem.id)
                   }
-                  setExpanded((current) => new Set(current).add(selectedItem.id));
-                }}
-                onQueryView={querySelectedDatabaseView}
-                onUpdateEntry={updateSelectedDatabaseEntry}
-                relationOptions={items
-                  .filter((item) => item.kind === "page" && item.lifecycle === "active")
-                  .map((item) => ({ id: item.id, label: item.name }))}
-                returnFocusEntryId={entryReturnFocusId}
-                onReturnFocusRestored={clearEntryReturnFocus}
-                onOpenEntry={openSelectedDatabaseEntry}
-              />
+                  onCaptureScrollAnchor={onCaptureScrollAnchor}
+                  onOpenPage={openPageLink}
+                />
+              )}
             </article>
           ) : selectedItem !== null &&
             selectedEntry !== null &&
@@ -2283,36 +2474,6 @@ export function HierarchyExplorer({
                 />
               }
             />
-          ) : selectedItem !== null && selectedItem.kind === "page" ? (
-            <article className="workspace-page-canvas" data-testid="workspace-page-canvas">
-              <PageTitleEditor
-                key={`title-${selectedItem.id}`}
-                {...titleEditingProps(selectedItem.id, selectedItem.name)}
-                icon={selectedItem.icon}
-                title={selectedItem.name}
-                onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
-                onMoveToContent={() => {
-                  const editable = document.querySelector<HTMLElement>(
-                    '[data-testid="operational-editor"] .ProseMirror',
-                  );
-                  editable?.focus();
-                }}
-              />
-              <EditorView
-                key={`page-${selectedItem.id}`}
-                service={service}
-                itemId={selectedItem.id}
-                items={items}
-                onCreateSubpage={(request) => createSubpage(selectedItem.id, request)}
-                initialScrollAnchor={
-                  presentationRef.current === null
-                    ? null
-                    : scrollAnchorFor(presentationRef.current, selectedItem.id)
-                }
-                onCaptureScrollAnchor={onCaptureScrollAnchor}
-                onOpenPage={openPageLink}
-              />
-            </article>
           ) : selectedItem !== null && selectedItem.kind === "folder" ? (
             <article
               className="workspace-page-canvas workspace-folder-canvas"
@@ -2321,10 +2482,46 @@ export function HierarchyExplorer({
               <PageTitleEditor
                 key={`title-${selectedItem.id}`}
                 {...titleEditingProps(selectedItem.id, selectedItem.name)}
+                breadcrumbs={
+                  <PathBreadcrumbs path={pathCrumbs} onOpen={(id) => openItem(id as Uuid)} />
+                }
+                pathActions={
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    className="workspace-page-title__graph"
+                    data-testid="open-local-graph"
+                    title="Voir les relations"
+                    onClick={() => onOpenGraph(selectedItem.id)}
+                  >
+                    <AppIcon name="graph" size="small" />
+                    <span className="workspace-page-title__graph-label">Voir les relations</span>
+                  </Button>
+                }
                 kind="folder"
+                kindActions={
+                  <FolderInlineCreate
+                    folderName={selectedItem.name}
+                    onCreate={(kind) => void createItem(kind, selectedItem.id)}
+                  />
+                }
                 icon={selectedItem.icon}
                 title={selectedItem.name}
                 onIconChange={(icon) => void changeItemIcon(selectedItem.id, icon)}
+              />
+              <FolderChildrenList
+                folderName={selectedItem.name}
+                items={folderChildren}
+                onOpen={(id) => openItem(id as Uuid)}
+                onReorder={(request) =>
+                  handleTreeDrop({
+                    kind: "place",
+                    itemId: request.itemId,
+                    targetId: request.targetId,
+                    parentId: selectedItem.id,
+                    edge: request.edge,
+                  })
+                }
               />
             </article>
           ) : null}

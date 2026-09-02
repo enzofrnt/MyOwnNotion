@@ -129,6 +129,22 @@ describe("shared UI primitive contracts", () => {
     expect(standalone).toContain('aria-label="Rechercher"');
   });
 
+  it("renders the graph mark as a hub with related neighbor nodes", () => {
+    const markup = renderToStaticMarkup(createElement(AppIcon, { name: "graph", label: true }));
+    expect(markup).toContain('data-icon="graph"');
+    expect(markup).toContain('aria-label="Graphe"');
+    expect(markup.match(/<circle /g)?.length).toBe(6);
+    expect(markup.match(/<line /g)?.length).toBe(6);
+    expect(markup).not.toContain('data-lucide="network"');
+    expect(markup).not.toContain('data-lucide="waypoints"');
+    const css = readFileSync(
+      new URL("../src/ui/primitives/primitives.css", import.meta.url),
+      "utf8",
+    );
+    expect(css).toContain(".ui-icon--graph");
+    expect(css).toMatch(/\.ui-icon--graph\s*\{[^}]*stroke-width:\s*1\.4/u);
+  });
+
   it("defines one visible focus treatment for every interactive primitive", () => {
     const css = readFileSync(
       new URL("../src/ui/primitives/primitives.css", import.meta.url),

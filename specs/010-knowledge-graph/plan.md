@@ -22,14 +22,14 @@ lit d'abord la topologie structurelle non sensible, calcule au plus 200 nœuds
 visibles, puis ouvre seulement les libellés nécessaires. Cette séparation
 permet un premier résultat progressif sur le jeu de référence sans créer un
 index privé persistant. L'interface React ajoute `/graph` et `/graph/:itemId`,
-une vue SVG navigable au pointeur et au clavier et son équivalent complet en
-liste.
+une vue SVG navigable au pointeur et au clavier.
 
 La validation de release reçoit en plus un environnement de démonstration
 strictement local et jetable. Une commande explicite remet à zéro la stack de
-développement, génère par les parcours canoniques 240 éléments et 480 relations
-avec un propriétaire/mot de passe publics de démonstration, puis vérifie les
-invariants, le contenu lisible de 190 pages et la traçabilité de 360 liens
+développement, génère par les parcours canoniques 240 éléments et un réseau
+en forêt (243 relations : 201 liens documentaires et 42 métier) avec un
+propriétaire/mot de passe publics de démonstration, puis vérifie les
+invariants, le contenu lisible de 190 pages et la traçabilité des liens
 internes avant d'annoncer que le jeu est prêt. Une procédure distincte remet
 à zéro l'état du site dans le navigateur afin qu'un ancien service worker,
 cache, cookie ou IndexedDB ne fausse pas un test après redéploiement.
@@ -62,7 +62,7 @@ secondes au p95 ; aucun lot de calcul UI supérieur à 100 ms
 
 **Constraints**: mono-propriétaire ; offline ; sources et libellés chiffrés au
 repos ; aucun filtre ou titre privé dans une URL ou un journal ; 200 nœuds et
-400 relations rendus au maximum ; vue liste et parcours pointeur/clavier
+400 relations rendus au maximum ; parcours pointeur/clavier
 obligatoires ; 320 px, zoom 200 % et réduction des animations
 
 **Demo Safety**: génération désactivée hors environnement de développement,
@@ -84,7 +84,7 @@ bases, tâches et fichiers ; quatre périmètres, filtres combinables, profondeu
 | III. Incremental, Verifiable Delivery | Projection pure, lecture locale, backlinks, graphe local/global puis environnement de validation constituent des tranches testables | PASS |
 | IV. Privacy and Security by Default | Aucun index dérivé persistant ; les libellés sont ouverts après sélection et les filtres restent sur l'appareil | PASS |
 | V. Simple, Modular Architecture | Une frontière pure `packages/graph` réutilise projection, sync et relations existantes sans service ni base supplémentaire | PASS |
-| VI. Practical and Predictable Experience | Vue liste équivalente, glisser/molette/survol/clic prévisibles, focus visible, boutons nommés, limites annoncées et état de complétude explicite | PASS |
+| VI. Practical and Predictable Experience | Carte unique, glisser/molette/survol/clic prévisibles, focus visible, boutons nommés, limites annoncées et état de complétude explicite | PASS |
 | VII. Reproducible Toolchains | Aucun runtime ni bundler ajouté ; scripts et contrôles utilisent exclusivement Bun verrouillé | PASS |
 | VIII. Canonical Product Direction | Le plan concrétise les sections 5, 10, 14, 17, 22, 27 à 33 et 42 sans absorber whiteboard, public ou MCP | PASS |
 
@@ -131,7 +131,6 @@ apps/web/src/
 │   ├── graph-copy.ts
 │   ├── graph-controls.tsx
 │   ├── graph-canvas.tsx
-│   ├── graph-list.tsx
 │   ├── graph-inspector.tsx
 │   ├── knowledge-graph.worker.ts
 │   ├── knowledge-graph-view.tsx
@@ -221,16 +220,24 @@ une couverture partielle plutôt qu'un résultat négatif implicite.
 
 ### Disposition et interaction
 
-Le package calcule une disposition SVG relationnelle déterministe : positions
-initiales stables, répulsion, attraction des arêtes et centrage sont résolus en
-un nombre fixe d'itérations, sans animation permanente ni coordonnée persistée.
-La taille visuelle d'un nœud dépend de façon bornée de ses références entrantes.
-Le fond de carte se déplace au glisser, la molette zoome autour du pointeur, le
+Le package calcule une disposition SVG par simulation de forces, sur le modèle
+d3-force d'Obsidian : répulsion many-body bornée, ressorts de liens, gravité
+`forceX`/`forceY` (compacité circulaire) et recentrage du barycentre. Les
+quatre sliders (`centerStrength` 0–1, `repelStrength` 0–20,
+`linkStrength` 0–1, `linkDistance` 30–500, défauts 0,5 / 10 / 1 / 250)
+restent des préférences d'appareil. La carte anime les ticks tant que la
+simulation n'est pas froide ; un glisser de nœud pose un pin `fx`/`fy` et
+échauffe la cible alpha. Avec réduction des animations, le même moteur se
+fige après un nombre borné d'itérations. La taille visuelle d'un nœud dépend
+de façon bornée de ses références entrantes.
+Le fond de carte se déplace au glisser du pointeur, jamais au pinch ou à la
+molette. Un nœud se déplace au glisser sans panoramiquer, la molette et le
+pinch et le glissement deux doigts zooment autour du pointeur sans inertie après relâchement, sans plancher de dézoom, le
 survol atténue les éléments hors voisinage, le clic sélectionne et une action
 directe ouvre la page. Panoramique, zoom, recentrage, sélection et ouverture
-sont des préférences ou actions locales. La vue liste expose exactement la même
-projection, les directions et multiplicités, et devient la présentation par
-défaut sous 480 px ou avec animations réduites.
+sont des préférences ou actions locales. L'ajustement du point de vue et les
+états de couverture vivent dans le bouton d'information. La carte est la
+seule représentation, y compris sous 480 px.
 
 La route `/graph` ouvre le workspace global et `/graph/:itemId` le voisinage
 local. Les filtres ne sont jamais encodés dans l'URL. Un bouton de barre
@@ -266,21 +273,22 @@ dans les images ou commandes de production.
 Le propriétaire et le mot de passe factices sont insérés seulement après ces
 gardes, puis le contenu est soumis par les mêmes routes de mutation et les
 mêmes contrôles de chiffrement que l'interface. Le corpus déterministe contient
-huit branches, 190 pages lisibles organisées autour de 23 concepts transversaux,
-une base de tâches avec statut/priorité/date, un fichier attaché et huit
-éléments réellement isolés. Cent quatre-vingts pages contiennent chacune deux
-liens internes visibles, soit 360 relations documentaires ; 120 relations
-métier explicables complètent le jeu avec doublons, cycles, réciprocité, liens
-inter-branches et un type futur valide. Un élément relié est placé dans la
-corbeille. Les
+huit branches, 190 pages lisibles rangées en arbre (vue d'ensemble, sections,
+notes filles), une base de tâches avec statut/priorité/date, un fichier attaché
+et huit éléments réellement isolés. Les liens internes suivent surtout cette
+outline : 201 relations documentaires, dont 174 vers la note parente et trois
+passerelles entre branches. Quarante-deux relations métier relient les tâches
+à quelques hubs, avec doublons, cycles, réciprocité, liens inter-branches et
+un type futur valide. Un élément relié est placé dans la corbeille. Les
 comptes attendus sont constants même si les UUID sont régénérés.
 
 La génération se termine par des requêtes de preuve : un propriétaire et un
-mot de passe actifs, 240 éléments, 480 relations canoniques, aucune extrémité
+mot de passe actifs, 240 éléments, 243 relations canoniques, aucune extrémité
 orpheline, une base et quarante tâches, la pièce jointe, les isolés, la
 multiplicité, les relations réciproques/inter-branches, le type inconnu,
-l'état corbeille, 180 documents sources et la correspondance exacte entre
-leurs 360 arêtes et les liens de leurs blocs. Une interruption laisse donc
+l'état corbeille, cinq composantes de connaissance en forêt et la
+correspondance exacte entre les 201 arêtes documentaires et les liens de
+leurs blocs. Une interruption laisse donc
 éventuellement une base locale
 partielle, mais jamais un message « prêt » ; la reprise documentée recommence
 par le reset complet.

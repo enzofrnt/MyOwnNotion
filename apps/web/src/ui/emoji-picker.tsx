@@ -103,9 +103,11 @@ export interface ItemEmojiPickerProps {
   readonly onChange: (emoji: string | null) => void;
   readonly label: string;
   readonly variant?: "page" | "compact";
+  readonly factory?: EmojiPickerFactory;
 }
 
 export function ItemEmojiPicker({
+  factory,
   kind,
   label,
   onChange,
@@ -117,27 +119,58 @@ export function ItemEmojiPicker({
     onChange(emoji);
     setOpen(false);
   };
+  const clear = (event: { preventDefault(): void; stopPropagation(): void }): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(false);
+    onChange(null);
+  };
   return (
-    <PopoverRoot open={open} setOpen={setOpen}>
-      <PopoverTrigger
-        className="item-emoji-picker__trigger"
-        data-picker-variant={variant}
-        aria-label={value === null ? `Ajouter une icône à ${label}` : `Changer l’icône de ${label}`}
-        data-testid="item-icon-picker-trigger"
-      >
-        {value === null ? (
-          <span className="item-emoji-picker__empty">
-            <AppIcon name="smile" size="small" />
-            Ajouter une icône
-          </span>
-        ) : (
-          <ItemIcon kind={kind} icon={value} size={variant === "page" ? "page" : "inline"} />
-        )}
-      </PopoverTrigger>
-      <PopoverContent className="emoji-picker-popover">
-        <EmojiPickerPanel value={value} onSelect={select} />
-      </PopoverContent>
-    </PopoverRoot>
+    <div
+      className="item-emoji-picker"
+      data-picker-variant={variant}
+      {...(value === null ? { "data-empty": "" } : {})}
+    >
+      <PopoverRoot open={open} setOpen={setOpen}>
+        <PopoverTrigger
+          className="item-emoji-picker__trigger"
+          data-picker-variant={variant}
+          aria-label={
+            value === null ? `Ajouter une icône à ${label}` : `Changer l’icône de ${label}`
+          }
+          data-testid="item-icon-picker-trigger"
+        >
+          {value === null ? (
+            <span className="item-emoji-picker__empty">
+              <AppIcon name="smile" size="small" />
+              Ajouter une icône
+            </span>
+          ) : (
+            <ItemIcon kind={kind} icon={value} size={variant === "page" ? "page" : "inline"} />
+          )}
+        </PopoverTrigger>
+        <PopoverContent className="emoji-picker-popover">
+          <EmojiPickerPanel factory={factory} value={value} onSelect={select} />
+        </PopoverContent>
+      </PopoverRoot>
+      {value === null ? null : (
+        <Button
+          type="button"
+          size="square"
+          variant="ghost"
+          className="item-emoji-picker__clear"
+          aria-label={`Retirer l’icône de ${label}`}
+          data-testid="clear-item-icon"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={clear}
+        >
+          <AppIcon name="close" size="small" />
+        </Button>
+      )}
+    </div>
   );
 }
 

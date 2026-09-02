@@ -520,10 +520,14 @@ dépliées sont restaurés sur l'appareil.
 
 La surface complète d'une ligne sert de prise de déplacement au pointeur ; la
 barre latérale n'ajoute pas de poignée à six points devant l'identité. Le
-pointeur indique cette prise sur toute la ligne. Un geste court ouvre l'élément
-et un glissement emporte un fantôme de la ligne, révèle les destinations avant,
-dans et après, et conserve le curseur de prise en cours même au-dessus d'autres
-commandes. Les actions à droite restent compactes : pièces jointes lorsqu'elles
+pointeur indique cette prise sur toute la ligne. Un geste court sur une page, un
+fichier ou une base ouvre l'élément. Sur un dossier, un geste court le déplie
+s'il est replié et le replie s'il est déplié, sans changer la destination ni
+créer d'onglet ; un double geste l'ouvre dans le canevas (onglet et destination)
+et le déplie, qu'il ait été replié ou déjà déplié. Le chevron reste une commande
+immédiate de repli ou de dépli. Un glissement emporte un
+fantôme de la ligne, révèle les destinations avant, dans et après, et conserve
+le curseur de prise en cours même au-dessus d'autres commandes. Les actions à droite restent compactes : pièces jointes lorsqu'elles
 existent, création d'un enfant, puis menu complémentaire. La création d'une
 page ou d'un dossier enfant se choisit dans une surface intégrée à la ligne qui
 ne décale ni son titre ni ses voisines.
@@ -546,7 +550,25 @@ pas la ligne sélectionnée ; elle affiche un nombre, des lignes nom/taille ou u
 seul état vide. Sous-éléments et surfaces contextuelles s'ouvrent et se ferment
 progressivement sans laisser d'espace résiduel. Un dossier ouvert présente
 dans la zone principale son emoji et son titre modifiables avec les mêmes
-composants d'identité qu'une page.
+composants d'identité qu'une page, puis, à la place d'un contenu éditorial,
+la liste ordonnée de ses enfants directs : chacun est un lien vers l'élément,
+et le propriétaire peut réordonner ces enfants depuis le dossier, avec le même
+résultat que dans l'arborescence. Un dossier ne propose jamais de saisie de
+texte.
+
+Le fil d'Ariane d'une page ou d'un dossier est rendu juste au-dessus de son
+emoji, dans un style subordonné au titre, sur une seule ligne. Quand le chemin
+est trop long pour la largeur disponible, les ancêtres intermédiaires sont
+regroupés dans un unique « … » qui reste consultable et permet d'ouvrir
+chacun d'eux.
+
+Au-dessus du canevas, une bande d'onglets liste les pages, dossiers et vues
+dérivées ouvertes sur l'appareil pendant la session, dans l'ordre d'ouverture.
+Un onglet de page ou de dossier montre l'emoji et le titre de l'élément, coupé
+par « … » s'il est trop long ; un onglet de graphe montre l'icône de graphe et
+le libellé « Graphe ». La bande défile horizontalement quand elle déborde.
+Cette bande est une préférence de présentation de l'appareil, restaurée
+localement et jamais synchronisée.
 
 Un déplacement au pointeur distingue trois destinations sur une ligne : avant
 la ligne, à l'intérieur de l'élément s'il peut contenir des enfants, et après
@@ -1016,17 +1038,24 @@ Il peut filtrer par :
 - dates ;
 - éléments isolés.
 
-Les filtres sont combinables, visibles et réinitialisables. Le graphe ne doit
-pas créer une seconde source de vérité : il visualise les objets et relations
-canoniques. Hors ligne ou avec une projection locale partielle, il doit indiquer
-explicitement la complétude du périmètre présenté plutôt que laisser croire que
-les données absentes n'existent pas.
+Les filtres sont combinables, réinitialisables et disponibles à la demande :
+ils n'occupent pas le canevas par défaut. Le propriétaire les révèle quand il
+veut filtrer, changer de périmètre ou basculer une couche ; un indicateur
+rappelle qu'un filtre est actif. Le graphe ne doit pas créer une seconde source
+de vérité : il visualise les objets et relations canoniques. Hors ligne ou avec
+une projection locale partielle, il doit indiquer explicitement la complétude
+du périmètre présenté plutôt que laisser croire que les données absentes
+n'existent pas.
 
-Sur une interface à pointeur, le propriétaire peut déplacer le point de vue en
-faisant glisser le fond, zoomer à la molette autour de la position visée,
-mettre en évidence le voisinage direct au survol, sélectionner un nœud et
-ouvrir sa page sans passer par l'arborescence. Ces comportements s'inspirent de
-la vue graphe d'Obsidian sans imposer une reproduction visuelle du produit.
+Ouvrir le graphe global ou le voisinage d'un élément l'ajoute à la bande
+d'onglets comme n'importe quelle page. La carte occupe alors tout le canevas
+sous cette bande : aucun titre de document, aucun panneau de filtres et aucun
+inspecteur ne réduisent cette surface tant que le propriétaire ne les a pas
+demandés. Sur une interface à pointeur, le propriétaire peut déplacer le point
+de vue en faisant glisser le fond, zoomer à la molette autour de la position
+visée, mettre en évidence le voisinage direct au survol, sélectionner un nœud
+et ouvrir sa page sans passer par l'arborescence. Ces comportements s'inspirent
+de la vue graphe d'Obsidian sans imposer une reproduction visuelle du produit.
 
 ---
 

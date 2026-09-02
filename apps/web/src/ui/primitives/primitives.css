@@ -20,8 +20,7 @@
     color var(--ui-duration-fast) var(--ui-ease-standard),
     background-color var(--ui-duration-fast) var(--ui-ease-standard),
     border-color var(--ui-duration-fast) var(--ui-ease-standard),
-    box-shadow var(--ui-duration-fast) var(--ui-ease-standard),
-    transform var(--ui-duration-fast) var(--ui-ease-standard);
+    box-shadow var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
 .ui-button[data-size="compact"] {
@@ -52,10 +51,13 @@
   border-color: var(--ui-color-border);
 }
 
-.ui-button[data-variant="secondary"]:hover:not(:disabled),
-.ui-button[data-variant="ghost"]:hover:not(:disabled) {
+.ui-button[data-variant="secondary"]:hover:not(:disabled) {
   background: var(--ui-color-surface-hover);
   border-color: var(--ui-color-border-strong);
+}
+
+.ui-button[data-variant="ghost"]:hover:not(:disabled) {
+  background: var(--ui-color-surface-hover);
 }
 
 .ui-button[data-variant="ghost"] {
@@ -73,10 +75,6 @@
   color: var(--ui-color-text-inverse);
   background: var(--ui-color-danger-hover);
   border-color: var(--ui-color-danger-hover);
-}
-
-.ui-button:active:not(:disabled) {
-  transform: translateY(1px);
 }
 
 .ui-button:disabled,
@@ -106,6 +104,10 @@
 .ui-icon {
   flex: none;
   stroke-width: 1.85;
+}
+
+.ui-icon--graph {
+  stroke-width: 1.4;
 }
 
 .ui-icon--spinning {

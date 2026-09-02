@@ -216,7 +216,7 @@ de nœuds déjà présents sans transférer ses capacités métier dans la 010
 
 Backlinks et relations sortantes, graphe local et global, périmètres workspace,
 branche, voisinage ou sélection, profondeur, filtres combinables, éléments
-isolés et représentation en liste équivalente. Le graphe reste une projection
+isolés. Le graphe reste une projection
 privée et reconstruisible des données canoniques, conserve un état de
 complétude honnête hors ligne et devient une condition de sortie de la V1 avant
 la convergence finale de la feature 017.

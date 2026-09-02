@@ -391,15 +391,34 @@ async function verifyDemo(
     fail("the stored page:link graph does not match the links authored in the demo documents");
   }
 
-  const crossBranchIds = fixture.relationships
-    .filter(({ origin, crossBranch }) => origin === "explicit" && crossBranch)
-    .map(({ id }) => id);
-  const crossBranch = await client.query<{ count: string }>(
-    `SELECT count(*)::text AS count FROM relationships
-      WHERE id = ANY($1::uuid[]) AND removed_revision_id IS NULL`,
-    [crossBranchIds],
+  const expectedCrossKeys = [
+    ...new Set(
+      fixture.relationships
+        .filter(({ crossBranch }) => crossBranch)
+        .map(
+          ({ sourceItemId, targetItemId, relationType }) =>
+            `${sourceItemId}/${targetItemId}/${relationType}`,
+        ),
+    ),
+  ];
+  if (expectedCrossKeys.length === 0)
+    fail("cross-branch relationships are missing from the fixture");
+  const storedCross = await client.query<{
+    source_id: string;
+    target_id: string;
+    relation_type: string;
+  }>(`
+    SELECT source_item_id::text AS source_id, target_item_id::text AS target_id, relation_type
+      FROM relationships
+     WHERE removed_revision_id IS NULL
+  `);
+  const storedCrossKeys = new Set(
+    storedCross.rows.map(
+      ({ source_id: sourceId, target_id: targetId, relation_type: relationType }) =>
+        `${sourceId}/${targetId}/${relationType}`,
+    ),
   );
-  if (crossBranchIds.length === 0 || Number(crossBranch.rows[0]?.count) !== crossBranchIds.length) {
+  if (expectedCrossKeys.some((key) => !storedCrossKeys.has(key))) {
     fail("cross-branch relationships are incomplete");
   }
 
@@ -437,8 +456,10 @@ async function verifyDemo(
       }
     }
   }
-  if (componentCount !== 1) {
-    fail("the content-authored page graph must form one connected knowledge component");
+  if (componentCount !== DEMO_EXPECTED.knowledgeComponents) {
+    fail(
+      `the content-authored page graph must form ${DEMO_EXPECTED.knowledgeComponents} tree-like knowledge components, received ${componentCount}`,
+    );
   }
 
   const response = await fetch(`${apiOrigin}/v1/databases/${fixture.database.itemId}`, {
@@ -632,7 +653,7 @@ async function main(): Promise<void> {
     await verifyDemo(client, fixture, api);
 
     console.info("Knowledge Graph demo workspace is ready and verified.");
-    console.info(`Open: ${DEMO_PUBLIC_ORIGIN}`);
+    console.info(`Open: http://localhost:8080 or ${DEMO_PUBLIC_ORIGIN}`);
     console.info(`Demo password: ${DEMO_PASSWORD}`);
     console.info("Clear the browser site data before testing a redeployment.");
   } finally {

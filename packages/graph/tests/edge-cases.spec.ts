@@ -257,6 +257,14 @@ describe("knowledge graph defensive edge cases", () => {
     expect(layout.positions.find(({ id }) => id === d.id)).toMatchObject({
       depth: 0,
     });
-    expect(layout.width).toBeGreaterThanOrEqual(1_280);
+    const byId = new Map(layout.positions.map((position) => [position.id, position]));
+    const pairDistance = (left: typeof a.id, right: typeof a.id): number => {
+      const from = byId.get(left);
+      const to = byId.get(right);
+      if (from === undefined || to === undefined) return Number.POSITIVE_INFINITY;
+      return Math.hypot(from.x - to.x, from.y - to.y);
+    };
+    expect(pairDistance(a.id, b.id)).toBeLessThan(pairDistance(a.id, isolated.id));
+    expect(pairDistance(d.id, e.id)).toBeLessThan(pairDistance(d.id, isolated.id));
   });
 });

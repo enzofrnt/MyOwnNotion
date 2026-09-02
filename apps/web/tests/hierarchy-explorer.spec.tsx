@@ -74,6 +74,10 @@ describe("hierarchy item identity geometry", () => {
     expect(source).toContain("<NavigationInlineCreate");
     expect(source).toContain("kind: node.item.kind");
     expect(source).toContain("icon: node.item.icon");
+    expect(source).toContain("resolveTreeRowPointerAction(");
+    expect(source).toContain('"click"');
+    expect(source).toContain('"dblclick"');
+    expect(source).toContain("folderClickScheduler");
 
     const attachments = source.indexOf('className="workspace-page-attachments-trigger"');
     const creation = source.indexOf("<NavigationInlineCreate");

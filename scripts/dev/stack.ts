@@ -76,7 +76,7 @@ function resetDevData(): void {
   if (compose([...upArgs]) !== 0) {
     fail("Could not recreate the development stack after the reset.");
   }
-  console.info("Development data reset. Open https://localhost:8443");
+  console.info("Development data reset. Open http://localhost:8080 (or https://localhost:8443)");
 }
 
 function seedKnowledgeGraphDemo(): void {
@@ -164,8 +164,8 @@ ensureDeploymentKey();
 if (compose([...upArgs]) !== 0) {
   fail("Could not start the development stack.");
 }
-console.info("Stack is detached. Open https://localhost:8443");
+console.info("Stack is detached. Open http://localhost:8080 (Cursor) or https://localhost:8443");
 console.info("Bun --watch and Vite HMR reload inside the containers.");
 console.info("Logs: bun run dev:stack:logs   Stop: bun run dev:stack:down");
-console.info("Trust the local CA with `bun run dev:trust` if the browser warns.");
+console.info("System browsers: trust the local CA with `bun run dev:trust` if HTTPS warns.");
 process.exit(0);

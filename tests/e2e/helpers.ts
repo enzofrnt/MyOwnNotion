@@ -787,7 +787,15 @@ export async function returnToWorkspace(page: Page): Promise<void> {
 /** Selects a tree item by clicking its name (never the action buttons). */
 export async function selectItem(page: Page, name: string): Promise<void> {
   const row = await ensureNavigationRowVisible(page, name);
-  await row.locator(".tree-name").click();
+  const kind = await row.getAttribute("data-item-kind");
+  const nameSlot = row.locator(".tree-name");
+  // Folders expand on a short click and only become the destination on
+  // double-click (FR-019). Pages, files and databases still open on click.
+  if (kind === "folder") {
+    await nameSlot.dblclick();
+  } else {
+    await nameSlot.click();
+  }
   await expect(row).toHaveAttribute("aria-selected", "true", {
     timeout: 15_000,
   });

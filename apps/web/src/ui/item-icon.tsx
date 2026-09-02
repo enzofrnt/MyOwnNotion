@@ -91,6 +91,9 @@ export function TreeItemIdentitySlot({
     onToggle();
     if (event.detail > 0) event.currentTarget.blur();
   };
+  const stopDoubleClick = (event: MouseEvent<HTMLButtonElement>): void => {
+    event.stopPropagation();
+  };
   return (
     <span className="tree-item-identity-slot" data-branch={branch || undefined}>
       <ItemIcon
@@ -108,6 +111,7 @@ export function TreeItemIdentitySlot({
           data-expanded={expanded}
           data-testid={`toggle-${item.name}`}
           onClick={stopAndToggle}
+          onDoubleClick={stopDoubleClick}
         >
           <AppIcon
             name="chevronRight"

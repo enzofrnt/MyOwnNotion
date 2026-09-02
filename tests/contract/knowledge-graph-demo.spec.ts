@@ -25,9 +25,9 @@ describe("knowledge graph demo fixture", () => {
     );
 
     expect(fixture.summary).toEqual(DEMO_EXPECTED);
-    expect(fixture.items).toHaveLength(240);
-    expect(itemIds.size).toBe(240);
-    expect(fixture.relationships).toHaveLength(480);
+    expect(fixture.items).toHaveLength(DEMO_EXPECTED.items);
+    expect(itemIds.size).toBe(DEMO_EXPECTED.items);
+    expect(fixture.relationships).toHaveLength(DEMO_EXPECTED.relationships);
     expect(
       fixture.relationships.every(
         ({ sourceItemId, targetItemId }) => itemIds.has(sourceItemId) && itemIds.has(targetItemId),
@@ -41,8 +41,15 @@ describe("knowledge graph demo fixture", () => {
     expect(
       fixture.documents.every(({ heading, summary }) => heading.length > 10 && summary.length > 80),
     ).toBe(true);
-    expect(fixture.documents.filter(({ links }) => links.length === 2)).toHaveLength(180);
-    expect(fixture.documents.filter(({ links }) => links.length === 0)).toHaveLength(10);
+    expect(fixture.documents.filter(({ links }) => links.length === 2)).toHaveLength(
+      DEMO_EXPECTED.documentSourcesWithTwoLinks,
+    );
+    expect(fixture.documents.filter(({ links }) => links.length === 1)).toHaveLength(
+      DEMO_EXPECTED.documentSourcesWithOneLink,
+    );
+    expect(fixture.documents.filter(({ links }) => links.length === 0)).toHaveLength(
+      DEMO_EXPECTED.isolatedItems,
+    );
     const documentRelationshipKeys = new Set(
       fixture.relationships
         .filter(({ origin }) => origin === "document")
@@ -61,6 +68,55 @@ describe("knowledge graph demo fixture", () => {
         links.every(({ key, readable }) => readable && documentRelationshipKeys.has(key)),
     );
     expect(fixture.isolatedItemIds).toHaveLength(8);
+    expect(
+      fixture.items.filter((item) => {
+        if (item.role !== "page" || item.parentId === null) return false;
+        return fixture.items.find((candidate) => candidate.id === item.parentId)?.role === "page";
+      }),
+    ).toHaveLength(174);
+    expect(
+      fixture.relationships.filter(
+        ({ origin, sourceItemId, targetItemId }) =>
+          origin === "document" &&
+          fixture.items.some((item) => item.id === sourceItemId && item.parentId === targetItemId),
+      ),
+    ).toHaveLength(174);
+    expect(
+      fixture.relationships.filter(
+        ({ origin, crossBranch }) => origin === "document" && crossBranch,
+      ),
+    ).toHaveLength(3);
+    const adjacency = new Map<string, Set<string>>();
+    for (const { origin, sourceItemId, targetItemId } of fixture.relationships) {
+      if (origin !== "document") continue;
+      const sourceNeighbors = adjacency.get(sourceItemId) ?? new Set<string>();
+      const targetNeighbors = adjacency.get(targetItemId) ?? new Set<string>();
+      sourceNeighbors.add(targetItemId);
+      targetNeighbors.add(sourceItemId);
+      adjacency.set(sourceItemId, sourceNeighbors);
+      adjacency.set(targetItemId, targetNeighbors);
+    }
+    const remaining = new Set(
+      fixture.items
+        .filter(({ role, branchIndex }) => role === "page" && branchIndex !== null)
+        .map(({ id }) => id as string),
+    );
+    let componentCount = 0;
+    while (remaining.size > 0) {
+      componentCount += 1;
+      const first = remaining.values().next().value;
+      if (first === undefined) break;
+      remaining.delete(first);
+      const stack = [first];
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (current === undefined) break;
+        for (const neighbor of adjacency.get(current) ?? []) {
+          if (remaining.delete(neighbor)) stack.push(neighbor);
+        }
+      }
+    }
+    expect(componentCount).toBe(DEMO_EXPECTED.knowledgeComponents);
     expect(
       fixture.isolatedItemIds.every((id) => {
         const item = fixture.items.find((candidate) => candidate.id === id);

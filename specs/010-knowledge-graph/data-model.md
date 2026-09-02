@@ -141,12 +141,11 @@ partielle prétendument valide.
 
 | Champ | Persistance | Règle |
 | --- | --- | --- |
-| mode canvas/liste | appareil | réinitialisable |
 | profondeur 1..3 | appareil | défaut 2 |
 | couches actives | appareil | défaut `knowledge`, valeurs techniques bornées |
 | types techniques | appareil | liste bornée |
 | isolés visibles | appareil | défaut faux |
-| zoom | appareil | borné 0,5..2 |
+| zoom | appareil | zoom avant borné à 4 ; dézoom sans plancher UX (plancher numérique 0,01) |
 | périmètre courant | mémoire | peut contenir une identité privée |
 | sélection | mémoire | non persistée |
 | coordonnées/pan | mémoire | jamais canonique |
@@ -157,16 +156,16 @@ partielle prétendument valide.
 | Champ | Type | Règle |
 | --- | --- | --- |
 | `itemId` | UUID | Page source existante |
-| `concept` | identifiant de concept | L'un des 23 thèmes documentés du corpus |
-| `branch` | identifiant de branche | L'une des huit perspectives produit |
-| `blocks` | document canonique | Titre, explication lisible et liens internes visibles |
+| `heading` | texte | Titre lisible de la note |
+| `summary` | texte | Explication du rôle de la note dans son arbre (dossier, vue d'ensemble, section ou feuille) |
+| `links` | liens internes | Cibles visibles dans le document ; surtout la note parente, parfois une sœur ou une passerelle |
 | `targetItemIds` | UUID[] | Exactement les cibles uniques présentes dans les marques `pageLink` |
 
 Le manifeste compte séparément les pages ayant un document, les pages sources
 ayant au moins un lien et les relations `page:link`. Pour chacune, le contrôle
 relit le document canonique et exige l'égalité exacte entre les cibles extraites
-et les relations actives. Le rangement par branche n'entre jamais dans cette
-preuve relationnelle.
+et les relations actives. Le graphe de connaissances forme une forêt d'arbres
+par branche, avec quelques passerelles ; le calque Hiérarchie reste distinct.
 
 ## 10. Transitions
 

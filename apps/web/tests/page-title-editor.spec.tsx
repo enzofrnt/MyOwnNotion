@@ -274,7 +274,7 @@ describe("page title editor", () => {
     expect(kind?.querySelector('[data-icon="folder"]')).not.toBeNull();
   });
 
-  it("shows a quiet page caption above the canvas title, next to the type icon", async () => {
+  it("shows a quiet page caption just below the canvas title, next to the type icon", async () => {
     await act(async () => {
       root.render(<PageTitleEditor title="Notes" onCommit={async () => undefined} />);
     });
@@ -282,6 +282,25 @@ describe("page title editor", () => {
     const title = container.querySelector('[data-testid="active-item-title"]');
     expect(kind?.textContent).toContain("Page");
     expect(kind?.querySelector('[data-icon="fileText"]')).not.toBeNull();
-    expect(kind?.nextElementSibling).toBe(title);
+    expect(title?.nextElementSibling?.querySelector('[data-testid="active-item-kind"]')).toBe(kind);
+  });
+
+  it("pins folder create actions to the right of the centered kind caption", async () => {
+    await act(async () => {
+      root.render(
+        <PageTitleEditor
+          kind="folder"
+          kindActions={<span data-testid="folder-kind-action">Nouveau</span>}
+          title="Archives"
+          onCommit={async () => undefined}
+        />,
+      );
+    });
+    const meta = container.querySelector(".workspace-page-title__meta");
+    const kind = container.querySelector('[data-testid="active-item-kind"]');
+    expect(meta?.firstElementChild).toBe(kind);
+    expect(kind?.textContent).toContain("Dossier");
+    expect(meta?.lastElementChild?.className).toBe("workspace-page-title__kind-actions");
+    expect(meta?.querySelector('[data-testid="folder-kind-action"]')?.textContent).toBe("Nouveau");
   });
 });

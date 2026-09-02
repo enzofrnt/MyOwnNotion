@@ -34,6 +34,13 @@ export type SessionCookieMode = "production" | "loopback-development";
 
 export interface SecurityConfig {
   readonly publicOrigin: URL;
+  /**
+   * Optional extra loopback HTTP origin accepted next to a loopback HTTPS
+   * public origin. Local helper only: embedded browsers that cannot trust
+   * Caddy's internal CA open `http://localhost:8080` instead of
+   * `https://localhost:8443`.
+   */
+  readonly loopbackHttpOrigin: URL | undefined;
   readonly listenHost: string;
   readonly listenPort: number;
   /** CIDRs whose `X-Forwarded-*` headers are honoured. Empty means none. */
@@ -71,6 +78,23 @@ export function isLoopbackHttpOrigin(origin: URL): boolean {
   return origin.protocol === "http:" && isLoopbackHostname(origin.hostname);
 }
 
+export function isLoopbackHttpsOrigin(origin: URL): boolean {
+  return origin.protocol === "https:" && isLoopbackHostname(origin.hostname);
+}
+
+/**
+ * Origins the realtime channel will accept as `Origin`.
+ *
+ * Always the configured public origin. When the local HTTPS helper also
+ * serves plain HTTP, that loopback HTTP origin is included so an embedded
+ * browser can connect without trusting Caddy's internal CA.
+ */
+export function trustedRealtimeOrigins(config: SecurityConfig): readonly URL[] {
+  return config.loopbackHttpOrigin === undefined
+    ? [config.publicOrigin]
+    : [config.publicOrigin, config.loopbackHttpOrigin];
+}
+
 function readInteger(raw: string | undefined, fallback: number, name: string): number {
   if (raw === undefined || raw.trim().length === 0) {
     return fallback;
@@ -82,26 +106,45 @@ function readInteger(raw: string | undefined, fallback: number, name: string): n
   return value;
 }
 
-function parseOrigin(raw: string | undefined): URL {
+function parseOrigin(raw: string | undefined, name = "MYOWNNOTION_PUBLIC_ORIGIN"): URL {
   if (raw === undefined || raw.trim().length === 0) {
     throw new SecurityConfigError(
-      "MYOWNNOTION_PUBLIC_ORIGIN is required; cookie and WebAuthn origin checks derive from it",
+      `${name} is required; cookie and WebAuthn origin checks derive from it`,
     );
   }
   let origin: URL;
   try {
     origin = new URL(raw.trim());
   } catch {
-    throw new SecurityConfigError(`MYOWNNOTION_PUBLIC_ORIGIN is not a valid URL: ${raw}`);
+    throw new SecurityConfigError(`${name} is not a valid URL: ${raw}`);
   }
   if (origin.protocol !== "http:" && origin.protocol !== "https:") {
-    throw new SecurityConfigError(
-      `MYOWNNOTION_PUBLIC_ORIGIN must be http or https (found: ${origin.protocol})`,
-    );
+    throw new SecurityConfigError(`${name} must be http or https (found: ${origin.protocol})`);
   }
   if (origin.pathname !== "/" || origin.search !== "" || origin.hash !== "") {
+    throw new SecurityConfigError(`${name} must be a bare origin with no path, query, or fragment`);
+  }
+  return origin;
+}
+
+function parseOptionalLoopbackHttpOrigin(
+  raw: string | undefined,
+  publicOrigin: URL,
+): URL | undefined {
+  if (raw === undefined || raw.trim().length === 0) {
+    return undefined;
+  }
+  const origin = parseOrigin(raw, "MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN");
+  if (!isLoopbackHttpOrigin(origin)) {
     throw new SecurityConfigError(
-      "MYOWNNOTION_PUBLIC_ORIGIN must be a bare origin with no path, query, or fragment",
+      `MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN must be a loopback HTTP origin; ` +
+        `${origin.origin} would accept a non-loopback clear-text origin`,
+    );
+  }
+  if (!isLoopbackHttpsOrigin(publicOrigin)) {
+    throw new SecurityConfigError(
+      `MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN requires MYOWNNOTION_PUBLIC_ORIGIN to be loopback HTTPS; ` +
+        `${publicOrigin.origin} is not`,
     );
   }
   return origin;
@@ -117,6 +160,10 @@ export type Environment = Record<string, string | undefined>;
  */
 export function loadSecurityConfig(env: Environment = process.env): SecurityConfig {
   const publicOrigin = parseOrigin(env["MYOWNNOTION_PUBLIC_ORIGIN"]);
+  const loopbackHttpOrigin = parseOptionalLoopbackHttpOrigin(
+    env["MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN"],
+    publicOrigin,
+  );
   const listenHost = env["MYOWNNOTION_API_HOST"]?.trim() ?? "127.0.0.1";
   const listenPort = readInteger(env["MYOWNNOTION_API_PORT"], 3001, "MYOWNNOTION_API_PORT");
   const exceptionRequested = env["MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE"]?.trim() === "1";
@@ -151,6 +198,7 @@ export function loadSecurityConfig(env: Environment = process.env): SecurityConf
 
   return {
     publicOrigin,
+    loopbackHttpOrigin,
     listenHost,
     listenPort,
     trustedProxyCidrs,

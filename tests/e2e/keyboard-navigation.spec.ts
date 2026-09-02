@@ -379,7 +379,7 @@ test.describe("what a branch says when it has nothing to show", () => {
     // this device before anything is sent. A name past the length limit looked
     // like the easier trigger and is not one: the client accepts it and only
     // the server refuses, so the explorer never learns of it.
-    await page.getByTestId(`tree-item-${parent}`).click();
+    await selectItem(page, parent);
     await openBranch(page, parent);
     await moveSelectedItemInto(page, child);
 

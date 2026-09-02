@@ -74,12 +74,11 @@ global.
 
 ## Phase 4: User Story 2 — Explorer le voisinage d'un élément (Priority: P1)
 
-**Goal**: Explorer un voisinage orienté de profondeur 1 à 3 en carte et en
-liste équivalente.
+**Goal**: Explorer un voisinage orienté de profondeur 1 à 3 sur la carte.
 
 **Independent Test**: Un réseau cyclique à trois niveaux répond exactement aux
 changements de profondeur ; sélection, zoom, recentrage et ouverture
-fonctionnent au clavier et en liste.
+fonctionnent au clavier.
 
 ### Tests for User Story 2
 
@@ -172,7 +171,7 @@ manuellement tous les cas du manifeste.
 
 ### Tests for User Story 5
 
-- [x] T039 [P] [US5] Écrire le contrat du manifeste, des gardes local-only, des 240 éléments/480 relations et des catégories obligatoires dans `tests/contract/knowledge-graph-demo.spec.ts`
+- [x] T039 [P] [US5] Écrire le contrat du manifeste, des gardes local-only, des 240 éléments/243 relations et des catégories obligatoires dans `tests/contract/knowledge-graph-demo.spec.ts`
 
 ### Implementation for User Story 5
 
@@ -217,7 +216,7 @@ Setup → Foundation → US1 backlinks → US2 local → US3 global → US4 repr
 
 US1 reste démontrable seule. Les algorithmes de filtre US3 peuvent avancer en
 parallèle de l'interface US2 après Foundation, mais l'intégration globale attend
-les composants carte/liste.
+les composants carte.
 
 ### Within Each User Story
 
@@ -323,13 +322,12 @@ l'arborescence.
 
 ### User Story 5 — Coherent editorial demo workspace
 
-**Independent Test**: Générer le workspace jetable, prouver que 180 pages
-contiennent deux liens internes visibles, ouvrir un échantillon d'arêtes et
-retrouver chaque cible dans le document source, puis vérifier que le réseau
-thématique traverse les huit branches sans reproduire leur arbre.
+**Independent Test**: Générer le workspace jetable, prouver que les notes
+forment une forêt d'arbres par branche avec quelques passerelles, ouvrir un
+échantillon d'arêtes et retrouver chaque cible dans le document source.
 
-- [x] T067 [P] [US5] Remplacer le contrat de simple comptage par des preuves de 190 documents lisibles, 180 sources, 360 liens documentaires, 120 relations métier et topologie indépendante des dossiers dans `tests/contract/knowledge-graph-demo.spec.ts`
-- [x] T068 [US5] Reconcevoir le manifeste autour de 23 concepts transversaux, huit perspectives, deux liens explicables par page source et relations métier cohérentes dans `scripts/dev/knowledge-graph-demo-fixture.ts`
+- [x] T067 [P] [US5] Remplacer le contrat de simple comptage par des preuves de 190 documents lisibles, 201 liens documentaires, 42 relations métier et une forêt à cinq composantes dans `tests/contract/knowledge-graph-demo.spec.ts`
+- [x] T068 [US5] Reconcevoir le manifeste en arbres de notes par branche (vue d'ensemble, sections, feuilles) avec quelques passerelles et relations métier cohérentes dans `scripts/dev/knowledge-graph-demo-fixture.ts`
 - [x] T069 [US5] Générer les blocs éditoriaux canoniques, réconcilier leurs cibles et vérifier document par document la correspondance avec `page:link` avant de déclarer le seed prêt dans `scripts/dev/seed-knowledge-graph-demo.ts`
 - [x] T070 [P] [US5] Mettre à jour le protocole de lecture et de vérification du corpus, des couches et du déplacement hiérarchique dans `docs/testing/knowledge-graph-demo.md` et `specs/010-knowledge-graph/quickstart.md`
 
@@ -353,3 +351,29 @@ sémantique de projection et l'interaction/disposition. T067 peut avancer en
 parallèle des deux autres chaînes. T045 décrit seulement l'invalidation de la
 première tentative ; le gate produit est satisfait uniquement par la réussite
 de T072 sur l'état corrigé final.
+
+## Phase 12: Graph as a workspace tab (Obsidian-like canvas)
+
+**Purpose**: Ouvrir le graphe comme un onglet du canevas, occuper toute la
+surface sous la bande, et ne révéler filtres, inspecteur et mode que sur
+demande, conformément à FR-049–FR-051 et à la feature 022.
+
+- [x] T074 [US2] Présenter le graphe comme un onglet de la bande, sans en-tête
+      de document, et occuper tout le canevas sous les onglets
+      (`presentation-state.ts`, `hierarchy-explorer.tsx`, `page-header.tsx`,
+      `workspace-shell.tsx`, `open-tabs-strip.tsx`)
+- [x] T075 [US3] Replier filtres, périmètre et couches dans un panneau
+      superposé fermé par défaut, et superposer l'inspecteur sans colonne
+      permanente (`knowledge-graph-view.tsx`, `graph-controls.tsx`,
+      `apps/web/src/styles.css`)
+- [x] T076 [US2] Faire remplir la carte au canevas, limiter le chrome de
+      navigation au zoom/recentrage/ajustement, et n'afficher les libellés
+      d'arête qu'au survol (`graph-canvas.tsx`)
+- [x] T077 [P] Couvrir l'onglet graphe, le chrome compact et l'ouverture des
+      filtres dans les tests web, client-core et Playwright
+      (`presentation-state-tabs.spec.ts`, `open-tabs-strip.spec.tsx`,
+      `workspace-shell.spec.tsx`, `knowledge-graph.spec.ts`)
+- [x] T078 Retirer la vue liste parallèle : la carte est la seule
+      représentation, y compris sous 480 px, dans `graph-list.tsx`,
+      `knowledge-graph-view.tsx`, `graph-preferences.ts` et les tests associés,
+      per FR-020

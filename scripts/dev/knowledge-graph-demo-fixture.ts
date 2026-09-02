@@ -6,9 +6,9 @@ export const DEMO_PUBLIC_ORIGIN = "https://localhost:8443";
 
 export const DEMO_EXPECTED = {
   items: 240,
-  relationships: 480,
-  documentRelationships: 360,
-  explicitRelationships: 120,
+  relationships: 243,
+  documentRelationships: 201,
+  explicitRelationships: 42,
   folders: 8,
   pages: 190,
   databases: 1,
@@ -16,6 +16,9 @@ export const DEMO_EXPECTED = {
   files: 1,
   isolatedItems: 8,
   trashedItems: 1,
+  knowledgeComponents: 5,
+  documentSourcesWithTwoLinks: 19,
+  documentSourcesWithOneLink: 163,
 } as const;
 
 export type DemoItemRole = "folder" | "page" | "database" | "task" | "file";
@@ -137,6 +140,9 @@ function branchOf(items: ReadonlyMap<Uuid, DemoItem>, itemId: Uuid): number | nu
   return items.get(itemId)?.branchIndex ?? null;
 }
 
+const SECTIONS_PER_BRANCH = 3;
+const LEAF_COUNT = 150;
+
 export function buildKnowledgeGraphDemoFixture(
   idFactory: () => Uuid = generateUuidV7,
 ): KnowledgeGraphDemoFixture {
@@ -148,21 +154,54 @@ export function buildKnowledgeGraphDemoFixture(
     parentId: null,
     branchIndex,
   }));
-  const pages: DemoItem[] = Array.from({ length: DEMO_EXPECTED.pages }, (_, index) => {
-    const isolated = index >= DEMO_EXPECTED.pages - DEMO_EXPECTED.isolatedItems;
-    const branchIndex = isolated ? null : index % BRANCH_NAMES.length;
-    const concept = KNOWLEDGE_CONCEPTS[Math.floor(index / BRANCH_NAMES.length)];
-    return {
+  const hubs: DemoItem[] = folders.map((folder, branchIndex) => ({
+    id: idFactory(),
+    role: "page",
+    kind: "page",
+    name: `Vue d'ensemble — ${folder.name}`,
+    parentId: folder.id,
+    branchIndex,
+  }));
+  const sections: DemoItem[] = hubs.flatMap((hub, branchIndex) =>
+    Array.from({ length: SECTIONS_PER_BRANCH }, (_, sectionIndex) => {
+      const concept =
+        KNOWLEDGE_CONCEPTS[
+          (branchIndex * SECTIONS_PER_BRANCH + sectionIndex) % KNOWLEDGE_CONCEPTS.length
+        ];
+      return {
+        id: idFactory(),
+        role: "page" as const,
+        kind: "page" as const,
+        name: `${concept?.[0] ?? "Sujet produit"} — ${BRANCH_NAMES[branchIndex]}`,
+        parentId: hub.id,
+        branchIndex,
+      };
+    }),
+  );
+  const extraLeaves = LEAF_COUNT % sections.length;
+  const baseLeaves = Math.floor(LEAF_COUNT / sections.length);
+  const leaves: DemoItem[] = sections.flatMap((section, sectionIndex) => {
+    const count = baseLeaves + (sectionIndex < extraLeaves ? 1 : 0);
+    const conceptName = section.name.split(" — ")[0] ?? "Note";
+    const branchName = BRANCH_NAMES[section.branchIndex ?? 0];
+    return Array.from({ length: count }, (_, leafIndex) => ({
       id: idFactory(),
-      role: "page",
-      kind: "page",
-      name: isolated
-        ? `Scénario isolé — ${ISOLATED_PAGE_NAMES[index - 182] ?? "Note sans lien"}`
-        : `${concept?.[0] ?? "Sujet produit"} — ${BRANCH_NAMES[branchIndex ?? 0]}`,
-      parentId: branchIndex === null ? null : (folders[branchIndex]?.id ?? null),
-      branchIndex,
-    };
+      role: "page" as const,
+      kind: "page" as const,
+      name: `${conceptName} — ${branchName} · ${leafIndex + 1}`,
+      parentId: section.id,
+      branchIndex: section.branchIndex,
+    }));
   });
+  const isolatedPages: DemoItem[] = ISOLATED_PAGE_NAMES.map((name) => ({
+    id: idFactory(),
+    role: "page",
+    kind: "page",
+    name: `Scénario isolé — ${name}`,
+    parentId: null,
+    branchIndex: null,
+  }));
+  const pages = [...hubs, ...sections, ...leaves, ...isolatedPages];
   const databaseItem: DemoItem = {
     id: idFactory(),
     role: "database",
@@ -184,34 +223,52 @@ export function buildKnowledgeGraphDemoFixture(
     role: "file",
     kind: "file",
     name: "jeu-de-donnees-knowledge-graph.md",
-    parentId: pages[0]?.id ?? null,
-    branchIndex: pages[0]?.branchIndex ?? 0,
+    parentId: hubs[0]?.id ?? null,
+    branchIndex: hubs[0]?.branchIndex ?? 0,
   };
   const items = [...folders, ...pages, databaseItem, ...taskItems, fileItem];
   const byId = new Map(items.map((item) => [item.id, item]));
   const relationships: DemoRelationship[] = [];
 
-  const documentSources = 180;
-  const connectedPageCount = DEMO_EXPECTED.pages - DEMO_EXPECTED.isolatedItems;
-  for (let sourceIndex = 0; sourceIndex < documentSources; sourceIndex += 1) {
-    const source = pages[sourceIndex];
-    if (source === undefined) throw new Error("demo fixture has no document source");
-    const conceptStart = Math.floor(sourceIndex / BRANCH_NAMES.length) * BRANCH_NAMES.length;
-    const conceptLength = Math.min(BRANCH_NAMES.length, connectedPageCount - conceptStart);
-    const nextPerspective = conceptStart + ((sourceIndex - conceptStart + 1) % conceptLength);
-    const nextConcept = (sourceIndex + BRANCH_NAMES.length) % connectedPageCount;
-    for (const targetIndex of [nextPerspective, nextConcept]) {
-      const target = pages[targetIndex];
-      if (target === undefined) throw new Error("demo fixture has no document target");
-      relationships.push({
-        id: idFactory(),
-        sourceItemId: source.id,
-        targetItemId: target.id,
-        relationType: "page:link",
-        origin: "document",
-        crossBranch: branchOf(byId, source.id) !== branchOf(byId, target.id),
-      });
+  const addDocument = (source: DemoItem, target: DemoItem): void => {
+    relationships.push({
+      id: idFactory(),
+      sourceItemId: source.id,
+      targetItemId: target.id,
+      relationType: "page:link",
+      origin: "document",
+      crossBranch: branchOf(byId, source.id) !== branchOf(byId, target.id),
+    });
+  };
+  hubs.forEach((hub, branchIndex) => {
+    const firstSection = sections[branchIndex * SECTIONS_PER_BRANCH];
+    if (firstSection !== undefined) addDocument(hub, firstSection);
+  });
+  sections.forEach((section, sectionIndex) => {
+    const hub = hubs[section.branchIndex ?? 0];
+    if (hub !== undefined) addDocument(section, hub);
+    const localIndex = sectionIndex % SECTIONS_PER_BRANCH;
+    if (localIndex < SECTIONS_PER_BRANCH - 1) {
+      const next = sections[sectionIndex + 1];
+      if (next !== undefined) addDocument(section, next);
     }
+  });
+  for (const leaf of leaves) {
+    const section = byId.get(leaf.parentId ?? (leaf.id as Uuid));
+    if (section === undefined) throw new Error("demo leaf has no section parent");
+    addDocument(leaf, section);
+  }
+  for (const [from, to] of [
+    [0, 1],
+    [2, 3],
+    [4, 5],
+  ] as const) {
+    const source = hubs[from];
+    const target = hubs[to];
+    if (source === undefined || target === undefined) {
+      throw new Error("demo fixture is missing a branch hub for a cross-branch link");
+    }
+    addDocument(source, target);
   }
 
   const addExplicit = (source: DemoItem, target: DemoItem, relationType: string): void => {
@@ -224,35 +281,20 @@ export function buildKnowledgeGraphDemoFixture(
       crossBranch: branchOf(byId, source.id) !== branchOf(byId, target.id),
     });
   };
-  const pageFor = (conceptIndex: number, branchIndex: number): DemoItem => {
-    const conceptStart = conceptIndex * BRANCH_NAMES.length;
-    const candidateIndex = conceptStart + branchIndex;
-    return (
-      (candidateIndex < connectedPageCount ? pages[candidateIndex] : undefined) ??
-      pages[conceptStart] ??
-      (pages[0] as DemoItem)
-    );
-  };
+  const deliveryHub = hubs[4] ?? (hubs[0] as DemoItem);
   for (let taskIndex = 0; taskIndex < taskItems.length; taskIndex += 1) {
     const task = taskItems[taskIndex];
     if (task === undefined) throw new Error("demo fixture has no task relationship source");
-    const conceptIndex = taskIndex % KNOWLEDGE_CONCEPTS.length;
-    const delivery = pageFor(conceptIndex, 4);
-    const quality = pageFor(conceptIndex, 5);
-    const decision = pageFor(conceptIndex, 7);
     if (taskIndex === 0) {
-      addExplicit(task, delivery, "demo:implements");
-      addExplicit(task, delivery, "demo:implements");
-      addExplicit(delivery, task, "demo:implements");
+      addExplicit(task, deliveryHub, "demo:implements");
+      addExplicit(task, deliveryHub, "demo:implements");
+      addExplicit(deliveryHub, task, "demo:implements");
       continue;
     }
-    addExplicit(task, delivery, taskIndex === 1 ? "future:semantic" : "demo:implements");
-    addExplicit(task, quality, "demo:verified-by");
-    addExplicit(task, decision, "demo:depends-on");
+    addExplicit(task, deliveryHub, taskIndex === 1 ? "future:semantic" : "demo:implements");
   }
 
-  const documents: DemoPageDocument[] = pages.map((page, index) => {
-    const concept = KNOWLEDGE_CONCEPTS[Math.floor(index / BRANCH_NAMES.length)];
+  const documents: DemoPageDocument[] = pages.map((page) => {
     const branch = page.branchIndex === null ? null : BRANCH_NAMES[page.branchIndex];
     const links = relationships
       .filter(({ origin, sourceItemId }) => origin === "document" && sourceItemId === page.id)
@@ -264,17 +306,20 @@ export function buildKnowledgeGraphDemoFixture(
           targetName: target.name,
           leadIn:
             linkIndex === 0
-              ? "Comparer ce sujet avec le point de vue complémentaire"
-              : "Poursuivre le raisonnement avec le thème suivant",
+              ? "Cette note s’inscrit dans le fil de"
+              : "Pour élargir le contexte, voir aussi",
         };
       });
+    const parent = page.parentId === null ? null : byId.get(page.parentId);
     return {
       itemId: page.id,
       heading: page.name,
       summary:
-        branch === null || concept === undefined
+        branch === null
           ? "Cette note est volontairement sans lien afin de vérifier le filtre des pages isolées. Son contenu reste lisible et identifiable pendant les tests."
-          : `Dans le volet « ${branch} », cette note précise ${concept[1]}. Elle relie une décision locale aux autres perspectives du produit.`,
+          : parent?.role === "folder"
+            ? `Dans le dossier « ${branch} », cette vue d’ensemble oriente le travail de la branche. Les notes filles précisent le sujet sans tout relier à toutes les autres branches.`
+            : `Dans le volet « ${branch} », cette note développe un point du dossier « ${parent?.name ?? branch} ». Elle renvoie surtout à sa note parente, comme on le fait en écrivant un arbre de pages.`,
       links,
     };
   });
@@ -308,8 +353,8 @@ export function buildKnowledgeGraphDemoFixture(
     relationships,
     documents,
     tasks,
-    isolatedItemIds: pages.slice(-DEMO_EXPECTED.isolatedItems).map(({ id }) => id),
-    trashedItemId: pages[7]?.id ?? (pages[0] as DemoItem).id,
+    isolatedItemIds: isolatedPages.map(({ id }) => id),
+    trashedItemId: leaves[0]?.id ?? (pages[0] as DemoItem).id,
     database: {
       itemId: databaseItem.id,
       titlePropertyId: idFactory(),

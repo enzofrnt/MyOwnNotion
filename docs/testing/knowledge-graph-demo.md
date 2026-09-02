@@ -38,7 +38,7 @@ complète, qui repart de volumes vides.
 
 Connexion locale :
 
-- URL : `https://localhost:8443`
+- URL : `http://localhost:8080` (Cursor) ou `https://localhost:8443` (Safari/Chrome)
 - owner : unique, aucun identifiant à saisir
 - mot de passe factice : `knowledge-graph-demo`
 
@@ -54,14 +54,16 @@ service worker ni ses caches. Après chaque redéploiement testé :
    application MyOwnNotion installée.
 2. Désinstaller cette application PWA si elle a été installée depuis le
    navigateur.
-3. Ouvrir les outils de développement sur `https://localhost:8443`.
+3. Ouvrir les outils de développement sur l’origine utilisée
+   (`http://localhost:8080` ou `https://localhost:8443`).
 4. Dans **Application > Service Workers**, désinscrire le service worker.
 5. Dans **Application > Storage**, choisir **Clear site data** en incluant
    cookies, Local Storage, Session Storage, IndexedDB et Cache Storage.
-6. Supprimer aussi les données du site `http://localhost:8080` dans les
-   paramètres de confidentialité du navigateur si cette URL a déjà été
-   ouverte. Elle redirige vers HTTPS, mais peut conserver son propre état.
-7. Fermer l'onglet, rouvrir `https://localhost:8443`, puis se connecter avec le
+6. Supprimer aussi les données de l’autre origine (`http://localhost:8080` ou
+   `https://localhost:8443`) dans les paramètres de confidentialité du
+   navigateur si cette URL a déjà été ouverte. Les deux origines sont servies
+   par Caddy et peuvent conserver un état distinct.
+7. Fermer l’onglet, rouvrir la même origine, puis se connecter avec le
    mot de passe factice.
 
 Dans Firefox ou Safari, utiliser l'équivalent **Données de sites / Gérer les
@@ -75,14 +77,15 @@ Le seed ne signale « ready » qu'après avoir vérifié :
 
 - 240 éléments uniques : 8 dossiers, 190 pages, 1 base structurée, 40 tâches
   et 1 vrai fichier Markdown attaché ;
-- 480 occurrences de relations actives : 360 liens issus des documents et 120
+- 243 occurrences de relations actives : 201 liens issus des documents et 42
   relations métier explicites ;
-- 190 documents lisibles organisés autour de 23 concepts transversaux et de
-  8 perspectives ; 180 pages sources contiennent chacune exactement deux
-  liens internes nommés, et les 10 autres couvrent les pages connectées sans
-  lien sortant et les pages volontairement isolées ;
+- 190 documents lisibles rangés en arbre dans 8 dossiers (vue d'ensemble,
+  sections, notes filles) ; 163 pages portent un lien interne, 19 en portent
+  deux, et 8 pages isolées n'en portent aucun ;
 - une correspondance exacte, vérifiée après écriture, entre chaque cible
   déclarée dans un document et chaque relation canonique `page:link` ;
+- cinq composantes de connaissance : huit arbres de branche reliés par trois
+  passerelles entre vues d'ensemble ;
 - 8 pages racines réellement isolées ;
 - des doublons intentionnels, relations réciproques, cycles, liens entre
   branches et un type futur inconnu `future:semantic` ;
@@ -103,8 +106,10 @@ garde-fous locaux.
 ## 4. Contrôle manuel conseillé
 
 1. Ouvrir le graphe global : seule la couche « Connaissances » doit être active.
-   Les dossiers et leurs arêtes ne doivent pas dominer le réseau.
-2. Sélectionner trois arêtes entre des branches différentes, ouvrir leur page
+   Le réseau doit ressembler à plusieurs arbres (notes filles → sections → vue
+   d'ensemble), pas à une pelote unique. Les arêtes de dossiers n'apparaissent
+   que si la couche « Hiérarchie » est activée.
+2. Sélectionner une passerelle entre deux vues d'ensemble, ouvrir la page
    source et retrouver le lien interne portant exactement le nom de la cible.
 3. Faire glisser le fond de la carte, zoomer à la molette autour du pointeur,
    survoler un nœud pour atténuer le reste, cliquer pour l'inspecter puis
@@ -112,12 +117,12 @@ garde-fous locaux.
 4. Déplacer une page vers un autre dossier : le réseau « Connaissances » doit
    rester identique. Activer « Hiérarchie » pour voir uniquement cette couche
    structurelle refléter le déplacement.
-5. Tester la carte et la liste, puis les filtres de statut, échéance et priorité.
+5. Tester la carte, puis les filtres de statut, échéance et priorité.
 6. Afficher les isolés, les doublons, les relations réciproques et le type
    `future:semantic`.
 7. Ouvrir un graphe local à profondeur 1 puis 2 et revenir au global.
 8. Vérifier le cas de la cible à la corbeille avec et sans contenu masqué.
-9. Réduire la fenêtre à 320 px et confirmer que la liste reste exploitable.
+9. Réduire la fenêtre à 320 px et confirmer que la carte reste exploitable.
 10. Attendre une synchronisation complète, couper le réseau et vérifier la
    dernière vue sûre, puis reconnecter.
 

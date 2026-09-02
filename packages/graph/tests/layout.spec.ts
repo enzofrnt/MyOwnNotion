@@ -27,10 +27,14 @@ describe("relation-driven graph layout", () => {
     const hubPosition = first.positions.find(({ id }) => id === hub.id);
     const leafPosition = first.positions.find(({ id }) => id === leaves[0]?.id);
     expect(hubPosition?.radius).toBeGreaterThan(leafPosition?.radius ?? Number.MAX_SAFE_INTEGER);
-    expect(first.positions.every(({ radius }) => radius >= 24 && radius <= 42)).toBe(true);
+    expect(first.positions.every(({ radius }) => radius >= 3.6 && radius <= 13)).toBe(true);
+    expect(
+      Math.hypot(hubPosition?.x ?? 0, hubPosition?.y ?? 0) +
+        Math.hypot(leafPosition?.x ?? 0, leafPosition?.y ?? 0),
+    ).toBeGreaterThan(0);
   });
 
-  it("keeps linked nodes closer than unrelated component centers", () => {
+  it("keeps linked rest length near the link-distance slider", () => {
     const a = node("A");
     const b = node("B");
     const isolated = node("Isolée");
@@ -46,6 +50,32 @@ describe("relation-driven graph layout", () => {
       if (from === undefined || to === undefined) return Number.POSITIVE_INFINITY;
       return Math.hypot(from.x - to.x, from.y - to.y);
     };
-    expect(distance(a.id, b.id)).toBeLessThan(distance(a.id, isolated.id));
+    expect(distance(a.id, b.id)).toBeGreaterThan(80);
+    expect(distance(a.id, b.id)).toBeLessThan(400);
+    expect(new Set(layout.positions.map(({ component }) => component)).size).toBe(2);
+  });
+
+  it("keeps disconnected trees as separate components in a bounded cloud", () => {
+    const leftHub = node("Gauche");
+    const rightHub = node("Droite");
+    const leftLeaves = [node("L1"), node("L2"), node("L3")];
+    const rightLeaves = [node("R1"), node("R2"), node("R3")];
+    const layout = layoutGraph(
+      projectGraph(
+        normalizeGraphSource(
+          source(
+            [leftHub, rightHub, ...leftLeaves, ...rightLeaves],
+            [
+              ...leftLeaves.map((leaf) => edge(leaf.id, leftHub.id)),
+              ...rightLeaves.map((leaf) => edge(leaf.id, rightHub.id)),
+            ],
+          ),
+        ),
+        defaultGraphQuery({ kind: "workspace" }),
+      ),
+    );
+    const span = Math.hypot(layout.width, layout.height);
+    expect(span).toBeLessThan(2500);
+    expect(new Set(layout.positions.map(({ component }) => component)).size).toBe(2);
   });
 });
