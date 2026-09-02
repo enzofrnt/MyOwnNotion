@@ -1664,7 +1664,10 @@ textarea {
 .knowledge-graph-canvas__nodes > g[aria-pressed="true"] .knowledge-graph-canvas__dot,
 .knowledge-graph-canvas__nodes > g[data-emphasis="active"] .knowledge-graph-canvas__dot,
 .knowledge-graph-canvas__nodes > g:focus-visible .knowledge-graph-canvas__dot {
-  fill: var(--graph-fill-highlight, var(--graph-node-focused, var(--ui-color-accent, currentColor)));
+  fill: var(
+    --graph-fill-highlight,
+    var(--graph-node-focused, var(--ui-color-accent, currentColor))
+  );
 }
 
 .knowledge-graph-canvas__nodes > g:focus-visible .knowledge-graph-canvas__halo {

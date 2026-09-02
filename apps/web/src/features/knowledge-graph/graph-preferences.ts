@@ -35,9 +35,10 @@ export function parseGraphPreferences(raw: string | null): GraphPreferences {
   try {
     const value = JSON.parse(raw) as Record<string, unknown>;
     const parsedDepth = Math.trunc(Number(value["depth"]));
-    const depth = (
-      Number.isFinite(parsedDepth) ? Math.max(1, Math.min(3, parsedDepth)) : 2
-    ) as 1 | 2 | 3;
+    const depth = (Number.isFinite(parsedDepth) ? Math.max(1, Math.min(3, parsedDepth)) : 2) as
+      | 1
+      | 2
+      | 3;
     const zoomValue = Number(value["zoom"]);
     const zoom = Number.isFinite(zoomValue) && zoomValue >= 0.01 ? Math.min(4, zoomValue) : 1;
     const nodeKinds = Array.isArray(value["nodeKinds"])
