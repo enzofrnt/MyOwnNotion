@@ -560,6 +560,11 @@
   padding-top: 0;
 }
 
+.workspace-page-canvas[hidden],
+.workspace-page-session[hidden] {
+  display: none;
+}
+
 .workspace-page-title {
   display: flex;
   width: 100%;

@@ -3,6 +3,7 @@ import {
   DEFAULT_GRAPH_FORCES,
   type GraphForceRuntime,
   type GraphForceSettings,
+  type GraphLayout,
   type GraphProjection,
 } from "@myownnotion/graph";
 import {
@@ -13,10 +14,18 @@ import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useImperativeHandle,
-  useMemo,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
+import {
+  GRAPH_LABEL_FONT,
+  graphPositionMap,
+  graphViewBox,
+  paintGraphCamera,
+  paintGraphLayout,
+  shortGraphLabel,
+} from "./graph-canvas-paint.ts";
 import { GRAPH_COPY } from "./graph-copy.ts";
 import {
   applyWheelZoom,
@@ -25,111 +34,32 @@ import {
   createTrackpadCoastState,
 } from "./graph-view-transform.ts";
 
-function shortLabel(value: string | null): string {
-  const label = value?.trim() || GRAPH_COPY.noName;
-  return label.length <= 26 ? label : `${label.slice(0, 23)}…`;
-}
-
-/** World-space type size: labels shrink on screen when zoomed out, like Obsidian. */
-const LABEL_FONT = 12;
-
-/** Obsidian text-fade at default multiplier 0: ghosted when zoomed out, solid when close. */
-function labelAlpha(zoom: number, pinned: boolean): number {
-  if (pinned) return 1;
-  return Math.min(1, Math.max(0, (zoom - 0.55) / 0.5));
-}
-
-interface LabelBox {
-  readonly left: number;
-  readonly right: number;
-  readonly top: number;
-  readonly bottom: number;
-}
-
-function labelBox(x: number, y: number, radius: number, text: string): LabelBox {
-  const width = Math.max(24, text.length * LABEL_FONT * 0.58);
-  const height = LABEL_FONT * 1.2;
-  const top = y + radius + 4;
-  return {
-    left: x - width / 2,
-    right: x + width / 2,
-    top,
-    bottom: top + height,
-  };
-}
-
-function boxesOverlap(left: LabelBox, right: LabelBox, pad: number): boolean {
-  return (
-    left.left < right.right + pad &&
-    left.right + pad > right.left &&
-    left.top < right.bottom + pad &&
-    left.bottom + pad > right.top
-  );
-}
-
-function visibleLabelIds(
-  projection: GraphProjection,
-  positions: ReadonlyMap<
-    string,
-    { readonly x: number; readonly y: number; readonly radius: number }
-  >,
-  selectedId: string | null,
-  hoveredId: string | null,
-  highlightedIds: ReadonlySet<string> | null,
-  zoom: number,
-): ReadonlySet<string> {
-  const pinned = new Set<string>();
-  if (selectedId !== null) pinned.add(selectedId);
-  if (hoveredId !== null) pinned.add(hoveredId);
-  if (projection.focusId !== null) pinned.add(projection.focusId);
-  if (highlightedIds !== null) {
-    for (const id of highlightedIds) pinned.add(id);
-  }
-  const fade = labelAlpha(zoom, false);
-  const ranked = [...projection.nodes].toSorted((left, right) => {
-    const pin = Number(pinned.has(right.id)) - Number(pinned.has(left.id));
-    if (pin !== 0) return pin;
-    return (
-      right.incomingOccurrenceCount - left.incomingOccurrenceCount ||
-      left.id.localeCompare(right.id)
-    );
-  });
-  const occupied: LabelBox[] = [];
-  const visible = new Set<string>();
-  const pad = fade < 0.45 ? 4 : 14;
-  const maxUnpinned = fade < 0.12 ? 0 : zoom < 0.85 ? 12 : zoom < 1.2 ? 22 : 40;
-  let unpinned = 0;
-  for (const node of ranked) {
-    const position = positions.get(node.id);
-    if (position === undefined) continue;
-    const radius = position.radius;
-    const text = shortLabel(node.name);
-    const box = labelBox(position.x, position.y, radius, text);
-    const mustShow = pinned.has(node.id);
-    if (!mustShow) {
-      if (unpinned >= maxUnpinned) continue;
-      if (occupied.some((taken) => boxesOverlap(taken, box, pad))) continue;
-      unpinned += 1;
-    }
-    occupied.push(box);
-    visible.add(node.id);
-  }
-  return visible;
-}
-
-function edgeEmphasis(
-  highlightedIds: ReadonlySet<string> | null,
-  sourceId: string,
-  targetId: string,
-): "normal" | "active" | "dimmed" {
-  if (highlightedIds === null) return "normal";
-  return highlightedIds.has(sourceId) && highlightedIds.has(targetId) ? "active" : "dimmed";
-}
-
 const NODE_DRAG_THRESHOLD = 4;
 
 function prefersReducedMotion(): boolean {
   return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+}
+
+function layoutWorldBox(layout: GraphLayout): {
+  readonly minX: number;
+  readonly minY: number;
+  readonly width: number;
+  readonly height: number;
+} {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const position of layout.positions) {
+    minX = Math.min(minX, position.x - position.radius);
+    minY = Math.min(minY, position.y - position.radius);
+    maxX = Math.max(maxX, position.x + position.radius);
+    maxY = Math.max(maxY, position.y + position.radius);
+  }
+  if (!Number.isFinite(minX)) {
+    return { minX: 0, minY: 0, width: layout.width, height: layout.height };
+  }
+  return { minX, minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
 }
 
 export interface GraphCanvasHandle {
@@ -168,12 +98,11 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
   const [layout, setLayout] = useState(() =>
     createGraphForceRuntime(projection).settle(forces, 36),
   );
-  const positions = useMemo(
-    () => new Map(layout.positions.map((position) => [position.id, position])),
-    [layout.positions],
-  );
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
   const container = useRef<HTMLElement>(null);
   const svg = useRef<SVGSVGElement>(null);
+  const zoomOutput = useRef<HTMLOutputElement>(null);
   const drag = useRef<{
     readonly pointerId: number;
     readonly clientX: number;
@@ -191,6 +120,40 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     moved: boolean;
   } | null>(null);
   const skipNodeClick = useRef(false);
+  const zoomRef = useRef(initialZoom);
+  const panRef = useRef({ x: 0, y: 0 });
+  const viewportRef = useRef({ width: layout.width, height: layout.height });
+  const hoveredIdRef = useRef<GraphProjection["nodes"][number]["id"] | null>(null);
+  const projectionRef = useRef(projection);
+  projectionRef.current = projection;
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const onZoomChangeRef = useRef(onZoomChange);
+  onZoomChangeRef.current = onZoomChange;
+  const paint = (): void => {
+    const target = svg.current;
+    if (target === null) return;
+    const current = layoutRef.current;
+    paintGraphCamera(
+      target,
+      zoomOutput.current,
+      panRef.current.x,
+      panRef.current.y,
+      viewportRef.current.width,
+      viewportRef.current.height,
+      zoomRef.current,
+    );
+    paintGraphLayout(
+      target,
+      projectionRef.current,
+      graphPositionMap(current),
+      selectedIdRef.current,
+      hoveredIdRef.current,
+      zoomRef.current,
+    );
+  };
+  const paintRef = useRef(paint);
+  paintRef.current = paint;
   const stepRef = useRef<() => void>(() => undefined);
   stepRef.current = () => {
     const current = runtimeRef.current;
@@ -198,7 +161,8 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       loopRef.current = 0;
       return;
     }
-    setLayout(current.tick(forcesRef.current));
+    layoutRef.current = current.tick(forcesRef.current);
+    paintRef.current();
     if (current.alpha >= 0.001 || nodeDrag.current !== null || current.alphaTarget > 0) {
       loopRef.current = requestAnimationFrame(() => stepRef.current());
       return;
@@ -209,77 +173,34 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     if (loopRef.current !== 0 || prefersReducedMotion()) return;
     loopRef.current = requestAnimationFrame(() => stepRef.current());
   };
-  const [zoom, setZoom] = useState(initialZoom);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const zoomRef = useRef(zoom);
-  const panRef = useRef(pan);
-  zoomRef.current = zoom;
-  panRef.current = pan;
-  const [dragging, setDragging] = useState<"pan" | "node" | false>(false);
-  const resolvedPositions = positions;
-  const [hoveredId, setHoveredId] = useState<GraphProjection["nodes"][number]["id"] | null>(null);
-  const [viewport, setViewport] = useState({ width: layout.width, height: layout.height });
-  const viewWidth = viewport.width / zoom;
-  const viewHeight = viewport.height / zoom;
-  const onZoomChangeRef = useRef(onZoomChange);
-  onZoomChangeRef.current = onZoomChange;
   const changeZoom = (next: number): void => {
     const clamped = clampGraphZoom(next);
     zoomRef.current = clamped;
-    setZoom(clamped);
     onZoomChangeRef.current?.(clamped);
+    paint();
   };
   const changeZoomRef = useRef(changeZoom);
   changeZoomRef.current = changeZoom;
-  const highlightedIds = useMemo(() => {
-    if (hoveredId === null) return null;
-    const highlighted = new Set([hoveredId]);
-    for (const edge of projection.edges) {
-      if (edge.sourceId === hoveredId) highlighted.add(edge.targetId);
-      if (edge.targetId === hoveredId) highlighted.add(edge.sourceId);
-    }
-    return highlighted;
-  }, [hoveredId, projection.edges]);
-  const labeledIds = useMemo(
-    () =>
-      visibleLabelIds(projection, resolvedPositions, selectedId, hoveredId, highlightedIds, zoom),
-    [highlightedIds, hoveredId, resolvedPositions, projection, selectedId, zoom],
-  );
-  const worldBox = useMemo(() => {
-    let minX = Number.POSITIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    for (const position of layout.positions) {
-      minX = Math.min(minX, position.x - position.radius);
-      minY = Math.min(minY, position.y - position.radius);
-      maxX = Math.max(maxX, position.x + position.radius);
-      maxY = Math.max(maxY, position.y + position.radius);
-    }
-    if (!Number.isFinite(minX))
-      return { minX: 0, minY: 0, width: layout.width, height: layout.height };
-    return { minX, minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
-  }, [layout.height, layout.positions, layout.width]);
   const fitView = (): void => {
+    const box = layoutWorldBox(layoutRef.current);
     const next = clampGraphZoom(
-      Math.min(viewport.width / worldBox.width, viewport.height / worldBox.height) * 0.92,
+      Math.min(viewportRef.current.width / box.width, viewportRef.current.height / box.height) *
+        0.92,
     );
-    const nextPan = {
-      x: worldBox.minX - (viewport.width / next - worldBox.width) / 2,
-      y: worldBox.minY - (viewport.height / next - worldBox.height) / 2,
+    panRef.current = {
+      x: box.minX - (viewportRef.current.width / next - box.width) / 2,
+      y: box.minY - (viewportRef.current.height / next - box.height) / 2,
     };
-    panRef.current = nextPan;
-    setPan(nextPan);
     changeZoom(next);
   };
   useImperativeHandle(ref, () => ({ fitView }));
-  const viewportRef = useRef(viewport);
-  viewportRef.current = viewport;
   const coastRef = useRef(createTrackpadCoastState());
   useEffect(() => {
-    const target = svg.current;
-    if (target === null) return;
-    const onWheel = (event: WheelEvent): void => {
+    const host = container.current;
+    if (host === null) return;
+    const target = svg.current ?? host;
+    const onWheel = (event: Event): void => {
+      if (!(event instanceof WheelEvent)) return;
       event.preventDefault();
       if (consumeTrackpadCoast(coastRef.current, event, performance.now())) return;
       const rect = target.getBoundingClientRect();
@@ -297,13 +218,11 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       });
       if (next === null) return;
       panRef.current = { x: next.panX, y: next.panY };
-      setPan(panRef.current);
       changeZoomRef.current(next.zoom);
     };
-    target.addEventListener("wheel", onWheel, { passive: false });
-    return () => target.removeEventListener("wheel", onWheel);
-    // Bind after each commit so the listener survives the first layout of the SVG.
-  });
+    target.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => target.removeEventListener("wheel", onWheel, { capture: true });
+  }, []);
   useEffect(() => {
     const host = container.current;
     if (host === null || typeof ResizeObserver === "undefined") return;
@@ -313,9 +232,9 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       const width = Math.max(1, entry.contentRect.width);
       const height = Math.max(1, entry.contentRect.height);
       if (width < 32 || height < 32) return;
-      setViewport((current) =>
-        current.width === width && current.height === height ? current : { width, height },
-      );
+      if (viewportRef.current.width === width && viewportRef.current.height === height) return;
+      viewportRef.current = { width, height };
+      paintRef.current();
     });
     observer.observe(host);
     return () => observer.disconnect();
@@ -333,41 +252,29 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       const created = createGraphForceRuntime(projection);
       runtimeRef.current = created;
       const settled = created.settle(forces, 120);
+      layoutRef.current = settled;
       setLayout(settled);
       const host = container.current;
       if (host !== null && host.clientWidth >= 64 && host.clientHeight >= 64) {
         const width = host.clientWidth;
         const height = host.clientHeight;
-        setViewport({ width, height });
-        let minX = Number.POSITIVE_INFINITY;
-        let minY = Number.POSITIVE_INFINITY;
-        let maxX = Number.NEGATIVE_INFINITY;
-        let maxY = Number.NEGATIVE_INFINITY;
-        for (const position of settled.positions) {
-          minX = Math.min(minX, position.x - position.radius);
-          minY = Math.min(minY, position.y - position.radius);
-          maxX = Math.max(maxX, position.x + position.radius);
-          maxY = Math.max(maxY, position.y + position.radius);
-        }
-        const boxWidth = Math.max(1, maxX - minX);
-        const boxHeight = Math.max(1, maxY - minY);
-        const fit = Math.min(width / boxWidth, height / boxHeight) * 0.92;
-        const nextZoom = clampGraphZoom(fit);
+        viewportRef.current = { width, height };
+        const box = layoutWorldBox(settled);
+        const nextZoom = clampGraphZoom(Math.min(width / box.width, height / box.height) * 0.92);
         zoomRef.current = nextZoom;
-        setZoom(nextZoom);
         onZoomChangeRef.current?.(nextZoom);
-        const fittedPan = {
-          x: minX - (width / nextZoom - boxWidth) / 2,
-          y: minY - (height / nextZoom - boxHeight) / 2,
+        panRef.current = {
+          x: box.minX - (width / nextZoom - box.width) / 2,
+          y: box.minY - (height / nextZoom - box.height) / 2,
         };
-        panRef.current = fittedPan;
-        setPan(fittedPan);
       }
     }
     if (!topologyChanged && prefersReducedMotion() && forcesChanged) {
       const frozen = runtimeRef.current;
       if (frozen !== null) {
-        setLayout(frozen.settle(forces, 120));
+        const settled = frozen.settle(forces, 120);
+        layoutRef.current = settled;
+        setLayout(settled);
       }
     }
     if (topologyChanged) {
@@ -379,25 +286,38 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     loopRef.current = 0;
     if (!prefersReducedMotion()) {
       loopRef.current = requestAnimationFrame(() => stepRef.current());
+    } else {
+      paintRef.current();
     }
     return () => {
       cancelAnimationFrame(loopRef.current);
       loopRef.current = 0;
     };
   }, [forces, projection]);
+  useLayoutEffect(() => {
+    paint();
+  });
+  const setDragging = (value: "pan" | "node" | false): void => {
+    const target = svg.current;
+    if (target === null) return;
+    if (value === false) target.removeAttribute("data-dragging");
+    else target.setAttribute("data-dragging", value);
+  };
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
     if ((event.target as Element).closest("[data-graph-node]") !== null) return;
     drag.current = {
       pointerId: event.pointerId,
       clientX: event.clientX,
       clientY: event.clientY,
-      panX: pan.x,
-      panY: pan.y,
+      panX: panRef.current.x,
+      panY: panRef.current.y,
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setDragging("pan");
   };
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    const viewWidth = viewportRef.current.width / zoomRef.current;
+    const viewHeight = viewportRef.current.height / zoomRef.current;
     const moving = nodeDrag.current;
     if (moving !== null && moving.pointerId === event.pointerId) {
       const rect = event.currentTarget.getBoundingClientRect();
@@ -414,19 +334,19 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
         moving.moved = true;
       }
       runtimeRef.current?.pin(moving.id, x, y);
-      setLayout(runtimeRef.current?.snapshot() ?? layout);
+      layoutRef.current = runtimeRef.current?.snapshot() ?? layoutRef.current;
+      paint();
       return;
     }
     const start = drag.current;
     if (start === null || start.pointerId !== event.pointerId) return;
     const rect = event.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-    const nextPan = {
+    panRef.current = {
       x: start.panX - (event.clientX - start.clientX) * (viewWidth / rect.width),
       y: start.panY - (event.clientY - start.clientY) * (viewHeight / rect.height),
     };
-    panRef.current = nextPan;
-    setPan(nextPan);
+    paint();
   };
   const finishPointerDrag = (event: ReactPointerEvent<SVGSVGElement>): void => {
     const moving = nodeDrag.current;
@@ -451,7 +371,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     itemId: GraphProjection["nodes"][number]["id"],
   ): void => {
     event.stopPropagation();
-    const position = resolvedPositions.get(itemId);
+    const position = graphPositionMap(layoutRef.current).get(itemId);
     if (position === undefined) return;
     nodeDrag.current = {
       pointerId: event.pointerId,
@@ -488,13 +408,14 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     currentId: GraphProjection["nodes"][number]["id"],
     direction: "ArrowRight" | "ArrowDown" | "ArrowLeft" | "ArrowUp",
   ): void => {
-    const current = resolvedPositions.get(currentId);
+    const positions = graphPositionMap(layoutRef.current);
+    const current = positions.get(currentId);
     if (current === undefined) return;
     const vertical = direction === "ArrowDown" || direction === "ArrowUp";
     const sign = direction === "ArrowRight" || direction === "ArrowDown" ? 1 : -1;
     const next = projection.nodes
       .flatMap((node) => {
-        const position = resolvedPositions.get(node.id);
+        const position = positions.get(node.id);
         if (position === undefined || node.id === currentId) return [];
         const primary = (vertical ? position.y - current.y : position.x - current.x) * sign;
         if (primary <= 0) return [];
@@ -524,14 +445,13 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       focusDirectional(itemId, event.key);
     } else if (event.key === "+" || event.key === "=") {
       event.preventDefault();
-      changeZoom(zoom + 0.25);
+      changeZoom(zoomRef.current + 0.25);
     } else if (event.key === "-") {
       event.preventDefault();
-      changeZoom(zoom - 0.25);
+      changeZoom(zoomRef.current - 0.25);
     } else if (event.key === "0") {
       event.preventDefault();
       panRef.current = { x: 0, y: 0 };
-      setPan({ x: 0, y: 0 });
       changeZoom(1);
     } else if (event.key === "Escape") {
       event.preventDefault();
@@ -540,6 +460,14 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     }
   };
 
+  const hoverNode = (itemId: GraphProjection["nodes"][number]["id"] | null): void => {
+    if (hoveredIdRef.current === itemId) return;
+    hoveredIdRef.current = itemId;
+    paint();
+  };
+  void layout;
+  const positions = graphPositionMap(layoutRef.current);
+
   return (
     <section
       className="knowledge-graph-canvas"
@@ -547,14 +475,19 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
       data-testid="knowledge-graph-canvas"
       aria-label="Carte du graphe. Utilisez Tab puis les flèches pour parcourir les éléments."
     >
-      <output className="ui-visually-hidden" aria-label="Niveau de zoom">
-        {Math.round(zoom * 100)} %
+      <output ref={zoomOutput} className="ui-visually-hidden" aria-label="Niveau de zoom">
+        {Math.round(zoomRef.current * 100)} %
       </output>
       <svg
         ref={svg}
-        viewBox={`${pan.x} ${pan.y} ${viewWidth} ${viewHeight}`}
-        data-dragging={dragging}
-        data-zoom={zoom < 0.75 ? "overview" : "close"}
+        viewBox={graphViewBox(
+          panRef.current.x,
+          panRef.current.y,
+          viewportRef.current.width,
+          viewportRef.current.height,
+          zoomRef.current,
+        )}
+        data-zoom={zoomRef.current < 0.75 ? "overview" : "close"}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishPointerDrag}
@@ -563,12 +496,16 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
         <title>Carte interactive du graphe de connaissances</title>
         <g className="knowledge-graph-canvas__edges">
           {projection.edges.map((edge) => {
-            const source = resolvedPositions.get(edge.sourceId);
-            const target = resolvedPositions.get(edge.targetId);
+            const source = positions.get(edge.sourceId);
+            const target = positions.get(edge.targetId);
             if (source === undefined || target === undefined) return null;
-            const emphasis = edgeEmphasis(highlightedIds, edge.sourceId, edge.targetId);
             return (
-              <g key={edge.key} data-availability={edge.availability} data-emphasis={emphasis}>
+              <g
+                key={edge.key}
+                data-graph-edge={edge.key}
+                data-availability={edge.availability}
+                data-emphasis="normal"
+              >
                 <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} />
               </g>
             );
@@ -576,15 +513,9 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
         </g>
         <g className="knowledge-graph-canvas__nodes">
           {projection.nodes.map((node) => {
-            const position = resolvedPositions.get(node.id);
+            const position = positions.get(node.id);
             if (position === undefined) return null;
             const radius = position.radius;
-            const labelPinned =
-              node.id === selectedId ||
-              node.id === hoveredId ||
-              node.id === projection.focusId ||
-              (highlightedIds?.has(node.id) ?? false);
-            const opacity = labeledIds.has(node.id) ? labelAlpha(zoom, labelPinned) : 0;
             return (
               // biome-ignore lint/a11y/useSemanticElements: SVG graph nodes cannot contain HTML buttons; keyboard handling preserves button semantics.
               <g
@@ -596,13 +527,7 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
                 data-graph-node={node.id}
                 data-kind={node.kind}
                 data-lifecycle={node.lifecycle}
-                data-emphasis={
-                  highlightedIds === null
-                    ? "normal"
-                    : highlightedIds.has(node.id)
-                      ? "active"
-                      : "dimmed"
-                }
+                data-emphasis="normal"
                 transform={`translate(${position.x} ${position.y})`}
                 onPointerDown={(event) => beginNodeDrag(event, node.id)}
                 onClick={(event) => handleNodeClick(event, node.id)}
@@ -610,10 +535,11 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
                   if (skipNodeClick.current) return;
                   onOpen?.(node.id);
                 }}
-                onPointerEnter={() => setHoveredId(node.id)}
+                onPointerEnter={() => hoverNode(node.id)}
+                onPointerOver={() => hoverNode(node.id)}
                 onPointerLeave={() => {
                   if (nodeDrag.current?.id === node.id) return;
-                  setHoveredId(null);
+                  hoverNode(null);
                 }}
                 onKeyDown={(event) => onNodeKeyDown(event, node.id)}
               >
@@ -622,16 +548,14 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
                   <circle className="knowledge-graph-canvas__halo" r={radius + 3} />
                 ) : null}
                 <circle className="knowledge-graph-canvas__dot" r={radius} />
-                {opacity > 0 ? (
-                  <text
-                    className="knowledge-graph-canvas__label"
-                    y={radius + (node.id === hoveredId ? 16 : 13)}
-                    fontSize={LABEL_FONT}
-                    opacity={opacity}
-                  >
-                    {shortLabel(node.name)}
-                  </text>
-                ) : null}
+                <text
+                  className="knowledge-graph-canvas__label"
+                  y={radius + 13}
+                  fontSize={GRAPH_LABEL_FONT}
+                  opacity={node.id === selectedId || node.id === projection.focusId ? 1 : 0}
+                >
+                  {shortGraphLabel(node.name)}
+                </text>
               </g>
             );
           })}

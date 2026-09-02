@@ -129,10 +129,12 @@ shell existant.
   pas des items actifs de kind `page`/`folder` une fois la projection chargée.
 - Ajout : effet sur `selectedItem` (page ou dossier actif) → `openTab`.
   Précédent/suivant passe par le même effet, donc un onglet fermé est rouvert
-  (FR-012). Un dossier dans l’arbre s’ouvre seulement au double-clic
-  (`resolveTreeRowPointerAction`) ; le clic simple planifie un
-  `toggleBranch` après `FOLDER_SINGLE_CLICK_DELAY_MS` pour distinguer un
-  repli d’un double-clic, sans `selectItemById` (FR-019).
+  (FR-012). Un dossier dans l’arbre s’ouvre seulement quand un second clic
+  arrive encore dans `FOLDER_SINGLE_CLICK_DELAY_MS` (`handleFolderRowPointerClick`) ;
+  le clic simple planifie un `toggleBranch` après ce délai. Le `dblclick` natif
+  est ignoré sur les dossiers : la fenêtre OS (~500 ms) est plus longue que le
+  délai, donc un clic pour déplier, une pause, puis un clic pour replier ne
+  doit pas ouvrir le dossier (FR-019).
 - Fermeture : `closeTab(id)` ; si `id === selectedId`, `selectItemById(voisin
   ?? null)` (suivant, sinon précédent, sinon `/notes`).
 - Élément mis à la corbeille : disparaît des items actifs → purgé ; si c’était

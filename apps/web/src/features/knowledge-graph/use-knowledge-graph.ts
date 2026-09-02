@@ -110,11 +110,23 @@ export function useKnowledgeGraph(
   const [source, setSource] = useState<NormalizedGraphSource | null>(null);
   const [errorCode, setErrorCode] = useState<KnowledgeGraphState["errorCode"]>(null);
   const retry = useCallback(() => setGeneration((value) => value + 1), []);
+  const rebuildTimer = useRef(0);
 
-  useEffect(
-    () => service.subscribeProjection(() => setGeneration((value) => value + 1)),
-    [service],
-  );
+  useEffect(() => {
+    return service.subscribeProjection((change) => {
+      if (change.kind !== "upsert") {
+        window.clearTimeout(rebuildTimer.current);
+        setGeneration((value) => value + 1);
+        return;
+      }
+      window.clearTimeout(rebuildTimer.current);
+      rebuildTimer.current = window.setTimeout(() => {
+        setGeneration((value) => value + 1);
+      }, 200);
+    });
+  }, [service]);
+
+  useEffect(() => () => window.clearTimeout(rebuildTimer.current), []);
 
   useEffect(() => {
     // Projection changes and manual retries both invalidate this derivation.

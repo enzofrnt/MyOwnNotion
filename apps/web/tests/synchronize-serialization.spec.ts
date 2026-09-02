@@ -115,6 +115,34 @@ describe("synchronize serialization", () => {
     expect(synchronizePage).toHaveBeenCalledTimes(1);
   });
 
+  it("does not exchange idle cached reconcilers that have no queued work", async () => {
+    const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
+    service = new LocalContentService(makeApi(recorder), `idle-reconciler-${Date.now()}`);
+    const idleId = generateUuidV7();
+    const queuedId = generateUuidV7();
+    service.pageReconciler(idleId);
+    vi.spyOn(service.pageOperationLog, "listPageIdsWithUpdates").mockResolvedValue([queuedId]);
+    vi.spyOn(service.pageOperationLog, "listPageIdsWithLegacyBranches").mockResolvedValue([]);
+    const seen: string[] = [];
+    const synchronizePage = vi.fn().mockResolvedValue({
+      kind: "synced" as const,
+      exchanges: 1,
+      latestPageSequence: 1,
+      fileRequirements: [],
+    });
+    vi.spyOn(service, "pageReconciler").mockImplementation((pageId) => {
+      seen.push(pageId);
+      return { synchronize: synchronizePage } as unknown as ReturnType<
+        LocalContentService["pageReconciler"]
+      >;
+    });
+
+    await service.initialize();
+
+    expect(seen).toEqual([queuedId]);
+    expect(synchronizePage).toHaveBeenCalledTimes(1);
+  });
+
   it("converts a durable legacy branch after its editor has closed", async () => {
     const recorder: Recorder = { passes: 0, peakConcurrency: 0 };
     service = new LocalContentService(makeApi(recorder), `closed-legacy-${Date.now()}`);

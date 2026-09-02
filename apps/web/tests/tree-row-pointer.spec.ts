@@ -3,6 +3,7 @@ import {
   applyTreeRowPointerAction,
   createFolderClickScheduler,
   FOLDER_SINGLE_CLICK_DELAY_MS,
+  handleFolderRowPointerClick,
   resolveTreeRowPointerAction,
 } from "../src/features/navigation/tree-row-pointer.ts";
 
@@ -80,5 +81,34 @@ describe("createFolderClickScheduler", () => {
     scheduler.cancel();
     vi.advanceTimersByTime(FOLDER_SINGLE_CLICK_DELAY_MS * 2);
     expect(toggle).not.toHaveBeenCalled();
+  });
+
+  it("treats a second click inside the window as the double-click, not a native dblclick", () => {
+    vi.useFakeTimers();
+    const scheduler = createFolderClickScheduler();
+    const toggle = vi.fn();
+    const expand = vi.fn();
+    const open = vi.fn();
+    handleFolderRowPointerClick(scheduler, { toggle, expand, open });
+    handleFolderRowPointerClick(scheduler, { toggle, expand, open });
+    vi.advanceTimersByTime(FOLDER_SINGLE_CLICK_DELAY_MS * 2);
+    expect(toggle).not.toHaveBeenCalled();
+    expect(expand).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledOnce();
+  });
+
+  it("collapses on a later click even if the engine would still fire dblclick", () => {
+    vi.useFakeTimers();
+    const scheduler = createFolderClickScheduler();
+    const toggle = vi.fn();
+    const expand = vi.fn();
+    const open = vi.fn();
+    handleFolderRowPointerClick(scheduler, { toggle, expand, open });
+    vi.advanceTimersByTime(FOLDER_SINGLE_CLICK_DELAY_MS);
+    expect(toggle).toHaveBeenCalledOnce();
+    handleFolderRowPointerClick(scheduler, { toggle, expand, open });
+    vi.advanceTimersByTime(FOLDER_SINGLE_CLICK_DELAY_MS);
+    expect(toggle).toHaveBeenCalledTimes(2);
+    expect(open).not.toHaveBeenCalled();
   });
 });

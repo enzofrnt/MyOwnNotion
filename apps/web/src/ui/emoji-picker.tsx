@@ -150,7 +150,11 @@ export function ItemEmojiPicker({
           )}
         </PopoverTrigger>
         <PopoverContent className="emoji-picker-popover">
-          <EmojiPickerPanel factory={factory} value={value} onSelect={select} />
+          <EmojiPickerPanel
+            {...(factory === undefined ? {} : { factory })}
+            value={value}
+            onSelect={select}
+          />
         </PopoverContent>
       </PopoverRoot>
       {value === null ? null : (

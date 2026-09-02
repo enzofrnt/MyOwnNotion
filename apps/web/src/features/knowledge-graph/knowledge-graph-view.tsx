@@ -159,7 +159,12 @@ export function KnowledgeGraphView({
     setSelectedId(graph.projection.focusId ?? graph.projection.nodes[0]?.id ?? null);
   }, [graph.projection, selectedId]);
 
+  const preferencesRef = useRef(preferences);
+  preferencesRef.current = preferences;
+  const zoomSaveTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(zoomSaveTimer.current), []);
   const setPreference = (next: GraphPreferences): void => {
+    preferencesRef.current = next;
     setPreferences(next);
     writeGraphPreferences(next);
   };
@@ -200,7 +205,12 @@ export function KnowledgeGraphView({
             onSelect={setSelectedId}
             onOpen={onOpenItem}
             onClearSelection={() => setSelectedId(null)}
-            onZoomChange={(zoom) => setPreference({ ...preferences, zoom })}
+            onZoomChange={(zoom) => {
+              window.clearTimeout(zoomSaveTimer.current);
+              zoomSaveTimer.current = window.setTimeout(() => {
+                setPreference({ ...preferencesRef.current, zoom });
+              }, 400);
+            }}
           />
         )}
 
