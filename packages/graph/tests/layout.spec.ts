@@ -123,6 +123,8 @@ describe("relation-driven graph layout", () => {
     runtime.tick({ ...DEFAULT_GRAPH_FORCES, linkDistance: 30 });
     runtime.unpin(a.id);
     runtime.unpin(c.id);
+    runtime.reheat();
+    runtime.reheat(2);
     expect(runtime.settle(DEFAULT_GRAPH_FORCES, 0).positions).toHaveLength(3);
     runtime.pin(a.id, Number.NaN, Number.NaN);
     runtime.pin(b.id, Number.NaN, Number.NaN);
