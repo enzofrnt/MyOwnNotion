@@ -19,7 +19,7 @@ import {
   reauthorizeRealtimeDevice,
 } from "../security/realtime-authorization.ts";
 import type { RequestPrincipal } from "../security/request-context.ts";
-import { trustedRealtimeOrigins, type SecurityConfig } from "../security/security-config.ts";
+import { type SecurityConfig, trustedRealtimeOrigins } from "../security/security-config.ts";
 
 type OwnerPrincipal = Extract<RequestPrincipal, { kind: "owner" }>;
 type PageSyncSessionFactory = (deps: PageSyncSessionDeps) => void;
