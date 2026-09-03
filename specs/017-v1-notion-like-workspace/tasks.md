@@ -756,10 +756,9 @@ elle va, et garder le curseur de prise en cours pendant tout le geste.
 
 ## Phase 23: Convergence finale V1 — intégration du graphe 010
 
-**Purpose**: Après fusion du correctif en cours et livraison de la feature 010,
-intégrer backlinks et graphes au langage visuel et aux parcours communs sans
-dupliquer leurs règles métier dans la 017. La validation formelle de release
-reste parallèlement bloquée par la feature 021, dont l'implémentation et les
-preuves d'exploitation appartiennent à sa propre task list puis à la 008.
+**Purpose**: Après livraison de la feature 014 (desktop), intégrer backlinks et
+graphes au langage visuel et aux parcours communs sans dupliquer leurs règles
+métier dans la 017. La validation formelle de release reste ensuite bloquée par
+la feature 021.
 
-- [ ] T319 [US6] Après livraison de `specs/010-knowledge-graph`, intégrer ses destinations et états au shell, aux thèmes clair/sombre, aux largeurs desktop/mobile, au clavier, au catalogue français et aux références visuelles V1 ; exécuter les journeys croisés workspace–page–backlinks–graphe, mettre à jour `specs/017-v1-notion-like-workspace/validation.md`, puis relancer la convergence et le gate final per product canvas §6.1/§22, SC-003 à SC-006, SC-010 et Definition of Done
+- [ ] T319 [US6] Après livraison de `specs/014-desktop-clients`, intégrer les destinations graphe 010 au shell, aux thèmes clair/sombre, aux largeurs desktop/mobile, au clavier, au catalogue français et aux références visuelles V1 ; exécuter les journeys croisés workspace–page–backlinks–graphe, mettre à jour `specs/017-v1-notion-like-workspace/validation.md`, puis relancer la convergence et le gate final per product canvas §6.1/§22, SC-003 à SC-006, SC-010 et Definition of Done

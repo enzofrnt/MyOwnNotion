@@ -8,13 +8,16 @@
 **Tests**: Inclus, car les exigences de la feature imposent des tests unitaires,
 de contrat, Playwright et des smoke tests installés sur les deux plateformes.
 
+**Séquence** : prochain travail. Ne pas démarrer 021 / 017 T319 / 022 T040 avant
+ces tâches, sauf correctif bloquant sur `main`. Toolchain : Bun 1.4.0 uniquement.
+
 ## Phase 1: Setup
 
 **Purpose**: Ajouter le package desktop et rendre le toolchain reproductible.
 
-- [ ] T001 Ajouter `node-linker=hoisted` dans `.npmrc` et documenter la raison dans `docs/development.md` pour permettre le packaging Forge avec pnpm.
+- [ ] T001 Documenter l’installation Bun du workspace desktop et le layout `node_modules` requis par Electron Forge dans `docs/development.md` et `apps/desktop/package.json`, sans réintroduire pnpm, npm ni Yarn.
 - [ ] T002 Créer le package `@myownnotion/desktop` et ses scripts `dev`, `build`, `package`, `make`, `publish` dans `apps/desktop/package.json`.
-- [ ] T003 [P] Épingler Electron, Electron Forge, les makers Windows/macOS et leurs types dans `apps/desktop/package.json`, puis régénérer `pnpm-lock.yaml` avec pnpm 10.33.3.
+- [ ] T003 [P] Épingler Electron, Electron Forge, les makers Windows/macOS et leurs types dans `apps/desktop/package.json`, puis régénérer `bun.lock` avec Bun 1.4.0.
 - [ ] T004 [P] Créer les configurations TypeScript et Vite séparées du processus principal et du preload dans `apps/desktop/tsconfig.json`, `apps/desktop/vite.main.config.ts` et `apps/desktop/vite.preload.config.ts`.
 - [ ] T005 [P] Ajouter les scripts racine filtrés `desktop:dev`, `desktop:build`, `desktop:make` et `desktop:smoke` dans `package.json`.
 - [ ] T006 [P] Ajouter les checks de présence, version et artefact desktop dans `scripts/ci/check-desktop.ts` et les référencer dans `scripts/ci/check-toolchain.ts`.
@@ -174,10 +177,10 @@ transversaux avant convergence.
 
 - [ ] T064 [P] Ajouter les parcours d’accessibilité et de sécurité desktop aux projets Playwright dans `playwright.config.ts` et `tests/e2e/accessibility.spec.ts`.
 - [ ] T065 [P] Ajouter les benchmarks de lancement, IPC et reprise de coffre dans `apps/desktop/tests/desktop-performance.spec.ts`.
-- [ ] T066 [P] Mettre à jour `docs/development.md` avec les commandes pnpm, le runner natif requis et la procédure de test sans secrets.
+- [ ] T066 [P] Mettre à jour `docs/development.md` avec les commandes Bun, le runner natif requis et la procédure de test sans secrets.
 - [ ] T067 [P] Créer `specs/014-desktop-clients/validation.md` avec une preuve par FR/SC, les trois architectures et les éventuelles exceptions approuvées.
 - [ ] T068 Vérifier la couverture des artefacts par `spec.md`, `plan.md`, `tasks.md`, `data-model.md`, `contracts/` et `quickstart.md` dans `scripts/ci/check-desktop.ts`.
-- [ ] T069 Exécuter `pnpm checks:local`, les tests Playwright desktop et le quickstart complet, puis reporter les résultats dans `specs/014-desktop-clients/validation.md`.
+- [ ] T069 Exécuter `bun run checks:local`, les tests Playwright desktop et le quickstart complet, puis reporter les résultats dans `specs/014-desktop-clients/validation.md`.
 
 ## Dependencies & Execution Order
 

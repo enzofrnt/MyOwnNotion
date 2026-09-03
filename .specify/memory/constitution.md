@@ -1,5 +1,24 @@
 <!--
 Sync Impact Report
+- Version change: 3.0.0 -> 3.1.0
+- Modified principles: none
+- Modified sections:
+  - Product and Technical Constraints -> the first usable release now also
+    requires installable Electron hosts for Windows and macOS that reuse the
+    Web client against the self-hosted server
+- Added sections: none
+- Removed sections: none
+- Reviewed in the same change:
+  - `docs/product/product-canvas.md` sections 2, 6.1, 6.2, 7, 12.1, 47 and 49
+  - `docs/product/roadmap.md` feature 014 moved into V1
+  - `specs/014-desktop-clients/` product direction, Bun toolchain, and
+    dependencies (no wait on 011–013)
+- Follow-up work: none in this amendment; feature 014 remains unimplemented
+- Rationale: MINOR. This expands the first-release contract without changing
+  permanent single-user, encryption, or toolchain principles. iOS remains
+  after V1.
+
+Previous report (2.0.0 -> 3.0.0)
 - Version change: 2.0.0 -> 3.0.0
 - Modified principles:
   - VII. Reproducible Toolchains and Enforced Quality -> replaced the
@@ -200,7 +219,7 @@ than letting documentation drift behind the code.
 ## Product and Technical Constraints
 
 - The product is permanently single-user: one installation has exactly one owner and exactly one canonical workspace. There are no additional accounts, no user management, no roles, and no permission model between people. Multiple authorized *devices* belonging to that one owner, and anonymous read-only access to deliberately shared content, are in scope; multi-user accounts, teams, and real-time co-editing are out of scope permanently. Any feature that would introduce a second identity with its own content requires a MAJOR amendment to this constitution before it is specified.
-- The first usable release prioritizes workspaces, hierarchical pages, block editing, links, backlinks, search, and reliable persistence.
+- The first usable release prioritizes workspaces, hierarchical pages, block editing, links, backlinks, search, reliable persistence, and installable Electron hosts for Windows and macOS that reuse the Web client against the self-hosted server. iOS clients remain a later release.
 - Advanced databases, canvas, public sharing, plugins, MCP, Notion import, and real-time collaboration MUST be delivered as separate specs rather than folded into the core feature.
 - Tiptap is the initial editor candidate, but the selected editor architecture MUST preserve a documented internal content model and export path.
 - Self-hosting and container-based deployment are product goals; each infrastructure dependency MUST have a documented local-development path.
@@ -241,4 +260,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 3.0.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-08-27
+**Version**: 3.1.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-09-03

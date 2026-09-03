@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-02
 
-**Status**: Draft
+**Status**: In implementation
 
 **Input**: User description: "Les éléments qui définissent où nous sommes (fil d’Ariane) doivent aller juste au-dessus de l’emoji d’une page, sans être mis en avant, et sans dépasser une longueur trop grande : si le chemin est trop long, on met des … à la place des éléments intermédiaires. En haut de la page, intégrer une gestion des onglets : lorsqu’on ouvre une page, elle apparaît tout en haut parmi toutes les pages ouvertes ; quand il y a trop de pages on peut scroller de gauche à droite pour chercher la nôtre ; chaque onglet montre l’emoji et le nom complet de la page, terminé par … s’il est trop long ; les dossiers peuvent aussi apparaître dans les onglets. Dans une page qui est un dossier, on affiche toujours à la place du contenu la liste de son contenu : on ne peut pas taper de texte, on a la liste de ses enfants sous forme de liens, dont on peut réorganiser l’ordre, et cet ordre se répercute dans l’arborescence."
 

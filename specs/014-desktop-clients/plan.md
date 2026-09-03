@@ -4,6 +4,10 @@
 
 ## Summary
 
+**Prochain travail d'implémentation**, avant la clôture V1. La chaîne Bun 1.4.0
+est déjà exclusive (feature 019) ; ce plan n'introduit ni pnpm ni Node.js
+first-party.
+
 Créer un hôte desktop Electron pour le client Web existant, distribué sur
 Windows 10/11 x64 et macOS 12+ Intel/Apple Silicon. Le rendu réutilise
 `apps/web` et `packages/client-core`; la couche native se limite à la fenêtre,
@@ -20,17 +24,18 @@ proxy métier ni un serveur local.
 
 ## Product-canvas traceability, dependencies, and exclusions
 
-- **Canevas**: section 7, avec les invariants des sections 5, 9, 17 à 20, 28
-  à 30 et 36 à 45.
-- **Dépendances**: features 001 à 013; les fonctionnalités métier restent
-  testées et possédées par leurs features, tandis que 014 ajoute leur hôte.
+- **Canevas**: sections 6.1, 7 et 47, avec les invariants des sections 5, 9, 17
+  à 20, 28 à 30 et 36 à 45.
+- **Dépendances**: fondations V1 du client Web (001 à 010, 016 à 020, 022) et
+  chaîne Bun 019. Les fonctionnalités métier restent testées et possédées par
+  leurs features ; 014 ajoute leur hôte. 011 à 013 ne sont pas des prérequis.
 - **Exclusions**: nouvelles fonctionnalités métier, serveur embarqué, seconde
   base canonique, iOS/Android/Linux, Mac App Store, plugins arbitraires,
   télémétrie non consentie et stockage non chiffré.
 
 ## Technical Context
 
-**Language/Version**: TypeScript uniquement; Node.js `>=24.0.0 <25`; pnpm `10.33.3`
+**Language/Version**: TypeScript strict; Bun `1.4.0` exactement pour les dépendances workspace, les scripts et l'outillage first-party. Electron (version épinglée) est le runtime hôte de l'application packagée, pas un second gestionnaire de paquets.
 
 **Primary Dependencies**: Electron version épinglée; Electron Forge et makers
 Windows/macOS épinglés; Vite; React; `@myownnotion/client-core`, `contracts`,
@@ -70,12 +75,12 @@ macOS arm64)
 | Principe | Décision de conception | Gate |
 | --- | --- | --- |
 | I. Propriété et résilience locale | Le rendu réutilise la projection/outbox existante; le serveur n’est pas requis pour lire ou reprendre les changements déjà présents | PASS |
-| II/VIII. Spec et direction produit | La feature cite le canevas, la roadmap et les dépendances 001–013; elle ne redéfinit aucune identité canonique | PASS |
+| II/VIII. Spec et direction produit | La feature cite le canevas V1, la roadmap et les dépendances Web 001–010/016–022; elle ne redéfinit aucune identité canonique | PASS |
 | III. Livraison vérifiable | Chaque parcours desktop possède un test indépendant, un smoke test installé et une validation de release; les contrôles suivent local → PR → release | PASS |
 | IV. Confidentialité et sécurité | Rendu isolé, IPC minimal, clé protégée par l’OS, contenu local chiffré, logs expurgés, signatures et refus fail-closed | PASS |
 | V. Architecture simple | Une couche desktop mince au-dessus du client Web; pas de serveur, DB ou domaine parallèle | PASS |
 | VI. Expérience prévisible | Clavier, focus, états hors ligne, erreurs et mises à jour explicités; les comportements métier restent ceux du Web | PASS |
-| VII. Toolchain reproductible | pnpm reste exclusif; versions Electron/Forge sont lockées; CI utilise des runners natifs et publie seulement après gate complet | PASS |
+| VII. Toolchain reproductible | Bun 1.4.0 reste exclusif pour paquets et scripts; versions Electron/Forge sont lockées; CI utilise des runners natifs et publie seulement après gate complet | PASS |
 
 No design violation or unresolved clarification remains. The remaining risks
 are implementation and release-environment risks, covered by tasks and the
@@ -180,12 +185,12 @@ il n’importe ni domaine, ni repository, ni DB.
 | Principe | Preuve du design | Gate |
 | --- | --- | --- |
 | I | La projection chiffrée, l’outbox, la reprise et l’export restent dans le client-core | PASS |
-| II/VIII | Les responsabilités sont liées à la section 7 et aux features 001–013 sans duplication | PASS |
+| II/VIII | Les responsabilités sont liées aux sections 6.1, 7 et 47 et aux fondations V1 du client Web sans duplication | PASS |
 | III | Les tâches sont ordonnées par fondation → onboarding/offline → natif → update → release, chacune avec critères vérifiables | PASS |
 | IV | Les secrets et clés sont confinés, les origines sont contrôlées, les erreurs sont expurgées et les artefacts signés | PASS |
 | V | Aucun service ou modèle canonique parallèle n’est introduit | PASS |
 | VI | Les parcours existants sont rejoués dans le desktop et les capacités natives conservent clavier/focus | PASS |
-| VII | Le lockfile pnpm, les versions épinglées, les runners natifs et les gates de release sont documentés | PASS |
+| VII | `bun.lock`, Bun 1.4.0, les versions Electron/Forge épinglées, les runners natifs et les gates de release sont documentés | PASS |
 
 ## Complexity Tracking
 

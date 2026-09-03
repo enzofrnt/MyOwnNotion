@@ -4,24 +4,40 @@
 
 **Created**: 2026-08-16
 
-**Status**: Ready for planning
+**Status**: Next implementation — start now
 
 **Input**: User description: "Planifier la création des applications Electron Windows et macOS à la suite de la trajectoire prévue, en réutilisant les fondations et le workflow Spec Kit du dépôt."
 
 ## Product Direction, Dependencies, and Scope
 
-Cette feature concrétise la section 7 du
+Cette feature concrétise les sections 6.1, 7 et 47 du
 [`docs/product/product-canvas.md`](../../docs/product/product-canvas.md) et la
-feature 014 de la roadmap. Elle transforme le client Web existant en
-applications de bureau distribuables pour Windows et macOS, sans créer une
-seconde source de vérité métier.
+feature 014 de la roadmap. Depuis la clarification du 3 septembre 2026, elle
+est le **prochain travail d'implémentation**, avant la clôture formelle de la
+V1 : le Web responsive ne suffit plus ; le propriétaire doit aussi pouvoir
+installer un hôte desktop Windows et macOS. Les journaux serveur (021), le
+journey Playwright 022 T040 et la convergence finale 017 T319 attendent la
+livraison de cette feature. Elle transforme le client Web existant en
+applications de bureau distribuables, sans créer une seconde source de vérité
+métier.
 
-Elle dépend des fondations et capacités livrées par les features 001 à 013 :
-modèle canonique, sécurité du propriétaire, expérience workspace, conversion
-des items, fichiers, synchronisation, sauvegarde/récupération, recherche,
-bases structurées, graphe, tableaux blancs, partage public et MCP. Les
-features métier restent propriétaires de leurs contrats et parcours ; cette
+La chaîne d'outils exclusive est déjà Bun 1.4.0 (feature 019, fusionnée) :
+`bun ci`, `bun.lock`, scripts et images. Cette feature ne réintroduit ni
+pnpm, ni npm, ni Yarn, ni un runtime Node.js first-party. Electron packagé
+reste l'hôte natif de la fenêtre, pas un second gestionnaire de paquets.
+
+Elle dépend des fondations V1 du client Web déjà livrées ou en cours : modèle
+canonique (001), sécurité (002), workspace et éditeur (003, 017), conversion
+(004), fichiers (005), synchronisation (006, 018), sauvegarde (007), recherche
+(008), bases déjà livrées (009), graphe (010), chaîne Bun (019) et routage
+(020, 022). Les features métier restent propriétaires de leurs contrats ; cette
 feature fournit leur hôte desktop commun.
+
+Elle ne dépend pas des tableaux blancs, du partage public ni de MCP (011 à
+013). Ces capacités restent après la V1 ; le même hôte les accueillera plus
+tard sans seconde application. La feature 021 (journaux serveur) reste une
+condition de sortie V1 distincte : son implémentation commence **après** la
+014. Elle ne bloque pas le démarrage du desktop.
 
 Le produit reste strictement mono-utilisateur : une installation possède un
 seul propriétaire, un seul workspace canonique et plusieurs appareils
@@ -319,9 +335,11 @@ mise à jour.
 
 ## Assumptions
 
-- Les features 001 à 013 livrent leurs contrats stables et leurs parcours
-  nécessaires avant l’implémentation de 014 ; si une dépendance reste ouverte,
-  elle doit être isolée comme tâche bloquante plutôt que contournée.
+- Les fondations V1 du client Web (001 à 010, 016 à 020, 022) et la chaîne Bun
+  019 livrent leurs contrats stables avant ou en parallèle de 014. Les
+  features 011 à 013 ne sont pas des prérequis. Si une dépendance V1 encore
+  ouverte touche le hôte (par exemple une nouvelle route), elle doit être
+  isolée comme tâche plutôt que contournée.
 - Le client desktop embarque l’interface locale et communique avec le serveur
   auto-hébergé ; il ne remplace pas le serveur et ne fournit pas de mode
   autonome séparé.

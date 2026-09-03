@@ -7,8 +7,8 @@ spécifiques aux plateformes. Garder le build du rendu sous le contrôle de la
 configuration Vite existante; ne pas introduire une seconde application React.
 
 **Rationale**: Forge regroupe packaging, makers, signature et publication et
-documente le support pnpm, à condition d’utiliser un `node-linker=hoisted` pour
-que les dépendances soient empaquetables. Le plugin Vite Forge reste indiqué
+s’installe avec Bun 1.4.0, qui produit un `node_modules` classique empaquetable
+sans réintroduire pnpm, npm ni Yarn. Le plugin Vite Forge reste indiqué
 comme expérimental dans sa documentation; le plan limite donc son usage aux
 processus natifs si nécessaire et conserve `apps/web` comme build de rendu
 réutilisée.
