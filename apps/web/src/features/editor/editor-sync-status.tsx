@@ -58,10 +58,12 @@ export type EditorDurableSession = PageEditingSession | LegacyPageEditingSession
 export function EditorSyncStatus({
   session,
   editorSettled = true,
+  discoverable = true,
 }: {
   readonly session: EditorDurableSession;
   /** False while visible browser input has not reached durable page storage yet. */
   readonly editorSettled?: boolean;
+  readonly discoverable?: boolean;
 }) {
   const [sync, setSync] = useState<PageSyncState>(session.sync);
   const remoteAdoptionErrorType =
@@ -92,7 +94,7 @@ export function EditorSyncStatus({
   return (
     <div
       className="editor-sync-status"
-      data-testid="editor-sync-control"
+      data-testid={discoverable ? "editor-sync-control" : undefined}
       data-placement="viewport-bottom"
       data-requires-action={requiresAction || undefined}
     >
@@ -101,7 +103,7 @@ export function EditorSyncStatus({
           <AppIcon name={requiresAction ? "conflict" : "info"} size="small" />
           <span
             className="editor-sync-status__label"
-            data-testid="editor-sync-status"
+            data-testid={discoverable ? "editor-sync-status" : undefined}
             data-state={displayedKind}
             data-sync={displayedSynchronizationKind}
             data-durable={displayedLocallyDurable ? "true" : "false"}
@@ -112,7 +114,7 @@ export function EditorSyncStatus({
             role="status"
             aria-live="polite"
           >
-            <strong data-testid="editor-sync-label">{label}</strong>
+            <strong data-testid={discoverable ? "editor-sync-label" : undefined}>{label}</strong>
           </span>
         </summary>
         <div className="editor-sync-status__details">

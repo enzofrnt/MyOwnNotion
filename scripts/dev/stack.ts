@@ -11,6 +11,8 @@
  *   bun run dev:stack --logs
  *   bun run dev:stack --down
  *   bun run dev:stack --reset
+ *   bun run dev:stack --demo
+ *   bun run dev:stack --demo-repeat
  *   bun run dev:trust
  */
 import { spawnSync } from "node:child_process";
@@ -74,7 +76,33 @@ function resetDevData(): void {
   if (compose([...upArgs]) !== 0) {
     fail("Could not recreate the development stack after the reset.");
   }
-  console.info("Development data reset. Open https://localhost:8443");
+  console.info("Development data reset. Open http://localhost:8080 (or https://localhost:8443)");
+}
+
+function seedKnowledgeGraphDemo(): void {
+  resetDevData();
+  console.info("Seeding the disposable Knowledge Graph workspace through the local API.");
+  const result = spawnSync(
+    "docker",
+    [
+      "compose",
+      "-f",
+      composeFile,
+      "exec",
+      "-T",
+      "-e",
+      "MYOWNNOTION_DEMO_CONFIRMATION=RESET_LOCAL_KNOWLEDGE_GRAPH_DEMO",
+      "api",
+      "bun",
+      "scripts/dev/seed-knowledge-graph-demo.ts",
+    ],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
+  if (result.error !== undefined || result.status !== 0) {
+    fail(
+      `The demo workspace was not declared ready. Fix the cause and rerun bun run dev:stack:demo.`,
+    );
+  }
 }
 
 function ensureDeploymentKey(): void {
@@ -112,6 +140,18 @@ if (args.includes("--reset")) {
   resetDevData();
   process.exit(0);
 }
+if (args.includes("--demo")) {
+  seedKnowledgeGraphDemo();
+  process.exit(0);
+}
+if (args.includes("--demo-repeat")) {
+  for (let run = 1; run <= 10; run += 1) {
+    console.info(`Knowledge Graph reset and generation proof ${run}/10.`);
+    seedKnowledgeGraphDemo();
+  }
+  console.info("Ten complete Knowledge Graph demo generations passed.");
+  process.exit(0);
+}
 if (args.includes("--trust") || args.includes("--ca")) {
   trustCaddy();
   process.exit(0);
@@ -124,8 +164,8 @@ ensureDeploymentKey();
 if (compose([...upArgs]) !== 0) {
   fail("Could not start the development stack.");
 }
-console.info("Stack is detached. Open https://localhost:8443");
+console.info("Stack is detached. Open http://localhost:8080 (Cursor) or https://localhost:8443");
 console.info("Bun --watch and Vite HMR reload inside the containers.");
 console.info("Logs: bun run dev:stack:logs   Stop: bun run dev:stack:down");
-console.info("Trust the local CA with `bun run dev:trust` if the browser warns.");
+console.info("System browsers: trust the local CA with `bun run dev:trust` if HTTPS warns.");
 process.exit(0);

@@ -92,7 +92,7 @@ describe("workspace shell", () => {
     expect(markup).not.toContain('id="workspace-navigation" hidden=""');
   });
 
-  it("keeps page title, synchronization and settings out of the compact page chrome", () => {
+  it("keeps page identity, path and synchronization out while exposing tabs and the compact action", () => {
     const markup = renderToStaticMarkup(
       <PageHeader
         title="Projet Atlas"
@@ -101,16 +101,18 @@ describe("workspace shell", () => {
           { id: "projects", label: "Projets", onOpen: () => undefined },
           { id: "atlas", label: "Projet Atlas" },
         ]}
+        tabs={<div data-testid="open-tabs">onglets</div>}
         status="Synchronisé"
         actions={<button type="button">Plus d’actions</button>}
       />,
     );
-    expect(markup).toContain('aria-label="Fil d’Ariane"');
-    expect(markup).toContain('aria-current="page"');
+    // The page path now lives above the emoji (spec 022, FR-001).
+    expect(markup).not.toContain('aria-label="Fil d’Ariane"');
+    expect(markup).toContain('data-testid="open-tabs"');
     expect(markup).not.toContain('data-testid="active-item-title"');
-    expect(markup).not.toContain('data-testid="page-context-actions"');
+    expect(markup).toContain('data-testid="page-context-actions"');
     expect(markup).not.toContain("Synchronisé");
-    expect(markup).not.toContain("Plus d’actions");
+    expect(markup).toContain("Plus d’actions");
     expect(markup).not.toContain("workspace-page-header__identity");
   });
 
@@ -123,7 +125,37 @@ describe("workspace shell", () => {
       />,
     );
     expect(markup).toContain('data-compact="true"');
+    expect(markup).not.toContain('aria-label="Fil d’Ariane"');
+    expect(markup).not.toContain("workspace-page-header__identity");
+    expect(markup).not.toContain('data-testid="active-item-heading"');
+  });
+
+  it("still names the context of non-page surfaces without a product-name segment", () => {
+    const markup = renderToStaticMarkup(
+      <PageHeader
+        title="Bienvenue"
+        kind="workspace"
+        breadcrumbs={[{ id: "workspace", label: "Espace de travail" }]}
+      />,
+    );
     expect(markup).toContain('aria-label="Fil d’Ariane"');
+    expect(markup).toContain("Espace de travail");
+    expect(markup).not.toContain("MyOwnNotion");
+    expect(markup).toContain('data-testid="active-item-heading"');
+  });
+
+  it("keeps the graph chrome as compact as a page so the canvas can fill the pane", () => {
+    const markup = renderToStaticMarkup(
+      <PageHeader
+        kind="graph"
+        title="Graphe de connaissances"
+        breadcrumbs={[{ id: "graph", label: "Espace complet" }]}
+        tabs={<div data-testid="open-tabs">Graphe</div>}
+      />,
+    );
+    expect(markup).toContain('data-compact="true"');
+    expect(markup).toContain('data-testid="open-tabs"');
+    expect(markup).not.toContain('aria-label="Fil d’Ariane"');
     expect(markup).not.toContain("workspace-page-header__identity");
     expect(markup).not.toContain('data-testid="active-item-heading"');
   });
@@ -170,15 +202,58 @@ describe("workspace shell", () => {
     expect(active.path.map((entry) => entry.name)).toEqual(["Archives", "Atlas 2027"]);
   });
 
+  it("reveals the add-icon control only while the title body is hovered or focused", () => {
+    const iconCss = readFileSync(new URL("../src/ui/item-icon.css", import.meta.url), "utf8");
+    const workspaceCss = readFileSync(
+      new URL("../src/features/workspace/workspace.css", import.meta.url),
+      "utf8",
+    );
+
+    expect(workspaceCss).toMatch(
+      /--workspace-page-icon-offset:\s*clamp\(var\(--space-10\),\s*8vh,\s*var\(--space-12\)\)/u,
+    );
+    expect(workspaceCss).toMatch(/padding:\s*var\(--workspace-page-icon-offset\)/u);
+    expect(iconCss).not.toMatch(
+      /\.item-emoji-picker\[data-picker-variant="page"\]\[data-empty\]\s*\{[^}]*position:\s*absolute/u,
+    );
+    expect(iconCss).toMatch(
+      /\.item-emoji-picker\[data-picker-variant="page"\]\[data-empty\]\s*\{[^}]*opacity:\s*0/u,
+    );
+    expect(iconCss).toMatch(
+      /\.workspace-page-title__body:hover \.item-emoji-picker\[data-picker-variant="page"\]\[data-empty\]/u,
+    );
+    expect(iconCss).toMatch(/\.workspace-page-title__body:hover \.item-emoji-picker__clear/u);
+    expect(iconCss).not.toMatch(/@media \(pointer: coarse\)\s*\{\s*\.item-emoji-picker__clear/u);
+  });
+
   it("lets a short page fill the main pane without inventing extra scroll", () => {
     const css = readFileSync(
       new URL("../src/features/workspace/workspace.css", import.meta.url),
       "utf8",
     );
 
-    expect(css).toMatch(/\.workspace-main\[data-content-mode="page"\]\s*\{[^}]*padding:\s*0/u);
-    expect(css).toMatch(/\.workspace-page-canvas\s*\{[^}]*flex:\s*1 0 auto/u);
-    expect(css).not.toMatch(/\.workspace-page-canvas\s*\{[^}]*100dvh/u);
+    expect(css).toMatch(/\.workspace-page-title__body,\s*\n\s*\.workspace-page-editor/u);
+    expect(css).toMatch(/--workspace-reading-width:\s*var\(--ui-reading-width\)/u);
+    expect(css).not.toMatch(/\.workspace-page-editor\s*\{[^}]*width:\s*100%/u);
+  });
+
+  it("keeps folder child names tight against the drag handle and creates with the sidebar plus", () => {
+    const css = readFileSync(
+      new URL("../src/features/workspace/workspace.css", import.meta.url),
+      "utf8",
+    );
+
+    expect(css).toMatch(/\.folder-children__handle\s*\{[^}]*width:\s*1\.25rem/u);
+    expect(css).toMatch(/\.folder-children__handle\s*\{[^}]*margin-inline-start:\s*-1\.25rem/u);
+    expect(css).toMatch(/\.folder-children__row\s*\{[^}]*gap:\s*0/u);
+    expect(css).toMatch(
+      /\.folder-children__link\s*\{[^}]*gap:\s*var\(--space-2\)[^}]*padding:\s*0 var\(--space-2\)/u,
+    );
+    expect(css).toMatch(/\.workspace-page-title__kind-actions\s*\{/u);
+    expect(css).toMatch(
+      /\.workspace-page-title__kind-actions\s*\{[^}]*margin-inline-start:\s*auto/u,
+    );
+    expect(css).not.toMatch(/\.folder-children__actions\s*\{/u);
   });
 
   it("uses the documented desktop, tablet and mobile breakpoints", () => {

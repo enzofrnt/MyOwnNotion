@@ -72,6 +72,11 @@ export default defineConfig({
   // direct the caller to the isolated local matrix.
   projects: BROWSER_PROJECTS.map(({ name, device }) => ({
     name,
+    // Linux WebKit can occasionally spend more than a minute inside its own
+    // `browser.newPage()` before application code starts. Its three recycled
+    // container shards bound that engine state; this wider total watchdog lets
+    // the engine return without weakening the 10–30 second functional waits.
+    timeout: name.startsWith("webkit-") ? 120_000 : 60_000,
     use: { ...devices[device] },
   })),
   webServer: [

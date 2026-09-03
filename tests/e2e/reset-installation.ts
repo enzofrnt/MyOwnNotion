@@ -13,6 +13,11 @@
  */
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import pg from "pg";
+import {
+  closeBoundedDatabaseClient,
+  forceCloseDatabaseClient,
+  withBoundedDatabaseClient,
+} from "./bounded-database.ts";
 
 /**
  * Every table migration `0004` owns, `installations` excepted.
@@ -55,7 +60,19 @@ const SECURITY_TABLES = [
 ] as const;
 
 const MAX_RESET_ATTEMPTS = 5;
-const RETRYABLE_TRANSACTION_CODES = new Set(["40P01", "40001"]);
+const MAX_SETUP_ATTEMPTS = 3;
+const SETUP_QUERY_TIMEOUT_MS = 5_000;
+const SETUP_OPERATION_TIMEOUT_MS = 10_000;
+const RETRYABLE_SETUP_CODES = new Set([
+  "40P01", // deadlock_detected
+  "40001", // serialization_failure
+  "55P03", // lock_not_available
+  "57014", // query_canceled by statement_timeout
+  "57P01", // admin_shutdown / recovered abandoned backend
+  "ECONNRESET",
+  "EPIPE",
+  "ETIMEDOUT",
+]);
 
 function postgresErrorCode(error: unknown): string | null {
   if (typeof error !== "object" || error === null || !("code" in error)) return null;
@@ -69,10 +86,67 @@ function connectionString(): string {
   );
 }
 
+function boundedSetupClient(applicationName: string): pg.Client {
+  return new pg.Client({
+    connectionString: connectionString(),
+    application_name: applicationName,
+    connectionTimeoutMillis: SETUP_QUERY_TIMEOUT_MS,
+    query_timeout: SETUP_QUERY_TIMEOUT_MS,
+    // Apply the bound before the first SELECT. A SET LOCAL issued after BEGIN
+    // cannot protect a query that is itself waiting to start the transaction.
+    options: `-c statement_timeout=${SETUP_QUERY_TIMEOUT_MS} -c lock_timeout=2000`,
+  });
+}
+
+/**
+ * Bounds a complete setup attempt, not only each SQL statement.
+ *
+ * A transaction can otherwise consume several query timeouts in sequence and
+ * then wait again while rolling back or closing. Ending an active pg client
+ * destroys its socket, so every pending query rejects and the retry policy can
+ * start from a fresh connection instead of exhausting Playwright's watchdog.
+ */
+function armSetupDeadline(client: pg.Client): ReturnType<typeof setTimeout> {
+  return setTimeout(() => {
+    forceCloseDatabaseClient(client);
+  }, SETUP_OPERATION_TIMEOUT_MS);
+}
+
+async function closeSetupClient(
+  client: pg.Client,
+  deadline: ReturnType<typeof setTimeout>,
+): Promise<void> {
+  clearTimeout(deadline);
+  await closeBoundedDatabaseClient(client);
+}
+
+function isRetryableSetupError(error: unknown): boolean {
+  const code = postgresErrorCode(error);
+  if (code !== null && RETRYABLE_SETUP_CODES.has(code)) return true;
+  if (!(error instanceof Error)) return false;
+  return /(?:query read timeout|connection terminated|timeout expired|client was closed)/iu.test(
+    error.message,
+  );
+}
+
+async function withSetupRetries<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; attempt <= MAX_SETUP_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetryableSetupError(error) || attempt === MAX_SETUP_ATTEMPTS) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, attempt * 100));
+    }
+  }
+  throw new Error("bounded E2E setup exhausted without returning or throwing");
+}
+
 async function resetSecurityInstallationOnce(): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
+  const client = boundedSetupClient("myownnotion-e2e-security-reset");
+  const deadline = armSetupDeadline(client);
+  let transactionOpen = false;
   try {
+    await client.connect();
     const { rows } = await client.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
@@ -89,6 +163,7 @@ async function resetSecurityInstallationOnce(): Promise<void> {
       );
     }
     await client.query("BEGIN");
+    transactionOpen = true;
     // Released before the child rows go, so no foreign key blocks the truncate.
     await client.query(
       `UPDATE installations SET state = 'uninitialized', owner_id = NULL, workspace_id = NULL`,
@@ -105,11 +180,14 @@ async function resetSecurityInstallationOnce(): Promise<void> {
       `TRUNCATE ${SECURITY_TABLES.map((table) => `"${table}"`).join(", ")} CASCADE`,
     );
     await client.query("COMMIT");
+    transactionOpen = false;
   } catch (error) {
-    await client.query("ROLLBACK");
+    if (transactionOpen) {
+      await client.query("ROLLBACK").catch(() => undefined);
+    }
     throw error;
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
 }
 
@@ -119,7 +197,7 @@ export async function resetSecurityInstallation(): Promise<void> {
       await resetSecurityInstallationOnce();
       return;
     } catch (error) {
-      const retryable = RETRYABLE_TRANSACTION_CODES.has(postgresErrorCode(error) ?? "");
+      const retryable = isRetryableSetupError(error);
       if (!retryable || attempt === MAX_RESET_ATTEMPTS) throw error;
       await new Promise<void>((resolve) => setTimeout(resolve, attempt * 50));
     }
@@ -138,9 +216,7 @@ export async function resetSecurityInstallation(): Promise<void> {
  * and the failures land nowhere near the test that caused them.
  */
 export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
-  try {
+  await withBoundedDatabaseClient("myownnotion-e2e-data-key-write-block", async (client) => {
     const { rows } = await client.query<{ id: string }>(`SELECT id FROM installations LIMIT 1`);
     const installationId = rows[0]?.id;
     if (installationId === undefined) {
@@ -165,9 +241,7 @@ export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
              state = EXCLUDED.state`,
       [installationId, new Date(Date.now() - 400 * day), new Date(Date.now() - day)],
     );
-  } finally {
-    await client.end();
-  }
+  });
 }
 
 /**
@@ -180,13 +254,9 @@ export async function setDataKeyWriteBlock(blocked: boolean): Promise<void> {
  * as "the row never appeared" with nothing pointing back here.
  */
 export async function clearRotationPolicies(): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
-  try {
+  await withBoundedDatabaseClient("myownnotion-e2e-clear-rotation-policies", async (client) => {
     await client.query(`DELETE FROM rotation_policies`);
-  } finally {
-    await client.end();
-  }
+  });
 }
 
 /**
@@ -203,26 +273,27 @@ export async function readCommittedCounts(): Promise<{
   ownerCount: number;
   workspaceCount: number;
 }> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
   try {
-    const { rows } = await client.query<{ owner_count: string; workspace_count: string }>(
-      `SELECT
-         (SELECT count(*) FROM owners)::text AS owner_count,
-         (SELECT count(*) FROM workspaces w
-            JOIN installations i ON i.workspace_id = w.id)::text AS workspace_count`,
+    return await withBoundedDatabaseClient(
+      "myownnotion-e2e-read-committed-counts",
+      async (client) => {
+        const { rows } = await client.query<{ owner_count: string; workspace_count: string }>(
+          `SELECT
+             (SELECT count(*) FROM owners)::text AS owner_count,
+             (SELECT count(*) FROM workspaces w
+                JOIN installations i ON i.workspace_id = w.id)::text AS workspace_count`,
+        );
+        const row = rows[0];
+        return {
+          ownerCount: Number(row?.owner_count ?? 0),
+          workspaceCount: Number(row?.workspace_count ?? 0),
+        };
+      },
     );
-    const row = rows[0];
-    return {
-      ownerCount: Number(row?.owner_count ?? 0),
-      workspaceCount: Number(row?.workspace_count ?? 0),
-    };
   } catch {
     // Before the security migration the `owners` relation does not exist; an
     // installation with no owner table has no owner.
     return { ownerCount: 0, workspaceCount: 0 };
-  } finally {
-    await client.end();
   }
 }
 
@@ -236,10 +307,11 @@ export async function readCommittedCounts(): Promise<{
  * the real flow; everything else starts from an installation that already has
  * an owner, which is what an installation looks like in use.
  */
-export async function seedCommittedOwner(): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
+async function seedCommittedOwnerOnce(): Promise<void> {
+  const client = boundedSetupClient("myownnotion-e2e-owner-seed");
+  const deadline = armSetupDeadline(client);
   try {
+    await client.connect();
     const { rows: installations } = await client.query<{ id: string; owner_id: string | null }>(
       `SELECT id, owner_id FROM installations LIMIT 1`,
     );
@@ -257,27 +329,36 @@ export async function seedCommittedOwner(): Promise<void> {
       return;
     }
     await client.query("BEGIN");
-    // `owners.id` has no default: the application always supplies it.
-    const ownerId = randomUUID();
-    await client.query(
-      `INSERT INTO owners (id, installation_id, state) VALUES ($1, $2, 'active')`,
-      [ownerId, installation.id],
-    );
-    await client.query(
-      `UPDATE installations SET state = 'ready', owner_id = $1, workspace_id = $2 WHERE id = $3`,
-      [ownerId, workspaceId, installation.id],
-    );
-    // A device, because a session is bound to one and sign-in refuses without
-    // an active one.
-    await client.query(
-      `INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
-       VALUES ($1, $2, 'e2e-binding', 'End-to-end browser', 'active')`,
-      [randomUUID(), ownerId],
-    );
-    await client.query("COMMIT");
+    try {
+      // `owners.id` has no default: the application always supplies it.
+      const ownerId = randomUUID();
+      await client.query(
+        `INSERT INTO owners (id, installation_id, state) VALUES ($1, $2, 'active')`,
+        [ownerId, installation.id],
+      );
+      await client.query(
+        `UPDATE installations SET state = 'ready', owner_id = $1, workspace_id = $2 WHERE id = $3`,
+        [ownerId, workspaceId, installation.id],
+      );
+      // A device, because a session is bound to one and sign-in refuses without
+      // an active one.
+      await client.query(
+        `INSERT INTO authorized_devices (id, owner_id, device_binding_id, name, state)
+         VALUES ($1, $2, 'e2e-binding', 'End-to-end browser', 'active')`,
+        [randomUUID(), ownerId],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    }
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
+}
+
+export async function seedCommittedOwner(): Promise<void> {
+  await withSetupRetries(seedCommittedOwnerOnce);
 }
 
 /**
@@ -301,10 +382,11 @@ function digestSessionSecret(secret: string): string {
  * repeating it before every hierarchy test would add a sign-in to each one and
  * make a failure there look like a failure here.
  */
-export async function seedSession(): Promise<string | null> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
+async function seedSessionOnce(): Promise<string | null> {
+  const client = boundedSetupClient("myownnotion-e2e-session-seed");
+  const deadline = armSetupDeadline(client);
   try {
+    await client.connect();
     const { rows: owners } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
     const ownerId = owners[0]?.id;
     if (ownerId === undefined) {
@@ -336,8 +418,12 @@ export async function seedSession(): Promise<string | null> {
     );
     return secret;
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
+}
+
+export async function seedSession(): Promise<string | null> {
+  return withSetupRetries(seedSessionOnce);
 }
 
 /**
@@ -349,15 +435,21 @@ export async function seedSession(): Promise<string | null> {
  * revoke both. This inserts a device of its own and returns both identities, so a
  * test can revoke one and watch the other keep working.
  */
-export async function seedSessionOnNewDevice(
+async function seedSessionOnNewDeviceOnce(
   name = "Second end-to-end device",
 ): Promise<{ secret: string; deviceId: string } | null> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
+  const client = boundedSetupClient("myownnotion-e2e-second-device-seed");
+  const deadline = armSetupDeadline(client);
+  let transactionOpen = false;
   try {
+    await client.connect();
+    await client.query("BEGIN");
+    transactionOpen = true;
     const { rows: owners } = await client.query<{ id: string }>(`SELECT id FROM owners LIMIT 1`);
     const ownerId = owners[0]?.id;
     if (ownerId === undefined) {
+      await client.query("ROLLBACK");
+      transactionOpen = false;
       return null;
     }
     const deviceId = randomUUID();
@@ -382,22 +474,40 @@ export async function seedSessionOnNewDevice(
         new Date(now.getTime() + 30 * 24 * 60 * 60_000),
       ],
     );
+    await client.query("COMMIT");
+    transactionOpen = false;
     return { secret, deviceId };
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query("ROLLBACK").catch(() => undefined);
+    }
+    throw error;
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
 }
 
+export async function seedSessionOnNewDevice(
+  name = "Second end-to-end device",
+): Promise<{ secret: string; deviceId: string } | null> {
+  return withSetupRetries(() => seedSessionOnNewDeviceOnce(name));
+}
+
 /** Revokes one device, the way the owner's device screen does. */
-export async function revokeDevice(deviceId: string): Promise<void> {
-  const client = new pg.Client({ connectionString: connectionString() });
-  await client.connect();
+async function revokeDeviceOnce(deviceId: string): Promise<void> {
+  const client = boundedSetupClient("myownnotion-e2e-device-revocation");
+  const deadline = armSetupDeadline(client);
   try {
+    await client.connect();
     await client.query(
       `UPDATE authorized_devices SET state = 'revoked', revoked_at = now() WHERE id = $1`,
       [deviceId],
     );
   } finally {
-    await client.end();
+    await closeSetupClient(client, deadline);
   }
+}
+
+export async function revokeDevice(deviceId: string): Promise<void> {
+  await withSetupRetries(() => revokeDeviceOnce(deviceId));
 }

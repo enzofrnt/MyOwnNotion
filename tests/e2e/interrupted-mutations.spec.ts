@@ -12,6 +12,7 @@ import {
   openWorkspace,
   openWorkspaceDiagnostics,
   returnToWorkspace,
+  selectItem,
   uniqueName,
   waitForSynchronized,
 } from "./helpers.ts";
@@ -70,7 +71,7 @@ test.describe("interrupted mutations (US4)", () => {
     await createChildItem(page, parent, "folder", child);
 
     // Try to move the parent into its child: rejected explicitly, tree intact.
-    await (await ensureNavigationRowVisible(page, parent)).click();
+    await selectItem(page, parent);
     await moveSelectedItemInto(page, child);
     const problem = page.getByTestId("problem-banner");
     await expect(problem).toBeVisible();

@@ -553,6 +553,17 @@
       }
     },
     {
+      "test": "tests/e2e/knowledge-graph.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/web/src/services/local-content.ts",
+          "packages/client-core/src/local-store/local-repository.ts"
+        ],
+        "prefixes": ["apps/web/src/features/knowledge-graph/", "packages/graph/"],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/legacy-sync-self-healing.spec.ts",
       "owners": {
         "exact": [

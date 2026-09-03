@@ -13,6 +13,16 @@ Remplacer l'interface provisoire par un espace de travail V1 cohérent et un
 la mutation `page.document.replace` comme chemin courant par une
 autosauvegarde opérationnelle convergente.
 
+La convergence finale intervient après la feature 010 : elle reprend ses
+surfaces de backlinks et de graphe comme consommatrices du shell et du système
+visuel communs, sans déplacer dans ce plan la construction ou les règles métier
+du graphe.
+
+La feature 021 améliore séparément les journaux serveur avant la validation V1.
+Ce plan préserve corrélation et expurgation, mais ne construit ni leur
+présentation humaine ni leur politique de bruit ; la preuve transverse reste
+portée par la 008.
+
 L'éditeur visible utilise BlockNote Community avec son intégration Ariakit,
 derrière un adaptateur propre à MyOwnNotion. Il apporte les blocs, la commande
 `/`, la poignée, le glisser-déposer, la barre de formatage et les menus sans
@@ -85,8 +95,8 @@ initial ; aucun compte, licence ou service tiers requis
 
 **Scale/Scope**: 100 000 pages, 1 000 000 blocs, pages interactives de 500 blocs,
 10 appareils autorisés, suites de 10 000 changements distants et plusieurs
-années de checkpoints/révisions consolidées ; toutes les surfaces V1 et les
-surfaces 009 déjà présentes adoptent le système visuel commun
+années de checkpoints/révisions consolidées ; toutes les surfaces V1, dont le
+graphe 010, et les surfaces 009 déjà présentes adoptent le système visuel commun
 
 ## Constitution Check
 
@@ -101,7 +111,7 @@ surfaces 009 déjà présentes adoptent le système visuel commun
 | V. Simple, Modular Architecture | Le transport SSE, l'outbox, Dexie, PostgreSQL, les appareils et les fichiers sont conservés. Un seul package partagé isole le moteur opérationnel ; l'adaptateur empêche BlockNote ou Loro d'envahir le modèle canonique | PASS |
 | VI. Practical and Predictable Experience | Alternatives clavier/toucher, focus explicite, libellés clairs, thèmes, états de synchronisation, 320 px, 200 %, WebKit et références visuelles sont des contrats et des gates pragmatiques ; aucune certification ni campagne d'assistance spécialisée n'est requise | PASS |
 | VII. Reproducible Toolchains | Bun 1.4.0, `bun.lock` et `bun ci` portent seuls le graphe TypeScript/WASM ; versions exactes et licences MIT/MPL restent vérifiées | PASS |
-| VIII. Canonical Product Direction | Le plan met en œuvre les sections 3, 6.1, 7, 9 à 21, 28 à 32 et 42 à 47 amendées dans la même change ; mono-utilisateur, V1 et exclusions restent inchangés | PASS |
+| VIII. Canonical Product Direction | Le plan met en œuvre les sections 3, 6.1, 7, 9 à 22, 28 à 32 et 42 à 47 amendées dans la même change ; la feature 010 reste propriétaire du graphe et la 017 en ferme seulement l'intégration V1 ; la feature 021 porte séparément la lisibilité des journaux | PASS |
 
 ### Post-design re-check
 
@@ -794,7 +804,9 @@ Les tranches d'implémentation sont :
     factorisé, squelette éditorial et suppression définitive des liens ;
 13. migration de toutes les surfaces V1, français, thèmes, visuels et
     performance ;
-14. suppression du chemin éditorial legacy après preuve de migration.
+14. intégration visuelle et interactive des surfaces backlinks/graphe livrées
+    par la feature 010 ;
+15. suppression du chemin éditorial legacy après preuve de migration.
 
 Chaque tranche garde l'application lisible et fournit un test indépendant. Le
 chemin legacy reste derrière une frontière de compatibilité jusqu'à ce que les

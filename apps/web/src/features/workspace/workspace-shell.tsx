@@ -9,7 +9,7 @@ import {
 export interface WorkspaceShellProps {
   readonly children: ReactNode;
   readonly header: ReactNode;
-  readonly contentMode?: "bounded" | "page";
+  readonly contentMode?: "bounded" | "page" | "graph";
   readonly mobileNavigationOpen: boolean;
   readonly navigation: ReactNode;
   readonly restoreMobileFocusOnClose?: boolean;

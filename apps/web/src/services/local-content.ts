@@ -66,8 +66,10 @@ import {
   type Uuid,
   upgradeLegacyBody,
 } from "@myownnotion/domain";
+import type { RawGraphNode, RawGraphSource } from "@myownnotion/graph";
 import { ContentApi } from "./content-api.ts";
 import { IndexedDbKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
+import { collectOperationalSyncPageIds } from "./operational-sync-pages.ts";
 import { PageOperationsApi } from "./page-operations-api.ts";
 import {
   type RealtimePageAdvance,
@@ -272,6 +274,8 @@ export class LocalContentService {
   readonly #keys: LocalKeyManager;
   readonly #codec: LocalRecordCodec;
   readonly #pageReconcilers = new Map<Uuid, PageReconciler>();
+  /** Editors currently holding a session; reconnect still exchanges these. */
+  readonly #openPageLeases = new Map<Uuid, number>();
   readonly #fileSynchronization = new FileSynchronizationStatus();
   #fileTransferSource: FileTransferStatusSource | null = null;
   #unsubscribeFileTransfers: (() => void) | null = null;
@@ -410,6 +414,15 @@ export class LocalContentService {
       this.#pageReconcilers.set(pageId, reconciler);
     }
     return reconciler;
+  }
+
+  #retainOpenPage(pageId: Uuid): () => void {
+    this.#openPageLeases.set(pageId, (this.#openPageLeases.get(pageId) ?? 0) + 1);
+    return () => {
+      const remaining = (this.#openPageLeases.get(pageId) ?? 1) - 1;
+      if (remaining <= 0) this.#openPageLeases.delete(pageId);
+      else this.#openPageLeases.set(pageId, remaining);
+    };
   }
 
   /**
@@ -658,11 +671,11 @@ export class LocalContentService {
   /**
    * Drains operational page queues independently from mounted editors.
    *
-   * Open pages are included so a change-feed announcement imports their
-   * remote deltas. More importantly, the status-first local index discovers
-   * pages with durable pending work after a reload: their reconciler map is
-   * empty at that point, and requiring the owner to reopen each document would
-   * turn crash recovery into a manual synchronization protocol (FR-073).
+   * Open pages are included so a reconnect still imports their remote deltas.
+   * Closed pages stay lazy unless the durable queue or a leftover legacy
+   * branch still has work (FR-073). The in-memory reconciler cache is not a
+   * work list: walking every page ever opened would make a long session pay
+   * for documents the owner already left.
    */
   async synchronizeOperationalPages(): Promise<boolean> {
     if (this.#inFlightOperationalSync !== null) {
@@ -719,9 +732,9 @@ export class LocalContentService {
       this.pageOperationLog.listPageIdsWithLegacyBranches(),
     ]);
     const legacyPages = new Set(legacyPageIds);
-    const pageIds = [
-      ...new Set<Uuid>([...this.#pageReconcilers.keys(), ...queuedPageIds, ...legacyPageIds]),
-    ].sort();
+    const pageIds = collectOperationalSyncPageIds(queuedPageIds, legacyPageIds, [
+      ...this.#openPageLeases.keys(),
+    ]) as Uuid[];
     if (pageIds.length === 0) {
       await this.#notify();
       return true;
@@ -950,6 +963,16 @@ export class LocalContentService {
     return this.repository.listItems("active");
   }
 
+  async getKnowledgeGraphTopology(): Promise<RawGraphSource> {
+    await this.#unlock();
+    return await this.repository.readKnowledgeGraphTopology();
+  }
+
+  async hydrateKnowledgeGraphNodes(itemIds: readonly Uuid[]): Promise<RawGraphNode[]> {
+    await this.#unlock();
+    return await this.repository.hydrateKnowledgeGraphNodes(itemIds);
+  }
+
   async listTrashedItems(): Promise<ProjectedItem[]> {
     return this.repository.listItems("trashed");
   }
@@ -1028,6 +1051,7 @@ export class LocalContentService {
   ): Extract<OpenOperationalPageResult, { ok: true }> {
     const { session, reconciler, mode } = shared;
     const releaseShared = shared.acquire();
+    const releaseOpenPage = this.#retainOpenPage(session.pageId);
     if (mode === "legacy-branch") {
       this.#legacyPageSessionLeases.set(
         session.pageId,
@@ -1055,6 +1079,7 @@ export class LocalContentService {
         closed = true;
         unsubscribe();
         releaseShared();
+        releaseOpenPage();
         if (mode === "legacy-branch") {
           const leases = this.#legacyPageSessionLeases.get(session.pageId) ?? 0;
           if (leases <= 1) this.#legacyPageSessionLeases.delete(session.pageId);
@@ -1092,7 +1117,22 @@ export class LocalContentService {
     itemId: Uuid,
   ): Promise<SharedOpenedOperationalPage | OpenOperationalPageFailure> {
     await this.#unlock();
-    let state = await this.pageOperationLog.getState(itemId);
+    let [state, retainedLegacyBranch] = await Promise.all([
+      this.pageOperationLog.getState(itemId),
+      this.pageOperationLog.getLegacyBranch(itemId),
+    ]);
+    if (retainedLegacyBranch !== null && retainedLegacyBranch.status !== "converted") {
+      // The durable branch is this device's unsynchronized authority. Opening
+      // an already-active server checkpoint in parallel with its conversion
+      // can install the remote-only projection first and let the editor claim
+      // it is synchronized before the retained local words are visible. Route
+      // through the branch before any remote read; tryOpen handles the narrow
+      // case where a background reconciler finishes conversion meanwhile.
+      return await this.#openLegacyBranchSession(
+        itemId,
+        retainedLegacyBranch.branch.baseDocumentV2,
+      );
+    }
     const online = typeof navigator === "undefined" ? true : navigator.onLine;
     // A page can exist optimistically before the workspace mutation that
     // creates or converts it has committed on the server. Crossing into the
@@ -1126,17 +1166,6 @@ export class LocalContentService {
           message: checkpoint.problem.message,
         };
       }
-    }
-    const retainedLegacyBranch = await this.pageOperationLog.getLegacyBranch(itemId);
-    if (retainedLegacyBranch !== null && retainedLegacyBranch.status !== "converted") {
-      // Pulling another device's active checkpoint must not orphan edits that
-      // this device made while the page was still legacy. Reopen the retained
-      // branch first; its serial queue owns conversion and then hands the same
-      // mounted editor over to the active state in place.
-      return await this.#openLegacyBranchSession(
-        itemId,
-        retainedLegacyBranch.branch.baseDocumentV2,
-      );
     }
     if (state === null) {
       let item = await this.repository.getItem(itemId);
@@ -1316,16 +1345,14 @@ export class LocalContentService {
 
   /**
    * Resumes the durable operational owner after activation or branch
-   * conversion. The state is deliberately re-read here: conversion can finish
-   * between the routing reads in `#openOperationalPageOnce` and the final
-   * editor open, especially while a background synchronization pass is
-   * running on a slow device.
+   * conversion. `PageEditingSession.resume` re-reads state, updates and
+   * ambiguities from one IndexedDB snapshot, so a second state decrypt here
+   * would only delay the first paint.
    */
   async #openActivePageSession(
     itemId: Uuid,
     online: boolean,
   ): Promise<SharedOpenedOperationalPage | OpenOperationalPageFailure> {
-    const state = await this.pageOperationLog.getState(itemId);
     const reconciler = this.pageReconciler(itemId);
     let tabChannel: PageTabChannel | null = null;
     const session = await PageEditingSession.resume({
@@ -1343,7 +1370,7 @@ export class LocalContentService {
         void reconciler.synchronize();
       },
     });
-    if (state === null || session === null) {
+    if (session === null) {
       return {
         ok: false,
         offline: false,
@@ -1358,7 +1385,7 @@ export class LocalContentService {
     // device converges on it. This is only reachable when the empty state came
     // from elsewhere (another device's conversion); a locally pristine page
     // opens on the legacy branch above and seeds nothing durable.
-    if (state.status === "active" && session.read().blocks.length === 0) {
+    if (session.read().blocks.length === 0) {
       try {
         await session.transact({
           type: "insert-block",
@@ -1492,6 +1519,17 @@ export class LocalContentService {
   async getDatabase(databaseId: Uuid): Promise<LocalDatabaseRow | null> {
     await this.#unlock();
     return this.databases.getDatabase(databaseId);
+  }
+
+  /**
+   * Discriminates a page, database host or entry without decrypting payloads.
+   *
+   * The canvas uses this to avoid blocking an ordinary note on two sealed
+   * misses before the editing session is even allowed to start.
+   */
+  async classifyStructuredItem(itemId: Uuid): Promise<"database" | "entry" | "page"> {
+    await this.#unlock();
+    return this.databases.classifyStructuredHost(itemId);
   }
 
   async listDatabaseEntries(databaseId: Uuid): Promise<LocalDatabaseEntryRow[]> {
@@ -1629,6 +1667,7 @@ export class LocalContentService {
       // any already-held editor reference will observe the same missing state
       // and cannot recreate the destroyed journal.
       this.#pageReconcilers.delete(payload["itemId"] as Uuid);
+      this.#openPageLeases.delete(payload["itemId"] as Uuid);
     }
     await this.#notify("pending");
     void this.synchronize();

@@ -389,6 +389,71 @@ describe("operational page opening", () => {
     opened.close();
   });
 
+  it("reopens retained offline work before fetching an active server checkpoint", async () => {
+    vi.stubGlobal("navigator", { onLine: false });
+    const service = new LocalContentService(workspaceApi(), `retained-first-${Date.now()}`);
+    services.push(service);
+    await service.initialize();
+
+    const pageId = generateUuidV7();
+    const revisionId = generateUuidV7();
+    await service.repository.applyServerItems([pageItem(pageId, revisionId, { blocks: [] })]);
+
+    const offline = await service.openOperationalPage(pageId);
+    expect(offline.ok).toBe(true);
+    if (!offline.ok) return;
+    expect(offline.mode).toBe("legacy-branch");
+    const blockId = offline.session.read().blocks[0]?.id;
+    if (blockId === undefined) throw new Error("the offline editor has no bootstrap block");
+    await offline.session.transact({
+      type: "replace-text",
+      blockId,
+      from: 0,
+      to: 0,
+      text: "retained offline words",
+    });
+    offline.close();
+
+    vi.stubGlobal("navigator", { onLine: true });
+    const checkpoint = vi
+      .spyOn(service.pageOperationsApi, "checkpoint")
+      .mockImplementation(async (checkpointPageId, requestId) => ({
+        ok: true,
+        value: await checkpointResponse({
+          pageId: checkpointPageId,
+          requestId: requestId as Uuid,
+          revisionId,
+          document: {
+            blocks: [
+              {
+                type: "paragraph",
+                id: generateUuidV7(),
+                content: [{ text: "newer server words" }],
+              },
+            ],
+          },
+        }),
+      }));
+    vi.spyOn(service.pageReconciler(pageId), "convertLegacyBranch").mockResolvedValue({
+      kind: "pending",
+      exchanges: 0,
+      latestPageSequence: 0,
+      fileRequirements: [],
+      problemCode: "test.conversion-held",
+    });
+
+    const reopened = await service.openOperationalPage(pageId);
+
+    expect(reopened.ok).toBe(true);
+    if (!reopened.ok) return;
+    expect(reopened.mode).toBe("legacy-branch");
+    expect(reopened.session.read().blocks[0]).toMatchObject({
+      content: [{ text: "retained offline words" }],
+    });
+    expect(checkpoint).not.toHaveBeenCalled();
+    reopened.close();
+  });
+
   it("refreshes the canonical head when activation races one last legacy write", async () => {
     vi.stubGlobal("navigator", { onLine: true });
     const service = new LocalContentService(workspaceApi(), `stale-activation-${Date.now()}`);

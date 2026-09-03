@@ -409,6 +409,34 @@ export async function createUnopenedPage(
   return { itemId, revisionId };
 }
 
+/**
+ * Creates one explicit business relationship as stable graph fixture data.
+ *
+ * Graph journeys exercise projection, navigation and offline convergence. The
+ * relationship settings form has its own E2E journey, so preparing graph data
+ * through that form would couple these tests to a second UI and can lose the
+ * draft if a late projection refresh remounts the settings panel.
+ */
+export async function createBusinessRelationship(
+  request: APIRequestContext,
+  sourceItemId: string,
+  targetItemId: string,
+): Promise<string> {
+  const relationshipId = generateUuidV7();
+  const response = await request.post(`${apiOrigin()}/v1/relationships`, {
+    headers: { ...CURRENT_PROTOCOL_HEADERS, "idempotency-key": generateUuidV7() },
+    data: {
+      id: relationshipId,
+      sourceItemId,
+      targetItemId,
+      relationType: "link:references",
+    },
+  });
+  const raw = await response.text();
+  expect(response.status(), raw).toBe(201);
+  return relationshipId;
+}
+
 export async function openWorkspace(page: Page): Promise<void> {
   // A caller that has just reloaded is already on the workspace URL. Sending a
   // second navigation immediately afterwards is redundant for users and trips
@@ -421,7 +449,13 @@ export async function openWorkspace(page: Page): Promise<void> {
     (() => {
       try {
         const pathname = new URL(currentUrl).pathname;
-        return pathname === "/" || pathname === "/notes" || pathname.startsWith("/notes/");
+        return (
+          pathname === "/" ||
+          pathname === "/notes" ||
+          pathname.startsWith("/notes/") ||
+          pathname === "/graph" ||
+          pathname.startsWith("/graph/")
+        );
       } catch {
         return false;
       }
@@ -616,7 +650,7 @@ export async function openItemActions(page: Page, itemName: string): Promise<voi
 
 /** Dismisses the modal navigation before interacting with mobile page content. */
 export async function closeMobileNavigation(page: Page): Promise<void> {
-  const dismiss = page.getByRole("button", { name: "Fermer" });
+  const dismiss = page.getByTestId("close-mobile-nav");
   if (await dismiss.isVisible()) {
     await dismiss.click();
   }
@@ -753,7 +787,15 @@ export async function returnToWorkspace(page: Page): Promise<void> {
 /** Selects a tree item by clicking its name (never the action buttons). */
 export async function selectItem(page: Page, name: string): Promise<void> {
   const row = await ensureNavigationRowVisible(page, name);
-  await row.locator(".tree-name").click();
+  const kind = await row.getAttribute("data-item-kind");
+  const nameSlot = row.locator(".tree-name");
+  // Folders expand on a short click and only become the destination on
+  // double-click (FR-019). Pages, files and databases still open on click.
+  if (kind === "folder") {
+    await nameSlot.dblclick();
+  } else {
+    await nameSlot.click();
+  }
   await expect(row).toHaveAttribute("aria-selected", "true", {
     timeout: 15_000,
   });

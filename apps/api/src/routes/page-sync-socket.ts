@@ -19,7 +19,7 @@ import {
   reauthorizeRealtimeDevice,
 } from "../security/realtime-authorization.ts";
 import type { RequestPrincipal } from "../security/request-context.ts";
-import type { SecurityConfig } from "../security/security-config.ts";
+import { type SecurityConfig, trustedRealtimeOrigins } from "../security/security-config.ts";
 
 type OwnerPrincipal = Extract<RequestPrincipal, { kind: "owner" }>;
 type PageSyncSessionFactory = (deps: PageSyncSessionDeps) => void;
@@ -90,7 +90,7 @@ export function registerPageSyncSocketRoutes(
     {
       websocket: true,
       preValidation: (request, reply, done) => {
-        if (!hasExactRealtimeOrigin(request, deps.config.publicOrigin)) {
+        if (!hasExactRealtimeOrigin(request, trustedRealtimeOrigins(deps.config))) {
           reply.status(403).send({
             code: "origin_refused",
             message: "The realtime connection origin was refused.",

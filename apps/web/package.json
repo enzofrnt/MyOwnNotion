@@ -8,7 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "vite --host ${MYOWNNOTION_WEB_HOST:-127.0.0.1} --port ${MYOWNNOTION_WEB_PORT:-5173} --strictPort",
     "build": "bun build.ts",
-    "preview": "vite preview --host ${MYOWNNOTION_WEB_HOST:-127.0.0.1} --port ${MYOWNNOTION_WEB_PORT:-5173} --strictPort"
+    "preview": "vite preview --host ${MYOWNNOTION_WEB_HOST:-127.0.0.1} --port ${MYOWNNOTION_WEB_PORT:-5173} --strictPort --outDir \"${MYOWNNOTION_WEB_DIST_DIR:-dist}\""
   },
   "dependencies": {
     "@ariakit/react": "0.4.37",
@@ -22,6 +22,7 @@
     "@myownnotion/client-core": "workspace:*",
     "@myownnotion/contracts": "workspace:*",
     "@myownnotion/domain": "workspace:*",
+    "@myownnotion/graph": "workspace:*",
     "@myownnotion/page-state": "workspace:*",
     "@tanstack/react-table": "9.1.2",
     "@tanstack/react-virtual": "3.14.10",

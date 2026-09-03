@@ -2,7 +2,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type EmojiPickerFactory, EmojiPickerPanel } from "../src/ui/emoji-picker.tsx";
+import {
+  type EmojiPickerFactory,
+  EmojiPickerPanel,
+  ItemEmojiPicker,
+} from "../src/ui/emoji-picker.tsx";
 
 describe("local emoji picker", () => {
   let container: HTMLDivElement;
@@ -65,6 +69,62 @@ describe("local emoji picker", () => {
     expect(remove?.textContent).toContain("Retirer l’icône");
     await act(async () => remove?.click());
     expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
+  it("exposes a hover clear control that removes the page emoji without opening the picker", async () => {
+    const onChange = vi.fn();
+    const factory: EmojiPickerFactory = () => document.createElement("div");
+    await act(async () => {
+      root.render(
+        <ItemEmojiPicker
+          factory={factory}
+          kind="page"
+          label="Notes"
+          value="😀"
+          variant="page"
+          onChange={onChange}
+        />,
+      );
+    });
+
+    const clear = container.querySelector<HTMLButtonElement>('[data-testid="clear-item-icon"]');
+    expect(clear?.getAttribute("aria-label")).toBe("Retirer l’icône de Notes");
+    await act(async () => clear?.click());
+    expect(onChange).toHaveBeenCalledWith(null);
+    expect(container.querySelector('[data-testid="emoji-picker-panel"]')).toBeNull();
+  });
+
+  it("hides the hover clear control when the item has no emoji", async () => {
+    await act(async () => {
+      root.render(
+        <ItemEmojiPicker
+          factory={() => document.createElement("div")}
+          kind="page"
+          label="Notes"
+          value={null}
+          variant="page"
+          onChange={vi.fn()}
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="clear-item-icon"]')).toBeNull();
+    expect(container.querySelector(".item-emoji-picker")?.hasAttribute("data-empty")).toBe(true);
+  });
+
+  it("keeps a filled page emoji in flow so the title geometry stays stable", async () => {
+    await act(async () => {
+      root.render(
+        <ItemEmojiPicker
+          factory={() => document.createElement("div")}
+          kind="page"
+          label="Notes"
+          value="😀"
+          variant="page"
+          onChange={vi.fn()}
+        />,
+      );
+    });
+    expect(container.querySelector(".item-emoji-picker")?.hasAttribute("data-empty")).toBe(false);
   });
 
   it("keeps the focused picker mounted while its selection callback changes", async () => {

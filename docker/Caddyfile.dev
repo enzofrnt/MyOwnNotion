@@ -2,16 +2,17 @@
 #
 # This is not the official stack. Certificates come from Caddy's internal CA
 # (`tls internal` / `local_certs`) so passkeys and `__Host-` cookies work on
-# https://localhost:8443. Trust the CA once with `bun run dev:trust`.
+# https://localhost:8443. Trust the CA once with `bun run dev:trust` in a
+# system browser. Embedded browsers such as Cursor's do not use that trust
+# store; they should open http://localhost:8080 instead of clicking through
+# ERR_CERT_AUTHORITY_INVALID.
 {
 	admin 127.0.0.1:2019
 	local_certs
 	auto_https disable_redirects
 }
 
-localhost:8443 {
-	tls internal
-
+(app) {
 	request_body {
 		max_size 2GB
 	}
@@ -52,6 +53,11 @@ localhost:8443 {
 	}
 }
 
+localhost:8443 {
+	tls internal
+	import app
+}
+
 :80 {
-	redir https://localhost:8443{uri} permanent
+	import app
 }

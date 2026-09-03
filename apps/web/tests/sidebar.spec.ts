@@ -102,6 +102,7 @@ describe("shortcut presentation", () => {
         },
         onShortcutExpandedChange: () => undefined,
         onOpen: () => undefined,
+        onOpenGraph: () => undefined,
         onOpenSearch: () => undefined,
         onOpenSettings: () => undefined,
       }),

@@ -8,7 +8,16 @@ import type { BootstrapPageProps } from "../src/features/auth/bootstrap-page.tsx
 import type { HierarchyExplorerProps } from "../src/features/hierarchy/hierarchy-explorer.tsx";
 import type { SecurityApi } from "../src/services/security-api.ts";
 
-function RoutedHierarchy({ active, selectedItemId, onOpenItem }: HierarchyExplorerProps) {
+const renderedGraphModes: HierarchyExplorerProps["graphMode"][] = [];
+
+function RoutedHierarchy({
+  active,
+  selectedItemId,
+  graphMode,
+  onOpenItem,
+  onTrashedItemsChange,
+}: HierarchyExplorerProps) {
+  renderedGraphModes.push(graphMode);
   return (
     <div
       data-testid="routed-hierarchy"
@@ -17,6 +26,13 @@ function RoutedHierarchy({ active, selectedItemId, onOpenItem }: HierarchyExplor
     >
       <button type="button" onClick={() => onOpenItem(generateUuidV7())}>
         Ouvrir une note
+      </button>
+      <button
+        type="button"
+        data-testid="rerender-routed-app"
+        onClick={() => onTrashedItemsChange([])}
+      >
+        Actualiser la projection
       </button>
     </div>
   );
@@ -122,6 +138,7 @@ describe("application routing", () => {
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
+    renderedGraphModes.length = 0;
     vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
   });
 
@@ -191,6 +208,41 @@ describe("application routing", () => {
         ?.getAttribute("data-selected-item"),
     ).toBe(itemId);
     expect(container.querySelector('[data-testid="settings-section-page-details"]')).not.toBeNull();
+  });
+
+  it("keeps the global and local graph inside the protected workspace", async () => {
+    await renderAt("/graph");
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/graph");
+    expect(
+      container.querySelector('[data-testid="routed-hierarchy"]')?.getAttribute("data-active"),
+    ).toBe("true");
+
+    const itemId = generateUuidV7();
+    act(() => root.unmount());
+    root = createRoot(container);
+    await renderAt(`/graph/${itemId}`);
+    expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe(
+      `/graph/${itemId}`,
+    );
+    expect(
+      container
+        .querySelector('[data-testid="routed-hierarchy"]')
+        ?.getAttribute("data-selected-item"),
+    ).toBe(itemId);
+  });
+
+  it("keeps graph navigation identity stable across parent state updates", async () => {
+    const itemId = generateUuidV7();
+    await renderAt(`/graph/${itemId}`);
+    const initialGraphMode = renderedGraphModes.at(-1);
+    expect(initialGraphMode).toEqual({ kind: "local", centerId: itemId });
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="rerender-routed-app"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(renderedGraphModes.at(-1)).toBe(initialGraphMode);
   });
 
   it("preserves a protected destination through sign-in", async () => {

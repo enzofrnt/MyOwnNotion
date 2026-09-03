@@ -1,6 +1,6 @@
 import { type ReactNode, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "./styles.css";
+import "./global.css";
 import { ThemeProvider } from "./ui/theme-provider.tsx";
 import { UiLab } from "./ui/ui-lab.tsx";
 

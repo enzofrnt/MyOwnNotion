@@ -64,6 +64,7 @@ export function EditorView({
   onOpenPage,
   initialScrollAnchor = null,
   onCaptureScrollAnchor,
+  discoverable = true,
 }: {
   readonly service: LocalContentService;
   readonly itemId: Uuid;
@@ -76,10 +77,13 @@ export function EditorView({
   readonly initialScrollAnchor?: PageScrollAnchor | null;
   /** Called when the surface unmounts, so leaving a page remembers its place. */
   readonly onCaptureScrollAnchor?: (itemId: Uuid, anchor: PageScrollAnchor) => void;
+  /** False for keep-alive sessions that must not match Playwright/a11y locators. */
+  readonly discoverable?: boolean;
 }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [editorSettled, setEditorSettled] = useState(true);
   const restorePending = useRef(initialScrollAnchor);
+  const wasDiscoverable = useRef(discoverable);
   const [ambiguities, setAmbiguities] = useState<readonly PageAmbiguityRecord[]>([]);
 
   const resolveAmbiguity = useCallback(
@@ -99,10 +103,10 @@ export function EditorView({
                 beforeBlockId: record.details.recoverablePlacement?.beforeBlockId ?? null,
               },
         );
-        if (!resolved.ok) return;
         if (state.kind === "ready") await state.reconciler.synchronize();
         const records = await service.pageOperationLog.listOpenAmbiguities(itemId);
         setAmbiguities(records);
+        if (!resolved.ok) return;
       })();
     },
     [service, itemId, state, ambiguities],
@@ -114,10 +118,16 @@ export function EditorView({
   // jump FR-009 forbids. The anchor is consumed on the first attempt so a
   // retry never fights the owner's own scrolling.
   useEffect(() => {
-    if (state.kind !== "ready") return;
-    const anchor = restorePending.current;
+    if (state.kind !== "ready" || !discoverable) {
+      wasDiscoverable.current = discoverable;
+      return;
+    }
+    const becameActive = !wasDiscoverable.current;
+    wasDiscoverable.current = true;
+    const pending = restorePending.current;
+    if (pending !== null) restorePending.current = null;
+    const anchor = pending ?? (becameActive ? initialScrollAnchor : null);
     if (anchor === null) return;
-    restorePending.current = null;
     let attempts = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const settled = (): boolean => {
@@ -137,7 +147,7 @@ export function EditorView({
       cancelAnimationFrame(frame);
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, [state]);
+  }, [state, discoverable, initialScrollAnchor]);
 
   // Leaving the page records where the viewport stopped. The anchor is kept
   // fresh on every scroll frame rather than queried at teardown: by the time
@@ -145,7 +155,7 @@ export function EditorView({
   // document, and a teardown-time query would always find nothing.
   const latestAnchorRef = useRef<PageScrollAnchor | null>(null);
   useEffect(() => {
-    if (state.kind !== "ready") return;
+    if (state.kind !== "ready" || !discoverable) return;
     let raf = 0;
     const onScroll = (): void => {
       if (raf !== 0) return;
@@ -173,7 +183,7 @@ export function EditorView({
       const anchor = latestAnchorRef.current;
       if (anchor !== null) onCaptureScrollAnchor?.(itemId, anchor);
     };
-  }, [state, itemId, onCaptureScrollAnchor]);
+  }, [state, itemId, onCaptureScrollAnchor, discoverable]);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,8 +205,8 @@ export function EditorView({
             });
           };
           refreshAmbiguities();
-          const unsubscribeAmbiguities = opened.session.subscribe((change) => {
-            if (change.origin === "remote") refreshAmbiguities();
+          const unsubscribeAmbiguities = opened.session.subscribe(() => {
+            refreshAmbiguities();
           });
           let released = false;
           releaseOpened = () => {
@@ -242,6 +252,34 @@ export function EditorView({
     // remount is ever needed while the surface stays open.
   }, [service, itemId, editingAllowed]);
 
+  useEffect(() => {
+    if (!discoverable) return;
+    let cancelled = false;
+    void service.getItem(itemId).then((item) => {
+      if (cancelled || item === null || item.localAvailability !== "offloaded") return;
+      setState((current) => {
+        if (current.kind === "ready") current.close();
+        if (current.kind === "unavailable") return current;
+        return {
+          kind: "unavailable",
+          reason:
+            "This page was released from this device and needs a connection to download again.",
+        };
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [discoverable, itemId, service]);
+
+  useEffect(() => {
+    if (!discoverable || ambiguities.length === 0) return;
+    const timer = window.setInterval(() => {
+      void service.pageOperationLog.listOpenAmbiguities(itemId).then(setAmbiguities);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [ambiguities.length, discoverable, itemId, service]);
+
   // Releases the session subscription when the owner leaves the page, so a
   // closed surface never keeps adopting remote merges into a dead editor.
   useEffect(() => {
@@ -261,7 +299,9 @@ export function EditorView({
   if (state.kind === "loading") {
     return (
       <section className="workspace-page-editor" aria-label={FR_COPY.editor.surface.contentLabel}>
-        <PageContentSkeleton testId="editor-loading-skeleton" />
+        <PageContentSkeleton
+          testId={discoverable ? "editor-loading-skeleton" : `editor-loading-skeleton-${itemId}`}
+        />
       </section>
     );
   }
@@ -278,7 +318,7 @@ export function EditorView({
     <section
       className="workspace-page-editor"
       aria-label={FR_COPY.editor.surface.contentLabel}
-      data-testid="operational-editor"
+      data-testid={discoverable ? "operational-editor" : undefined}
     >
       <PageAmbiguityNotice records={ambiguities} onResolve={resolveAmbiguity} />
       {/* Keyed by item and mode alone: the session owns causality, so another
@@ -296,8 +336,13 @@ export function EditorView({
         onOpenPage={onOpenPage}
         onSettlementChange={setEditorSettled}
         session={state.session}
+        discoverable={discoverable}
       />
-      <EditorSyncStatus session={state.session} editorSettled={editorSettled} />
+      <EditorSyncStatus
+        session={state.session}
+        editorSettled={editorSettled}
+        discoverable={discoverable}
+      />
     </section>
   );
 }

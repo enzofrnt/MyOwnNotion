@@ -166,6 +166,14 @@ test.describe("expanding and collapsing", () => {
     }
     await expect(row(page, child)).toHaveAttribute("aria-expanded", "false");
     await focusTree(page, child);
+    if ((await row(page, child).getAttribute("aria-expanded")) === "true") {
+      await page.getByTestId(`toggle-${child}`).click();
+    }
+    await expect(row(page, child)).toHaveAttribute("aria-expanded", "false");
+    await expect(row(page, child)).toHaveAttribute("aria-selected", "true");
+    await ensureNavigationVisible(page);
+    await row(page, child).focus();
+    await expect(row(page, child)).toBeFocused();
 
     await page.keyboard.press("ArrowLeft");
 
@@ -379,7 +387,7 @@ test.describe("what a branch says when it has nothing to show", () => {
     // this device before anything is sent. A name past the length limit looked
     // like the easier trigger and is not one: the client accepts it and only
     // the server refuses, so the explorer never learns of it.
-    await page.getByTestId(`tree-item-${parent}`).click();
+    await selectItem(page, parent);
     await openBranch(page, parent);
     await moveSelectedItemInto(page, child);
 

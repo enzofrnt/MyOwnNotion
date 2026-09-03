@@ -23,12 +23,12 @@
     "lint": "biome lint .",
     "lint:ci": "biome ci .",
     "typecheck": "bun run --parallel --filter '*' typecheck && bun run tsc -p tsconfig.json --noEmit",
-    "test:unit": "bun scripts/ci/run-vitest-with-postgres.ts run --project domain --project page-state --project contracts --project blob-store --project client-core --project web --project workspace-contract",
-    "test:property": "bun run --bun vitest run --project domain --project page-state --project contracts --project blob-store --project client-core property",
+    "test:unit": "bun scripts/ci/run-vitest-with-postgres.ts run --project domain --project graph --project page-state --project contracts --project blob-store --project client-core --project web --project workspace-contract",
+    "test:property": "bun run --bun vitest run --project domain --project graph --project page-state --project contracts --project blob-store --project client-core property",
     "test:integration": "bun scripts/ci/run-vitest-with-postgres.ts run --project database-integration",
     "test:contract": "bun scripts/ci/run-vitest-with-postgres.ts run --project api-contract --project workspace-contract",
     "test:migration": "bun scripts/ci/run-vitest-with-postgres.ts run --project database-integration packages/database/tests/migrations.integration.spec.ts",
-    "test:coverage": "bun scripts/ci/run-vitest-with-postgres.ts run --coverage --project domain --project page-state --project contracts --project blob-store --project client-core --project web --project database-integration --project api-contract --project workspace-contract",
+    "test:coverage": "bun scripts/ci/run-vitest-with-postgres.ts run --coverage --project domain --project graph --project page-state --project contracts --project blob-store --project client-core --project web --project database-integration --project api-contract --project workspace-contract",
     "test:e2e": "MYOWNNOTION_E2E_BUILD=1 bun run --filter @myownnotion/web build && MYOWNNOTION_E2E_PREBUILT_WEB=1 bun run --bun playwright test --fail-on-flaky-tests",
     "test:e2e:local": "bash scripts/test-e2e-local.sh",
     "test:e2e:gate": "MYOWNNOTION_E2E_JOBS=${MYOWNNOTION_E2E_JOBS:-2} bash scripts/test-e2e-local.sh",
@@ -51,6 +51,8 @@
     "dev:stack:down": "bun scripts/dev/stack.ts --down",
     "dev:stack:logs": "bun scripts/dev/stack.ts --logs",
     "dev:stack:reset": "bun scripts/dev/stack.ts --reset",
+    "dev:stack:demo": "bun scripts/dev/stack.ts --demo",
+    "dev:stack:demo:verify": "bun scripts/dev/stack.ts --demo-repeat",
     "dev:trust": "bun scripts/dev/stack.ts --trust",
     "admin": "bun run --filter @myownnotion/api admin",
     "db:migrate": "bun scripts/db/migrate.ts",
@@ -64,6 +66,7 @@
     "@myownnotion/contracts": "workspace:*",
     "@myownnotion/database": "workspace:*",
     "@myownnotion/domain": "workspace:*",
+    "@myownnotion/graph": "workspace:*",
     "@myownnotion/page-state": "workspace:*",
     "@myownnotion/test-utils": "workspace:*",
     "@playwright/test": "^1.58.1",
@@ -82,5 +85,11 @@
     "vitest": "^3.2.4",
     "workbox-build": "7.4.1",
     "yaml": "^2.8.2"
+  },
+  "overrides": {
+    "fast-uri": "3.1.6",
+    "fast-json-stringify": {
+      "fast-uri": "4.1.3"
+    }
   }
 }

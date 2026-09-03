@@ -49,6 +49,8 @@ describe("editor input boundaries", () => {
     expect(css).toContain("caret-color: var(--ui-color-text)");
     expect(css).toContain("br.ProseMirror-trailingBreak:only-child");
     expect(css).toContain("min-width: 0.125rem");
+    expect(css).toContain(".editor-history-controls {");
+    expect(css).toContain("pointer-events: none");
   });
   it("recovers a leading character omitted after a slash-menu transform", () => {
     const durable = callout("");

@@ -74,6 +74,23 @@ describe("hierarchy item identity geometry", () => {
     expect(source).toContain("<NavigationInlineCreate");
     expect(source).toContain("kind: node.item.kind");
     expect(source).toContain("icon: node.item.icon");
+    expect(source).toContain("resolveTreeRowPointerAction(");
+    expect(source).toContain('"click"');
+    expect(source).toContain('"dblclick"');
+    expect(source).toContain("folderClickScheduler");
+    expect(source).toContain("subscribeProjection");
+    expect(source).toContain("replaceProjectedItem");
+    expect(source).toContain("classifyStructuredItem");
+    expect(source).toContain("visibleWarmedPageIds");
+    expect(source).toContain("holdsStructuredCanvas");
+    expect(source).toContain("workspace-page-session");
+    expect(source).toContain("sessionIsActive");
+    expect(source).toContain("handleFolderRowPointerClick");
+    expect(source).toContain('if (node.item.kind === "folder") return');
+    expect(source).toContain("hidden={graphScope !== null}");
+    expect(source).toContain("&& !showSelectedEntry");
+    expect(source).not.toContain("service.subscribe(() =>");
+    expect(source).not.toContain("structuredSelectionItemId.current !== selectedItem.id ||");
 
     const attachments = source.indexOf('className="workspace-page-attachments-trigger"');
     const creation = source.indexOf("<NavigationInlineCreate");

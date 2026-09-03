@@ -13,6 +13,12 @@ export const WORKSPACE_PRESENTATION_KEY = "navigation-state";
 export const DEFAULT_SIDEBAR_WIDTH = 280;
 export const MIN_SIDEBAR_WIDTH = 240;
 export const MAX_SIDEBAR_WIDTH = 360;
+/** Sentinel tab id for the knowledge-graph view (not a canonical item). */
+export const GRAPH_TAB_ID = "graph";
+
+export function isGraphTabId(id: string): boolean {
+  return id === GRAPH_TAB_ID;
+}
 
 /** How many page positions to retain. Oldest are discarded first. */
 export const MAX_REMEMBERED_SCROLL_POSITIONS = 50;
@@ -39,6 +45,12 @@ export interface WorkspacePresentationState {
   readonly recentsExpanded: boolean;
   /** Branches the owner has opened, by item id. */
   readonly expandedItemIds: string[];
+  /**
+   * Pages, folders and the graph view currently shown as tabs, in strip order.
+   * Device-local ergonomics like the sidebar width: never synchronized, never
+   * in revisions. The graph uses {@link GRAPH_TAB_ID}, not an item identity.
+   */
+  readonly openTabIds: string[];
   readonly lastVisitedItemId: string | null;
   /** Legacy pixel positions, retained while document anchors are rolled out. */
   readonly scrollPositions: Array<readonly [string, number]>;
@@ -57,10 +69,16 @@ export const DEFAULT_WORKSPACE_PRESENTATION_STATE: WorkspacePresentationState = 
   recentsVisible: true,
   recentsExpanded: true,
   expandedItemIds: [],
+  openTabIds: [],
   lastVisitedItemId: null,
   scrollPositions: [],
   scrollAnchors: [],
 };
+
+function normalizeIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((id): id is string => typeof id === "string"))];
+}
 
 function finiteOffset(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -118,9 +136,7 @@ export function normalizeWorkspacePresentationState(value: unknown): WorkspacePr
     typeof value === "object" && value !== null
       ? (value as Partial<WorkspacePresentationState>)
       : {};
-  const expandedItemIds = Array.isArray(candidate.expandedItemIds)
-    ? [...new Set(candidate.expandedItemIds.filter((id): id is string => typeof id === "string"))]
-    : [];
+  const expandedItemIds = normalizeIdList(candidate.expandedItemIds);
   return trimWorkspacePresentationState({
     sidebarOpen: typeof candidate.sidebarOpen === "boolean" ? candidate.sidebarOpen : true,
     sidebarWidth:
@@ -135,6 +151,7 @@ export function normalizeWorkspacePresentationState(value: unknown): WorkspacePr
     recentsExpanded:
       typeof candidate.recentsExpanded === "boolean" ? candidate.recentsExpanded : true,
     expandedItemIds,
+    openTabIds: normalizeIdList(candidate.openTabIds),
     lastVisitedItemId:
       typeof candidate.lastVisitedItemId === "string" ? candidate.lastVisitedItemId : null,
     scrollPositions: normalizePixelPositions(candidate.scrollPositions),
@@ -274,4 +291,36 @@ export function setLastVisitedItem(
   lastVisitedItemId: string | null,
 ): WorkspacePresentationState {
   return { ...state, lastVisitedItemId };
+}
+
+/**
+ * Inserts a tab at the start of the strip so the most recently opened items
+ * sit first; an already-open tab keeps its place and the same array is
+ * returned so React state does not churn.
+ */
+export function openTab(ids: readonly string[], itemId: string): readonly string[] {
+  return ids.includes(itemId) ? ids : [itemId, ...ids];
+}
+
+export function closeTab(ids: readonly string[], itemId: string): readonly string[] {
+  return ids.includes(itemId) ? ids.filter((id) => id !== itemId) : ids;
+}
+
+/**
+ * The tab that becomes active when `itemId` closes: its right-hand neighbour,
+ * else its left-hand neighbour, else nothing (the strip is empty).
+ */
+export function neighbourTab(ids: readonly string[], itemId: string): string | null {
+  const index = ids.indexOf(itemId);
+  if (index < 0) return null;
+  return ids[index + 1] ?? ids[index - 1] ?? null;
+}
+
+/** Drops tabs whose item is no longer openable (trashed, deleted, not a page/folder). */
+export function pruneTabs(
+  ids: readonly string[],
+  openable: ReadonlySet<string>,
+): readonly string[] {
+  const kept = ids.filter((id) => isGraphTabId(id) || openable.has(id));
+  return kept.length === ids.length ? ids : kept;
 }

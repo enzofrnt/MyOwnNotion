@@ -504,3 +504,52 @@ describe("database definition and value validation errors", () => {
     expect(absentValue.ok).toBe(true);
   });
 });
+
+describe("structured host classification", () => {
+  it("routes by row presence without opening sealed payloads", async () => {
+    const pageId = generateUuidV7();
+    expect(
+      (
+        await apply("item.create", {
+          id: pageId,
+          kind: "page",
+          name: "Note",
+          placement: { kind: "hierarchy", parentItemId: null, positionKey: "a" },
+        })
+      ).ok,
+    ).toBe(true);
+
+    const openDatabase = vi.spyOn(codec, "openDatabase");
+    const openEntry = vi.spyOn(codec, "openDatabaseEntry");
+    expect(await databases.classifyStructuredHost(pageId)).toBe("page");
+    expect(openDatabase).not.toHaveBeenCalled();
+    expect(openEntry).not.toHaveBeenCalled();
+
+    const payload = createPayload();
+    expect((await apply("database.create", payload)).ok).toBe(true);
+    openDatabase.mockClear();
+    openEntry.mockClear();
+    expect(await databases.classifyStructuredHost(payload.id)).toBe("database");
+    expect(openDatabase).not.toHaveBeenCalled();
+    expect(openEntry).not.toHaveBeenCalled();
+
+    const entryId = generateUuidV7();
+    expect(
+      (
+        await apply("database.entry.create", {
+          databaseId: payload.id,
+          id: entryId,
+          title: "Entry",
+          placement: { id: generateUuidV7(), parentItemId: payload.id, positionKey: "a" },
+          values: {},
+          relationTargets: {},
+        })
+      ).ok,
+    ).toBe(true);
+    openDatabase.mockClear();
+    openEntry.mockClear();
+    expect(await databases.classifyStructuredHost(entryId)).toBe("entry");
+    expect(openDatabase).not.toHaveBeenCalled();
+    expect(openEntry).not.toHaveBeenCalled();
+  });
+});

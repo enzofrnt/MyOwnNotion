@@ -9,16 +9,17 @@ Le dépôt est préparé avec GitHub Spec Kit pour OpenAI Codex et Cursor. Les d
 
 ## État du développement
 
-Mise à jour du 27 août 2026 :
+Mise à jour du 31 août 2026 :
 
 | Grande étape | Fait | Reste à faire (RAF) |
 | --- | --- | --- |
-| Fondations fonctionnelles — features 001 à 008 | Implémentées et fusionnées dans `main` : sécurité mono-utilisateur, pages et dossiers, éditeur par blocs, fichiers, offline, synchronisation, sauvegarde/restauration et recherche. | Exécuter les trois protocoles humains/opérationnels encore ouverts dans la feature 002 et terminer la convergence d'interface 017 avant de déclarer la release V1 formellement validée. |
-| Convergence V1 proche de Notion — feature 017 | Éditeur BlockNote/Loro, page focalisée, blocs riches, fichiers offline, liens unifiés et arborescence interactive ont été livrés par étapes et fusionnés dans `main`. | Continuer la finition Notion-like : interactions d'édition avancées et cohérence visuelle des surfaces restantes, avec accessibilité limitée aux usages clavier/toucher/WebKit requis par le propriétaire. |
+| Fondations fonctionnelles — features 001 à 008 | Implémentées et fusionnées dans `main` : sécurité mono-utilisateur, pages et dossiers, éditeur par blocs, fichiers, offline, synchronisation, sauvegarde/restauration et recherche. | Exécuter les trois protocoles humains/opérationnels encore ouverts dans la feature 002, livrer le graphe 010 et les journaux lisibles 021, puis terminer la convergence d'interface 017 avant de déclarer la release V1 formellement validée. |
+| Convergence V1 proche de Notion — feature 017 | Éditeur BlockNote/Loro, page focalisée, blocs riches, fichiers offline, liens unifiés et arborescence interactive ont été livrés par étapes et fusionnés dans `main`. | Terminer le correctif en cours, intégrer ensuite la surface du graphe 010 au système visuel commun, faire converger les journaux serveur 021, puis exécuter la convergence finale V1. |
 | Synchronisation temps réel durable — feature 018 | Canal WebSocket same-origin avec ACK après commit, reprise hors ligne/crash, convergence des pages fermées, auto-réparation des anciens conflits, révocation immédiate, fichiers vérifiés, identité distincte par profil et passkey complète sont implémentés et fusionnés. | Continuer d'exercer les données réelles et conserver les régressions HAR, multi-appareils, révocation et restauration dans la gate. |
 | Chaîne d'outils Bun — feature 019 | Migration dédiée vers Bun 1.4.0 en cours : gestion des paquets, runtime, builds Web/API, tests, CI et images convergent vers une seule chaîne. | Terminer la gate locale complète, obtenir une CI distante verte et fusionner sans conserver pnpm, Node.js ou un WebSocket npm de secours. |
 | Bases structurées et tâches — feature 009 | Implémentation terminée, convergée et validée par le gate local complet ; [pull request #125](https://github.com/enzofrnt/MyOwnNotion/pull/125) ouverte. | Obtenir un gate CI distant vert, faire relire puis fusionner la pull request dans `main`. |
-| Graphe de connaissances — feature 010 | Direction et dépendances définies dans la roadmap. | Spécifier, planifier et implémenter la navigation par graphe après la 009 et la convergence V1 017. |
+| Graphe de connaissances V1 — feature 010 | Backlinks, graphes local/global, périmètres, filtres, offline et limites sont définis dans la spec initiale. | Relire la portée produit, clarifier si nécessaire, puis planifier et implémenter la feature avant la convergence finale de la 017. |
+| Journaux serveur lisibles — feature 021 | Le diagnostic, les présentations humaine/machine, la réduction du bruit, la corrélation et l'expurgation sont définis dans la spec initiale. | Relire les critères opérateur, puis planifier et implémenter la feature après stabilisation du correctif en cours et avant la validation finale de la V1. |
 | Tableaux blancs — feature 011 | Périmètre produit ordonné après le graphe. | Spécifier, planifier et implémenter les canvas sans dupliquer les données canoniques. |
 | Publication contrôlée — feature 012 | Frontière mono-utilisateur/public déjà posée par le canevas produit. | Concevoir puis livrer le partage public avec permissions et révocation explicites. |
 | Intégrations et MCP — feature 013 | Positionnée après les surfaces publiques afin de réutiliser leurs contrôles d’accès. | Spécifier puis livrer les intégrations et l’exposition MCP sécurisée. |
@@ -64,10 +65,20 @@ rechargent le code dans les conteneurs.
 bun run dev:stack
 ```
 
-Ouvrir `https://localhost:8443`. Au premier passage, faire confiance à
-l’autorité locale : `bun run dev:trust`. Journaux : `bun run dev:stack:logs`.
+Ouvrir `http://localhost:8080` (navigateur intégré de Cursor) ou
+`https://localhost:8443` (Safari/Chrome). Pour HTTPS, faire confiance à
+l’autorité locale : `bun run dev:trust` — ajouter le certificat au trousseau
+**session**, pas à « Racines du système ». Cursor n’utilise pas ce trousseau ;
+rester en HTTP dans ce navigateur. Journaux : `bun run dev:stack:logs`.
 Arrêt : `bun run dev:stack:down`. Pour vider Postgres, les fichiers et les
 sauvegardes de cette stack : `bun run dev:stack:reset`.
+
+Pour tester le Knowledge Graph avec une base locale riche et reproductible,
+utiliser `bun run dev:stack:demo`, puis suivre la
+[procédure de réinitialisation serveur et navigateur](docs/testing/knowledge-graph-demo.md).
+Le mot de passe factice est `knowledge-graph-demo` ; cette commande détruit
+uniquement les volumes de la stack locale `myownnotion-dev` et refuse toute
+cible distante ou déjà remplie.
 
 `bun --version` doit afficher exactement `1.4.0`. Avant de pousser une
 modification de code, de dépendance, de build, de configuration ou de

@@ -96,5 +96,6 @@ describe("item identity icon", () => {
     const source = readFileSync(new URL("../src/ui/item-icon.tsx", import.meta.url), "utf8");
     expect(source).toContain("event.detail > 0");
     expect(source).toContain("event.currentTarget.blur()");
+    expect(source).toContain("onDoubleClick={stopDoubleClick}");
   });
 });

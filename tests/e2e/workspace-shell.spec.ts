@@ -295,7 +295,7 @@ test.describe("focused workspace shell", () => {
     const renamed = uniqueName("Dossier renommé");
     await createRootItem(page, "folder", original);
     await waitForSynchronized(page);
-    await page.getByTestId(`tree-item-${original}`).click();
+    await page.getByTestId(`tree-item-${original}`).dblclick();
 
     const title = page.getByRole("textbox", { name: "Nom du dossier" });
     await expect(page.getByTestId("workspace-folder-canvas")).toBeVisible();
@@ -304,12 +304,53 @@ test.describe("focused workspace shell", () => {
     await title.blur();
     await expect(page.getByTestId(`tree-item-${renamed}`)).toBeVisible({ timeout: 15_000 });
 
-    const icon = page.getByTestId("item-icon-picker-trigger");
+    const icon = page
+      .getByTestId("workspace-folder-canvas")
+      .getByTestId("item-icon-picker-trigger");
     await icon.click();
     const picker = page.getByTestId("emoji-picker-panel");
     await expect(picker).toBeVisible();
     const folderEmoji = picker.getByRole("button", { name: "📁", exact: true });
     await folderEmoji.click();
     await expect(icon.locator('[data-item-emoji="true"]')).toHaveText("📁");
+  });
+
+  test("expands a folder on click and opens it on double-click", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openWorkspace(page);
+    const keep = uniqueName("Page gardée");
+    const folder = uniqueName("Dossier arbre");
+    const child = uniqueName("Enfant visible");
+    await createRootItem(page, "page", keep);
+    await createRootItem(page, "folder", folder);
+    await createChildItem(page, folder, "page", child);
+    await waitForSynchronized(page);
+    await selectItem(page, keep);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(keep);
+
+    const folderRow = page.getByTestId(`tree-item-${folder}`);
+    const toggle = page.getByTestId(`toggle-${folder}`);
+    if ((await folderRow.getAttribute("aria-expanded")) === "true") {
+      await toggle.click();
+    }
+    await expect(folderRow).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(0);
+
+    await folderRow.click();
+    await expect(folderRow).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByTestId(`tree-item-${child}`)).toBeVisible();
+    await expect(page.getByTestId("active-item-title")).toHaveValue(keep);
+    await expect(page.getByTestId("workspace-folder-canvas")).toHaveCount(0);
+
+    await folderRow.click();
+    await expect(folderRow).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByTestId(`tree-item-${child}`)).toHaveCount(0);
+    await expect(page.getByTestId("active-item-title")).toHaveValue(keep);
+
+    await folderRow.dblclick();
+    await expect(folderRow).toHaveAttribute("aria-expanded", "true");
+    await expect(folderRow).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("workspace-folder-canvas")).toBeVisible();
+    await expect(page.getByTestId("active-item-title")).toHaveValue(folder);
   });
 });

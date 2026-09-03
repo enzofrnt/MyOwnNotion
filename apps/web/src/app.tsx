@@ -29,6 +29,7 @@ import { LoginPage } from "./features/auth/login-page.tsx";
 import { BackupPanel } from "./features/backup/backup-panel.tsx";
 import { ConnectionStatus } from "./features/connection/connection-status.tsx";
 import {
+  type GraphMode,
   HierarchyExplorer,
   type HierarchyExplorerProps,
 } from "./features/hierarchy/hierarchy-explorer.tsx";
@@ -39,6 +40,7 @@ import { WorkspaceManagementSettings } from "./features/settings/workspace-manag
 import { WorkspaceNavigationSettings } from "./features/settings/workspace-navigation-settings.tsx";
 import {
   type ApplicationDestination,
+  graphPath,
   isProtectedDestination,
   notePath,
   pageSettingsPath,
@@ -92,6 +94,7 @@ function itemIdFromDestination(
   if (destination.kind === "note" || destination.kind === "page-settings") {
     return destination.itemId;
   }
+  if (destination.kind === "graph") return destination.itemId ?? retainedItemId;
   if (destination.kind === "settings") return retainedItemId;
   return null;
 }
@@ -150,9 +153,19 @@ export function App(props: AppProps = {}) {
     readonly scrollY: number;
   } | null>(null);
   const settingsSection = settingsSectionFromDestination(destination);
-  const workspaceVisible = destination.kind === "notes" || destination.kind === "note";
+  const workspaceVisible =
+    destination.kind === "notes" || destination.kind === "note" || destination.kind === "graph";
   const protectedLayoutMounted = isProtectedDestination(destination);
   const routedItemId = itemIdFromDestination(destination, activeItem?.id ?? null);
+  const graphMode = useMemo<GraphMode | null>(
+    () =>
+      destination.kind !== "graph"
+        ? null
+        : destination.itemId === null
+          ? { kind: "global" }
+          : { kind: "local", centerId: destination.itemId },
+    [destination],
+  );
 
   const navigateSafely = useCallback(
     (path: string, options?: NavigateOptions): void => {
@@ -358,6 +371,13 @@ export function App(props: AppProps = {}) {
     [navigateSafely],
   );
 
+  const openGraph = useCallback(
+    (itemId: Uuid | null) => {
+      navigateSafely(graphPath(itemId));
+    },
+    [navigateSafely],
+  );
+
   useLayoutEffect(() => {
     if (gate !== "workspace") return;
     if (!workspaceVisible) {
@@ -409,12 +429,14 @@ export function App(props: AppProps = {}) {
             active={workspaceVisible}
             backupStale={workspaceBackupStale}
             selectedItemId={routedItemId}
+            graphMode={graphMode}
             pageOperationCsrfToken={pageOperationCsrfToken}
             onActiveItemChange={setActiveItem}
             onOpenBackups={() => openSettings("backups")}
             onOpenDiagnostics={() => openSettings("local-data")}
             onOpenSettings={() => openSettings("security")}
             onOpenItem={openItem}
+            onOpenGraph={openGraph}
             onProblemChange={setOperationalProblem}
             onTrashedItemsChange={setTrashedItems}
           />

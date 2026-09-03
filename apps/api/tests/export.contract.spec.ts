@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { schema } from "@myownnotion/database";
 import {
   type CanonicalExportManifest,
   canonicalExportString,
@@ -144,5 +145,61 @@ describe("structured canonical export (T074)", () => {
       }),
     );
     expect(createHash("sha256").update(canonicalExportString(manifest)).digest("hex")).toBe(digest);
+  });
+});
+
+describe("export status and artifacts", () => {
+  it("reports a pending job without a digest or download path", async () => {
+    const exportId = generateUuidV7();
+    await harness.built.context.db.insert(schema.exports).values({
+      id: exportId,
+      workspaceId: harness.built.context.workspaceId,
+      status: "pending",
+    });
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${exportId}`,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ exportId, status: "pending" });
+  });
+
+  it("returns a not-found problem for an unknown export", async () => {
+    const response = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${generateUuidV7()}`,
+    });
+    expect(response.statusCode).toBe(404);
+    expect((response.json() as { code: string }).code).toBe("item.not-found");
+  });
+
+  it("refuses the artifact until a verified manifest is stored", async () => {
+    const pendingId = generateUuidV7();
+    const readyWithoutManifestId = generateUuidV7();
+    await harness.built.context.db.insert(schema.exports).values([
+      {
+        id: pendingId,
+        workspaceId: harness.built.context.workspaceId,
+        status: "pending",
+      },
+      {
+        id: readyWithoutManifestId,
+        workspaceId: harness.built.context.workspaceId,
+        status: "ready",
+        ready: true,
+        digest: "abc",
+        manifest: null,
+      },
+    ]);
+    const pending = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${pendingId}/artifact`,
+    });
+    expect(pending.statusCode).toBe(404);
+    const missingManifest = await harness.built.app.inject({
+      method: "GET",
+      url: `/v1/export/${readyWithoutManifestId}/artifact`,
+    });
+    expect(missingManifest.statusCode).toBe(404);
   });
 });

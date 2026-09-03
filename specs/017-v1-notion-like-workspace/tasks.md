@@ -753,3 +753,13 @@ elle va, et garder le curseur de prise en cours pendant tout le geste.
 - [X] T316 [P] [US1] Écrire les tests source, CSS, composant et journey qui exigent le curseur de prise sur la ligne, un fantôme nommé pendant le glisser, et le curseur de prise en cours au-dessus d'une autre commande dans `apps/web/tests/hierarchy-explorer.spec.tsx`, `apps/web/tests/tree-drag-preview.spec.tsx` et `tests/e2e/hierarchy.spec.ts` per FR-090, SC-042 et US1/AC22
 - [X] T317 [US1] Ajouter le curseur de prise sur la ligne, le marqueur document de prise en cours, et le `DragOverlay` fantôme d'identité sans poignée ni actions dans `apps/web/src/features/navigation/tree-drag-drop.tsx`, `apps/web/src/features/hierarchy/hierarchy-explorer.tsx` et `apps/web/src/features/navigation/navigation.css` per FR-090
 - [X] T318 [US1] Exécuter les suites ciblées arbre puis consigner le comportement curseur/fantôme dans `specs/017-v1-notion-like-workspace/validation.md` per SC-042 et Definition of Done
+
+## Phase 23: Convergence finale V1 — intégration du graphe 010
+
+**Purpose**: Après fusion du correctif en cours et livraison de la feature 010,
+intégrer backlinks et graphes au langage visuel et aux parcours communs sans
+dupliquer leurs règles métier dans la 017. La validation formelle de release
+reste parallèlement bloquée par la feature 021, dont l'implémentation et les
+preuves d'exploitation appartiennent à sa propre task list puis à la 008.
+
+- [ ] T319 [US6] Après livraison de `specs/010-knowledge-graph`, intégrer ses destinations et états au shell, aux thèmes clair/sombre, aux largeurs desktop/mobile, au clavier, au catalogue français et aux références visuelles V1 ; exécuter les journeys croisés workspace–page–backlinks–graphe, mettre à jour `specs/017-v1-notion-like-workspace/validation.md`, puis relancer la convergence et le gate final per product canvas §6.1/§22, SC-003 à SC-006, SC-010 et Definition of Done

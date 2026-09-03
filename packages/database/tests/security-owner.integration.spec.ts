@@ -14,6 +14,7 @@
 
 import {
   createInstallation,
+  type Database,
   findInstallation,
   promoteOwnership,
   readCounts,
@@ -116,6 +117,21 @@ describe("installation creation", () => {
     );
     expect(ids.size).toBe(1);
     expect(await readCounts(context.handle.db)).toEqual({ ownerCount: 0, workspaceCount: 0 });
+  });
+
+  it("rethrows a creation failure that is not a singleton unique violation", async () => {
+    const db = {
+      transaction: async () => {
+        throw new Error("the connection closed");
+      },
+    } as unknown as Database;
+    await expect(
+      createInstallation(db, {
+        id: generateUuidV7(),
+        sourceLineageId: LINEAGE_ID,
+        schemaVersion: 1,
+      }),
+    ).rejects.toThrow("the connection closed");
   });
 });
 

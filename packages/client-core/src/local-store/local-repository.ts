@@ -22,7 +22,20 @@ import type {
   ItemDto,
   RelationshipDto,
 } from "@myownnotion/contracts";
-import type { BlockDocumentV3, DatabaseDefinition, EntryValues, Uuid } from "@myownnotion/domain";
+import type {
+  BlockDocumentV3,
+  DatabaseDefinition,
+  DatabaseProperty,
+  EntryValues,
+  NonRelationPropertyValue,
+  Uuid,
+} from "@myownnotion/domain";
+import type {
+  GraphCoverage,
+  GraphNodeKind,
+  RawGraphNode,
+  RawGraphSource,
+} from "@myownnotion/graph";
 import type { LocalRecordCodec } from "../security/local-record-codec.ts";
 import {
   type LocalDatabase,
@@ -64,7 +77,14 @@ function itemRowFrom(dto: ItemDto): LocalItemRow {
             formatVersion: dto.pageDocument.formatVersion,
             body: dto.pageDocument.body as Record<string, unknown>,
           },
-    file: null,
+    file:
+      dto.file == null
+        ? null
+        : {
+            mediaType: dto.file.mediaType,
+            originalName: dto.file.originalName,
+            byteLength: dto.file.byteLength,
+          },
   };
 }
 
@@ -378,6 +398,203 @@ export class LocalRepository {
     return await this.#openAll(fetched);
   }
 
+  /**
+   * Reads the graph topology without opening item titles or file descriptions.
+   *
+   * Identities, lifecycle and routing fields are already the intentionally
+   * clear part of the encrypted projection. The only protected payload opened
+   * here is a database definition, solely to decide whether one of its member
+   * pages carries the existing task role. No derived row is persisted.
+   */
+  async readKnowledgeGraphTopology(): Promise<RawGraphSource> {
+    const snapshot = await this.db.transaction(
+      "r",
+      [
+        this.db.items,
+        this.db.placements,
+        this.db.relationships,
+        this.db.databases,
+        this.db.databaseEntries,
+        this.db.meta,
+      ],
+      async () => ({
+        items: await this.db.items.toArray(),
+        placements: await this.db.placements.toArray(),
+        relationships: await this.db.relationships.toArray(),
+        databases: await this.db.databases.toArray(),
+        memberships: await this.db.databaseEntries.toArray(),
+        cursor: (await this.db.meta.get(META_KEYS.lastChangeCursor))?.value,
+      }),
+    );
+    const definitions = await Promise.all(
+      snapshot.databases.map(async (row) => await this.#codec.openDatabase(row)),
+    );
+    const databaseIds = new Set(definitions.map(({ itemId }) => itemId));
+    const taskDatabaseIds = new Set(
+      definitions
+        .filter(({ definition }) => definition.taskRoles !== null)
+        .map(({ itemId }) => itemId),
+    );
+    const membershipByEntry = new Map(
+      snapshot.memberships.map((membership) => [membership.entryItemId, membership]),
+    );
+    const parentsByItem = new Map<Uuid, Uuid[]>();
+    for (const placement of snapshot.placements) {
+      if (placement.kind !== "hierarchy" || placement.parentItemId === null) continue;
+      parentsByItem.set(placement.itemId, [
+        ...(parentsByItem.get(placement.itemId) ?? []),
+        placement.parentItemId,
+      ]);
+    }
+    const nodes: RawGraphNode[] = snapshot.items.map((row) => {
+      const membership = membershipByEntry.get(row.id);
+      const kind: GraphNodeKind = databaseIds.has(row.id)
+        ? "database"
+        : membership !== undefined && taskDatabaseIds.has(membership.databaseId)
+          ? "task"
+          : row.kind;
+      return {
+        id: row.id,
+        canonicalKind: row.kind,
+        kind,
+        lifecycle: row.lifecycle,
+        name: null,
+        icon: null,
+        mediaType: null,
+        parentIds: [...new Set(parentsByItem.get(row.id) ?? [])].toSorted(),
+        structured: {},
+      };
+    });
+    const edges = [
+      ...snapshot.relationships.map((relationship) => ({
+        id: relationship.id,
+        sourceId: relationship.sourceItemId,
+        targetId: relationship.targetItemId,
+        relationType: relationship.relationType,
+        origin: "relationship" as const,
+      })),
+      ...snapshot.placements.flatMap((placement) =>
+        placement.parentItemId === null
+          ? []
+          : [
+              {
+                id: placement.id,
+                sourceId: placement.parentItemId,
+                targetId: placement.itemId,
+                relationType:
+                  placement.kind === "attachment" ? "file:attachment" : "hierarchy:contains",
+                origin:
+                  placement.kind === "attachment"
+                    ? ("attachment" as const)
+                    : ("hierarchy" as const),
+              },
+            ],
+      ),
+    ];
+    const cursor = typeof snapshot.cursor === "string" ? snapshot.cursor : "";
+    const coverage: GraphCoverage =
+      cursor.length === 0
+        ? { state: "partial", reason: "initial-sync", cursor: null }
+        : { state: "complete", cursor };
+    return { nodes, edges, coverage };
+  }
+
+  /** Opens only the requested graph nodes and locally evaluable task fields. */
+  async hydrateKnowledgeGraphNodes(itemIds: readonly Uuid[]): Promise<RawGraphNode[]> {
+    const requested = [...new Set(itemIds)].toSorted();
+    const fetched = await this.db.transaction(
+      "r",
+      [this.db.items, this.db.placements, this.db.databases, this.db.databaseEntries],
+      async () => ({
+        items: (await Promise.all(requested.map(async (id) => await this.db.items.get(id)))).filter(
+          (row): row is SealedLocalItemRow => row !== undefined,
+        ),
+        placements: await this.db.placements.where("itemId").anyOf(requested).toArray(),
+        databases: await this.db.databases.toArray(),
+        memberships: (
+          await Promise.all(requested.map(async (id) => await this.db.databaseEntries.get(id)))
+        ).filter((row): row is NonNullable<typeof row> => row !== undefined),
+      }),
+    );
+    const [items, definitions] = await Promise.all([
+      this.#openAll(
+        fetched.items.map((row) => ({
+          row,
+          placements: fetched.placements.filter(({ itemId }) => itemId === row.id),
+        })),
+      ),
+      Promise.all(fetched.databases.map(async (row) => await this.#codec.openDatabase(row))),
+    ]);
+    const definitionById = new Map(
+      definitions.map((definition) => [definition.itemId, definition]),
+    );
+    const memberships = await Promise.all(
+      fetched.memberships.map(async (row) => await this.#codec.openDatabaseEntry(row)),
+    );
+    const membershipByEntry = new Map(memberships.map((entry) => [entry.entryItemId, entry]));
+    return items.map((item) => {
+      const membership = membershipByEntry.get(item.id);
+      const database =
+        membership === undefined ? undefined : definitionById.get(membership.databaseId);
+      const taskRoles = database?.definition.taskRoles ?? null;
+      const structured: Record<string, string | number | boolean | null> = {};
+      if (membership?.availability === "present") {
+        for (const [propertyId, value] of Object.entries(membership.values.values)) {
+          const property = database?.definition.properties.find(({ id }) => id === propertyId);
+          if (property !== undefined && property.state === "active") {
+            structured[`property:${property.name}`] = graphStructuredValue(value, property);
+          }
+        }
+        if (taskRoles !== null) {
+          const statusProperty = database?.definition.properties.find(
+            ({ id }) => id === taskRoles.statusPropertyId,
+          );
+          structured["status"] = graphStructuredValue(
+            membership.values.values[taskRoles.statusPropertyId] ?? null,
+            statusProperty,
+          );
+          if (taskRoles.dueDatePropertyId !== null) {
+            const dueDateProperty = database?.definition.properties.find(
+              ({ id }) => id === taskRoles.dueDatePropertyId,
+            );
+            structured["dueDate"] = graphStructuredValue(
+              membership.values.values[taskRoles.dueDatePropertyId] ?? null,
+              dueDateProperty,
+            );
+          }
+          if (taskRoles.priorityPropertyId !== null) {
+            const priorityProperty = database?.definition.properties.find(
+              ({ id }) => id === taskRoles.priorityPropertyId,
+            );
+            structured["priority"] = graphStructuredValue(
+              membership.values.values[taskRoles.priorityPropertyId] ?? null,
+              priorityProperty,
+            );
+          }
+        }
+      }
+      const kind: GraphNodeKind = definitionById.has(item.id)
+        ? "database"
+        : taskRoles !== null
+          ? "task"
+          : item.kind;
+      return {
+        id: item.id,
+        canonicalKind: item.kind,
+        kind,
+        lifecycle: item.lifecycle,
+        name: item.name,
+        icon: item.icon,
+        mediaType: item.file?.mediaType ?? null,
+        parentIds: item.placements
+          .filter(({ kind, parentItemId }) => kind === "hierarchy" && parentItemId !== null)
+          .map(({ parentItemId }) => parentItemId as Uuid)
+          .toSorted(),
+        structured,
+      };
+    });
+  }
+
   async listChildren(parentItemId: Uuid | null): Promise<ProjectedItem[]> {
     const fetched = await this.db.transaction(
       "r",
@@ -421,4 +638,30 @@ export class LocalRepository {
   async getLastChangeCursor(): Promise<string> {
     return (await this.getMeta<string>(META_KEYS.lastChangeCursor)) ?? "";
   }
+}
+
+function graphStructuredValue(
+  value: NonRelationPropertyValue | null | undefined,
+  property?: DatabaseProperty,
+): string | number | boolean | null {
+  if (value == null) return null;
+  if (value.kind === "text") return value.value;
+  if (value.kind === "number") return value.decimal;
+  if (value.kind === "date") return value.date;
+  if (value.kind === "instant") return value.instant;
+  if (value.kind === "status" || value.kind === "select") {
+    return property !== undefined && "options" in property.config
+      ? (property.config.options.find(({ id }) => id === value.optionId)?.label ??
+          "Option indisponible")
+      : "Option indisponible";
+  }
+  if (value.kind === "multi-select") {
+    if (property === undefined || !("options" in property.config)) return "Options indisponibles";
+    const options = property.config.options;
+    const labels = value.optionIds.map(
+      (optionId) => options.find(({ id }) => id === optionId)?.label ?? "Option indisponible",
+    );
+    return labels.toSorted().join(", ");
+  }
+  return value.checked;
 }

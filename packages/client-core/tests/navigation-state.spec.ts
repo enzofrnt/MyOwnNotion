@@ -97,6 +97,7 @@ describe("expanded branches", () => {
   it("sets a branch state without needing to know the previous one", () => {
     const state = setExpanded(setExpanded(empty, "branch", true), "branch", true);
     expect(state.expandedItemIds).toEqual(["branch"]);
+    expect(setExpanded(state, "branch", false).expandedItemIds).toEqual([]);
   });
 });
 

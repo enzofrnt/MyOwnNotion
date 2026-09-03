@@ -63,6 +63,13 @@ Les spécifications de fonctionnalité détaillées peuvent préciser ce documen
     connaissance livrées. Réglages, sécurité, appareils, stockage, sauvegardes
     et diagnostics détaillés vivent dans des surfaces dédiées, accessibles
     depuis le workspace sans être rendus sous le document courant.
+14. La V1 comprend les backlinks et un graphe de connaissances privé, local et
+    global. Son réseau principal représente les liens internes réellement
+    écrits dans les contenus et les relations métier explicites ; la hiérarchie
+    de rangement et les pièces jointes restent des couches structurelles
+    optionnelles. Ce graphe reste une vue reconstruisible des objets et
+    relations canoniques ; il ne devient ni un tableau blanc ni une seconde
+    source de vérité.
 
 ---
 
@@ -174,6 +181,9 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - fichiers et pièces jointes ;
 - prévisualisation des formats obligatoires ;
 - recherche dans les contenus pris en charge ;
+- backlinks, graphe local et graphe global fondés par défaut sur les liens de
+  contenu, avec périmètres, profondeur, filtres combinables, navigation au
+  pointeur et état de complétude explicite ;
 - stockage local chiffré ;
 - fonctionnement hors ligne ;
 - synchronisation multi-appareils convergente, y compris lorsque deux appareils
@@ -194,7 +204,6 @@ Les capacités suivantes appartiennent à la cible complète, mais peuvent être
 
 - bases de données avancées et toutes leurs vues ;
 - tâches structurées avancées ;
-- graphe de connaissances complet ;
 - tableaux blancs ;
 - partage public et annotations publiques ;
 - serveur MCP ;
@@ -511,10 +520,14 @@ dépliées sont restaurés sur l'appareil.
 
 La surface complète d'une ligne sert de prise de déplacement au pointeur ; la
 barre latérale n'ajoute pas de poignée à six points devant l'identité. Le
-pointeur indique cette prise sur toute la ligne. Un geste court ouvre l'élément
-et un glissement emporte un fantôme de la ligne, révèle les destinations avant,
-dans et après, et conserve le curseur de prise en cours même au-dessus d'autres
-commandes. Les actions à droite restent compactes : pièces jointes lorsqu'elles
+pointeur indique cette prise sur toute la ligne. Un geste court sur une page, un
+fichier ou une base ouvre l'élément. Sur un dossier, un geste court le déplie
+s'il est replié et le replie s'il est déplié, sans changer la destination ni
+créer d'onglet ; un double geste l'ouvre dans le canevas (onglet et destination)
+et le déplie, qu'il ait été replié ou déjà déplié. Le chevron reste une commande
+immédiate de repli ou de dépli. Un glissement emporte un
+fantôme de la ligne, révèle les destinations avant, dans et après, et conserve
+le curseur de prise en cours même au-dessus d'autres commandes. Les actions à droite restent compactes : pièces jointes lorsqu'elles
 existent, création d'un enfant, puis menu complémentaire. La création d'une
 page ou d'un dossier enfant se choisit dans une surface intégrée à la ligne qui
 ne décale ni son titre ni ses voisines.
@@ -537,7 +550,25 @@ pas la ligne sélectionnée ; elle affiche un nombre, des lignes nom/taille ou u
 seul état vide. Sous-éléments et surfaces contextuelles s'ouvrent et se ferment
 progressivement sans laisser d'espace résiduel. Un dossier ouvert présente
 dans la zone principale son emoji et son titre modifiables avec les mêmes
-composants d'identité qu'une page.
+composants d'identité qu'une page, puis, à la place d'un contenu éditorial,
+la liste ordonnée de ses enfants directs : chacun est un lien vers l'élément,
+et le propriétaire peut réordonner ces enfants depuis le dossier, avec le même
+résultat que dans l'arborescence. Un dossier ne propose jamais de saisie de
+texte.
+
+Le fil d'Ariane d'une page ou d'un dossier est rendu juste au-dessus de son
+emoji, dans un style subordonné au titre, sur une seule ligne. Quand le chemin
+est trop long pour la largeur disponible, les ancêtres intermédiaires sont
+regroupés dans un unique « … » qui reste consultable et permet d'ouvrir
+chacun d'eux.
+
+Au-dessus du canevas, une bande d'onglets liste les pages, dossiers et vues
+dérivées ouvertes sur l'appareil pendant la session, dans l'ordre d'ouverture.
+Un onglet de page ou de dossier montre l'emoji et le titre de l'élément, coupé
+par « … » s'il est trop long ; un onglet de graphe montre l'icône de graphe et
+le libellé « Graphe ». La bande défile horizontalement quand elle déborde.
+Cette bande est une préférence de présentation de l'appareil, restaurée
+localement et jamais synchronisée.
 
 Un déplacement au pointeur distingue trois destinations sur une ligne : avant
 la ligne, à l'intérieur de l'élément s'il peut contenir des enfants, et après
@@ -957,6 +988,11 @@ Les index contenant des données sensibles sont soumis aux mêmes exigences de c
 
 ## 22. Graphe de connaissances
 
+Les backlinks et le graphe de connaissances privé font partie du périmètre
+obligatoire de la V1. La feature 010 en fixe les parcours et critères
+d'acceptation ; les futurs tableaux blancs, surfaces publiques et accès MCP
+étendront leurs propres types de relations sans retarder ce socle V1.
+
 Le graphe représente les relations entre :
 
 - pages ;
@@ -966,6 +1002,20 @@ Le graphe représente les relations entre :
 - fichiers ;
 - pièces jointes ;
 - tableaux blancs lorsque pertinent.
+
+Le réseau de connaissances affiché par défaut est construit à partir des liens
+internes présents dans le contenu des pages et des relations métier explicites.
+Un placement parent-enfant, un classement dans un dossier ou le rattachement
+d'une pièce jointe n'exprime pas à lui seul une relation de connaissance : ces
+connexions structurelles peuvent être affichées comme couches optionnelles,
+mais ne doivent ni dominer la vue initiale ni déterminer le voisinage sémantique
+d'une page. Les backlinks sont dérivés des liens internes entrants et ne sont
+pas une seconde relation à maintenir.
+
+Une simple ressemblance de texte ou une mention non liée ne crée pas
+silencieusement d'arête canonique en V1. Elle peut être signalée séparément
+comme suggestion, mais le réseau visible doit rester explicable par des liens
+et relations que le propriétaire peut retrouver dans ses contenus.
 
 Le propriétaire peut choisir un périmètre :
 
@@ -988,7 +1038,24 @@ Il peut filtrer par :
 - dates ;
 - éléments isolés.
 
-Les filtres sont combinables, visibles et réinitialisables. Le graphe ne doit pas créer une seconde source de vérité : il visualise les objets et relations canoniques.
+Les filtres sont combinables, réinitialisables et disponibles à la demande :
+ils n'occupent pas le canevas par défaut. Le propriétaire les révèle quand il
+veut filtrer, changer de périmètre ou basculer une couche ; un indicateur
+rappelle qu'un filtre est actif. Le graphe ne doit pas créer une seconde source
+de vérité : il visualise les objets et relations canoniques. Hors ligne ou avec
+une projection locale partielle, il doit indiquer explicitement la complétude
+du périmètre présenté plutôt que laisser croire que les données absentes
+n'existent pas.
+
+Ouvrir le graphe global ou le voisinage d'un élément l'ajoute à la bande
+d'onglets comme n'importe quelle page. La carte occupe alors tout le canevas
+sous cette bande : aucun titre de document, aucun panneau de filtres et aucun
+inspecteur ne réduisent cette surface tant que le propriétaire ne les a pas
+demandés. Sur une interface à pointeur, le propriétaire peut déplacer le point
+de vue en faisant glisser le fond, zoomer à la molette autour de la position
+visée, mettre en évidence le voisinage direct au survol, sélectionner un nœud
+et ouvrir sa page sans passer par l'arborescence. Ces comportements s'inspirent
+de la vue graphe d'Obsidian sans imposer une reproduction visuelle du produit.
 
 ---
 
@@ -1401,6 +1468,21 @@ exploitables par une machine, sans code de contrôle de terminal. Un forçage
 explicite peut remplacer cette détection pour un environnement atypique. Le choix
 automatique ou configuré de présentation ne doit modifier ni les événements
 émis, ni leur niveau, ni leurs champs, ni les règles d'expurgation.
+
+Le format, l'usage de la couleur et le niveau de verbosité sont trois décisions
+indépendantes. La commande locale standard de suivi de la stack doit fournir par
+défaut une présentation humaine compacte, même lorsque les conteneurs écrivent
+vers une sortie non interactive ; une présentation machine structurée reste
+disponible explicitement pour les collecteurs. La vue humaine monochrome ne doit
+donc pas nécessiter de simuler un terminal coloré.
+
+Au niveau d'exploitation courant, une requête réussie ne doit produire au plus
+qu'un résumé informatif et un contrôle de vie ou de disponibilité réussi et
+répétitif ne doit pas masquer les événements utiles. Les erreurs, refus,
+ralentissements et changements d'état doivent rester visibles avec un code
+diagnostique sûr, l'opération concernée, un résultat, un identifiant de
+corrélation et une piste d'action qui n'expose ni contenu privé, ni secret, ni
+message ou trace d'erreur bruts.
 
 Un journal d'audit doit couvrir au minimum :
 
@@ -1844,7 +1926,9 @@ La V1 doit fournir une interface française cohérente et préparer l'externalis
   la suite du document courant. Il garde seulement les états compacts utiles à
   l'action immédiate et ouvre les détails dans une surface dédiée, avec retour
   au même contexte de lecture.
-- Les parcours de référence du workspace, de l'éditeur, de la recherche, des fichiers, des bases, de la sécurité, des sauvegardes et de l'installation font l'objet d'une revue visuelle en thèmes clair et sombre.
+- Les parcours de référence du workspace, de l'éditeur, de la recherche, du
+  graphe, des fichiers, des bases, de la sécurité, des sauvegardes et de
+  l'installation font l'objet d'une revue visuelle en thèmes clair et sombre.
 - À 320 pixels de large et à un zoom de 200 %, les parcours essentiels restent utilisables sans défilement horizontal de la page entière.
 - Un écran ne peut pas être considéré terminé s'il expose encore les structures internes ou les contrôles provisoires à la place d'une hiérarchie compréhensible par le propriétaire.
 
@@ -1957,25 +2041,27 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 17. historique et conflits ;
 18. sauvegarde, restauration et export ;
 19. mises à jour et retour arrière ;
-20. convergence V1 de l'espace de travail et de l'éditeur proche de Notion.
+20. backlinks et graphe de connaissances privé, local et global ;
+21. journaux serveur lisibles, actionnables et toujours collectables ;
+22. convergence V1 de l'espace de travail, de l'éditeur et des vues de
+    connaissance proches de Notion.
 
 L'achèvement de cette phase, y compris la convergence visuelle et interactive, constitue la V1 fonctionnelle, sous réserve de satisfaire tous les critères de qualité et d'exploitation.
 
 ### Phase 4 — Fonctions avancées
 
-21. bases de données et tâches avancées ;
-22. graphe ;
-23. tableaux blancs puis, si le besoin est confirmé, import ou édition de
+23. bases de données et tâches avancées ;
+24. tableaux blancs puis, si le besoin est confirmé, import ou édition de
     diagrammes par un moteur interne à MyOwnNotion ;
-24. partage public et annotations ;
-25. MCP.
+25. partage public et annotations ;
+26. MCP.
 
 ### Phase 5 — Clients supplémentaires
 
-26. application Electron Windows ;
-27. application Electron macOS ;
-28. adaptation iOS avancée ;
-29. éventuelle application iOS native.
+27. application Electron Windows ;
+28. application Electron macOS ;
+29. adaptation iOS avancée ;
+30. éventuelle application iOS native.
 
 Chaque étape doit rester utilisable, testable et compatible avec la trajectoire globale. Une phase peut être divisée en plusieurs spécifications de fonctionnalité, mais aucune dépendance critique ne doit rester implicite.
 
@@ -2078,3 +2164,24 @@ Ces références expliquent des contraintes de stockage des navigateurs ; elles 
   Non. Il reste le contrat sémantique durable et la projection vérifiée ; une
   représentation opérationnelle indépendante de l'éditeur porte seulement la
   causalité et la convergence de l'édition.
+
+---
+
+## Annexe D — Clarification validée le 31 août 2026
+
+- Q : Le graphe de connaissances peut-il rester une capacité après la V1 ? →
+  R : Non. Les backlinks, le graphe local et le graphe global privé font partie
+  de la V1. Ils visualisent les objets et relations canoniques, restent
+  utilisables sur les données disponibles hors ligne et précèdent la
+  convergence finale de la release.
+
+---
+
+## Annexe E — Clarification validée le 31 août 2026
+
+- Q : Une sortie serveur structurée et collectable suffit-elle lorsqu'elle est
+  difficile à lire dans la commande locale de suivi ? → R : Non. La V1 doit
+  séparer le format, la couleur et la verbosité, fournir une vue humaine locale
+  par défaut, réduire le bruit routinier et conserver en parallèle une sortie
+  machine expurgée. Les erreurs doivent orienter le diagnostic avec des champs
+  sûrs sans réintroduire de contenu privé ni de trace brute.

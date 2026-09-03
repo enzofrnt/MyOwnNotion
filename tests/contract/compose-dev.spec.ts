@@ -104,6 +104,7 @@ describe("local HTTPS development stack", () => {
 
   it("uses https://localhost:8443 so passkeys and Host-prefix cookies work", () => {
     expect(raw).toContain("MYOWNNOTION_PUBLIC_ORIGIN: https://localhost:8443");
+    expect(raw).toContain("MYOWNNOTION_DEV_LOOPBACK_HTTP_ORIGIN: http://localhost:8080");
     expect(raw).toContain('MYOWNNOTION_DEV_LOOPBACK_HTTP_COOKIE: "0"');
     expect(raw).toContain('MYOWNNOTION_DEV_HTTPS_PROXY: "1"');
     expect(raw).toContain(
@@ -153,7 +154,7 @@ describe("local HTTPS development stack", () => {
     expect(raw).not.toMatch(/action:\s*(rebuild|sync\+restart)/);
   });
 
-  it("terminates TLS for localhost and upgrades /v1 and Vite with heartbeat-safe timeouts", () => {
+  it("terminates TLS for localhost and proxies HTTP on :80 without a forced redirect", () => {
     expect(caddyfile).toContain("localhost:8443");
     expect(caddyfile).toContain("tls internal");
     expect(caddyfile).toContain("local_certs");
@@ -163,6 +164,9 @@ describe("local HTTPS development stack", () => {
     expect(caddyfile).toContain("flush_interval -1");
     expect(caddyfile).toMatch(/read_timeout\s+75s/);
     expect(caddyfile).toContain("header_up X-Forwarded-Proto {scheme}");
-    expect(caddyfile).toContain("redir https://localhost:8443{uri} permanent");
+    expect(caddyfile).toContain("import app");
+    expect(caddyfile).toMatch(/^:80 \{/m);
+    expect(caddyfile).not.toContain("redir https://localhost:8443");
+    expect(caddyfile).toContain("http://localhost:8080");
   });
 });

@@ -58,6 +58,23 @@ export class LocalDatabaseRepository {
     return row === undefined ? null : await this.#codec.openDatabaseEntry(row);
   }
 
+  /**
+   * Routes a page identity without opening sealed structured payloads.
+   *
+   * Opening a note must not decrypt neighbouring database misses. Presence of
+   * the host row is enough to decide whether the canvas is a base, an entry,
+   * or an ordinary page.
+   */
+  async classifyStructuredHost(itemId: Uuid): Promise<"database" | "entry" | "page"> {
+    const [database, entry] = await Promise.all([
+      this.db.databases.get(itemId),
+      this.db.databaseEntries.get(itemId),
+    ]);
+    if (database !== undefined) return "database";
+    if (entry !== undefined) return "entry";
+    return "page";
+  }
+
   async listEntries(databaseId: Uuid): Promise<LocalDatabaseEntryRow[]> {
     const rows = await this.db.databaseEntries.where("databaseId").equals(databaseId).toArray();
     const opened: LocalDatabaseEntryRow[] = [];

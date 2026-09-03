@@ -37,13 +37,17 @@ terminées ; la convergence est donc achevée.
 
 **État** : implémentation livrée ; trois protocoles de validation humaine et
 opérationnelle restent ouverts avant validation formelle de la release
-**Canevas** : sections 5, 8, 9, 28, 29, 34 et 36 à 41
+**Canevas** : sections 5, 8, 9, 28, 29 et 34 à 41
 
 Authentification du propriétaire unique, passkeys, mot de passe alternatif,
 sessions, appareils autorisés, chiffrement applicatif serveur et local, secrets
 de déploiement, kit de récupération, rotation des clés, ainsi que la fondation
 de livraison sécurisée : Compose/env, reverse proxy externe, CI, publication
 GHCR et releases immuables requis par FR-030 à FR-035.
+
+La 002 conserve le contrat de structure, d'expurgation et de sortie standard
+des journaux. La feature 021 affine séparément leur lisibilité réelle, leur
+bruit et leur capacité à orienter un diagnostic sans rouvrir cette fondation.
 
 ### 003 — Core workspace experience
 
@@ -122,7 +126,8 @@ export/import, migrations, mise à jour et retour arrière.
 ### 008 — Search and V1 release readiness
 
 **État** : implémentée et convergée ; la validation formelle de release V1
-reste conditionnée par les trois protocoles ouverts de la feature 002
+reste conditionnée par les trois protocoles ouverts de la feature 002, la
+feature 010, la feature 021 et la convergence finale de la feature 017
 **Dépendance** : 001 à 007
 **Canevas** : sections 6, 21 et 35 à 45
 
@@ -139,21 +144,28 @@ active existante, externalisent leurs copies et gardent leurs valeurs
 canoniques indépendantes des traductions ; aucune ne livre seule un fragment
 d'interface dans une autre langue.
 
+La validation d'exploitation vérifie également la vraie vue de journaux locale
+et la sortie structurée de la feature 021 ; la 008 ne duplique ni son
+vocabulaire d'événements ni sa politique de bruit.
+
 ### 017 — V1 Notion-like workspace
 
 **État** : spécification en cours
 **Dépendance** : 003 à 008 ; intégration avec les surfaces de la 009 déjà
-implémentées en avance, sans déplacer les bases avancées dans le périmètre V1
+implémentées en avance, sans déplacer les bases avancées dans le périmètre V1 ;
+sa convergence finale intègre la surface de la 010 sans reprendre ses règles
+métier
 **Dossier** : [`specs/017-v1-notion-like-workspace`](../../specs/017-v1-notion-like-workspace/)
-**Canevas** : sections 3, 6.1, 7, 11 à 21 et 43 à 47
+**Canevas** : sections 3, 6.1, 7, 11 à 22 et 43 à 47
 
 Cette feature rend la qualité de l'interface et le modèle d'interaction proche
 de Notion obligatoires pour la V1. Elle fait converger le shell, la barre
-latérale, l'éditeur par blocs et toutes les surfaces déjà livrées autour d'un
-système visuel commun. Elle fournit notamment l'insertion et les actions
-contextuelles, la poignée et le déplacement de blocs, la barre de mise en forme
-flottante, les blocs riches manquants, la restauration du scroll et la
-correction clavier WebKit encore ouvertes après la 003.
+latérale, l'éditeur par blocs et toutes les surfaces V1, dont le graphe livré
+par la 010, autour d'un système visuel commun. Elle fournit notamment
+l'insertion et les actions contextuelles, la poignée et le déplacement de
+blocs, la barre de mise en forme flottante, les blocs riches manquants, la
+restauration du scroll et la correction clavier WebKit encore ouvertes après
+la 003.
 
 Elle livre également l'autosauvegarde et la convergence multi-appareils du corps
 des pages. Deux appareils du propriétaire peuvent modifier hors ligne le même
@@ -162,8 +174,9 @@ remplacement du document entier. Le modèle canonique reste la projection
 durable et indépendante de l'éditeur ; le transport, les appareils, les
 fichiers et les sauvegardes existants sont étendus plutôt que reconstruits.
 
-La validation formelle de la V1 reste bloquée tant que cette convergence et les
-protocoles ouverts de la feature 002 ne sont pas terminés.
+La validation formelle de la V1 reste bloquée tant que les features 010 et 021,
+cette convergence et les protocoles ouverts de la feature 002 ne sont pas
+terminés.
 
 ### 018 — Durable realtime synchronization
 
@@ -190,6 +203,37 @@ builds de production historiques par Bun 1.4.0 exactement épinglé. Elle couvre
 workspaces, lockfile, scripts, tests, CI, builds Web/API et images, sans changer
 les données ni le protocole produit. Le temps réel conserve Fastify et utilise
 le module `ws` intégré à Bun avec les mêmes protections de session.
+
+### 010 — Knowledge graph V1
+
+**État** : spécification initiale créée ; prête pour revue produit avant
+clarification et planification
+**Dépendance** : 001 à 008, fondations de liens et de workspace déjà livrées par
+017, synchronisation durable 018 et chaîne Bun 019 ; la 009 enrichit les types
+de nœuds déjà présents sans transférer ses capacités métier dans la 010
+**Dossier** : [`specs/010-knowledge-graph`](../../specs/010-knowledge-graph/)
+**Canevas** : sections 6.1, 10 à 13, 17 à 22, 28 à 31 et 42 à 47
+
+Backlinks et relations sortantes, graphe local et global, périmètres workspace,
+branche, voisinage ou sélection, profondeur, filtres combinables, éléments
+isolés. Le graphe reste une projection
+privée et reconstruisible des données canoniques, conserve un état de
+complétude honnête hors ligne et devient une condition de sortie de la V1 avant
+la convergence finale de la feature 017.
+
+### 021 — Readable and actionable server logs
+
+**État** : spécification initiale créée ; prête pour revue produit avant
+clarification et planification
+**Dépendance** : 002, 006 à 010, 017 à 019
+**Dossier** : [`specs/021-readable-server-logs`](../../specs/021-readable-server-logs/)
+**Canevas** : sections 35 et 43 à 47
+
+Cette maintenance transverse sépare format, couleur et verbosité, fournit une
+vue locale humaine par défaut tout en conservant une sortie machine collectable,
+réduit le bruit des requêtes et contrôles routiniers, et impose des erreurs
+expurgées mais actionnables avec code, corrélation et piste d'action. Elle est
+une condition de sortie de la V1 et précède sa validation d'exploitation finale.
 
 ### 016 — CI cache and selective tests
 
@@ -224,11 +268,6 @@ de vie et les budgets d'accessibilité/performance requis par cette feature.
 Ses copies suivent la langue active via une frontière propre à la feature ; la
 traduction française est activée avec le passage transversal de release plutôt
 que comme une interface 009 partiellement traduite.
-
-### 010 — Knowledge graph
-
-Graphe local et global, périmètres, profondeur et filtres combinables. Canevas :
-section 22.
 
 ### 011 — Whiteboards
 

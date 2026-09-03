@@ -1,11 +1,35 @@
 import { access, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import tailwind from "bun-plugin-tailwind";
 import { injectManifest } from "workbox-build";
 
 const appRoot = import.meta.dir;
-const outdir = path.join(appRoot, "dist");
 const e2eBuild = process.env["MYOWNNOTION_E2E_BUILD"] === "1";
+
+function outputDirectory(): string {
+  const requested = process.env["MYOWNNOTION_E2E_WEB_OUTDIR"];
+  if (requested === undefined) return path.join(appRoot, "dist");
+  if (!e2eBuild) {
+    throw new Error("MYOWNNOTION_E2E_WEB_OUTDIR is restricted to E2E builds");
+  }
+  if (!path.isAbsolute(requested)) {
+    throw new Error("MYOWNNOTION_E2E_WEB_OUTDIR must be an absolute temporary path");
+  }
+  const resolved = path.resolve(requested);
+  const temporaryRoot = `${path.resolve(os.tmpdir())}${path.sep}`;
+  if (
+    !resolved.startsWith(temporaryRoot) ||
+    !path.basename(resolved).startsWith("myownnotion-e2e-web-")
+  ) {
+    throw new Error(
+      "MYOWNNOTION_E2E_WEB_OUTDIR must be a dedicated myownnotion-e2e-web-* directory under the system temporary root",
+    );
+  }
+  return resolved;
+}
+
+const outdir = outputDirectory();
 
 function publicUrl(absolutePath: string): string {
   return `/${path.relative(outdir, absolutePath).split(path.sep).join("/")}`;
@@ -53,6 +77,31 @@ if (workerOutput === undefined) {
 }
 const workerUrl = publicUrl(workerOutput.path);
 
+const graphWorkerBuild = await requireSuccessfulBuild(
+  "the knowledge graph worker",
+  await Bun.build({
+    entrypoints: [
+      path.join(appRoot, "src", "features", "knowledge-graph", "knowledge-graph.worker.ts"),
+    ],
+    outdir,
+    target: "browser",
+    format: "esm",
+    minify: true,
+    sourcemap: "external",
+    env: "disable",
+    naming: {
+      entry: "assets/knowledge-graph.worker-[hash].[ext]",
+    },
+  }),
+);
+const graphWorkerOutput = graphWorkerBuild.outputs.find(
+  (output) => output.kind === "entry-point" && output.path.endsWith(".js"),
+);
+if (graphWorkerOutput === undefined) {
+  throw new Error("The Bun build did not emit the knowledge graph worker entry");
+}
+const graphWorkerUrl = publicUrl(graphWorkerOutput.path);
+
 const applicationBuild = await requireSuccessfulBuild(
   "the web application",
   await Bun.build({
@@ -76,6 +125,7 @@ const applicationBuild = await requireSuccessfulBuild(
       "process.env.NODE_ENV": '"production"',
       __MYOWNNOTION_E2E__: JSON.stringify(e2eBuild),
       __MYOWNNOTION_SEARCH_WORKER_URL__: JSON.stringify(workerUrl),
+      __MYOWNNOTION_GRAPH_WORKER_URL__: JSON.stringify(graphWorkerUrl),
     },
     naming: {
       entry: "[name].[ext]",
@@ -121,6 +171,7 @@ for (const required of [
   emittedFiles.some((file) => file.endsWith(".wasm")),
   emittedFiles.some((file) => file.endsWith(".webmanifest")),
   emittedFiles.some((file) => /^assets\/search\.worker-.+\.js$/.test(file)),
+  emittedFiles.some((file) => /^assets\/knowledge-graph\.worker-.+\.js$/.test(file)),
 ]) {
   if (!required) {
     throw new Error("The web production build is missing a required asset class");
@@ -132,8 +183,11 @@ const javascript = await Promise.all(
     .filter((file) => file.endsWith(".js") && file !== "service-worker.js")
     .map((file) => readFile(path.join(outdir, file), "utf8")),
 );
-if (!javascript.some((source) => source.includes(workerUrl))) {
-  throw new Error("The web application does not reference the emitted search worker");
+if (
+  !javascript.some((source) => source.includes(workerUrl)) ||
+  !javascript.some((source) => source.includes(graphWorkerUrl))
+) {
+  throw new Error("The web application does not reference every emitted worker");
 }
 const hasE2ETestHook = javascript.some((source) =>
   source.includes("__MYOWNNOTION_E2E_LOCAL_CONTENT__"),

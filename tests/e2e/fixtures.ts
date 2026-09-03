@@ -43,7 +43,21 @@ function assertBrowserRunsHere(projectName: string): void {
   }
 }
 
-export const test = base.extend<{ runnableHere: null; freshContent: null }>({
+interface FreshContentState {
+  readonly cookies: Array<{
+    readonly name: string;
+    readonly value: string;
+    readonly domain: string;
+    readonly path: string;
+    readonly expires: number;
+    readonly httpOnly: boolean;
+    readonly secure: boolean;
+    readonly sameSite: "Strict";
+  }>;
+  readonly origins: [];
+}
+
+export const test = base.extend<{ runnableHere: null; freshContent: FreshContentState }>({
   /**
    * Declared before `freshContent`, and depending on nothing.
    *
@@ -68,8 +82,12 @@ export const test = base.extend<{ runnableHere: null; freshContent: null }>({
     { auto: true },
   ],
   freshContent: [
-    async ({ context, baseURL }, use) => {
-      await resetCanonicalContent();
+    async ({ baseURL }, use) => {
+      // Reset and seed before Playwright creates a browser context. Making the
+      // reset depend on `context` placed database setup behind WebKit's process
+      // lifecycle; a stalled engine then surfaced as a two-minute
+      // "freshContent" timeout even though the test body never started.
+      await base.step("reset canonical content", resetCanonicalContent);
       // The application shows the first-run page until an owner exists, and
       // the sign-in page until this browser holds a session. Both are seeded
       // directly rather than driven through the UI: the passkey ceremony needs
@@ -78,23 +96,35 @@ export const test = base.extend<{ runnableHere: null; freshContent: null }>({
       // regression look like a hierarchy failure in thirty places at once.
       // The real flows are exercised by bootstrap.spec.ts and
       // authentication.spec.ts.
-      await seedCommittedOwner();
-      const secret = await seedSession();
-      if (secret !== null && baseURL !== undefined) {
-        await context.addCookies([
-          {
-            name: "mn_dev_session",
-            value: secret,
-            url: baseURL,
-            httpOnly: true,
-            sameSite: "Strict",
-          },
-        ]);
-      }
-      await use(null);
+      await base.step("seed committed owner", seedCommittedOwner);
+      const secret = await base.step("seed signed-in session", seedSession);
+      const url = baseURL === undefined ? undefined : new URL(baseURL);
+      await use({
+        cookies:
+          secret === null || url === undefined
+            ? []
+            : [
+                {
+                  name: "mn_dev_session",
+                  value: secret,
+                  domain: url.hostname,
+                  path: "/",
+                  expires: -1,
+                  httpOnly: true,
+                  secure: url.protocol === "https:",
+                  sameSite: "Strict",
+                },
+              ],
+        origins: [],
+      });
     },
     { auto: true },
   ],
+  // The built-in context fixture consumes storageState, so this dependency
+  // guarantees freshContent has completed before browser.newContext().
+  storageState: async ({ freshContent }, use) => {
+    await use(freshContent);
+  },
 });
 
 export { expect } from "@playwright/test";

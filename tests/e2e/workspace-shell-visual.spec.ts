@@ -26,6 +26,13 @@ async function prepareReference(page: Page, theme: "light" | "dark"): Promise<vo
   await createRootItem(page, "folder", "Projets");
   await createChildItem(page, "Projets", "page", "Feuille de route");
   await selectItem(page, "Feuille de route");
+  // Creating a page navigates immediately, while operational activation is
+  // deliberately asynchronous. The aggregate workspace queue can be empty
+  // before that editor exists; conversely its first durable paragraph can be
+  // enqueued just after an early synchronization check. Cross the actual page
+  // readiness boundary first, then wait for every resulting queue to drain so
+  // the screenshot never races activation.
+  await expect(page.getByTestId("operational-editor")).toBeVisible({ timeout: 30_000 });
   await waitForSynchronized(page);
   await expect(page.getByTestId("live-connection-state")).toHaveAttribute("data-state", "live", {
     timeout: 15_000,

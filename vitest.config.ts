@@ -24,6 +24,14 @@ export default defineConfig({
       },
       {
         test: {
+          name: "graph",
+          root: "packages/graph",
+          environment: "node",
+          include: ["tests/**/*.spec.ts"],
+        },
+      },
+      {
+        test: {
           name: "page-state",
           root: "packages/page-state",
           environment: "node",
