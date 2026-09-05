@@ -161,7 +161,7 @@ it("reports absent protection, interrupted attempts and expired rehearsal indepe
     blobRoot: join(root, "blobs"),
     key: () => key,
   });
-  expect(await fullBackupStatus(service, new Date(now))).toMatchObject({
+  expect(await fullBackupStatus(service)).toMatchObject({
     stale: true,
     rehearsalDue: true,
     remote: null,

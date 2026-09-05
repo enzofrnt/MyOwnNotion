@@ -136,3 +136,11 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
   atomic name collision, unavailable destinations, safe provider failures and
   historical `sha-<commit>` provenance. The original seven-statement /
   33-branch aggregate gap remains unclaimed pending a new coverage run.
+
+- Aggregate coverage run 7 passed all 387 files / 3,710 tests and all absolute
+  budgets except branches (2,475 versus 2,465). Subsequent focused checks pass:
+  62 storage/schedule/metadata tests and 14 remote/recovery tests. They prove
+  zero-byte attachment recovery, rejection of directory-shaped upload data,
+  idempotent remote retry, loss immediately after remote upload, cancellation
+  before rehearsal database creation, invalid restore parents and safe scheduler
+  behavior under clock movement/non-Error failures. Final full gates remain open.

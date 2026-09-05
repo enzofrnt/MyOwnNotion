@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startDisposablePostgres } from "@myownnotion/test-utils";
 import pg from "pg";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { FilesystemDestination } from "../src/backup/destinations/filesystem.ts";
 import { VerifiedFullArchive } from "../src/backup/full/archive.ts";
 import { FullBackupService } from "../src/backup/full/service.ts";
@@ -66,6 +66,25 @@ it("captures committed upload prefixes, keeps local recovery through remote fail
     const remoteReceipt = (await service.receipts.list())[0];
     if (remoteReceipt === undefined) throw new Error("Missing recovery receipt");
     await service.receipts.put({ ...remoteReceipt, remote: "failed", remoteVerifiedAt: null });
+    const uploaded = vi.spyOn(remote, "put");
+    expect((await service.retryRemote())?.remote).toBe("verified");
+    expect(uploaded).not.toHaveBeenCalled();
+    uploaded.mockRestore();
+    await service.receipts.put({ ...remoteReceipt, remote: "failed", remoteVerifiedAt: null });
+    await remote.delete(`${remoteReceipt.backupId}.monfull`);
+    const actualPut = remote.put.bind(remote);
+    const lostUpload = vi
+      .spyOn(remote, "put")
+      .mockImplementationOnce(async (name, contents, length) => {
+        await actualPut(name, contents, length);
+        await remote.delete(name);
+      });
+    expect((await service.retryRemote())?.remote).toBe("failed");
+    expect(await readFile(first.path)).toEqual(bytes);
+    lostUpload.mockRestore();
+    expect((await service.retryRemote())?.remote).toBe("verified");
+    await service.receipts.put({ ...remoteReceipt, remote: "failed", remoteVerifiedAt: null });
+
     await writeFile(
       join(directory, "remote", `${remoteReceipt.backupId}.monfull`),
       Buffer.alloc(remoteReceipt.archiveBytes + 1),
