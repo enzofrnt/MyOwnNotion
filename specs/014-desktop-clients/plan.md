@@ -5,6 +5,14 @@ pour la conception, la réalisation et la revue. Conserver les états, critères
 et preuves propres à cette feature dans ses artefacts ; cette référence ne
 valide pas rétroactivement les écrans existants.
 
+Native CI convergence (2026-09-05): Windows packages now build and launch, but
+their temporary API fixture must validate its deployment key using Windows ACLs,
+not synthetic POSIX mode bits. The loader retains owner-only enforcement: require
+the current account as owner, protected inheritance and no allowed principal
+besides that account. The fixture sets that ACL explicitly. Linux/macOS retain
+0600/0400 validation. This adapts the native test host without changing the Linux
+server deployment target or bypassing the guarded migration.
+
 **Branch**: `014-desktop-clients` | **Date**: 2026-08-16 | **Spec**: [spec.md](spec.md)
 
 ## Summary

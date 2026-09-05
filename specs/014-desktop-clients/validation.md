@@ -211,3 +211,22 @@ assertion in the toolchain contract (3,576 other tests pass). That contract now
 checks the extracted validator's build wiring; its actual asset acceptance and
 refusal behavior is covered by the eight executable cases. The failed pass is
 not pre-push evidence; the complete gate is rerun on the corrected commit.
+
+The complete local gate passed on `d313353ff65829e3ca98729bd0701ff04391fe4d`
+and that exact commit was pushed. CI run 33953944064 validates the Windows web
+build, native package and installed launch. Its next refusal occurs during the
+journey fixture's guarded migration: the deployment-key loader checks POSIX
+permission bits on Windows, where those bits do not express the file ACL.
+
+T093 adds strict current-owner Windows ACL validation and explicitly restricts
+the fresh fixture key. Forty focused permission/native policy tests and all
+workspace types pass locally. Native Windows policy tests also grant Everyone
+read permission to the disposable synthetic key and require refusal. Their actual
+Windows execution remains pending; local tests do not establish Windows success.
+The guarded migration and permission enforcement remain required. The server's
+supported production deployment remains Linux.
+
+Evidence: `/tmp/mon-full-gate-desktop-isolated-ports.log`,
+`/tmp/mon-desktop-windows-d313.log`, `/tmp/mon-windows-key-permissions-focused.log`,
+`/tmp/mon-windows-key-permissions-types.log`. The platform ACL approach follows
+[Microsoft's Set-Acl documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-acl).
