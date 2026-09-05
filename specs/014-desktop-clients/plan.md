@@ -8,6 +8,11 @@ besides that account. The fixture sets that ACL explicitly. Linux/macOS retain
 0600/0400 validation. This adapts the native test host without changing the Linux
 server deployment target or bypassing the guarded migration.
 
+**Phases UI** : charger le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
+pour la conception, la réalisation et la revue. Conserver les états, critères
+et preuves propres à cette feature dans ses artefacts ; cette référence ne
+valide pas rétroactivement les écrans existants.
+
 **Branch**: `014-desktop-clients` | **Date**: 2026-08-16 | **Spec**: [spec.md](spec.md)
 
 ## Summary
