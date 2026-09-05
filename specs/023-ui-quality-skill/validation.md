@@ -16,3 +16,14 @@
 This change creates guidance only. It does not claim a new visual review of
 unchanged application screens. Runtime tests are not introduced for prose.
 PR/main delivery is pending desktop merge and is not marked complete.
+
+The guidance also records the semantic-action defect reproduced during audit
+025: act on button click after release, preserve pointer cancellation, and verify
+single activation from keyboard/assistive technology. The skill contains the
+reusable rule; application-specific fixes and browser evidence stay in 025.
+
+Prepared delivery branch `codex/023-ui-quality-guidance` explicitly covers
+typography, line height and long labels under FR-005. The skill-creator validator
+passes using its external PyYAML dependency through uv; feature prerequisites
+pass with SPECIFY_FEATURE_DIRECTORY, all 22 local Markdown links resolve and
+whitespace checks pass. No runtime suite was run for these prose additions.
