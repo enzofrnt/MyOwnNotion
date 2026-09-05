@@ -36,3 +36,14 @@ filesystem tests cover concurrent identical writes, empty bytes, corrupt existin
 data, root/prefix/file symlinks, byte verification failure, file fsync failure and
 directory fsync refusal followed by a safe retry. No full runtime migration or
 end-to-end bounded-memory result is claimed by these primitive tests.
+
+T007 adds a root-derived, purpose-bound private content lookup tag and distinct
+protected entities for logical-file metadata, upload metadata, completed content
+inventories and accepted upload state. The 22 hierarchy/protection integration
+tests pass: lookup survives data-key and wrapping-key rotation, never calls the
+recovery export accessor, binds length/digest, refuses unavailable keys and keeps
+metadata out of raw envelope rows. Missing versions return absence; authenticated
+payloads with transplanted inventory versions are refused. A remaining nullable
+legacy file route now explicitly refuses unresolved protected content until the
+streaming reader replaces it in T012. No deployment occurs at this intermediate
+boundary.

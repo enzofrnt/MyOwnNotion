@@ -25,7 +25,7 @@
  * encrypted when convenient.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import type { Database, Transaction } from "@myownnotion/database";
 import {
   findActiveRootKey,
@@ -265,6 +265,31 @@ export class KeyHierarchy {
    */
   async exportRecoveryMaterial(executor: Database | Transaction): Promise<Uint8Array> {
     return await this.#rootKey(executor);
+  }
+
+  /** Stable private candidate lookup across data-key and deployment-key rotation. */
+  async fileContentLookupTag(
+    executor: Database | Transaction,
+    sha256: Uint8Array,
+    byteLength: number,
+  ): Promise<Uint8Array> {
+    if (sha256.byteLength !== 32 || !Number.isSafeInteger(byteLength) || byteLength < 0)
+      throw new RangeError("Invalid file content lookup identity.");
+    const rootKey = await this.#rootKey(executor);
+    let indexKey: Uint8Array | undefined;
+    try {
+      indexKey = deriveRecordKey(
+        rootKey,
+        createHash("sha256").update("myownnotion/file-content-index/v1").digest().subarray(0, 16),
+        `myownnotion/file-content-index/v1|${this.#deps.installationId}|${this.#deps.workspaceId}`,
+      );
+      const length = Buffer.alloc(8);
+      length.writeBigUInt64BE(BigInt(byteLength));
+      return new Uint8Array(createHmac("sha256", indexKey).update(sha256).update(length).digest());
+    } finally {
+      indexKey?.fill(0);
+      rootKey.fill(0);
+    }
   }
 
   /**

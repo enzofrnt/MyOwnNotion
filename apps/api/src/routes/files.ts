@@ -232,7 +232,7 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
         .from(schema.fileContents)
         .where(eq(schema.fileContents.id, logical.contentId))
         .limit(1);
-      if (content === undefined || content.verifiedAt === null) {
+      if (content === undefined || content.verifiedAt === null || content.storageKey === null) {
         // Unverified content is not served. Handing back bytes the server has
         // not confirmed would make "synchronized" mean less than FR-007 says.
         // Reported as not-found rather than with a code of its own: from the

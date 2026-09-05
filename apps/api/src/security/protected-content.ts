@@ -20,7 +20,13 @@
  */
 
 import type { Database, Transaction } from "@myownnotion/database";
-import type { DatabaseDefinition, EntryValues } from "@myownnotion/domain";
+import {
+  type DatabaseDefinition,
+  type EntryValues,
+  type ProtectedFileIdentity,
+  type ProtectedFileManifest,
+  readProtectedFileManifest,
+} from "@myownnotion/domain";
 import type { ProtectedRecordService } from "./protected-record-service.ts";
 
 /**
@@ -38,6 +44,10 @@ export const PROTECTED_ENTITY_TYPES = {
   databaseDefinition: "database.definition",
   databaseEntryValues: "database.entry-values",
   exportManifest: "export.manifest",
+  fileMetadata: "file.metadata",
+  fileContentManifest: "file.content-manifest",
+  uploadMetadata: "file.upload-metadata",
+  uploadState: "file.upload-state",
 } as const;
 
 export interface ProtectedContentDeps {
@@ -47,6 +57,24 @@ export interface ProtectedContentDeps {
 export interface ItemPresentation {
   readonly name: string;
   readonly icon: string | null;
+}
+
+export interface FileMetadata {
+  readonly originalName: string;
+  readonly mediaType: string;
+}
+
+function readFileMetadata(value: unknown): FileMetadata {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    !("originalName" in value) ||
+    typeof value.originalName !== "string" ||
+    !("mediaType" in value) ||
+    typeof value.mediaType !== "string"
+  )
+    throw new Error("Invalid protected file metadata.");
+  return { originalName: value.originalName, mediaType: value.mediaType };
 }
 
 function normalizeItemPresentation(value: string | ItemPresentation): ItemPresentation {
@@ -65,6 +93,67 @@ export class ProtectedContent {
 
   constructor(deps: ProtectedContentDeps) {
     this.#deps = deps;
+  }
+
+  async writeFileMetadata(
+    executor: Database | Transaction,
+    input: { kind: "file" | "upload"; id: string; recordVersion: number; metadata: FileMetadata },
+  ): Promise<void> {
+    await this.#write(
+      executor,
+      input.kind === "file"
+        ? PROTECTED_ENTITY_TYPES.fileMetadata
+        : PROTECTED_ENTITY_TYPES.uploadMetadata,
+      input.id,
+      input.recordVersion,
+      readFileMetadata(input.metadata),
+    );
+  }
+
+  async readFileMetadata(
+    executor: Database | Transaction,
+    input: { kind: "file" | "upload"; id: string; recordVersion?: number },
+  ): Promise<FileMetadata | null> {
+    const value = await this.#read<unknown>(
+      executor,
+      input.kind === "file"
+        ? PROTECTED_ENTITY_TYPES.fileMetadata
+        : PROTECTED_ENTITY_TYPES.uploadMetadata,
+      input.id,
+      input.recordVersion,
+    );
+    return value === null ? null : readFileMetadata(value);
+  }
+
+  async writeFileManifest(
+    executor: Database | Transaction,
+    manifest: ProtectedFileManifest,
+  ): Promise<void> {
+    const checked = readProtectedFileManifest(manifest, manifest);
+    await this.#write(
+      executor,
+      checked.kind === "content"
+        ? PROTECTED_ENTITY_TYPES.fileContentManifest
+        : PROTECTED_ENTITY_TYPES.uploadState,
+      checked.id,
+      checked.recordVersion,
+      checked,
+    );
+  }
+
+  async readFileManifest(
+    executor: Database | Transaction,
+    expected: ProtectedFileIdentity,
+  ): Promise<ProtectedFileManifest | null> {
+    const value = await this.#read<unknown>(
+      executor,
+      expected.kind === "content"
+        ? PROTECTED_ENTITY_TYPES.fileContentManifest
+        : PROTECTED_ENTITY_TYPES.uploadState,
+      expected.id,
+      expected.recordVersion,
+    );
+    return value === null ? null : readProtectedFileManifest(value, expected);
   }
 
   async #write(
