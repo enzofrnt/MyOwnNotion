@@ -144,10 +144,10 @@ it("keeps upload finalization and prefix deletion behind the snapshot, then coal
       .toBeGreaterThan(0);
     const committed = await transfers.get(harness.built.context.db, uploadId as Uuid);
     if (committed === null) throw new Error("Missing partial transfer");
-    const prefixParts = [];
-    for await (const bytes of transfers.read(harness.built.context.db, committed))
-      prefixParts.push(bytes);
-    expect(Buffer.concat(prefixParts).toString()).toBe("head");
+    // Ordinary readers now wait behind capture as well: assert the committed
+    // offset and immutable ciphertext without waiting on that same held lock.
+    expect(committed.receivedLength).toBe(4);
+    expect(await files.deps.blobs.get(chunk.storageKey)).toEqual(ciphertext);
     releaseDump();
     const result = await backup;
     expect((await completed).statusCode).toBe(201);

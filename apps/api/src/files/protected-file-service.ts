@@ -21,6 +21,7 @@ import { shareFullBlobDeletion, shareFullFileMutation } from "../backup/full/loc
 import type { KeyHierarchy } from "../security/key-hierarchy.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 import type { FileByteRange } from "./file-range.ts";
+import { pinnedFileRead } from "./pinned-file-read.ts";
 
 export interface ProtectedStoredContent {
   readonly contentId: Uuid;
@@ -207,6 +208,14 @@ export class ProtectedFileService {
 
   async *read(
     executor: Database | Transaction,
+    contentId: string,
+    range?: FileByteRange,
+  ): AsyncGenerator<Uint8Array> {
+    yield* pinnedFileRead(executor, (tx) => this.readPinned(tx, contentId, range));
+  }
+
+  private async *readPinned(
+    executor: Transaction,
     contentId: string,
     range?: FileByteRange,
   ): AsyncGenerator<Uint8Array> {

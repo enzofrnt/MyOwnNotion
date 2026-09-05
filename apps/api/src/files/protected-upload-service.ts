@@ -18,6 +18,7 @@ import {
 } from "@myownnotion/domain";
 import { and, eq, lt } from "drizzle-orm";
 import { shareFullFileMutation } from "../backup/full/locks.ts";
+import { pinnedFileRead } from "./pinned-file-read.ts";
 import { queueProtectedFileGarbage } from "./protected-file-cleanup.ts";
 import {
   type ProtectedFileService,
@@ -211,6 +212,18 @@ export class ProtectedUploadService {
   }
 
   async *read(executor: Database | Transaction, upload: UploadRecord): AsyncGenerator<Uint8Array> {
+    const service = this;
+    yield* pinnedFileRead(executor, async function* (tx: Transaction) {
+      const current = await lockUpload(tx, upload.id);
+      if (current === null) throw new ProtectedFileUnavailableError();
+      yield* service.readPinned(tx, current);
+    });
+  }
+
+  private async *readPinned(
+    executor: Transaction,
+    upload: UploadRecord,
+  ): AsyncGenerator<Uint8Array> {
     const state = await this.state(executor, upload);
     const scope = this.files.scope("upload", upload.id);
     const chunks = await listProtectedFileChunks(executor, scope);

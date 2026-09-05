@@ -22,7 +22,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { schema } from "@myownnotion/database";
+import { schema, type Transaction } from "@myownnotion/database";
 import {
   BACKUP_FORMAT,
   BACKUP_FORMAT_VERSION,
@@ -36,7 +36,7 @@ import type { AppContext } from "../context.ts";
 import { buildManifestInTransaction } from "../routes/export.ts";
 import { streamBackupArchive } from "./archive-format.ts";
 import type { BackupDestination } from "./destinations/destination.ts";
-import { protectFullBlobReads } from "./full/locks.ts";
+import { protectFullBlobReads, shareFullFileMutation } from "./full/locks.ts";
 import {
   PAGE_OPERATION_ARCHIVE_VERSION,
   type PageOperationBackupCoverage,
@@ -118,6 +118,7 @@ export class BackupService {
   async #build(
     backupId: string,
     createdAt: Date,
+    fileReader: Transaction,
   ): Promise<{
     stagedPath: string;
     manifest: BackupManifest;
@@ -217,7 +218,7 @@ export class BackupService {
           readFile: async function* (digest) {
             const contentId = contentByDigest.get(digest);
             if (context.protectedFiles !== undefined && contentId !== undefined) {
-              yield* context.protectedFiles.read(context.db, contentId);
+              yield* context.protectedFiles.read(fileReader, contentId);
               return;
             }
             if (context.protectedContent !== undefined)
@@ -289,10 +290,11 @@ export class BackupService {
     const backupId = randomUUID();
     const createdAt = this.#now();
     const built = await this.options.context.db.transaction(async (tx) => {
-      // This coordinator holds physical deletion before the separate consistent
-      // snapshot starts, and until every referenced byte has been sealed.
+      // Preserve FILE -> BLOB ordering. Reads use this same connection so a
+      // queued maintenance writer cannot deadlock a second file-read connection.
+      await shareFullFileMutation(tx);
       await protectFullBlobReads(tx);
-      return this.#build(backupId, createdAt);
+      return this.#build(backupId, createdAt, tx);
     });
     const name = archiveName(createdAt, backupId);
 

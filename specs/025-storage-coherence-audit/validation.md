@@ -150,3 +150,14 @@ files and verifying each descendant's own decrypted revision metadata. Two full
 backup consistency cases prove capture pins the accepted encrypted prefix while
 concurrent finalization waits. Evidence: `/tmp/mon-protected-existing-contracts-fixed.log`,
 `/tmp/mon-protected-branch-history.log`, `/tmp/mon-protected-backup-consistency.log`.
+
+T018 read-lifetime checkpoint: completed and partial file readers now hold the
+024 FILE lock until their async iterator completes, fails or is cancelled.
+Partial reads additionally lock and reload the upload row, preventing an append
+from retiring the tail currently being read. Portable backup acquires FILE
+before BLOB and reuses its coordinator connection for file reads, avoiding a
+second-connection wait behind queued maintenance. Real PostgreSQL tests prove
+maintenance exclusion and lock release after cancellation, missing content and
+successful consumption. The secured HTTP portable restore and full capture
+consistency scenarios remain green: 24 tests in three files, plus API typecheck.
+Rotation rewrite/revocation itself is still pending; T018 remains open.

@@ -65,6 +65,34 @@ async function collect(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
 }
 
 describe("shared protected file runtime", () => {
+  it("pins download bytes against maintenance and releases the lock on cancellation and failure", async () => {
+    const bytes = randomBytes(PROTECTED_FILE_CHUNK_BYTES + 7);
+    const stored = await database.db.transaction((tx) =>
+      runtime.files.ingest(tx, source(bytes), { maxBytes: bytes.length }),
+    );
+    const canMaintain = () =>
+      database.db.transaction(async (tx) => {
+        const result = await tx.execute<{ acquired: boolean }>(
+          sql`SELECT pg_try_advisory_xact_lock(${0x4d4f4e}, 2402) AS acquired`,
+        );
+        return result.rows[0]?.acquired;
+      });
+    const reader = runtime.files.read(database.db, stored.contentId);
+    try {
+      const first = (await reader.next()).value;
+      expect(Buffer.from(first ?? [])).toEqual(bytes.subarray(0, PROTECTED_FILE_CHUNK_BYTES));
+      expect(await canMaintain()).toBe(false);
+    } finally {
+      await reader.return(undefined);
+    }
+    expect(await canMaintain()).toBe(true);
+    const missing = runtime.files.read(database.db, generateUuidV7());
+    await expect(missing.next()).rejects.toThrow("unavailable");
+    expect(await canMaintain()).toBe(true);
+    expect(await collect(runtime.files.read(database.db, stored.contentId))).toEqual(bytes);
+    expect(await canMaintain()).toBe(true);
+  });
+
   it("reclaims replaced/expired transfer chunks after committed retirement and preserves live references", async () => {
     const transfers = new ProtectedUploadService(runtime.files);
     const upload = await database.db.transaction((tx) =>
