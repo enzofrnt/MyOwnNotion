@@ -218,70 +218,103 @@ describe("complete backup before the first migration mutation", () => {
   });
 });
 
-it("resumes against the original authenticated archive and records the version only after source retirement", async () => {
-  const harness = await createAuthenticatedPageOperationHarness();
-  const directory = await mkdtemp(join(tmpdir(), "mon-guarded-storage-resume-"));
-  directories.push(directory);
-  const cutover = FileStorageMigration.prototype.cutover;
-  try {
-    await harness.reset();
-    await harness.createLegacyPage("Historical metadata to preserve");
-    const { db, protectedFiles: files } = harness.api.built.context;
-    if (files === undefined) throw new Error("Missing protected runtime");
-    const bytes = Buffer.from("legacy bytes survive guarded upgrade interruption");
-    const raw = await files.deps.blobs.put(bytes);
-    const contentId = generateUuidV7();
-    await db.insert(schema.fileContents).values({ id: contentId, ...raw, referenceCount: 1 });
-    const key = Buffer.from(await readFile(harness.deploymentKeyFile, "utf8"), "base64");
-    const input = {
-      connectionString: harness.api.postgres.connectionString,
-      runningVersion: "0.2.0",
-      installationId: files.deps.installationId,
-      blobRoot: harness.api.blobRoot,
-      backupRoot: directory,
-      deploymentKey: () => key,
-    };
-    const interruption = vi
-      .spyOn(FileStorageMigration.prototype, "cutover")
-      .mockImplementationOnce(async function (this: FileStorageMigration, id) {
-        await cutover.call(this, id);
-        throw new Error("process interrupted after cutover");
+it.each(["missing", "corrupted"] as const)(
+  "refuses new SQL while the original archive is %s, then resumes after its exact repair",
+  async (archiveFailure) => {
+    const harness = await createAuthenticatedPageOperationHarness();
+    const directory = await mkdtemp(join(tmpdir(), "mon-guarded-storage-resume-"));
+    directories.push(directory);
+    const cutover = FileStorageMigration.prototype.cutover;
+    try {
+      await harness.reset();
+      await harness.createLegacyPage("Historical metadata to preserve");
+      const { db, protectedFiles: files } = harness.api.built.context;
+      if (files === undefined) throw new Error("Missing protected runtime");
+      const bytes = Buffer.from("legacy bytes survive guarded upgrade interruption");
+      const raw = await files.deps.blobs.put(bytes);
+      const contentId = generateUuidV7();
+      await db.insert(schema.fileContents).values({ id: contentId, ...raw, referenceCount: 1 });
+      const key = Buffer.from(await readFile(harness.deploymentKeyFile, "utf8"), "base64");
+      const migrationsDir = join(directory, "migrations");
+      await cp(workspaceMigrationsDir, migrationsDir, { recursive: true });
+      const input = {
+        connectionString: harness.api.postgres.connectionString,
+        migrationsDir,
+        runningVersion: "0.2.0",
+        installationId: files.deps.installationId,
+        blobRoot: harness.api.blobRoot,
+        backupRoot: directory,
+        deploymentKey: () => key,
+      };
+      const interruption = vi
+        .spyOn(FileStorageMigration.prototype, "cutover")
+        .mockImplementationOnce(async function (this: FileStorageMigration, id) {
+          await cutover.call(this, id);
+          throw new Error("process interrupted after cutover");
+        });
+      await expect(runGuardedMigrations(input)).rejects.toThrow("process interrupted");
+      interruption.mockRestore();
+      expect((await findInstallation(db))?.applicationVersion).not.toBe("0.2.0");
+      const transition = await readStorageTransition(db, input.installationId);
+      expect(transition?.phase).toBe("cutover");
+      const receipts = new FullBackupReceipts(directory, () => key);
+      expect(await receipts.list()).toHaveLength(1);
+      const archivePath = join(directory, `${transition?.sourceBackupId}.monfull`);
+      const archiveBytes = await readFile(archivePath);
+      const snapshot = async () => ({
+        installation: await findInstallation(db),
+        transition: await readStorageTransition(db, input.installationId),
+        items: await db.select().from(schema.items),
+        contents: await db.select().from(schema.fileContents),
+        inventory: await migrationInventory(input.connectionString, { migrationsDir }),
       });
-    await expect(runGuardedMigrations(input)).rejects.toThrow("process interrupted");
-    interruption.mockRestore();
-    expect((await findInstallation(db))?.applicationVersion).not.toBe("0.2.0");
-    const transition = await readStorageTransition(db, input.installationId);
-    expect(transition?.phase).toBe("cutover");
-    const receipts = new FullBackupReceipts(directory, () => key);
-    expect(await receipts.list()).toHaveLength(1);
-    const archivePath = join(directory, `${transition?.sourceBackupId}.monfull`);
-    const archiveBytes = await readFile(archivePath);
-    await writeFile(archivePath, Buffer.alloc(archiveBytes.length));
-    await expect(runGuardedMigrations(input)).rejects.toThrow(
-      "original verified pre-update archive is unavailable",
-    );
-    expect((await findInstallation(db))?.applicationVersion).not.toBe("0.2.0");
-    expect(await files.deps.blobs.get(raw.storageKey)).toEqual(new Uint8Array(bytes));
-    expect(await receipts.list()).toHaveLength(1);
-    await writeFile(archivePath, archiveBytes);
-    await runGuardedMigrations(input);
-    expect(await findInstallation(db)).toMatchObject({
-      applicationVersion: "0.2.0",
-      previousFullBackupId: transition?.sourceBackupId,
-    });
-    expect((await readStorageTransition(db, input.installationId))?.phase).toBe("complete");
-    expect(await receipts.list()).toHaveLength(1);
-    expect(
-      (await db.select().from(schema.fileContents).where(eq(schema.fileContents.id, contentId)))[0],
-    ).toMatchObject({ storageFormat: "encrypted-chunks-v1", storageKey: null, sha256: null });
-    await expect(
-      readFile(join(harness.api.blobRoot, raw.storageKey.slice(0, 2), raw.storageKey)),
-    ).rejects.toMatchObject({ code: "ENOENT" });
-    const restored = [];
-    for await (const chunk of files.read(db, contentId)) restored.push(Buffer.from(chunk));
-    expect(Buffer.concat(restored)).toEqual(bytes);
-  } finally {
-    vi.restoreAllMocks();
-    await harness.close();
-  }
-});
+      await writeFile(
+        join(migrationsDir, "9999_resume_protection_probe.sql"),
+        "BEGIN; CREATE TABLE resume_protection_probe (id integer PRIMARY KEY); INSERT INTO resume_protection_probe VALUES (1); INSERT INTO schema_migrations (version) VALUES ('9999_resume_protection_probe'); COMMIT;",
+      );
+      const beforeRefusal = await snapshot();
+      if (archiveFailure === "missing") await rm(archivePath);
+      else await writeFile(archivePath, Buffer.alloc(archiveBytes.length));
+      await expect(runGuardedMigrations(input)).rejects.toThrow(
+        "original verified pre-update archive is unavailable",
+      );
+      expect(
+        (
+          await harness.api.built.database.pool.query(
+            "SELECT to_regclass('public.resume_protection_probe') AS relation",
+          )
+        ).rows[0].relation,
+      ).toBeNull();
+      expect(await snapshot()).toEqual(beforeRefusal);
+      expect((await findInstallation(db))?.applicationVersion).not.toBe("0.2.0");
+      expect(await files.deps.blobs.get(raw.storageKey)).toEqual(new Uint8Array(bytes));
+      expect(await receipts.list()).toHaveLength(1);
+      await writeFile(archivePath, archiveBytes);
+      expect(await runGuardedMigrations(input)).toEqual(["9999_resume_protection_probe"]);
+      expect(
+        (await harness.api.built.database.pool.query("SELECT id FROM resume_protection_probe"))
+          .rows,
+      ).toEqual([{ id: 1 }]);
+      expect(await findInstallation(db)).toMatchObject({
+        applicationVersion: "0.2.0",
+        previousFullBackupId: transition?.sourceBackupId,
+      });
+      expect((await readStorageTransition(db, input.installationId))?.phase).toBe("complete");
+      expect(await receipts.list()).toHaveLength(1);
+      expect(
+        (
+          await db.select().from(schema.fileContents).where(eq(schema.fileContents.id, contentId))
+        )[0],
+      ).toMatchObject({ storageFormat: "encrypted-chunks-v1", storageKey: null, sha256: null });
+      await expect(
+        readFile(join(harness.api.blobRoot, raw.storageKey.slice(0, 2), raw.storageKey)),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      const restored = [];
+      for await (const chunk of files.read(db, contentId)) restored.push(Buffer.from(chunk));
+      expect(Buffer.concat(restored)).toEqual(bytes);
+    } finally {
+      vi.restoreAllMocks();
+      await harness.close();
+    }
+  },
+);

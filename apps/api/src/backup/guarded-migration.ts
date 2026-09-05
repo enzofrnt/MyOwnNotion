@@ -87,6 +87,7 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
         ).rows[0]
       : undefined;
     let fullBackupId: string | null = pendingTransition?.source_backup_id ?? null;
+    const installationId = before.source.installationId ?? input.installationId;
     const backup = new FullBackupService({
       connectionString: input.connectionString,
       blobRoot: input.blobRoot,
@@ -94,6 +95,34 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
       key: input.deploymentKey,
       ...(input.remote === undefined ? {} : { remote: input.remote }),
     });
+    const verifySourceBackup = async (backupId: string) => {
+      const receipt = (await backup.verifiedReceipts()).find(
+        (entry) => entry.backupId === backupId,
+      );
+      if (receipt === undefined || receipt.reason !== "pre-update")
+        throw new UpdateRefusedError(
+          "The original verified pre-update archive is unavailable; storage migration cannot resume.",
+        );
+      const archive = await VerifiedFullArchive.open(
+        join(input.backupRoot, fullArchiveName(backupId)),
+        input.deploymentKey(),
+        input.backupRoot,
+      );
+      try {
+        if (
+          archive.manifest.backupId !== backupId ||
+          (archive.manifest.source.installationId !== null &&
+            archive.manifest.source.installationId !== installationId)
+        )
+          throw new UpdateRefusedError("The source archive belongs to another installation.");
+      } finally {
+        await archive.close();
+      }
+    };
+    // Resuming a storage transition can also introduce later SQL migrations.
+    // Its original recovery archive must be valid before the first such write.
+    if (pendingTransition !== undefined)
+      await verifySourceBackup(pendingTransition.source_backup_id);
     if (
       pendingTransition === undefined &&
       before.nonempty &&
@@ -118,7 +147,6 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
     const database = createDatabase(input.connectionString);
     try {
       const workspace = await getOrCreateWorkspace(database.db);
-      const installationId = before.source.installationId ?? input.installationId;
       await createInstallation(database.db, {
         id: installationId,
         sourceLineageId: installationId,
@@ -153,30 +181,7 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
           blobRoot: input.blobRoot,
           files: protectedRuntime.files,
           records: protectedRuntime.records,
-          verifySourceBackup: async (backupId) => {
-            const receipt = (await backup.verifiedReceipts()).find(
-              (entry) => entry.backupId === backupId,
-            );
-            if (receipt === undefined || receipt.reason !== "pre-update")
-              throw new UpdateRefusedError(
-                "The original verified pre-update archive is unavailable; storage migration cannot resume.",
-              );
-            const archive = await VerifiedFullArchive.open(
-              join(input.backupRoot, fullArchiveName(backupId)),
-              input.deploymentKey(),
-              input.backupRoot,
-            );
-            try {
-              if (
-                archive.manifest.backupId !== backupId ||
-                (archive.manifest.source.installationId !== null &&
-                  archive.manifest.source.installationId !== installationId)
-              )
-                throw new UpdateRefusedError("The source archive belongs to another installation.");
-            } finally {
-              await archive.close();
-            }
-          },
+          verifySourceBackup,
         });
         await migration.run(fullBackupId);
       }

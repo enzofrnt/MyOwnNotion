@@ -106,8 +106,12 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 49 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4. Each story's acceptance
+All 50 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
 
 T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.
+
+## Phase 8: Convergence — resumed migration protection
+
+- [x] T050 [US2] Authenticate the original full backup of a pending storage transition before any additional SQL migration in `apps/api/src/backup/guarded-migration.ts`; reproduce a missing/corrupted archive plus a new migration, prove unchanged SQL ledger/data/transition/blob state on refusal, and complete the same transition after exact archive repair in `apps/api/tests/full-guarded-migration.integration.spec.ts` (FR-007/FR-008, SC-003).
