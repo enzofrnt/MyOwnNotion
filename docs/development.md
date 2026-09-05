@@ -1068,9 +1068,13 @@ Typical order: `/speckit-specify` → `/speckit-plan` → `/speckit-tasks` →
 
 The reusable desktop CI is a blocking dependency of the aggregate PR/main gate.
 All five targets launch the packaged executable and run native lifecycle journeys
-against PostgreSQL 18. Windows uses a pinned, SHA-256-verified EDB portable archive;
+against PostgreSQL 18. Linux uses the existing Compose PostgreSQL service, avoiding
+assumptions about preinstalled system clusters on either runner architecture.
+macOS uses its native PostgreSQL fixture. Windows uses a pinned, SHA-256-verified EDB portable archive;
 the ARM runner executes only that test database through Windows x64 emulation,
 while Bun and Electron remain ARM64. The archive is never packaged with the app.
+Windows selects `%SystemRoot%/System32/tar.exe` explicitly; Git Bash's GNU tar
+must not interpret an archive's drive letter as a remote host.
 Locally, desktop journeys use the disposable databases created by the existing
 E2E runner. To avoid a development stack on port 5432, choose another Compose
 project and set both MYOWNNOTION_DB_PORT and DATABASE_URL for the complete gate.

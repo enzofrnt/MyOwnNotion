@@ -102,13 +102,16 @@ function revealMainWindow(focus = false): void {
 
 function recreateMainWindow(): void {
   updates.setContext({ pendingLocalChanges: true });
-  if (mainWindow !== null && !mainWindow.isDestroyed()) {
-    suppressClosePersist = true;
-    mainWindow.destroy();
-    mainWindow = null;
+  const previous = mainWindow;
+  suppressClosePersist = true;
+  try {
+    // Keep a window alive across the partition change. Closing the last one
+    // first triggers the normal application quit policy on Windows and Linux.
+    createWindow();
+    if (previous !== null && !previous.isDestroyed()) previous.destroy();
+  } finally {
     suppressClosePersist = false;
   }
-  createWindow();
 }
 
 function loadWindowState(userData: string): WindowState {

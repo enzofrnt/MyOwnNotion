@@ -135,4 +135,31 @@ unitaires de résolution/navigation et la vérification des types Web. La passe
 complète précédente a été arrêtée après collecte de l'échec Firefox pour
 relancer tous les contrôles sur le commit corrigé.
 
-La passe complète sur `5b16f216` valide Chromium, Firefox et WebKit desktop. Le contrôle visuel Chromium mobile détecte une alerte coffre OS indue dans le navigateur Web. Le composant garde désormais le silence sans bridge natif ; un véritable refus IPC natif produit un état indisponible expurgé, y compris dans les diagnostics. Cinq tests de rendu couvrent navigateur, coffre disponible/verrouillé/indisponible et rejet IPC ; ils passent, ainsi que les types Web. La référence visuelle existante est conservée. La passe complète devra être relancée sur le correctif.
+La passe complète sur `5b16f216` valide Chromium, Firefox et WebKit desktop. Le contrôle visuel Chromium mobile détecte une alerte coffre OS indue dans le navigateur Web. Le composant garde désormais le silence sans bridge natif ; un véritable refus IPC natif produit un état indisponible expurgé, y compris dans les diagnostics. Cinq tests de rendu couvrent navigateur, coffre disponible/verrouillé/indisponible et rejet IPC ; ils passent, ainsi que les types Web. La référence visuelle existante est conservée.
+
+La passe `bun run checks:local` sur `1a0757446878ecc306c7a07e791626acf7e97f61`
+termine avec code 0 le 5 septembre : couverture, performances, 333 tests
+d'intégration, 1 290 contrats, cinq projets navigateur, neuf parcours Electron,
+paquet macOS installé, builds et images amd64/arm64, smoke runtime, audit des
+dépendances, secrets, analyse statique, licences et Compose. Le scan Trivy épinglé
+ne trouve aucune vulnérabilité haute/critique corrigible sur l'image API dont les
+entrées sont inchangées par les derniers correctifs Web. La PR est
+[171](https://github.com/enzofrnt/MyOwnNotion/pull/171).
+
+La première CI de cette PR valide le desktop macOS. Elle révèle trois problèmes
+distincts sur les autres cibles : cluster PostgreSQL système absent sur Ubuntu
+ARM64 ; GNU tar de Git Bash interprétant `C:`/`D:` comme hôte distant sur Windows ;
+fermeture de la dernière fenêtre pendant le changement de profil, qui quitte
+l'application sous Linux/Windows. T088/T089 corrigent ces points et exigent une
+nouvelle preuve locale puis native sur chaque runner. GitGuardian signale aussi
+la liste de noms de champs expurgés dans `diagnostics.ts` comme mot de passe ;
+l'incident 36954749 est un faux positif à classer dans le service, sans secret à
+révoquer. Aucune validation PR/main complète ni distribution signée n'est acquise.
+
+Les neuf parcours Electron passent ensuite sur Linux ARM64 natif dans un
+conteneur de validation isolé, avec GNOME Keyring, D-Bus et Xvfb (23,4 s).
+Le parcours d'onboarding vérifie explicitement qu'aucun événement de fermeture
+de toutes les fenêtres ne survient et qu'une seule fenêtre finale subsiste.
+La copie de sources du conteneur exclut les fichiers AppleDouble générés par
+l'archivage macOS ; ces métadonnées ne sont pas des migrations SQL du dépôt.
+La nouvelle passe complète locale et la CI Windows restent nécessaires.

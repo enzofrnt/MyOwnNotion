@@ -32,12 +32,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-bun
-      - name: Set up PostgreSQL for native lifecycle journeys
-        if: runner.os != 'Windows'
+      - name: Set up PostgreSQL for macOS lifecycle journeys
+        if: runner.os == 'macOS'
         uses: ankane/setup-postgres@e9cd5bc1babecb0e441a640646d782056dbb67f5 # v1
         with:
           postgres-version: "18"
           user: postgres
+      - name: Set up PostgreSQL for Linux lifecycle journeys
+        if: runner.os == 'Linux'
+        run: docker compose up -d --wait postgres
       - name: Set up PostgreSQL 18 on Windows (x64 emulated on ARM)
         if: runner.os == 'Windows'
         run: bun scripts/ci/prepare-windows-postgres.ts
@@ -79,7 +82,7 @@ jobs:
       - name: Native lifecycle journeys with Linux keyring
         if: runner.os == 'Linux'
         env:
-          DATABASE_URL: postgres://postgres@127.0.0.1:5432/postgres
+          DATABASE_URL: postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion
           MYOWNNOTION_DESKTOP_E2E: "1"
         run: |
           XDG_CURRENT_DESKTOP=GNOME dbus-run-session -- bash -c 'printf "%s" desktop-test-keyring | gnome-keyring-daemon --unlock --components=secrets; xvfb-run -a bun scripts/e2e/run-local-matrix.ts --project=chromium-desktop tests/e2e/desktop-'
