@@ -52,6 +52,7 @@ import {
   versionVectorDominates,
 } from "@myownnotion/page-state";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { SearchService } from "../search/search-service.ts";
 import { resolveSnapshotPayload } from "../security/canonical-payloads.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
@@ -495,6 +496,7 @@ export class PageOperationService {
   }): Promise<ActivePageSyncResponseDto> {
     let committedSequence: number | undefined;
     const response = await runMutation(this.#deps.db, async (tx) => {
+      await shareFullFileMutation(tx);
       const authorization = await authorizeSynchronizationWrite(tx, input);
       if (!authorization.allowed) {
         throw new PageOperationServiceError(

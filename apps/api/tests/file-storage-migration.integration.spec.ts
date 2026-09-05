@@ -5,11 +5,14 @@ import { createUpload, getUpload, schema } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
+import { buildApp } from "../src/app.ts";
 import { ProtectedUploadService } from "../src/files/protected-upload-service.ts";
 import {
   inventoryLegacyFileSources,
   readLegacyFileSource,
 } from "../src/security/file-storage-source.ts";
+import { enterStorageTransition } from "../src/security/file-storage-transition-guard.ts";
+import { createItemViaApi } from "./helpers/app.ts";
 import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 
 async function* source(bytes: Uint8Array) {
@@ -236,6 +239,68 @@ it("refuses symlinked or malformed historical sources instead of reading outside
     ).rejects.toThrow("path");
   } finally {
     await rm(target, { force: true });
+    await harness.close();
+  }
+});
+
+it("blocks existing HTTP writers and a new server until the transaction-local migration resumes", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const page = await createItemViaApi(harness, { kind: "page", name: "pre-transition" });
+    const [envelope] = await db.select().from(schema.protectedEnvelopes).limit(1);
+    if (envelope === undefined) throw new Error("Missing envelope fixture");
+    const transitionId = generateUuidV7();
+    await db.insert(schema.fileStorageTransitions).values({
+      id: transitionId,
+      installationId: files.deps.installationId,
+      sourceBackupId: generateUuidV7(),
+      sourceInventoryEnvelopeId: envelope.id,
+      phase: "inventoried",
+    });
+    const refused = await harness.owner({
+      method: "PATCH",
+      url: `/v1/items/${page.itemId}`,
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: { name: "must roll back", baseRevisionId: page.revisionId },
+    });
+    expect(refused.statusCode, refused.body).toBe(503);
+    expect(refused.json().code).toBe("migration_in_progress");
+    expect((await files.deps.content.readItemPresentation(db, page.itemId))?.name).toBe(
+      "pre-transition",
+    );
+    await expect(
+      buildApp({
+        databaseUrl: harness.postgres.connectionString,
+        blobRoot: harness.blobRoot,
+      }),
+    ).rejects.toThrow("transition is incomplete");
+    await db.transaction(async (tx) => {
+      await enterStorageTransition(tx, transitionId);
+      await files.deps.content.writeItemName(tx, {
+        itemId: page.itemId,
+        recordVersion: 1,
+        name: "migration-authorized",
+      });
+    });
+    await expect(
+      files.deps.content.writeItemName(db, {
+        itemId: page.itemId,
+        recordVersion: 1,
+        name: "no leaked bypass",
+      }),
+    ).rejects.toThrow("transition is incomplete");
+    await db
+      .update(schema.fileStorageTransitions)
+      .set({ phase: "complete", completedAt: new Date() })
+      .where(eq(schema.fileStorageTransitions.id, transitionId));
+    await files.deps.content.writeItemName(db, {
+      itemId: page.itemId,
+      recordVersion: 1,
+      name: "resumed",
+    });
+  } finally {
     await harness.close();
   }
 });

@@ -15,6 +15,7 @@ import {
 } from "@myownnotion/domain";
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ProtectedContentUnavailableError } from "../security/content-resolution.ts";
+import { StorageTransitionPendingError } from "../security/file-storage-transition-guard.ts";
 import { requestContext } from "../security/request-context.ts";
 import { RotationWriteBlockedError } from "../security/rotation-policy-service.ts";
 import { ProtocolTooOldError, REQUIRED_PROTOCOL_HEADER } from "./protocol.ts";
@@ -149,6 +150,14 @@ export function registerErrorHandling(app: FastifyInstance): void {
     // reading it: "unexpected" invites a bug report, and this is a key or an
     // envelope problem with an operator-side cause. The code is deliberately
     // coarse — naming the failed check would be a decryption oracle.
+    if (error instanceof StorageTransitionPendingError) {
+      return reply.status(503).header("content-type", "application/problem+json").send({
+        type: "https://myownnotion.dev/problems/migration_in_progress",
+        title: error.message,
+        status: 503,
+        code: "migration_in_progress",
+      });
+    }
     if (error instanceof ProtectedContentUnavailableError) {
       _request.log.error({ err: error }, "protected read failed");
       const problem: ProblemBody = {

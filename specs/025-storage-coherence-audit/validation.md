@@ -214,3 +214,18 @@ including complete legacy data, protected-chunk exclusion, acknowledged prefixes
 recoverable extra tails/temporary files, post-inventory substitution refusal,
 symlink refusal and invalid-path refusal. File reads use 64 KiB chunks and verify
 length/digest at EOF; no historical source is deleted by inventory or conversion.
+
+The transition guard rejects new server startup and rolls back an already-running
+server's attempted private write while a transition is incomplete. The migration
+can authorize its own transaction with the matching transition ID; that permission
+does not survive commit or leak to the next ordinary write. FILE locks serialize
+the guard decision with publication and maintenance. Nine targeted migration,
+backup-locking and file-rotation tests plus API strict types pass. Guarded update
+orchestration and durable checkpoint/cutover recovery remain pending.
+
+Canonical command submission and operational page updates acquire the FILE guard
+before editing rows; the accepted callback also guards commands with no protected
+payload, such as relationship removal. The corrected migration guard cases pass
+six tests; fourteen additional canonical/page-operation/guarded-backup integration
+tests pass, including offline convergence and request rollback. No source backup
+or current test installation was silently skipped by the startup check.

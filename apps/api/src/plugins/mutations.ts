@@ -26,6 +26,7 @@ import {
 import { isUuid, type MutationCommand, type SafeError, type Uuid } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { DatabaseQueryService } from "../databases/database-query-service.ts";
 import type { SearchService } from "../search/search-service.ts";
 import {
@@ -218,6 +219,7 @@ export function acceptedWriteGuards(
    */
   attribution?: { readonly mutationId: Uuid; readonly deviceId: string } | undefined,
 ): {
+  beforeExecute?: (tx: Transaction) => Promise<void>;
   resolvePageBody?: (tx: Transaction, pageId: Uuid, stored: unknown) => Promise<unknown>;
   resolveRevisionSnapshot?: (
     tx: Transaction,
@@ -235,6 +237,7 @@ export function acceptedWriteGuards(
     return {};
   }
   return {
+    beforeExecute: shareFullFileMutation,
     ...(protectedContent === undefined
       ? {}
       : {
@@ -251,6 +254,7 @@ export function acceptedWriteGuards(
       tx: Transaction,
       accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
     ) => {
+      await shareFullFileMutation(tx);
       if (attribution !== undefined) {
         await attributeRevisionsToDevice(tx, attribution);
       }

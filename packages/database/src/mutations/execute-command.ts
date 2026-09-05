@@ -919,6 +919,8 @@ export async function submitMutation(
     readonly now?: () => Date;
     readonly resolveRevisionSnapshot?: MutationContext["resolveRevisionSnapshot"];
     readonly resolvePageBody?: MutationContext["resolvePageBody"];
+    /** Acquire deployment maintenance guards before touching canonical rows. */
+    readonly beforeExecute?: (tx: Transaction) => Promise<void>;
     /**
      * Runs inside the mutation's transaction, after the command is accepted.
      *
@@ -946,6 +948,7 @@ export async function submitMutation(
   const acceptedAt = (input.now ?? (() => new Date()))();
   try {
     return await runMutation(db, async (tx) => {
+      await input.beforeExecute?.(tx);
       const existing = await readMutationRecord(tx, input.mutationId);
       if (existing !== undefined) {
         return {

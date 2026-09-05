@@ -93,6 +93,7 @@ import { BootstrapService } from "./security/bootstrap-service.ts";
 import { setSessionCookie } from "./security/cookie-policy.ts";
 import { loadDeploymentKey } from "./security/deployment-key.ts";
 import { DeviceService } from "./security/device-service.ts";
+import { assertStorageTransitionReady } from "./security/file-storage-transition-guard.ts";
 import type { KeyHierarchy } from "./security/key-hierarchy.ts";
 import { createOwnerPrincipalResolver } from "./security/owner-principal.ts";
 import type { ProtectedContent } from "./security/protected-content.ts";
@@ -219,6 +220,7 @@ export async function buildApp(options: BuildAppOptions): Promise<BuiltApp> {
   await assertFullRestoreActivated(options.blobRoot);
   const database = createDatabase(options.databaseUrl);
   try {
+    await assertStorageTransitionReady(database.db);
     return await composeApp(options, database);
   } catch (error) {
     // The pool is open by now. Leaving it behind on a failed build leaks a

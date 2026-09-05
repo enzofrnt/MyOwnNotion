@@ -31,6 +31,7 @@ import {
   openEnvelope,
   sealEnvelope,
 } from "@myownnotion/domain/security";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 import { type KeyHierarchy, KeyUnavailableError } from "./key-hierarchy.ts";
 
 /**
@@ -125,6 +126,7 @@ export class ProtectedRecordService {
   }
 
   private async writePinned(executor: Transaction, input: ProtectedWrite): Promise<string> {
+    await shareFullFileMutation(executor);
     const dataKey = await this.#deps.keys.dataKey(executor, { writable: true });
     await lockDataKeyGeneration(executor, {
       workspaceId: this.#deps.workspaceId,
@@ -162,6 +164,7 @@ export class ProtectedRecordService {
     executor: Transaction,
     inputs: readonly ImmutableProtectedWrite[],
   ): Promise<readonly string[]> {
+    await shareFullFileMutation(executor);
     const dataKey = await this.#deps.keys.dataKey(executor, { writable: true });
     await lockDataKeyGeneration(executor, {
       workspaceId: this.#deps.workspaceId,
