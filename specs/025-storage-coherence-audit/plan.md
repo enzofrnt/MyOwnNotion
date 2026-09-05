@@ -103,6 +103,14 @@ boundaries rather than introduce an independent storage or authorization service
 Each stage keeps independently testable boundaries. Do not deploy a partially
 wired encrypted format. Feature 024 must be delivered before this migration.
 
+Direct multipart and resumable HTTP sources are one-shot streams. Their byte
+ingestion transactions explicitly disable automatic serialization retries;
+a conflict rolls back SQL and is returned for a fresh client request. Replaying
+an already consumed stream inside `runMutation` would silently lose bytes.
+Durable ciphertext from a rolled-back attempt remains unreferenced and encrypted
+until physical cleanup; it is never advertised as accepted upload progress.
+Canonical logical-file/placement/revision publication remains transactional.
+
 ## Complexity Tracking
 
 No constitution exception. A protected manifest and partial-chunk table are

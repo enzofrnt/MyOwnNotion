@@ -56,3 +56,12 @@ generation retirement waits for an in-flight publication lock; retired keys
 remain readable and reject new writes, while revoked keys refuse reads. The
 existing upload lifecycle suite is included. These locks still require the
 rotation/revocation orchestration integration tracked by T018.
+
+T009 provides the shared protected file factory/service without changing live
+route composition yet. Five real SQL/filesystem integration cases pass, along
+with API strict types: multi-chunk content reopens exactly through a fresh
+runtime, empty content is authenticated, raw file rows omit digests/locators,
+logical envelope/filesystem inspection finds no fixture sentinel, missing keys
+refuse before reading input, interrupted/oversized/short streams publish no SQL
+content, and missing tails/corrupt bytes refuse. HTTP composition, deduplication,
+range reads and historical migration remain the following explicit tasks.

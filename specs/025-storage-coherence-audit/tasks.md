@@ -18,7 +18,7 @@ only after cross-artifact analysis. Checked tasks require actual evidence.
 - [X] T006 Make ciphertext publication durable through exclusive private staging, verified bytes, fsync and directory fsync in `packages/blob-store/src/filesystem-blob-store.ts` and failure tests (FR-001/FR-008).
 - [X] T007 Add purpose-specific content-index key derivation in `apps/api/src/security/key-hierarchy.ts` and encrypted file metadata/manifest entities in `apps/api/src/security/protected-content.ts`; verify no recovery-key accessor is reused (FR-002/FR-006).
 - [X] T008 Add transaction-aware content/upload chunk repositories and candidate lookup in `packages/database/src/repositories/`, with format-specific reads and generation-lock boundaries (FR-003/FR-005/FR-006).
-- [ ] T009 Implement the shared protected-file runtime factory/service in `apps/api/src/files/`, composing existing key/record/blob services without unencrypted fallback (FR-001/FR-008).
+- [X] T009 Implement the shared protected-file runtime factory/service in `apps/api/src/files/`, composing existing key/record/blob services without unencrypted fallback (FR-001/FR-008).
 
 ## Phase 3: US1 — Private attachments (P1)
 
