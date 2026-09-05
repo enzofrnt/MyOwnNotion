@@ -38,8 +38,9 @@ describe("Bun production artifacts", () => {
     expect(build).toContain("knowledge-graph.worker-[hash].[ext]");
     expect(build).toContain("bun-plugin-tailwind");
     expect(build).toContain("injectManifest");
-    expect(build).toContain('file.endsWith(".wasm")');
-    expect(build).toContain('file.endsWith(".webmanifest")');
+    // Asset presence and native path handling have executable cases in the
+    // web validator suite; this contract checks its production-build wiring.
+    expect(build).toContain("requireWebAssetClasses(emittedFiles)");
     expect(build).toContain("__MYOWNNOTION_SEARCH_WORKER_URL__");
     expect(build).toContain("__MYOWNNOTION_GRAPH_WORKER_URL__");
     expect(read("apps/web/index.html")).toContain("manifest.webmanifest");
