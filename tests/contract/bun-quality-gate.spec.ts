@@ -12,6 +12,8 @@ describe("Bun quality gate", () => {
     for (const file of [
       ".github/workflows/ci.yml",
       ".github/workflows/release.yml",
+      ".github/workflows/desktop-ci.yml",
+      ".github/workflows/desktop-release.yml",
       ".github/actions/setup-bun/action.yml",
     ]) {
       expect(() => parse(read(file)), file).not.toThrow();
@@ -33,7 +35,7 @@ describe("Bun quality gate", () => {
   it("contains no retired runtime setup or executable workflow command", () => {
     const workflows = `${read(".github/workflows/ci.yml")}\n${read(
       ".github/workflows/release.yml",
-    )}`;
+    )}\n${read(".github/workflows/desktop-ci.yml")}\n${read(".github/workflows/desktop-release.yml")}`;
     expect(workflows).not.toContain("actions/setup-node");
     expect(workflows).not.toContain("pnpm/action-setup");
     expect(workflows).not.toMatch(/^\s*(?:node|npx|npm|pnpm|yarn|corepack|tsx)\s/m);

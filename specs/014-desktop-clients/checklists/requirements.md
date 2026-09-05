@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Applications Desktop Electron Windows et macOS
+# Specification Quality Checklist: Applications Desktop Electron Windows, macOS et Linux
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-08-16
@@ -31,7 +31,6 @@
 
 ## Notes
 
-La planification technique devra confirmer les choix de version Electron, de
-packaging, de signature, de protection des clés et de pipeline multi-plateforme
-avant l’implémentation. Ces choix appartiennent à `plan.md`, pas à la présente
-spécification.
+La planification technique confirme Electron Forge, les cinq cibles, Linux en
+AppImage/deb/rpm, GitHub Release uniquement, et la protection des clés OS.
+Ces choix appartiennent à `plan.md` et `research.md`, pas à `spec.md`.

@@ -70,6 +70,9 @@ export default defineConfig({
   // Engines assigned to the pinned Linux runtime on macOS are refused at the
   // start of a raw test instead, in tests/e2e/fixtures.ts, where the failure can
   // direct the caller to the isolated local matrix.
+  // Desktop Electron journeys (`tests/e2e/desktop-*.spec.ts`) skip unless
+  // MYOWNNOTION_DESKTOP_E2E=1. They launch the packaged host via Playwright's
+  // Electron API and stay off the five browser/viewport projects.
   projects: BROWSER_PROJECTS.map(({ name, device }) => ({
     name,
     // Linux WebKit can occasionally spend more than a minute inside its own

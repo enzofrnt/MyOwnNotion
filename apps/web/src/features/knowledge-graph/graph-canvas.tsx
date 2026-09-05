@@ -348,24 +348,64 @@ export const GraphCanvas = forwardRef(function GraphCanvas(
     };
     paint();
   };
-  const finishPointerDrag = (event: ReactPointerEvent<SVGSVGElement>): void => {
-    const moving = nodeDrag.current;
-    if (moving !== null && moving.pointerId === event.pointerId) {
-      event.currentTarget.releasePointerCapture?.(event.pointerId);
-      skipNodeClick.current = moving.moved;
-      runtimeRef.current?.unpin(moving.id);
-      if (runtimeRef.current !== null) runtimeRef.current.alphaTarget = 0;
-      nodeDrag.current = null;
-      setDragging(false);
-      ensureLoop();
-      return;
+  const releasePointerCaptureSafe = (target: Element, pointerId: number): void => {
+    try {
+      if (target.hasPointerCapture?.(pointerId) === true) {
+        target.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // Pointer already released or the element was detached.
     }
+  };
+  const finishNodeDrag = (pointerId: number): void => {
+    const moving = nodeDrag.current;
+    if (moving === null || moving.pointerId !== pointerId) return;
+    const target = svg.current;
+    if (target !== null) releasePointerCaptureSafe(target, pointerId);
+    skipNodeClick.current = moving.moved;
+    runtimeRef.current?.unpin(moving.id);
+    if (runtimeRef.current !== null) runtimeRef.current.alphaTarget = 0;
+    nodeDrag.current = null;
+    setDragging(false);
+    ensureLoop();
+  };
+  const finishPanDrag = (pointerId: number): void => {
     const start = drag.current;
-    if (start === null || start.pointerId !== event.pointerId) return;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (start === null || start.pointerId !== pointerId) return;
+    const target = svg.current;
+    if (target !== null) releasePointerCaptureSafe(target, pointerId);
     drag.current = null;
     setDragging(false);
   };
+  const finishPointerDrag = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    finishNodeDrag(event.pointerId);
+    finishPanDrag(event.pointerId);
+  };
+  const releaseAllPointerDrags = (): void => {
+    const moving = nodeDrag.current;
+    if (moving !== null) finishNodeDrag(moving.pointerId);
+    const start = drag.current;
+    if (start !== null) finishPanDrag(start.pointerId);
+  };
+  const finishNodeDragRef = useRef(finishNodeDrag);
+  finishNodeDragRef.current = finishNodeDrag;
+  const finishPanDragRef = useRef(finishPanDrag);
+  finishPanDragRef.current = finishPanDrag;
+  const releaseAllPointerDragsRef = useRef(releaseAllPointerDrags);
+  releaseAllPointerDragsRef.current = releaseAllPointerDrags;
+  useEffect(() => {
+    const onWindowPointerEnd = (event: PointerEvent): void => {
+      finishNodeDragRef.current(event.pointerId);
+      finishPanDragRef.current(event.pointerId);
+    };
+    window.addEventListener("pointerup", onWindowPointerEnd, true);
+    window.addEventListener("pointercancel", onWindowPointerEnd, true);
+    return () => {
+      window.removeEventListener("pointerup", onWindowPointerEnd, true);
+      window.removeEventListener("pointercancel", onWindowPointerEnd, true);
+      releaseAllPointerDragsRef.current();
+    };
+  }, []);
   const beginNodeDrag = (
     event: ReactPointerEvent<SVGGElement>,
     itemId: GraphProjection["nodes"][number]["id"],

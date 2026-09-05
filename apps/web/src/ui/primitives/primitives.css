@@ -560,3 +560,140 @@
     transform: translateY(-50%);
   }
 }
+
+.ui-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-scrollbar-thumb) var(--ui-scrollbar-track);
+}
+
+.ui-scrollbar::-webkit-scrollbar {
+  width: var(--ui-scrollbar-size);
+  height: var(--ui-scrollbar-size);
+}
+
+.ui-scrollbar::-webkit-scrollbar:hover {
+  width: var(--ui-scrollbar-size);
+  height: var(--ui-scrollbar-size);
+}
+
+.ui-scrollbar::-webkit-scrollbar-track {
+  background: var(--ui-scrollbar-track);
+}
+
+.ui-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--ui-scrollbar-thumb);
+  border: var(--ui-scrollbar-thumb-inset) solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--ui-radius-round);
+}
+
+.ui-scrollbar::-webkit-scrollbar-thumb:hover,
+.ui-scrollbar::-webkit-scrollbar-thumb:active {
+  border: var(--ui-scrollbar-thumb-inset) solid transparent;
+  background-clip: padding-box;
+}
+
+.ui-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ui-scrollbar-thumb-hover);
+}
+
+.ui-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: var(--ui-scrollbar-thumb-active);
+}
+
+.ui-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Sidebar / tree: overlay gutter, fixed 4px rail — hover must not widen the track. */
+.ui-scrollbar--compact {
+  scrollbar-gutter: auto;
+  scrollbar-color: var(--ui-scrollbar-thumb-compact) var(--ui-scrollbar-track);
+}
+
+.ui-scrollbar--compact::-webkit-scrollbar,
+.ui-scrollbar--compact::-webkit-scrollbar:hover {
+  width: var(--ui-scrollbar-size-compact);
+  height: var(--ui-scrollbar-size-compact);
+}
+
+.ui-scrollbar--compact::-webkit-scrollbar-thumb {
+  background-color: var(--ui-scrollbar-thumb-compact);
+  border: var(--ui-scrollbar-thumb-inset-compact) solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--ui-radius-round);
+}
+
+.ui-scrollbar--compact::-webkit-scrollbar-thumb:hover,
+.ui-scrollbar--compact::-webkit-scrollbar-thumb:active {
+  border: var(--ui-scrollbar-thumb-inset-compact) solid transparent;
+  background-clip: padding-box;
+}
+
+.ui-scrollbar--compact::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ui-scrollbar-thumb-compact-hover);
+}
+
+.ui-scrollbar--compact::-webkit-scrollbar-thumb:active {
+  background-color: var(--ui-scrollbar-thumb-compact-active);
+}
+
+.ui-overlay-scroll {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ui-overlay-scroll__viewport {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.ui-overlay-scroll__viewport::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.ui-overlay-scroll__track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--ui-overlay-scrollbar-size);
+  pointer-events: none;
+}
+
+.ui-overlay-scroll[data-scrollable="false"] .ui-overlay-scroll__track {
+  display: none;
+}
+
+.ui-overlay-scroll__thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  min-height: 1.75rem;
+  background: var(--ui-scrollbar-thumb-compact);
+  border-radius: var(--ui-radius-round);
+  pointer-events: auto;
+  touch-action: none;
+  transition: background-color var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.ui-overlay-scroll__thumb:hover {
+  background: var(--ui-scrollbar-thumb-compact-hover);
+}
+
+.ui-overlay-scroll__thumb:active {
+  background: var(--ui-scrollbar-thumb-compact-active);
+}

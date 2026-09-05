@@ -27,17 +27,24 @@ import { type NavigateOptions, useLocation, useNavigate } from "react-router-dom
 import { BootstrapPage, type BootstrapPageProps } from "./features/auth/bootstrap-page.tsx";
 import { LoginPage } from "./features/auth/login-page.tsx";
 import { BackupPanel } from "./features/backup/backup-panel.tsx";
-import { ConnectionStatus } from "./features/connection/connection-status.tsx";
+import {
+  ConnectionStatus,
+  type DesktopConnectionKind,
+} from "./features/connection/connection-status.tsx";
+import { DesktopConnectionPage } from "./features/connection/desktop-connection-page.tsx";
 import {
   type GraphMode,
   HierarchyExplorer,
   type HierarchyExplorerProps,
 } from "./features/hierarchy/hierarchy-explorer.tsx";
 import { NotFoundPage } from "./features/routing/not-found-page.tsx";
+import { DesktopDiagnostics } from "./features/security/desktop-diagnostics.tsx";
+import { DesktopVaultStatus } from "./features/security/desktop-vault-status.tsx";
 import { SecuritySettings } from "./features/security/security-settings.tsx";
 import { type SettingsSection, SettingsShell } from "./features/settings/settings-shell.tsx";
 import { WorkspaceManagementSettings } from "./features/settings/workspace-management-settings.tsx";
 import { WorkspaceNavigationSettings } from "./features/settings/workspace-navigation-settings.tsx";
+import { DesktopUpdatePanel } from "./features/update/desktop-update-panel.tsx";
 import {
   type ApplicationDestination,
   graphPath,
@@ -55,9 +62,15 @@ import {
   workspaceReturnDestinationFromState,
   workspaceReturnState,
 } from "./routing/return-destination.ts";
+import {
+  type ClientRuntimeProfile,
+  detectClientRuntime,
+  webRuntimeProfile,
+} from "./runtime/client-runtime.ts";
+import { createClientApis } from "./services/client-factory.ts";
 import { ContentApi } from "./services/content-api.ts";
 import { localContent } from "./services/local-content.ts";
-import { SecurityApi } from "./services/security-api.ts";
+import type { SecurityApi } from "./services/security-api.ts";
 
 declare const __MYOWNNOTION_E2E__: boolean;
 
@@ -128,7 +141,14 @@ export function App(props: AppProps = {}) {
   //
   // One instance for the connection panel. It only issues a health check, so it
   // shares nothing with the content service and needs no coordination.
-  const connectionApi = useMemo(() => new ContentApi(), []);
+  const [runtime, setRuntime] = useState<ClientRuntimeProfile>(webRuntimeProfile);
+  const [runtimeReady, setRuntimeReady] = useState(
+    () => typeof window === "undefined" || window.myownnotionDesktop === undefined,
+  );
+  const [desktopOnboarding, setDesktopOnboarding] = useState(false);
+  const [desktopStatus, setDesktopStatus] = useState<DesktopConnectionKind | null>(null);
+  const clients = useMemo(() => createClientApis(runtime), [runtime]);
+  const connectionApi = useMemo(() => new ContentApi(runtime.apiBaseUrl), [runtime.apiBaseUrl]);
   const location = useLocation();
   const locationRef = useRef(location);
   locationRef.current = location;
@@ -136,7 +156,8 @@ export function App(props: AppProps = {}) {
   const routeNavigate = props.navigate ?? browserNavigate;
   const destination = useMemo(() => recognizeDestination(location.pathname), [location.pathname]);
 
-  const [api] = useState(() => props.api ?? new SecurityApi());
+  const [api] = useState(() => props.api);
+  const securityApi = api ?? clients.security;
   const WorkspaceHierarchy = props.hierarchy ?? HierarchyExplorer;
   const SetupPage = props.bootstrap ?? BootstrapPage;
   const [gate, setGate] = useState<Gate>("checking");
@@ -189,19 +210,19 @@ export function App(props: AppProps = {}) {
   );
 
   const loadBackupStatus = useCallback(async () => {
-    const result = await api.backupStatus();
+    const result = await securityApi.backupStatus();
     if (!result.ok) {
       throw new Error(result.problem.code);
     }
     return result.value;
-  }, [api]);
+  }, [securityApi]);
 
   const runBackupRehearsal = useCallback(async () => {
-    const result = await api.runBackupRehearsal();
+    const result = await securityApi.runBackupRehearsal();
     if (!result.ok) {
       throw new Error(result.problem.code);
     }
-  }, [api]);
+  }, [securityApi]);
 
   /**
    * Decides which of the three states this browser is in.
@@ -211,14 +232,14 @@ export function App(props: AppProps = {}) {
    * refusal that says nothing useful.
    */
   const resolveGate = useCallback(async (): Promise<void> => {
-    const status = await api.status();
+    const status = await securityApi.status();
     // An unreachable or unreadable status is not treated as "no owner": that
     // would put a live installation back on the first-run page.
     if (status.ok && status.value.ownerCount === 0) {
       setGate("bootstrap");
       return;
     }
-    const session = await api.currentSession();
+    const session = await securityApi.currentSession();
     if (session.ok) {
       setSessionId(session.value.session.sessionId);
       setGate("workspace");
@@ -240,11 +261,78 @@ export function App(props: AppProps = {}) {
     }
     setSessionId(null);
     setGate("login");
-  }, [api]);
+  }, [securityApi]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void detectClientRuntime().then(async (detected) => {
+      if (cancelled) {
+        return;
+      }
+      setRuntime(detected);
+      const profile =
+        window.myownnotionDesktop === undefined
+          ? null
+          : await window.myownnotionDesktop.getActiveProfile();
+      if (cancelled) {
+        return;
+      }
+      setDesktopOnboarding(
+        detected.kind === "desktop" &&
+          (window.location.protocol.startsWith("myownnotion") || profile === null),
+      );
+      const compatibility = profile?.protocolCompatibility;
+      setDesktopStatus(
+        compatibility === "read-only" ||
+          compatibility === "incompatible" ||
+          compatibility === "compatible"
+          ? compatibility
+          : null,
+      );
+      setRuntimeReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     void resolveGate();
   }, [resolveGate]);
+
+  useEffect(() => {
+    if (gate !== "workspace") return;
+    let busy = false;
+    let cancelled = false;
+    const recoverSession = async (): Promise<void> => {
+      if (busy || navigator.onLine === false) return;
+      busy = true;
+      try {
+        await resolveGate();
+        if (cancelled || !securityApi.hasCsrfToken) return;
+        // A cold offline start has the durable cookie and key, but deliberately
+        // no persisted CSRF token. Revalidate before waking protected writes.
+        contentService.realtimePageSync.wake();
+        await contentService.synchronize();
+        await contentService.synchronizeOperationalPages();
+      } finally {
+        busy = false;
+      }
+    };
+    const wake = () => {
+      void recoverSession().catch(() => {});
+    };
+    window.addEventListener("online", wake);
+    // Connectivity can recover without a browser online event (server restart).
+    const timer = window.setInterval(() => {
+      if (securityApi.hasCsrfToken === false) wake();
+    }, 5000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", wake);
+      window.clearInterval(timer);
+    };
+  }, [gate, resolveGate, securityApi, contentService]);
 
   useEffect(() => {
     if (gate === "checking") return;
@@ -320,7 +408,10 @@ export function App(props: AppProps = {}) {
     workspaceReturn.current = null;
     setGate("login");
   }, []);
-  const pageOperationCsrfToken = useCallback(() => api.csrfTokenForSameOriginWrite(), [api]);
+  const pageOperationCsrfToken = useCallback(
+    () => securityApi.csrfTokenForSameOriginWrite(),
+    [securityApi],
+  );
 
   const openSettings = useCallback(
     (section: SettingsSection) => {
@@ -391,6 +482,24 @@ export function App(props: AppProps = {}) {
     workspaceReturn.current = null;
   }, [gate, workspaceVisible]);
 
+  if (!runtimeReady) {
+    return (
+      <div className="app-shell">
+        <p role="status" data-testid="app-checking">
+          Checking this installation…
+        </p>
+      </div>
+    );
+  }
+
+  if (desktopOnboarding) {
+    return (
+      <div className="app-shell">
+        <DesktopConnectionPage onConnected={() => setDesktopOnboarding(false)} />
+      </div>
+    );
+  }
+
   if (gate === "checking") {
     return (
       <div className="app-shell">
@@ -404,7 +513,7 @@ export function App(props: AppProps = {}) {
   if (gate === "bootstrap") {
     return (
       <div className="app-shell">
-        <SetupPage api={api} onReady={onSignedIn} />
+        <SetupPage api={securityApi} onReady={onSignedIn} />
       </div>
     );
   }
@@ -412,7 +521,7 @@ export function App(props: AppProps = {}) {
   if (gate === "login") {
     return (
       <div className="app-shell">
-        <LoginPage api={api} onSignedIn={onSignedIn} />
+        <LoginPage api={securityApi} onSignedIn={onSignedIn} />
       </div>
     );
   }
@@ -459,8 +568,23 @@ export function App(props: AppProps = {}) {
             <>
               {/* Trust information belongs to the security destination, not
                   alongside the owner's current note. */}
-              <ConnectionStatus api={connectionApi} />
-              <SecuritySettings api={api} currentSessionId={sessionId} onSignedOut={onSignedOut} />
+              <ConnectionStatus
+                api={connectionApi}
+                {...(runtime.kind === "desktop"
+                  ? {
+                      hostLabel: new URL(runtime.apiBaseUrl || window.location.origin).host,
+                      ...(desktopStatus === null ? {} : { desktopStatus }),
+                    }
+                  : {})}
+              />
+              <DesktopVaultStatus />
+              <DesktopDiagnostics />
+              <DesktopUpdatePanel />
+              <SecuritySettings
+                api={securityApi}
+                currentSessionId={sessionId}
+                onSignedOut={onSignedOut}
+              />
             </>
           ) : settingsSection === "backups" ? (
             <BackupPanel load={loadBackupStatus} runRehearsal={runBackupRehearsal} />

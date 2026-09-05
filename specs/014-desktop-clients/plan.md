@@ -1,4 +1,4 @@
-# Implementation Plan: Applications Desktop Electron Windows et macOS
+# Implementation Plan: Applications Desktop Electron Windows, macOS et Linux
 
 **Branch**: `014-desktop-clients` | **Date**: 2026-08-16 | **Spec**: [spec.md](spec.md)
 
@@ -8,15 +8,18 @@
 est déjà exclusive (feature 019) ; ce plan n'introduit ni pnpm ni Node.js
 first-party.
 
-Créer un hôte desktop Electron pour le client Web existant, distribué sur
-Windows 10/11 x64 et macOS 12+ Intel/Apple Silicon. Le rendu réutilise
+Créer un hôte desktop Electron pour le client Web existant, distribué pour
+cinq cibles : Windows 10/11 x64, Windows 10/11 ARM64, macOS 13+ Apple Silicon,
+Linux glibc x64 et Linux glibc ARM64. Windows et macOS : un installateur
+chacun. Linux : AppImage, deb et rpm par architecture. Téléchargement GitHub,
+aucun store. Le rendu réutilise
 `apps/web` et `packages/client-core`; la couche native se limite à la fenêtre,
 la protection de clé, les capacités système contrôlées, les diagnostics et le
 cycle de release. Le serveur, les contrats métier, le modèle canonique et la
 synchronisation restent ceux des features précédentes.
 
 Le choix retenu est Electron Forge comme orchestrateur de packaging/makers et
-de publication, avec une build Vite dédiée pour le processus principal et le
+de publication, avec une build Bun dédiée pour le processus principal et le
 preload. Le rendu Web est construit une seule fois puis servi comme contenu
 local de l’application via un protocole applicatif. Les appels API ciblent
 l’URL du serveur configurée par le propriétaire; le desktop ne devient pas un
@@ -30,15 +33,16 @@ proxy métier ni un serveur local.
   chaîne Bun 019. Les fonctionnalités métier restent testées et possédées par
   leurs features ; 014 ajoute leur hôte. 011 à 013 ne sont pas des prérequis.
 - **Exclusions**: nouvelles fonctionnalités métier, serveur embarqué, seconde
-  base canonique, iOS/Android/Linux, Mac App Store, plugins arbitraires,
-  télémétrie non consentie et stockage non chiffré.
+  base canonique, iOS/Android, macOS Intel, stores, paquets universels ou
+  multi-OS, plugins arbitraires, télémétrie non
+  consentie et stockage non chiffré.
 
 ## Technical Context
 
 **Language/Version**: TypeScript strict; Bun `1.4.0` exactement pour les dépendances workspace, les scripts et l'outillage first-party. Electron (version épinglée) est le runtime hôte de l'application packagée, pas un second gestionnaire de paquets.
 
 **Primary Dependencies**: Electron version épinglée; Electron Forge et makers
-Windows/macOS épinglés; Vite; React; `@myownnotion/client-core`, `contracts`,
+Windows, macOS et Linux épinglés; Bun.build; React; `@myownnotion/client-core`, `contracts`,
 `domain`; Vitest; Playwright; tests Electron ciblés pour IPC, permissions,
 protocole, single-instance et mises à jour
 
@@ -48,11 +52,13 @@ l’OS via le processus principal; aucun contenu canonique dans le processus
 principal
 
 **Testing**: Vitest pour les politiques et contrats; Playwright pour le rendu
-et les parcours; smoke tests installés sur Windows/macOS; inspection de
-signature, empreinte, provenance et absence de secrets
+et les parcours; smoke tests installés sur Windows, macOS et Linux; inspection
+de signature ou équivalent de confiance, empreinte, provenance, absence de
+secrets et absence de runtime étranger à la cible
 
-**Target Platform**: Windows 10/11 x64; macOS 12+ x64 et arm64. Builds macOS
-séparés par architecture au premier release; Windows ARM64 est différé.
+**Target Platform**: Windows 10/11 x64 et ARM64 ; macOS 13+ ARM64 uniquement ;
+Linux glibc x64 et ARM64 (classe Ubuntu LTS). Un installateur par cible.
+Jamais de binaire universel, jamais de store.
 
 **Project Type**: Desktop application + shared web client + release pipeline
 
@@ -67,8 +73,8 @@ artefacts, les logs ou les crash reports; distribution signée et traçable
 
 **Scale/Scope**: une installation desktop par appareil, plusieurs profils de
 serveur possibles mais un seul profil actif à la fois; un workspace canonique;
-trois familles d’artefacts de release initiales (Windows x64, macOS x64,
-macOS arm64)
+cinq cibles (Windows x64, Windows ARM64, macOS ARM64, Linux x64, Linux ARM64)
+avec AppImage, deb et rpm pour chaque Linux
 
 ## Constitution Check — pre-design
 
@@ -116,8 +122,7 @@ apps/
 └── desktop/
     ├── package.json
     ├── forge.config.ts
-    ├── vite.main.config.ts
-    ├── vite.preload.config.ts
+    ├── build.ts
     ├── src/
     │   ├── main.ts
     │   ├── preload.ts
@@ -136,14 +141,30 @@ apps/
         └── update-state.spec.ts
 packages/client-core/
 └── src/security/secure-key-storage.ts
+.github/workflows/desktop-ci.yml
 .github/workflows/desktop-release.yml
-.npmrc
+bunfig.toml
 ```
 
 **Structure Decision**: Ajouter un seul package `apps/desktop`. Le rendu n’est
 pas copié: la build desktop consomme les assets produits par `apps/web`. Le
 processus principal n’importe que des contrats natifs et l’adaptateur de clé;
 il n’importe ni domaine, ni repository, ni DB.
+
+La matrice GitHub Actions de release est native et n’alimente aucun store :
+
+| Runner | `platform` | `arch` | Fichiers publiés |
+| --- | --- | --- | --- |
+| `windows-latest` | `win32` | `x64` | Squirrel `.exe` |
+| `windows-11-arm` | `win32` | `arm64` | installateur Windows ARM `.exe` |
+| `macos-14` | `darwin` | `arm64` | DMG |
+| `ubuntu-24.04` | `linux` | `x64` | AppImage, `.deb`, `.rpm` |
+| `ubuntu-24.04-arm` | `linux` | `arm64` | AppImage, `.deb`, `.rpm` |
+
+Chaque job n’installe et n’empaquette que sa cible. Un job Linux lance les
+trois makers sur le même runtime packagé. Un job `publish` télécharge tous les
+fichiers, refuse tout runtime étranger et tout fichier hors matrice, puis les
+attache à la GitHub Release du tag.
 
 ## Security design
 
@@ -163,22 +184,30 @@ il n’importe ni domaine, ni repository, ni DB.
 
 ## Update and release design
 
-- Electron Forge est utilisé pour package/make/publish, avec `Squirrel.Windows`
-  pour Windows et `DMG`/`ZIP` pour macOS. La signature et la notarisation sont
-  des prérequis de publication; les secrets viennent uniquement des secrets du
-  runner.
+- Electron Forge est utilisé pour package/make. Les makers publiés sont :
+  Squirrel (ou équivalent WiX si Squirrel ne produit pas l’ARM64) sur
+  Windows ; DMG sur macOS ARM ; AppImage, deb et rpm sur Linux. Pas de ZIP
+  macOS Intel, pas de `osxUniversal`. `prune: true`. La signature Authenticode
+  et la notarisation Apple restent des prérequis Windows/macOS ; Linux publie
+  SHA-512. Aucun secret dans le dépôt. Aucune publication store ni dépôt
+  apt/rpm.
 - Les artefacts portent version, plateforme, architecture, empreinte,
   provenance et métadonnées de mise à jour. Un manifeste invalide, une
-  signature absente ou une incompatibilité de protocole bloque l’installation.
-- La mise à jour est déclenchée dans le processus principal. Elle est
-  proposée/reportée dans le rendu et ne démarre pas une migration destructive
-  tant que le coffre local ou l’outbox n’est pas dans un état explicite.
+  signature ou empreinte absente, une incompatibilité de protocole, ou un
+  artefact dont la plateforme/architecture n’est pas celle de l’installation
+  bloque l’installation.
+- La mise à jour est déclenchée dans le processus principal pour le même OS
+  et la même architecture, depuis la GitHub Release. Elle est proposée ou
+  reportée dans le rendu et ne démarre pas une migration destructive tant que
+  le coffre local ou l’outbox n’est pas dans un état explicite. Sur Linux, le
+  manifeste in-app pointe vers l’AppImage de cette architecture ; deb et rpm
+  restent des installateurs de premier téléchargement.
 - Chaque migration de coffre est versionnée, atomique par étape, reprenable et
   testée avec interruption simulée. Le chemin de retour conserve le coffre et
   les mutations non synchronisées.
-- Le workflow de release exécute une matrice native Windows/macOS, vérifie les
-  artefacts avant publication et publie uniquement après les contrôles
-  d’intégrité, sécurité, signature et smoke test prévus.
+- Le workflow de release exécute la matrice native ci-dessus, vérifie qu’aucun
+  artefact n’embarque un runtime étranger, puis attache les fichiers de la
+  matrice à la GitHub Release.
 
 ## Constitution Check — post-design
 
@@ -198,4 +227,44 @@ il n’importe ni domaine, ni repository, ni DB.
 | --- | --- | --- |
 | `apps/desktop` séparé | Séparer le privilège Electron du rendu et du métier | Ajouter Electron dans `apps/web` exposerait les APIs natives au package Web et compliquerait les tests navigateur |
 | Profil serveur desktop | Le rendu desktop n’est plus toujours same-origin | Déduire l’URL depuis la fenêtre ou l’environnement ne permettrait pas plusieurs installations ni un onboarding fiable |
-| Adaptateur de clé natif | Le Web ne peut pas fournir la même protection OS que Windows/macOS | Considérer IndexedDB comme coffre de plateforme exagérerait sa garantie et contredirait la section 17.3 |
+| Adaptateur de clé natif | Le Web ne peut pas fournir la même protection OS que Windows, macOS ou Linux | Considérer IndexedDB comme coffre de plateforme exagérerait sa garantie et contredirait la section 17.3 |
+| Builds par OS et architecture | FR-014 et FR-016 exigent un installateur natif et léger | Un fat Windows+macOS+Linux, un macOS Intel, un macOS universel ou un store ajouteraient des runtimes ou des canaux hors matrice |
+
+## Convergence decisions — 2026-09-05
+
+The imported implementation had no executable update transport. The host now
+owns a bounded GitHub Release download and validates a detached Ed25519 signature
+with a public key embedded at build time, followed by SHA-512 and target/protocol
+checks. Release signing material is configured outside the repository. An
+unconfigured development build reports updates unavailable; it must never trust
+a public key supplied by the feed. Protocol bounds use the integer sync protocol.
+The verified installer is handed to the OS at the owner's request, with explicit
+instructions to finish installation and restart; opening an installer must not
+be reported as a completed upgrade. Pending local writes block this handoff.
+The installer does not delete or replace the user data directory. Linux system
+packages remain a manual installation path. Native signature/notarization and
+manifest signing are release gates, independent from unsigned CI smoke tests.
+
+The revocation journey exposed a missing shared HTTP authorization gate: resolving
+a session into request context did not protect ordinary content handlers. Add a
+fail-closed pre-handler for private routes, reusing the existing owner/CSRF gate;
+keep bootstrap/login/status as an explicit public route allowlist. Session
+resolution also rejects a revoked device. Test anonymous, revoked, and authenticated
+requests against ordinary content routes; preserve already stored local ciphertext.
+
+The native vault format is now persisted atomically and checked before access.
+Unknown or corrupt formats refuse access without resetting files. There is no
+second migration engine for IndexedDB: client-core owns its transactional Dexie
+migrations. The initial native format requires no content rewrite. Legacy host
+key adoption copies and rewraps the exact envelope already referenced by the
+profile, leaves the original intact, and can resume after interruption. Removed
+the disconnected pretend migration-state machine from the imported scaffold.
+
+A cold offline launch restores local content without a CSRF token. On connectivity
+recovery, revalidate the session and wake workspace/page drains only after the
+server returns a valid in-memory token. A bounded retry while that token is
+missing also handles server recovery without an operating-system online event.
+
+Both tag workflow callers must allow the permissions declared by reusable CI
+(SARIF upload and the main-only publisher). GitHub cannot elevate a caller's
+permissions inside a callee. The image publisher remains gated to a main push.

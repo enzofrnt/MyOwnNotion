@@ -3,7 +3,7 @@
 import type { ProjectedItem } from "@myownnotion/client-core";
 import type { ReactNode } from "react";
 import { AppIcon } from "../../ui/icons.tsx";
-import { Button } from "../../ui/primitives/index.ts";
+import { Button, OverlayScrollArea } from "../../ui/primitives/index.ts";
 
 /** How many rows a shortcut list shows before it stops being a shortcut. */
 const SHORTCUT_LIMIT = 5;
@@ -101,7 +101,7 @@ export function Sidebar({
 
   return (
     <nav className="workspace-navigation" aria-label="Navigation principale" data-testid="sidebar">
-      <div className="workspace-navigation__body">
+      <OverlayScrollArea className="workspace-navigation__body">
         <header className="workspace-navigation__brand">
           <span className="workspace-navigation__mark" aria-hidden="true">
             M
@@ -214,7 +214,7 @@ export function Sidebar({
           </div>
           {tree}
         </section>
-      </div>
+      </OverlayScrollArea>
 
       <footer className="workspace-navigation__footer">
         {footerStatus}

@@ -1,5 +1,60 @@
 <!--
 Sync Impact Report
+- Version change: 3.3.0 -> 3.4.0
+- Modified principles: none
+- Modified sections:
+  - Product and Technical Constraints -> each Linux architecture publishes
+    three GitHub-download packages (AppImage, deb, rpm) in addition to the
+    existing Windows and macOS installers. Still no application stores.
+- Added sections: none
+- Removed sections: none
+- Reviewed in the same change:
+  - `docs/product/product-canvas.md` sections 2, 7 and Annexe F
+  - `docs/product/roadmap.md` feature 014
+  - `specs/014-desktop-clients/`
+- Follow-up work: implement 014 with Linux AppImage + deb + rpm makers
+- Rationale: MINOR. This adds Linux package formats without changing OS/arch
+  targets, stores, or permanent product principles.
+
+Previous report (3.2.0 -> 3.3.0)
+- Version change: 3.2.0 -> 3.3.0
+- Modified principles: none
+- Modified sections:
+  - Product and Technical Constraints -> first-release desktop downloads are
+    exactly five direct-download installers (Windows x64, Windows ARM64,
+    macOS Apple Silicon, Linux x64, Linux ARM64). macOS Intel is not a
+    first-release artefact. Application stores are not a distribution channel.
+- Added sections: none
+- Removed sections: none
+- Reviewed in the same change:
+  - `docs/product/product-canvas.md` sections 7, 47 and Annexe F
+  - `docs/product/roadmap.md` feature 014
+  - `specs/014-desktop-clients/`
+- Follow-up work: implement 014 against this exact installer matrix
+- Rationale: MINOR. This replaces the previous first-release desktop matrix
+  without changing single-user, encryption, or toolchain principles. iOS
+  remains after V1.
+
+Previous report (3.1.0 -> 3.2.0)
+- Version change: 3.1.0 -> 3.2.0
+- Modified principles: none
+- Modified sections:
+  - Product and Technical Constraints -> the first usable release now also
+    requires an installable Electron host for Linux, alongside Windows and
+    macOS, each as a platform-specific artefact rather than a universal build
+- Added sections: none
+- Removed sections: none
+- Reviewed in the same change:
+  - `docs/product/product-canvas.md` sections 2, 6.1, 7, 47 and Annexe F
+  - `docs/product/roadmap.md` feature 014
+  - `specs/014-desktop-clients/`
+- Follow-up work: implement 014 against the widened platform matrix
+- Rationale: MINOR. This expands the first-release desktop contract without
+  changing permanent single-user, encryption, or toolchain principles. iOS
+  remains after V1. Windows ARM64 and app stores remain out of the first
+  desktop release.
+
+Previous report (3.0.0 -> 3.1.0)
 - Version change: 3.0.0 -> 3.1.0
 - Modified principles: none
 - Modified sections:
@@ -219,7 +274,7 @@ than letting documentation drift behind the code.
 ## Product and Technical Constraints
 
 - The product is permanently single-user: one installation has exactly one owner and exactly one canonical workspace. There are no additional accounts, no user management, no roles, and no permission model between people. Multiple authorized *devices* belonging to that one owner, and anonymous read-only access to deliberately shared content, are in scope; multi-user accounts, teams, and real-time co-editing are out of scope permanently. Any feature that would introduce a second identity with its own content requires a MAJOR amendment to this constitution before it is specified.
-- The first usable release prioritizes workspaces, hierarchical pages, block editing, links, backlinks, search, reliable persistence, and installable Electron hosts for Windows and macOS that reuse the Web client against the self-hosted server. iOS clients remain a later release.
+- The first usable release prioritizes workspaces, hierarchical pages, block editing, links, backlinks, search, reliable persistence, and installable Electron hosts for Windows, macOS, and Linux that reuse the Web client against the self-hosted server. First-release desktop downloads cover exactly five OS/architecture targets: Windows x64, Windows ARM64, macOS Apple Silicon, Linux x64, and Linux ARM64. Windows and macOS each publish one installer per target. Each Linux architecture publishes three packages — AppImage, deb, and rpm — as GitHub downloads, not through an application store or package repository. A universal or multi-OS bundle is not an acceptable first-release artefact. iOS clients remain a later release.
 - Advanced databases, canvas, public sharing, plugins, MCP, Notion import, and real-time collaboration MUST be delivered as separate specs rather than folded into the core feature.
 - Tiptap is the initial editor candidate, but the selected editor architecture MUST preserve a documented internal content model and export path.
 - Self-hosting and container-based deployment are product goals; each infrastructure dependency MUST have a documented local-development path.
@@ -260,4 +315,4 @@ product invariant MUST amend the constitution in the same change. Feature-level
 detail MUST remain in the relevant feature directory rather than being copied
 into the constitution.
 
-**Version**: 3.1.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-09-03
+**Version**: 3.4.0 | **Ratified**: 2026-08-07 | **Last Amended**: 2026-09-03

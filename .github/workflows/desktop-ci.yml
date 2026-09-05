@@ -1,0 +1,85 @@
+# Desktop host validation without publication (feature 014, T016).
+#
+# Confirms the Electron host typechecks, unit-tests, and packages on native
+# Windows, macOS, and Linux runners. It never uploads installers and never
+# reads signing secrets. Publication lives in desktop-release.yml after the
+# tag quality gate.
+name: Desktop CI
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: windows-11-arm
+          - os: macos-14
+          - os: ubuntu-24.04
+          - os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-bun
+      - name: Set up PostgreSQL for native lifecycle journeys
+        if: runner.os != 'Windows'
+        uses: ankane/setup-postgres@e9cd5bc1babecb0e441a640646d782056dbb67f5 # v1
+        with:
+          postgres-version: "18"
+          user: postgres
+      - name: Set up PostgreSQL 18 on Windows (x64 emulated on ARM)
+        if: runner.os == 'Windows'
+        run: bun scripts/ci/prepare-windows-postgres.ts
+      - name: Install Linux desktop services
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnome-keyring libsecret-1-0 dbus-x11 xvfb
+      - name: Desktop toolchain
+        run: bun scripts/ci/check-desktop.ts
+      - name: Typecheck the desktop host
+        run: bun run --filter @myownnotion/desktop typecheck
+      - name: Desktop unit tests
+        run: bun run --bun vitest run --project desktop
+      - name: Secret scan
+        run: bun run security:secrets
+      - name: Build the packaged web shell
+        run: bun run --filter @myownnotion/web build
+      - name: Build the Electron main and preload processes
+        run: bun run --filter @myownnotion/desktop build
+      - name: Package the runner platform
+        run: bun run --filter @myownnotion/desktop package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Launch the packaged application
+        if: runner.os != 'Linux'
+        run: bun run desktop:smoke
+      - name: Launch the packaged application on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          xvfb-run -a bun run desktop:smoke
+      - name: Native lifecycle journeys
+        if: runner.os != 'Linux'
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:5432/postgres
+          MYOWNNOTION_DESKTOP_E2E: "1"
+        run: bun scripts/e2e/run-local-matrix.ts --project=chromium-desktop tests/e2e/desktop-
+      - name: Native lifecycle journeys with Linux keyring
+        if: runner.os == 'Linux'
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:5432/postgres
+          MYOWNNOTION_DESKTOP_E2E: "1"
+        run: |
+          XDG_CURRENT_DESKTOP=GNOME dbus-run-session -- bash -c 'printf "%s" desktop-test-keyring | gnome-keyring-daemon --unlock --components=secrets; xvfb-run -a bun scripts/e2e/run-local-matrix.ts --project=chromium-desktop tests/e2e/desktop-'

@@ -1,4 +1,4 @@
-# Tasks: Applications Desktop Electron Windows et macOS
+# Tasks: Applications Desktop Electron Windows, macOS et Linux
 
 **Input**: Design documents from `/specs/014-desktop-clients/`
 
@@ -6,7 +6,7 @@
 `contracts/`, `quickstart.md`
 
 **Tests**: Inclus, car les exigences de la feature imposent des tests unitaires,
-de contrat, Playwright et des smoke tests installés sur les deux plateformes.
+de contrat, Playwright et des smoke tests installés sur les trois systèmes.
 
 **Séquence** : prochain travail. Ne pas démarrer 021 / 017 T319 / 022 T040 avant
 ces tâches, sauf correctif bloquant sur `main`. Toolchain : Bun 1.4.0 uniquement.
@@ -15,12 +15,12 @@ ces tâches, sauf correctif bloquant sur `main`. Toolchain : Bun 1.4.0 uniquemen
 
 **Purpose**: Ajouter le package desktop et rendre le toolchain reproductible.
 
-- [ ] T001 Documenter l’installation Bun du workspace desktop et le layout `node_modules` requis par Electron Forge dans `docs/development.md` et `apps/desktop/package.json`, sans réintroduire pnpm, npm ni Yarn.
-- [ ] T002 Créer le package `@myownnotion/desktop` et ses scripts `dev`, `build`, `package`, `make`, `publish` dans `apps/desktop/package.json`.
-- [ ] T003 [P] Épingler Electron, Electron Forge, les makers Windows/macOS et leurs types dans `apps/desktop/package.json`, puis régénérer `bun.lock` avec Bun 1.4.0.
-- [ ] T004 [P] Créer les configurations TypeScript et Vite séparées du processus principal et du preload dans `apps/desktop/tsconfig.json`, `apps/desktop/vite.main.config.ts` et `apps/desktop/vite.preload.config.ts`.
-- [ ] T005 [P] Ajouter les scripts racine filtrés `desktop:dev`, `desktop:build`, `desktop:make` et `desktop:smoke` dans `package.json`.
-- [ ] T006 [P] Ajouter les checks de présence, version et artefact desktop dans `scripts/ci/check-desktop.ts` et les référencer dans `scripts/ci/check-toolchain.ts`.
+- [X] T001 Documenter l’installation Bun du workspace desktop et le layout `node_modules` requis par Electron Forge dans `docs/development.md` et `apps/desktop/package.json`, sans réintroduire pnpm, npm ni Yarn.
+- [X] T002 Créer le package `@myownnotion/desktop` et ses scripts `dev`, `build`, `package`, `make`, `publish` dans `apps/desktop/package.json`.
+- [X] T003 [P] Épingler Electron, Electron Forge, les makers Windows (Squirrel/WiX), macOS (DMG) et Linux (AppImage, deb, rpm) et leurs types dans `apps/desktop/package.json`, puis régénérer `bun.lock` avec Bun 1.4.0.
+- [X] T004 [P] Créer les configurations TypeScript et Vite séparées du processus principal et du preload dans `apps/desktop/tsconfig.json`, `apps/desktop/vite.main.config.ts` et `apps/desktop/vite.preload.config.ts`.
+- [X] T005 [P] Ajouter les scripts racine filtrés `desktop:dev`, `desktop:build`, `desktop:make` et `desktop:smoke` dans `package.json`.
+- [X] T006 [P] Ajouter les checks de présence, version et artefact desktop dans `scripts/ci/check-desktop.ts` et les référencer dans `scripts/ci/check-toolchain.ts`.
 
 ## Phase 2: Foundational
 
@@ -29,16 +29,16 @@ construction du shell avant tout parcours utilisateur.
 
 **⚠️ CRITICAL**: Aucune user story ne commence avant la validation de cette phase.
 
-- [ ] T007 Définir le profil runtime Web/desktop et la détection feature-safe dans `apps/web/src/runtime/client-runtime.ts` et `apps/web/src/runtime/client-runtime.d.ts`.
-- [ ] T008 Adapter `ContentApi` et `SecurityApi` pour utiliser le profil runtime validé tout en conservant le mode same-origin du navigateur dans `apps/web/src/services/content-api.ts` et `apps/web/src/services/security-api.ts`.
-- [ ] T009 [P] Extraire l’interface `SecureKeyStorage` sans dépendance Electron dans `packages/client-core/src/security/secure-key-storage.ts` et couvrir le contrat dans `packages/client-core/tests/secure-key-storage.contract.spec.ts`.
-- [ ] T010 [P] Définir les schémas TypeScript des messages IPC, capacités natives et résultats redacted dans `apps/desktop/src/ipc-contract.ts` selon `contracts/desktop-runtime.md`.
-- [ ] T011 Créer la fenêtre principale, le preload et la validation du sender avec `nodeIntegration: false`, `contextIsolation: true` et `sandbox: true` dans `apps/desktop/src/main.ts`, `apps/desktop/src/preload.ts` et `apps/desktop/src/ipc.ts`.
-- [ ] T012 Créer le protocole local, la CSP, l’allowlist de navigation et le blocage des frames/URLs non prévues dans `apps/desktop/src/protocol.ts` et `apps/desktop/src/navigation-policy.ts`.
-- [ ] T013 [P] Configurer Forge, `asar` et l’inclusion des assets `apps/web/dist` pour le build local dans `apps/desktop/forge.config.ts`, sans activer encore la publication.
-- [ ] T014 [P] Ajouter le typage global du bridge et le fallback navigateur dans `apps/web/src/types/desktop-runtime.d.ts` et `apps/web/src/main.tsx`.
-- [ ] T015 Construire le harness de tests Electron, fixtures de profil et serveur local HTTPS contrôlé dans `apps/desktop/tests/setup/desktop-fixtures.ts` et `apps/desktop/tests/setup/test-server.ts`.
-- [ ] T016 [P] Ajouter le workflow CI de validation desktop sans publication dans `.github/workflows/desktop-ci.yml`, avec build Web, build desktop, tests et scan de secrets.
+- [X] T007 Définir le profil runtime Web/desktop et la détection feature-safe dans `apps/web/src/runtime/client-runtime.ts` et `apps/web/src/runtime/client-runtime.d.ts`.
+- [X] T008 Adapter `ContentApi` et `SecurityApi` pour utiliser le profil runtime validé tout en conservant le mode same-origin du navigateur dans `apps/web/src/services/content-api.ts` et `apps/web/src/services/security-api.ts`.
+- [X] T009 [P] Extraire l’interface `SecureKeyStorage` sans dépendance Electron dans `packages/client-core/src/security/secure-key-storage.ts` et couvrir le contrat dans `packages/client-core/tests/secure-key-storage.contract.spec.ts`.
+- [X] T010 [P] Définir les schémas TypeScript des messages IPC, capacités natives et résultats redacted dans `apps/desktop/src/ipc-contract.ts` selon `contracts/desktop-runtime.md`.
+- [X] T011 Créer la fenêtre principale, le preload et la validation du sender avec `nodeIntegration: false`, `contextIsolation: true` et `sandbox: true` dans `apps/desktop/src/main.ts`, `apps/desktop/src/preload.ts` et `apps/desktop/src/ipc.ts`.
+- [X] T012 Créer le protocole local, la CSP, l’allowlist de navigation et le blocage des frames/URLs non prévues dans `apps/desktop/src/protocol.ts` et `apps/desktop/src/navigation-policy.ts`.
+- [X] T013 [P] Configurer Forge, `asar`, `prune`, l’absence de binaire universel et l’inclusion des assets `apps/web/dist` pour un seul `platform`/`arch` par job dans `apps/desktop/forge.config.ts`, sans activer encore la publication.
+- [X] T014 [P] Ajouter le typage global du bridge et le fallback navigateur dans `apps/web/src/types/desktop-runtime.d.ts` et `apps/web/src/main.tsx`.
+- [X] T015 Construire le harness de tests Electron, fixtures de profil et serveur local HTTPS contrôlé dans `apps/desktop/tests/setup/desktop-fixtures.ts` et `apps/desktop/tests/setup/test-server.ts`.
+- [X] T016 [P] Ajouter le workflow CI de validation desktop sans publication dans `.github/workflows/desktop-ci.yml`, avec build Web, build desktop de la plateforme du runner, tests et scan de secrets, sur Windows, macOS et Linux.
 
 **Checkpoint**: Le shell local démarre avec une fenêtre isolée, aucun accès
 Electron brut n’est exposé au rendu, et le rendu Web peut fonctionner avec ou
@@ -54,19 +54,19 @@ HTTPS distante, se connecter, redémarrer et vérifier les refus attendus.
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Ajouter les tests unitaires de normalisation d’URL, HTTP local, HTTP non local et protocole incompatible dans `apps/desktop/tests/server-profile-policy.spec.ts`.
-- [ ] T018 [P] [US1] Ajouter le test de contrat IPC du profil serveur, de la persistance et de l’absence de jeton dans `apps/desktop/tests/profile-ipc.contract.spec.ts`.
-- [ ] T019 [US1] Ajouter le parcours Playwright onboarding → connexion → ouverture d’une page → redémarrage dans `tests/e2e/desktop-onboarding.spec.ts`.
-- [ ] T020 [P] [US1] Ajouter les cas Playwright URL HTTP non locale, serveur inaccessible et protocole incompatible dans `tests/e2e/desktop-connection-errors.spec.ts`.
+- [X] T017 [P] [US1] Ajouter les tests unitaires de normalisation d’URL, HTTP local, HTTP non local et protocole incompatible dans `apps/desktop/tests/server-profile-policy.spec.ts`.
+- [X] T018 [P] [US1] Ajouter le test de contrat IPC du profil serveur, de la persistance et de l’absence de jeton dans `apps/desktop/tests/profile-ipc.contract.spec.ts`.
+- [X] T019 [US1] Ajouter le parcours Playwright onboarding → connexion → ouverture d’une page → redémarrage dans `tests/e2e/desktop-onboarding.spec.ts`.
+- [X] T020 [P] [US1] Ajouter les cas Playwright URL HTTP non locale, serveur inaccessible et protocole incompatible dans `tests/e2e/desktop-connection-errors.spec.ts`.
 
 ### Implementation for User Story 1
 
-- [ ] T021 [US1] Implémenter la validation et la persistance des `DesktopServerProfile` dans `apps/desktop/src/server-profiles.ts` et `apps/desktop/src/profile-store.ts`.
-- [ ] T022 [US1] Ajouter l’onboarding de profil serveur et les états de connexion dans `apps/web/src/features/connection/desktop-connection-page.tsx` et `apps/web/src/features/connection/connection-status.tsx`.
-- [ ] T023 [US1] Injecter le profil actif dans l’instanciation de `ContentApi` et `SecurityApi` dans `apps/web/src/app.tsx` et `apps/web/src/services/client-factory.ts`.
-- [ ] T024 [US1] Préserver la session Electron dans une partition persistante liée au profil sans mélanger deux origines dans `apps/desktop/src/session-partition.ts`.
-- [ ] T025 [US1] Afficher l’état `compatible`, `read-only`, `incompatible`, `unreachable` ou `insecure` avant les écritures dans `apps/web/src/features/connection/connection-status.tsx`.
-- [ ] T026 [US1] Ajouter le smoke test de premier lancement et d’ouverture de workspace dans `apps/desktop/tests/desktop-smoke.spec.ts`.
+- [X] T021 [US1] Implémenter la validation et la persistance des `DesktopServerProfile` dans `apps/desktop/src/server-profiles.ts` et `apps/desktop/src/profile-store.ts`.
+- [X] T022 [US1] Ajouter l’onboarding de profil serveur et les états de connexion dans `apps/web/src/features/connection/desktop-connection-page.tsx` et `apps/web/src/features/connection/connection-status.tsx`.
+- [X] T023 [US1] Injecter le profil actif dans l’instanciation de `ContentApi` et `SecurityApi` dans `apps/web/src/app.tsx` et `apps/web/src/services/client-factory.ts`.
+- [X] T024 [US1] Préserver la session Electron dans une partition persistante liée au profil sans mélanger deux origines dans `apps/desktop/src/session-partition.ts`.
+- [X] T025 [US1] Afficher l’état `compatible`, `read-only`, `incompatible`, `unreachable` ou `insecure` avant les écritures dans `apps/web/src/features/connection/connection-status.tsx`.
+- [X] T026 [US1] Ajouter le smoke test de premier lancement et d’ouverture de workspace dans `apps/desktop/tests/desktop-smoke.spec.ts`.
 
 **Checkpoint**: Le desktop est un MVP installable qui atteint les parcours
 existants d’authentification/workspace et refuse explicitement les connexions
@@ -82,20 +82,20 @@ reconnecter, résoudre un conflit contrôlé et révoquer l’appareil.
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] Ajouter les tests de disponibilité, verrouillage, effacement et refus fail-closed de la clé native dans `apps/desktop/tests/native-key-storage.spec.ts`.
-- [ ] T028 [P] [US2] Ajouter les tests de round-trip chiffrement et d’absence de plaintext dans `packages/client-core/tests/desktop-key-storage.integration.spec.ts`.
-- [ ] T029 [US2] Ajouter le parcours Playwright offline → édition → fermeture forcée → reprise dans `tests/e2e/desktop-offline-restart.spec.ts`.
-- [ ] T030 [P] [US2] Ajouter le parcours Playwright révocation/déconnexion qui conserve l’outbox et bloque la prochaine écriture protégée dans `tests/e2e/desktop-device-revocation.spec.ts`.
-- [ ] T031 [P] [US2] Ajouter le test d’interruption/reprise de migration du coffre dans `apps/desktop/tests/vault-migration.spec.ts`.
+- [X] T027 [P] [US2] Ajouter les tests de disponibilité, verrouillage, effacement et refus fail-closed de la clé native dans `apps/desktop/tests/native-key-storage.spec.ts`.
+- [X] T028 [P] [US2] Ajouter les tests de round-trip chiffrement et d’absence de plaintext dans `packages/client-core/tests/desktop-key-storage.integration.spec.ts`.
+- [X] T029 [US2] Ajouter le parcours Playwright offline → édition → fermeture forcée → reprise dans `tests/e2e/desktop-offline-restart.spec.ts`.
+- [X] T030 [P] [US2] Ajouter le parcours Playwright révocation/déconnexion qui conserve l’outbox et bloque la prochaine écriture protégée dans `tests/e2e/desktop-device-revocation.spec.ts`.
+- [X] T031 [P] [US2] Ajouter le test d’interruption/reprise de migration du coffre dans `apps/desktop/tests/vault-migration.spec.ts`.
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Implémenter l’enveloppe de clé via `safeStorage` asynchrone et les états de plateforme dans `apps/desktop/src/native-key-storage.ts` et `apps/desktop/src/key-state.ts`.
-- [ ] T033 [US2] Implémenter le bridge `wrapDeviceKey`/`unwrapDeviceKey` et son adaptateur dans `apps/desktop/src/preload.ts`, `apps/desktop/src/ipc.ts` et `apps/web/src/services/desktop-key-storage.ts`.
-- [ ] T034 [US2] Brancher l’adaptateur desktop sur le contrat `SecureKeyStorage` sans importer Electron dans `packages/client-core/src/security/device-key-binding.ts` et `apps/web/src/services/local-key-storage.ts`.
-- [ ] T035 [US2] Isoler le profil de données local et les migrations versionnées dans `apps/desktop/src/vault-profile.ts` et `apps/desktop/src/vault-migrations.ts`.
-- [ ] T036 [US2] Exposer les états de coffre verrouillé, indisponible, révoqué et les actions de récupération dans `apps/web/src/features/security/desktop-vault-status.tsx`.
-- [ ] T037 [US2] Ajouter les diagnostics expurgés des erreurs de clé, stockage, réseau et synchronisation dans `apps/desktop/src/diagnostics.ts` et `apps/web/src/features/security/desktop-diagnostics.tsx`.
+- [X] T032 [US2] Implémenter l’enveloppe de clé via `safeStorage` asynchrone et les états de plateforme dans `apps/desktop/src/native-key-storage.ts` et `apps/desktop/src/key-state.ts`.
+- [X] T033 [US2] Implémenter le bridge `wrapDeviceKey`/`unwrapDeviceKey` et son adaptateur dans `apps/desktop/src/preload.ts`, `apps/desktop/src/ipc.ts` et `apps/web/src/services/desktop-key-storage.ts`.
+- [X] T034 [US2] Brancher l’adaptateur desktop sur le contrat `SecureKeyStorage` sans importer Electron dans `packages/client-core/src/security/device-key-binding.ts` et `apps/web/src/services/local-key-storage.ts`.
+- [X] T035 [US2] Isoler le profil de données local et les migrations versionnées dans `apps/desktop/src/vault-profile.ts` et `apps/desktop/src/vault-migrations.ts`.
+- [X] T036 [US2] Exposer les états de coffre verrouillé, indisponible, révoqué et les actions de récupération dans `apps/web/src/features/security/desktop-vault-status.tsx`.
+- [X] T037 [US2] Ajouter les diagnostics expurgés des erreurs de clé, stockage, réseau et synchronisation dans `apps/desktop/src/diagnostics.ts` et `apps/web/src/features/security/desktop-diagnostics.tsx`.
 
 **Checkpoint**: Le client desktop tient sa promesse local-first et ne dégrade
 jamais une clé ou un contenu protégé en stockage clair.
@@ -110,18 +110,18 @@ fichier, ouvrir un lien approuvé et refuser un lien dangereux au clavier.
 
 ### Tests for User Story 3
 
-- [ ] T038 [P] [US3] Ajouter les tests de contrat des capacités `choose-file`, `save-file`, `open-external` et `window-state` dans `apps/desktop/tests/native-capabilities.contract.spec.ts`.
-- [ ] T039 [P] [US3] Ajouter les tests de blocage des navigations, redirections, frames et schémas non autorisés dans `apps/desktop/tests/security-boundary.spec.ts`.
-- [ ] T040 [US3] Ajouter le parcours Playwright clavier/focus des menus, fenêtre, import de fichier et lien externe dans `tests/e2e/desktop-native-journey.spec.ts`.
-- [ ] T041 [P] [US3] Ajouter le smoke test single-instance et restauration de bounds dans `apps/desktop/tests/window-lifecycle.spec.ts`.
+- [X] T038 [P] [US3] Ajouter les tests de contrat des capacités `choose-file`, `save-file`, `open-external` et `window-state` dans `apps/desktop/tests/native-capabilities.contract.spec.ts`.
+- [X] T039 [P] [US3] Ajouter les tests de blocage des navigations, redirections, frames et schémas non autorisés dans `apps/desktop/tests/security-boundary.spec.ts`.
+- [X] T040 [US3] Ajouter le parcours Playwright clavier/focus des menus, fenêtre, import de fichier et lien externe dans `tests/e2e/desktop-native-journey.spec.ts`.
+- [X] T041 [P] [US3] Ajouter le smoke test single-instance et restauration de bounds dans `apps/desktop/tests/window-lifecycle.spec.ts`.
 
 ### Implementation for User Story 3
 
-- [ ] T042 [US3] Implémenter la coordination single-instance, l’activation de la fenêtre et les événements de cycle de vie dans `apps/desktop/src/main.ts` et `apps/desktop/src/single-instance.ts`.
-- [ ] T043 [US3] Implémenter la persistance atomique de `WindowState` avec validation des écrans et moniteurs dans `apps/desktop/src/window-state.ts`.
-- [ ] T044 [US3] Implémenter menus, raccourcis, dialogues de fichier et drag-and-drop via capacités typées dans `apps/desktop/src/native-capabilities.ts` et `apps/desktop/src/menu.ts`.
-- [ ] T045 [US3] Implémenter la politique d’ouverture externe et le blocage des schémas non sûrs dans `apps/desktop/src/external-links.ts`.
-- [ ] T046 [US3] Vérifier que les écrans onboarding, workspace, sécurité et mise à jour gardent les règles de focus/clavier dans `apps/web/src/styles.css`, `apps/web/src/app.tsx` et `tests/e2e/desktop-accessibility.spec.ts`.
+- [X] T042 [US3] Implémenter la coordination single-instance, l’activation de la fenêtre et les événements de cycle de vie dans `apps/desktop/src/main.ts` et `apps/desktop/src/single-instance.ts`.
+- [X] T043 [US3] Implémenter la persistance atomique de `WindowState` avec validation des écrans et moniteurs dans `apps/desktop/src/window-state.ts`.
+- [X] T044 [US3] Implémenter menus, raccourcis, dialogues de fichier et drag-and-drop via capacités typées dans `apps/desktop/src/native-capabilities.ts` et `apps/desktop/src/menu.ts`.
+- [X] T045 [US3] Implémenter la politique d’ouverture externe et le blocage des schémas non sûrs dans `apps/desktop/src/external-links.ts`.
+- [X] T046 [US3] Vérifier que les écrans onboarding, workspace, sécurité et mise à jour gardent les règles de focus/clavier dans `apps/web/src/styles.css`, `apps/web/src/app.tsx` et `tests/e2e/desktop-accessibility.spec.ts`.
 
 ## Phase 6: User Story 4 — Recevoir une mise à jour sans perdre le travail (Priority: P2)
 
@@ -134,23 +134,24 @@ simuler un manifeste invalide, un téléchargement interrompu et un démarrage
 
 ### Tests for User Story 4
 
-- [ ] T047 [P] [US4] Ajouter les tests de validation du manifeste, version, architecture, HTTPS, empreinte et fenêtre de protocole dans `apps/desktop/tests/update-manifest.spec.ts`.
-- [ ] T048 [P] [US4] Ajouter les tests de la machine d’états `UpdateState` et des décisions outbox/migration dans `apps/desktop/tests/update-state.spec.ts`.
-- [ ] T049 [US4] Ajouter le parcours Playwright disponible → différée → prête à installer dans `tests/e2e/desktop-update-journey.spec.ts`.
-- [ ] T050 [P] [US4] Ajouter les tests d’échec, reprise et rollback qui comparent les identités et mutations du coffre dans `apps/desktop/tests/update-recovery.spec.ts`.
+- [X] T047 [P] [US4] Ajouter les tests de validation du manifeste, version, architecture, HTTPS, empreinte et fenêtre de protocole dans `apps/desktop/tests/update-manifest.spec.ts`.
+- [X] T048 [P] [US4] Ajouter les tests de la machine d’états `UpdateState` et des décisions outbox/migration dans `apps/desktop/tests/update-state.spec.ts`.
+- [X] T049 [US4] Ajouter le parcours Playwright disponible → différée → prête à installer dans `tests/e2e/desktop-update-journey.spec.ts`.
+- [X] T050 [P] [US4] Ajouter les tests d’échec, reprise et rollback qui comparent les identités et mutations du coffre dans `apps/desktop/tests/update-recovery.spec.ts`.
 
 ### Implementation for User Story 4
 
-- [ ] T051 [US4] Implémenter le parseur/validateur du manifeste selon `contracts/update-manifest.md` dans `apps/desktop/src/update-manifest.ts`.
-- [ ] T052 [US4] Implémenter la machine d’états de mise à jour et les événements redacted dans `apps/desktop/src/updates.ts`.
-- [ ] T053 [US4] Brancher `autoUpdater`/Forge au processus principal avec téléchargement reportable, vérification et redémarrage explicite dans `apps/desktop/src/updates.ts` et `apps/desktop/forge.config.ts`.
-- [ ] T054 [US4] Ajouter les garde-fous de migration/rollback du coffre dans `apps/desktop/src/vault-migrations.ts` et `packages/client-core/src/security/local-key-state.ts`.
-- [ ] T055 [US4] Construire l’écran d’état de mise à jour, compatibilité serveur et protection des changements en attente dans `apps/web/src/features/update/desktop-update-panel.tsx`.
+- [X] T051 [US4] Implémenter le parseur/validateur du manifeste selon `contracts/update-manifest.md` dans `apps/desktop/src/update-manifest.ts`.
+- [X] T052 [US4] Implémenter la machine d’états de mise à jour et les événements redacted dans `apps/desktop/src/updates.ts`.
+- [X] T053 [US4] Brancher `autoUpdater`/Forge au processus principal avec téléchargement reportable, vérification et redémarrage explicite dans `apps/desktop/src/updates.ts` et `apps/desktop/forge.config.ts`.
+- [X] T054 [US4] Ajouter les garde-fous de migration/rollback du coffre dans `apps/desktop/src/vault-migrations.ts` et `packages/client-core/src/security/local-key-state.ts`.
+- [X] T055 [US4] Construire l’écran d’état de mise à jour, compatibilité serveur et protection des changements en attente dans `apps/web/src/features/update/desktop-update-panel.tsx`.
 
 ## Phase 7: User Story 5 — Installer des artefacts de confiance (Priority: P3)
 
-**Goal**: Produire des artefacts installables et traçables pour Windows x64,
-macOS x64 et macOS arm64, puis les vérifier sur runners natifs.
+**Goal**: Produire les installateurs des cinq cibles (Windows x64, Windows
+ARM64, macOS ARM64, Linux x64 et ARM64 en AppImage, deb et rpm), les vérifier
+sur runners natifs et les attacher à la GitHub Release, sans store.
 
 **Independent Test**: Générer chaque artefact depuis un tag, vérifier checksum
 et signature, installer sur la plateforme correspondante et exécuter le smoke
@@ -158,28 +159,28 @@ test complet.
 
 ### Tests for User Story 5
 
-- [ ] T056 [P] [US5] Ajouter les tests statiques de matrice de plateformes, noms d’artefacts, version, checksum et provenance dans `tests/contract/desktop-release-artifacts.spec.ts`.
-- [ ] T057 [P] [US5] Ajouter le test de scan des secrets de signature et de publication dans `tests/contract/desktop-release-secrets.spec.ts`.
-- [ ] T058 [US5] Ajouter les scripts de smoke install/restart/offline/update pour les runners natifs dans `scripts/desktop/run-installed-smoke.ts` et `scripts/desktop/fixtures/README.md`.
+- [X] T056 [P] [US5] Ajouter les tests statiques des cinq cibles, des noms d’installateurs (dont AppImage/deb/rpm Linux), du refus macOS Intel / store / paquet universel dans `tests/contract/desktop-release-artifacts.spec.ts`.
+- [X] T057 [P] [US5] Ajouter le test de scan des secrets de signature et de publication dans `tests/contract/desktop-release-secrets.spec.ts`.
+- [X] T058 [US5] Ajouter les scripts de smoke install/restart/offline/update pour les runners natifs dans `scripts/desktop/run-installed-smoke.ts` et `scripts/desktop/fixtures/README.md`.
 
 ### Implementation for User Story 5
 
-- [ ] T059 [US5] Configurer les makers Squirrel Windows, DMG et ZIP macOS, les identifiants d’application, les métadonnées et les architectures dans `apps/desktop/forge.config.ts`.
-- [ ] T060 [US5] Ajouter la vérification d’artefacts, signatures, empreintes et provenance dans `scripts/ci/check-desktop-artifacts.ts`.
-- [ ] T061 [US5] Ajouter le workflow de release natif Windows/macOS, les secrets d’environnement et les permissions minimales dans `.github/workflows/desktop-release.yml`.
-- [ ] T062 [US5] Publier les manifests et artefacts uniquement après le gate exact du tag dans `.github/workflows/desktop-release.yml` et `scripts/ci/publish-desktop-release.ts`.
-- [ ] T063 [US5] Documenter l’installation, les canaux, les prérequis de signature, le support plateforme et la récupération dans `docs/deployment/desktop.md`.
+- [X] T059 [US5] Configurer Squirrel ou WiX Windows (x64 et ARM64), DMG macOS ARM, et AppImage plus deb plus rpm Linux, filtrés par runner, dans `apps/desktop/forge.config.ts`.
+- [X] T060 [US5] Vérifier tous les fichiers de la matrice, empreintes, absence de runtime étranger et refus de tout fichier hors matrice dans `scripts/ci/check-desktop-artifacts.ts`.
+- [X] T061 [US5] Ajouter le workflow de release natif des cinq cibles (dont `windows-11-arm` et `macos-14`) dans `.github/workflows/desktop-release.yml`.
+- [X] T062 [US5] Publier uniquement les fichiers de la matrice après le gate du tag, sur la GitHub Release, sans store, dans `.github/workflows/desktop-release.yml` et `scripts/ci/publish-desktop-release.ts`.
+- [X] T063 [US5] Documenter l’installation, les canaux, les prérequis de signature, le support plateforme et la récupération dans `docs/deployment/desktop.md`.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
 **Purpose**: Fermer les preuves de qualité, la documentation et les contrôles
 transversaux avant convergence.
 
-- [ ] T064 [P] Ajouter les parcours d’accessibilité et de sécurité desktop aux projets Playwright dans `playwright.config.ts` et `tests/e2e/accessibility.spec.ts`.
-- [ ] T065 [P] Ajouter les benchmarks de lancement, IPC et reprise de coffre dans `apps/desktop/tests/desktop-performance.spec.ts`.
-- [ ] T066 [P] Mettre à jour `docs/development.md` avec les commandes Bun, le runner natif requis et la procédure de test sans secrets.
-- [ ] T067 [P] Créer `specs/014-desktop-clients/validation.md` avec une preuve par FR/SC, les trois architectures et les éventuelles exceptions approuvées.
-- [ ] T068 Vérifier la couverture des artefacts par `spec.md`, `plan.md`, `tasks.md`, `data-model.md`, `contracts/` et `quickstart.md` dans `scripts/ci/check-desktop.ts`.
+- [X] T064 [P] Ajouter les parcours d’accessibilité et de sécurité desktop aux projets Playwright dans `playwright.config.ts` et `tests/e2e/accessibility.spec.ts`.
+- [X] T065 [P] Ajouter les benchmarks de lancement, IPC et reprise de coffre dans `apps/desktop/tests/desktop-performance.spec.ts`.
+- [X] T066 [P] Mettre à jour `docs/development.md` avec les commandes Bun, le runner natif requis et la procédure de test sans secrets.
+- [X] T067 [P] Créer `specs/014-desktop-clients/validation.md` avec une preuve par FR/SC pour les cibles et formats publiés et les éventuelles exceptions approuvées.
+- [X] T068 Vérifier la couverture des artefacts par `spec.md`, `plan.md`, `tasks.md`, `data-model.md`, `contracts/` et `quickstart.md` dans `scripts/ci/check-desktop.ts`.
 - [ ] T069 Exécuter `bun run checks:local`, les tests Playwright desktop et le quickstart complet, puis reporter les résultats dans `specs/014-desktop-clients/validation.md`.
 
 ## Dependencies & Execution Order
@@ -209,7 +210,7 @@ transversaux avant convergence.
 - T007, T009, T010, T013 et T014 peuvent être travaillées en parallèle avant T011/T012.
 - Les tests T017/T018/T020, T027/T028/T030/T031, T038/T039/T041 et T047/T048/T050 sont parallélisables par fichiers.
 - Après le checkpoint Phase 2, US3 peut progresser en parallèle de US2; US1 doit fournir le profil/runtime avant l’intégration finale.
-- La validation des trois architectures de US5 est parallélisable sur runners natifs, mais la publication reste séquentielle après T060.
+- La validation des cinq cibles OS+architecture de US5 est parallélisable sur runners natifs, mais la publication reste séquentielle après T060.
 
 ## Implementation Strategy
 
@@ -234,3 +235,17 @@ Tous les items sont au format checklist `- [ ]`, possèdent un identifiant
 séquentiel `T###`, utilisent `[P]` uniquement pour les tâches parallélisables,
 portent `[USn]` dans les phases de user story et citent au moins un chemin de
 fichier concret.
+
+## Phase 9: Convergence
+
+- [X] T070 CRITICAL Remplacer le bundling Vite desktop par Bun dans `apps/desktop/`, les hooks Forge et `scripts/desktop/dev.ts` selon Constitution VII (contradicts).
+- [X] T071 CRITICAL Valider les arguments IPC et l'identité exacte de la fenêtre/frame, refuser les navigations vers les données serveur et les ressources exécutables distantes dans `apps/desktop/src/{ipc,main,protocol-register,navigation-policy}.ts` selon FR-009 et SC-009 (partial).
+- [X] T072 CRITICAL Utiliser le coffre OS asynchrone, refuser le backend Linux non protégé et isoler les enveloppes par profil dans `apps/desktop/src/native-key-storage.ts`; vérifier les transactions durables de l'adaptateur dans `apps/web/src/services/desktop-key-storage.ts` selon FR-003, FR-006 et FR-007 (partial).
+- [ ] T073 Brancher une vérification réelle des mises à jour autorisées, un téléchargement vérifié et une installation avec préservation du coffre/outbox dans `apps/desktop/src/updates.ts`, `ipc.ts` et le panneau Web selon FR-011, FR-012 et SC-006 (partial).
+- [ ] T074 Remplacer les parcours Electron et le smoke installé qui ne vérifient actuellement que l'onboarding ou des fonctions de politique par des scénarios réels de connexion, édition hors ligne, interruption, révocation et mise à jour dans `tests/e2e/desktop-*.spec.ts` et `scripts/desktop/run-installed-smoke.ts` selon FR-015 et SC-001 à SC-006 (partial).
+- [ ] T075 Vérifier les signatures des artefacts produits, la notarisation, l'architecture et les empreintes publiées; produire les manifests de mise à jour dans `.github/workflows/desktop-release.yml` et `scripts/ci/` selon FR-013, FR-016 et SC-007 (partial).
+- [ ] T076 Exécuter les gates desktop sur PR et main, les rendre bloquants et documenter leurs équivalents locaux dans `.github/workflows/desktop-ci.yml`, `.github/workflows/ci.yml` et `docs/development.md` selon Constitution III/VII et FR-015 (partial).
+- [X] T077 Rendre atomiques et effectives la restauration de fenêtre/page, la gestion du coffre et les erreurs expurgées dans `apps/desktop/src/`; corriger les preuves trop fortes de `validation.md` selon FR-003, FR-008, FR-010 et FR-012 (partial).
+- [X] T078 Reject sessions belonging to revoked devices on every authenticated HTTP request, including ordinary content reads; verify revocation after offline edits without deleting encrypted outbox records. Regression exposed by the real desktop revocation journey; shared server fix supports FR-009/FR-010 of feature 002 and the desktop revocation acceptance scenario.
+
+- [ ] T079 Recover memory-only CSRF authorization after a cold offline restart and wake queued content/page synchronization when connectivity returns; prove recovery through the real Electron offline restart journey in `tests/e2e/desktop-offline-restart.spec.ts` without persisting the token.

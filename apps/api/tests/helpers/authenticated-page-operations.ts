@@ -159,7 +159,11 @@ export async function createAuthenticatedPageOperationHarness(
     },
     reauthenticateAsDevice,
     createLegacyPage: async (name = "Operational page") => {
-      const page = await createItemViaApi(api, { kind: "page", name });
+      const page = await createItemViaApi(api, {
+        kind: "page",
+        name,
+        headers: await authenticate(),
+      });
       return {
         itemId: page.itemId,
         revisionId: page.revisionId,

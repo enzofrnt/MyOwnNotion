@@ -8,7 +8,7 @@ import type { ImpactPlan, VitestGroup } from "./test-impact.js";
 export type Command = readonly [command: string, arguments_: string[]];
 
 const PROJECTS: Record<VitestGroup, string[]> = {
-  unit: ["domain", "page-state", "contracts", "blob-store", "client-core", "web"],
+  unit: ["domain", "page-state", "contracts", "blob-store", "client-core", "web", "desktop"],
   integration: ["database-integration"],
   contract: ["api-contract", "workspace-contract"],
   performance: ["performance"],

@@ -362,7 +362,9 @@ export function HierarchyExplorer({
   }
   const selectItemById = useCallback(
     (itemId: Uuid | null, options?: { readonly replace?: boolean }): void => {
-      if (selectedIdRef.current === itemId) return;
+      // The graph route keeps the last page id in selection state. Re-activating
+      // that tab must still leave `/graph`, not no-op here.
+      if (selectedIdRef.current === itemId && graphModeRef.current === null) return;
       selectedIdRef.current = itemId;
       selectionGeneration.current += 1;
       onOpenItem(itemId, options);

@@ -1,0 +1,198 @@
+# Native desktop publication (feature 014, T061–T062).
+#
+# Same tag trigger as image publication. The quality gate is *called* here on
+# this commit rather than observed after the fact. After the five native
+# makers succeed, the collect job requires the nine canonical files and only
+# then attaches them to the GitHub Release. No store, no universal bundle.
+name: Desktop release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      # The reusable workflow declares these on its SARIF/publication jobs;
+      # its main-only image publication remains skipped for a version tag.
+      security-events: write
+      packages: write
+
+  verify-candidate:
+    name: Verify the gate ran on this commit
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    permissions:
+      contents: read
+    steps:
+      - name: Compare the gate's candidate against this release
+        env:
+          GATE_SHA: ${{ needs.quality-gate.outputs.candidate_sha }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          echo "gate:    $GATE_SHA"
+          echo "release: $RELEASE_SHA"
+          if [ -z "$GATE_SHA" ]; then
+            echo "The gate exported no candidate SHA; refusing to publish."
+            exit 1
+          fi
+          if [ "$GATE_SHA" != "$RELEASE_SHA" ]; then
+            echo "The gate ran on a different commit; refusing to publish."
+            exit 1
+          fi
+          echo "The gate ran on this commit."
+
+  package:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    needs:
+      - quality-gate
+      - verify-candidate
+    if: needs.quality-gate.result == 'success' && needs.verify-candidate.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win32
+            arch: x64
+          - os: windows-11-arm
+            platform: win32
+            arch: arm64
+          - os: macos-14
+            platform: darwin
+            arch: arm64
+          - os: ubuntu-24.04
+            platform: linux
+            arch: x64
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      DESKTOP_VERSION: ${{ github.ref_name }}
+      DESKTOP_PLATFORM: ${{ matrix.platform }}
+      DESKTOP_ARCH: ${{ matrix.arch }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      DESKTOP_UPDATE_PUBLIC_KEY: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-bun
+      - name: Prepare native distribution credentials
+        run: bun scripts/ci/prepare-desktop-signing.ts
+      - name: Stamp the desktop version from the tag
+        run: bun scripts/ci/stamp-desktop-version.ts
+      - name: Install Linux packaging tools
+        if: matrix.platform == 'linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y rpm fakeroot squashfs-tools binutils
+      - name: Build the packaged web shell
+        run: bun run --filter @myownnotion/web build
+      - name: Make platform installers
+        working-directory: apps/desktop
+        run: bun run make -- --platform "$DESKTOP_PLATFORM" --arch "$DESKTOP_ARCH"
+      - name: Smoke the packaged application
+        if: runner.os != 'Linux'
+        run: bun run desktop:smoke
+      - name: Smoke the packaged Linux application
+        if: runner.os == 'Linux'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          xvfb-run -a bun run desktop:smoke
+      - name: Stage canonical filenames
+        env:
+          DESKTOP_MAKE_DIR: apps/desktop/out/make
+          DESKTOP_STAGE_DIR: staged-desktop
+        run: bun scripts/ci/stage-desktop-artifacts.ts
+      - name: Verify native trust and architecture
+        env:
+          DESKTOP_ARTIFACT_DIR: staged-desktop
+        run: bun scripts/ci/verify-desktop-native.ts
+      - name: Verify this platform's artefacts
+        env:
+          DESKTOP_ARTIFACT_DIR: staged-desktop
+        run: bun scripts/ci/check-desktop-artifacts.ts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: staged-desktop/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Attach the nine installers
+    needs:
+      - quality-gate
+      - verify-candidate
+      - package
+    if: needs.quality-gate.result == 'success' && needs.verify-candidate.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      DESKTOP_VERSION: ${{ github.ref_name }}
+      DESKTOP_ARTIFACT_DIR: collected-desktop
+      RELEASE_TAG: ${{ github.ref_name }}
+      CANDIDATE_SHA: ${{ needs.quality-gate.outputs.candidate_sha }}
+      GITHUB_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-bun
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: desktop-*
+          path: collected-desktop
+          merge-multiple: true
+      - name: Verify the complete published matrix
+        run: bun scripts/ci/check-desktop-artifacts.ts
+      - name: Authenticate the update manifests from native evidence
+        env:
+          DESKTOP_UPDATE_SIGNING_KEY: ${{ secrets.DESKTOP_UPDATE_SIGNING_KEY }}
+          DESKTOP_UPDATE_PUBLIC_KEY: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEY }}
+        run: bun scripts/ci/sign-desktop-manifests.ts
+      - name: Refuse publication without the tag gate
+        env:
+          DESKTOP_ARTIFACTS_OK: "1"
+          DESKTOP_SIGNED: "1"
+        run: bun scripts/ci/publish-desktop-release.ts
+      - name: Attach artefacts to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=()
+          for file in collected-desktop/MyOwnNotion-*; do
+            case "$file" in
+              *.sha512) continue ;;
+            esac
+            files+=("$file")
+          done
+          if [ "${#files[@]}" -ne 9 ]; then
+            echo "Expected 9 canonical installers, found ${#files[@]}."
+            printf '%s\n' "${files[@]}"
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" \
+            --title "MyOwnNotion $RELEASE_TAG" \
+            --notes "Desktop installers for $RELEASE_TAG. Download the file that matches this machine's OS and CPU. There is no app store." \
+            "${files[@]}" collected-desktop/*.sha512 collected-desktop/desktop-*.json collected-desktop/desktop-*.sig collected-desktop/verification-*.json

@@ -154,7 +154,16 @@ export function RecoveryKitPanel(props: RecoveryKitPanelProps) {
  * Exported so the page can call it the moment the blob arrives, without the
  * blob passing through component state on the way.
  */
-export function saveKitBlob(blob: Blob, filename: string): void {
+export async function saveKitBlob(blob: Blob, filename: string): Promise<boolean> {
+  const desktop = window.myownnotionDesktop;
+  if (desktop) {
+    const result = await desktop.saveFile({
+      defaultName: filename,
+      bytes: new Uint8Array(await blob.arrayBuffer()),
+    });
+    if (!result.ok) throw new Error(result.message);
+    return !result.canceled;
+  }
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -166,4 +175,5 @@ export function saveKitBlob(blob: Blob, filename: string): void {
   // Revoked immediately: an object URL is readable by anything running in the
   // page for as long as it exists.
   URL.revokeObjectURL(url);
+  return true;
 }

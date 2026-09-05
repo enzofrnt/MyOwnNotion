@@ -316,6 +316,36 @@ describe("application routing", () => {
     ).toBe(itemId);
   });
 
+  it.each(["online-event", "server-recovery"])(
+    "revalidates a cold offline session before waking writes: %s",
+    async (trigger) => {
+      const api = securityApi("offline");
+      let authorized = false;
+      Object.defineProperty(api, "hasCsrfToken", { get: () => authorized });
+      const { localContent } = await import("../src/services/local-content.ts");
+      const service = localContent();
+      const wake = vi.spyOn(service.realtimePageSync, "wake").mockImplementation(() => {});
+      const workspaceSync = vi.spyOn(service, "synchronize").mockResolvedValue("idle");
+      const pageSync = vi.spyOn(service, "synchronizeOperationalPages").mockResolvedValue(true);
+      await renderAt("/notes", api);
+      expect(workspaceSync).not.toHaveBeenCalled();
+      vi.mocked(api.currentSession).mockImplementation(async () => {
+        authorized = true;
+        return { ok: true, value: { session: { sessionId: "resumed-session" } } } as Awaited<
+          ReturnType<SecurityApi["currentSession"]>
+        >;
+      });
+      await act(async () => {
+        if (trigger === "online-event") window.dispatchEvent(new Event("online"));
+        await vi.waitFor(() => expect(pageSync).toHaveBeenCalledTimes(1), { timeout: 6500 });
+      });
+      expect(wake).toHaveBeenCalledTimes(1);
+      expect(workspaceSync).toHaveBeenCalledTimes(1);
+      expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/notes");
+    },
+    10000,
+  );
+
   it("renders an explicit not-found destination instead of a previous note", async () => {
     await renderAt("/somewhere-else");
     expect(container.querySelector('[data-testid="route-not-found"]')).not.toBeNull();

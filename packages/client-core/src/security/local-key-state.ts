@@ -13,8 +13,9 @@
  * that reads like a bug.
  */
 
-/** How the device key is held, so the client can be honest about it. */
-export type SecureStorageKind = "platform-secure" | "fallback";
+import type { SecureKeyStorage, SecureStorageKind, StoredLocalKey } from "./secure-key-storage.ts";
+
+export type { SecureKeyStorage, SecureStorageKind, StoredLocalKey } from "./secure-key-storage.ts";
 
 export type LocalKeyStatus = "absent" | "unlocked" | "locked" | "lost";
 
@@ -22,19 +23,6 @@ export interface LocalKeyState {
   readonly status: LocalKeyStatus;
   /** Identifies the key an envelope was sealed under. Never key material. */
   readonly keyId: string | null;
-}
-
-/** A device key as persisted: an opaque id and a non-extractable handle. */
-export interface StoredLocalKey {
-  readonly keyId: string;
-  readonly key: CryptoKey;
-}
-
-export interface SecureKeyStorage {
-  readonly kind: SecureStorageKind;
-  load(): Promise<StoredLocalKey | null>;
-  save(stored: StoredLocalKey): Promise<void>;
-  clear(): Promise<void>;
 }
 
 export class LocalKeyLockedError extends Error {
@@ -114,6 +102,12 @@ export class LocalKeyManager {
     if (options.reuseExistingOnly === true) {
       this.#stored = null;
       this.#status = "lost";
+      return this.state;
+    }
+    if (this.#storage.mint !== undefined) {
+      const minted = await this.#storage.mint();
+      this.#stored = minted;
+      this.#status = "unlocked";
       return this.state;
     }
     const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [

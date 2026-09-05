@@ -1,3 +1,4 @@
+import { authenticatedContent } from "./helpers/content-owner.ts";
 /**
  * Rotation faults at every persistence boundary (T079, US5, FR-013, FR-017, SC-006).
  *
@@ -33,6 +34,7 @@ import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness } from "./helpers/app.ts";
 
 let harness: ApiHarness;
+let injectAsOwner: Awaited<ReturnType<typeof authenticatedContent>>;
 let keyDirectory: string;
 let keyFile: string;
 
@@ -51,6 +53,7 @@ beforeAll(async () => {
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
     }),
   });
+  injectAsOwner = await authenticatedContent(harness);
 }, 180_000);
 
 afterAll(async () => {
@@ -120,7 +123,7 @@ async function checkpoint(operationId: string, sequence: number, cursor: string)
 }
 
 async function createSealedPage(name: string): Promise<string> {
-  const response = await harness.built.app.inject({
+  const response = await injectAsOwner({
     method: "POST",
     url: "/v1/items",
     headers: { "idempotency-key": randomUUID() },

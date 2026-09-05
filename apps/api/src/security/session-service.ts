@@ -24,16 +24,15 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   createSession,
   type Database,
+  findDevice,
   listSessions,
   type RevocationResult,
-  recordRecentAuthentication,
   resolveSession,
   revokeAllSessions,
   revokeOneSession,
   SecurityRepositoryError,
 } from "@myownnotion/database";
 import {
-  isRecentlyAuthenticated,
   issueSession,
   type SessionAuthMethod,
   type SessionPolicy,
@@ -194,23 +193,15 @@ export class SessionService {
       // the response, where it would help an attacker.
       return { resolved: false, reason: "rejected" };
     }
-    return { resolved: true, session: outcome.session };
-  }
-
-  /** Whether this session may perform a sensitive operation right now. */
-  isRecent(session: SessionRecord): boolean {
-    return isRecentlyAuthenticated(session.recentAuthAt, this.#deps.now(), this.#deps.policy);
-  }
-
-  /** Records a fresh proof of possession against an existing session. */
-  async refreshRecentAuth(sessionId: string, correlationId: string): Promise<void> {
-    await recordRecentAuthentication(this.#deps.db, sessionId, this.#deps.now());
-    await this.#deps.audit.record(this.#auditContext(correlationId), {
-      eventType: "auth.succeeded",
-      outcome: "success",
-      objectKind: "session",
-      objectId: sessionId,
+    // A live cookie cannot outlive the authorization of its device.
+    // Check here so ordinary HTTP reads obey the same revocation as sync.
+    const device = await findDevice(this.#deps.db, {
+      ownerId: outcome.session.ownerId,
+      deviceId: outcome.session.deviceId,
     });
+    if (device === null || device.state === "revoked")
+      return { resolved: false, reason: "rejected" };
+    return { resolved: true, session: outcome.session };
   }
 
   async list(ownerId: string): Promise<readonly SessionRecord[]> {

@@ -1,3 +1,4 @@
+import { authenticatedContent } from "./helpers/content-owner.ts";
 /**
  * One recognizable structured payload across every server-side boundary (T104).
  *
@@ -39,6 +40,7 @@ const SENTINELS = {
 } as const;
 
 let harness: ApiHarness;
+let injectAsOwner: Awaited<ReturnType<typeof authenticatedContent>>;
 let keyDirectory: string;
 let databaseId: Uuid;
 let textPropertyId: Uuid;
@@ -53,20 +55,20 @@ function expectNoSentinel(text: string): void {
 }
 
 async function exportArtifact(): Promise<Record<string, unknown>> {
-  const started = await harness.built.app.inject({ method: "POST", url: "/v1/export" });
+  const started = await injectAsOwner({ method: "POST", url: "/v1/export" });
   expect(started.statusCode, started.body).toBe(202);
   const exportId = (started.json() as { exportId: string }).exportId;
   let status = "pending";
   for (let attempt = 0; attempt < 50 && status === "pending"; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "GET",
       url: `/v1/export/${exportId}`,
     });
     status = (response.json() as { status: string }).status;
   }
   expect(status).toBe("ready");
-  const artifact = await harness.built.app.inject({
+  const artifact = await injectAsOwner({
     method: "GET",
     url: `/v1/export/${exportId}/artifact`,
   });
@@ -86,6 +88,7 @@ beforeAll(async () => {
       MYOWNNOTION_DEPLOYMENT_KEY_FILE: keyFile,
     }),
   });
+  injectAsOwner = await authenticatedContent(harness);
 
   databaseId = generateUuidV7();
   textPropertyId = generateUuidV7();
@@ -94,7 +97,7 @@ beforeAll(async () => {
   const statusOptionId = generateUuidV7();
   const relationPropertyId = generateUuidV7();
   const initialViewId = generateUuidV7();
-  const created = await harness.built.app.inject({
+  const created = await injectAsOwner({
     method: "POST",
     url: "/v1/databases",
     headers: idempotencyHeaders(),
@@ -177,7 +180,7 @@ beforeAll(async () => {
       priorityPropertyId: null,
     },
   };
-  const replaced = await harness.built.app.inject({
+  const replaced = await injectAsOwner({
     method: "PUT",
     url: `/v1/databases/${databaseId}/definition`,
     headers: idempotencyHeaders(),
@@ -185,9 +188,13 @@ beforeAll(async () => {
   });
   expect(replaced.statusCode, replaced.body).toBe(200);
 
-  const target = await createItemViaApi(harness, { kind: "page", name: "Relation target" });
+  const target = await createItemViaApi(harness, {
+    headers: injectAsOwner.headers,
+    kind: "page",
+    name: "Relation target",
+  });
   entryId = generateUuidV7();
-  const entry = await harness.built.app.inject({
+  const entry = await injectAsOwner({
     method: "POST",
     url: `/v1/databases/${databaseId}/entries`,
     headers: idempotencyHeaders(),
@@ -287,7 +294,7 @@ describe("structured security sentinels", () => {
     );
     expectNoSentinel(chunks.join(""));
 
-    const response = await harness.built.app.inject({
+    const response = await injectAsOwner({
       method: "POST",
       url: `/v1/databases/${databaseId}/entries`,
       headers: idempotencyHeaders(),

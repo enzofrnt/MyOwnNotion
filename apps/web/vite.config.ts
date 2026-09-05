@@ -36,23 +36,16 @@ function portPolicy() {
  * When Caddy fronts Vite in `compose.dev.yaml`, the browser talks to
  * https://localhost:8443 or http://localhost:8080. Asset URLs must follow the
  * request host rather than a pinned HTTPS origin (Cursor cannot trust the
- * local CA). HMR still targets the HTTPS helper port; bind-mounted sources on
- * Docker Desktop need polling.
+ * local CA). HMR uses the page origin through Caddy (:8080 or :8443); do not
+ * pin a separate client port or embedded browsers and Electron miss the socket.
+ * Bind-mounted sources on Docker Desktop need polling.
  */
 function httpsProxyServer() {
   if (process.env["MYOWNNOTION_DEV_HTTPS_PROXY"] !== "1") {
     return {};
   }
-  const origin = process.env["MYOWNNOTION_PUBLIC_ORIGIN"] ?? "https://localhost:8443";
-  const url = new URL(origin);
-  const defaultPort = url.protocol === "https:" ? 443 : 80;
   return {
     allowedHosts: true as const,
-    hmr: {
-      protocol: url.protocol === "https:" ? "wss" : "ws",
-      host: url.hostname,
-      clientPort: url.port === "" ? defaultPort : Number(url.port),
-    },
     watch: {
       usePolling: true,
       interval: 400,

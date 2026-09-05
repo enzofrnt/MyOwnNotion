@@ -13,8 +13,8 @@ Chaque feature suit : spécification, clarification si nécessaire, plan, tâche
 analyse, implémentation, convergence, contrôles locaux, puis pull request.
 
 **Prochain travail** : feature
-[`014-desktop-clients`](../../specs/014-desktop-clients/) (Electron Windows et
-macOS). La chaîne Bun 019 est déjà livrée. Ne pas ouvrir l'implémentation 021,
+[`014-desktop-clients`](../../specs/014-desktop-clients/) (Electron Windows,
+macOS et Linux). La chaîne Bun 019 est déjà livrée. Ne pas ouvrir l'implémentation 021,
 022 T040 ou 017 T319 tant que 014 n'est pas livrée, sauf correction bloquante
 sur `main`.
 
@@ -235,10 +235,12 @@ chaîne Bun 019 (déjà livrée) ; ne dépend pas des features 011 à 013 ni de 
 **Canevas** : sections 6.1, 7 et 47, avec les invariants des sections 5, 9, 17
 à 20, 28 à 30 et 36 à 45
 
-Applications Electron Windows et macOS, hôtes du client Web existant, stockage
-sécurisé de plateforme et mises à jour. Prochain livrable avant clôture V1.
-Les tableaux blancs, le partage public et MCP restent après la V1 et seront
-accueillis plus tard par le même hôte.
+Applications Electron Windows, macOS et Linux, hôtes du client Web existant,
+stockage sécurisé de plateforme et mises à jour. Cinq cibles en
+téléchargement GitHub (Windows x64 et ARM, macOS ARM, Linux x64 et ARM).
+Linux publie AppImage, deb et rpm par architecture ; aucun store. Prochain
+livrable avant clôture V1. Les tableaux blancs, le partage public et MCP
+restent après la V1 et seront accueillis plus tard par le même hôte.
 
 ### 021 — Readable and actionable server logs
 

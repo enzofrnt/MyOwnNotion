@@ -22,7 +22,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { newClientNonce, SecurityApi } from "../../services/security-api.ts";
 import { AsyncState, Button, FR_COPY } from "../../ui/index.ts";
 import { RecoveryKitPanel, saveKitBlob } from "../security/recovery-kit-panel.tsx";
-import { createOwnerPasskey, type PasskeyFailure, passkeysAvailable } from "./passkey-client.ts";
+import { DesktopPasskeyGuidance, useDesktopPlatformPasskey } from "./desktop-passkey-guidance.tsx";
+import {
+  createOwnerPasskey,
+  type PasskeyFailure,
+  passkeysAvailable,
+  platformAuthenticatorAvailable,
+} from "./passkey-client.ts";
 
 type Stage = "loading" | "idle" | "verifying" | "kit" | "unavailable";
 
@@ -72,6 +78,7 @@ export function BootstrapPage(props: BootstrapPageProps) {
   const [kit, setKit] = useState<KitState | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const desktopPlatformPasskey = useDesktopPlatformPasskey();
 
   const refreshStatus = useCallback(async (): Promise<InstallationStatusDto | null> => {
     const result = await api.status();
@@ -115,6 +122,15 @@ export function BootstrapPage(props: BootstrapPageProps) {
       setStage("idle");
       fail(PASSKEY_GUIDANCE[window.isSecureContext ? "unsupported" : "insecure-context"]);
       return;
+    }
+
+    if (window.myownnotionDesktop?.platform === "darwin") {
+      const platformReady = await platformAuthenticatorAvailable();
+      if (!platformReady) {
+        setStage("idle");
+        fail(FR_COPY.auth.passkey.desktopUnavailable);
+        return;
+      }
     }
 
     const started = await api.start(newClientNonce());
@@ -180,7 +196,15 @@ export function BootstrapPage(props: BootstrapPageProps) {
       return;
     }
     // Straight from the response to the disk: never through state.
-    saveKitBlob(result.value, "myownnotion-recovery.json");
+    try {
+      const saved = await saveKitBlob(result.value, "myownnotion-recovery.json");
+      if (!saved)
+        setMessage("Enregistrement annulé. Régénérez le kit avant de confirmer sa conservation.");
+    } catch {
+      setMessage(
+        "Le kit n’a pas pu être enregistré. Régénérez-le avant de confirmer sa conservation.",
+      );
+    }
     setKit({ ...kit, delivery: "download-consumed" });
     setBusy(false);
   }, [api, kit, fail]);
@@ -269,21 +293,25 @@ export function BootstrapPage(props: BootstrapPageProps) {
       ) : null}
 
       {stage === "idle" ? (
-        <section className="ui-auth-card" aria-labelledby="bootstrap-start-heading">
-          <h2 id="bootstrap-start-heading">{FR_COPY.auth.bootstrap.createTitle}</h2>
-          <p>{FR_COPY.auth.bootstrap.createDescription}</p>
-          <Button
-            type="button"
-            variant="primary"
-            busy={busy}
-            onClick={() => {
-              void beginSetup();
-            }}
-            data-testid="begin-setup"
-          >
-            {FR_COPY.auth.bootstrap.createAction}
-          </Button>
-        </section>
+        desktopPlatformPasskey === false ? (
+          <DesktopPasskeyGuidance testId="bootstrap-desktop-passkey-guidance" />
+        ) : (
+          <section className="ui-auth-card" aria-labelledby="bootstrap-start-heading">
+            <h2 id="bootstrap-start-heading">{FR_COPY.auth.bootstrap.createTitle}</h2>
+            <p>{FR_COPY.auth.bootstrap.createDescription}</p>
+            <Button
+              type="button"
+              variant="primary"
+              busy={busy || desktopPlatformPasskey === null}
+              onClick={() => {
+                void beginSetup();
+              }}
+              data-testid="begin-setup"
+            >
+              {FR_COPY.auth.bootstrap.createAction}
+            </Button>
+          </section>
+        )
       ) : null}
 
       {stage === "verifying" ? (
