@@ -26,3 +26,7 @@
 - [x] T012 Réduire les lectures SQL répétées du chargement de projection (partial, HIGH, FR-004/FR-008) : lire noms/valeurs/relations par lots avec versions authentifiées, actualiser uniquement les entrées touchées quand le schéma reste identique, et mesurer une base PostgreSQL chiffrée réelle au lieu du seul benchmark en mémoire.
 
 - [x] T013 Aligner le défaut de création d'entrée sur le modèle produit (missing, HIGH, FR-012) : placement optionnel uniquement pour `database.entry.create`, UI sans placement implicite, maintien des placements explicites/existants ; preuves API/local/offline/export/recherche et corpus 1 001 sans encombrement de la racine. Le profil navigateur a distingué 12,8 s dans la résolution de rôle Playwright globale du déchiffrement local de 15 ms ; borner le locator au panneau.
+
+## Phase 5: Convergence
+
+- [x] T014 Aligner le contrat OpenAPI 009 de création d'entrée avec FR-012 et corriger les attentes de migrations révélées par la couverture intégrée : conserver la mise à niveau format-v2 jusqu'à 0017, borner le contrat historique de fichiers à 0015, puis vérifier contrats, types et Biome (partial).

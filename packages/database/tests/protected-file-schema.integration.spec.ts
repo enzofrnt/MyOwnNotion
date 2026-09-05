@@ -28,8 +28,12 @@ it("adds encrypted file storage without changing existing content identities or 
       [upload, workspace, upload],
     );
 
-    expect(await migrate(database.connectionString)).toEqual(["0015_protected_file_storage"]);
-    expect(await migrate(database.connectionString)).toEqual([]);
+    expect(
+      await migrate(database.connectionString, { throughVersion: "0015_protected_file_storage" }),
+    ).toEqual(["0015_protected_file_storage"]);
+    expect(
+      await migrate(database.connectionString, { throughVersion: "0015_protected_file_storage" }),
+    ).toEqual([]);
     expect(
       (
         await client.query(

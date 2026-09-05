@@ -41,3 +41,7 @@
 
 - [x] T019 Register tests/e2e/mcp-access.spec.ts in ci/test-impact.json and verify its complete inventory contract per plan: Validation and Constitution III/VII (missing).
 - [x] T020 Prove with the real protocol client that reusable source displays grant no implicit access to unplaced entries or entries placed outside the allowed hierarchy, while explicit permitted placements and allContent remain usable per FR-004/FR-006 and canvas section 14 (partial integration evidence).
+
+## Phase 7: Convergence
+
+- [x] T021 Complete the app-routing security API fixture with the three MCP inventory methods mounted by the settings route; rerun the routing suite without an unhandled rejection and record the integrated gate finding per FR-001/FR-011 and T016 (partial test integration).

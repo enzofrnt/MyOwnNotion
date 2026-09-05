@@ -187,3 +187,39 @@ aux archives, reçus, retries et rétentions. Cette étape n'édite pas ces serv
 Après ce correctif, les gates complets sur le commit final, puis les revues et
 la livraison restent nécessaires : 013 T016 et 027 T012 demeurent ouverts.
 Aucun push ou succès de gate final n'est revendiqué.
+
+## Troisième étape : corrections révélées par la couverture globale
+
+Le parent a ajouté le correctif T051 (`aa4fe59a` repris en `386ba498`) puis lancé
+la couverture globale sur ce commit. Le run a échoué avec 3 tests et 1 rejet
+non géré, pour 4 061 tests réussis ; aucun chiffre final de couverture n'est
+revendiqué. Journal du parent : `/tmp/mon-pre-v1-coverage-integrated.log`.
+
+Les corrections de convergence 026 T014 et 013 T021 portent sur les contrats
+et fixtures concernés, sans changement de code fonctionnel :
+
+- `CreateEntryRequest` dans l'OpenAPI 009 documente désormais `placement`
+  comme optionnel, conformément au runtime et à 026 FR-012. L'absence crée
+  une page d'entrée sans placement ; le champ explicite reste documenté.
+- Le test de migration d'une page format-v2 reste une mise à niveau complète
+  jusqu'au schéma actuel : sa liste attendue inclut 0017. Il continue de prouver
+  que le corps historique reste inchangé et sans activation opérationnelle.
+- Le test historique du schéma chiffré de fichiers est borné à 0015 pour sa
+  migration et son rejeu, comme son scénario l'exige. Ses assertions sur les
+  identités, uploads acquittés, transitions, contraintes et cascades restent
+  inchangées ; les tests de migration complète et de parité restent distincts.
+- Le mock `SecurityApi` d'`app-routing.spec.tsx` fournit les trois lectures MCP
+  désormais montées par les réglages. Elles renvoient le résultat d'indisponibilité
+  typé déjà utilisé par les autres panneaux de cette fixture, au lieu de méthodes
+  absentes provoquant un `TypeError`.
+
+Validation ciblée : **4 suites, 63 tests réussis en 12,58 s**, sans rejet non géré
+(`openapi`, `migrations.integration`, `protected-file-schema.integration`,
+`app-routing`). Les types du monorepo, formatage, Biome et `git diff --check`
+passent. Journaux : `/tmp/mon-pre-v1-combination-fixes.log`,
+`/tmp/mon-pre-v1-combination-types.log`, `/tmp/mon-pre-v1-combination-format.log`
+et `/tmp/mon-pre-v1-combination-biome.log`.
+
+Aucune couverture globale supplémentaire ni push depuis cette correction.
+Le parent relancera la couverture et les gates après l'intégration du correctif
+de clés historiques 024. Les budgets et exclusions n'ont pas été modifiés.
