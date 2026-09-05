@@ -100,3 +100,19 @@ The parser accounts for empty source directories as well as files. Pages added
 for missing CSV bodies or display hosts are identified as synthesized in the
 report. Detailed reports expose canonical page/file parents, memberships and
 property conversions intentionally to the owner; ordinary output uses counts.
+
+## Separate-process change notification
+
+The CLI commits the ordinary durable change feed but its in-process notifier
+cannot reach the API process. The existing SSE heartbeat therefore verifies
+revocation, reads the canonical current sequence, and announces an advanced
+cursor only when it exceeds the latest announced value. Local notifications
+keep their immediate path. A single pending heartbeat prevents overlapping
+reads; completed work after closure is ignored. Errors close the stream without
+logging sensitive data so ordinary reconnection rechecks access and catches up
+from the durable cursor. No bus or additional infrastructure is introduced.
+
+A real Bun child writer and an already-open API SSE connection demonstrate the
+process boundary. Reconnection announces the canonical position; the client's
+existing online handler performs its ordinary workspace synchronization. An
+idle stream emits keep-alives without redundant advanced events.

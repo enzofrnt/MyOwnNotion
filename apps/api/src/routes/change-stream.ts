@@ -28,6 +28,7 @@ import { securityProblem } from "../plugins/errors.ts";
 import { PROTOCOL_HEADER } from "../plugins/protocol.ts";
 import { requestContext } from "../security/request-context.ts";
 import { changeNotifier } from "../sync/change-notifier.ts";
+import { createChangeStreamHeartbeat } from "../sync/change-stream-heartbeat.ts";
 
 /** Default heartbeat interval; `MYOWNNOTION_SSE_HEARTBEAT_MS` overrides it. */
 const DEFAULT_HEARTBEAT_MS = 20_000;
@@ -169,38 +170,33 @@ export function registerChangeStreamRoutes(app: FastifyInstance, context: AppCon
     // from inside either of them. Assigned after both exist.
     let release = (): void => {};
 
-    const heartbeat = setInterval(() => {
-      // Revocation has to reach a connection that is *already open* (FR-021).
-      // Refusing at reconnection alone is not enough: a stream established
-      // before the owner revoked the device survives indefinitely, so the device
-      // they cut off would keep hearing about their work — for as long as its
-      // socket stayed up, which could be days.
-      //
-      // Checked on the heartbeat rather than on a separate timer, because that is
-      // already the tick that exists and revocation taking effect within one
-      // heartbeat is what "stops" means in practice.
-      void isRevoked(request, context).then((revoked) => {
-        if (revoked) {
-          release();
-          reply.raw.end();
-        }
-      });
-      // A comment line, ignored by `EventSource`. Not decoration: an idle SSE
-      // connection is indistinguishable from a dead one to every proxy between
-      // here and the device, and a connection a proxy dropped quietly leaves a
-      // device believing it is live while hearing nothing. That is worse than a
-      // visible disconnection, because nothing prompts a reconnect.
-      reply.raw.write(": keep-alive\n\n");
-    }, heartbeatInterval());
-    // Node keeps the process alive for a pending timer; a heartbeat must not be
-    // the reason a server refuses to shut down.
-    heartbeat.unref?.();
-
-    const unsubscribe = changeNotifier.subscribe((cursor) => {
-      writeEvent(reply, { id: Number(cursor), name: "advanced", data: { cursor } });
+    const cursorHeartbeat = createChangeStreamHeartbeat({
+      initialCursor: position.current,
+      revoked: () => isRevoked(request, context),
+      currentCursor: () => context.db.transaction((tx) => currentSequence(tx, context.workspaceId)),
+      advanced: (cursor) =>
+        writeEvent(reply, {
+          id: cursor,
+          name: "advanced",
+          data: { cursor: sequenceToCursor(cursor) },
+        }),
+      keepAlive: () => {
+        reply.raw.write(": keep-alive\n\n");
+      },
+      close: () => {
+        release();
+        reply.raw.end();
+      },
     });
-
+    // The same tick checks revocation first and then catches canonical writes
+    // made by local CLI processes, whose in-memory notifier is a separate heap.
+    const heartbeat = setInterval(() => void cursorHeartbeat.tick(), heartbeatInterval());
+    heartbeat.unref?.();
+    const unsubscribe = changeNotifier.subscribe((cursor) =>
+      cursorHeartbeat.announce(Number(cursor)),
+    );
     release = () => {
+      cursorHeartbeat.stop();
       clearInterval(heartbeat);
       unsubscribe();
     };

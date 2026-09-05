@@ -100,3 +100,28 @@ scenarios,10 implementation decisions and8 constitution principles. The single
 critical partial finding (activation guard during resume) becameT015 and was
 implemented with a failing-then-passing regression. A second convergence pass
 found no remaining implementation gap and left the task list unchanged.
+
+## Separate-process synchronization convergence
+
+A second independent finding concerned live discovery of the CLI's committed
+changes. The healthy API SSE stream formerly received only its own process's
+notifications. The60s operational-page sweep was not a workspace metadata
+poll, so an idle folder view could remain stale until another write, reload
+or reconnect. A real Bun child writer reproduced the missing announcement
+while the stream continued receiving keep-alives.
+
+T016 adds canonical cursor reconciliation to the existing SSE heartbeat
+(20s by default), after access verification. It suppresses unchanged/older
+cursors, concurrent ticks, late completions after closure and unhandled
+transport/database failures. Existing immediate notifications remain intact.
+No new bus, network write endpoint or alternate content path was added.
+
+Validation:2 cross-process/reconnect socket tests,10 heartbeat boundary tests,
+6 existing SSE contract regressions and2 Web reconnect/online tests pass.
+The child uses the same submitCanonicalMutation service as the CLI; the
+reconnected client reads the ordinary durable feed from its applied cursor.
+API typecheck/build pass after the change.
+
+AfterT016, final convergence reports no remaining gap in the specified import
+and synchronization scope. Integration-wide delivery gates remain with the
+root task.

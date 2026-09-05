@@ -74,11 +74,19 @@ every proxy between the device and the server, and a connection a proxy has
 quietly dropped is a device that believes it is live and hears nothing. The
 heartbeat is what turns that into a reconnection.
 
+Feature028 also uses this existing tick to verify device access, then compare
+the durable change cursor with the last announced position. Writes committed
+by a separate local CLI process are announced through `advanced` within one
+heartbeat. An unchanged or older cursor produces no event. Pending checks do
+not overlap, and results completed after closure are ignored.
+
 ## Delivery target
 
 FR-002 asks for under two seconds in 95% of cases. The path is: mutation commits
-→ change row appended → subscribers notified → device fetches. Nothing here
-polls, so the latency is one notification plus one fetch.
+→ change row appended → subscribers notified → device fetches. Ordinary API
+mutations keep this immediate path. Separate-process local CLI writes use the
+heartbeat recovery path described above (20 seconds by default); that bounded
+recovery does not add a second content transport.
 
 ## Revocation
 

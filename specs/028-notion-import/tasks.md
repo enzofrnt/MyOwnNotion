@@ -29,3 +29,7 @@
 ## Phase 5: Convergence
 
 - [x] T015 CRITICAL Refuse imports into restored but unactivated targets both at open and before every operation; prove unchanged job, mutations, revisions and blobs on resume per FR-006 and US2/AC4 (partial).
+
+## Phase 6: Convergence
+
+- [x] T016 Detect committed CLI writes in already-open SSE streams through the existing heartbeat; preserve revocation, monotonic cursors and close/error boundaries, and prove separate-process notification and reconnect catch-up per FR-010 (partial).

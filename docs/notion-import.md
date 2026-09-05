@@ -3,7 +3,10 @@
 L’import accepte une archive ZIP native Markdown/CSV de Notion ou un dossier
 local, y compris un export converti pour Obsidian. Il crée un dossier « Import
 Notion » contenant des pages, fichiers et bases ordinaires, modifiables et
-synchronisés avec les clients. Il ne réalise aucune synchronisation avec Notion.
+synchronisés avec les clients. Le serveur annonce les écritures du processus
+CLI au prochain heartbeat SSE (20 secondes par défaut) ; une
+reconnexion ou un retour en ligne rattrape le journal canonique. L’import ne
+réalise aucune synchronisation avec Notion.
 
 ## Préparer la source et examiner le rapport
 
