@@ -181,6 +181,19 @@ AfterT016, final convergence reports no remaining gap in the specified import
 and synchronization scope. Integration-wide delivery gates remain with the
 root task.
 
+## Integration with MCP, sources 026 and current audit
+
+The requested feature commits were applied to `codex/pre-v1-features`, based on
+the validated 026/027 integration `29fb2688`, followed by audit T050. Frozen
+installation, monorepo types, formatting and Biome pass. The focused combined
+selection passes 21 suites and 222 distinct tests, including all 20 protected
+import cases, 13 full restore cases and 8 guarded migration cases using native
+PostgreSQL 18 tools. Explicit imported placements and independent source heads
+remain intact; the API/CLI share canonical accepted-write guards and the
+protected file service. See [the shared report](../026-linked-databases/integration-validation.md)
+for exact commits, initial environment failures, corrected CI inventory,
+cross-feature MCP scope evidence and remaining delivery gates.
+
 Coverage convergence checks the same 11 functional requirements, 4 success
 criteria, 11 acceptance scenarios, 11 plan decisions and 8 constitution
 principles. No new functional finding was identified after T017–T019; the

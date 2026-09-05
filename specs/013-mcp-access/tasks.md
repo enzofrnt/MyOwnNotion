@@ -36,3 +36,8 @@
 
 - [x] T017 Refuse unsupported file-permission platforms before consuming an exchange code in `apps/api/src/mcp/exchange-cli.ts`; verify the newly opened POSIX file's ownership/mode before receiving credentials, retain no-secret/refusal cleanup tests, and document the helper's host boundary in `docs/mcp.md` (FR-005/FR-008).
 - [x] T018 Strengthen meaningful MCP boundary evidence in `apps/api/tests/mcp*` for recursive scope redaction/immutability, independent actions, pagination, mutation replay/collisions, availability and expired/revoked inventories, rate limits, and CLI failure cleanup; correct confirmed defects in `apps/api/src/mcp/` or `apps/api/src/routes/mcp.ts`, record focused coverage and remaining limitations without exclusions or budget changes (FR-002–FR-009). Completed focused evidence: 45 tests, API types and Biome pass; 12 MCP branches remain unmeasured, and the combined gate remains T016 (see quickstart.md and analysis.md).
+
+## Phase 6: Convergence
+
+- [x] T019 Register tests/e2e/mcp-access.spec.ts in ci/test-impact.json and verify its complete inventory contract per plan: Validation and Constitution III/VII (missing).
+- [x] T020 Prove with the real protocol client that reusable source displays grant no implicit access to unplaced entries or entries placed outside the allowed hierarchy, while explicit permitted placements and allContent remain usable per FR-004/FR-006 and canvas section 14 (partial integration evidence).

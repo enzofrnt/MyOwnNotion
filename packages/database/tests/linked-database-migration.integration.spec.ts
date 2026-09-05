@@ -48,7 +48,9 @@ it("migrates existing database/entry identities and immutable snapshots without 
       [placementId, workspaceId, entryId, sourceId, entryRevision],
     );
     await client.query("COMMIT");
-    expect(await migrate(database.connectionString)).toEqual(["0016_linked_databases"]);
+    expect(
+      await migrate(database.connectionString, { throughVersion: "0016_linked_databases" }),
+    ).toEqual(["0016_linked_databases"]);
     expect(
       (
         await client.query(
@@ -85,7 +87,9 @@ it("migrates existing database/entry identities and immutable snapshots without 
         command_type: "database.migration.independent",
       },
     ]);
-    expect(await migrate(database.connectionString)).toEqual([]);
+    expect(
+      await migrate(database.connectionString, { throughVersion: "0016_linked_databases" }),
+    ).toEqual([]);
     expect(
       (await client.query("SELECT count(*)::integer AS count FROM changes")).rows[0]?.count,
     ).toBe(1);

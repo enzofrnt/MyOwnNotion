@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/028-notion-import`
 **Created**: 2026-09-05
-**Status**: Approved for implementation
+**Status**: Implemented; focused integration validated, delivery gate pending
 **Input**: Import native Notion Markdown/CSV exports and an Obsidian-converted local folder through a preview-first local CLI.
 
 ## Product direction and clarifications

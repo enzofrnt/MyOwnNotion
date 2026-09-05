@@ -674,6 +674,23 @@
       }
     },
     {
+      "test": "tests/e2e/mcp-access.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/mcp.ts",
+          "apps/web/src/services/security-api.ts",
+          "packages/contracts/src/mcp.ts"
+        ],
+        "prefixes": [
+          "apps/api/src/mcp/",
+          "apps/web/src/features/security/",
+          "apps/web/src/features/settings/",
+          "packages/database/src/schema/mcp"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/narrow-viewport.spec.ts",
       "owners": {
         "exact": ["apps/web/src/app.tsx", "apps/web/src/global.css"],

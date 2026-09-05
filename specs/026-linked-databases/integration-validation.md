@@ -1,4 +1,6 @@
-# Intégration 026 + 027 sur l'audit 025
+# Intégration 026, 027, MCP 013 et import 028 sur l'audit 025
+
+## Première étape : bases réutilisables et blocs de code
 
 Date : 2026-09-05. Branche locale `codex/026-linked-databases-integration`,
 worktree isolé `mon-feature-integration/MyOwnNotion`. Aucun push, PR ni gate
@@ -93,3 +95,95 @@ d'une migration gardée dont l'archive précédente manque, puis les features
 MCP/import prévues et exécuter les gates complets sur la combinaison finale.
 La tâche 027 T012 reste ouverte. Aucun résultat de ces étapes futures n'est
 revendiqué ici.
+
+## Deuxième étape : MCP, import et reprise de migration
+
+La branche `codex/pre-v1-features` part de `29fb2688`, en conservant la branche
+026 d'intégration à ce commit. Elle utilise le même worktree isolé. Constitution,
+canvas et artifacts 013/028 relus avant intégration. Les commits demandés ont
+été repris exactement dans cet ordre :
+
+| Commit d'origine | Commit intégré | Contenu |
+| --- | --- | --- |
+| `858c3186` | `49ea8cb5` | Spécification MCP |
+| `d3f01824` | `004ad7c0` | Accès et outils canoniques MCP |
+| `9f85848b` | `bcd42320` | Réglages d'autorisation MCP |
+| `e41c53e9` | `3eee120f` | Permissions du fichier de configuration CLI |
+| `f8212f58` | `0c10bd7d` | Frontières MCP et nettoyage CLI |
+| `3aaaeda8` | `422cd403` | Spécification import Notion |
+| `e1c15661` | `f864de5e` | Lecture et conversion bornées des sources |
+| `72280874` | `a6de4df1` | Écritures canoniques et reprise protégée |
+| `7cf759ea` | `af7a1a93` | Notification SSE des écritures du processus CLI |
+| `40fe9659` | `26843029` | Frontières de parsing et reprise |
+| `585b595b` | `dcfbbd53` | Audit 025 T050, archive authentifiée avant nouveau SQL |
+
+Les anciennes fondations `f0557643` et `f61aeeca` ne sont pas reprises.
+Les seuls conflits concernent `bun.lock` : les dépendances de chaque feature
+sont conservées, les doublons identiques vérifiés et l'installation figée passe
+sans réécriture du verrou. Aucun conflit de source n'a nécessité une résolution.
+
+### Frontières vérifiées
+
+Le bloc de protection canonique, de `AcceptedContentCommand` à
+`handleMutation`, reste identique à `29fb2688`. Son extraction vers
+`submitCanonicalMutation` conserve `acceptedWriteGuards`, exécute sa protection
+avant l'autorisation déléguée et scelle le contenu avant le checkpoint accepté,
+dans la même transaction. Les notifications et projections suivent le commit.
+
+Le chargeur de requêtes 026, sa normalisation des filtres, les fichiers
+`protected-file-service.ts`, `protected-upload-service.ts`,
+`file-storage-transition-guard.ts`, `backup/full/locks.ts` et le contrat de
+placement optionnel ne changent pas. L'ingestion d'import utilise le service
+de fichiers protégé et son verrou FILE ; la publication extraite des uploads
+conserve la protection et le journal canoniques. Le verrou RUN des sauvegardes
+reste présent. L'activation de restauration révoque les connexions/codes MCP
+seulement lorsque leurs tables existent, dans la transaction d'activation.
+
+Le parcours protocole ajouté pour 013 T020 crée une source affichée sur deux
+pages, puis trois entrées : sans placement, sous l'hôte autorisé, et sous un
+hôte privé. Liste/recherche/lecture du scope de branche ne donnent accès qu'à
+l'entrée ayant un placement autorisé ; les deux autres lectures ont exactement
+le même refus qu'un identifiant inexistant. `allContent` recherche et lit les
+trois, et la page sans placement conserve sa liste de placements vide. Aucune
+extension de scope par appartenance à une source n'a été ajoutée.
+
+### Ajustements et résultats
+
+L'inventaire CI omettait `tests/e2e/mcp-access.spec.ts` : 013 T019 ajoute ses
+chemins propriétaires. Le test historique de migration 026 est explicitement
+borné à `throughVersion: "0016_linked_databases"`, y compris son rejeu ; il
+continue de vérifier les identités, snapshots et changements durables sans
+supposer que 0016 sera toujours la dernière migration du dépôt.
+
+- Installation figée, formatage, Biome et types du monorepo réussis. Journaux :
+  `/tmp/mon-pre-v1-install.log`, `/tmp/mon-pre-v1-format.log`,
+  `/tmp/mon-pre-v1-biome.log` et `/tmp/mon-pre-v1-types.log`.
+- 21 suites et 222 tests distincts réussis, sans test encore en échec ou ignoré
+  dans cette sélection après les relances ciblées. Les suites couvrent MCP/API
+  et CLI, source/ZIP/conversion/import/reprise, scopes, SSE entre processus,
+  reconnexion Web, uploads, sources 026, normalisation de requête, migration
+  0016, parité SQL, restauration, migration gardée, UI MCP et inventaire CI.
+- La première exécution utilisait un `PATH` sans `pg_dump` 18 : les scénarios
+  natifs étaient refusés avant leurs opérations. Avec
+  `PATH=/opt/homebrew/opt/libpq/bin:$PATH`, les 20 tests d'import, les 13 tests
+  de restauration et les 8 tests de migration gardée passent. Le SQL de test
+  9999 garde son propre ledger, conformément au correctif T050.
+- Journaux : `/tmp/mon-pre-v1-targeted.log` pour les 16 suites initialement
+  réussies ; `/tmp/mon-pre-v1-targeted-native.log` pour les cinq suites
+  corrigées/reprises ; `/tmp/mon-pre-v1-mcp-linked-scope.log` pour les 22 tests
+  MCP finaux. Le dernier comprend le nouveau scénario 013/026 après correction
+  de sa fixture de recherche pour fournir le `branchRootId` requis.
+
+La sélection utilise au maximum deux workers et des bases jetables sur 55433.
+Aucun corpus personnel n'est appliqué et aucune matrice navigateur ou gate
+complet n'est relancé ici. Les preuves navigateur antérieures des features
+restent identifiées comme telles.
+
+### Reste à intégrer avant livraison
+
+T050 est désormais intégré et validé. Le parent attend encore le correctif
+sauvegarde/rotation A→B qui conserve les clés historiques externes nécessaires
+aux archives, reçus, retries et rétentions. Cette étape n'édite pas ces services.
+Après ce correctif, les gates complets sur le commit final, puis les revues et
+la livraison restent nécessaires : 013 T016 et 027 T012 demeurent ouverts.
+Aucun push ou succès de gate final n'est revendiqué.

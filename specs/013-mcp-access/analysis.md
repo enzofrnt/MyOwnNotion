@@ -62,3 +62,15 @@ features and their cross-module evidence must be measured together. No gate or
 main/CI result is claimed here. Hierarchy scope also remains unchanged by 026:
 embedding a linked source grants no access to independent pages; the owner guide
 now explains that boundary.
+
+## Integration against audit 025 and sources 026 — T019/T020
+
+The combined branch registers the MCP browser journey in the CI impact inventory
+and verifies the hierarchy boundary through the actual protocol client: linked
+displays do not authorize unplaced or privately placed entries, explicitly
+permitted entry placements remain usable, and allContent can read/search them
+all. The combined focused selection passes 21 suites and 222 distinct tests,
+including full restore invalidation and audit T050. See
+[the integration report](../026-linked-databases/integration-validation.md).
+The external historical backup-key correction and full delivery gate remain
+pending; T016 is still open.
