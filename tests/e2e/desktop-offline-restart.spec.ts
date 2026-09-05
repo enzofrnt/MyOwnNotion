@@ -33,11 +33,7 @@ test("recovers a durable offline creation after process death and reconciles it 
     await openWorkspaceDiagnostics(page);
     await expect(page.getByTestId("pending-mutations")).toBeVisible();
     await returnToWorkspace(page);
-    const exited = new Promise<void>((resolve) =>
-      session.app.process().once("exit", () => resolve()),
-    );
-    session.app.process().kill("SIGKILL");
-    await exited;
+    await session.crash();
     killed = true;
     const restarted = await launchDesktopElectron(userData);
     try {

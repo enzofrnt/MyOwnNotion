@@ -271,3 +271,11 @@ fichier concret.
 - [X] T090 Preserve pending page scroll restoration across presentation-state refreshes in `apps/web/src/features/editor/` and verify real mobile navigation plus cancellation before the first animation frame; exposed by the full browser parity CI.
 
 - [X] T091 Exercise database property entry with real keyboard input and assert the visible draft before saving in `tests/e2e/databases-offline-sync.spec.ts`; retain the strict second-device persistence and offline merge checks after WebKit CI submitted an empty Owner draft.
+
+- [X] T092 Normalize native glob path separators when checking required web assets in `apps/web/build-assets.ts`; cover POSIX and Windows paths, absent asset classes and misleading source maps in `apps/web/tests/build-assets.spec.ts`. Both Windows CI architectures exposed the same production-build refusal before their native journeys; renewed native CI proof remains part of T088/T076.
+
+- [ ] T093 Validate owner-only Windows ACLs for the native journey server's deployment key in `apps/api/src/security/`, prepare the ephemeral key with an explicit private ACL in `scripts/e2e/`, and exercise allowed/refused ACLs in desktop policy tests. Windows does not represent POSIX 0600 permissions; preserve strict private-key validation and guarded migration instead of skipping either boundary.
+
+- [ ] T094 Terminate the complete disposable Electron process tree during a Windows crash fixture and await shutdown before reusing/removing its profile in `tests/e2e/desktop-electron.ts`; retain the real durable offline restart and revocation assertions and recheck all native platforms.
+
+- [ ] T095 Remove repeated Windows PowerShell ACL inspection from unchanged-key lookups in `apps/api/src/security/windows-key-permissions.ts` and the deployment-key loader using a bounded, metadata-verified permission verdict; preserve fresh file reads and immediate refusal after ACL/owner/identity changes. Verify runtime metadata semantics, cache race/failure boundaries and actual native warmed-cache permission changes in `apps/api/tests/windows-key-permissions.spec.ts` and `apps/desktop/tests/deployment-key-fixture.spec.ts`, then rerun the unrelaxed offline restart journey on every native target (FR-015, SC-003/SC-006).

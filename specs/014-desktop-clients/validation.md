@@ -190,3 +190,157 @@ native fixture/window failures addressed by `5170f415`:
 Whole-workspace TypeScript and targeted lifecycle tests pass. These changes
 still require the complete pre-push gate and fresh PR/main checks; the native
 signing and installed-update release evidence remains separately outstanding.
+
+### Native Windows asset validation — 2026-09-05
+
+The full local gate on `a9bc261c` passed, including all five browser projects,
+nine native Electron journeys, production builds, multi-architecture images
+and every security/Compose check. PR run `33950316597` subsequently passes
+native Linux x64, Linux ARM64 and macOS ARM64. Both Windows architectures
+reach the web production build but reject its required-asset inventory:
+the worker patterns expect `/` while native glob paths can contain `\`.
+The shared validator now normalizes separators and identifies any missing
+asset class in its error. Eight focused tests cover both path families,
+missing assets with misleading source maps and incorrectly located workers;
+all pass, along with a real production build. Full local and fresh native
+Windows validation are still required for this correction. GitGuardian's
+field-name-list false positive remains unresolved externally.
+
+The first full gate for the asset correction stops on one obsolete source-text
+assertion in the toolchain contract (3,576 other tests pass). That contract now
+checks the extracted validator's build wiring; its actual asset acceptance and
+refusal behavior is covered by the eight executable cases. The failed pass is
+not pre-push evidence; the complete gate is rerun on the corrected commit.
+
+The complete local gate passed on `d313353ff65829e3ca98729bd0701ff04391fe4d`
+and that exact commit was pushed. CI run 33953944064 validates the Windows web
+build, native package and installed launch. Its next refusal occurs during the
+journey fixture's guarded migration: the deployment-key loader checks POSIX
+permission bits on Windows, where those bits do not express the file ACL.
+
+T093 adds strict current-owner Windows ACL validation and explicitly restricts
+the fresh fixture key. Forty focused permission/native policy tests and all
+workspace types pass locally. Native Windows policy tests also grant Everyone
+read permission to the disposable synthetic key and require refusal. Their actual
+Windows execution remains pending; local tests do not establish Windows success.
+The guarded migration and permission enforcement remain required. The server's
+supported production deployment remains Linux.
+
+Evidence: `/tmp/mon-full-gate-desktop-isolated-ports.log`,
+`/tmp/mon-desktop-windows-d313.log`, `/tmp/mon-windows-key-permissions-focused.log`,
+`/tmp/mon-windows-key-permissions-types.log`. The platform ACL approach follows
+[Microsoft's Set-Acl documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-acl).
+
+### Native Windows follow-up — server startup diagnostics
+
+At `6e95cf35`, the complete local gate passed (3,581 coverage tests, all five
+browser projects and native macOS lifecycle/package checks). PR run
+33956926120 passed both Linux architectures and macOS. Both Windows runners
+passed private deployment-key validation, packaging and packaged launch; native
+journey setup then exited while starting a Playwright web server. The emitted
+log omitted server stdout. Preserve both servers' output and failed native
+reports so the next run identifies the cause. This is diagnostic coverage,
+not evidence that the Windows journeys or feature delivery pass.
+
+### Native Windows follow-up — portable Vite startup
+
+The complete local gate passed on `2deadab1`. Native Windows run 33959629066
+then exposed the startup failure: the preview script passed the POSIX expression
+`${MYOWNNOTION_WEB_DIST_DIR:-dist}` literally as its output directory on Windows.
+Vite now reads the host, port and output directory directly from environment
+variables in its configuration. Package scripts contain no shell substitution.
+Seven focused tests pass, including Windows paths with spaces and empty-value
+defaults. An actual workspace preview serves a temporary directory containing
+spaces on the requested port; web TypeScript checks also pass. Complete local
+validation and native Windows confirmation remain required before delivery.
+
+### Native Windows follow-up — crash fixture process lifetime
+
+The full local gate and a fresh image scan passed on `00235bcb`. In PR run
+33984962742, both Windows architectures reach actual workspace journeys.
+The offline restart fails after killing only the main Electron PID: the next
+host exits with code zero while attaching its debugger. Windows x64 also
+reports an `EBUSY` profile removal after an otherwise successful revocation
+journey. This is consistent with descendant processes retaining profile handles;
+it is not evidence of lost offline content.
+
+The disposable crash fixture now uses PID-scoped Windows `taskkill /T /F`,
+which terminates descendants as documented by
+[Microsoft](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill).
+It awaits termination before restart, captures the process handle before
+Playwright disposes the application, and retries transient profile-removal
+locks with a bounded delay. Normal shutdown still first requests graceful close.
+All nine native macOS journeys pass in 26 seconds, preserving the original
+offline creation/text/reconciliation, trust revocation and update assertions.
+The initial local helper attempt failed because it requested the process after
+Playwright disposal; that attempt is not validation evidence. The corrected
+run is `/tmp/mon-desktop-process-native-corrected.log`. Full local and fresh
+Windows CI evidence remain required for T094.
+
+### Native Windows follow-up — repeated ACL inspection cost
+
+The complete local gate passed on `7e368060` (five browser profiles, nine native
+macOS journeys, production/multi-architecture builds and security checks).
+PR run 33989013305 confirms Windows x64 now restarts the crashed host, restores
+the queued creation and recovers the offline page text. Eight of nine native
+journeys pass; the remaining failure is synchronization after connectivity
+returns, against the unchanged 20-second wait. Session validation returns 200.
+The server log shows roughly 0.7-second multiples for ordinary protected
+requests and an unfinished multi-mutation replay at the deadline. The Windows
+key loader invokes a new PowerShell ACL inspection on every key lookup. T095
+addresses that cost while retaining permission enforcement and key-file changes.
+
+Evidence: `/tmp/mon-full-gate-desktop-process-tree.log`,
+`/tmp/mon-desktop-7e-windows-x64.log`, and
+`/tmp/mon-win7e-x64/.e2e-logs/chromium-desktop.log`. The permission cache design
+requires verification against Bun 1.4.0's Windows stat implementation and actual
+Windows metadata-change tests; elapsed-time correlation alone is not proof that
+the pending replay will succeed after the correction.
+
+T095 now passes 54 focused ACL/key-loader/native-fixture cases on macOS, strict
+API/desktop types and Biome. Only positive permission verdicts are cached, with
+an eight-file bound and exact BigInt identity/ChangeTime checks before and after
+lookup. Key bytes are still freshly read. Native Windows tests exercise warm
+cache invalidation for Everyone access, inherited ACLs, file replacement and
+deletion/recreation; their Windows execution remains a required CI result.
+
+The pinned runtime delegates stat through
+[Bun 1.4.0's libuv binding](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/sys/sys_uv.rs#L509).
+Its [pinned Windows libuv implementation](https://github.com/oven-sh/libuv/blob/8023581113b276e7c1aee3f82da57ca0893faab1/src/win/fs.c#L1927)
+maps ChangeTime to ctime separately from CreationTime;
+[Bun's BigInt conversion](https://github.com/oven-sh/bun/blob/bun-v1.4.0/src/runtime/node/Stat.rs#L64)
+preserves nanoseconds. Microsoft's
+[security-descriptor update contract](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fsa/2e97fa70-e1f5-410b-ba87-f1ffda39a8ed)
+updates LastChangeTime when that descriptor changes. Full source chain and
+local results: `/tmp/mon-windows-acl-cache-runtime-proof.md`,
+`/tmp/mon-windows-acl-cache-tests.log`, `/tmp/mon-windows-acl-cache-types.log`.
+
+The same PR run also reports the Windows ARM64 onboarding tree still loading
+after restart at the unchanged 15-second readiness deadline, alongside the
+offline replay failure. Both need fresh native confirmation; local success is
+not a Windows success claim. Artifact: `/tmp/mon-win7e-arm/`.
+
+The complete local attempt on `83269ec5` stops at the unchanged absolute coverage
+gate: 338 uncovered functions (budget 337), 2,218 statements (2,216), and 2,471
+branches (2,465). The missing Windows loader-error paths now have executable
+regressions: a warm verdict is discarded after deletion, directory replacement,
+access denial or a failed read; repaired access still requires a fresh descriptor
+inspection. POSIX I/O failures also remain closed. Both permission/loader suites
+pass 59 cases, with 100% functions, 99.06% statements and 97.8% branches for these
+two production modules; API types and Biome pass. Full aggregate validation must
+be repeated, with no changed thresholds. Evidence:
+`/tmp/mon-full-gate-desktop-acl-cache.log`, `/tmp/mon-acl-loader-failures.log`.
+
+PR run 33989013305 is complete: all five browser projects, Linux x64/ARM64,
+macOS ARM64 and every other application/security check passed. Windows x64 and
+ARM64 native lifecycle failures keep its quality gate red; no merge or main
+validation is claimed by this run.
+
+The full attempt on `e2e79947` passes all test assertions but retains one uncovered
+branch above the absolute limit (2,466 versus 2,465). That branch was an impossible
+empty-iterator fallback inside a map known to contain more than eight entries.
+Eviction now visits and removes its first key directly, without a cast or a
+synthetic test for an unreachable state. The real eight-entry/LRU regression and
+all 59 loader/permission cases still pass, along with API types and Biome.
+The full gate remains required on the resulting commit. Logs:
+`/tmp/mon-full-gate-desktop-acl-loader-errors.log`, `/tmp/mon-acl-final-focused.log`.

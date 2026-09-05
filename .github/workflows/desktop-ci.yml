@@ -78,11 +78,26 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres@127.0.0.1:5432/postgres
           MYOWNNOTION_DESKTOP_E2E: "1"
+          MYOWNNOTION_E2E_SERVER_STDOUT: "1"
+          DEBUG: pw:webserver
         run: bun scripts/e2e/run-local-matrix.ts --project=chromium-desktop tests/e2e/desktop-
       - name: Native lifecycle journeys with Linux keyring
         if: runner.os == 'Linux'
         env:
           DATABASE_URL: postgres://myownnotion:myownnotion-dev@127.0.0.1:5432/myownnotion
           MYOWNNOTION_DESKTOP_E2E: "1"
+          MYOWNNOTION_E2E_SERVER_STDOUT: "1"
+          DEBUG: pw:webserver
         run: |
           XDG_CURRENT_DESKTOP=GNOME dbus-run-session -- bash -c 'printf "%s" desktop-test-keyring | gnome-keyring-daemon --unlock --components=secrets; xvfb-run -a bun scripts/e2e/run-local-matrix.ts --project=chromium-desktop tests/e2e/desktop-'
+      - name: Retain native journey failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-failure-${{ matrix.os }}
+          path: |
+            .e2e-logs/
+            playwright-report/
+            test-results/
+          include-hidden-files: true
+          retention-days: 14
