@@ -65,3 +65,11 @@ logical envelope/filesystem inspection finds no fixture sentinel, missing keys
 refuse before reading input, interrupted/oversized/short streams publish no SQL
 content, and missing tails/corrupt bytes refuse. HTTP composition, deduplication,
 range reads and historical migration remain the following explicit tasks.
+
+T010's three secured HTTP regressions fail against the still-unmodified route
+composition, after successful authentication, upload/download and offset checks:
+direct bytes remain readable in the blob directory; filenames remain readable
+in item/logical-file/revision rows; acknowledged partial bytes remain readable.
+Baseline output is `/tmp/mon-protected-http-before.log` on the development host.
+These tests stay strict while T011–T015 replace that composition. All sentinels
+are synthetic fixture values; no owner content was used or displayed.

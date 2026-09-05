@@ -25,7 +25,7 @@ only after cross-artifact analysis. Checked tasks require actual evidence.
 **Independent test**: Secured upload/rename/restart/download plus logical SQL and
 application-file sentinel inspection. Prove failures before wiring new paths.
 
-- [ ] T010 [US1] Reproduce direct/tus plaintext bytes and metadata through secured real requests in `apps/api/tests/protected-files.integration.spec.ts`, retaining the failing baseline evidence (FR-001/FR-002, SC-001).
+- [X] T010 [US1] Reproduce direct/tus plaintext bytes and metadata through secured real requests in `apps/api/tests/protected-files.integration.spec.ts`, retaining the failing baseline evidence (FR-001/FR-002, SC-001).
 - [ ] T011 [US1] Wire bounded multipart import/replacement through the protected service and accepted mutation guards in `apps/api/src/routes/files.ts`, preserving IDs and verified deduplication (FR-001/FR-004/FR-005).
 - [ ] T012 [US1] Implement encrypted resumable PATCH/tail replacement, atomic offsets, HEAD and finalization in `apps/api/src/routes/uploads.ts` and `apps/api/src/files/protected-upload-service.ts` (FR-001/FR-004/FR-005).
 - [ ] T013 [US1] Resolve/protect file metadata and historical snapshots across `apps/api/src/security/content-resolution.ts`, item/file/revision repositories and sync projection paths; neutralize readable source fields atomically (FR-002/FR-005).
