@@ -93,3 +93,23 @@ acknowledgement, code lifetime and exact CSRF transport; Playwright performs rea
 grant/exchange/read/revoke at desktop and 320 px, keyboard activation, both themes,
 and refusal recovery. Operating-system passkey ceremonies remain covered by the
 existing authentication suite rather than fabricated in the MCP journey.
+
+## Integration verification refinement (T018)
+
+The focused coverage diagnostic identifies missing behavioral evidence across
+the MCP boundary. Add scoped recursive-reference redaction and source-immutability
+tests, independent action grants, parent/list/search pagination, current-scope
+checks before mutation replay and collision with owner mutation identities.
+Exercise installation/readiness and inventory expiry/revocation, absent or
+consumed exchanges, exact request/exchange rate limits, and CLI network/refused/
+malformed responses with private-file cleanup and content-free diagnostics.
+Use real SDK/HTTP and encrypted disposable PostgreSQL fixtures for integrated
+behavior; pure scope/CLI boundaries may use focused unit tests. Simplify only
+provably redundant guards or confirmed defects. Do not exclude executable paths,
+fabricate unreachable inputs or relax coverage budgets. Record remaining coverage
+and distinguish these focused checks from the required full integration gate.
+
+The CLI cleanup must still run when closing its file fails, including after a
+failed flush. A failed command must attempt to remove its newly created private
+configuration; cleanup must not print raw filesystem/network diagnostics. T018
+includes fault-injected close and combined flush/close regressions on real files.

@@ -5,8 +5,11 @@ MCP fait partie de la V1. Il utilise le serveur de votre installation : ouvrez
 Une connexion représente votre délégation, sans créer de compte supplémentaire.
 
 Choisissez un nom, les actions utiles, les branches autorisées et l'accès aux
-fichiers. Une branche inclut ses descendants. Recherche et lecture sont des
-permissions distinctes. L'option « Tout l’espace, y compris le futur contenu » doit être choisie
+fichiers. Une branche inclut ses descendants dans la hiérarchie. Une vue de base
+liée ne déplace pas ses pages : afficher une source dans une branche ne donne pas
+accès aux pages indépendantes de cette source. Autorisez leur branche réelle ou
+choisissez explicitement tout l’espace si ce périmètre convient. Recherche et
+lecture sont des permissions distinctes. L'option « Tout l’espace, y compris le futur contenu » doit être choisie
 explicitement. Les accès expirent après 90 jours par défaut ; vous pouvez réduire
 la durée ou reconnaître explicitement le risque d'un accès sans expiration.
 Une authentification récente est nécessaire pour autoriser ou révoquer.

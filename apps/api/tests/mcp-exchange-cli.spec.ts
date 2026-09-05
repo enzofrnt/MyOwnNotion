@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { connectMcp } from "../src/mcp/exchange-cli.ts";
+import { connectMcp, runMcpConnect } from "../src/mcp/exchange-cli.ts";
 
 const fileFault = vi.hoisted(() => ({ kind: "" }));
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -12,6 +12,15 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     ...actual,
     open: async (...args: Parameters<typeof actual.open>) => {
       const file = await actual.open(...args);
+      if (["sync", "sync-close"].includes(fileFault.kind))
+        vi.spyOn(file, "sync").mockRejectedValue(new Error("private disk diagnostic"));
+      if (["close", "sync-close"].includes(fileFault.kind)) {
+        const close = file.close.bind(file);
+        vi.spyOn(file, "close").mockImplementation(async () => {
+          await close();
+          throw new Error("private close diagnostic");
+        });
+      }
       if (fileFault.kind !== "") {
         const original = file.stat.bind(file);
         vi.spyOn(file, "stat").mockImplementation(async () => {
@@ -25,6 +34,66 @@ vi.mock("node:fs/promises", async (importOriginal) => {
       return file;
     },
   };
+});
+
+it.each([
+  "network",
+  "refused",
+  "json",
+  "missing-token",
+  "bad-token",
+  "wrong-type",
+  "sync",
+  "close",
+  "sync-close",
+])("removes incomplete credentials and prints no secret after %s failure", async (failure) => {
+  const { input, exchange, token } = await fixture();
+  if (failure === "network") exchange.mockRejectedValue(new Error(`private network ${token}`));
+  if (failure === "refused") exchange.mockResolvedValue(Response.json({ token }, { status: 403 }));
+  if (failure === "json") exchange.mockResolvedValue(new Response(`invalid JSON ${token}`));
+  if (failure === "missing-token")
+    exchange.mockResolvedValue(Response.json({ tokenType: "Bearer" }));
+  if (failure === "bad-token")
+    exchange.mockResolvedValue(Response.json({ accessToken: "invalid", tokenType: "Bearer" }));
+  if (failure === "wrong-type")
+    exchange.mockResolvedValue(Response.json({ accessToken: token, tokenType: "Other" }));
+  if (["sync", "close", "sync-close"].includes(failure)) fileFault.kind = failure;
+  const lines: string[] = [];
+  expect(
+    await runMcpConnect(
+      ["--server", input.server, "--code-file", input.codeFile, "--output", input.output],
+      (line) => lines.push(line),
+    ),
+  ).toBe(1);
+  expect(exchange).toHaveBeenCalledOnce();
+  expect(lines.join("\n")).not.toContain(token);
+  expect(lines.join("\n")).not.toContain("private network");
+  expect(lines.join("\n")).not.toContain("private disk");
+  expect(lines.join("\n")).not.toContain("private close");
+  await expect(stat(input.output)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(input.codeFile, "utf8")).toMatch(/^mn_exchange_/);
+});
+
+it("rejects a malformed code before exchanging and leaves an existing output unchanged", async () => {
+  const { input, exchange } = await fixture();
+  await writeFile(input.codeFile, "private invalid code");
+  await writeFile(input.output, "existing private settings");
+  await expect(connectMcp(input)).rejects.toThrow("code file is invalid");
+  expect(exchange).not.toHaveBeenCalled();
+  expect(await readFile(input.output, "utf8")).toBe("existing private settings");
+});
+
+it("reports a successful CLI setup without printing credentials", async () => {
+  const { input, token } = await fixture();
+  const lines: string[] = [];
+  expect(
+    await runMcpConnect(
+      ["--server", input.server, "--code-file", input.codeFile, "--output", input.output],
+      (line) => lines.push(line),
+    ),
+  ).toBe(0);
+  expect(lines.join("\n")).toContain("configuration created");
+  expect(lines.join("\n")).not.toContain(token);
 });
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");

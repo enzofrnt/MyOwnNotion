@@ -72,8 +72,13 @@ export async function connectMcp(input: {
     await output.sync();
     written = true;
   } finally {
-    await output.close();
-    if (!written) await unlink(input.output);
+    let closed = false;
+    try {
+      await output.close();
+      closed = true;
+    } finally {
+      if (!written || !closed) await unlink(input.output);
+    }
   }
 }
 export async function runMcpConnect(

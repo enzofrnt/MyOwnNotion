@@ -12,7 +12,8 @@ import type { McpGrantResult, McpScope } from "@myownnotion/contracts";
 import { schema } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { McpAccessService } from "../src/mcp/access-service.ts";
 import { connectMcp, runMcpConnect } from "../src/mcp/exchange-cli.ts";
 import { createItemViaApi } from "./helpers/app.ts";
 import {
@@ -160,6 +161,13 @@ describe("scoped MCP through the real official HTTP client", () => {
     });
     expect(stale.statusCode).toBe(428);
     expect(stale.json().code).toBe("recent_authentication_required");
+    const staleRevoke = await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/mcp/connections/${granted.connection.id}/revoke`,
+      headers,
+    });
+    expect(staleRevoke.statusCode).toBe(428);
+    expect(staleRevoke.json().code).toBe("recent_authentication_required");
   });
   it("discovers real tools and creates/reads/renames/trashes encrypted canonical content with safe replay", async () => {
     const { client } = await connect();
@@ -468,6 +476,9 @@ describe("scoped MCP through the real official HTTP client", () => {
     });
     expect(Buffer.from(second.value.data, "base64")).toEqual(bytes.subarray(4));
     expect(second.value.nextOffset).toBeNull();
+    const eof = await call(allowed.client, "read_file", { itemId: fileId, offset: bytes.length });
+    expect(eof.isError).toBe(false);
+    expect(eof.value).toMatchObject({ data: "", nextOffset: null });
     expect(
       (await call(allowed.client, "read_file", { itemId: fileId, offset: bytes.length + 1 }))
         .isError,
@@ -542,6 +553,52 @@ describe("scoped MCP through the real official HTTP client", () => {
       await writeFile(harness.deploymentKeyFile, key, { mode: 0o600 });
     }
   });
+  it("refuses editing a malformed protected document without rewriting its bytes", async () => {
+    const { client } = await connect();
+    const content = harness.api.built.context.protectedContent;
+    if (content === undefined) throw new Error("Missing protected-content fixture");
+    const invalidBody = {
+      blocks: [
+        {
+          id: generateUuidV7(),
+          type: "heading",
+          level: 9,
+          content: [{ text: "Preserve malformed content" }],
+        },
+      ],
+    };
+    await content.writePageBody(harness.api.built.database.db, {
+      pageId: secretId,
+      recordVersion: 1,
+      body: invalidBody,
+    });
+    await harness.api.built.database.db
+      .update(schema.pageDocuments)
+      .set({ formatVersion: 3 })
+      .where(eq(schema.pageDocuments.pageId, secretId));
+    const read = await call(client, "read_item", { itemId: secretId });
+    expect(read.isError).toBe(false);
+    expect(read.value.documentDigest).toBeNull();
+    expect(read.value.pageDocument.body).toEqual(invalidBody);
+    const refused = await call(client, "edit_page", {
+      mutationId: generateUuidV7(),
+      pageId: secretId,
+      expectedRevisionId: read.value.currentRevisionId,
+      expectedDocumentDigest: "0".repeat(64),
+      commands: [
+        {
+          type: "insert-paragraph",
+          blockId: generateUuidV7(),
+          parentBlockId: null,
+          beforeBlockId: null,
+          text: "Must not replace malformed content",
+        },
+      ],
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.value.code).toBe("mcp.invalid-document");
+    expect(await call(client, "read_item", { itemId: secretId })).toEqual(read);
+  });
   it("supports the2025 stateless handshake and rejects malformed transport input", async () => {
     const { accessToken } = await connect();
     const transportHeaders = {
@@ -603,6 +660,348 @@ describe("scoped MCP through the real official HTTP client", () => {
     expect(subscription.status, subscriptionBody).toBe(200);
     expect(subscriptionBody).toContain("Subscription limit reached");
   });
+  it("paginates permitted direct children and scoped search without exposing private results", async () => {
+    const expected: string[] = [];
+    for (let index = 0; index < 3; index++) {
+      expected.push(
+        (
+          await createItemViaApi(harness.api, {
+            kind: "page",
+            name: `Paginated permitted ${index}`,
+            parentItemId: branchId as import("@myownnotion/domain").Uuid,
+            headers,
+          })
+        ).itemId,
+      );
+    }
+    await createItemViaApi(harness.api, {
+      kind: "page",
+      name: "Paginated hidden sibling",
+      headers,
+    });
+    const { client } = await connect({
+      actions: ["read", "search"],
+      allContent: false,
+      branchRootIds: [branchId],
+      files: false,
+    });
+    const listed: string[] = [];
+    let afterId: string | undefined;
+    do {
+      const result = await call(client, "list_items", {
+        parentId: branchId,
+        limit: 1,
+        ...(afterId === undefined ? {} : { afterId }),
+      });
+      expect(result.isError).toBe(false);
+      listed.push(...result.value.items.map((item: { id: string }) => item.id));
+      afterId = result.value.nextAfterId ?? undefined;
+    } while (afterId !== undefined);
+    expect(listed).toEqual(expected.sort());
+    expect((await call(client, "list_items", { parentId: secretId })).isError).toBe(true);
+    expect((await call(client, "read_item", { itemId: branchId })).value.documentDigest).toBeNull();
+    expect((await call(client, "search", { query: "Paginated" })).value.code).toBe(
+      "mcp.branch-required",
+    );
+    await harness.api.built.context.search?.rebuild();
+    const found: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const result = await call(client, "search", {
+        query: "Paginated",
+        branchRootId: branchId,
+        limit: 1,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      expect(result.isError, JSON.stringify(result)).toBe(false);
+      expect(JSON.stringify(result)).not.toContain("hidden sibling");
+      found.push(...result.value.results.map((item: { itemId: string }) => item.itemId));
+      cursor = result.value.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+    expect(found.sort()).toEqual(expected);
+    const searchOnly = await connect({ ...allScope, actions: ["search"] });
+    expect((await searchOnly.client.listTools()).tools.map(({ name }) => name)).toEqual(["search"]);
+    expect((await call(searchOnly.client, "search", { query: "Paginated" })).isError).toBe(false);
+  });
+
+  it("replays rename and trash safely and refuses reuse of an owner or different-action mutation", async () => {
+    const { client } = await connect();
+    const id = generateUuidV7();
+    expect(
+      (
+        await call(client, "create_item", {
+          mutationId: generateUuidV7(),
+          id,
+          kind: "folder",
+          name: "Root MCP folder",
+          parentId: null,
+        })
+      ).isError,
+    ).toBe(false);
+    const rename = { mutationId: generateUuidV7(), itemId: id, name: "Retried title" };
+    const first = await call(client, "rename_item", rename);
+    expect(first.isError).toBe(false);
+    expect(await call(client, "rename_item", rename)).toEqual(first);
+    expect(
+      (await call(client, "trash_item", { mutationId: rename.mutationId, itemId: id })).value.code,
+    ).toBe("mcp.mutation-conflict");
+    expect((await call(client, "rename_item", { ...rename, itemId: secretId })).value.code).toBe(
+      "mcp.mutation-conflict",
+    );
+    const collision = await call(client, "create_item", {
+      mutationId: generateUuidV7(),
+      id: secretId,
+      kind: "page",
+      name: "Must not overwrite the owner page",
+      parentId: null,
+    });
+    expect(collision.isError).toBe(true);
+    expect(collision.value.code).toBe("mutation.duplicate");
+    const ownerMutation = generateUuidV7();
+    const ownerItem = await harness.api.built.app.inject({
+      method: "GET",
+      url: `/v1/items/${secretId}`,
+      headers,
+    });
+    const ownerWrite = await harness.api.built.app.inject({
+      method: "PATCH",
+      url: `/v1/items/${secretId}`,
+      headers: { ...headers, "idempotency-key": ownerMutation },
+      payload: {
+        name: "Owner committed title",
+        baseRevisionId: ownerItem.json().currentRevisionId,
+      },
+    });
+    expect(ownerWrite.statusCode, ownerWrite.body).toBe(200);
+    expect(
+      (await call(client, "rename_item", { ...rename, mutationId: ownerMutation })).value.code,
+    ).toBe("mcp.mutation-conflict");
+    const trash = { mutationId: generateUuidV7(), itemId: id };
+    const trashed = await call(client, "trash_item", trash);
+    expect(trashed.isError).toBe(false);
+    expect(await call(client, "trash_item", trash)).toEqual(trashed);
+  });
+
+  it("reports pending, expired, revoked and missing-exchange inventories without credential recovery", async () => {
+    const pending = await grant();
+    const unlimited = await grant(allScope, { lifetimeDays: null, acknowledgeUnlimited: true });
+    const unlimitedExchange = await exchange(unlimited.exchangeCode);
+    expect(unlimitedExchange.json().expiresAt).toBeNull();
+    const missing = await grant();
+    const revoked = await grant();
+    await harness.api.built.database.db
+      .delete(schema.mcpExchangeTokens)
+      .where(eq(schema.mcpExchangeTokens.connectionId, missing.connection.id));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await harness.api.built.app.inject({
+        method: "POST",
+        url: `/v1/mcp/connections/${revoked.connection.id}/revoke`,
+        headers,
+      });
+      expect(result.statusCode).toBe(204);
+    }
+    expect((await exchange(revoked.exchangeCode)).statusCode).toBe(401);
+    expect((await exchange(`mn_exchange_${"a".repeat(43)}`)).statusCode).toBe(401);
+    const inventory = async () =>
+      (
+        await harness.api.built.app.inject({ method: "GET", url: "/v1/mcp/connections", headers })
+      ).json().connections as Array<{ id: string; status: string }>;
+    expect(await inventory()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: pending.connection.id, status: "pending" }),
+        expect.objectContaining({ id: unlimited.connection.id, status: "active" }),
+        expect.objectContaining({ id: missing.connection.id, status: "expired" }),
+        expect.objectContaining({ id: revoked.connection.id, status: "revoked" }),
+      ]),
+    );
+    now = new Date(now.getTime() + 600_000);
+    expect(await inventory()).toContainEqual(
+      expect.objectContaining({ id: pending.connection.id, status: "expired" }),
+    );
+    await harness.api.built.database.db
+      .update(schema.mcpConnections)
+      .set({ expiresAt: now })
+      .where(eq(schema.mcpConnections.id, unlimited.connection.id));
+    expect(await inventory()).toContainEqual(
+      expect.objectContaining({ id: unlimited.connection.id, status: "expired" }),
+    );
+    await harness.api.built.database.db.execute(
+      sql`DELETE FROM protected_envelopes WHERE entity_type='mcp.label' AND entity_id=${missing.connection.id}`,
+    );
+    const unavailable = await harness.api.built.app.inject({
+      method: "GET",
+      url: "/v1/mcp/connections",
+      headers,
+    });
+    expect(unavailable.statusCode).toBeGreaterThanOrEqual(500);
+    expect(unavailable.body).not.toContain("Private assistant label");
+  });
+
+  it("refuses unavailable installation and owner state without consuming a pending exchange", async () => {
+    const { accessToken } = await connect();
+    const pending = await grant();
+    for (const state of ["degraded", "migration-in-progress", "recovery-required"]) {
+      await harness.api.built.database.db.execute(sql`UPDATE installations SET state=${state}`);
+      expect((await exchange(pending.exchangeCode)).statusCode).toBe(503);
+      expect(
+        (await fetch(`${origin}/mcp`, { headers: { authorization: `Bearer ${accessToken}` } }))
+          .status,
+      ).toBe(503);
+    }
+    await harness.api.built.database.db.execute(sql`UPDATE installations SET state='ready'`);
+    await harness.api.built.database.db.execute(sql`UPDATE owners SET state='recovery-required'`);
+    expect((await exchange(pending.exchangeCode)).statusCode).toBe(503);
+    await harness.api.built.database.db.execute(sql`UPDATE owners SET state='active'`);
+    expect((await exchange(pending.exchangeCode)).statusCode).toBe(200);
+    expect(
+      (
+        await fetch(`${origin}/mcp`, {
+          headers: { authorization: `Bearer mn_mcp_${"x".repeat(43)}` },
+        })
+      ).status,
+    ).toBe(401);
+  });
+
+  it("enforces exchange and request budgets before consuming credentials and recovers after the window", async () => {
+    const { accessToken } = await connect();
+    const pending = await grant();
+    const foreign = await harness.api.built.app.inject({
+      method: "POST",
+      url: "/mcp/exchange",
+      headers: { origin: "https://foreign.invalid" },
+      payload: { code: pending.exchangeCode },
+    });
+    expect(foreign.statusCode).toBe(403);
+    await harness.api.built.database.db.execute(
+      sql`UPDATE security_rate_limits SET attempt_count=20 WHERE bucket_key LIKE 'mcp.exchange:%'`,
+    );
+    expect((await exchange(pending.exchangeCode)).statusCode).toBe(429);
+    await harness.api.built.database.db.execute(
+      sql`UPDATE security_rate_limits SET attempt_count=299 WHERE bucket_key LIKE 'mcp.request:%'`,
+    );
+    const request = () =>
+      fetch(`${origin}/mcp`, { headers: { authorization: `Bearer ${accessToken}` } });
+    expect((await request()).status).toBe(405);
+    expect((await request()).status).toBe(429);
+    now = new Date(now.getTime() + 60_001);
+    expect((await request()).status).toBe(405);
+    expect((await exchange(pending.exchangeCode)).statusCode).toBe(200);
+    for (const url of ["/v1/mcp/connections", "/v1/mcp/audit"])
+      expect((await harness.api.built.app.inject({ method: "GET", url })).statusCode).toBe(401);
+  });
+
+  it("rejects unavailable roots, edits of a folder and missing file content", async () => {
+    const { client } = await connect();
+    const expiredRoot = generateUuidV7();
+    const response = await harness.api.built.app.inject({
+      method: "POST",
+      url: "/v1/mcp/connections",
+      headers,
+      payload: {
+        label: "Missing root",
+        scope: { ...allScope, allContent: false, branchRootIds: [expiredRoot] },
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(
+      (
+        await call(client, "edit_page", {
+          mutationId: generateUuidV7(),
+          pageId: branchId,
+          expectedRevisionId: generateUuidV7(),
+          expectedDocumentDigest: "0".repeat(64),
+          commands: [{ type: "delete-block", blockId: generateUuidV7() }],
+        })
+      ).isError,
+    ).toBe(true);
+    expect((await call(client, "read_file", { itemId: branchId })).isError).toBe(true);
+    const search = harness.api.built.context.search;
+    if (search === undefined) throw new Error("Missing search fixture");
+    vi.spyOn(search, "search").mockRejectedValueOnce(new Error("private unavailable query"));
+    const unavailable = await call(client, "search", { query: "private unavailable query" });
+    expect(unavailable.isError).toBe(true);
+    expect(JSON.stringify(unavailable)).not.toContain("private unavailable query");
+    vi.restoreAllMocks();
+    Object.defineProperty(harness.api.built.context, "search", { value: undefined });
+    try {
+      const disabled = await call(client, "search", { query: "private unavailable query" });
+      expect(disabled.isError).toBe(true);
+      expect(disabled.value.code).toBe("mcp.search-unavailable");
+    } finally {
+      Object.defineProperty(harness.api.built.context, "search", { value: search });
+    }
+  });
+
+  it("sanitizes failed management dependencies and preserves the unconsumed exchange", async () => {
+    const pending = await grant();
+    try {
+      vi.spyOn(McpAccessService.prototype, "grant").mockRejectedValueOnce(
+        new Error("Private storage diagnostic"),
+      );
+      const failedGrant = await harness.api.built.app.inject({
+        method: "POST",
+        url: "/v1/mcp/connections",
+        headers,
+        payload: { label: "Private assistant label", scope: allScope },
+      });
+      expect(failedGrant.statusCode).toBe(500);
+      expect(failedGrant.body).not.toContain("Private");
+      vi.spyOn(McpAccessService.prototype, "exchange").mockRejectedValueOnce(
+        new Error(`Private storage diagnostic ${pending.exchangeCode}`),
+      );
+      const failedExchange = await exchange(pending.exchangeCode);
+      expect(failedExchange.statusCode).toBe(500);
+      expect(failedExchange.body).not.toContain("Private");
+      expect(failedExchange.body).not.toContain(pending.exchangeCode);
+    } finally {
+      vi.restoreAllMocks();
+    }
+    const retried = await harness.api.built.app.inject({
+      method: "POST",
+      url: "/mcp/exchange",
+      headers: { origin: "http://127.0.0.1:5173" },
+      payload: { code: pending.exchangeCode },
+    });
+    expect(retried.statusCode, retried.body).toBe(200);
+  });
+
+  it("orders simultaneous lifecycle audit events deterministically without credentials", async () => {
+    const pending = await grant();
+    await exchange(pending.exchangeCode);
+    await harness.api.built.app.inject({
+      method: "POST",
+      url: `/v1/mcp/connections/${pending.connection.id}/revoke`,
+      headers,
+    });
+    // Timestamp resolution can coincide for concurrent operations: the ID is the tie breaker.
+    await harness.api.built.database.db.update(schema.securityAuditEvents).set({ occurredAt: now });
+    const response = await harness.api.built.app.inject({
+      method: "GET",
+      url: "/v1/mcp/audit",
+      headers,
+    });
+    expect(response.statusCode).toBe(200);
+    const events = response.json().events as Array<{
+      id: string;
+      action: string;
+      connectionId: string;
+    }>;
+    expect(events.map(({ id }) => id)).toEqual(
+      events
+        .map(({ id }) => id)
+        .sort()
+        .reverse(),
+    );
+    expect(events.map(({ action }) => action).sort()).toEqual([
+      "mcp.exchanged",
+      "mcp.granted",
+      "mcp.revoked",
+    ]);
+    expect(events.every(({ connectionId }) => connectionId === pending.connection.id)).toBe(true);
+    expect(response.body).not.toContain(pending.exchangeCode);
+    expect(response.body).not.toContain("Private assistant label");
+  });
+
   it("exchanges through the CLI into a new private config without printing or overwriting credentials", async () => {
     const directory = await mkdtemp(join(tmpdir(), "mcp-cli-"));
     try {

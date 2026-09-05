@@ -28,3 +28,37 @@ The real official HTTP client suite also passes with the corrected helper:
 19 cases across the two MCP integration/CLI suites, including actual exchange,
 private configuration creation, expiry/scope/revocation and operational edits.
 Log: `/tmp/mon-mcp-private-config-integrated.log`.
+
+## Boundary verification and cleanup — T018
+
+The refinement remains within FR-002–FR-009 and was recorded in plan/tasks before
+implementation. The only production change is the CLI close/cleanup correction
+in `apps/api/src/mcp/exchange-cli.ts`: failure of `close()` previously prevented
+cleanup, including after a failed flush. Two real-file fault-injection cases
+reproduced retained private credentials; both now pass with all 45 focused tests.
+API types and focused Biome pass. Full integration and delivery remain T016.
+See [the reproducible evidence](quickstart.md#mcp-boundary-evidence--t018-2026-09-05).
+
+T018 reduced uncovered MCP branches from 65 to 12 without exclusions, artificial
+unreachable inputs or relaxed budgets. Remaining branches are explicitly retained:
+
+- `access-service.ts:49`: the synthetic owner ID fallback; SQL's
+  `installations_counts_check` guarantees an owner on a ready installation.
+- `exchange-cli.ts:130`: standalone process entry, already exercised through a
+  real child CLI but outside this Istanbul worker's instrumentation.
+- `tools.ts:169,170,221`: defensive result/cursor fallbacks. Canonical
+  `submitMutation`/`replayResult` supply a problem on rejection and revision IDs
+  on acceptance; positive pagination limits ensure a selected last item.
+- `tools.ts:234,236,409,421,424`: defensive missing-record/resolved-document
+  checks. Authorization and reads share serializable transactions;
+  `resolveProtectedContent` preserves the input cardinality. These guards remain
+  useful at typed storage boundaries and were not replaced with type assertions.
+- `routes/mcp.ts:22,59`: inventory/audit owner refusals are already enforced by
+  the global authenticated HTTP preHandler before reaching the route. Actual
+  anonymous requests are tested and refused.
+
+These figures do not establish whether the combined coverage gate passes; other
+features and their cross-module evidence must be measured together. No gate or
+main/CI result is claimed here. Hierarchy scope also remains unchanged by 026:
+embedding a linked source grants no access to independent pages; the owner guide
+now explains that boundary.
