@@ -163,3 +163,30 @@ de toutes les fenêtres ne survient et qu'une seule fenêtre finale subsiste.
 La copie de sources du conteneur exclut les fichiers AppleDouble générés par
 l'archivage macOS ; ces métadonnées ne sont pas des migrations SQL du dépôt.
 La nouvelle passe complète locale et la CI Windows restent nécessaires.
+
+### WebKit parity follow-up — 2026-09-05
+
+The first PR run `33945354096` exposed two browser failures in addition to the
+native fixture/window failures addressed by `5170f415`:
+
+- WebKit mobile lost the remembered long-page scroll position on both attempts.
+  The restoration effect consumed its pending anchor before its first animation
+  frame; a refreshed presentation-state object canceled that frame and the next
+  effect had no pending anchor. Restoration now follows page readiness and
+  activation, snapshots the remembered anchor for that activation, scopes DOM
+  reads to the actual editor, waits for blocks, and yields to a new user gesture.
+  Three lifecycle regressions fail against the previous effect and pass against
+  the correction. The real mobile journey passes 5/5 without retries.
+- WebKit desktop submitted an empty Owner value in the structured convergence
+  journey. The retained trace shows the bulk fill completing without the field
+  acquiring the requested text. The test now enters the properties with actual
+  keyboard events and checks each visible draft before saving. The existing
+  second-device, offline restart, compatible merge and same-field conflict
+  assertions remain. The complete journey passes 5/5 without retries. An earlier
+  instrumented diagnostic series had 9 passes and one WebKit internal navigation
+  error; that series is not represented as green or as a reproduction of the
+  empty-property failure.
+
+Whole-workspace TypeScript and targeted lifecycle tests pass. These changes
+still require the complete pre-push gate and fresh PR/main checks; the native
+signing and installed-update release evidence remains separately outstanding.

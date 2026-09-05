@@ -262,3 +262,7 @@ fichier concret.
 
 - [ ] T088 Correct native CI fixture setup in `.github/workflows/desktop-ci.yml` and `scripts/ci/prepare-windows-postgres.ts`: use the existing Compose PostgreSQL on Linux and Windows system bsdtar for drive-letter archives; validate both runner architectures without skipping native journeys.
 - [X] T089 Preserve a live window throughout profile partition replacement in `apps/desktop/src/main.ts`, avoiding the Windows/Linux last-window quit policy; assert no all-windows-closed event during real onboarding in `tests/e2e/desktop-onboarding.spec.ts`.
+
+- [X] T090 Preserve pending page scroll restoration across presentation-state refreshes in `apps/web/src/features/editor/` and verify real mobile navigation plus cancellation before the first animation frame; exposed by the full browser parity CI.
+
+- [X] T091 Exercise database property entry with real keyboard input and assert the visible draft before saving in `tests/e2e/databases-offline-sync.spec.ts`; retain the strict second-device persistence and offline merge checks after WebKit CI submitted an empty Owner draft.
