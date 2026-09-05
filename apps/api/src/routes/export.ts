@@ -29,6 +29,7 @@ import {
 import { Type } from "@sinclair/typebox";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { AppContext } from "../context.ts";
 import { sendProblem } from "../plugins/errors.ts";
 import {
@@ -299,10 +300,13 @@ export function registerExportRoutes(app: FastifyInstance, context: AppContext):
     },
     async (_request, reply) => {
       const exportId = generateUuidV7();
-      await context.db.insert(schema.exports).values({
-        id: exportId,
-        workspaceId: context.workspaceId,
-        status: "pending",
+      await context.db.transaction(async (tx) => {
+        await shareFullFileMutation(tx);
+        await tx.insert(schema.exports).values({
+          id: exportId,
+          workspaceId: context.workspaceId,
+          status: "pending",
+        });
       });
       // Asynchronous processing; status is polled through GET.
       setImmediate(() => {

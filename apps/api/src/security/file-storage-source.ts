@@ -1,7 +1,7 @@
 /** Validated historical file inventory and bounded reads for the protected transition. */
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, open, readdir } from "node:fs/promises";
+import { lstat, open, readdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { type Database, schema, type Transaction } from "@myownnotion/database";
 import { generateUuidV7, isUuid } from "@myownnotion/domain";
@@ -213,4 +213,38 @@ export async function inventoryLegacyFileSources(
   return sources.sort(
     (a, b) => a.kind.localeCompare(b.kind) || a.objectId.localeCompare(b.objectId),
   );
+}
+
+/** Retire only an unchanged verified source, and make removal durable before checkpointing. */
+export async function retireLegacyFileSource(
+  root: string,
+  source: LegacyFileSource,
+): Promise<void> {
+  if (!validPath(source.path)) throw new Error("Invalid historical retirement path.");
+  let target: string;
+  try {
+    target = await sourcePath(root, source.path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    // No parent directory means no readable source remains at this inventoried path.
+    return;
+  }
+  try {
+    const metadata = await lstat(target);
+    if (!metadata.isFile() || metadata.isSymbolicLink())
+      throw new Error("Unsafe historical retirement source.");
+    for await (const _ of readLegacyFileSource(root, source)) {
+      /* verify source before unlink */
+    }
+    await rm(target);
+  } catch (error) {
+    // A previous unlink may have completed before its SQL checkpoint committed.
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const directory = await open(dirname(target), "r");
+  try {
+    await directory.sync();
+  } finally {
+    await directory.close();
+  }
 }

@@ -1,7 +1,7 @@
 # Fichiers : ce qui est garanti et pourquoi
 
-Trois règles gouvernent le traitement des fichiers. Chacune existe parce que
-l'implémentation évidente coûte quelque chose à l'utilisateur.
+Les règles suivantes couvrent les prévisualisations, la disponibilité locale et
+la durabilité du stockage serveur.
 
 ## 1. Une prévisualisation ne reçoit jamais l'espace de travail
 
@@ -98,31 +98,58 @@ Un transfert en cours ne possède ni item ni placement. « Un transfert partiel
 n'apparaît jamais comme un fichier complet » est donc une propriété de la forme
 des données, pas un contrôle qu'il faut penser à écrire.
 
-**Un upload partiel n'est pas un blob.** Un blob est adressé par l'empreinte de
-son contenu, et un transfert inachevé n'a pas encore d'empreinte — c'est
-précisément ce qui le rend partiel. Le forcer dans le magasin de blobs
-demanderait soit d'inventer une clé qui n'est pas une empreinte, brisant l'unique
-invariant de ce magasin, soit de hacher à chaque morceau, ce qui pour un fichier
-de 2 Go signifie hacher 2 Go des centaines de fois. Les transferts en cours ont
-donc leur propre magasin, indexé par identité d'upload, et ne deviennent un blob
-qu'une fois complets — hachés une seule fois.
+Les octets complets et les préfixes tus sont chiffrés par morceaux authentifiés
+de 4 Mio. Leur manifeste lie chaque morceau à une identité de contenu ou
+d'upload, une version, un index, une taille et une génération de clé. Une lecture
+partielle authentifie les morceaux traversés ; une lecture complète vérifie
+aussi la taille et l'empreinte finales. Aucun repli vers des octets lisibles
+n'est admis lorsque le format annonce du contenu protégé.
 
-**L'ordre d'écriture est celui qui pardonne.** L'offset est enregistré en base
-*avant* que les octets soient ajoutés au fichier. Si l'enregistrement avance et
-que l'ajout échoue, le client se voit annoncer une position que le fichier n'a
-pas atteinte, et le `HEAD` suivant révèle l'écart. Dans l'autre ordre, le fichier
-contiendrait silencieusement un morceau dont rien ne rend compte.
+Le serveur publie et synchronise les fichiers chiffrés **avant** de valider en
+SQL le manifeste et l'offset. Un échec laisse donc l'ancien offset utilisable ;
+un éventuel morceau non référencé peut être collecté plus tard. Le verrou de
+l'upload et la comparaison de l'offset empêchent deux `PATCH` concurrents de
+s'approprier la même position. L'empreinte publique du texte clair n'est pas
+une clé de stockage : la recherche de doublons utilise un index secret, puis
+compare réellement les octets authentifiés avant réutilisation.
 
-La complétion est transactionnelle : hachage, déduplication, `verified_at`,
-fichier logique, placement, enregistrement de mutation et enveloppe de
-changement. Le fichier partiel n'est effacé qu'**après** la validation — l'effacer
-avant laisserait, sur un échec, un upload marqué complet dont les octets ont
-disparu.
+La complétion publie transactionnellement le contenu, le fichier logique, son
+placement et le résultat de mutation. Un reçu permet de rejouer une complétion
+dont la réponse a été perdue sans créer un second fichier. La collecte physique
+ne retire que des objets sans référence durable. Les lectures, les sauvegardes,
+les rotations et cette collecte partagent les mêmes verrous de maintenance.
 
-## Limite connue : recharger hors ligne
+## 5. La migration conserve une reprise vérifiable
 
-Le contenu marqué s'ouvre sans réseau **dans une session déjà chargée**.
-Recharger l'application hors ligne échoue, car la coquille elle-même n'est pas
-mise en cache : cela demanderait un service worker, hors du périmètre de la
-fonctionnalité 005. `validation.md` le consigne comme un manque plutôt que
-comme une exigence satisfaite.
+La mise à jour crée une sauvegarde complète avant ses premières modifications.
+Elle inventorie les anciens contenus, les préfixes acquittés, les octets
+orphelins et les métadonnées canoniques courantes/historiques. L'inventaire et
+chaque point de reprise sont eux-mêmes chiffrés et liés à cette sauvegarde.
+Les contenus partagés conservent leur UUID et leurs références ; les uploads
+conservent leur identité, leur position, leurs métadonnées et leur expiration.
+Les orphelins, y compris les queues non acquittées, sont conservés en quarantaine
+chiffrée avec un manifeste protégé.
+
+Chaque remplacement est authentifié et comparé à sa source. Les champs SQL
+sensibles deviennent des marqueurs et leurs lectures passent par les enveloppes
+protégées. La vérification globale précède la bascule ; la suppression de chaque
+original revalide son remplacement et synchronise le répertoire avant le point
+de reprise SQL. Un original déjà supprimé après une interruption reste une
+situation reprenable. Une transition incomplète bloque le démarrage et les
+mutations incompatibles. La version de l'application n'est enregistrée comme
+réussie qu'après la fin de cette transition et le contrôle canonique.
+
+Voir [le guide de sauvegarde](../deployment/backups.md) pour l'espace disque,
+la reprise et la restauration complète. Cette protection concerne le contenu
+logique courant et les fichiers applicatifs ; elle ne prétend pas effacer
+rétroactivement des WAL, pages PostgreSQL mortes ou snapshots externes.
+
+## Disponibilité après fermeture ou rechargement
+
+Le build web de production enregistre un service worker qui précache sa coque.
+Les réponses API restent hors de ce cache : les données disponibles sont celles
+de la projection locale. Le desktop utilise les assets de son paquet et le même
+modèle de disponibilité des contenus, sans enregistrer ce service worker.
+Un fichier déchargé ou jamais récupéré nécessite toujours une connexion pour
+obtenir ses octets ; la présence de la coque ne signifie pas que tous les
+fichiers sont conservés localement.

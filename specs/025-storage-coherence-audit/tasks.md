@@ -36,7 +36,7 @@ application-file sentinel inspection. Prove failures before wiring new paths.
 - [ ] T018 [US1] Extend data-key rewrite/checkpoint/count/revocation in `apps/api/src/security/` and security repositories to completed and partial chunks, with transactional generation reference checks and 024 lock ordering (FR-006/FR-008).
 - [ ] T019 [US1] Verify crash/retry/duplicate completion, empty/maximum files, corruption/substitution, missing keys, wrapping/data rotation and retained historical reads in `apps/api/tests/protected-files.integration.spec.ts` and `protected-file-rotation.integration.spec.ts` (SC-001/SC-002).
 - [ ] T020 [US1] Add real direct/resumable upload, rename, preview, offline/reconnect and range behavior journeys in `tests/e2e/protected-files.spec.ts`; use UI quality guidance for changed states (FR-013).
-- [ ] T021 [US1] Add isolated 2 GiB streaming/range memory verification in `tests/performance/protected-files.perf.spec.ts` and route it through the maintained performance gate with precise peak-memory evidence (SC-004).
+- [x] T021 [US1] Add isolated 2 GiB streaming/range memory verification in `tests/performance/protected-files.perf.spec.ts` and route it through the maintained performance gate with precise peak-memory evidence (SC-004).
 
 ## Phase 4: US2 — Historical storage transition (P1)
 
@@ -44,12 +44,12 @@ application-file sentinel inspection. Prove failures before wiring new paths.
 publication/checkpoint/cutover/cleanup boundary, resume and compare exact data.
 
 - [ ] T022 [US2] Create historical shared/history-only/partial/orphan fixtures and failing interruption/backup-refusal tests in `apps/api/tests/file-storage-migration.integration.spec.ts` (FR-007, SC-003).
-- [ ] T023 [US2] Implement durable inventory and per-object checkpoints in `apps/api/src/security/file-storage-migration.ts` and transition repositories, bound to the verified 024 source-backup identity (FR-007).
-- [ ] T024 [US2] Backfill completed/partial ciphertext and sensitive current/history metadata, verify replacements and preserve recoverable orphan data in encrypted quarantine in `apps/api/src/security/file-storage-migration.ts` (FR-002/FR-007).
+- [x] T023 [US2] Implement durable inventory and per-object checkpoints in `apps/api/src/security/file-storage-migration.ts` and transition repositories, bound to the verified 024 source-backup identity (FR-007).
+- [x] T024 [US2] Backfill completed/partial ciphertext and sensitive current/history metadata, verify replacements and preserve recoverable orphan data in encrypted quarantine in `apps/api/src/security/file-storage-migration.ts` (FR-002/FR-007).
 - [ ] T025 [US2] Implement verified cutover and resumable retirement of readable originals with explicit corruption/disk/key failures in `apps/api/src/security/file-storage-migration.ts` (FR-007/FR-008).
-- [ ] T026 [US2] Integrate transition before successful version bookkeeping in `apps/api/src/backup/guarded-migration.ts`; block startup/incompatible mutation paths while transition is incomplete (FR-007/FR-008).
+- [x] T026 [US2] Integrate transition before successful version bookkeeping in `apps/api/src/backup/guarded-migration.ts`; block startup/incompatible mutation paths while transition is incomplete (FR-007/FR-008).
 - [ ] T027 [US2] Prove every durable interruption, backup-before-write, concurrent writer/rotation boundary and logical/file sentinel cleanup in `apps/api/tests/file-storage-migration.integration.spec.ts` (SC-001/SC-003).
-- [ ] T028 [US2] Document disk-space needs, resumable recovery, encrypted quarantine, historical WAL/snapshot limits and complete rollback in `docs/deployment/backups.md` and `docs/architecture/file-handling.md` (FR-007/FR-011).
+- [x] T028 [US2] Document disk-space needs, resumable recovery, encrypted quarantine, historical WAL/snapshot limits and complete rollback in `docs/deployment/backups.md` and `docs/architecture/file-handling.md` (FR-007/FR-011).
 
 ## Phase 5: US3 — Recovery coherence (P1)
 

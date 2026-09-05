@@ -1,4 +1,5 @@
 /** Inspect first, protect the complete source, migrate, verify, then record the build. */
+import { join } from "node:path";
 import { ContentStore, FilesystemBlobStore, PartialUploadStore } from "@myownnotion/blob-store";
 import {
   createDatabase,
@@ -6,17 +7,23 @@ import {
   getOrCreateWorkspace,
   migrate,
   migrationInventory,
+  readStorageTransition,
   recordFullApplicationUpdate,
   unfinishedRestoration,
 } from "@myownnotion/database";
 import { validateCanonicalExport } from "@myownnotion/domain";
+import { sql } from "drizzle-orm";
 import pg from "pg";
 import type { AppContext } from "../context.ts";
 import { createProtectedFileRuntime } from "../files/protected-file-runtime.ts";
 import { PageOperationCrypto } from "../page-state/page-operation-crypto.ts";
 import { buildManifest } from "../routes/export.ts";
+import { FileStorageMigration } from "../security/file-storage-migration.ts";
+import { inventoryLegacyFileSources } from "../security/file-storage-source.ts";
 import type { BackupDestination } from "./destinations/destination.ts";
+import { VerifiedFullArchive } from "./full/archive.ts";
 import { acquireFullRunLock } from "./full/locks.ts";
+import { fullArchiveName } from "./full/receipts.ts";
 import { assertFullRestoreActivated } from "./full/restore-state.ts";
 import { FullBackupService } from "./full/service.ts";
 import { inspectFullSource } from "./full/source.ts";
@@ -66,16 +73,33 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
       );
     }
     const changingVersion = before.source.applicationVersion !== input.runningVersion;
-    let fullBackupId: string | null = null;
-    if (before.nonempty && (inventory.pending.length > 0 || changingVersion)) {
+    const hasTransitions =
+      (
+        await coordinator.query<{ present: boolean }>(
+          "SELECT to_regclass('public.file_storage_transitions') IS NOT NULL AS present",
+        )
+      ).rows[0]?.present === true;
+    const pendingTransition = hasTransitions
+      ? (
+          await coordinator.query<{ source_backup_id: string }>(
+            "SELECT source_backup_id FROM file_storage_transitions WHERE phase <> 'complete' LIMIT 1",
+          )
+        ).rows[0]
+      : undefined;
+    let fullBackupId: string | null = pendingTransition?.source_backup_id ?? null;
+    const backup = new FullBackupService({
+      connectionString: input.connectionString,
+      blobRoot: input.blobRoot,
+      backupRoot: input.backupRoot,
+      key: input.deploymentKey,
+      ...(input.remote === undefined ? {} : { remote: input.remote }),
+    });
+    if (
+      pendingTransition === undefined &&
+      before.nonempty &&
+      (inventory.pending.length > 0 || changingVersion)
+    ) {
       try {
-        const backup = new FullBackupService({
-          connectionString: input.connectionString,
-          blobRoot: input.blobRoot,
-          backupRoot: input.backupRoot,
-          key: input.deploymentKey,
-          ...(input.remote === undefined ? {} : { remote: input.remote }),
-        });
         const result = await backup.run("pre-update", coordinator);
         fullBackupId = result.manifest.backupId;
       } catch (error) {
@@ -107,6 +131,55 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
         workspaceId: workspace.id,
         deploymentKey: () => Buffer.from(input.deploymentKey()),
       });
+      const transition = await readStorageTransition(database.db, installationId);
+      const hasCanonicalData =
+        (
+          await database.db.execute<{ present: boolean }>(sql`SELECT
+        EXISTS (SELECT 1 FROM items) OR EXISTS (SELECT 1 FROM relationships) OR
+        EXISTS (SELECT 1 FROM uploads) OR EXISTS (SELECT 1 FROM file_contents) OR
+        EXISTS (SELECT 1 FROM exports) AS present`)
+        ).rows[0]?.present === true;
+      // An empty, unowned installation must not mint a data-key generation before bootstrap.
+      const needsTransition =
+        transition !== null ||
+        hasCanonicalData ||
+        (await inventoryLegacyFileSources(database.db, input.blobRoot)).length > 0;
+      if (needsTransition && transition?.phase !== "complete") {
+        if (fullBackupId === null) {
+          fullBackupId = (await backup.run("pre-update", coordinator)).manifest.backupId;
+        }
+        const migration = new FileStorageMigration({
+          db: database.db,
+          blobRoot: input.blobRoot,
+          files: protectedRuntime.files,
+          records: protectedRuntime.records,
+          verifySourceBackup: async (backupId) => {
+            const receipt = (await backup.verifiedReceipts()).find(
+              (entry) => entry.backupId === backupId,
+            );
+            if (receipt === undefined || receipt.reason !== "pre-update")
+              throw new UpdateRefusedError(
+                "The original verified pre-update archive is unavailable; storage migration cannot resume.",
+              );
+            const archive = await VerifiedFullArchive.open(
+              join(input.backupRoot, fullArchiveName(backupId)),
+              input.deploymentKey(),
+              input.backupRoot,
+            );
+            try {
+              if (
+                archive.manifest.backupId !== backupId ||
+                (archive.manifest.source.installationId !== null &&
+                  archive.manifest.source.installationId !== installationId)
+              )
+                throw new UpdateRefusedError("The source archive belongs to another installation.");
+            } finally {
+              await archive.close();
+            }
+          },
+        });
+        await migration.run(fullBackupId);
+      }
       const context: AppContext = {
         db: database.db,
         workspaceId: workspace.id,

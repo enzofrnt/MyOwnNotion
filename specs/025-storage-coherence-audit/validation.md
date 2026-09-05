@@ -262,3 +262,28 @@ Thirty focused metadata/file/read-fault tests pass, followed by both complete
 ordinary/structured metadata fixtures. API strict types and changed-source
 format/lint pass. The phase now reaches `metadata-protected`; global verification,
 cutover, source retirement and guarded-driver composition are still pending.
+
+
+The complete driver now verifies its authenticated inventory, commits global
+cutover, reauthenticates every replacement, durably unlinks its readable source
+and checkpoints retirement. Nine injected interruption boundaries all resume,
+including unlink before SQL acknowledgement. Shared content identities, partial
+upload offsets, unacknowledged tails and empty quarantine objects survive. The
+25-case file/canonical/guarded-migration suite passes. The real guarded upgrade
+uses the authenticated 024 receipt plus actual archive authentication; replacing
+that archive with invalid bytes blocks restart without recording the target
+version or creating substitute evidence. Restoring the same archive allows
+completion. Fresh empty installations still avoid pre-bootstrap data-key creation.
+
+The isolated 2 GiB ingest/full-read/chunk-crossing-range fixture passes with
+64.5 MiB additional RSS (228.3 MiB baseline, 292.8 MiB peak), below the 256 MiB
+budget. This first measurement uses the Vitest executable's Node host; the
+maintained Bun/--smol invocation is being checked separately. Evidence:
+`/tmp/mon-storage-guarded-resume.log`, `/tmp/mon-protected-files-memory.log`.
+The source-retirement behavior still needs the remaining explicit key/disk and
+end-to-end recovery checks plus the complete feature gate before delivery.
+
+The maintained Bun/--smol runtime also passes the same 2 GiB fixture: 107.0 MiB
+baseline RSS, 353.6 MiB peak and 246.6 MiB additional RSS over 12.66 seconds.
+This is below the required 256 MiB limit but leaves limited headroom; the full
+gate must reproduce it. Log: `/tmp/mon-protected-files-bun-memory.log`.

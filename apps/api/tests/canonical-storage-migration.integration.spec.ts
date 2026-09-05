@@ -117,6 +117,8 @@ it("resumes private historical metadata backfill without replacing authoritative
     expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe(
       "metadata-protected",
     );
+    await migration.finishVerification(transition.id);
+    await migration.cutover(transition.id);
     const read = await harness.owner({ method: "GET", url: `/v1/items/${page.itemId}` });
     expect(read.statusCode, read.body).toBe(200);
     expect(read.json()).toMatchObject({
@@ -275,6 +277,8 @@ it("protects historical database definitions, views and entry values while retai
     while (await migration.publishMetadataNext(transition.id)) {
       /* durable metadata batches */
     }
+    await migration.finishVerification(transition.id);
+    await migration.cutover(transition.id);
     const restoredDatabase = await harness.owner({
       method: "GET",
       url: `/v1/databases/${databaseId}`,
