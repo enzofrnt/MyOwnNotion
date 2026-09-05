@@ -154,3 +154,14 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
   explicitly expanded portable exports. All three focused Chromium accessibility,
   320px overflow and settings-history journeys pass. The full gate is rerun on
   the resulting commit, with no skipped required gate or relaxed assertion.
+## Prepared integration with current desktop and UI guidance
+
+The local backup branch now includes desktop code checkpoint `1159ce45` and
+the UI skill's pointer-cancellation/typography guidance. The only merge conflict
+was the introductory desktop plan: both the native ACL design and the shared
+UI pointer are retained, in the same order as the dedicated UI branch.
+Whole-workspace formatting, Biome and TypeScript pass:
+`/tmp/mon-backup-integration-format.log`, `/tmp/mon-backup-integration-lint.log`,
+`/tmp/mon-backup-integration-types.log`. No backup runtime code changed during
+this merge. This preparation does not claim a new complete local gate, a push
+or delivery; the final branch must incorporate verified main before those gates.

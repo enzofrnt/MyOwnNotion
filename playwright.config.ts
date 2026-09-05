@@ -106,6 +106,7 @@ export default defineConfig({
       // Serving the production bundle keeps the journey faithful to delivery
       // and avoids a cold browser fetching hundreds of Vite source modules.
       command: "bun run --filter @myownnotion/web preview",
+      stdout: process.env["MYOWNNOTION_E2E_SERVER_STDOUT"] === "1" ? "pipe" : "ignore",
       url: `http://${webHost}:${webPort}`,
       reuseExistingServer: !isCI,
       timeout: 120_000,

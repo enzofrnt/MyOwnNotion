@@ -27,7 +27,7 @@ function apiProxy() {
  */
 function portPolicy() {
   return {
-    port: Number(process.env["MYOWNNOTION_WEB_PORT"] ?? 5173),
+    port: Number(process.env["MYOWNNOTION_WEB_PORT"] || 5173),
     strictPort: true,
   };
 }
@@ -85,14 +85,18 @@ export default defineConfig({
     ],
   },
   plugins: [tailwindcss(), react()],
+  // Resolve paths/addresses here: Windows must not interpret POSIX shell defaults.
+  build: { outDir: process.env["MYOWNNOTION_WEB_DIST_DIR"] || "dist" },
   server: {
-    host: process.env["MYOWNNOTION_DEV_HTTPS_PROXY"] === "1" ? "0.0.0.0" : "127.0.0.1",
+    host:
+      process.env["MYOWNNOTION_WEB_HOST"] ||
+      (process.env["MYOWNNOTION_DEV_HTTPS_PROXY"] === "1" ? "0.0.0.0" : "127.0.0.1"),
     ...portPolicy(),
     proxy: apiProxy(),
     ...httpsProxyServer(),
   },
   preview: {
-    host: "127.0.0.1",
+    host: process.env["MYOWNNOTION_WEB_HOST"] || "127.0.0.1",
     ...portPolicy(),
     proxy: apiProxy(),
   },

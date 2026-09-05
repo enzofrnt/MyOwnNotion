@@ -71,6 +71,11 @@ Réserver les formes entièrement rondes aux contrôles dont la forme le justifi
 
 ## Lisibilité, clavier et superpositions
 
+- Réutiliser les polices, tailles et interlignes des tokens. Distinguer titre,
+  texte courant et aide avec une hiérarchie stable ; éviter de multiplier tailles
+  et graisses dans un même panneau. Garder un interligne confortable pour les
+  paragraphes. Un libellé long doit revenir à la ligne ou rester accessible ;
+  ne pas réduire la taille du texte pour le faire tenir dans un bouton.
 - Employer les couleurs de surface, texte, bordure, focus et état du thème ;
   ne pas placer des couleurs brutes dans chaque composant. Vérifier clair et sombre.
 - Garder un focus clavier visible. Le survol, la couleur ou une icône seuls ne

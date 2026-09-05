@@ -56,9 +56,8 @@ describe("Bun production artifacts", () => {
     const webPackage = JSON.parse(read("apps/web/package.json")) as {
       scripts?: Record<string, string>;
     };
-    expect(webPackage.scripts?.["preview"]).toContain(
-      `--outDir "\${MYOWNNOTION_WEB_DIST_DIR:-dist}"`,
-    );
+    // Serving configuration is resolved by Vite itself on every platform.
+    expect(webPackage.scripts?.["preview"]).toBe("vite preview");
 
     const container = read("scripts/test-e2e-firefox-container.sh");
     expect(container).toContain('container_web_dist="/tmp/myownnotion-e2e-web-dist"');

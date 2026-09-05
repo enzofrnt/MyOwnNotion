@@ -1,10 +1,5 @@
 # Implementation Plan: Applications Desktop Electron Windows, macOS et Linux
 
-**Phases UI** : charger le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
-pour la conception, la réalisation et la revue. Conserver les états, critères
-et preuves propres à cette feature dans ses artefacts ; cette référence ne
-valide pas rétroactivement les écrans existants.
-
 Native CI convergence (2026-09-05): Windows packages now build and launch, but
 their temporary API fixture must validate its deployment key using Windows ACLs,
 not synthetic POSIX mode bits. The loader retains owner-only enforcement: require
@@ -12,6 +7,11 @@ the current account as owner, protected inheritance and no allowed principal
 besides that account. The fixture sets that ACL explicitly. Linux/macOS retain
 0600/0400 validation. This adapts the native test host without changing the Linux
 server deployment target or bypassing the guarded migration.
+
+**Phases UI** : charger le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
+pour la conception, la réalisation et la revue. Conserver les états, critères
+et preuves propres à cette feature dans ses artefacts ; cette référence ne
+valide pas rétroactivement les écrans existants.
 
 **Branch**: `014-desktop-clients` | **Date**: 2026-08-16 | **Spec**: [spec.md](spec.md)
 
@@ -307,3 +307,15 @@ registered `/v1/page-sync/socket` route. An Upgrade header on any other route
 must retain ordinary owner and CSRF enforcement. Contracts reproduce anonymous
 HTTP reads and authenticated writes with forged Upgrade headers; native
 onboarding and cold offline restart verify the real socket still works.
+
+Windows fixture requests currently revalidate the mounted deployment-key ACL by
+starting PowerShell for each key lookup. Native logs show roughly 0.7 s per
+inspection and multi-second ordinary requests; replaying several offline writes
+misses the unchanged synchronization deadline. Keep permission enforcement and
+on-demand key-file reads. A bounded positive ACL cache may reuse only the
+permission verdict for an unchanged exact file identity and metadata change
+stamp, after verifying Bun's Windows stat mapping to NTFS ChangeTime. Validate
+identity before and after inspection; invalidate on replacement, content or ACL
+change, missing/unavailable metadata and inspection failure. Never retain key
+bytes in this cache. Native tests must warm the cache, grant another SID access
+and require immediate refusal, then verify repair and file replacement.
