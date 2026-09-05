@@ -47,3 +47,12 @@ payloads with transplanted inventory versions are refused. A remaining nullable
 legacy file route now explicitly refuses unresolved protected content until the
 streaming reader replaces it in T012. No deployment occurs at this intermediate
 boundary.
+
+T008 adds scoped ordered chunk references, protected upload format/version reads
+and bounded verified private-content candidate lookup. Integration cases prove
+atomic tail replacement, offset/reference rollback, refusal of scope substitution,
+missing uploads and invalid descriptors. A second SQL connection proves that
+generation retirement waits for an in-flight publication lock; retired keys
+remain readable and reject new writes, while revoked keys refuse reads. The
+existing upload lifecycle suite is included. These locks still require the
+rotation/revocation orchestration integration tracked by T018.

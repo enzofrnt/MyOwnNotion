@@ -27,10 +27,14 @@ export interface UploadRecord {
   readonly originalName: string;
   readonly attachmentParentItemId: Uuid | null;
   readonly storageKey: string;
+  readonly storageFormat: "legacy-v1" | "encrypted-chunks-v1";
+  readonly manifestVersion: number;
   readonly expiresAt: Date;
 }
 
 function toUploadRecord(row: typeof uploads.$inferSelect): UploadRecord {
+  if (row.storageFormat !== "legacy-v1" && row.storageFormat !== "encrypted-chunks-v1")
+    throw new Error("Unsupported upload storage format.");
   return {
     id: row.id as Uuid,
     declaredLength: row.declaredLength,
@@ -39,6 +43,8 @@ function toUploadRecord(row: typeof uploads.$inferSelect): UploadRecord {
     originalName: row.originalName,
     attachmentParentItemId: row.attachmentParentItemId as Uuid | null,
     storageKey: row.storageKey,
+    storageFormat: row.storageFormat,
+    manifestVersion: row.manifestVersion,
     expiresAt: row.expiresAt,
   };
 }
@@ -54,6 +60,7 @@ export async function createUpload(
     readonly declaredLength: number;
     readonly mediaType: string;
     readonly originalName: string;
+    readonly storageFormat?: "legacy-v1" | "encrypted-chunks-v1";
     readonly attachmentParentItemId?: Uuid;
     readonly now?: Date;
   },
@@ -71,6 +78,8 @@ export async function createUpload(
     // Keyed by the upload's own identity, so two uploads of the same bytes
     // never accumulate into one another's partial file.
     storageKey: `uploads/${id}`,
+    storageFormat: input.storageFormat ?? "legacy-v1",
+    manifestVersion: input.storageFormat === "encrypted-chunks-v1" ? 1 : 0,
     createdAt: now,
     expiresAt: new Date(now.getTime() + UPLOAD_TTL_MS),
   };
