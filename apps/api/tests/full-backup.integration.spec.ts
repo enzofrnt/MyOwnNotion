@@ -95,6 +95,7 @@ describe("complete server backup orchestration", () => {
       await archive.close();
     }
     expect(await backup.receipts.list()).toEqual([result.receipt]);
+    expect(await backup.retryRemote()).toBeNull();
     const persisted = await readFile(result.path);
     expect(persisted.includes(blob)).toBe(false);
     expect(
@@ -114,6 +115,7 @@ describe("complete server backup orchestration", () => {
     "invalid-blob-name",
     "symlink-blob",
     "invalid-upload-length",
+    "upload-is-directory",
   ])("refuses %s without a successful receipt or schema mutation", async (failure) => {
     const blobPath = join(blobRoot, digest.slice(0, 2), digest);
     if (failure === "missing-blob") await rm(blobPath);
@@ -130,6 +132,10 @@ describe("complete server backup orchestration", () => {
       await rm(blobPath);
       await symlink(join(blobRoot, "uploads", uploadId), blobPath);
     }
+    if (failure === "upload-is-directory") {
+      await rm(join(blobRoot, "uploads", uploadId));
+      await mkdir(join(blobRoot, "uploads", uploadId));
+    }
     if (failure === "invalid-upload-length")
       await client.query("UPDATE uploads SET received_length = -1 WHERE id = $1", [uploadId]);
     const backup = service();
@@ -141,6 +147,24 @@ describe("complete server backup orchestration", () => {
       (await client.query("SELECT to_regclass('public.schema_migrations') AS relation")).rows[0]
         .relation,
     ).toBeNull();
+  });
+
+  it("preserves a committed empty attachment as an authenticated zero-byte component", async () => {
+    const emptyDigest = createHash("sha256").update(Buffer.alloc(0)).digest("hex");
+    await mkdir(join(blobRoot, emptyDigest.slice(0, 2)), { recursive: true });
+    await writeFile(join(blobRoot, emptyDigest.slice(0, 2), emptyDigest), Buffer.alloc(0));
+    await client.query("INSERT INTO file_contents VALUES ($1)", [emptyDigest]);
+    const result = await service().run("manual");
+    const archive = await VerifiedFullArchive.open(result.path, key, directory);
+    try {
+      const index = archive.manifest.components.findIndex((part) =>
+        part.path.endsWith(emptyDigest),
+      );
+      expect(index).toBeGreaterThan(0);
+      expect(await bytes(archive.component(index))).toEqual(Buffer.alloc(0));
+    } finally {
+      await archive.close();
+    }
   });
 
   it("does not treat uncommitted atomic blob staging as a durable attachment", async () => {

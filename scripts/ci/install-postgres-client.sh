@@ -6,18 +6,18 @@ repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck disable=SC1091
 source /etc/os-release
 case "${ID}:${VERSION_ID}" in
-debian:13)
-    pg_suite=trixie-pgdg
-    pg_package=18.6-1.pgdg13+2
-    ;;
-ubuntu:24.04)
-    pg_suite=noble-pgdg
-    pg_package=18.6-1.pgdg24.04+2
-    ;;
-*)
-    printf 'Unsupported PostgreSQL client installation platform.\n' >&2
-    exit 1
-    ;;
+    debian:13)
+        pg_suite=trixie-pgdg
+        pg_package=18.6-1.pgdg13+2
+        ;;
+    ubuntu:24.04)
+        pg_suite=noble-pgdg
+        pg_package=18.6-1.pgdg24.04+2
+        ;;
+    *)
+        printf 'Unsupported PostgreSQL client installation platform.\n' >&2
+        exit 1
+        ;;
 esac
 
 install -m 0644 "${repo_root}/docker/postgresql-pgdg.asc" /usr/share/keyrings/myownnotion-postgresql.asc

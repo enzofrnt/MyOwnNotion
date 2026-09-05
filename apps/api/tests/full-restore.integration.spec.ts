@@ -12,6 +12,7 @@ import { runFullBackupCommand } from "../src/admin/full-backup-commands.ts";
 import { buildApp } from "../src/app.ts";
 import { FullBackupActivities } from "../src/backup/full/activity.ts";
 import { PostgresFullBackupTools } from "../src/backup/full/postgres.ts";
+import { rehearseFullBackup } from "../src/backup/full/rehearsal.ts";
 import { activateFullRestore, restoreFullBackup } from "../src/backup/full/restore.ts";
 import {
   assertFullRestoreActivated,
@@ -234,6 +235,25 @@ describe("full restore and explicit security activation", () => {
     }
   });
 
+  it("refuses a restore path whose parent is a file before changing its empty database", async () => {
+    const input = await target();
+    const parent = join(directory, `parent-file-${randomUUID()}`);
+    await writeFile(parent, "operator file");
+    await expect(
+      restoreFullBackup({ ...input, targetDirectory: join(parent, "restored") }),
+    ).rejects.toMatchObject({ code: "ENOTDIR" });
+    expect(await readFile(parent, "utf8")).toBe("operator file");
+    const check = new pg.Client({ connectionString: input.targetConnectionString });
+    try {
+      await check.connect();
+      expect(
+        (await check.query("SELECT to_regclass('public.items') AS items")).rows[0].items,
+      ).toBeNull();
+    } finally {
+      await check.end();
+    }
+  });
+
   it("authenticates corruption before creating any target files or database tables", async () => {
     const input = await target();
     const corruptPath = join(directory, `damaged-${randomUUID()}`);
@@ -241,6 +261,16 @@ describe("full restore and explicit security activation", () => {
     bytes[bytes.length - 1] = (bytes[bytes.length - 1] ?? 0) ^ 1;
     await writeFile(corruptPath, bytes);
     await expect(restoreFullBackup({ ...input, archivePath: corruptPath })).rejects.toThrow();
+    // Authentication precedes even connecting to a database for a rehearsal.
+    await expect(
+      rehearseFullBackup({
+        archivePath: corruptPath,
+        connectionString: "postgres://fixture:fixture@127.0.0.1:1/unreachable",
+        activeDirectory: harness.blobRoot,
+        key,
+      }),
+    ).rejects.toThrow();
+
     await expect(readdir(input.targetDirectory)).rejects.toMatchObject({ code: "ENOENT" });
     const client = new pg.Client({ connectionString: input.targetConnectionString });
     await client.connect();

@@ -291,3 +291,40 @@ describe("the schedule loop", () => {
     expect(calls).toBe(1);
   });
 });
+
+it("does not duplicate a manual verified backup after a backward clock adjustment", () => {
+  expect(
+    backupIsDue({
+      now: at("2026-09-05T03:00:00Z"),
+      lastRunAt: at("2026-09-05T02:00:00Z"),
+      hour: 4,
+      timeZone: "UTC",
+    }),
+  ).toBe(false);
+});
+
+it("uses the system clock, redacts non-Error failures and tolerates stopping before start", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(at("2026-09-05T04:00:00Z"));
+  const logged = vi.fn();
+  let attempts = 0;
+  const schedule = new BackupSchedule({
+    lastVerifiedFullBackupAt: async () => null,
+    runBackup: async () => {
+      attempts += 1;
+      throw "private provider response";
+    },
+    logger: { error: logged },
+  });
+  try {
+    schedule.stop();
+    schedule.start();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(attempts).toBe(1);
+    expect(logged).toHaveBeenCalledWith({ errorType: "UnknownError" }, "scheduled backup failed");
+    expect(JSON.stringify(logged.mock.calls)).not.toContain("private provider response");
+  } finally {
+    schedule.stop();
+    vi.useRealTimers();
+  }
+});

@@ -16,7 +16,7 @@ trap cleanup EXIT
 docker network create "$full_network" >/dev/null
 docker volume create "$full_volume" >/dev/null
 docker run -d --name "$full_postgres" --network "$full_network" \
-    -e POSTGRES_PASSWORD=full-image-fixture postgres:18 >/dev/null
+    -e POSTGRES_PASSWORD=myownnotion-dev postgres:18 >/dev/null
 for full_attempt in {1..30}; do
     if docker exec "$full_postgres" pg_isready -U postgres >/dev/null 2>&1; then
         break
@@ -59,8 +59,8 @@ docker exec "$full_postgres" psql -U postgres -d full_source -v ON_ERROR_STOP=1 
 
 full_admin() {
     docker run --rm --network "$full_network" -v "${full_volume}:/recovery" \
-        -e "DATABASE_URL=postgres://postgres:full-image-fixture@${full_postgres}:5432/full_source" \
-        -e "MYOWNNOTION_RESTORE_DATABASE_URL=postgres://postgres:full-image-fixture@${full_postgres}:5432/full_target" \
+        -e "DATABASE_URL=postgres://postgres:myownnotion-dev@${full_postgres}:5432/full_source" \
+        -e "MYOWNNOTION_RESTORE_DATABASE_URL=postgres://postgres:myownnotion-dev@${full_postgres}:5432/full_target" \
         -e MYOWNNOTION_DEPLOYMENT_KEY_FILE=/recovery/key \
         -e MYOWNNOTION_BLOB_ROOT=/recovery/blobs \
         -e MYOWNNOTION_BACKUP_ROOT=/recovery/backups \

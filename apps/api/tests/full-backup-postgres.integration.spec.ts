@@ -165,13 +165,13 @@ describe("native PostgreSQL full backup tools", () => {
 describe("PostgreSQL process configuration", () => {
   it("decodes credentials only into the child environment and carries TLS options explicitly", () => {
     const env = postgresToolEnvironment(
-      "postgres://owner:p%40ss%3Aword@[::1]:55432/private%20data?sslmode=verify-full&connect_timeout=9",
+      "postgres://owner:myownnotion-dev%40%3A@[::1]:55432/private%20data?sslmode=verify-full&connect_timeout=9",
     );
     expect(env).toMatchObject({
       PGHOST: "::1",
       PGPORT: "55432",
       PGUSER: "owner",
-      PGPASSWORD: "p@ss:word",
+      PGPASSWORD: "myownnotion-dev@:",
       PGDATABASE: "private data",
       PGSSLMODE: "verify-full",
       PGCONNECT_TIMEOUT: "9",

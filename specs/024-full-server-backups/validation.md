@@ -136,3 +136,21 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
   atomic name collision, unavailable destinations, safe provider failures and
   historical `sha-<commit>` provenance. The original seven-statement /
   33-branch aggregate gap remains unclaimed pending a new coverage run.
+
+- Aggregate coverage run 7 passed all 387 files / 3,710 tests and all absolute
+  budgets except branches (2,475 versus 2,465). Subsequent focused checks pass:
+  62 storage/schedule/metadata tests and 14 remote/recovery tests. They prove
+  zero-byte attachment recovery, rejection of directory-shaped upload data,
+  idempotent remote retry, loss immediately after remote upload, cancellation
+  before rehearsal database creation, invalid restore parents and safe scheduler
+  behavior under clock movement/non-Error failures. Final full gates remain open.
+
+- Full gate on bdfdda04 passed all code/style/type checks, 387 files / 3,715
+  aggregate tests with every unchanged coverage budget, all eight isolated
+  performance benchmarks, database/migration tests and contracts. Chromium then
+  found three older journeys assuming the portable panel was expanded. The
+  remaining matrix was interrupted gracefully; this was not a green full gate.
+- T027 preserves those checks against both the primary full-backup surface and
+  explicitly expanded portable exports. All three focused Chromium accessibility,
+  320px overflow and settings-history journeys pass. The full gate is rerun on
+  the resulting commit, with no skipped required gate or relaxed assertion.
