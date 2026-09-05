@@ -159,27 +159,23 @@ describe("what an import refuses", () => {
       schemaVersion: 1,
     });
     await handle.db.insert(schema.owners).values({ id: ownerId, installationId, state: "active" });
-    await handle.db
-      .insert(schema.authorizedDevices)
-      .values({
-        id: deviceId,
-        ownerId,
-        deviceBindingId: randomUUID(),
-        name: "Existing authorized laptop",
-        state: "active",
-      });
-    await handle.db
-      .insert(schema.sessions)
-      .values({
-        id: generateUuidV7(),
-        ownerId,
-        deviceId,
-        sessionSecretHash: randomBytes(32).toString("hex"),
-        authMethod: "password",
-        expiresAt: new Date(Date.now() + 3_600_000),
-        recentAuthAt: new Date(),
-        state: "active",
-      });
+    await handle.db.insert(schema.authorizedDevices).values({
+      id: deviceId,
+      ownerId,
+      deviceBindingId: randomUUID(),
+      name: "Existing authorized laptop",
+      state: "active",
+    });
+    await handle.db.insert(schema.sessions).values({
+      id: generateUuidV7(),
+      ownerId,
+      deviceId,
+      sessionSecretHash: randomBytes(32).toString("hex"),
+      authMethod: "password",
+      expiresAt: new Date(Date.now() + 3_600_000),
+      recentAuthAt: new Date(),
+      state: "active",
+    });
     const devices = await handle.db.select().from(schema.authorizedDevices);
     const sessions = await handle.db.select().from(schema.sessions);
     const installations = await handle.db.select().from(schema.installations);

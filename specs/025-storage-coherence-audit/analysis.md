@@ -47,3 +47,23 @@ portable restoration, so fresh-write test success cannot close that task.
 The implementation must resolve payloads before neutral edits/snapshots and
 neutralize source copies within the same transaction. Cross-artifact review
 found no contradictory behavior in spec, plan, data model or task dependencies.
+
+## Confirmed boundary follow-ups
+
+T046 removes two uncalled legacy storage functions under FR-001/FR-012 and
+tests the active streaming producer. T047 resolves indexed/canonical numeric
+equality divergence under FR-011/FR-013. The existing T027 includes both initial
+key rotation and failed-operation resumption during a historical transition.
+These are corrections to required behavior, without a product scope change.
+The updated plan and 47 tasks retain 14 functional requirements; all three
+follow-ups block implementation convergence and delivery.
+
+## Authenticated generation reference follow-up
+
+An independent destructive-index fixture confirms A20: current authenticated
+file manifests can retain generation references after every mutable chunk-index
+row is lost. T048 maps to FR-006/FR-008 and SC-002. The updated plan requires
+bounded current-manifest reconciliation under the same FILE lock and transaction
+as completion or revocation; index absence must preserve recoverability. The
+updated set has 14 requirements and 48 tasks. This P1 blocks convergence and
+delivery until completed/partial repair-and-resume regressions pass.

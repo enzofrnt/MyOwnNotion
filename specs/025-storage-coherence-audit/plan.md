@@ -100,6 +100,12 @@ boundaries rather than introduce an independent storage or authorization service
 6. Complete bounded-memory, corruption, recovery, offline/browser/native proofs,
    run Spec Kit analysis/convergence and all local/PR/main delivery gates.
 
+Native image restoration executes the packaged API/migration/admin entrypoints,
+PostgreSQL 18 client and full historical SQL/files restore in both Linux
+architectures. A separate blocking CI matrix uses native AMD64 and ARM64 hosts;
+multi-platform assembly alone cannot establish runtime recovery. The existing
+local `images:build` smoke runs the same script on the host's native architecture.
+
 Each stage keeps independently testable boundaries. Do not deploy a partially
 wired encrypted format. Feature 024 must be delivered before this migration.
 
@@ -125,10 +131,23 @@ old-generation references are the durable file cursor, so a crash never skips
 parts. Completed and partial content retain IDs, lookup tags, sizes and offsets.
 Failed data-key operations resume instead of silently advancing to another
 source generation; the current writable generation is the rewrite target.
+Generation creation and failed-operation resumption take the existing FILE
+transition guard before changing key/policy state. Batch rewrite/revocation
+already share that guard, so every data-key entry point refuses an incomplete
+historical transition without advancing its captured source generations.
 Revocation takes FILE maintenance and the generation row lock, then recounts
 both envelopes and completed/partial chunks in that transaction. Ordinary and
 batched protected-record publication also lock their selected writable generation;
 a stale selection fails instead of publishing after retirement.
+
+The mutable chunk index alone cannot establish that a generation is unused.
+Before marking rotation complete or revoking a generation, enumerate current
+protected content/upload identities from both canonical rows and manifest
+envelopes, authenticate their exact current manifest versions, and reconcile
+every descriptor against its complete SQL index. Count key references from the
+authenticated manifests. Missing indexes, missing manifests or inconsistent
+metadata refuse completion/revocation. Use bounded identity batches under FILE;
+the final count and completion/revocation commit share the same transaction.
 
 Canonical-copy audit extension (FR-014): cover the same seal-without-neutralize
 pattern in ordinary mutations and portable restore, not just attachments.
@@ -151,3 +170,13 @@ legacy objects retain their UUID/reference counts; equal bytes do not merge
 historical identities during backfill. Upload backfill preserves its acknowledged
 offset, declared length and expiry. Every source iterator verifies length/digest
 at EOF before the replacement transaction may commit.
+
+### Structured query consistency
+
+The audit reproduced an indexed number equality query returning no rows for
+`+02.00` while canonical domain evaluation correctly matches stored `2`. Export
+the existing domain operand preparation as one shared normalization boundary;
+the server candidate index must use that same value before narrowing rows.
+An invalid operand or missing property stays on canonical validation instead of
+being accepted by the index. Differential filter, incremental refresh and cursor
+tests compare observable ordered results and refusals, without relaxing budgets.

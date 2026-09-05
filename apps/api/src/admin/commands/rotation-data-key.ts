@@ -59,6 +59,7 @@ import {
 } from "@myownnotion/domain";
 import { and, eq } from "drizzle-orm";
 import { lockFullFileMaintenance } from "../../backup/full/locks.ts";
+import { countVerifiedFileGenerationReferences } from "../../files/protected-file-references.ts";
 import { rotateProtectedFileBatch } from "../../files/protected-file-rotation.ts";
 import type { ProtectedFileService } from "../../files/protected-file-service.ts";
 import { KeyHierarchy } from "../../security/key-hierarchy.ts";
@@ -265,6 +266,7 @@ export async function rotationDataKeyCommand(
   } else {
     operationId = running.id;
     await runSecurityTransaction(deps.db, async (tx) => {
+      await lockFullFileMaintenance(tx);
       await tx
         .update(schema.rotationOperations)
         .set({ phase: "rewriting", toVersionOrGeneration: toGeneration, updatedAt: deps.now() })
@@ -409,35 +411,46 @@ export async function rotationDataKeyCommand(
       return await abandonRotation(deps, { policyId: policy.id, operationId, progress, error });
     }
   }
-  const stillUnderOld = await countGenerationReferences(deps.db, deps.workspaceId, fromGeneration);
-  if (stillUnderOld > 0) {
-    return await abandonRotation(deps, {
-      policyId: policy.id,
-      operationId,
-      progress,
-      error: new Error("The generation still protects stored content; rotation is incomplete."),
+  // Verification and completion share the maintenance lock and commit. An
+  // empty mutable index is not proof that authenticated manifests released a key.
+  const stillUnderOld = 0;
+  let schedule: Awaited<ReturnType<typeof completeRotationPolicy>>;
+  try {
+    schedule = await runSecurityTransaction(deps.db, async (tx) => {
+      await lockFullFileMaintenance(tx);
+      const fileReferences = await countVerifiedFileGenerationReferences(tx, {
+        workspaceId: deps.workspaceId,
+        generation: fromGeneration,
+        files: deps.protectedFiles,
+      });
+      if (
+        fileReferences > 0 ||
+        (await countGenerationReferences(tx, deps.workspaceId, fromGeneration)) > 0
+      ) {
+        throw new Error("The generation still protects stored content; rotation is incomplete.");
+      }
+      const completedAt = deps.now();
+      await finishRotationOperation(tx, { operationId, phase: "complete", now: completedAt });
+      const completed = await completeRotationPolicy(tx, {
+        policyId: policy.id,
+        operationId,
+        now: completedAt,
+        dueIntervalDays: DATA_KEY_DUE_INTERVAL_DAYS,
+        graceDays: DATA_KEY_GRACE_DAYS,
+        currentGeneration: toGeneration,
+      });
+      await auditRotationCompleted(deps.audit, tx, {
+        kind: "data-key",
+        operationId,
+        processedCount: progress.rewrittenCount,
+        to: toGeneration,
+        nextDueAt: completed.dueAt,
+      });
+      return completed;
     });
+  } catch (error) {
+    return await abandonRotation(deps, { policyId: policy.id, operationId, progress, error });
   }
-  const completedAt = deps.now();
-  const schedule = await runSecurityTransaction(deps.db, async (tx) => {
-    await finishRotationOperation(tx, { operationId, phase: "complete", now: completedAt });
-    const completed = await completeRotationPolicy(tx, {
-      policyId: policy.id,
-      operationId,
-      now: completedAt,
-      dueIntervalDays: DATA_KEY_DUE_INTERVAL_DAYS,
-      graceDays: DATA_KEY_GRACE_DAYS,
-      currentGeneration: toGeneration,
-    });
-    await auditRotationCompleted(deps.audit, tx, {
-      kind: "data-key",
-      operationId,
-      processedCount: progress.rewrittenCount,
-      to: toGeneration,
-      nextDueAt: completed.dueAt,
-    });
-    return completed;
-  });
 
   return {
     code: EXIT_CODES.ok,
@@ -485,7 +498,45 @@ async function revokeCommand(
       data: { generation, remaining },
     };
   }
-  if (!options.execute) {
+  let revoked: boolean;
+  try {
+    revoked = await runSecurityTransaction(deps.db, async (tx) => {
+      await lockFullFileMaintenance(tx);
+      await tx
+        .select({ id: schema.dataKeyGenerations.id })
+        .from(schema.dataKeyGenerations)
+        .where(
+          and(
+            eq(schema.dataKeyGenerations.workspaceId, deps.workspaceId),
+            eq(schema.dataKeyGenerations.generation, generation),
+          ),
+        )
+        .for("update");
+      const fileReferences = await countVerifiedFileGenerationReferences(tx, {
+        workspaceId: deps.workspaceId,
+        generation,
+        files: deps.protectedFiles,
+      });
+      if (
+        fileReferences > 0 ||
+        (await countGenerationReferences(tx, deps.workspaceId, generation)) > 0
+      )
+        return false;
+      if (!options.execute) return true;
+      return revokeGeneration(tx, {
+        workspaceId: deps.workspaceId,
+        generation,
+        now: deps.now(),
+      });
+    });
+  } catch {
+    return {
+      code: EXIT_CODES.integrityFailure,
+      message: "generation references could not be verified; the key remains unchanged",
+      data: { generation },
+    };
+  }
+  if (revoked && !options.execute) {
     return {
       code: EXIT_CODES.ok,
       message: `dry run: generation ${generation} holds nothing and could be revoked`,
@@ -493,25 +544,6 @@ async function revokeCommand(
     };
   }
 
-  const revoked = await runSecurityTransaction(deps.db, async (tx) => {
-    await lockFullFileMaintenance(tx);
-    await tx
-      .select({ id: schema.dataKeyGenerations.id })
-      .from(schema.dataKeyGenerations)
-      .where(
-        and(
-          eq(schema.dataKeyGenerations.workspaceId, deps.workspaceId),
-          eq(schema.dataKeyGenerations.generation, generation),
-        ),
-      )
-      .for("update");
-    if ((await countGenerationReferences(tx, deps.workspaceId, generation)) > 0) return false;
-    return revokeGeneration(tx, {
-      workspaceId: deps.workspaceId,
-      generation,
-      now: deps.now(),
-    });
-  });
   return revoked
     ? {
         code: EXIT_CODES.ok,

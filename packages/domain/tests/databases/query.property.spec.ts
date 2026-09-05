@@ -245,7 +245,7 @@ describe("sort value extraction across property kinds", () => {
       queryEntry(IDS.entryC, "C", {}),
     ];
     const dateResult = idsFor(dateView, dateEntries);
-    expect(dateResult).toHaveLength(3);
+    expect(dateResult).toEqual([IDS.entryB, IDS.entryA, IDS.entryC]);
 
     // Sort by checkbox: false before true.
     const checkboxView = tableView({
@@ -257,7 +257,7 @@ describe("sort value extraction across property kinds", () => {
       queryEntry(IDS.entryC, "C", {}),
     ];
     const checkboxResult = idsFor(checkboxView, checkboxEntries);
-    expect(checkboxResult).toHaveLength(3);
+    expect(checkboxResult).toEqual([IDS.entryA, IDS.entryB, IDS.entryC]);
 
     // Sort by status: option positionKey determines order (todo < doing).
     const statusView = tableView({
@@ -269,7 +269,7 @@ describe("sort value extraction across property kinds", () => {
       queryEntry(IDS.entryC, "C", {}),
     ];
     const statusResult = idsFor(statusView, statusEntries);
-    expect(statusResult).toHaveLength(3);
+    expect(statusResult).toEqual([IDS.entryA, IDS.entryB, IDS.entryC]);
 
     // Sort by select: exercises the select branch of comparableScalar.
     const selectView = tableView({
@@ -280,6 +280,6 @@ describe("sort value extraction across property kinds", () => {
       queryEntry(IDS.entryB, "B", {}),
     ];
     const selectResult = idsFor(selectView, selectEntries);
-    expect(selectResult).toHaveLength(2);
+    expect(selectResult).toEqual([IDS.entryA, IDS.entryB]);
   });
 });

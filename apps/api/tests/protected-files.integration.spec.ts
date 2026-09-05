@@ -76,6 +76,112 @@ async function directImport(
 }
 
 describe("private files through authenticated HTTP", () => {
+  it("rolls back rejected multipart imports without publishing content, names or partial identities", async () => {
+    const existing = await directImport();
+    const folder = await createItemViaApi(harness, {
+      kind: "folder",
+      name: "multipart folder",
+      headers: owner.headers,
+    });
+    const page = await createItemViaApi(harness, {
+      kind: "page",
+      name: "multipart page",
+      headers: owner.headers,
+    });
+    const count = async () =>
+      (
+        await harness.built.context.db.execute(sql`
+      SELECT (SELECT count(*)::int FROM file_contents) AS contents,
+        (SELECT count(*)::int FROM logical_files) AS files,
+        (SELECT count(*)::int FROM mutations) AS mutations,
+        (SELECT count(*)::int FROM protected_blob_chunks) AS chunks
+    `)
+      ).rows;
+    const before = await count();
+    const rootPlacement = { kind: "hierarchy", parentItemId: null, positionKey: "V" };
+    for (const fields of [
+      {},
+      { placement: "not-json" },
+      { placement: "null" },
+      { placement: JSON.stringify({ ...rootPlacement, kind: "invalid" }) },
+      { placement: JSON.stringify({ ...rootPlacement, parentItemId: "not-a-uuid" }) },
+      { placement: JSON.stringify({ ...rootPlacement, positionKey: "" }) },
+      { placement: JSON.stringify({ ...rootPlacement, parentItemId: generateUuidV7() }) },
+      { placement: JSON.stringify({ ...rootPlacement, parentItemId: existing }) },
+      { placement: JSON.stringify({ ...rootPlacement, kind: "attachment" }) },
+      {
+        placement: JSON.stringify({
+          ...rootPlacement,
+          kind: "attachment",
+          parentItemId: folder.itemId,
+        }),
+      },
+      { placement: JSON.stringify(rootPlacement), itemId: page.itemId },
+    ]) {
+      const boundary = `mon-invalid-${generateUuidV7()}`;
+      const payload = Buffer.from(
+        [
+          ...Object.entries(fields).map(
+            ([key, value]) =>
+              `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`,
+          ),
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="rejected-private.txt"\r\nContent-Type: text/plain\r\n\r\n`,
+          "rejected private upload sentinel",
+          `\r\n--${boundary}--\r\n`,
+        ].join(""),
+      );
+      const response = await owner({
+        method: "POST",
+        url: "/v1/files",
+        payload,
+        headers: {
+          "idempotency-key": generateUuidV7(),
+          "content-type": `multipart/form-data; boundary=${boundary}`,
+        },
+      });
+      expect(response.statusCode, response.body).toBeGreaterThanOrEqual(400);
+      expect(response.statusCode, response.body).toBeLessThan(500);
+      expect(await count()).toEqual(before);
+      expect(await physicalContains(harness.blobRoot, "rejected private upload sentinel")).toBe(
+        false,
+      );
+    }
+    expect((await owner({ method: "GET", url: `/v1/files/${existing}/content` })).body).toBe(BODY);
+  });
+
+  it("does not serve unverified content or substitute an unavailable protected filename", async () => {
+    const id = await directImport();
+    const db = harness.built.context.db;
+    const { rows } = await db.execute<{ content_id: string; verified_at: Date }>(sql`
+      SELECT l.content_id, c.verified_at FROM logical_files l JOIN file_contents c ON c.id=l.content_id WHERE l.item_id=${id}
+    `);
+    const record = rows[0];
+    if (record === undefined) throw new Error("Missing content");
+    await db.execute(sql`UPDATE file_contents SET verified_at=NULL WHERE id=${record.content_id}`);
+    const refused = await owner({ method: "GET", url: `/v1/files/${id}/content` });
+    expect(refused.statusCode).toBe(404);
+    expect(refused.body).not.toContain(BODY);
+    await db.execute(
+      sql`UPDATE file_contents SET verified_at=${record.verified_at} WHERE id=${record.content_id}`,
+    );
+    await db.execute(
+      sql`DELETE FROM protected_envelopes WHERE entity_id=${id} AND entity_type='file.metadata'`,
+    );
+    const missing = await owner({ method: "GET", url: `/v1/files/${id}/content` });
+    await harness.built.context.protectedContent?.writeFileMetadata(db, {
+      kind: "file",
+      id,
+      recordVersion: 1,
+      metadata: { originalName: NAME, mediaType: "text/plain" },
+    });
+    expect(missing.statusCode, missing.body).toBe(500);
+    expect(missing.body).not.toContain(BODY);
+    expect(missing.body).not.toContain(NAME);
+    expect(
+      (await owner({ method: "GET", url: `/v1/files/${generateUuidV7()}/content` })).statusCode,
+    ).toBe(404);
+  });
+
   it("returns the committed identity when a concurrent final PATCH removes the partial transfer", async () => {
     const created = await owner({
       method: "POST",

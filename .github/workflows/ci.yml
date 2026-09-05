@@ -424,6 +424,57 @@ jobs:
           path: image-build.json
           if-no-files-found: error
 
+  image-runtime:
+    name: Packaged recovery / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    needs: impact
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-bun
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Read pinned runtime base
+        id: base
+        run: |
+          set -euo pipefail
+          runtime_base=$(jq -r '.bases.bun | "\(.ref)@\(.digest)"' docker/base-images.json)
+          [[ "$runtime_base" =~ ^[^@]+@sha256:[0-9a-f]{64}$ ]]
+          echo "bun=$runtime_base" >> "$GITHUB_OUTPUT"
+      - name: Build the native packaged API
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          push: false
+          load: true
+          provenance: false
+          build-args: |
+            BUN_BASE=${{ steps.base.outputs.bun }}
+            APPLICATION_VERSION=sha-${{ github.sha }}
+          tags: myownnotion-api:recovery-smoke
+          cache-from: type=gha,scope=api-${{ needs.impact.outputs.cache_scope }}
+      - name: Exercise packaged entrypoints and complete recovery
+        run: |
+          set -euo pipefail
+          bash scripts/ci/smoke-api-image.sh myownnotion-api:recovery-smoke 2>&1 | tee image-runtime.log
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-runtime-${{ matrix.arch }}
+          path: image-runtime.log
+          if-no-files-found: error
+
   # ---------------------------------------------------------------------------
   # The five blocking security jobs (T100, FR-033 – FR-035)
   # ---------------------------------------------------------------------------
@@ -669,6 +720,7 @@ jobs:
       - e2e
       - build
       - build-images
+      - image-runtime
       - dependency-vulnerability-audit
       - secret-scan
       - static-security-analysis

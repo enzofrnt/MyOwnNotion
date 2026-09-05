@@ -1,7 +1,6 @@
 /** The portable, unencrypted TAR payload sealed inside every backup object. */
 
 import { createHash } from "node:crypto";
-import { open } from "node:fs/promises";
 import {
   type BackupManifest,
   canonicalStructuredDataString,
@@ -82,34 +81,6 @@ function encodeEntry(name: string, bytes: Buffer, modifiedAt: Date): Buffer[] {
   return [entryHeader(name, bytes.byteLength, modifiedAt), bytes, Buffer.alloc(padding)];
 }
 
-async function writeFully(
-  handle: Awaited<ReturnType<typeof open>>,
-  bytes: Uint8Array,
-): Promise<void> {
-  let offset = 0;
-  while (offset < bytes.byteLength) {
-    const { bytesWritten } = await handle.write(bytes, offset, bytes.byteLength - offset);
-    if (bytesWritten === 0) {
-      throw new Error("the backup archive could not be written completely");
-    }
-    offset += bytesWritten;
-  }
-}
-
-async function writeEntry(
-  handle: Awaited<ReturnType<typeof open>>,
-  name: string,
-  bytes: Uint8Array,
-  modifiedAt: Date,
-): Promise<void> {
-  await writeFully(handle, entryHeader(name, bytes.byteLength, modifiedAt));
-  await writeFully(handle, bytes);
-  const padding = (TAR_BLOCK_BYTES - (bytes.byteLength % TAR_BLOCK_BYTES)) % TAR_BLOCK_BYTES;
-  if (padding > 0) {
-    await writeFully(handle, Buffer.alloc(padding));
-  }
-}
-
 /** Builds the exact layout documented in contracts/backup-archive.md. */
 export function encodeBackupArchive(input: {
   readonly manifest: BackupManifest;
@@ -144,66 +115,6 @@ export function encodeBackupArchive(input: {
   // POSIX readers expect two zero blocks at end-of-archive.
   parts.push(Buffer.alloc(TAR_BLOCK_BYTES * 2));
   return Buffer.concat(parts);
-}
-
-/**
- * Writes the same portable layout without retaining the whole workspace.
- *
- * The canonical export remains one JSON value, but file payloads are fetched,
- * checked, written and released one at a time. Total memory therefore follows
- * the largest single file rather than the sum of every file in the workspace.
- */
-export async function writeBackupArchiveFile(input: {
-  readonly path: string;
-  readonly manifest: BackupManifest;
-  readonly canonicalExport: string;
-  readonly operationalState?: string | null;
-  readonly readFile: (digest: string) => Promise<Uint8Array | null>;
-}): Promise<void> {
-  const modifiedAt = new Date(input.manifest.createdAt);
-  if (Number.isNaN(modifiedAt.getTime())) {
-    throw new Error("the backup manifest has no valid creation date");
-  }
-
-  const handle = await open(input.path, "wx", 0o600);
-  try {
-    await writeEntry(
-      handle,
-      MANIFEST_PATH,
-      Buffer.from(JSON.stringify(input.manifest), "utf8"),
-      modifiedAt,
-    );
-    await writeEntry(
-      handle,
-      CANONICAL_EXPORT_PATH,
-      Buffer.from(input.canonicalExport, "utf8"),
-      modifiedAt,
-    );
-    if (input.operationalState != null) {
-      await writeEntry(
-        handle,
-        PAGE_OPERATIONS_PATH,
-        Buffer.from(input.operationalState, "utf8"),
-        modifiedAt,
-      );
-    }
-    for (const file of [...input.manifest.files].sort((left, right) =>
-      left.digest.localeCompare(right.digest),
-    )) {
-      const bytes = await input.readFile(file.digest);
-      if (bytes === null) {
-        throw new Error(`content ${file.digest} is named by the export and absent from the store`);
-      }
-      if (bytes.byteLength !== file.byteLength || sha256(bytes) !== file.digest) {
-        throw new Error(`content ${file.digest} does not match the export metadata`);
-      }
-      await writeEntry(handle, `files/${file.digest.slice("sha256:".length)}`, bytes, modifiedAt);
-    }
-    await writeFully(handle, Buffer.alloc(TAR_BLOCK_BYTES * 2));
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
 }
 
 /** Same TAR layout, with attachment chunks flowing directly into the sealer. */

@@ -276,6 +276,20 @@ describe("who may publish", () => {
     expect(block).not.toContain("--push");
   });
 
+  it("requires native packaged restoration on both supported Linux architectures", () => {
+    const block = /\n {2}image-runtime:\n([\s\S]*?)\n {2}[a-z-]+:\n/.exec(ci)?.[1] ?? "";
+    expect(qualityGateNeeds()).toContain("image-runtime");
+    expect(block).toContain("runner: ubuntu-24.04\n");
+    expect(block).toContain("runner: ubuntu-24.04-arm\n");
+    expect(block).toContain("fail-fast: false");
+    expect(block).toContain("load: true");
+    expect(block).toContain("bash scripts/ci/smoke-api-image.sh");
+    expect(block).not.toMatch(/^ +packages: write$/m);
+    expect(block).not.toContain("push: true");
+    const localSmoke = readFileSync(path.join(repoRoot, "scripts/ci/smoke-api-image.sh"), "utf8");
+    expect(localSmoke).toContain("smoke-full-backup-image.sh");
+  });
+
   it("embeds the immutable candidate identity in every API image", () => {
     const apiBuilds = [
       ...ci.matchAll(/file: docker\/api\.Dockerfile([\s\S]*?)(?=\n +(?:- name:|tags:))/g),

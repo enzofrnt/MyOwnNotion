@@ -23,6 +23,99 @@ const property = (type: ReturnType<typeof baseProperties>[number]["type"]) => {
 };
 
 describe("canonical structured values", () => {
+  it("refuses malformed typed values instead of coercing or discarding fields", () => {
+    const cases: [Parameters<typeof property>[0], unknown][] = [
+      ["text", null],
+      ["text", []],
+      ["text", "raw"],
+      ["text", { kind: "text", value: 7 }],
+      ["text", { kind: "text", value: "private", extra: "discarded" }],
+      ["number", { kind: "number", decimal: 2 }],
+      ["date", { kind: "date", date: "2026-13-01" }],
+      ["date", { kind: "instant", instant: "2026-09-01T00:00:00Z" }],
+      ["date", { kind: "date", date: "2026-09-01", extra: true }],
+      ["status", { kind: "select", optionId: IDS.todo }],
+      ["select", { kind: "select", optionId: IDS.todo }],
+      ["select", { kind: "select", optionId: "invalid" }],
+      ["select", { kind: "select", optionId: IDS.high, extra: true }],
+      ["multi-select", { kind: "multi-select", optionIds: IDS.todo }],
+      ["multi-select", { kind: "multi-select", optionIds: [IDS.todo, null] }],
+      ["multi-select", { kind: "multi-select", optionIds: [IDS.high] }],
+      ["multi-select", { kind: "multi-select", optionIds: [IDS.todo], extra: true }],
+      ["checkbox", { kind: "checkbox", checked: 0 }],
+      ["checkbox", { kind: "checkbox", checked: "false" }],
+      ["checkbox", { kind: "checkbox", checked: false, extra: true }],
+      ["title", { kind: "text", value: "must use title storage" }],
+      ["relation", { kind: "relation", targetIds: [IDS.relationA] }],
+    ];
+    for (const [type, value] of cases) {
+      expect(
+        normalizePropertyValue(property(type), value),
+        `${type}/${JSON.stringify(value)}`,
+      ).toMatchObject({
+        ok: false,
+        error: { code: "validation.invalid-payload" },
+      });
+    }
+    const instant = {
+      ...property("date"),
+      type: "date" as const,
+      config: { mode: "instant" as const },
+    };
+    for (const value of [
+      { kind: "date", date: "2026-09-01" },
+      { kind: "instant", instant: "2026-09-01" },
+      { kind: "instant", instant: 4 },
+    ]) {
+      expect(normalizePropertyValue(instant, value).ok).toBe(false);
+    }
+  });
+
+  it("preserves retired fields and set identities for historical decoding while refusing new writes", () => {
+    const retiredText = { ...property("text"), state: "retired" as const };
+    const text = { kind: "text", value: "historical" } as const;
+    expect(normalizePropertyValue(retiredText, text).ok).toBe(false);
+    expect(unwrap(normalizePropertyValue(retiredText, text, { intent: "decode" }))).toEqual(text);
+    const multi = property("multi-select");
+    if (multi.type !== "multi-select") throw new Error("Invalid fixture");
+    const retired = {
+      ...multi,
+      config: {
+        options: multi.config.options.map((option) => ({ ...option, state: "retired" as const })),
+      },
+    };
+    const value = { kind: "multi-select", optionIds: [IDS.doing, IDS.todo, IDS.doing] };
+    expect(normalizePropertyValue(retired, value).ok).toBe(false);
+    expect(unwrap(normalizePropertyValue(retired, value, { intent: "decode" }))).toEqual({
+      kind: "multi-select",
+      optionIds: [IDS.todo, IDS.doing],
+    });
+    const relation = { ...property("relation"), state: "retired" as const };
+    expect(normalizeRelationTargets(relation, [IDS.relationB, IDS.relationA]).ok).toBe(false);
+    expect(
+      unwrap(
+        normalizeRelationTargets(relation, [IDS.relationB, IDS.relationA], { intent: "decode" }),
+      ),
+    ).toEqual([IDS.relationA, IDS.relationB]);
+    expect(normalizeRelationTargets(property("text"), []).ok).toBe(false);
+    expect(normalizeRelationTargets(property("relation"), { target: IDS.relationA }).ok).toBe(
+      false,
+    );
+  });
+
+  it("rejects calendar and clock overflow rather than rolling it into another date", () => {
+    expect(unwrap(normalizeCivilDate("2000-02-29"))).toBe("2000-02-29");
+    for (const date of ["1900-02-29", "0000-01-01", "2026-00-01", "2026-01-00", "2026-02-29"])
+      expect(normalizeCivilDate(date).ok, date).toBe(false);
+    for (const instant of [
+      "2026-09-01T24:00:00Z",
+      "2026-09-01T00:60:00Z",
+      "2026-09-01T00:00:60Z",
+      "2026-09-01T00:00:00+24:00",
+      "2026-09-01T00:00:00+00:60",
+    ])
+      expect(normalizeInstant(instant).ok, instant).toBe(false);
+  });
   it.each([
     ["00012.3400", "12.34"],
     ["+0.500", "0.5"],

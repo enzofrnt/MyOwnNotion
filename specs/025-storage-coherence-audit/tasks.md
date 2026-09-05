@@ -26,16 +26,16 @@ only after cross-artifact analysis. Checked tasks require actual evidence.
 application-file sentinel inspection. Prove failures before wiring new paths.
 
 - [X] T010 [US1] Reproduce direct/tus plaintext bytes and metadata through secured real requests in `apps/api/tests/protected-files.integration.spec.ts`, retaining the failing baseline evidence (FR-001/FR-002, SC-001).
-- [ ] T011 [US1] Wire bounded multipart import/replacement through the protected service and accepted mutation guards in `apps/api/src/routes/files.ts`, preserving IDs and verified deduplication (FR-001/FR-004/FR-005).
-- [ ] T012 [US1] Implement encrypted resumable PATCH/tail replacement, atomic offsets, HEAD and finalization in `apps/api/src/routes/uploads.ts` and `apps/api/src/files/protected-upload-service.ts` (FR-001/FR-004/FR-005).
-- [ ] T013 [US1] Resolve/protect file metadata and historical snapshots across `apps/api/src/security/content-resolution.ts`, item/file/revision repositories and sync projection paths; neutralize readable source fields atomically (FR-002/FR-005).
+- [x] T011 [US1] Wire bounded multipart import/replacement through the protected service and accepted mutation guards in `apps/api/src/routes/files.ts`, preserving IDs and verified deduplication (FR-001/FR-004/FR-005).
+- [x] T012 [US1] Implement encrypted resumable PATCH/tail replacement, atomic offsets, HEAD and finalization in `apps/api/src/routes/uploads.ts` and `apps/api/src/files/protected-upload-service.ts` (FR-001/FR-004/FR-005).
+- [x] T013 [US1] Resolve/protect file metadata and historical snapshots across `apps/api/src/security/content-resolution.ts`, item/file/revision repositories and sync projection paths; neutralize readable source fields atomically (FR-002/FR-005).
 - [x] T014 [US1] Implement authenticated streaming full/single-range downloads in `apps/api/src/routes/files.ts` and `apps/api/src/files/file-range.ts`; verify headers, 206/416, corruption and no unauthenticated bytes (FR-003/FR-004/FR-008).
-- [ ] T015 [US1] Use the shared factory in `apps/api/src/app.ts`, context, `admin/admin-cli.ts`, guarded migration and portable restoration; remove active raw file-service composition (FR-001/FR-005).
-- [ ] T016 [US1] Stream portable archive production directly into sealing in `apps/api/src/backup/backup-service.ts` and `archive-format.ts`; resolve/ingest protected contents and metadata in export/restore boundaries (FR-001/FR-002/FR-005).
-- [ ] T017 [US1] Extend format-aware inventory in `apps/api/src/backup/full/files.ts` for completed/upload/quarantine ciphertext while retaining legacy schema support; prove full and portable restored reads in backup integration tests (FR-005/FR-006).
-- [ ] T018 [US1] Extend data-key rewrite/checkpoint/count/revocation in `apps/api/src/security/` and security repositories to completed and partial chunks, with transactional generation reference checks and 024 lock ordering (FR-006/FR-008).
-- [ ] T019 [US1] Verify crash/retry/duplicate completion, empty/maximum files, corruption/substitution, missing keys, wrapping/data rotation and retained historical reads in `apps/api/tests/protected-files.integration.spec.ts` and `protected-file-rotation.integration.spec.ts` (SC-001/SC-002).
-- [ ] T020 [US1] Add real direct/resumable upload, rename, preview, offline/reconnect and range behavior journeys in `tests/e2e/protected-files.spec.ts`; use UI quality guidance for changed states (FR-013).
+- [x] T015 [US1] Use the shared factory in `apps/api/src/app.ts`, context, `admin/admin-cli.ts`, guarded migration and portable restoration; remove active raw file-service composition (FR-001/FR-005).
+- [x] T016 [US1] Stream portable archive production directly into sealing in `apps/api/src/backup/backup-service.ts` and `archive-format.ts`; resolve/ingest protected contents and metadata in export/restore boundaries (FR-001/FR-002/FR-005).
+- [x] T017 [US1] Extend format-aware inventory in `apps/api/src/backup/full/files.ts` for completed/upload/quarantine ciphertext while retaining legacy schema support; prove full and portable restored reads in backup integration tests (FR-005/FR-006).
+- [x] T018 [US1] Extend data-key rewrite/checkpoint/count/revocation in `apps/api/src/security/` and security repositories to completed and partial chunks, with transactional generation reference checks and 024 lock ordering (FR-006/FR-008).
+- [x] T019 [US1] Verify crash/retry/duplicate completion, empty/maximum files, corruption/substitution, missing keys, wrapping/data rotation and retained historical reads in `apps/api/tests/protected-files.integration.spec.ts` and `protected-file-rotation.integration.spec.ts` (SC-001/SC-002).
+- [x] T020 [US1] Add real direct/resumable upload, rename, preview, offline/reconnect and range behavior journeys in `tests/e2e/protected-files.spec.ts`; use UI quality guidance for changed states (FR-013).
 - [x] T021 [US1] Add isolated 2 GiB streaming/range memory verification in `tests/performance/protected-files.perf.spec.ts` and route it through the maintained performance gate with precise peak-memory evidence (SC-004).
 
 ## Phase 4: US2 — Historical storage transition (P1)
@@ -43,12 +43,12 @@ application-file sentinel inspection. Prove failures before wiring new paths.
 **Independent test**: Restore historical fixtures; interrupt every declared
 publication/checkpoint/cutover/cleanup boundary, resume and compare exact data.
 
-- [ ] T022 [US2] Create historical shared/history-only/partial/orphan fixtures and failing interruption/backup-refusal tests in `apps/api/tests/file-storage-migration.integration.spec.ts` (FR-007, SC-003).
+- [x] T022 [US2] Create historical shared/history-only/partial/orphan fixtures and failing interruption/backup-refusal tests in `apps/api/tests/file-storage-migration.integration.spec.ts` (FR-007, SC-003).
 - [x] T023 [US2] Implement durable inventory and per-object checkpoints in `apps/api/src/security/file-storage-migration.ts` and transition repositories, bound to the verified 024 source-backup identity (FR-007).
 - [x] T024 [US2] Backfill completed/partial ciphertext and sensitive current/history metadata, verify replacements and preserve recoverable orphan data in encrypted quarantine in `apps/api/src/security/file-storage-migration.ts` (FR-002/FR-007).
 - [x] T025 [US2] Implement verified cutover and resumable retirement of readable originals with explicit corruption/disk/key failures in `apps/api/src/security/file-storage-migration.ts` (FR-007/FR-008).
 - [x] T026 [US2] Integrate transition before successful version bookkeeping in `apps/api/src/backup/guarded-migration.ts`; block startup/incompatible mutation paths while transition is incomplete (FR-007/FR-008).
-- [ ] T027 [US2] Prove every durable interruption, backup-before-write, concurrent writer/rotation boundary and logical/file sentinel cleanup in `apps/api/tests/file-storage-migration.integration.spec.ts` (SC-001/SC-003).
+- [x] T027 [US2] Prove every durable interruption, backup-before-write, concurrent writer/rotation boundary and logical/file sentinel cleanup in `apps/api/tests/file-storage-migration.integration.spec.ts` (SC-001/SC-003).
 - [x] T028 [US2] Document disk-space needs, resumable recovery, encrypted quarantine, historical WAL/snapshot limits and complete rollback in `docs/deployment/backups.md` and `docs/architecture/file-handling.md` (FR-007/FR-011).
 
 ## Phase 5: US3 — Recovery coherence (P1)
@@ -75,16 +75,22 @@ survive projection updates; active caret/style and native runtime are exercised.
 
 - [ ] T037 Validate exact file format/digest/identity compatibility and image/runtime restores on AMD64 and ARM64, including existing reference backups, in `specs/025-storage-coherence-audit/validation.md` (FR-005/FR-006/FR-013).
 - [ ] T038 Complete real browser/theme/viewport/native parity, performance and all failure evidence; update directly affected shared artifacts and audit limitations in `specs/025-storage-coherence-audit/validation.md` (SC-001–SC-007).
-- [ ] T039 Run Spec Kit convergence against all requirements and acceptance scenarios, append/fix remaining gaps and keep `specs/025-storage-coherence-audit/tasks.md` current (FR-011/FR-013).
+- [x] T039 Run Spec Kit convergence against all requirements and acceptance scenarios, append/fix remaining gaps and keep `specs/025-storage-coherence-audit/tasks.md` current (FR-011/FR-013).
 - [ ] T040 Read `docs/development.md`, pass `bun run checks:local` and required image scans on the exact commit, then push and open the feature PR with concrete evidence (FR-013).
 - [ ] T041 Review and pass every PR CI, merge, verify all main CI/images and record commit-addressable delivery in `specs/025-storage-coherence-audit/validation.md` (FR-013).
 
 ## Additional confirmed privacy boundary — required before delivery
 
 - [x] T042 [US1] Reproduce readable canonical presentation/snapshots and restored payloads through secured HTTP in `apps/api/tests/canonical-storage-privacy.integration.spec.ts`, recording SQL sentinel evidence (FR-014).
-- [ ] T043 [US1] Resolve protected canonical payloads at mutation/snapshot boundaries and neutralize committed plaintext copies in `apps/api/src/plugins/mutations.ts`, content resolution and database mutation/revision repositories; preserve neutral edits, structured values, restore and sync (FR-014).
-- [ ] T044 [US2] Apply the same canonical privacy boundary to portable restoration and historical transition in `apps/api/src/backup/database-restore-target.ts` and `apps/api/src/security/file-storage-migration.ts` (FR-007/FR-014).
+- [x] T043 [US1] Resolve protected canonical payloads at mutation/snapshot boundaries and neutralize committed plaintext copies in `apps/api/src/plugins/mutations.ts`, content resolution and database mutation/revision repositories; preserve neutral edits, structured values, restore and sync (FR-014).
+- [x] T044 [US2] Apply the same canonical privacy boundary to portable restoration and historical transition in `apps/api/src/backup/database-restore-target.ts` and `apps/api/src/security/file-storage-migration.ts` (FR-007/FR-014).
 - [ ] T045 [US4] Verify secured canonical SQL sentinel absence, subsequent edits/history, database definitions/values, offline sync and portable/full restored reads; update the audit and convergence evidence (FR-014).
+
+## Additional confirmed implementation and verification gaps
+
+- [x] T046 [US4] Remove the uncalled plaintext staging writer and obsolete readable-digest lookup in `apps/api/src/backup/archive-format.ts` and `packages/database/src/repositories/file-repository.ts`; move archive framing/failure proofs onto the production streaming boundary (FR-001/FR-012).
+- [x] T047 [US4] Share canonical operand preparation between `packages/domain/src/databases/query.ts` and `apps/api/src/databases/database-query-service.ts`; reproduce and correct normalized equality filters losing valid rows, and compare indexed filters, incremental changes and cursor refusals with canonical results in `apps/api/tests/database-query-service.spec.ts` (FR-011/FR-013).
+- [x] T048 [US1] Reconcile authenticated current content/upload manifests with their complete chunk indexes before rotation completion and key revocation in `apps/api/src/files/` and `apps/api/src/admin/commands/rotation-data-key.ts`; prove that missing indexes remain recoverable and cannot authorize revoking a referenced generation in `apps/api/tests/protected-file-references.integration.spec.ts` (FR-006/FR-008, SC-002).
 
 ## Dependencies and strategy
 
@@ -99,8 +105,8 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 45 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4. Each story's acceptance
+All 48 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 3. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
 
 T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.

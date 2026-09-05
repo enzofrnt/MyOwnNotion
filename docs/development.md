@@ -989,10 +989,19 @@ fails when any complete or selective entry point is missing from
 | `security:licenses` | local, PR, main | Any denied or unresolvable license blocks | `license-policy.json` |
 | `build` `compose:check` | local, PR, main | Build failure or a Compose boundary violation blocks | — |
 | `images:build` | local, PR, main | Unpinned base digest, a build failure, a missing packaged Loro runtime, or an unloadable API/migration entrypoint blocks; builds every platform, then executes a native image smoke without publishing | `image-build.json` |
+| packaged recovery | local native host, PR/main native AMD64 and ARM64 | Packaged API/migration/admin entrypoints, PostgreSQL 18 clients and full historical SQL/files restoration must run successfully; emulated execution or assembly alone is not runtime evidence | `image-runtime-<arch>` |
 | pinned Trivy container scan | conditional local evidence, PR, main | Any high/critical vulnerability with a fix, or an unavailable required scan, blocks | `container-scan.sarif` |
 | `release:gate` | tag | Missing, stale, foreign-commit, or artifact-less gate evidence blocks publication | — |
 
 Base images are pinned by manifest-list digest in `docker/base-images.json`.
+The local `images:build` command executes `scripts/ci/smoke-api-image.sh`, including
+the full-backup restoration script, on its native Linux architecture. The
+`image-runtime` CI matrix executes that identical script on native AMD64 and
+ARM64 runners, and both jobs block `quality-gate`. A local Apple Silicon host
+uses the native ARM64 Linux Docker runtime; an x64 host uses AMD64. The other
+architecture's runtime proof comes from its native CI runner, while the local
+build still assembles both architectures. This documented native-equivalent
+path avoids claiming a successful restore from QEMU startup failure.
 `bun run images:build` refuses to build while a digest is empty; run
 `bun run images:build --resolve` on a machine with a Docker daemon and commit the
 result.

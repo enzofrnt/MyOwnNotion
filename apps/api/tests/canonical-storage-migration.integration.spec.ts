@@ -2,6 +2,11 @@ import { buildItemSnapshot, schema } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
+import { PROTECTED_PAYLOAD } from "../src/security/canonical-payloads.ts";
+import {
+  canonicalMetadataDigest,
+  protectCanonicalMetadata,
+} from "../src/security/canonical-storage-migration.ts";
 import { FileStorageMigration } from "../src/security/file-storage-migration.ts";
 import { ProtectedRecordService } from "../src/security/protected-record-service.ts";
 import { createItemViaApi } from "./helpers/app.ts";
@@ -293,6 +298,137 @@ it("protects historical database definitions, views and entry values while retai
     expect(restoredEntry.json()).toEqual(expectedEntry);
     expect(JSON.stringify(await db.select().from(schema.revisions))).not.toContain("sentinel");
   } finally {
+    await harness.close();
+  }
+});
+
+it("refuses unavailable canonical identities and damaged retained snapshots before sealing anything", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedContent: content } = harness.built.context;
+    if (content === undefined) throw new Error("Missing protected content");
+    for (const category of ["item", "revision", "relationship", "export"] as const) {
+      await expect(
+        db.transaction((tx) =>
+          canonicalMetadataDigest(tx, content, {
+            category,
+            entityId: generateUuidV7(),
+          }),
+        ),
+      ).rejects.toThrow("unavailable");
+    }
+    await expect(
+      db.transaction((tx) =>
+        canonicalMetadataDigest(tx, content, {
+          category: "unknown" as never,
+          entityId: generateUuidV7(),
+        }),
+      ),
+    ).rejects.toThrow("Unsupported");
+    const page = await createItemViaApi(harness, { kind: "page", name: "snapshot safety" });
+    await db
+      .delete(schema.protectedEnvelopes)
+      .where(eq(schema.protectedEnvelopes.entityId, page.revisionId));
+    for (const invalid of [
+      "invalid",
+      42,
+      [],
+      { name: "�" },
+      { pageDocument: { body: PROTECTED_PAYLOAD } },
+      { file: { originalName: "�" } },
+    ]) {
+      await db
+        .update(schema.revisions)
+        .set({ snapshot: invalid })
+        .where(eq(schema.revisions.id, page.revisionId));
+      await expect(
+        db.transaction((tx) =>
+          canonicalMetadataDigest(tx, content, {
+            category: "revision",
+            entityId: page.revisionId,
+          }),
+        ),
+      ).rejects.toThrow(/invalid|marker/);
+      expect(await content.readRevisionSnapshot(db, page.revisionId)).toBeNull();
+    }
+    await db
+      .delete(schema.protectedEnvelopes)
+      .where(
+        and(
+          eq(schema.protectedEnvelopes.entityId, page.itemId),
+          eq(schema.protectedEnvelopes.entityType, "page.body"),
+        ),
+      );
+    await expect(
+      db.transaction((tx) =>
+        canonicalMetadataDigest(tx, content, {
+          category: "item",
+          entityId: page.itemId,
+        }),
+      ),
+    ).rejects.toThrow(/unavailable/);
+  } finally {
+    await harness.close();
+  }
+});
+
+it("protects export descriptors only if both their captured and replacement values agree", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedContent: content, workspaceId } = harness.built.context;
+    if (content === undefined) throw new Error("Missing protected content");
+    const entityId = generateUuidV7();
+    const manifest = { filename: "private exported descriptor", files: [] };
+    await db.insert(schema.exports).values({ id: entityId, workspaceId, manifest });
+    const source = {
+      kind: "metadata" as const,
+      category: "export" as const,
+      objectId: generateUuidV7(),
+      entityId,
+      digest: await db.transaction((tx) =>
+        canonicalMetadataDigest(tx, content, { category: "export", entityId }),
+      ),
+    };
+    await db
+      .update(schema.exports)
+      .set({ manifest: { filename: "modified" } })
+      .where(eq(schema.exports.id, entityId));
+    await expect(
+      db.transaction((tx) => protectCanonicalMetadata(tx, content, source)),
+    ).rejects.toThrow("changed after inventory");
+    expect(await content.readExportManifest(db, entityId)).toBeNull();
+    await db.update(schema.exports).set({ manifest }).where(eq(schema.exports.id, entityId));
+    vi.spyOn(content, "writeExportManifest").mockResolvedValueOnce(undefined);
+    await expect(
+      db.transaction((tx) => protectCanonicalMetadata(tx, content, source)),
+    ).rejects.toThrow("does not match");
+    expect(
+      (await db.select().from(schema.exports).where(eq(schema.exports.id, entityId)))[0]?.manifest,
+    ).toEqual(manifest);
+    vi.restoreAllMocks();
+    await db.transaction((tx) => protectCanonicalMetadata(tx, content, source));
+    expect(
+      (await db.select().from(schema.exports).where(eq(schema.exports.id, entityId)))[0]?.manifest,
+    ).toBeNull();
+    expect(await content.readExportManifest(db, entityId)).toEqual(manifest);
+    expect(await db.transaction((tx) => canonicalMetadataDigest(tx, content, source))).toBe(
+      source.digest,
+    );
+    // A pending export legitimately has no completed descriptor yet.
+    const pendingId = generateUuidV7();
+    await db.insert(schema.exports).values({ id: pendingId, workspaceId });
+    const pending = {
+      ...source,
+      entityId: pendingId,
+      objectId: generateUuidV7(),
+      digest: await db.transaction((tx) =>
+        canonicalMetadataDigest(tx, content, { category: "export", entityId: pendingId }),
+      ),
+    };
+    await db.transaction((tx) => protectCanonicalMetadata(tx, content, pending));
+    expect(await content.readExportManifest(db, pendingId)).toBeNull();
+  } finally {
+    vi.restoreAllMocks();
     await harness.close();
   }
 });

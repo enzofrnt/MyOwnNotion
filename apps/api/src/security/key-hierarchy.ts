@@ -47,6 +47,7 @@ import {
   seal,
   toBase64Url,
 } from "@myownnotion/domain/security";
+import { shareFullFileMutation } from "../backup/full/locks.ts";
 
 /**
  * Refusal to produce a key.
@@ -307,6 +308,9 @@ export class KeyHierarchy {
    * under it.
    */
   async startNextGeneration(tx: Transaction): Promise<{ generation: number }> {
+    // Pin the transition decision before changing the generation used by its
+    // source inventory and resumable ciphertext checkpoints.
+    await shareFullFileMutation(tx);
     const { installationId, workspaceId } = this.#deps;
     const currentGeneration = await findCurrentGeneration(tx, workspaceId);
     if (currentGeneration === null) {

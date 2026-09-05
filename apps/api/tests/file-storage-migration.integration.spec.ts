@@ -276,6 +276,15 @@ it("blocks existing HTTP writers and a new server until the transaction-local mi
     });
     expect(refused.statusCode, refused.body).toBe(503);
     expect(refused.json().code).toBe("migration_in_progress");
+    const generations = await db.select().from(schema.dataKeyGenerations);
+    await expect(db.transaction((tx) => files.deps.keys.startNextGeneration(tx))).rejects.toThrow(
+      "transition is incomplete",
+    );
+    await expect(
+      db.transaction((tx) => rotateProtectedFileBatch(tx, files, 1, 1, 1)),
+    ).rejects.toThrow("transition is incomplete");
+    expect(await db.select().from(schema.dataKeyGenerations)).toEqual(generations);
+
     const exportRefused = await harness.owner({ method: "POST", url: "/v1/export" });
     expect(exportRefused.statusCode).toBe(503);
     expect(await db.select().from(schema.exports)).toHaveLength(0);
@@ -311,6 +320,9 @@ it("blocks existing HTTP writers and a new server until the transaction-local mi
       itemId: page.itemId,
       recordVersion: 1,
       name: "resumed",
+    });
+    expect(await db.transaction((tx) => files.deps.keys.startNextGeneration(tx))).toEqual({
+      generation: 2,
     });
   } finally {
     await harness.close();

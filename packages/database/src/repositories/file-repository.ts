@@ -395,20 +395,3 @@ export async function executeReplaceFileContent(
   await supersedeRevision(tx, item.currentRevisionId, input.acceptedAt);
   return ok({ revisionId, itemId: input.itemId });
 }
-
-export async function findVerifiedContentByDigest(
-  tx: Transaction,
-  sha256: Uint8Array,
-  byteLength: number,
-): Promise<{ contentId: Uuid; storageKey: string } | null> {
-  const rows = await tx
-    .select()
-    .from(fileContents)
-    .where(and(eq(fileContents.sha256, sha256), eq(fileContents.byteLength, byteLength)))
-    .limit(1);
-  const row = rows[0];
-  if (row === undefined || row.verifiedAt === null || row.storageKey === null) {
-    return null;
-  }
-  return { contentId: row.id as Uuid, storageKey: row.storageKey };
-}

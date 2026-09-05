@@ -12,7 +12,7 @@ import {
 } from "@myownnotion/database";
 import { generateUuidV7, PROTECTED_FILE_CHUNK_BYTES, type Uuid } from "@myownnotion/domain";
 import { startMigratedPostgres } from "@myownnotion/test-utils";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { expect, it, vi } from "vitest";
 import { EXIT_CODES } from "../src/admin/command-output.ts";
 import { parseCommand } from "../src/admin/command-parser.ts";
@@ -123,6 +123,35 @@ it("resumes a failed file rotation, preserves completed and partial bytes and re
     expect((await rotationDataKeyCommand(revoke, protectedDeps, { execute: true })).code).toBe(
       EXIT_CODES.refused,
     );
+    // An interrupted historical migration must not change a failed rotation's
+    // policy, cursor or generation when an operator attempts to resume it.
+    const transitionId = generateUuidV7();
+    const inventoryId = await runtime.records.write(handle.db, {
+      entityType: "file.transition-inventory",
+      entityId: transitionId,
+      recordVersion: 1,
+      payload: Buffer.from(JSON.stringify({ formatVersion: 1, entries: [] })),
+    });
+    await handle.db.insert(schema.fileStorageTransitions).values({
+      id: transitionId,
+      installationId,
+      sourceBackupId: generateUuidV7(),
+      sourceInventoryEnvelopeId: inventoryId,
+      phase: "inventoried",
+    });
+    const pausedOperations = await handle.db.select().from(schema.rotationOperations);
+    const pausedPolicies = await handle.db.select().from(schema.rotationPolicies);
+    const pausedGenerations = await handle.db.select().from(schema.dataKeyGenerations);
+    await expect(rotationDataKeyCommand(rotate, protectedDeps, { execute: true })).rejects.toThrow(
+      "transition is incomplete",
+    );
+    expect(await handle.db.select().from(schema.rotationOperations)).toEqual(pausedOperations);
+    expect(await handle.db.select().from(schema.rotationPolicies)).toEqual(pausedPolicies);
+    expect(await handle.db.select().from(schema.dataKeyGenerations)).toEqual(pausedGenerations);
+    await handle.db
+      .update(schema.fileStorageTransitions)
+      .set({ phase: "complete", completedAt: now() })
+      .where(eq(schema.fileStorageTransitions.id, transitionId));
     const resumed = await rotationDataKeyCommand(rotate, protectedDeps, { execute: true });
     expect(resumed.code, resumed.message).toBe(EXIT_CODES.ok);
     expect(resumed.data?.["operationId"]).toBe(first.data?.["operationId"]);

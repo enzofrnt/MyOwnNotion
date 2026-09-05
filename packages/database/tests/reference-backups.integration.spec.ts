@@ -10,8 +10,8 @@ import { inspectBackupArchive } from "../../../apps/api/src/backup/archive-forma
 import { createDatabaseRestoreTarget } from "../../../apps/api/src/backup/database-restore-target.ts";
 import { createDisposableWorkspace } from "../../../apps/api/src/backup/disposable-workspace.ts";
 import { applyArchive, preflight } from "../../../apps/api/src/backup/restore-service.ts";
+import { createProtectedFileRuntime } from "../../../apps/api/src/files/protected-file-runtime.ts";
 import { createDatabaseSearchService } from "../../../apps/api/src/search/search-service.ts";
-import { createProtectedContentRuntime } from "../../../apps/api/src/security/protected-content-runtime.ts";
 import { createIntegrationContext, type IntegrationContext } from "./helpers/db.ts";
 
 const REFERENCE_BACKUPS = [
@@ -129,12 +129,14 @@ describe.each(REFERENCE_BACKUPS)("reference backup $file", (reference) => {
         schemaVersion: workspace.schemaVersion,
       });
       const deploymentKey = randomBytes(32);
-      const protectedContent = createProtectedContentRuntime({
+      const runtime = createProtectedFileRuntime({
         db: restored.handle.db,
         installationId,
         workspaceId: workspace.id,
         deploymentKey: () => deploymentKey,
-      }).content;
+        blobRoot: restored.blobRoot,
+      });
+      const protectedContent = runtime.content;
       const contentStore = new ContentStore(new FilesystemBlobStore(restored.blobRoot));
       const result = await restored.handle.db.transaction(async (tx) =>
         applyArchive(
@@ -144,6 +146,7 @@ describe.each(REFERENCE_BACKUPS)("reference backup $file", (reference) => {
             workspaceId: workspace.id,
             contentStore,
             protectedContent,
+            protectedFiles: runtime.files,
           }),
         ),
       );
@@ -153,19 +156,32 @@ describe.each(REFERENCE_BACKUPS)("reference backup $file", (reference) => {
         restoredDatabaseCount: 0,
         restoredDatabaseEntryCount: 0,
       });
-      const names = (
-        await restored.handle.db.select({ name: schema.items.name }).from(schema.items)
-      )
-        .map((row) => row.name)
-        .sort();
-      expect(names).toEqual([...reference.itemNames].sort());
+      const storedItems = await restored.handle.db.select().from(schema.items);
+      expect(storedItems.every((item) => item.name === "�")).toBe(true);
+      const names = await Promise.all(
+        storedItems.map((item) => protectedContent.readItemName(restored.handle.db, item.id)),
+      );
+      expect(names.sort()).toEqual([...reference.itemNames].sort());
       expect(await restored.handle.db.select().from(schema.relationships)).toHaveLength(1);
-      expect(await restored.handle.db.select().from(schema.revisions)).toHaveLength(3);
-      expect(await restored.handle.db.select().from(schema.logicalFiles)).toHaveLength(1);
-      // Three titles, one page body, one relationship metadata object. A live
-      // restore must not bring readable content back without recreating the
-      // protected copies that the secured read path prefers.
-      expect(await restored.handle.db.select().from(schema.protectedEnvelopes)).toHaveLength(5);
+      const revisions = await restored.handle.db.select().from(schema.revisions);
+      expect(revisions).toHaveLength(3);
+      for (const revision of revisions) {
+        expect(revision.snapshot).toBeNull();
+        expect(
+          await protectedContent.readRevisionSnapshot(restored.handle.db, revision.id),
+        ).not.toBeNull();
+      }
+      const files = await restored.handle.db.select().from(schema.logicalFiles);
+      expect(files).toHaveLength(1);
+      const file = files[0];
+      if (file === undefined) throw new Error("Missing reference file");
+      expect(file.originalName).toBe("�");
+      const manifest = await runtime.files.manifest(restored.handle.db, file.contentId);
+      let bytes = 0;
+      for await (const chunk of runtime.files.read(restored.handle.db, file.contentId))
+        bytes += chunk.byteLength;
+      expect(bytes).toBe(manifest.byteLength);
+      expect(bytes).toBeGreaterThan(0);
 
       const search = createDatabaseSearchService({
         db: restored.handle.db,

@@ -18,6 +18,7 @@ import {
   evaluateDatabaseView,
   type FilterCriterion,
   type NonRelationPropertyValue,
+  prepareDatabaseFilterOperand,
   type SafeErrorCode,
   type Uuid,
 } from "@myownnotion/domain";
@@ -306,6 +307,7 @@ function complement(all: ReadonlySet<Uuid>, excluded: ReadonlySet<Uuid>): Set<Uu
 
 function indexedCriterion(
   criterion: FilterCriterion,
+  definition: DatabaseDefinition,
   indexes: PropertyIndexes,
   all: ReadonlySet<Uuid>,
 ): ReadonlySet<Uuid> | undefined {
@@ -313,9 +315,12 @@ function indexedCriterion(
   if (criterion.operator === "is-not-empty") return presence;
   if (criterion.operator === "is-empty") return complement(all, presence);
   if (criterion.operator === "equals" || criterion.operator === "not-equals") {
-    if (criterion.operand === undefined) return undefined;
+    const property = definition.properties.find(({ id }) => id === criterion.propertyId);
+    if (property === undefined) return undefined;
+    const operand = prepareDatabaseFilterOperand(property, criterion);
+    if (!operand.ok || operand.value === undefined) return undefined;
     const equal =
-      indexes.equality.get(criterion.propertyId)?.get(stableValueKey(criterion.operand)) ??
+      indexes.equality.get(criterion.propertyId)?.get(stableValueKey(operand.value)) ??
       new Set<Uuid>();
     return criterion.operator === "equals" ? equal : complement(all, equal);
   }
@@ -324,13 +329,14 @@ function indexedCriterion(
 
 function indexedCandidates(
   view: DatabaseView,
+  definition: DatabaseDefinition,
   indexes: PropertyIndexes,
   entries: readonly StructuredProjectionEntry[],
 ): ReadonlySet<Uuid> | undefined {
   if (view.filter.criteria.length === 0) return undefined;
   const all = new Set(entries.map(({ entryId }) => entryId));
   const candidates = view.filter.criteria.map((criterion) =>
-    indexedCriterion(criterion, indexes, all),
+    indexedCriterion(criterion, definition, indexes, all),
   );
   if (view.filter.mode === "any") {
     if (candidates.some((candidate) => candidate === undefined)) return undefined;
@@ -641,7 +647,7 @@ export class DatabaseQueryService {
     if (view === undefined) throw new DatabaseQueryRequestError("database.invalid-view");
 
     const indexes = active.indexes.get(databaseId) ?? { presence: new Map(), equality: new Map() };
-    const candidateIds = indexedCandidates(view, indexes, source.entries);
+    const candidateIds = indexedCandidates(view, source.definition, indexes, source.entries);
     const entries =
       candidateIds === undefined
         ? source.entries

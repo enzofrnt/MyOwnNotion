@@ -1,14 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { type BackupManifest, canonicalStructuredDataString } from "@myownnotion/domain";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   decodeBackupArchive,
   encodeBackupArchive,
   inspectBackupArchive,
-  writeBackupArchiveFile,
+  streamBackupArchive,
 } from "../src/backup/archive-format.ts";
 
 const BLOCK = 512;
@@ -48,71 +45,88 @@ function firstEntryEnd(archive: Buffer): number {
   return BLOCK + Math.ceil(size / BLOCK) * BLOCK;
 }
 
-let directory: string;
-
-beforeEach(async () => {
-  directory = await mkdtemp(path.join(os.tmpdir(), "mon-archive-format-"));
-});
-
-afterEach(async () => {
-  await rm(directory, { recursive: true, force: true });
-});
+async function collect(source: AsyncIterable<Uint8Array>): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const bytes of source) chunks.push(Buffer.from(bytes));
+  return Buffer.concat(chunks);
+}
 
 describe("streaming archive writing", () => {
-  it("writes the same inspectable shape while loading one file at a time", async () => {
-    const bytes = Buffer.from("file payload");
-    const fileDigest = digest(bytes);
+  it("streams the exact portable layout in digest order without a plaintext staging file", async () => {
+    const files = new Map<string, Buffer>([
+      [digest(Buffer.from("file payload")), Buffer.from("file payload")],
+      [digest(Buffer.alloc(512, 7)), Buffer.alloc(512, 7)],
+      [digest(Buffer.alloc(0)), Buffer.alloc(0)],
+    ]);
     const canonical = JSON.stringify({ items: [], relationships: [], revisions: [] });
-    const target = path.join(directory, "backup.tar");
+    const manifest = manifestFor(
+      canonical,
+      [...files].map(([digest, bytes]) => ({ digest, byteLength: bytes.length })),
+    );
     const reads: string[] = [];
-    await writeBackupArchiveFile({
-      path: target,
-      manifest: manifestFor(canonical, [{ digest: fileDigest, byteLength: bytes.byteLength }]),
-      canonicalExport: canonical,
-      readFile: async (requested) => {
-        reads.push(requested);
-        return bytes;
+    const streamed = await collect(
+      streamBackupArchive({
+        manifest,
+        canonicalExport: canonical,
+        readFile: async function* (requested) {
+          reads.push(requested);
+          const bytes = files.get(requested);
+          if (bytes === undefined) throw new Error("missing source");
+          yield bytes.subarray(0, 2);
+          yield bytes.subarray(2);
+        },
+      }),
+    );
+    expect(reads).toEqual([...files.keys()].sort());
+    expect(streamed).toEqual(encodeBackupArchive({ manifest, canonicalExport: canonical, files }));
+    expect(inspectBackupArchive(streamed)).toMatchObject({ ok: true });
+  });
+
+  it("refuses missing, shortened, extended or substituted streams before a complete archive", async () => {
+    const bytes = Buffer.from("expected");
+    const canonical = JSON.stringify({ items: [], relationships: [], revisions: [] });
+    const manifest = manifestFor(canonical, [{ digest: digest(bytes), byteLength: bytes.length }]);
+    for (const bad of [
+      Buffer.alloc(0),
+      bytes.subarray(1),
+      Buffer.from("too much data"),
+      Buffer.alloc(bytes.length),
+    ]) {
+      await expect(
+        collect(
+          streamBackupArchive({
+            manifest,
+            canonicalExport: canonical,
+            readFile: async function* () {
+              yield bad;
+            },
+          }),
+        ),
+      ).rejects.toThrow(/declared length|authenticated inventory/);
+    }
+    await expect(
+      collect(
+        streamBackupArchive({
+          manifest,
+          canonicalExport: canonical,
+          readFile: async function* () {
+            yield bytes.subarray(0, 2);
+            throw new Error("source unavailable");
+          },
+        }),
+      ),
+    ).rejects.toThrow("source unavailable");
+  });
+
+  it("refuses an invalid creation date before emitting output", async () => {
+    const stream = streamBackupArchive({
+      manifest: manifestFor("{}", [], { createdAt: "not-a-date" }),
+      canonicalExport: "{}",
+      readFile: async function* () {
+        yield Buffer.alloc(0);
       },
     });
-    expect(reads).toEqual([fileDigest]);
-    expect(inspectBackupArchive(await readFile(target))).toMatchObject({ ok: true });
-  });
-
-  it("refuses an absent or changed payload named by the manifest", async () => {
-    const bytes = Buffer.from("expected");
-    const fileDigest = digest(bytes);
-    const canonical = JSON.stringify({ items: [], relationships: [], revisions: [] });
-    const archiveManifest = manifestFor(canonical, [
-      { digest: fileDigest, byteLength: bytes.byteLength },
-    ]);
-    await expect(
-      writeBackupArchiveFile({
-        path: path.join(directory, "missing.tar"),
-        manifest: archiveManifest,
-        canonicalExport: canonical,
-        readFile: async () => null,
-      }),
-    ).rejects.toThrow(/absent from the store/);
-    await expect(
-      writeBackupArchiveFile({
-        path: path.join(directory, "changed.tar"),
-        manifest: archiveManifest,
-        canonicalExport: canonical,
-        readFile: async () => Buffer.from("modified"),
-      }),
-    ).rejects.toThrow(/does not match/);
-  });
-
-  it("refuses an invalid creation date before creating output", async () => {
-    const canonical = JSON.stringify({ items: [] });
-    await expect(
-      writeBackupArchiveFile({
-        path: path.join(directory, "invalid.tar"),
-        manifest: manifestFor(canonical, [], { createdAt: "not-a-date" }),
-        canonicalExport: canonical,
-        readFile: async () => null,
-      }),
-    ).rejects.toThrow(/valid creation date/);
+    await expect(stream.next()).rejects.toThrow(/creation date/);
   });
 });
 

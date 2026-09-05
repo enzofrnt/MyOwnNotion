@@ -1179,6 +1179,23 @@
         "prefixes": ["apps/web/src/features/editor/"],
         "suffixes": []
       }
+    },
+    {
+      "test": "tests/e2e/protected-files.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/backup/guarded-migration.ts"],
+        "prefixes": [
+          "apps/api/src/files/",
+          "apps/api/src/routes/files",
+          "apps/api/src/routes/uploads",
+          "apps/api/src/security/",
+          "apps/web/src/features/files/",
+          "apps/web/src/features/attachments/",
+          "packages/blob-store/src/",
+          "packages/database/src/"
+        ],
+        "suffixes": []
+      }
     }
   ],
   "e2eIgnored": [
