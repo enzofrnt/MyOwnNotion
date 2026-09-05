@@ -1,8 +1,12 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 const processResult = vi.hoisted(() => vi.fn());
 vi.mock("node:child_process", () => ({ spawnSync: processResult }));
 
+import { checkDeploymentKey, loadDeploymentKey } from "../src/security/deployment-key.ts";
 import {
   hasPrivateWindowsKeyAcl,
   isPrivateWindowsKeyAcl,
@@ -15,6 +19,27 @@ const valid = {
   rules: [{ sid: "S-1-5-21-123", type: "Allow" }],
 };
 describe("Windows deployment key ACL validation", () => {
+  it("selects ACL enforcement in the real loader and refuses an unverified descriptor", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "mon-acl-loader-"));
+    const filename = path.join(root, "fixture");
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+    if (platform === undefined) throw new Error("Missing platform descriptor");
+    try {
+      writeFileSync(filename, Buffer.alloc(32, 17).toString("base64"), { mode: 0o600 });
+      Object.defineProperty(process, "platform", { value: "win32" });
+      processResult.mockReturnValue({ status: 0, stdout: JSON.stringify(valid) });
+      expect(Buffer.from(loadDeploymentKey(filename).bytes)).toEqual(Buffer.alloc(32, 17));
+      processResult.mockReturnValue({
+        status: 0,
+        stdout: JSON.stringify({ ...valid, protected: false }),
+      });
+      expect(checkDeploymentKey(filename)).toEqual({ available: false, problem: "world-readable" });
+      expect(() => loadDeploymentKey(filename)).toThrow("Windows ACL");
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
   it("requires the current owner, protected inheritance and owner-only allow rules", () => {
     expect(isPrivateWindowsKeyAcl(valid)).toBe(true);
     expect(
