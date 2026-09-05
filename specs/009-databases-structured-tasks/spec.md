@@ -37,9 +37,12 @@ blocs d'éditeur et ne deviennent pas automatiquement des tâches structurées.
 Une base peut posséder plusieurs vues enregistrées sur les mêmes entrées. Les
 vues changent la présentation, le filtrage, le tri et le regroupement ; elles
 ne copient pas les pages et ne modifient pas leur identité. Cette livraison
-couvre les bases ouvertes comme des éléments du workspace. Les vues liées ou
-intégrées dans une autre page sont différées afin de ne pas confondre le modèle
-structuré avec l'évolution visuelle de l'éditeur préparée dans la feature 003.
+couvrait initialement les bases ouvertes comme des éléments du workspace.
+La [feature 026](../026-linked-databases/spec.md) remplace ce report : les bases
+deviennent des ressources indépendantes intégrables dans des pages normales,
+avec des vues propres à chaque emplacement. La suppression d'une page hôte ne
+supprime plus les entrées par appartenance ; les identités existantes restent
+conservées. Les autres exigences de la 009 restent applicables.
 
 Le produit reste strictement mono-utilisateur. Toutes les bases, propriétés,
 vues et tâches de cette feature sont privées et accessibles au propriétaire

@@ -1,5 +1,11 @@
 # Implementation Plan: Bases de données et tâches structurées
 
+**Évolution 026 (2026-09-05)** : le [plan des bases réutilisables](../026-linked-databases/plan.md)
+remplace le couplage page-capacité et la suppression des entrées par appartenance.
+Les sources ont une révision indépendante et des emplacements aux vues propres.
+Les décisions ci-dessous décrivent la livraison initiale ; 026 prévaut sur ces
+trois points tout en préservant identités, chiffrement et historique.
+
 **Phases UI** : charger le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
 pour la conception, la réalisation et la revue. Conserver les états, critères
 et preuves propres à cette feature dans ses artefacts ; cette référence ne

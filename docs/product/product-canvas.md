@@ -683,6 +683,17 @@ fermeture de la page ne doit pas être la stratégie principale de persistance.
 
 ## 14. Bases de données et tâches
 
+Une base est une ressource indépendante de ses pages d'affichage. La feature
+026 complète la 009 : une page ordinaire peut intégrer plusieurs bases et une
+même source peut apparaître dans plusieurs pages. Chaque emplacement conserve
+ses propres vues, filtres, tris et regroupements ; le schéma et les entrées
+restent communs. Retirer un emplacement, supprimer ou purger sa page conserve
+la source et ses entrées. Une source sans affichage reste sélectionnable.
+La migration conserve les identifiants, contenus, liens et historiques
+existants, avec sauvegarde complète préalable vérifiée. Sources et emplacements
+suivent les garanties de chiffrement, hors ligne, synchronisation,
+export et restauration des autres données canoniques.
+
 Les bases de données suivent le modèle mental de Notion. Une entrée est une page possédant des propriétés, par exemple :
 
 - texte ;
