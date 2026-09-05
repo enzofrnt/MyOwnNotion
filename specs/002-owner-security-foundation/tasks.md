@@ -701,3 +701,12 @@ the exact implementation, test, workflow, or evidence paths above.
 | SC-009 | `spec.md` §Success Criteria; `validation.md` SC-009 | T003, T074, T075, T076, T077, T085, T089, T115 |
 | SC-010 | `spec.md` §Success Criteria; `validation.md` SC-010 | T003, T090, T091, T097, T105, T115 |
 | SC-011 | `spec.md` §Success Criteria; `validation.md` SC-011 | T121, T122, T123, T124, T125, T126, T127, T128, T129 |
+
+
+## Storage audit follow-up — feature 025
+
+File encryption and progressive chunk rotation remain required. Feature 025 wires the existing primitives into real file/upload/metadata paths and extends generation counts/revocation; previous isolated helper coverage is not runtime attachment privacy evidence.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.

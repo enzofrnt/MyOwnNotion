@@ -148,3 +148,12 @@ The shapes that matter:
 ## Complexity Tracking
 
 No constitutional violations to justify.
+
+
+## Storage audit follow-up — feature 025
+
+Feature 025 preserves file identities, verified deduplication, resumable offsets and range contracts while replacing raw persistent storage and whole-file buffering with the shared protected file service.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.

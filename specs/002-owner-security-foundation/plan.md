@@ -594,3 +594,12 @@ outstanding reconciliation between this plan and the task list remains.
 Implement only on `codex/spec-update` in the dependency order above.
 Record all measured results in [validation.md](validation.md); an empty or
 pending ledger is not evidence of completion.
+
+
+## Storage audit follow-up — feature 025
+
+File encryption and progressive chunk rotation remain required. Feature 025 wires the existing primitives into real file/upload/metadata paths and extends generation counts/revocation; previous isolated helper coverage is not runtime attachment privacy evidence.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.

@@ -72,3 +72,12 @@ retention evidence until full backups explicitly prove equivalent coverage.
 - [x] T025 Reject unsupported PostgreSQL major versions during authenticated manifest parsing in `packages/domain/src/backup/full-manifest.ts`, before any restore target writes; cover older/future versions and malformed source provenance in `packages/domain/tests/full-manifest.spec.ts` per FR-015/FR-016 and SC-003 (partial, HIGH).
 
 - [x] T026 Close provider upload sources on credential/session preflight failure and handle early source-read errors in `apps/api/src/backup/destinations/google-drive.ts`; verify refused/partial uploads, safe provider diagnostics and retained local archives per FR-005/FR-007 (partial, HIGH).
+
+
+## Storage audit follow-up — feature 025
+
+Feature 025 follows delivery of this feature. Its historical storage transition requires a verified full pre-update artifact. Full inventory becomes format-aware for encrypted completed/upload chunks and quarantine while retaining legacy-schema recovery; complete archive format remains opaque SQL plus durable files.
+
+See the [canonical plan](../025-storage-coherence-audit/plan.md) and
+[implementation tasks](../025-storage-coherence-audit/tasks.md). This reference
+does not mark that follow-up implemented or delivered.
