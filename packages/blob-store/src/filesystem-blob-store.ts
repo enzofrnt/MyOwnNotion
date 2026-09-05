@@ -1,18 +1,34 @@
 /**
- * Development filesystem adapter (T019).
+ * Durable immutable filesystem adapter (T019, feature 025 T006).
  *
  * Content-addressed layout: blobs live at `<root>/<aa>/<digest>` where `aa`
  * is the first digest byte. Writes go to a temporary file first and are
- * renamed into place after verification, so a crash never leaves a partial
- * blob at a final key.
+ * linked into place after verification and fsync. Publication never overwrites
+ * an existing key, and succeeds only after the containing directory is synced.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { link, lstat, mkdir, open, rm } from "node:fs/promises";
 import path from "node:path";
 import type { BlobStore, StoredBlob } from "./blob-store.ts";
 
 function digestHex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+async function requireDirectory(directory: string): Promise<void> {
+  const status = await lstat(directory);
+  if (!status.isDirectory() || status.isSymbolicLink())
+    throw new Error("Blob storage requires a real directory.");
+}
+
+async function syncDirectory(directory: string): Promise<void> {
+  const handle = await open(directory, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
 }
 
 export class FilesystemBlobStore implements BlobStore {
@@ -32,22 +48,46 @@ export class FilesystemBlobStore implements BlobStore {
   async put(bytes: Uint8Array): Promise<StoredBlob> {
     const hex = digestHex(bytes);
     const finalPath = this.#pathFor(hex);
-    await mkdir(path.dirname(finalPath), { recursive: true });
+    await mkdir(this.#root, { recursive: true, mode: 0o700 });
+    await requireDirectory(this.#root);
+    await syncDirectory(path.dirname(this.#root));
+    const directory = path.dirname(finalPath);
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    await requireDirectory(directory);
+    await syncDirectory(this.#root);
 
     const temporaryPath = path.join(
       path.dirname(finalPath),
       `.tmp-${randomBytes(8).toString("hex")}`,
     );
-    await writeFile(temporaryPath, bytes, { flag: "wx" });
-
-    // Verify what was actually persisted before exposing the blob.
-    const persisted = await readFile(temporaryPath);
-    const persistedDigest = digestHex(persisted);
-    if (persistedDigest !== hex || persisted.byteLength !== bytes.byteLength) {
-      await rm(temporaryPath, { force: true });
-      throw new Error("blob verification failed after write");
+    const handle = await open(temporaryPath, "wx+", 0o600);
+    try {
+      let offset = 0;
+      while (offset < bytes.byteLength) {
+        const written = await handle.write(bytes, offset, bytes.byteLength - offset, offset);
+        if (written.bytesWritten === 0) throw new Error("Blob write made no progress.");
+        offset += written.bytesWritten;
+      }
+      const persisted = await handle.readFile();
+      if (digestHex(persisted) !== hex || persisted.byteLength !== bytes.byteLength)
+        throw new Error("Blob verification failed after write.");
+      await handle.sync();
+      try {
+        await link(temporaryPath, finalPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        if (!(await this.equals(hex, bytes)))
+          throw new Error("An existing immutable blob does not match its storage key.");
+      }
+      await syncDirectory(directory);
+    } finally {
+      try {
+        await handle.close();
+      } finally {
+        await rm(temporaryPath, { force: true });
+        await syncDirectory(directory);
+      }
     }
-    await rename(temporaryPath, finalPath);
 
     return {
       storageKey: hex,
@@ -59,8 +99,21 @@ export class FilesystemBlobStore implements BlobStore {
 
   async get(storageKey: string): Promise<Uint8Array | null> {
     try {
-      const bytes = await readFile(this.#pathFor(storageKey));
-      return new Uint8Array(bytes);
+      const filename = this.#pathFor(storageKey);
+      await requireDirectory(this.#root);
+      await requireDirectory(path.dirname(filename));
+      const handle = await open(
+        filename,
+        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+      );
+      try {
+        if (!(await handle.stat()).isFile()) throw new Error("Blob is not a regular file.");
+        const bytes = await handle.readFile();
+        if (digestHex(bytes) !== storageKey) throw new Error("Stored blob digest mismatch.");
+        return new Uint8Array(bytes);
+      } finally {
+        await handle.close();
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return null;
@@ -83,6 +136,14 @@ export class FilesystemBlobStore implements BlobStore {
   }
 
   async delete(storageKey: string): Promise<void> {
-    await rm(this.#pathFor(storageKey), { force: true });
+    const filename = this.#pathFor(storageKey);
+    try {
+      await requireDirectory(this.#root);
+      await requireDirectory(path.dirname(filename));
+      await rm(filename, { force: true });
+      await syncDirectory(path.dirname(filename));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
 }

@@ -22,3 +22,17 @@ backup/replacement/retained-quarantine constraints. Database strict types pass.
 Existing legacy candidate/export readers explicitly refuse unresolved encrypted
 metadata until T013–T017 connect the protected runtime; no nullable digest is
 misreported as an empty digest. The application transition is not implemented yet.
+
+T005 adds single-chunk and backpressured stream operations, upload/content purpose
+separation, authenticated inventory matching, progressive mixed-generation reads
+and owned-key cleanup. All 33 chunk tests and blob-store strict types pass,
+including source/storage interruption, cancellation, tail deletion, substitution,
+full digest verification and real 4 MiB boundaries. Existing convenience readers
+remain until the protected runtime is connected; this is primitive-level proof.
+
+T006 makes new filesystem publication exclusive, private, verified and fsynced
+before returning a durable locator, without overwriting an existing key. Focused
+filesystem tests cover concurrent identical writes, empty bytes, corrupt existing
+data, root/prefix/file symlinks, byte verification failure, file fsync failure and
+directory fsync refusal followed by a safe retry. No full runtime migration or
+end-to-end bounded-memory result is claimed by these primitive tests.
