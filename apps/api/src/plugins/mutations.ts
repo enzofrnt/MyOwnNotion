@@ -93,6 +93,11 @@ async function sealPayloads(
   revisionIds: readonly string[],
 ): Promise<void> {
   const itemIds = new Set<string>(primaryItemId === undefined ? [] : [primaryItemId]);
+  const sourceOnlyId =
+    command.type === "database.definition.replace" ||
+    command.type === "database.definition.resolve-conflict"
+      ? command.databaseId
+      : null;
   const snapshots = await readRevisionSnapshots(tx, revisionIds);
   for (const [revisionId, snapshot] of snapshots) {
     const [revision] = await tx
@@ -106,13 +111,16 @@ async function sealPayloads(
         throw new Error("Accepted revision payload is unavailable.");
       continue;
     }
-    const opened = await resolveSnapshotPayload(
-      tx,
-      protectedContent,
-      revision.itemId,
-      snapshot,
-      command.type === "item.icon" && command.itemId === revision.itemId,
-    );
+    const opened =
+      revision.itemId === sourceOnlyId
+        ? snapshot
+        : await resolveSnapshotPayload(
+            tx,
+            protectedContent,
+            revision.itemId,
+            snapshot,
+            command.type === "item.icon" && command.itemId === revision.itemId,
+          );
     await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot: opened });
     await tx
       .update(schema.revisions)
@@ -181,6 +189,9 @@ async function sealPayloads(
     }
   }
   for (const itemId of itemIds) {
+    // Source-only revisions do not depend on retained editorial envelopes of
+    // the former host, which canonical purge may already have removed.
+    if (itemId === sourceOnlyId) continue;
     await protectCurrentItem(
       tx,
       protectedContent,

@@ -690,6 +690,20 @@ export const DatabaseDefinitionSchema = Type.Object(
     format: Type.Literal("myownnotion.database-definition+json"),
     formatVersion: Type.Literal(1),
     databaseId: UuidSchema,
+    name: Type.Optional(DisplayNameSchema),
+    embeddings: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            id: UuidSchema,
+            hostPageId: UuidSchema,
+            state: DatabaseStateSchema,
+            views: Type.Array(DatabaseViewSchema, { minItems: 1 }),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
     properties: Type.Array(DatabasePropertySchema, { minItems: 1 }),
     views: Type.Array(DatabaseViewSchema, { minItems: 1 }),
     taskRoles: Type.Union([DatabaseTaskRoleMappingSchema, Type.Null()]),
@@ -702,6 +716,7 @@ export const CreateDatabaseRequestSchema = Type.Object(
   {
     id: UuidSchema,
     name: DisplayNameSchema,
+    hostPageId: Type.Optional(UuidSchema),
     placement: DatabasePlacementInputSchema,
     titlePropertyId: UuidSchema,
     titlePropertyName: Type.Optional(DisplayNameSchema),
@@ -852,6 +867,7 @@ export const DatabaseProjectionSchema = Type.Object(
   {
     itemId: UuidSchema,
     definitionVersion: Type.Integer({ minimum: 1 }),
+    definitionRevisionId: Type.Optional(UuidSchema),
     definition: DatabaseDefinitionSchema,
   },
   { additionalProperties: false },

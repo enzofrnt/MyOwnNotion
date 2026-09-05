@@ -46,6 +46,12 @@ export class LocalDatabaseRepository {
     return row === undefined ? null : await this.#codec.openDatabase(row);
   }
 
+  async listDatabases(): Promise<LocalDatabaseRow[]> {
+    return Promise.all(
+      (await this.db.databases.toArray()).map((row) => this.#codec.openDatabase(row)),
+    );
+  }
+
   async putEntry(row: LocalDatabaseEntryRow): Promise<void> {
     const sealed = await this.sealEntry(row);
     await this.db.transaction("rw", [this.db.databaseEntries], async () => {
@@ -66,11 +72,7 @@ export class LocalDatabaseRepository {
    * or an ordinary page.
    */
   async classifyStructuredHost(itemId: Uuid): Promise<"database" | "entry" | "page"> {
-    const [database, entry] = await Promise.all([
-      this.db.databases.get(itemId),
-      this.db.databaseEntries.get(itemId),
-    ]);
-    if (database !== undefined) return "database";
+    const entry = await this.db.databaseEntries.get(itemId);
     if (entry !== undefined) return "entry";
     return "page";
   }

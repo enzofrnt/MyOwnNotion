@@ -75,8 +75,8 @@ async function lifecycles(itemIds: readonly Uuid[]) {
   return new Map(rows.map(({ id, lifecycle }) => [id as Uuid, lifecycle]));
 }
 
-describe("database lifecycle is one membership-aware transaction (T102)", () => {
-  it("previews active members, trashes moved entries, and restores the same identities", async () => {
+describe("database source membership is independent of display lifecycle (026)", () => {
+  it("trashes and restores the former host while preserving moved entry identities", async () => {
     const { databaseId, entryIds } = await createDatabaseWithMovedEntries(3);
     const alreadyTrashed = entryIds[2] as Uuid;
     expect((await submit({ type: "item.trash", itemId: alreadyTrashed })).result.status).toBe(
@@ -86,7 +86,7 @@ describe("database lifecycle is one membership-aware transaction (T102)", () => 
     const impact = await context.handle.db.transaction((tx) =>
       previewDatabaseTrashImpact(tx, databaseId),
     );
-    expect(impact).toEqual({ isDatabase: true, activeEntryCount: 2 });
+    expect(impact).toEqual({ isDatabase: false, activeEntryCount: 0 });
 
     const definitionBefore = await readCurrentDatabaseDefinition(context.handle.db, databaseId);
     const valuesBefore = await Promise.all(
@@ -94,16 +94,16 @@ describe("database lifecycle is one membership-aware transaction (T102)", () => 
     );
     const trash = await submit({ type: "item.trash", itemId: databaseId });
     expect(trash.result.status).toBe("accepted");
-    expect(trash.result.revisionIds).toHaveLength(3);
+    expect(trash.result.revisionIds).toHaveLength(1);
     const afterTrash = await lifecycles([databaseId, ...entryIds]);
     expect(afterTrash.get(databaseId)).toBe("trashed");
-    expect(afterTrash.get(entryIds[0] as Uuid)).toBe("trashed");
-    expect(afterTrash.get(entryIds[1] as Uuid)).toBe("trashed");
+    expect(afterTrash.get(entryIds[0] as Uuid)).toBe("active");
+    expect(afterTrash.get(entryIds[1] as Uuid)).toBe("active");
     expect(afterTrash.get(alreadyTrashed)).toBe("trashed");
 
     const restore = await submit({ type: "item.restore", itemId: databaseId });
     expect(restore.result.status).toBe("accepted");
-    expect(restore.result.revisionIds).toHaveLength(3);
+    expect(restore.result.revisionIds).toHaveLength(1);
     const afterRestore = await lifecycles([databaseId, ...entryIds]);
     expect(afterRestore.get(databaseId)).toBe("active");
     expect(afterRestore.get(entryIds[0] as Uuid)).toBe("active");
@@ -126,7 +126,7 @@ describe("database lifecycle is one membership-aware transaction (T102)", () => 
     }
   });
 
-  it("rolls back the host and every membership revision on trash and restore faults", async () => {
+  it("rolls back display lifecycle on trash and restore faults", async () => {
     const { databaseId, entryIds } = await createDatabaseWithMovedEntries(2);
     const itemIds = [databaseId, ...entryIds];
     const revisionCountBefore = (await context.handle.db.select().from(schema.revisions)).length;
@@ -142,7 +142,7 @@ describe("database lifecycle is one membership-aware transaction (T102)", () => 
           type: "item.trash",
           itemId: databaseId,
         });
-        expect(result.ok && result.value.revisionIds).toHaveLength(3);
+        expect(result.ok && result.value.revisionIds).toHaveLength(1);
         throw new Error("database-trash-boundary-fault");
       }),
     ).rejects.toThrow("database-trash-boundary-fault");
@@ -163,13 +163,13 @@ describe("database lifecycle is one membership-aware transaction (T102)", () => 
           type: "item.restore",
           itemId: databaseId,
         });
-        expect(result.ok && result.value.revisionIds).toHaveLength(3);
+        expect(result.ok && result.value.revisionIds).toHaveLength(1);
         throw new Error("database-restore-boundary-fault");
       }),
     ).rejects.toThrow("database-restore-boundary-fault");
-    expect([...(await lifecycles(itemIds)).values()].every((state) => state === "trashed")).toBe(
-      true,
-    );
+    const afterRollback = await lifecycles(itemIds);
+    expect(afterRollback.get(databaseId)).toBe("trashed");
+    for (const entryId of entryIds) expect(afterRollback.get(entryId)).toBe("active");
     expect((await context.handle.db.select().from(schema.revisions)).length).toBe(
       revisionCountTrashed,
     );

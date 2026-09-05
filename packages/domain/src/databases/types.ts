@@ -232,9 +232,20 @@ export interface DatabaseDefinition {
   readonly format: typeof DATABASE_DEFINITION_FORMAT;
   readonly formatVersion: typeof DATABASE_FORMAT_VERSION;
   readonly databaseId: Uuid;
+  /** Private source metadata, independent of the page displaying it. */
+  readonly name?: string;
+  /** Absent only for legacy sources displayed on their former host page. */
+  readonly embeddings?: readonly DatabaseEmbedding[];
   readonly properties: readonly DatabaseProperty[];
   readonly views: readonly DatabaseView[];
   readonly taskRoles: TaskRoleMapping | null;
+}
+
+export interface DatabaseEmbedding {
+  readonly id: Uuid;
+  readonly hostPageId: Uuid;
+  readonly state: DatabaseObjectState;
+  readonly views: readonly DatabaseView[];
 }
 
 export type DefinitionImpactReason =

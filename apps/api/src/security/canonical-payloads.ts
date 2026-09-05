@@ -38,7 +38,7 @@ export async function resolveSnapshotPayload(
   if (snapshot["name"] === SCRUBBED_PLACEHOLDER) {
     resolved["name"] = required(presentation).name;
   }
-  if (!iconChanged && presentation !== null && snapshot["icon"] == null)
+  if (!iconChanged && presentation !== null && "icon" in snapshot && snapshot["icon"] == null)
     resolved["icon"] = presentation.icon;
   const page = snapshot["pageDocument"];
   if (

@@ -32,6 +32,7 @@ export interface ExportedItem extends CanonicalItem {
 
 export interface ExportedDatabase {
   readonly databaseId: Uuid;
+  readonly definitionRevisionId?: Uuid;
   readonly definitionVersion: number;
   readonly definition: DatabaseDefinition;
 }
@@ -100,8 +101,8 @@ function sortByKey<T>(entries: ReadonlyArray<T>, key: (entry: T) => string): T[]
 }
 
 export function buildCanonicalExport(input: BuildExportInput): CanonicalExportManifest {
-  // Purged items are represented only through revision headers and lifecycle
-  // diagnostics; active and trashed items are exported completely (FR-025).
+  // Purged items carry neutral structural tombstones so retained journal owners
+  // resolve during restore. Their names, documents, files and placements are absent.
   const items = sortById(input.items).map((item) => ({
     ...item,
     placements: [...item.placements].sort((a, b) => (a.id < b.id ? -1 : 1)),
@@ -250,6 +251,14 @@ export function validateCanonicalExport(
         detail: `Database ${database.databaseId} has no exported host page`,
       });
     }
+    if (
+      database.definitionRevisionId !== undefined &&
+      !revisionIds.has(database.definitionRevisionId)
+    )
+      issues.push({
+        code: "database.revision-missing",
+        detail: "Database source revision is missing",
+      });
     if (database.definition.databaseId !== database.databaseId) {
       issues.push({
         code: "database.definition-identity",

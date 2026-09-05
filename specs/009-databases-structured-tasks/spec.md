@@ -419,10 +419,9 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
   tâches dans un format versionné et vérifiable.
 - **FR-045**: La mise à la corbeille d'une entrée MUST la retirer de toutes ses
   vues et la restauration MUST la rétablir avec ses valeurs. La mise à la
-  corbeille d'une base MUST annoncer le nombre d'entrées affectées et placer la
-  base et ses entrées actives dans la corbeille comme une opération atomique ;
-  leur restauration MUST rétablir schéma, vues, valeurs, historique et
-  relations sans ancienne copie résiduelle.
+  corbeille d'une page affichant une base MUST conserver la source et ses
+  entrées indépendantes (évolution 026). Retirer tous les affichages MUST
+  laisser la source disponible à une nouvelle insertion.
 - **FR-046**: La suppression définitive MUST rester déléguée à la future
   orchestration de cycle de vie ; cette feature MUST seulement respecter son
   état canonique et retirer les données dérivées actives correspondantes.
@@ -515,9 +514,9 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
   édition, fichiers, synchronisation, sauvegarde et recherche.
 - Une entrée appartient activement à une seule base. Elle peut être reliée ou
   affichée dans plusieurs vues sans duplication.
-- La première livraison expose des bases ouvrables depuis la hiérarchie. Les
-  vues liées ou intégrées dans une autre page seront spécifiées avec leur
-  interaction éditoriale plutôt qu'ajoutées implicitement ici.
+- Les anciennes pages de base restent ouvrables depuis la hiérarchie. La 026
+  expose les mêmes sources indépendantes dans plusieurs pages ordinaires,
+  avec des configurations de vue propres à chaque emplacement.
 - Les filtres de cette livraison utilisent un ensemble plat de critères combiné
   par « tous » ou « au moins un ». Les groupes logiques imbriqués et un langage
   de formule sont différés.
@@ -541,7 +540,7 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
 - Modèles de base ou d'entrée, automatisations, dépendances de tâches,
   récurrence, rappels et notifications.
 - Conversion automatique des cases à cocher éditoriales en tâches structurées.
-- Vues liées ou bases intégrées dans le contenu d'une autre page.
+- Les bases liées/intégrées sont désormais couvertes par la feature 026.
 - Backlinks, propriétés réciproques automatiques, traversal relationnel et
   visualisation du graphe — feature 010.
 - Tableaux blancs — feature 011.

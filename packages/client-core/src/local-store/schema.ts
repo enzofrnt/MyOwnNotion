@@ -201,6 +201,7 @@ export interface LocalMetaRow {
 export interface LocalDatabaseRow {
   readonly itemId: Uuid;
   readonly definitionVersion: number;
+  readonly definitionRevisionId?: Uuid;
   readonly definition: DatabaseDefinition;
 }
 

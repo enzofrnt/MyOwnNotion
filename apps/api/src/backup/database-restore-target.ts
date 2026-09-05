@@ -302,12 +302,14 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
 
     writeDatabase: async (raw) => {
       const database = raw as ExportedDatabase;
-      if (!itemsById.has(database.databaseId)) {
-        throw new Error("a restored database has no host page");
+      const journalItem = itemsById.get(database.databaseId);
+      if (journalItem === undefined) {
+        throw new Error("a restored database has no journal identity");
       }
       restoredDatabases.set(database.databaseId, database);
       await options.tx.insert(schema.databases).values({
         itemId: database.databaseId,
+        definitionRevisionId: database.definitionRevisionId ?? journalItem.currentRevisionId,
         workspaceId: options.workspaceId,
         definitionVersion: database.definitionVersion,
       });
@@ -421,6 +423,23 @@ export function createDatabaseRestoreTarget(options: DatabaseRestoreTargetOption
           revisionId: item.currentRevisionId,
           snapshot,
         });
+        if (
+          database?.definitionRevisionId !== undefined &&
+          database.definitionRevisionId !== item.currentRevisionId
+        ) {
+          const sourceSnapshot = {
+            databaseDefinition: database.definition,
+            databaseDefinitionVersion: database.definitionVersion,
+          };
+          await options.tx
+            .update(schema.revisions)
+            .set({ snapshot: options.protectedContent === undefined ? sourceSnapshot : null })
+            .where(eq(schema.revisions.id, database.definitionRevisionId));
+          await options.protectedContent?.writeRevisionSnapshot(options.tx, {
+            revisionId: database.definitionRevisionId,
+            snapshot: sourceSnapshot,
+          });
+        }
         if (options.protectedContent !== undefined)
           await protectCurrentItem(options.tx, options.protectedContent, itemId);
       }

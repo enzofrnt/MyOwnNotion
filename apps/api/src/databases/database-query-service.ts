@@ -15,6 +15,7 @@ import {
   type DatabaseProperty,
   type DatabaseQueryEntry,
   type DatabaseView,
+  databaseQueryDefinition,
   evaluateDatabaseView,
   type FilterCriterion,
   type NonRelationPropertyValue,
@@ -737,7 +738,7 @@ async function loadProjectionSource(input: {
     readDatabaseRecord(input.db, input.databaseId),
     readItem(input.db, input.databaseId),
   ]);
-  if (record === null || storedItem === null || storedItem.lifecycle !== "active") return null;
+  if (record === null || storedItem === null) return null;
   const [item] = await resolveProtectedContent(input.db, [storedItem], input.protectedContent);
   if (item === undefined) return null;
   const definition = await resolveDatabaseDefinition(input.db, record, input.protectedContent);
@@ -770,8 +771,8 @@ async function loadProjectionSource(input: {
   }
   return {
     databaseId: input.databaseId,
-    definitionRevisionId: item.currentRevisionId,
-    definition,
+    definitionRevisionId: record.definitionRevisionId ?? item.currentRevisionId,
+    definition: databaseQueryDefinition(definition),
     entries,
   };
 }

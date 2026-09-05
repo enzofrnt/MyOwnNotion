@@ -255,7 +255,7 @@ describe("database capability and entries (T019)", () => {
     });
   });
 
-  it("refuses conversion of a database host or entry while the capability exists", async () => {
+  it("keeps entries as pages while allowing the former database host to become an ordinary folder", async () => {
     const create = databaseCreate();
     await submit(create);
     const entryId = generateUuidV7();
@@ -268,7 +268,18 @@ describe("database capability and entries (T019)", () => {
       values: {},
       relationTargets: {},
     });
-    for (const itemId of [create.id, entryId]) {
+    expect(
+      (
+        await submit({
+          type: "item.convert",
+          itemId: create.id,
+          targetKind: "folder",
+          confirmedDestruction: true,
+        })
+      ).result.status,
+    ).toBe("accepted");
+    expect(await readCurrentDatabaseDefinition(context.handle.db, create.id)).not.toBeNull();
+    for (const itemId of [entryId]) {
       const result = await submit({
         type: "item.convert",
         itemId,

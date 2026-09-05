@@ -21,6 +21,7 @@ import {
 } from "@myownnotion/contracts";
 import {
   listDatabaseEntryRecords,
+  listDatabaseRecords,
   readDatabaseEntryRecord,
   readDatabaseRecord,
   readItem,
@@ -58,17 +59,16 @@ async function readDatabaseDto(context: AppContext, databaseId: Uuid) {
     readItem(context.db, databaseId),
   ]);
   if (record === null || item === null) return null;
-  const [resolvedItem] = await resolveProtectedContent(
-    context.db,
-    [item],
-    context.protectedContent,
-  );
   const definition = await resolveDatabaseDefinition(context.db, record, context.protectedContent);
+  const [resolvedItem] =
+    definition.name !== undefined || item.lifecycle === "purged"
+      ? []
+      : await resolveProtectedContent(context.db, [item], context.protectedContent);
   return {
     databaseId,
-    definitionRevisionId: resolvedItem?.currentRevisionId ?? item.currentRevisionId,
-    lifecycle: resolvedItem?.lifecycle ?? item.lifecycle,
-    name: resolvedItem?.name ?? item.name,
+    definitionRevisionId: record.definitionRevisionId ?? item.currentRevisionId,
+    lifecycle: "active",
+    name: definition.name ?? resolvedItem?.name ?? "Base sans nom",
     definition,
   };
 }
@@ -105,6 +105,18 @@ async function readEntryDto(context: AppContext, databaseId: Uuid, entryId: Uuid
 }
 
 export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext): void {
+  app.get(
+    "/v1/databases",
+    { schema: { response: { 200: Type.Array(DatabaseSchema) } } },
+    async () => {
+      const sources = [];
+      for (const record of await listDatabaseRecords(context.db, context.workspaceId)) {
+        const source = await readDatabaseDto(context, record.databaseId);
+        if (source !== null) sources.push(source);
+      }
+      return sources;
+    },
+  );
   app.post(
     "/v1/databases",
     {
@@ -129,6 +141,7 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
           type: "database.create",
           id: body.id as Uuid,
           name: body.name,
+          ...(body.hostPageId === undefined ? {} : { hostPageId: body.hostPageId as Uuid }),
           placement: {
             id: body.placement.id as Uuid,
             parentItemId: body.placement.parentItemId as Uuid | null,

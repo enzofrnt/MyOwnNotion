@@ -58,6 +58,19 @@ export class ProtectedContentUnavailableError extends Error {
  * placements, the lifecycle, and the revision lineage are already correct and
  * are not protected. Only the payloads change.
  */
+export function purgedItemTombstone(model: ItemReadModel): ItemReadModel {
+  return {
+    ...model,
+    name: "Élément supprimé",
+    icon: null,
+    pageDocument: null,
+    file: null,
+    favourite: false,
+    offlineIntent: false,
+    placements: [],
+  };
+}
+
 export async function resolveProtectedContent(
   executor: Database | Transaction,
   models: readonly ItemReadModel[],
@@ -67,11 +80,17 @@ export async function resolveProtectedContent(
     // No key hierarchy configured. An installation in that state has no
     // envelopes either, so its columns are the only copy and returning them is
     // correct rather than a fallback.
-    return [...models];
+    return models.map((model) =>
+      model.lifecycle === "purged" ? purgedItemTombstone(model) : model,
+    );
   }
 
   const resolved: ItemReadModel[] = [];
   for (const model of models) {
+    if (model.lifecycle === "purged") {
+      resolved.push(purgedItemTombstone(model));
+      continue;
+    }
     const sealedPresentation = await content.readItemPresentation(executor, model.id);
     // What is sealed is the document's *body*, not the envelope around it.
     // The format and its version are structural — they say how to parse the
@@ -131,7 +150,16 @@ export async function resolveDatabaseDefinition(
   const fallback = await readCurrentDatabaseDefinition(executor, record.databaseId);
   const definition = sealed ?? fallback;
   if (definition === null) throw new ProtectedContentUnavailableError(record.databaseId);
-  return definition;
+  if (definition.name !== undefined) return definition;
+  const revision =
+    record.definitionRevisionId === null
+      ? null
+      : await content?.readRevisionSnapshot<Record<string, unknown>>(
+          executor,
+          record.definitionRevisionId,
+        );
+  const name = revision?.["name"];
+  return typeof name === "string" && name.trim() !== "" ? { ...definition, name } : definition;
 }
 
 export async function resolveDatabaseEntryValues(

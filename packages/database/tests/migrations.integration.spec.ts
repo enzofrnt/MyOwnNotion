@@ -350,6 +350,7 @@ describe("reviewed SQL migrations", () => {
         "0013_item_icons",
         "0014_full_backup_provenance",
         "0015_protected_file_storage",
+        "0016_linked_databases",
       ]);
       const { rows } = await client.query<{
         format_version: number;

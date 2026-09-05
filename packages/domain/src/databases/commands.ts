@@ -39,6 +39,7 @@ export type DatabaseMutationCommand =
       readonly type: "database.create";
       readonly id: Uuid;
       readonly name: string;
+      readonly hostPageId?: Uuid;
       readonly placement: DatabasePlacementInput;
       readonly titlePropertyId: Uuid;
       readonly titlePropertyName?: string;
@@ -90,10 +91,11 @@ export type DatabaseMutationCommand =
 export function createInitialDatabaseDefinition(
   command: Extract<DatabaseMutationCommand, { type: "database.create" }>,
 ): DatabaseDefinition {
-  return {
+  const definition: DatabaseDefinition = {
     format: "myownnotion.database-definition+json",
     formatVersion: 1,
     databaseId: command.id,
+    name: command.name,
     properties: [
       {
         id: command.titlePropertyId,
@@ -120,6 +122,19 @@ export function createInitialDatabaseDefinition(
     ],
     taskRoles: null,
   };
+  return command.hostPageId === undefined
+    ? definition
+    : {
+        ...definition,
+        embeddings: [
+          {
+            id: command.placement.id,
+            hostPageId: command.hostPageId,
+            state: "active",
+            views: definition.views,
+          },
+        ],
+      };
 }
 
 type Payload = Readonly<Record<string, unknown>>;
@@ -308,11 +323,12 @@ export function parseDatabaseMutationCommand(
         !hasExactKeys(
           payload,
           ["id", "name", "placement", "titlePropertyId", "initialViewId", "initialViewName"],
-          ["titlePropertyName"],
+          ["titlePropertyName", "hostPageId"],
         ) ||
         !isUuid(payload["id"]) ||
         !isUuid(payload["titlePropertyId"]) ||
         !isUuid(payload["initialViewId"]) ||
+        (payload["hostPageId"] !== undefined && !isUuid(payload["hostPageId"])) ||
         typeof payload["name"] !== "string" ||
         typeof payload["initialViewName"] !== "string" ||
         (payload["titlePropertyName"] !== undefined &&
@@ -331,6 +347,9 @@ export function parseDatabaseMutationCommand(
         type: commandType,
         id: payload["id"],
         name: name.value,
+        ...(payload["hostPageId"] === undefined
+          ? {}
+          : { hostPageId: payload["hostPageId"] as Uuid }),
         placement,
         titlePropertyId: payload["titlePropertyId"],
         titlePropertyName: titlePropertyName.value,

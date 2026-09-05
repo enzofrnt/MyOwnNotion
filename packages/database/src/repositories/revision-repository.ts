@@ -149,6 +149,12 @@ export async function supersedeRevision(
   revisionId: Uuid,
   supersededAt: Date,
 ): Promise<void> {
+  const [source] = await tx
+    .select({ id: databases.itemId })
+    .from(databases)
+    .where(eq(databases.definitionRevisionId, revisionId))
+    .limit(1);
+  if (source !== undefined) return;
   await tx
     .update(revisions)
     .set({ snapshotExpiresAt: snapshotExpiry(supersededAt) })

@@ -10,6 +10,7 @@ export interface DatabaseRecord {
   readonly databaseId: Uuid;
   readonly workspaceId: Uuid;
   readonly definitionVersion: number;
+  readonly definitionRevisionId: Uuid | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -29,6 +30,7 @@ function databaseModel(row: typeof databases.$inferSelect): DatabaseRecord {
     databaseId: row.itemId as Uuid,
     workspaceId: row.workspaceId as Uuid,
     definitionVersion: row.definitionVersion,
+    definitionRevisionId: row.definitionRevisionId as Uuid | null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -96,12 +98,14 @@ export async function insertDatabaseRecord(
   tx: Transaction,
   input: {
     readonly databaseId: Uuid;
+    readonly definitionRevisionId: Uuid;
     readonly workspaceId: Uuid;
     readonly acceptedAt: Date;
   },
 ): Promise<void> {
   await tx.insert(databases).values({
     itemId: input.databaseId,
+    definitionRevisionId: input.definitionRevisionId,
     workspaceId: input.workspaceId,
     definitionVersion: 1,
     createdAt: input.acceptedAt,
@@ -113,13 +117,18 @@ export async function advanceDatabaseDefinitionVersion(
   tx: Transaction,
   input: {
     readonly databaseId: Uuid;
+    readonly definitionRevisionId: Uuid;
     readonly expectedVersion: number;
     readonly acceptedAt: Date;
   },
 ): Promise<boolean> {
   const rows = await tx
     .update(databases)
-    .set({ definitionVersion: input.expectedVersion + 1, updatedAt: input.acceptedAt })
+    .set({
+      definitionVersion: input.expectedVersion + 1,
+      definitionRevisionId: input.definitionRevisionId,
+      updatedAt: input.acceptedAt,
+    })
     .where(
       and(
         eq(databases.itemId, input.databaseId),
@@ -196,7 +205,21 @@ export async function readCurrentDatabaseDefinition(
   databaseId: Uuid,
   resolve?: (revisionId: Uuid) => Promise<Record<string, unknown> | null>,
 ): Promise<DatabaseDefinition | null> {
-  const snapshot = await currentSnapshot(executor, databaseId, resolve);
+  const record = await readDatabaseRecord(executor, databaseId);
+  let snapshot: Readonly<Record<string, unknown>> | null;
+  if (record?.definitionRevisionId) {
+    const [row] = await executor
+      .select({ snapshot: revisions.snapshot })
+      .from(revisions)
+      .where(eq(revisions.id, record.definitionRevisionId))
+      .limit(1);
+    snapshot =
+      (row?.snapshot as Readonly<Record<string, unknown>> | null) ??
+      (await resolve?.(record.definitionRevisionId)) ??
+      null;
+  } else {
+    snapshot = await currentSnapshot(executor, databaseId, resolve);
+  }
   const definition = snapshot?.["databaseDefinition"];
   return typeof definition === "object" && definition !== null
     ? (definition as DatabaseDefinition)
@@ -339,15 +362,10 @@ export async function replaceDatabaseRelationships(
 }
 
 export async function hasStructuredPageRole(executor: Executor, itemId: Uuid): Promise<boolean> {
-  const database = await executor
-    .select({ id: databases.itemId })
-    .from(databases)
-    .where(eq(databases.itemId, itemId))
-    .limit(1);
   const entry = await executor
     .select({ id: databaseEntries.entryItemId })
     .from(databaseEntries)
     .where(eq(databaseEntries.entryItemId, itemId))
     .limit(1);
-  return database.length > 0 || entry.length > 0;
+  return entry.length > 0;
 }

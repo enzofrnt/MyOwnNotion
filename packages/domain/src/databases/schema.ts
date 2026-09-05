@@ -163,6 +163,32 @@ export function validateDatabaseDefinition(
     invalidFields.push("properties.title");
 
   const views = definition.views.map(normalizeView);
+  if (definition.name !== undefined && !normalizeDisplayName(definition.name).ok)
+    invalidFields.push("name");
+  if (definition.embeddings !== undefined) {
+    if (
+      !Array.isArray(definition.embeddings) ||
+      duplicateIds(definition.embeddings.map((embedding) => embedding.id)) ||
+      definition.embeddings.some(
+        (embedding) =>
+          !isUuid(embedding.hostPageId) ||
+          (embedding.state !== "active" && embedding.state !== "retired") ||
+          !Array.isArray(embedding.views) ||
+          duplicateIds(embedding.views.map((view: DatabaseView) => view.id)) ||
+          !embedding.views.some((view: DatabaseView) => view.state === "active") ||
+          embedding.views.some((view: DatabaseView) => normalizeView(view) === null),
+      )
+    )
+      invalidFields.push("embeddings");
+    else if (
+      duplicateIds(
+        definition.embeddings.flatMap((embedding) =>
+          embedding.views.map((view: DatabaseView) => view.id),
+        ),
+      )
+    )
+      invalidFields.push("embeddings.views");
+  }
   if (views.some((view) => view === null)) invalidFields.push("views");
   const normalizedViews = views.filter((view): view is DatabaseView => view !== null);
   if (!normalizedViews.some((view) => view.state === "active")) invalidFields.push("views.active");
@@ -173,6 +199,16 @@ export function validateDatabaseDefinition(
     ...definition,
     properties: normalizedProperties,
     views: normalizedViews,
+    ...(definition.embeddings === undefined
+      ? {}
+      : {
+          embeddings: definition.embeddings.map((embedding) => ({
+            ...embedding,
+            views: embedding.views
+              .map(normalizeView)
+              .filter((view: DatabaseView | null): view is DatabaseView => view !== null),
+          })),
+        }),
   });
 }
 

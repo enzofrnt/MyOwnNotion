@@ -23,6 +23,9 @@ export async function resolveDatabaseProjections(
     rows.push({
       itemId: record.databaseId,
       definitionVersion: record.definitionVersion,
+      ...(record.definitionRevisionId === null
+        ? {}
+        : { definitionRevisionId: record.definitionRevisionId }),
       definition: await resolveDatabaseDefinition(executor, record, content),
     });
   }

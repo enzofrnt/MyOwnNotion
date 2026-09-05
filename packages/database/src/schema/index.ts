@@ -389,16 +389,16 @@ export const revisions = pgTable(
 );
 
 /**
- * A structured database is a capability attached to a canonical page.
+ * An independent database source keeps its historical opaque item_id identity.
+ * Its definition revision advances independently from any displayed page.
  * Labels, properties, views and values are deliberately absent: those private
  * payloads live in protected records keyed by the structural versions here.
  */
 export const databases = pgTable(
   "databases",
   {
-    itemId: uuid("item_id")
-      .primaryKey()
-      .references(() => items.id),
+    itemId: uuid("item_id").primaryKey(),
+    definitionRevisionId: uuid("definition_revision_id"),
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspaces.id),
@@ -409,11 +409,6 @@ export const databases = pgTable(
   (table) => [
     uniqueIndex("databases_item_workspace_unique").on(table.itemId, table.workspaceId),
     index("databases_workspace_idx").on(table.workspaceId),
-    foreignKey({
-      name: "databases_item_workspace_fk",
-      columns: [table.itemId, table.workspaceId],
-      foreignColumns: [items.id, items.workspaceId],
-    }),
     check("databases_definition_version_check", sql`${table.definitionVersion} >= 1`),
   ],
 );

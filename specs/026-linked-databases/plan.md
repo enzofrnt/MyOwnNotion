@@ -23,6 +23,22 @@ PASS : propriétaire unique ; source canonique partagée ; aucune persistance pr
 - L'UI réutilise `DatabasePage`, les cinq vues et l'édition d'entrée. Un sélecteur de source et une action de retrait encadrent l'intégration dans une page éditoriale normale. Référence obligatoire : [UI quality](../../.agents/skills/ui-quality/SKILL.md), tokens, boutons sémantiques et arrondis imbriqués.
 - Les formats canoniques conservent leurs anciennes données lisibles, incluent les champs additifs des définitions et la révision de source, et vérifient leur cohérence. La sauvegarde complète 024 capture le catalogue SQL sans sélection de tables figée.
 
+## Migration and purge findings
+
+0016 emits durable refresh changes for each migrated source and its entries;
+this announces detached legacy placements to devices already holding a cursor.
+Upgraded offline devices detach those placements atomically before host trash.
+No editorial revision or encrypted payload is rewritten by SQL migration.
+
+The portable export previously omitted purged items while retaining their
+revision headers, causing restoration to fail the revision-owner foreign key.
+026 exports neutral structural tombstones with no old private payload or active
+placement. It restores the current live source definition separately from the
+old host's revision. Definition edits write source-only snapshots, so the
+journal does not recopy purged editorial data. This finding is communicated to
+the shared 025 audit for consolidation. Full purge scheduling remains outside
+026; tests apply its canonical purged state explicitly.
+
 ## Validation Strategy
 
 Tests de domaine pour identité/validation/fusion d'emplacements ; tests réels PostgreSQL pour migration, suppression/purge des hôtes et accès ultérieur ; tests client pour persistance chiffrée et projection ; test UI et parcours Playwright pour deux pages, configurations distinctes et édition partagée. Exécuter les suites ciblées et signaler au parent les résultats. Le parent exécute le gate complet avant tout push ; cette branche reste locale.

@@ -70,11 +70,19 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
   const sequence = await currentSequence(tx, context.workspaceId);
   const active = await listItems(tx, context.workspaceId, { lifecycle: "active" });
   const trashed = await listItems(tx, context.workspaceId, { lifecycle: "trashed" });
-  const models = await resolveProtectedContent(
-    tx,
-    [...active, ...trashed],
-    context.protectedContent,
-  );
+  const purged = await listItems(tx, context.workspaceId, { lifecycle: "purged" });
+  const models = [
+    ...(await resolveProtectedContent(tx, [...active, ...trashed], context.protectedContent)),
+    ...purged.map((item) => ({
+      ...item,
+      name: "Élément supprimé",
+      icon: null,
+      pageDocument: null,
+      file: null,
+      favourite: false,
+      offlineIntent: false,
+    })),
+  ];
 
   const fileRows = await tx
     .select({
@@ -153,7 +161,7 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
       offlineIntent: model.offlineIntent,
       pageDocument: model.pageDocument,
       file:
-        file === undefined
+        file === undefined || model.lifecycle === "purged"
           ? null
           : {
               mediaType: file.mediaType,
@@ -161,19 +169,21 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
               byteLength: file.byteLength,
               sha256: file.sha256,
             },
-      placements: (placementsByItem.get(model.id) ?? []).map((placement) => ({
-        id: placement.id as Uuid,
-        workspaceId: placement.workspaceId as Uuid,
-        itemId: placement.itemId as Uuid,
-        // Not the item's kind: the exported item already carries that, and
-        // duplicating it here is what tied a placement to a value that
-        // changes when a page becomes a folder.
-        itemIsFile: placement.itemIsFile,
-        kind: placement.kind as "hierarchy" | "attachment",
-        parentItemId: (placement.parentItemId as Uuid | null) ?? null,
-        positionKey: placement.positionKey,
-        removedAt: null,
-      })),
+      placements: (model.lifecycle === "purged" ? [] : (placementsByItem.get(model.id) ?? [])).map(
+        (placement) => ({
+          id: placement.id as Uuid,
+          workspaceId: placement.workspaceId as Uuid,
+          itemId: placement.itemId as Uuid,
+          // Not the item's kind: the exported item already carries that, and
+          // duplicating it here is what tied a placement to a value that
+          // changes when a page becomes a folder.
+          itemIsFile: placement.itemIsFile,
+          kind: placement.kind as "hierarchy" | "attachment",
+          parentItemId: (placement.parentItemId as Uuid | null) ?? null,
+          positionKey: placement.positionKey,
+          removedAt: null,
+        }),
+      ),
     };
   });
 
@@ -204,6 +214,9 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
     databases.push({
       databaseId: record.databaseId,
       definitionVersion: record.definitionVersion,
+      ...(record.definitionRevisionId === null
+        ? {}
+        : { definitionRevisionId: record.definitionRevisionId }),
       definition,
     });
     const entries = await listDatabaseEntryRecords(tx, record.databaseId);

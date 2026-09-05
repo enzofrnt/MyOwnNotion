@@ -298,10 +298,10 @@ restent transitoires.
 
 Le snapshot canonique, l'export versionné, les sauvegardes de référence et leur
 validation incluent les deux tables structurelles, les enveloppes, les
-relations et les révisions. La corbeille d'une base crée dans une transaction
-les révisions et états de la page hôte et de toutes ses entrées actives. La
-restauration réactive ces mêmes identités. La purge reste un événement canonique
-consommé, pas une nouvelle orchestration de cette feature.
+relations et les révisions. Depuis la 026, la corbeille/purge de la page hôte
+conserve la source et ses entrées. La révision de définition propre à la source
+reste disponible indépendamment de la révision éditoriale de l'ancien hôte.
+La purge reste un événement canonique consommé, pas une orchestration nouvelle.
 
 ## Phase 0 Output
 

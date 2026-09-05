@@ -171,8 +171,9 @@ function renameProperty(definition: DatabaseDefinition, propertyId: Uuid, name: 
 describe("structured reconciliation (T072)", () => {
   it("rebases compatible definition edits on distinct stable fields", async () => {
     const seeded = await seedDatabase();
-    const host = await codec.openItem((await db.items.get(seeded.databaseId)) as never);
-    const ancestorRevisionId = host.currentRevisionId;
+    const source = await new LocalDatabaseRepository(db, codec).getDatabase(seeded.databaseId);
+    const ancestorRevisionId = source?.definitionRevisionId;
+    if (ancestorRevisionId === undefined) throw new Error("Missing source revision");
     const local = renameProperty(seeded.definition, seeded.textPropertyId, "Local text");
     const remote = {
       ...seeded.definition,
@@ -208,8 +209,9 @@ describe("structured reconciliation (T072)", () => {
 
   it("captures all definition versions when the same view field diverges", async () => {
     const seeded = await seedDatabase();
-    const host = await codec.openItem((await db.items.get(seeded.databaseId)) as never);
-    const ancestorRevisionId = host.currentRevisionId;
+    const source = await new LocalDatabaseRepository(db, codec).getDatabase(seeded.databaseId);
+    const ancestorRevisionId = source?.definitionRevisionId;
+    if (ancestorRevisionId === undefined) throw new Error("Missing source revision");
     const local = {
       ...seeded.definition,
       views: seeded.definition.views.map((view) => ({ ...view, name: "Local table" })),

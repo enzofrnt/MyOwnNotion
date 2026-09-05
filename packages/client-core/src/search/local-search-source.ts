@@ -185,7 +185,12 @@ export class LocalSearchSource {
   }
 
   async list(sourceVersion: number): Promise<LocalSearchEntry[]> {
-    const items = await this.#repository.listItems("active");
+    const sourceIds = new Set(
+      (await this.#repository.db.databases.toArray()).map((row) => row.itemId),
+    );
+    const items = (await this.#repository.listItems("active")).filter(
+      (item) => !sourceIds.has(item.id) || item.placements.length > 0,
+    );
     const active = new Map(items.map((item) => [item.id, item]));
     const [headers, outbox, conflicts, propertyText, operational] = await Promise.all([
       this.#repository.db.revisionHeaders.where("local").equals(1).toArray(),
@@ -255,7 +260,12 @@ export class LocalSearchSource {
   }
 
   async activeDescendantIds(rootItemId: Uuid): Promise<Uuid[]> {
-    const items = await this.#repository.listItems("active");
+    const sourceIds = new Set(
+      (await this.#repository.db.databases.toArray()).map((row) => row.itemId),
+    );
+    const items = (await this.#repository.listItems("active")).filter(
+      (item) => !sourceIds.has(item.id) || item.placements.length > 0,
+    );
     const active = new Map(items.map((item) => [item.id, item]));
     if (!active.has(rootItemId)) {
       return [];
