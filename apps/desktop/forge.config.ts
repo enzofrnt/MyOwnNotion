@@ -2,12 +2,12 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { MakerDeb } from "@electron-forge/maker-deb";
-import { MakerDMG } from "@electron-forge/maker-dmg";
 import { MakerRpm } from "@electron-forge/maker-rpm";
 import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import MakerAppImage from "@reforged/maker-appimage";
 import { materializeMacEntitlements } from "../../scripts/desktop/mac-entitlements.ts";
+import { MakerDMG } from "./makers/dmg.ts";
 
 const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(desktopRoot, "../web/dist");

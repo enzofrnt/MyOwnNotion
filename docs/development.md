@@ -65,6 +65,10 @@ bun run toolchain:check
 
 `bun ci` is the canonical frozen installation. It fails when a manifest and
 `bun.lock` differ, and running it twice must leave the lock byte-identical.
+On macOS, the DMG maker uses the system `ditto` and `hdiutil` tools under the
+Bun-driven Forge process. It preserves the packaged application, adds the
+Applications shortcut, verifies the image and publishes it atomically. It does
+not depend on legacy V8/NAN native addons or a separately installed Node runtime.
 JavaScript tools such as TypeScript, Vitest, Vite development server and
 Playwright remain specialized dependencies, but Bun installs and launches
 them. Imports from `node:*` use Bun's compatibility APIs and do not imply a

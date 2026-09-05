@@ -191,6 +191,11 @@ attache à la GitHub Release du tag.
   et la notarisation Apple restent des prérequis Windows/macOS ; Linux publie
   SHA-512. Aucun secret dans le dépôt. Aucune publication store ni dépôt
   apt/rpm.
+- Le maker DMG local étend `@electron-forge/maker-base` et invoque les outils
+  macOS `ditto`/`hdiutil` depuis Bun. Il préserve l'application signée/notarisée,
+  ajoute le raccourci Applications, vérifie l'image et publie le fichier par
+  renommage. Il remplace la chaîne historique appdmg/macos-alias dont les
+  addons V8/NAN ne fonctionnent pas sous Bun.
 - Les artefacts portent version, plateforme, architecture, empreinte,
   provenance et métadonnées de mise à jour. Un manifeste invalide, une
   signature ou empreinte absente, une incompatibilité de protocole, ou un

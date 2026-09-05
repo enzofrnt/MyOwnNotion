@@ -101,3 +101,21 @@ fermées, temps réel, révocation/restauration et références visuelles passen
 ensemble sur Chromium. Quinze tests de routage passent, dont le profil natif
 retardé qui interdit toute authentification prématurée. La passe complète sur
 le nouveau commit reste obligatoire.
+
+Une installation depuis zéro a révélé les dépendances natives historiques du
+maker DMG : `fs-xattr` déclenchait une compilation implicite non épinglée et
+`macos-alias` repose sur V8/NAN, incompatible avec Bun. Le prototype de compilation
+épinglée a été abandonné après l'échec réel de fabrication du DMG. Le maker est
+remplacé par les outils natifs macOS sous Forge/Bun. La passe sur `110d2468`
+avait validé couverture, performance, intégration et contrats ; elle a été
+interrompue pendant les navigateurs pour intégrer cette correction. Elle ne
+constitue pas une preuve complète pour le nouveau lockfile.
+
+Le maker `hdiutil` a ensuite produit le DMG réel macOS ARM64 avec succès via
+`bun run desktop:make`. Ses deux tests passent : montage réel avec vérification
+des octets, modes exécutables, attributs macOS, symlinks internes et raccourci
+Applications ; refus d'un nom sortant du répertoire de sortie. Types et format
+passent. Deux installations figées depuis une copie neuve des manifests passent
+avec Bun seul dans le PATH (aucun Node) et une empreinte du lockfile inchangée.
+Les dépendances appdmg, fs-xattr et macos-alias ont disparu du lockfile. Le DMG
+local reste non signé pour distribution et n'est pas publié.
