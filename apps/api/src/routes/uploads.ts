@@ -28,7 +28,7 @@ import {
 import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
 import { and, eq } from "drizzle-orm";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { AppContext } from "../context.ts";
 import { retireProtectedUpload } from "../files/protected-file-cleanup.ts";
@@ -43,6 +43,15 @@ import { announceCommitted } from "../sync/change-notifier.ts";
 
 /** 2 GB by default, and bounded in practice by what the deployment carries. */
 const DEFAULT_MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024;
+
+function sendCompletedUpload(reply: FastifyReply, receipt: { byteLength: number; itemId: string }) {
+  return reply
+    .status(201)
+    .header("upload-offset", String(receipt.byteLength))
+    .header("upload-complete", "true")
+    .header("tus-resumable", "1.0.0")
+    .send({ itemId: receipt.itemId, verified: true });
+}
 
 function protectedUploads(context: AppContext): ProtectedUploadService {
   if (context.protectedFiles === undefined) throw new ProtectedFileUnavailableError();
@@ -365,13 +374,7 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
     }
 
     const receipt = await completedUpload(context.db, context.workspaceId, uploadId as Uuid);
-    if (receipt !== undefined)
-      return reply
-        .status(201)
-        .header("upload-offset", String(receipt.byteLength))
-        .header("upload-complete", "true")
-        .header("tus-resumable", "1.0.0")
-        .send({ itemId: receipt.itemId, verified: true });
+    if (receipt !== undefined) return sendCompletedUpload(reply, receipt);
     const source = request.body as AsyncIterable<Uint8Array>;
     let outcome: Awaited<ReturnType<ProtectedUploadService["append"]>>;
     try {
@@ -389,6 +392,10 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
     }
 
     if (!outcome.ok && outcome.reason === "not-found") {
+      // Finalization may commit between the initial receipt read and acquiring
+      // the upload row. Its durable receipt is authoritative after that wait.
+      const completed = await completedUpload(context.db, context.workspaceId, uploadId as Uuid);
+      if (completed !== undefined) return sendCompletedUpload(reply, completed);
       return reply.status(404).header("tus-resumable", "1.0.0").send();
     }
     if (!outcome.ok && outcome.reason === "offset-mismatch") {
@@ -413,12 +420,10 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
       if (!finished.ok) {
         return sendProblem(reply, finished.error);
       }
-      return reply
-        .status(201)
-        .header("upload-offset", String(outcome.upload.receivedLength))
-        .header("upload-complete", "true")
-        .header("tus-resumable", "1.0.0")
-        .send({ itemId: finished.itemId, verified: true });
+      return sendCompletedUpload(reply, {
+        byteLength: outcome.upload.receivedLength,
+        itemId: finished.itemId,
+      });
     }
     return reply
       .status(204)

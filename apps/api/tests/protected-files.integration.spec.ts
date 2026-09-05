@@ -4,12 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { generateUuidV7 } from "@myownnotion/domain";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { openBackupArchive, sealBackupArchiveStream } from "../src/backup/archive-crypto.ts";
 import { BackupService } from "../src/backup/backup-service.ts";
 import { createDatabaseRestoreTarget } from "../src/backup/database-restore-target.ts";
 import { FilesystemDestination } from "../src/backup/destinations/filesystem.ts";
 import { applyArchive } from "../src/backup/restore-service.ts";
+import { ProtectedUploadService } from "../src/files/protected-upload-service.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
 import { type ApiHarness, createApiHarness, createItemViaApi } from "./helpers/app.ts";
 import { authenticatedContent } from "./helpers/content-owner.ts";
@@ -75,6 +76,59 @@ async function directImport(
 }
 
 describe("private files through authenticated HTTP", () => {
+  it("returns the committed identity when a concurrent final PATCH removes the partial transfer", async () => {
+    const created = await owner({
+      method: "POST",
+      url: "/v1/uploads",
+      headers: { "upload-length": "4" },
+    });
+    expect(created.statusCode).toBe(201);
+    const url = String(created.headers["location"]);
+    let entered!: () => void;
+    let release!: () => void;
+    const paused = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const resume = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const append = ProtectedUploadService.prototype.append;
+    const interleaving = vi
+      .spyOn(ProtectedUploadService.prototype, "append")
+      .mockImplementationOnce(async function (tx, input) {
+        entered();
+        await resume;
+        return append.call(this, tx, input);
+      });
+    const request = {
+      method: "PATCH" as const,
+      url,
+      headers: { "upload-offset": "0", "content-type": "application/offset+octet-stream" },
+      payload: Buffer.from("data"),
+    };
+    const delayed = owner(request).then((response) => response);
+    try {
+      await paused;
+      const winner = await owner(request);
+      expect(winner.statusCode, winner.body).toBe(201);
+      release();
+      const replay = await delayed;
+      expect(replay.statusCode, replay.body).toBe(201);
+      expect(replay.json()).toEqual(winner.json());
+      expect(replay.headers["upload-offset"]).toBe("4");
+      const downloaded = await owner({
+        method: "GET",
+        url: `/v1/files/${winner.json().itemId}/content`,
+      });
+      expect(downloaded.statusCode).toBe(200);
+      expect(downloaded.body).toBe("data");
+    } finally {
+      release();
+      await delayed;
+      interleaving.mockRestore();
+    }
+  });
+
   it("keeps each descendant file's own private metadata when a folder is trashed", async () => {
     const folder = await createItemViaApi(harness, {
       kind: "folder",

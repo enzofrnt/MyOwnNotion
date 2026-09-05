@@ -172,3 +172,10 @@ Ordinary and batched envelope writes reject a deliberately retired key selection
 without publishing a record. Existing rotation/audit and secured file HTTP tests
 remain green: 39 tests across four files, plus API typecheck. The final shared
 migration/restore and complete gate evidence is still pending; T018 remains open.
+
+T019 duplicate-completion checkpoint: a deterministic interleaving of two real
+PATCH requests reproduced HTTP 404 after a concurrent finalizer removed the
+partial row. The route now rereads the durable completion receipt after that
+wait and returns the same item identity/offset. The fixture downloads the exact
+four accepted bytes afterward. Secured file tests plus the existing resumable
+contract pass (32 tests); the failing baseline is retained in the task log.
