@@ -33,7 +33,12 @@ if (window.location.pathname === "/__ui-lab") {
 // through an active service worker bypass those routes. The dedicated E2E build
 // therefore exercises the production application bundle without registering
 // the worker; the ordinary production build still ships and registers it.
-if (!__MYOWNNOTION_E2E__ && import.meta.env.PROD && "serviceWorker" in navigator) {
+if (
+  !__MYOWNNOTION_E2E__ &&
+  import.meta.env.PROD &&
+  "serviceWorker" in navigator &&
+  window.myownnotionDesktop === undefined
+) {
   window.addEventListener("load", () => {
     void navigator.serviceWorker.register("/service-worker.js");
   });

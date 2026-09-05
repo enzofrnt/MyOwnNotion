@@ -1,13 +1,15 @@
 /**
  * Local HTTPS development stack (postgres + hot-reload API/web + Caddy).
  *
- * Starting (and resetting) the stack rebuilds images (`docker compose up
- * --build`). The Compose project then stays detached: file changes are
+ * Starting (and resetting) the stack can rebuild images (`docker compose up
+ * --build`). A normal `bun run dev:stack` reuses the existing dev image so
+ * bind-mounted sources reload without hitting Docker Hub. File changes are
  * picked up by Bun `--watch` and Vite HMR inside the running containers —
  * not by rebuilding or restarting those containers.
  *
  * Usage:
  *   bun run dev:stack
+ *   bun run dev:stack --build
  *   bun run dev:stack --logs
  *   bun run dev:stack --down
  *   bun run dev:stack --reset
@@ -32,7 +34,8 @@ const resetVolumes = [
   `${projectName}_file-store`,
   `${projectName}_backup-store`,
 ] as const;
-const upArgs = ["up", "-d", "--build", "--wait", "--remove-orphans"] as const;
+const upArgs = ["up", "-d", "--wait", "--remove-orphans"] as const;
+const upWithBuildArgs = ["up", "-d", "--build", "--wait", "--remove-orphans"] as const;
 
 function fail(message: string, status = 1): void {
   console.error(message);
@@ -73,7 +76,7 @@ function resetDevData(): void {
     removeVolume(volume);
   }
   ensureDeploymentKey();
-  if (compose([...upArgs]) !== 0) {
+  if (compose([...upWithBuildArgs]) !== 0) {
     fail("Could not recreate the development stack after the reset.");
   }
   console.info("Development data reset. Open http://localhost:8080 (or https://localhost:8443)");
@@ -161,11 +164,31 @@ if (args.includes("--logs")) {
 }
 
 ensureDeploymentKey();
-if (compose([...upArgs]) !== 0) {
+const buildRequested = args.includes("--build");
+if (compose([...(buildRequested ? upWithBuildArgs : upArgs)]) !== 0) {
+  const logs = spawnSync("docker", ["compose", "-f", composeFile, "logs", "migrate"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  const migrateOutput = `${logs.stdout ?? ""}${logs.stderr ?? ""}`;
+  if (
+    /KeyUnavailableError|could not be unwrapped|deployment key|protected data is unavailable/i.test(
+      migrateOutput,
+    )
+  ) {
+    fail(
+      "Could not start the development stack: the deployment key no longer matches the existing Postgres data.\n" +
+        "Reset the local dev volumes with:\n\n" +
+        "  bun run dev:stack:reset\n",
+    );
+  }
   fail("Could not start the development stack.");
 }
 console.info("Stack is detached. Open http://localhost:8080 (Cursor) or https://localhost:8443");
 console.info("Bun --watch and Vite HMR reload inside the containers.");
+console.info(
+  "Rebuild the dev image after Dockerfile or lockfile changes: bun run dev:stack --build",
+);
 console.info("Logs: bun run dev:stack:logs   Stop: bun run dev:stack:down");
 console.info("System browsers: trust the local CA with `bun run dev:trust` if HTTPS warns.");
 process.exit(0);

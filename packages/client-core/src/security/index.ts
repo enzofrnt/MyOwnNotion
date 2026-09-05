@@ -11,3 +11,5 @@ export * from "./local-encryption.ts";
 export * from "./local-key-state.ts";
 export * from "./local-record-codec.ts";
 export * from "./reauthorization.ts";
+export * from "./secure-key-storage.ts";
+export * from "./wrapping-secure-key-storage.ts";

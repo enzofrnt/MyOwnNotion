@@ -99,6 +99,28 @@
   --ui-shadow-drag: 0 18px 46px rgb(30 28 24 / 22%), 0 3px 10px rgb(30 28 24 / 10%);
   --ui-focus-ring: 0 0 0 3px rgb(7 95 209 / 28%);
 
+  /* Scrollbars — thin, token-driven; consumed by `.ui-scrollbar`. */
+  --ui-scrollbar-size: 0.375rem;
+  --ui-scrollbar-size-compact: 0.25rem;
+  --ui-scrollbar-thumb-inset: 2px;
+  --ui-scrollbar-thumb-inset-compact: 1px;
+  --ui-scrollbar-track: transparent;
+  --ui-scrollbar-thumb: color-mix(in srgb, var(--ui-color-border-strong) 64%, transparent);
+  --ui-scrollbar-thumb-hover: color-mix(in srgb, var(--ui-color-border-strong) 84%, transparent);
+  --ui-scrollbar-thumb-active: color-mix(in srgb, var(--ui-color-text-muted) 52%, transparent);
+  --ui-scrollbar-thumb-compact: color-mix(in srgb, var(--ui-color-border-strong) 48%, transparent);
+  --ui-scrollbar-thumb-compact-hover: color-mix(
+    in srgb,
+    var(--ui-color-border-strong) 68%,
+    transparent
+  );
+  --ui-scrollbar-thumb-compact-active: color-mix(
+    in srgb,
+    var(--ui-color-text-muted) 44%,
+    transparent
+  );
+  --ui-overlay-scrollbar-size: 3px;
+
   /* Content colors belong to user content, not application status. */
   --ui-content-gray: #5f5b55;
   --ui-content-gray-soft: #ebe9e5;

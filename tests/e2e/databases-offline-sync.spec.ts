@@ -96,7 +96,13 @@ async function saveEntryValues(
 ): Promise<void> {
   const panel = page.locator(".entry-panel");
   for (const [label, value] of Object.entries(values)) {
-    await panel.getByLabel(label, { exact: true }).fill(value);
+    const input = panel.getByLabel(label, { exact: true });
+    await input.fill("");
+    // The WebKit CI trace completed fill while Owner was still empty.
+    // Exercise keyboard input and confirm the visible draft before saving;
+    // the second-device assertions below independently verify persistence.
+    await input.pressSequentially(value);
+    await expect(input).toHaveValue(value);
   }
   await saveEntryProperties(page);
 }

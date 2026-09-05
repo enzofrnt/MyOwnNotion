@@ -27,6 +27,10 @@ node_modules/
 dist/
 build/
 coverage/
+# Electron Forge packaging output and Vite native builds
+out/
+**/.vite/
+apps/desktop/.dev-host/
 .next/
 *.tsbuildinfo
 

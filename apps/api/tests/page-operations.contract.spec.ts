@@ -130,7 +130,11 @@ async function authenticate(): Promise<Record<string, string>> {
 }
 
 async function createLegacyPage() {
-  const page = await createItemViaApi(harness, { kind: "page", name: "Offline page" });
+  const page = await createItemViaApi(harness, {
+    kind: "page",
+    name: "Offline page",
+    headers: await authenticate(),
+  });
   return {
     ...page,
     canonicalDigest: await documentDigestV3({ blocks: [] }),
@@ -157,8 +161,8 @@ describe("page-operation route guards", () => {
   it("requires protocol 3 before interpreting an activation", async () => {
     const page = await createLegacyPage();
     const response = await activation(page, {
+      ...(await authenticate()),
       "x-myownnotion-client-protocol": "2",
-      "x-csrf-token": "not-read",
     });
 
     expect(response.statusCode).toBe(426);

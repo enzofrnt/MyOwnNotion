@@ -27,6 +27,13 @@ import { AsyncState } from "../../ui/primitives/async-state.tsx";
 /** The schema version this client was built against. */
 export const EXPECTED_SCHEMA_VERSION = 1;
 
+export type DesktopConnectionKind =
+  | "compatible"
+  | "read-only"
+  | "incompatible"
+  | "unreachable"
+  | "insecure";
+
 type Reachability =
   | { readonly kind: "checking" }
   | { readonly kind: "reachable"; readonly schemaVersion: number }
@@ -53,7 +60,15 @@ export function isInsecureRemote(location: { protocol: string; hostname: string 
   return location.protocol !== "https:" && !isLocalAddress(location.hostname);
 }
 
-export function ConnectionStatus({ api }: { readonly api: ContentApi }) {
+export function ConnectionStatus({
+  api,
+  hostLabel,
+  desktopStatus,
+}: {
+  readonly api: ContentApi;
+  readonly hostLabel?: string;
+  readonly desktopStatus?: DesktopConnectionKind;
+}) {
   const [reachability, setReachability] = useState<Reachability>({ kind: "checking" });
 
   useEffect(() => {
@@ -75,14 +90,15 @@ export function ConnectionStatus({ api }: { readonly api: ContentApi }) {
     };
   }, [api]);
 
-  const insecure = isInsecureRemote(window.location);
+  const insecure = desktopStatus === "insecure" || isInsecureRemote(window.location);
   const mismatch =
     reachability.kind === "reachable" && reachability.schemaVersion !== EXPECTED_SCHEMA_VERSION;
+  const shownHost = hostLabel ?? window.location.host;
 
   return (
     <section className="connection-status" aria-label={FR_COPY.connection.label}>
       <p data-testid="connection-server" className="muted">
-        {FR_COPY.connection.connectedTo} <code>{window.location.host}</code>
+        {FR_COPY.connection.connectedTo} <code>{shownHost}</code>
       </p>
 
       <p data-testid="connection-reachability" data-state={reachability.kind} role="status">
@@ -92,6 +108,17 @@ export function ConnectionStatus({ api }: { readonly api: ContentApi }) {
             ? FR_COPY.connection.reachable
             : FR_COPY.connection.unreachable}
       </p>
+
+      {desktopStatus === "read-only" ||
+      desktopStatus === "incompatible" ||
+      desktopStatus === "unreachable" ? (
+        <AsyncState
+          compact
+          kind="error"
+          testId={`desktop-connection-${desktopStatus}`}
+          title={FR_COPY.desktop.status[desktopStatus]}
+        />
+      ) : null}
 
       {insecure ? (
         // Not a badge. Everything written here travels in clear text over a

@@ -48,7 +48,7 @@ Les spécifications de fonctionnalité détaillées peuvent préciser ce documen
 
 1. MyOwnNotion possède exactement un propriétaire et aucun autre compte applicatif.
 2. Le document maître distingue la cible complète, la V1 et les versions suivantes.
-3. La V1 est un produit utilisable comprenant le Web responsive, Compose, l'authentification, les pages et dossiers, l'éditeur, les fichiers, la recherche, le hors-ligne, la synchronisation, la sauvegarde/restauration et l'export.
+3. La V1 est un produit utilisable comprenant le Web responsive, les applications Electron Windows, macOS et Linux (Windows x64 et ARM, macOS ARM, Linux x64 et ARM en AppImage, deb et rpm ; téléchargement direct, sans store), Compose, l'authentification, les pages et dossiers, l'éditeur, les fichiers, la recherche, le hors-ligne, la synchronisation, la sauvegarde/restauration et l'export.
 4. Les données sont chiffrées par l'application au repos sur le serveur.
 5. La clé protégeant les données du serveur est externe aux données et fournie comme secret au déploiement.
 6. Les volumes d'hébergement doivent pouvoir bénéficier d'un second niveau de protection lorsque la plateforme le permet.
@@ -172,6 +172,7 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 
 - déploiement du serveur avec Compose ;
 - client Web responsive ;
+- applications Electron Windows, macOS et Linux, hôtes du client Web, connectées au serveur auto-hébergé, chacune livrée comme un installateur natif à sa plateforme, en téléchargement direct ;
 - espace de travail cohérent et qualitatif, avec une structure et un système visuel communs ;
 - authentification mono-utilisateur par passkey et mot de passe ;
 - gestion des appareils et sessions ;
@@ -207,7 +208,6 @@ Les capacités suivantes appartiennent à la cible complète, mais peuvent être
 - tableaux blancs ;
 - partage public et annotations publiques ;
 - serveur MCP ;
-- applications Electron Windows et macOS ;
 - adaptation iOS avancée ou application iOS native.
 
 Les fondations de la V1 ne doivent pas rendre ces ajouts difficiles ou nécessiter une rupture du modèle de données canonique.
@@ -221,8 +221,9 @@ Le produit doit être progressivement disponible sous forme de :
 1. site Web responsive connecté au serveur auto-hébergé ;
 2. application Electron pour Windows ;
 3. application Electron pour macOS ;
-4. Web app installable et adaptée à iOS ;
-5. application iOS native si la Web app ne peut pas satisfaire les exigences de sécurité, de stockage local ou d'expérience attendues.
+4. application Electron pour Linux ;
+5. Web app installable et adaptée à iOS ;
+6. application iOS native si la Web app ne peut pas satisfaire les exigences de sécurité, de stockage local ou d'expérience attendues.
 
 Chaque client se connecte au serveur en renseignant son URL. Il vérifie :
 
@@ -234,7 +235,9 @@ Chaque client se connecte au serveur en renseignant son URL. Il vérifie :
 
 L'accès HTTP doit être accepté uniquement pour les adresses locales ou les environnements explicitement déclarés comme sûrs. L'interface doit avertir clairement si une URL HTTP non locale est utilisée.
 
-Le client Web V1 doit prendre en charge les deux dernières versions majeures stables de Chrome, Edge, Firefox et Safari. L'interface doit rester utilisable à partir d'une largeur de 320 pixels.
+La V1 doit livrer les quatre premiers clients : le site Web responsive et les applications Electron Windows, macOS et Linux. La V1 desktop couvre cinq cibles : Windows x64, Windows ARM64, macOS Apple Silicon, Linux x64 et Linux ARM64. Windows et macOS livrent un installateur par cible. Chaque architecture Linux livrera un AppImage, un `.deb` et un `.rpm`, en téléchargement GitHub, sans dépôt apt/rpm ni store. Il n'y a pas d'installateur macOS Intel, pas de binaire universel, pas d'archive multi-OS, et aucune publication sur un store (Mac App Store, Microsoft Store, Snap, Flathub ou équivalent). L'adaptation iOS et l'application native restent après la V1.
+
+Le client Web V1 doit prendre en charge les deux dernières versions majeures stables de Chrome, Edge, Firefox et Safari. L'interface doit rester utilisable à partir d'une largeur de 320 pixels. Les applications Electron V1 ciblent Windows 10/11 x64 et ARM64, macOS 13 et versions ultérieures Apple Silicon, et Linux glibc x64 et arm64, selon la spécification 014. Le workflow GitHub Actions de release attache ces fichiers à la GitHub Release du tag ; ce n'est pas un dépôt d'applications.
 
 ---
 
@@ -583,8 +586,8 @@ La navigation doit préserver le contexte lors d'un retour en arrière, prendre 
 ### 12.1 Frontière entre connaissance et configuration
 
 Le contenu principal du workspace est réservé au travail de connaissance :
-page ou dossier courant, recherche, bases déjà livrées et, lorsqu'ils seront
-disponibles, graphe et autres vues directement dérivées des contenus. Il ne doit
+page ou dossier courant, recherche, bases déjà livrées, graphe et autres
+vues directement dérivées des contenus. Il ne doit
 pas devenir une page d'administration empilant sous le document les détails de
 stockage, files de mutations, identifiants, historique technique, appareils,
 sécurité, sauvegardes ou diagnostics.
@@ -2012,7 +2015,7 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 ### Phase 0 — Fondations de livraison
 
 1. environnement de développement reproductible avec runtime, gestionnaire,
-   build et verrouillage Bun uniques ;
+   build et verrouillage Bun uniques (livré par la feature 019) ;
 2. Compose initial et configuration validée ;
 3. processus Git, CI et publication GHCR ;
 4. observabilité minimale et documentation de démarrage.
@@ -2042,26 +2045,30 @@ Le modèle canonique, les identifiants, le versionnement et les frontières de s
 18. sauvegarde, restauration et export ;
 19. mises à jour et retour arrière ;
 20. backlinks et graphe de connaissances privé, local et global ;
-21. journaux serveur lisibles, actionnables et toujours collectables ;
-22. convergence V1 de l'espace de travail, de l'éditeur et des vues de
+21. application Electron Windows connectée au serveur auto-hébergé ;
+22. application Electron macOS connectée au serveur auto-hébergé ;
+23. application Electron Linux connectée au serveur auto-hébergé ;
+24. journaux serveur lisibles, actionnables et toujours collectables ;
+25. convergence V1 de l'espace de travail, de l'éditeur et des vues de
     connaissance proches de Notion.
 
-L'achèvement de cette phase, y compris la convergence visuelle et interactive, constitue la V1 fonctionnelle, sous réserve de satisfaire tous les critères de qualité et d'exploitation.
+Le prochain travail d'implémentation est la feature 014 (étapes 21 à 23).
+Les journaux (021) et la convergence finale 017 suivent. L'achèvement de cette
+phase, y compris les hôtes desktop, constitue la V1 fonctionnelle, sous réserve
+de satisfaire tous les critères de qualité et d'exploitation.
 
 ### Phase 4 — Fonctions avancées
 
-23. bases de données et tâches avancées ;
-24. tableaux blancs puis, si le besoin est confirmé, import ou édition de
+26. bases de données et tâches avancées ;
+27. tableaux blancs puis, si le besoin est confirmé, import ou édition de
     diagrammes par un moteur interne à MyOwnNotion ;
-25. partage public et annotations ;
-26. MCP.
+28. partage public et annotations ;
+29. MCP.
 
 ### Phase 5 — Clients supplémentaires
 
-27. application Electron Windows ;
-28. application Electron macOS ;
-29. adaptation iOS avancée ;
-30. éventuelle application iOS native.
+30. adaptation iOS avancée ;
+31. éventuelle application iOS native.
 
 Chaque étape doit rester utilisable, testable et compatible avec la trajectoire globale. Une phase peut être divisée en plusieurs spécifications de fonctionnalité, mais aucune dépendance critique ne doit rester implicite.
 
@@ -2110,7 +2117,7 @@ Les spécifications détaillées peuvent ajuster un paramètre avant son implém
 - la migration éventuelle ;
 - les tests d'acceptation mis à jour.
 
-Les niveaux de support détaillés des vues de bases de données et des futurs clients Electron ou iOS seront fixés dans leur spécification de phase, sans remettre en cause les invariants de ce document.
+Les niveaux de support détaillés des vues de bases de données avancées et des clients iOS seront fixés dans leur spécification de phase, sans remettre en cause les invariants de ce document.
 
 ---
 
@@ -2185,3 +2192,20 @@ Ces références expliquent des contraintes de stockage des navigateurs ; elles 
   par défaut, réduire le bruit routinier et conserver en parallèle une sortie
   machine expurgée. Les erreurs doivent orienter le diagnostic avec des champs
   sûrs sans réintroduire de contenu privé ni de trace brute.
+
+---
+
+## Annexe F — Clarification validée le 3 septembre 2026
+
+- Q : Les applications Electron desktop peuvent-elles rester après la
+  V1 ? → R : Non. La V1 doit livrer le Web responsive et les hôtes desktop
+  Windows, macOS et Linux, connectés au serveur auto-hébergé, sans serveur
+  embarqué. iOS reste après la V1.
+- Q : Quel est le prochain travail avant de clôturer la V1 ? → R : La feature
+  014 (Electron Windows, macOS et Linux), sur la chaîne Bun déjà livrée. Les
+  journaux 021 et la convergence finale 017 suivent.
+- Q : Un paquet universel ou multi-OS peut-il servir de livrable desktop V1 ?
+  → R : Non. Cinq cibles en téléchargement direct : Windows x64, Windows ARM,
+  macOS ARM, Linux x64 et Linux ARM. Linux publie AppImage, deb et rpm par
+  architecture. Pas de macOS Intel, pas de store, pas d’archive qui mélange
+  plusieurs runtimes.

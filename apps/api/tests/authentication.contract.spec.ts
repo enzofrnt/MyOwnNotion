@@ -321,6 +321,18 @@ describe("CSRF", () => {
     });
     expect(response.statusCode).toBe(403);
     expect(response.json().code).toBe("csrf_validation_failed");
+    const disguised = await inject({
+      method: "POST",
+      url: "/v1/items/018f2b7c-0000-7000-8000-000000000099/trash",
+      headers: {
+        cookie: `${COOKIE}=${auth.cookie}`,
+        upgrade: "websocket",
+        "x-myownnotion-client-protocol": "3",
+        "idempotency-key": "018f2b7c-0000-7000-8000-000000000099",
+      },
+    });
+    expect(disguised.statusCode).toBe(403);
+    expect(disguised.json().code).toBe("csrf_validation_failed");
   });
 
   it("refuses a token that belongs to another session", async () => {
@@ -1030,5 +1042,78 @@ describe("session lifecycle and password change coverage", () => {
       payload: { newPassword: "une phrase de passe solide" },
     });
     expect([401, 403, 428]).toContain(stale.statusCode);
+  });
+});
+
+describe("ordinary content HTTP access", () => {
+  it("rejects anonymous reads and writes, then rejects the same cookie after device revocation", async () => {
+    await seedOwner();
+    for (const url of ["/v1/items", "/v1/snapshots/current", "/v1/changes", "/v1/changes/stream"]) {
+      expect((await inject({ method: "GET", url })).statusCode).toBe(401);
+    }
+    const auth = await authenticate();
+    // An Upgrade header on an ordinary HTTP route is not a WebSocket route
+    // and must never bypass the shared owner guard.
+    const disguised = await inject({
+      method: "GET",
+      url: "/v1/items",
+      headers: { upgrade: "websocket" },
+    });
+    expect(disguised.statusCode).toBe(401);
+    expect(
+      (await inject({ method: "GET", url: "/v1/items", headers: authHeaders(auth) })).statusCode,
+    ).toBe(200);
+    await harness.built.database.db.execute(
+      sql`UPDATE authorized_devices SET state = 'revoked', revoked_at = now() WHERE id = ${DEVICE_ID}::uuid`,
+    );
+    expect(
+      (await inject({ method: "GET", url: "/v1/items", headers: authHeaders(auth) })).statusCode,
+    ).toBe(401);
+    const stream = await inject({
+      method: "GET",
+      url: "/v1/changes/stream",
+      headers: authHeaders(auth),
+    });
+    expect(stream.statusCode).toBe(401);
+    expect(stream.json().code).toBe("device_revoked");
+    const unknown = await inject({
+      method: "GET",
+      url: "/v1/changes/stream",
+      headers: { cookie: `${COOKIE}=unknown-secret` },
+    });
+    expect(unknown.statusCode).toBe(401);
+    expect(unknown.json().code).toBe("authentication_required");
+    expect(
+      (await inject({ method: "GET", url: "/v1/auth/session", headers: authHeaders(auth) }))
+        .statusCode,
+    ).toBe(401);
+  });
+  it("requires CSRF on content mutations before invoking a handler", async () => {
+    await seedOwner();
+    const auth = await authenticate();
+
+    const response = await inject({
+      method: "POST",
+      url: "/v1/items/018f2b7c-0000-7000-8000-000000000099/trash",
+      headers: {
+        cookie: `${COOKIE}=${auth.cookie}`,
+        "x-myownnotion-client-protocol": "3",
+        "idempotency-key": "018f2b7c-0000-7000-8000-000000000099",
+      },
+    });
+    expect(response.statusCode).toBe(403);
+    expect(response.json().code).toBe("csrf_validation_failed");
+  });
+});
+
+describe("login attempt budget", () => {
+  it("blocks repeated failed passwords even when a later password is correct", async () => {
+    await seedOwner({ withPassword: true });
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect((await login("a deliberately incorrect password")).statusCode).toBe(401);
+    }
+    const limited = await login(PASSWORD);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json().code).toBe("rate_limited");
   });
 });

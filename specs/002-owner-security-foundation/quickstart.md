@@ -1,5 +1,12 @@
 # Quickstart Validation: Owner Security Foundation
 
+
+> **Chaîne actuelle (feature 019, livrée)** : Bun 1.4.0 exclusivement. Installer
+> avec `bun ci` et orchestrer avec `bun run`. Les mentions de pnpm ou Node.js
+> plus bas décrivent l'époque de construction de cette feature ; elles ne sont
+> plus la procédure à exécuter. Guide vivant :
+> [`docs/development.md`](../../docs/development.md).
+
 This is a runnable validation guide, not an implementation recipe. It records
 expected checks and points to the contracts, model, and empty evidence ledger.
 Do not mark a scenario passed until its raw evidence is recorded in

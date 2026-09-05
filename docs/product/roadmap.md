@@ -12,6 +12,12 @@ commence que lorsque ses dépendances sont terminées ou explicitement isolées.
 Chaque feature suit : spécification, clarification si nécessaire, plan, tâches,
 analyse, implémentation, convergence, contrôles locaux, puis pull request.
 
+**Prochain travail** : feature
+[`014-desktop-clients`](../../specs/014-desktop-clients/) (Electron Windows,
+macOS et Linux). La chaîne Bun 019 est déjà livrée. Ne pas ouvrir l'implémentation 021,
+022 T040 ou 017 T319 tant que 014 n'est pas livrée, sauf correction bloquante
+sur `main`.
+
 Le numéro d'une feature est son identité stable, pas sa position définitive
 dans la séquence. L'ordre des sections ci-dessous et leurs dépendances fixent
 l'ordre prévu. Une nouvelle étape intermédiaire reçoit le prochain numéro libre
@@ -174,9 +180,9 @@ remplacement du document entier. Le modèle canonique reste la projection
 durable et indépendante de l'éditeur ; le transport, les appareils, les
 fichiers et les sauvegardes existants sont étendus plutôt que reconstruits.
 
-La validation formelle de la V1 reste bloquée tant que les features 010 et 021,
+La validation formelle de la V1 reste bloquée tant que les features 014 et 021,
 cette convergence et les protocoles ouverts de la feature 002 ne sont pas
-terminés.
+terminés. **014 est le prochain travail** ; 010 est déjà livrée.
 
 ### 018 — Durable realtime synchronization
 
@@ -193,7 +199,7 @@ restauration et les régressions issues d'un HAR réel.
 
 ### 019 — Unified Bun 1.4 toolchain
 
-**État** : implémentation en cours sur une pull request dédiée
+**État** : implémentée et convergée
 **Dépendance** : 002, 016, 017, 018
 **Dossier** : [`specs/019-bun-toolchain`](../../specs/019-bun-toolchain/)
 **Canevas** : sections 38 à 47
@@ -206,8 +212,7 @@ le module `ws` intégré à Bun avec les mêmes protections de session.
 
 ### 010 — Knowledge graph V1
 
-**État** : spécification initiale créée ; prête pour revue produit avant
-clarification et planification
+**État** : implémentée et convergée
 **Dépendance** : 001 à 008, fondations de liens et de workspace déjà livrées par
 017, synchronisation durable 018 et chaîne Bun 019 ; la 009 enrichit les types
 de nœuds déjà présents sans transférer ses capacités métier dans la 010
@@ -221,23 +226,60 @@ privée et reconstruisible des données canoniques, conserve un état de
 complétude honnête hors ligne et devient une condition de sortie de la V1 avant
 la convergence finale de la feature 017.
 
+### 014 — Desktop clients
+
+**État** : spécifiée et planifiée ; **prochain travail d'implémentation**
+**Dépendance** : fondations V1 du client Web (001 à 010, 016 à 020, 022) et
+chaîne Bun 019 (déjà livrée) ; ne dépend pas des features 011 à 013 ni de 021
+**Dossier** : [`specs/014-desktop-clients`](../../specs/014-desktop-clients/)
+**Canevas** : sections 6.1, 7 et 47, avec les invariants des sections 5, 9, 17
+à 20, 28 à 30 et 36 à 45
+
+Applications Electron Windows, macOS et Linux, hôtes du client Web existant,
+stockage sécurisé de plateforme et mises à jour. Cinq cibles en
+téléchargement GitHub (Windows x64 et ARM, macOS ARM, Linux x64 et ARM).
+Linux publie AppImage, deb et rpm par architecture ; aucun store. Prochain
+livrable avant clôture V1. Les tableaux blancs, le partage public et MCP
+restent après la V1 et seront accueillis plus tard par le même hôte.
+
 ### 021 — Readable and actionable server logs
 
-**État** : spécification initiale créée ; prête pour revue produit avant
-clarification et planification
-**Dépendance** : 002, 006 à 010, 017 à 019
+**État** : spécification initiale créée ; planification et implémentation
+**après** 014
+**Dépendance** : 002, 006 à 010, 014, 017 à 019
 **Dossier** : [`specs/021-readable-server-logs`](../../specs/021-readable-server-logs/)
 **Canevas** : sections 35 et 43 à 47
 
 Cette maintenance transverse sépare format, couleur et verbosité, fournit une
 vue locale humaine par défaut tout en conservant une sortie machine collectable,
 réduit le bruit des requêtes et contrôles routiniers, et impose des erreurs
-expurgées mais actionnables avec code, corrélation et piste d'action. Elle est
-une condition de sortie de la V1 et précède sa validation d'exploitation finale.
+expurgées mais actionnables avec code, corrélation et piste d'action. Elle
+reste une condition de sortie de la V1, après le desktop.
+
+### 020 — Canonical application URLs
+
+**État** : implémentée et convergée
+**Dépendance** : 017, 010 pour les destinations graphe
+**Dossier** : [`specs/020-app-url-routing`](../../specs/020-app-url-routing/)
+**Canevas** : sections 2.13, 6.1, 7, 10 à 12 et 18
+
+Chaque surface livrée (notes, graphe, réglages, setup, connexion) possède une
+URL canonique ; la route est la source de vérité de la destination affichée.
+
+### 022 — Breadcrumbs, open tabs and folder canvas
+
+**État** : implémentation présente dans `main` ; journey Playwright T040 encore
+ouvert, **après** 014
+**Dépendance** : 017, 020
+**Dossier** : [`specs/022-page-tabs-folder-view`](../../specs/022-page-tabs-folder-view/)
+**Canevas** : sections 11, 12 et 12.1
+
+Fil d'Ariane discret, bande d'onglets locale à l'appareil et vue de dossier
+sous forme de liste réordonnable.
 
 ### 016 — CI cache and selective tests
 
-**État** : implémentée et validée localement ; prête pour la pull request
+**État** : implémentée et convergée
 **Dépendance** : 002
 **Dossier** : [`specs/016-ci-cache-selective-tests`](../../specs/016-ci-cache-selective-tests/)
 **Canevas** : sections 38 à 42
@@ -286,16 +328,6 @@ modération. Canevas : sections 24 et 25.
 
 Autorisation, permissions granulaires, révocation et audit MCP. Canevas :
 section 26.
-
-### 014 — Desktop clients
-
-**État** : spécifiée et planifiée ; prête pour l’analyse avant implémentation
-**Dépendance** : 001 à 013
-**Dossier** : [`specs/014-desktop-clients`](../../specs/014-desktop-clients/)
-**Canevas** : section 7, avec les invariants des sections 5, 9, 17 à 20, 28 à 30 et 36 à 45
-
-Applications Electron Windows et macOS, stockage sécurisé et mises à jour.
-Canevas : section 7.
 
 ### 015 — iOS experience
 

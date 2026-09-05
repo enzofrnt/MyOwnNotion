@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "vite --host ${MYOWNNOTION_WEB_HOST:-127.0.0.1} --port ${MYOWNNOTION_WEB_PORT:-5173} --strictPort",
+    "dev": "vite",
     "build": "bun build.ts",
-    "preview": "vite preview --host ${MYOWNNOTION_WEB_HOST:-127.0.0.1} --port ${MYOWNNOTION_WEB_PORT:-5173} --strictPort --outDir \"${MYOWNNOTION_WEB_DIST_DIR:-dist}\""
+    "preview": "vite preview"
   },
   "dependencies": {
     "@ariakit/react": "0.4.37",

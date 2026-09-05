@@ -1,6 +1,9 @@
 /**
  * Keyboard, focus, semantic tree, and responsive accessibility assertions
  * (T090, constitution principle VI).
+ *
+ * Desktop Electron accessibility is `tests/e2e/desktop-accessibility.spec.ts`.
+ * Those journeys run once on `chromium-desktop` when `MYOWNNOTION_DESKTOP_E2E=1`.
  */
 // Named rather than default: the package ships both, and only the named
 // export is constructible under this project's ESM settings.
@@ -455,5 +458,14 @@ test.describe("structured database view accessibility (feature 009)", () => {
     await expect(
       page.getByRole("button", { name: `Déplacer ${entryName} au jour suivant` }),
     ).toBeVisible();
+  });
+});
+
+test.describe("desktop host accessibility (feature 014)", () => {
+  test("desktop onboarding and update surfaces stay in the Playwright corpus", async () => {
+    test.skip(
+      process.env["MYOWNNOTION_DESKTOP_E2E"] !== "1",
+      "Native Electron runner; see tests/e2e/desktop-accessibility.spec.ts",
+    );
   });
 });

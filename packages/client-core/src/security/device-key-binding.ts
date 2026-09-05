@@ -21,8 +21,12 @@
 
 import type { DeviceState } from "@myownnotion/domain";
 import type { LocalKeyManager, LocalKeyState } from "./local-key-state.ts";
+import type { SecureKeyStorage } from "./secure-key-storage.ts";
 
 export type LocalAccess = "unlocked" | "locked";
+
+/** Desktop and browser share this contract; Electron stays out of this package. */
+export type { SecureKeyStorage };
 
 export interface TrustBindingOutcome {
   readonly access: LocalAccess;

@@ -198,25 +198,16 @@ describe("what a history entry identifies", () => {
   });
 
   it("says the device is unknown rather than guessing, for an unattributed write", async () => {
-    // No session: an anonymous write, which is what a revision written before
-    // this feature looks like from the history's point of view.
-    const response = await harness.built.app.inject({
-      method: "POST",
-      url: "/v1/items",
-      headers: { "idempotency-key": generateUuidV7() },
-      payload: {
-        id: generateUuidV7(),
-        kind: "folder",
-        name: "Unattributed",
-        placement: { kind: "hierarchy", parentItemId: null, positionKey: "V" },
-      },
-    });
-    expect(response.statusCode, response.body).toBe(201);
-    const revisionId = (response.json() as { revisionIds: string[] }).revisionIds[0];
-
+    const signed = await signIn();
+    const { revisionId } = await createPageAsSignedInOwner(signed, "Legacy unattributed page");
+    // Historical records can lack attribution; new writes require a session.
+    await harness.built.database.db.execute(
+      sql`UPDATE revisions SET authored_by_device_id = NULL WHERE id = ${revisionId}::uuid`,
+    );
     const read = await harness.built.app.inject({
       method: "GET",
       url: `/v1/revisions/${revisionId}`,
+      headers: headersFor(signed),
     });
     const revision = read.json() as { authoredByDeviceId: string | null };
     // Null, not the only device that exists. A history that fills a gap with a

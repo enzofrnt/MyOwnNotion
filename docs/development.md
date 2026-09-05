@@ -65,10 +65,51 @@ bun run toolchain:check
 
 `bun ci` is the canonical frozen installation. It fails when a manifest and
 `bun.lock` differ, and running it twice must leave the lock byte-identical.
+On macOS, the DMG maker uses the system `ditto` and `hdiutil` tools under the
+Bun-driven Forge process. It preserves the packaged application, adds the
+Applications shortcut, verifies the image and publishes it atomically. It does
+not depend on legacy V8/NAN native addons or a separately installed Node runtime.
 JavaScript tools such as TypeScript, Vitest, Vite development server and
 Playwright remain specialized dependencies, but Bun installs and launches
 them. Imports from `node:*` use Bun's compatibility APIs and do not imply a
 Node.js process.
+
+### Desktop Electron host
+
+The Windows, macOS and Linux host lives in `apps/desktop`. Install it with the
+same frozen Bun graph as the rest of the workspace:
+
+```bash
+bun --version            # must print exactly 1.4.0
+bun ci
+```
+
+Electron Forge reads this package's materialized `node_modules` (classic layout
+under `apps/desktop/node_modules`, plus workspace hoisting). Do not introduce
+pnpm, npm, Yarn, or a nested `packageManager` field to satisfy Forge. Electron
+and the Forge makers are pinned exactly in `apps/desktop/package.json`;
+`bun.lock` is the only lockfile.
+
+```bash
+bun run desktop:dev      # watch-build host + Electron; UI HMR via dev:stack
+bun run desktop:build    # web dist, then desktop bootstrap/main/preload
+bun run desktop:make     # native installer for this machine
+bun run desktop:smoke    # installed-host smoke without signing secrets
+bun run desktop:check    # build, package, installed smoke and Electron journeys
+bun run --bun vitest run --project desktop
+```
+
+`bun run dev` starts the API and web workspaces only.
+The native package, installed smoke and Electron lifecycle journeys run in
+`bun run desktop:check`, included in `bun run checks:local`. Presence, exact pins
+and Forge policy also run inside `bun run toolchain:check`. Native Windows/macOS/Linux package
+jobs live in `.github/workflows/desktop-ci.yml`. Publication of the nine
+canonical installers is `.github/workflows/desktop-release.yml` after the tag
+quality gate. Signing secrets never enter the repository; local unsigned
+packages must not be distributed.
+
+Playwright Electron journeys (`tests/e2e/desktop-*.spec.ts`) skip unless
+`MYOWNNOTION_DESKTOP_E2E=1` on a native runner, after `bun run desktop:build`.
 
 ### Python (not used yet)
 
@@ -90,7 +131,76 @@ bun run db:migrate
 bun run dev
 ```
 
-Every published port binds to `127.0.0.1` only.
+Every published port binds to `127.0.0.1` only. The packaged desktop host is
+separate: `bun run desktop:dev` starts Electron against a running server. It is
+not included in `bun run dev`.
+
+Recommended desktop development uses the same single-origin entrypoint as
+production (`compose.dev.yaml` via Caddy: `/v1` and `/health` to the API,
+everything else to the web shell):
+
+```bash
+bun run dev:stack          # postgres, API, Vite HMR, Caddy on localhost
+bun run desktop:dev        # Electron host watch
+```
+
+`desktop:dev` watch-rebuilds `apps/desktop/src` and restarts Electron. The
+renderer hot-reloads through the stack's Vite server when the profile uses
+**https://localhost:8443** (recommended in Electron: passkeys and session cookies)
+or **http://localhost:8080** (UI only; passkeys and sessions need HTTPS).
+In dev mode the desktop host loads the Vite shell from the loopback server
+instead of `apps/web/dist`, so CSS and React changes match the browser HMR path.
+Run **`bun run dev:stack`** in a second terminal before or with `desktop:dev`.
+If migrate fails with a deployment-key error, reset local dev data with
+`bun run dev:stack:reset` (Postgres, blobs, and backups only; Caddy's CA is kept).
+
+Use **https://localhost:8443** in the desktop onboarding form (default). Electron
+dev mode trusts Caddy's local certificate on loopback. Plain **http://localhost:8080**
+remains fine for Cursor's embedded browser.
+
+On macOS, Touch ID passkeys in Electron need `keychain-access-groups` in the
+signed app. Run `bun run desktop:codesign-doctor` to verify your **Apple
+Development** identity (`security find-identity -v -p codesigning`).
+
+`desktop:dev` copies Electron into `apps/desktop/.dev-host`, sets the desktop
+bundle id, and signs with Apple Development. By default it signs with `allow-jit`
+only so the host launches; embedding `keychain-access-groups` without a matching
+**macOS Development provisioning profile** for `dev.myownnotion.desktop` makes
+macOS kill the process (SIGKILL). For Touch ID in dev, create the App ID and
+profile in Apple Developer, install the `.provisionprofile`, or set
+`MYOWNNOTION_DESKTOP_PROVISIONING_PROFILE`. Run `bun run desktop:provisioning-doctor`
+to check both the certificate and profile. Otherwise use Safari on
+`https://localhost:8443` for passkey bootstrap, or
+`bun run --filter @myownnotion/desktop package`.
+
+#### Touch ID setup (macOS, Electron dev)
+
+Prerequisites: Apple Developer Program, Xcode signed in, and
+`bun run desktop:codesign-doctor` passing.
+
+1. **App ID** — [Identifiers](https://developer.apple.com/account/resources/identifiers/list)
+   → **+** → **App IDs** → **App** → Explicit bundle ID
+   `dev.myownnotion.desktop` → enable **Keychain Sharing** → Register.
+2. **Mac Development profile** — [Profiles](https://developer.apple.com/account/resources/profiles/list)
+   → **+** → **macOS** → **Mac Development** → select the App ID above → select
+   your **Apple Development** certificate → download `.provisionprofile`.
+3. **Install** — double-click the file (creates
+   `~/Library/MobileDevice/Provisioning Profiles/`), or:
+   `export MYOWNNOTION_DESKTOP_PROVISIONING_PROFILE=~/Downloads/….provisionprofile`
+4. **Rebuild dev host** — from repo root:
+   `rm -rf apps/desktop/.dev-host && bun run desktop:dev`
+5. **Verify** — terminal must show
+   `Signed dev Electron host with Touch ID entitlements`; then
+   `bun run desktop:provisioning-doctor` exits 0.
+6. **Run stack** — `bun run dev:stack` in another terminal; desktop profile URL
+   **https://localhost:8443**; passkey bootstrap should show the macOS Touch ID sheet.
+
+If the host SIGKILLs after step 4, the profile bundle id or certificate does not
+match — recreate the profile and reset `.dev-host`.
+
+The third-party addon [electron-webauthn-mac](https://github.com/vault12/electron-webauthn-mac)
+targets packaged apps with a real HTTPS domain and Apple associated-domains;
+it does not replace Touch ID for `localhost` dev.
 
 ### Application URLs
 
@@ -286,6 +396,8 @@ substitutes for the behavioral layers.
 | `bun run test:migration` | Empty-database and forward-fixture migrations | **yes** |
 | `bun run test:security` | Owner security foundation suites across every project | **yes** |
 | `bun run test:e2e` | Playwright journeys, 5 browser/viewport projects | **yes** |
+| `bun run desktop:smoke` | Desktop host first-launch/profile smoke, no signing secrets | no |
+| `bun run --bun vitest run --project desktop` | Electron policy, IPC, update, and vault unit tests | no |
 | `bun run test:coverage` | Maintained unit/integration/contract code under coverage thresholds | **yes** |
 | `bun run test:performance` | 10,000-item / 1,000-operation suites | **yes** |
 | `bun run db:test-migrations` | Alias of `test:migration`, kept for existing scripts | **yes** |
@@ -951,3 +1063,43 @@ Never copy them into agent-specific documents. The governing rules are in
 
 Typical order: `/speckit-specify` → `/speckit-plan` → `/speckit-tasks` →
 `/speckit-analyze` → `/speckit-implement` → `/speckit-converge`.
+
+### Desktop CI parity and release trust
+
+The reusable desktop CI is a blocking dependency of the aggregate PR/main gate.
+All five targets launch the packaged executable and run native lifecycle journeys
+against PostgreSQL 18. Linux uses the existing Compose PostgreSQL service, avoiding
+assumptions about preinstalled system clusters on either runner architecture.
+macOS uses its native PostgreSQL fixture. Windows uses a pinned, SHA-256-verified EDB portable archive;
+the ARM runner executes only that test database through Windows x64 emulation,
+while Bun and Electron remain ARM64. The archive is never packaged with the app.
+The Windows journey key uses a protected owner-only ACL. `chmod(0600)` cannot
+establish that boundary on Windows: the fixture sets the current-account ACL and
+the loader independently checks it with PowerShell without reading key bytes in
+the child process. Broad or inherited allow rules fail closed. Native policy
+tests verify both acceptance and refusal; Linux/macOS retain POSIX mode checks.
+Windows selects `%SystemRoot%/System32/tar.exe` explicitly; Git Bash's GNU tar
+must not interpret an archive's drive letter as a remote host.
+Locally, desktop journeys use the disposable databases created by the existing
+E2E runner. To avoid a development stack on port 5432, choose another Compose
+project and set both MYOWNNOTION_DB_PORT and DATABASE_URL for the complete gate.
+
+The tag workflow requires an Apple Developer ID Application certificate
+(APPLE_CERTIFICATE as base64 P12, APPLE_CERTIFICATE_PASSWORD, APPLE_IDENTITY),
+notarization API credentials (APPLE_API_KEY as P8 text, APPLE_API_KEY_ID,
+APPLE_API_ISSUER), and Windows Authenticode material (CSC_LINK as base64 PFX,
+CSC_KEY_PASSWORD). It materializes files only in the disposable runner directory.
+Native verification checks signatures, macOS notarization, runtime/package
+architecture, and SHA-512. DESKTOP_UPDATE_PUBLIC_KEY is a repository variable
+containing an Ed25519 SPKI PEM public key embedded in every release build;
+DESKTOP_UPDATE_SIGNING_KEY is its PKCS8 private key in a GitHub secret.
+The final job authenticates five manifests only after verifying the five native
+evidence files against the current commit and actual installer bytes. No
+installer publication is permitted merely because secrets are nonempty.
+
+An unconfigured development build reports updates unavailable. A release build
+verifies the feed's signature and downloads only its matching GitHub installer.
+It blocks installation while local changes remain pending, checks SHA-512 again
+before handing the installer to the operating system, and asks the owner to
+complete installation and restart. Opening the installer is not reported as a
+completed upgrade. Linux reveals the downloaded AppImage for manual installation.

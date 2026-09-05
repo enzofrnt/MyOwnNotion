@@ -9,21 +9,29 @@ Le dépôt est préparé avec GitHub Spec Kit pour OpenAI Codex et Cursor. Les d
 
 ## État du développement
 
-Mise à jour du 31 août 2026 :
+Mise à jour du 3 septembre 2026.
+
+**Prochain travail** : feature 014 — applications Electron Windows, macOS et
+Linux ([`specs/014-desktop-clients`](specs/014-desktop-clients/)). La chaîne
+Bun 1.4.0 est déjà livrée ; ne pas réintroduire pnpm. Les journaux 021 et la
+convergence finale 017 suivent.
 
 | Grande étape | Fait | Reste à faire (RAF) |
 | --- | --- | --- |
-| Fondations fonctionnelles — features 001 à 008 | Implémentées et fusionnées dans `main` : sécurité mono-utilisateur, pages et dossiers, éditeur par blocs, fichiers, offline, synchronisation, sauvegarde/restauration et recherche. | Exécuter les trois protocoles humains/opérationnels encore ouverts dans la feature 002, livrer le graphe 010 et les journaux lisibles 021, puis terminer la convergence d'interface 017 avant de déclarer la release V1 formellement validée. |
-| Convergence V1 proche de Notion — feature 017 | Éditeur BlockNote/Loro, page focalisée, blocs riches, fichiers offline, liens unifiés et arborescence interactive ont été livrés par étapes et fusionnés dans `main`. | Terminer le correctif en cours, intégrer ensuite la surface du graphe 010 au système visuel commun, faire converger les journaux serveur 021, puis exécuter la convergence finale V1. |
-| Synchronisation temps réel durable — feature 018 | Canal WebSocket same-origin avec ACK après commit, reprise hors ligne/crash, convergence des pages fermées, auto-réparation des anciens conflits, révocation immédiate, fichiers vérifiés, identité distincte par profil et passkey complète sont implémentés et fusionnés. | Continuer d'exercer les données réelles et conserver les régressions HAR, multi-appareils, révocation et restauration dans la gate. |
-| Chaîne d'outils Bun — feature 019 | Migration dédiée vers Bun 1.4.0 en cours : gestion des paquets, runtime, builds Web/API, tests, CI et images convergent vers une seule chaîne. | Terminer la gate locale complète, obtenir une CI distante verte et fusionner sans conserver pnpm, Node.js ou un WebSocket npm de secours. |
-| Bases structurées et tâches — feature 009 | Implémentation terminée, convergée et validée par le gate local complet ; [pull request #125](https://github.com/enzofrnt/MyOwnNotion/pull/125) ouverte. | Obtenir un gate CI distant vert, faire relire puis fusionner la pull request dans `main`. |
-| Graphe de connaissances V1 — feature 010 | Backlinks, graphes local/global, périmètres, filtres, offline et limites sont définis dans la spec initiale. | Relire la portée produit, clarifier si nécessaire, puis planifier et implémenter la feature avant la convergence finale de la 017. |
-| Journaux serveur lisibles — feature 021 | Le diagnostic, les présentations humaine/machine, la réduction du bruit, la corrélation et l'expurgation sont définis dans la spec initiale. | Relire les critères opérateur, puis planifier et implémenter la feature après stabilisation du correctif en cours et avant la validation finale de la V1. |
-| Tableaux blancs — feature 011 | Périmètre produit ordonné après le graphe. | Spécifier, planifier et implémenter les canvas sans dupliquer les données canoniques. |
-| Publication contrôlée — feature 012 | Frontière mono-utilisateur/public déjà posée par le canevas produit. | Concevoir puis livrer le partage public avec permissions et révocation explicites. |
-| Intégrations et MCP — feature 013 | Positionnée après les surfaces publiques afin de réutiliser leurs contrôles d’accès. | Spécifier puis livrer les intégrations et l’exposition MCP sécurisée. |
-| Clients supplémentaires — features 014 et 015 | Le client desktop est spécifié et planifié ; l’expérience iOS est positionnée dans la roadmap. | Implémenter le desktop après les fonctions 010 à 013, puis spécifier et développer l’expérience iOS. |
+| Fondations fonctionnelles — features 001 à 008 | Implémentées et fusionnées dans `main`. | Protocoles humains 002 après le desktop. |
+| Chaîne d'outils Bun — feature 019 | Livrée et convergée : `packageManager bun@1.4.0`, `bun.lock`, CI, images. | Conserver l'exclusivité Bun. Les mentions de pnpm dans d'anciennes specs sont historiques. |
+| Clients desktop — feature 014 | Spec, plan et tâches prêts ; Bun exclusif. | **Implémenter maintenant** (cinq installateurs : Windows x64/ARM, macOS ARM, Linux x64/ARM). |
+| Convergence V1 — feature 017 | Éditeur, shell et arbre livrés dans `main`. | T319 après 014. |
+| Fil d'Ariane, onglets, vue dossier — feature 022 | Composants et tests unitaires dans `main`. | Journey Playwright T040 après 014. |
+| Journaux serveur — feature 021 | Spec initiale. | Planifier et implémenter **après** 014. |
+| Graphe — feature 010 | Livré (`/graph`, `/graph/:itemId`). | Preuves croisées 008 T081. |
+| URLs canoniques — feature 020 | Livrées et convergées, y compris le graphe. | Tenir le contrat à jour. |
+| Bases structurées — feature 009 | Livrées dans `main`. | Vues avancées après la V1. |
+| Sync temps réel — feature 018 | Livrée. | Conserver les régressions HAR dans la gate. |
+| Tableaux blancs — feature 011 | Après la V1. | Spécifier plus tard. |
+| Publication — feature 012 | Après la V1. | — |
+| MCP — feature 013 | Après la V1. | — |
+| iOS — feature 015 | Après la V1. | — |
 
 Le détail, les dépendances et les limites de chaque étape sont dans la
 [`roadmap produit`](docs/product/roadmap.md). L’avancement vérifiable d’une

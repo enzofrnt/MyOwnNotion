@@ -98,6 +98,58 @@ export const FR_COPY = {
     versionMismatch: (serverVersion: number | string, clientVersion: number) =>
       `Le serveur utilise la version de schéma ${serverVersion}, tandis que cette application attend la version ${clientVersion}. Mettez à jour le composant le plus ancien avant de continuer.`,
   },
+  desktop: {
+    connection: {
+      title: "Connecter cette application",
+      description:
+        "Indiquez l’adresse de votre serveur MyOwnNotion pour retrouver vos pages sur cet appareil.",
+      serverUrl: "Adresse du serveur",
+      submit: "Continuer",
+      missingBridge: "Cette fenêtre n’est pas l’application desktop.",
+      failed: "La connexion n’a pas pu être enregistrée. Vérifiez l’adresse puis réessayez.",
+    },
+    status: {
+      compatible: "Le serveur est compatible.",
+      "read-only": "Ce serveur n’accepte que la lecture. Les écritures restent locales.",
+      incompatible: "Ce serveur parle un protocole incompatible. Mettez à jour avant d’écrire.",
+      unreachable: "Le serveur n’est pas joignable.",
+      insecure: "Cette adresse HTTP n’est pas locale : le canal n’est pas présenté comme sûr.",
+    },
+    vault: {
+      missing: {
+        title: "Aucune clé protégée n’est encore enregistrée sur cet appareil.",
+        description: "La prochaine connexion créera une clé protégée par le système.",
+      },
+      locked: {
+        title: "Le coffre local est verrouillé.",
+        description:
+          "Réautorisez cet appareil pour lire les contenus protégés. Rien n’a été effacé.",
+      },
+      unavailable: {
+        title: "La protection de clé du système n’est pas disponible.",
+        description:
+          "Les écritures protégées sont refusées jusqu’à ce que le coffre du système soit utilisable.",
+      },
+      revoked: {
+        title: "Cet appareil n’est plus autorisé.",
+        description:
+          "Les contenus protégés ne sont plus lisibles ici. Les changements non synchronisés n’ont pas été supprimés.",
+      },
+    },
+    diagnostics: {
+      label: "Diagnostics de cet appareil",
+      platform: "Système",
+      version: "Version",
+      key: "État de la clé",
+    },
+    update: {
+      label: "Mise à jour de l’application",
+      idle: "Aucune mise à jour n’est en cours.",
+      pendingChanges: "Des changements locaux n’ont pas encore atteint le serveur.",
+      defer: "Plus tard",
+      install: "Installer et redémarrer",
+    },
+  },
   auth: {
     bootstrap: {
       title: "Configurer cette installation",
@@ -136,6 +188,12 @@ export const FR_COPY = {
         "Les passkeys exigent une connexion sécurisée. Ouvrez l’installation en HTTPS ou via localhost.",
       failed: "La passkey n’a pas pu être créée. Réessayez.",
       ownerName: "Propriétaire",
+      desktopUnavailableTitle: "Touch ID indisponible dans cette fenêtre",
+      desktopUnavailableDescription:
+        "Sur macOS, la fenêtre Touch ID n’apparaît que si l’application desktop est signée avec un profil Apple dédié. En développement, créez la passkey dans Safari sur la même adresse, puis revenez ici pour vous connecter.",
+      openInSafari: "Ouvrir dans Safari",
+      desktopUnavailable:
+        "Touch ID n’est pas disponible dans cette fenêtre Electron. Utilisez Safari sur la même adresse pour créer la passkey.",
     },
     login: {
       title: "Se connecter",

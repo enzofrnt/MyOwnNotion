@@ -41,6 +41,7 @@ import {
   resolveConflictLocally,
   resolveDatabaseDefinitionConflictLocally,
   resolveDatabaseEntryConflictLocally,
+  type SecureKeyStorage,
 } from "@myownnotion/client-core";
 import type {
   CreateDatabaseRequestDto,
@@ -68,7 +69,7 @@ import {
 } from "@myownnotion/domain";
 import type { RawGraphNode, RawGraphSource } from "@myownnotion/graph";
 import { ContentApi } from "./content-api.ts";
-import { IndexedDbKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
+import { createSecureKeyStorage, subscribeLocalKeyStorageCleared } from "./local-key-storage.ts";
 import { collectOperationalSyncPageIds } from "./operational-sync-pages.ts";
 import { PageOperationsApi } from "./page-operations-api.ts";
 import {
@@ -238,6 +239,8 @@ type ProjectionListener = (change: LocalProjectionChange) => void | Promise<void
 
 export interface LocalContentServiceOptions {
   readonly realtime?: Omit<RealtimePageSyncTransportOptions, "csrfToken" | "fallback">;
+  readonly keyStorage?: SecureKeyStorage;
+  readonly apiBaseUrl?: string;
 }
 
 export class LocalContentService {
@@ -300,7 +303,7 @@ export class LocalContentService {
     // origin. Established lazily on first use rather than in the constructor:
     // minting a key is asynchronous, and a constructor that cannot await would
     // have to hand out a codec that is not ready yet.
-    this.#keys = new LocalKeyManager(new IndexedDbKeyStorage());
+    this.#keys = new LocalKeyManager(options.keyStorage ?? createSecureKeyStorage());
     const cipher = new LocalCipher(this.#keys);
     const operationContext = {
       installationId: databaseName,
@@ -312,11 +315,15 @@ export class LocalContentService {
     this.pageStateStore = new LocalPageStateStore(this.pageOperationLog, {
       requireCurrentPage: true,
     });
-    this.pageOperationsApi = new PageOperationsApi({ csrfToken: () => this.#pageCsrfToken() });
+    this.pageOperationsApi = new PageOperationsApi({
+      csrfToken: () => this.#pageCsrfToken(),
+      ...(options.apiBaseUrl === undefined ? {} : { baseUrl: options.apiBaseUrl }),
+    });
     this.realtimePageSync = new RealtimePageSyncTransport({
       ...options.realtime,
       csrfToken: () => this.#pageCsrfToken(),
       fallback: this.pageOperationsApi,
+      ...(options.apiBaseUrl === undefined ? {} : { baseUrl: options.apiBaseUrl }),
     });
     this.repository = new LocalRepository(this.db, this.#codec);
     this.databases = new LocalDatabaseRepository(this.db, this.#codec);

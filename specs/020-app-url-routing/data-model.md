@@ -11,6 +11,7 @@ Union fermée représentant une route reconnue.
 - `login` avec `returnTo?: ProtectedDestination`
 - `notes` sans item
 - `note` avec `itemId: Uuid`
+- `graph` avec `itemId: Uuid | null`
 - `settings` avec `section: security | navigation | backups | storage-sync | trash`
 - `pageSettings` avec `itemId: Uuid`
 - `notFound` avec le chemin demandé et une raison non sensible
@@ -24,7 +25,7 @@ Union fermée représentant une route reconnue.
 
 ## ProtectedDestination
 
-Sous-ensemble des destinations accessible au propriétaire : notes et réglages.
+Sous-ensemble des destinations accessible au propriétaire : notes, graphe et réglages.
 
 ### Règles
 

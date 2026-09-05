@@ -1,17 +1,21 @@
-# Research: Applications Desktop Electron Windows et macOS
+# Research: Applications Desktop Electron Windows, macOS et Linux
 
 ## Decision 1 — Electron Forge comme orchestrateur de packaging
 
-**Decision**: Utiliser Electron Forge avec configuration TypeScript et makers
-spécifiques aux plateformes. Garder le build du rendu sous le contrôle de la
-configuration Vite existante; ne pas introduire une seconde application React.
+**Decision**: Utiliser Electron Forge pour le packaging et les makers natifs.
+Bun.build produit le rendu Web et les processus main/preload. Vite reste
+uniquement le serveur de développement et de preview du Web.
 
-**Rationale**: Forge regroupe packaging, makers, signature et publication et
-documente le support pnpm, à condition d’utiliser un `node-linker=hoisted` pour
-que les dépendances soient empaquetables. Le plugin Vite Forge reste indiqué
-comme expérimental dans sa documentation; le plan limite donc son usage aux
-processus natifs si nécessaire et conserve `apps/web` comme build de rendu
-réutilisée.
+**Rationale**: Cette séparation respecte la Constitution VII et réutilise
+exactement le rendu Web. Le hook Forge generateAssets invoque le build Bun;
+aucun plugin de bundling Vite ne participe aux artefacts de production.
+
+La fabrication DMG utilise un maker Forge local autour de `ditto` et `hdiutil`.
+L'installation propre et un vrai essai de fabrication ont révélé que la chaîne
+appdmg/macos-alias exige un addon V8/NAN incompatible avec Bun. Les outils macOS
+évitent ce runtime supplémentaire et conservent le même format d'installation.
+La copie préserve signatures, attributs et symlinks ; l'image est vérifiée avant
+publication. Le test natif monte réellement l'image et contrôle son contenu.
 
 **Alternatives considered**: `electron-builder` fournirait un autre chemin de
 packaging, mais ajouterait un second choix d’outillage et une autre convention
@@ -19,8 +23,7 @@ de release sans besoin identifié; une copie générée de l’application Web
 introduirait une divergence de rendu.
 
 Sources: [Electron Forge — Getting Started](https://www.electronforge.io/),
-[Forge — TypeScript configuration](https://www.electronforge.io/config/typescript-configuration),
-[Forge — Vite plugin](https://www.electronforge.io/config/plugins/vite).
+[Forge — TypeScript configuration](https://www.electronforge.io/config/typescript-configuration).
 
 ## Decision 2 — Rendu local, privilèges minimaux et protocole applicatif
 
@@ -50,8 +53,9 @@ Sources: [Electron — Security](https://www.electronjs.org/docs/latest/tutorial
 **Decision**: Étendre l’abstraction `SecureKeyStorage` de `packages/client-core`
 avec un adaptateur desktop piloté par le processus principal. Utiliser l’API
 asynchrone `safeStorage` pour protéger l’enveloppe de clé dans le Keychain
-macOS ou DPAPI/Secret Service selon la plateforme. Le client-core garde la
-responsabilité du chiffrement des enregistrements et de l’effacement logique.
+macOS, DPAPI Windows ou Secret Service Linux selon la plateforme. Le
+client-core garde la responsabilité du chiffrement des enregistrements et de
+l’effacement logique.
 
 **Rationale**: IndexedDB reste le stockage du rendu et peut conserver une
 projection chiffrée, mais il ne doit pas être présenté comme un coffre OS. La
@@ -66,26 +70,26 @@ contournerait l’isolation.
 
 Source: [Electron — safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage).
 
-## Decision 4 — Mise à jour signée et publication par plateforme
+## Decision 4 — Mise à jour et paquets en téléchargement direct
 
-**Decision**: Utiliser le processus principal pour la détection/validation et
-le mécanisme de mise à jour Electron compatible avec les artefacts Forge:
-Squirrel.Windows côté Windows, artefacts DMG/ZIP signés/notarisés côté macOS.
-Publier depuis un workflow GitHub Actions sur runners natifs, après vérification
-des signatures, empreintes, provenance et smoke tests.
+**Decision**: Publier sur la GitHub Release du tag, jamais sur un store :
+Squirrel (ou WiX si Squirrel ne sort pas l’ARM64) pour Windows x64 et Windows
+ARM64 ; DMG pour macOS ARM64 ; **AppImage, deb et rpm** pour Linux x64 et
+Linux ARM64. Runners natifs : `windows-latest`, `windows-11-arm`, `macos-14`,
+`ubuntu-24.04`, `ubuntu-24.04-arm`. SHA-512 sur chaque fichier ; Authenticode
+et notarisation pour Windows et macOS. Le manifeste de mise à jour Linux
+pointe vers l’AppImage de la même architecture.
 
-**Rationale**: Electron indique que l’auto-update cible Windows et macOS et
-qu’une application macOS doit être signée pour les mises à jour. La signature
-et la notarisation sont également nécessaires pour une distribution macOS
-normale sans contournement de Gatekeeper.
+**Rationale**: L’utilisateur veut les trois formats Linux habituels en
+téléchargement, sans dépôt. Deb et rpm ne sont pas une publication sur un
+store. L’AppImage reste le canal in-app le plus simple.
 
-**Alternatives considered**: Un téléchargeur maison serait plus difficile à
-vérifier et à restaurer; le Mac App Store et Windows Store imposeraient un
-canal de distribution supplémentaire hors périmètre de la première release.
+**Alternatives considered**: AppImage seul ; stores ; macOS Intel ; binaire
+universel.
 
 Sources: [Electron — autoUpdater](https://www.electronjs.org/docs/latest/api/auto-updater/),
 [Electron — Code Signing](https://www.electronjs.org/docs/latest/tutorial/code-signing),
-[Forge — Auto Update](https://www.electronforge.io/advanced/auto-update).
+[Forge — Makers](https://www.electronforge.io/config/makers).
 
 ## Decision 5 — Configuration serveur injectée à l’exécution
 
@@ -101,3 +105,24 @@ l’onboarding et évite de recompiler l’application pour chaque installation.
 **Alternatives considered**: Un proxy local Electron cacherait les différences
 mais ajouterait un service et une surface réseau inutiles; une URL codée en dur
 contredirait l’auto-hébergement.
+
+## Decision 6 — Artefacts natifs, un OS et une architecture, le plus léger possible
+
+**Decision**: Chaque job Forge invoque `package`/`make` avec un seul
+`--platform` et un seul `--arch` parmi la matrice V1. `osxUniversal` reste
+désactivé. Un job Linux exécute les trois makers (AppImage, deb, rpm) sur le
+même runtime packagé. Le check de release refuse un fichier hors matrice, un
+binaire PE/Mach-O/ELF étranger, ou `darwin`+`x64`.
+
+**Rationale**: Electron livre déjà un Chromium par cible ; empiler les cibles
+dans un zip « universel » n’apporte rien au propriétaire et augmente fortement
+la taille. FR-016 demande le plus léger que l’hôte packagé permette.
+
+**Alternatives considered**: Un build unique qui produit les trois OS depuis
+macOS via cross-compilation Electron est possible pour certains makers mais
+reste plus fragile, plus lourd en cache, et plus facile à mélanger par erreur
+qu’une matrice native. Un binaire macOS universel (lipo) a été rejeté : deux
+tranches Chromium pour une machine qui n’en exécute qu’une.
+
+Sources: [Electron Forge — packagerConfig](https://www.electronforge.io/config/configuration#packager-config),
+[electron-packager — platform/arch](https://electron.github.io/packager/main/interfaces/Options.html).

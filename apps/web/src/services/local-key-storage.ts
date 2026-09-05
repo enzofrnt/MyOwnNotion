@@ -17,6 +17,7 @@
  */
 
 import type { SecureKeyStorage, SecureStorageKind, StoredLocalKey } from "@myownnotion/client-core";
+import { createDesktopKeyStorage } from "./desktop-key-storage.ts";
 
 const DATABASE = "myownnotion-device-key";
 const STORE = "key";
@@ -88,4 +89,12 @@ export class IndexedDbKeyStorage implements SecureKeyStorage {
     await withStore("readwrite", (store) => store.delete(RECORD));
     await Promise.all([...clearedListeners].map(async (listener) => await listener()));
   }
+}
+
+export function createSecureKeyStorage(): SecureKeyStorage {
+  const desktop = typeof window === "undefined" ? undefined : window.myownnotionDesktop;
+  if (desktop !== undefined) {
+    return createDesktopKeyStorage(desktop);
+  }
+  return new IndexedDbKeyStorage();
 }

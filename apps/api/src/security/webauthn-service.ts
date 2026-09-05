@@ -22,6 +22,7 @@
 import { randomBytes } from "node:crypto";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
 import type { SecurityConfig } from "./security-config.ts";
+import { trustedRealtimeOrigins } from "./security-config.ts";
 
 /** Challenges are 32 bytes and live no longer than one ceremony. */
 export const WEBAUTHN_CHALLENGE_BYTES = 32;
@@ -62,14 +63,23 @@ export function isChallengeFresh(challenge: WebAuthnChallenge, now: Date): boole
  */
 export interface RelyingParty {
   readonly id: string;
+  /** Primary configured origin; kept for persistence and diagnostics. */
   readonly origin: string;
+  /** Every origin the ceremony may legitimately come from on this installation. */
+  readonly origins: readonly string[];
   readonly name: string;
 }
 
+export function webauthnExpectedOrigins(config: SecurityConfig): readonly string[] {
+  return trustedRealtimeOrigins(config).map((origin) => origin.origin);
+}
+
 export function relyingParty(config: SecurityConfig): RelyingParty {
+  const origins = webauthnExpectedOrigins(config);
   return {
     id: config.publicOrigin.hostname,
     origin: config.publicOrigin.origin,
+    origins,
     name: "MyOwnNotion",
   };
 }
@@ -102,7 +112,7 @@ export async function verifyRegistration(input: {
     verification = await verifyRegistrationResponse({
       response: input.response as never,
       expectedChallenge: input.challenge.challenge,
-      expectedOrigin: input.relyingParty.origin,
+      expectedOrigin: [...input.relyingParty.origins],
       expectedRPID: input.relyingParty.id,
       requireUserVerification: true,
     });
@@ -157,7 +167,7 @@ export async function verifyAssertion(input: {
     verification = await verifyAuthenticationResponse({
       response: input.response as never,
       expectedChallenge: input.challenge.challenge,
-      expectedOrigin: input.relyingParty.origin,
+      expectedOrigin: [...input.relyingParty.origins],
       expectedRPID: input.relyingParty.id,
       requireUserVerification: true,
       credential: {

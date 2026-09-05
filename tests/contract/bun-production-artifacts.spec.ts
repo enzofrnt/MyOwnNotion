@@ -38,8 +38,9 @@ describe("Bun production artifacts", () => {
     expect(build).toContain("knowledge-graph.worker-[hash].[ext]");
     expect(build).toContain("bun-plugin-tailwind");
     expect(build).toContain("injectManifest");
-    expect(build).toContain('file.endsWith(".wasm")');
-    expect(build).toContain('file.endsWith(".webmanifest")');
+    // Asset presence and native path handling have executable cases in the
+    // web validator suite; this contract checks its production-build wiring.
+    expect(build).toContain("requireWebAssetClasses(emittedFiles)");
     expect(build).toContain("__MYOWNNOTION_SEARCH_WORKER_URL__");
     expect(build).toContain("__MYOWNNOTION_GRAPH_WORKER_URL__");
     expect(read("apps/web/index.html")).toContain("manifest.webmanifest");
@@ -55,9 +56,8 @@ describe("Bun production artifacts", () => {
     const webPackage = JSON.parse(read("apps/web/package.json")) as {
       scripts?: Record<string, string>;
     };
-    expect(webPackage.scripts?.["preview"]).toContain(
-      `--outDir "\${MYOWNNOTION_WEB_DIST_DIR:-dist}"`,
-    );
+    // Serving configuration is resolved by Vite itself on every platform.
+    expect(webPackage.scripts?.["preview"]).toBe("vite preview");
 
     const container = read("scripts/test-e2e-firefox-container.sh");
     expect(container).toContain('container_web_dist="/tmp/myownnotion-e2e-web-dist"');

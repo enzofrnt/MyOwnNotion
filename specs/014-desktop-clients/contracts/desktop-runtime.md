@@ -6,7 +6,7 @@ the bridge.
 
 ```ts
 interface DesktopRuntime {
-  readonly platform: "win32" | "darwin";
+  readonly platform: "win32" | "darwin" | "linux";
   readonly appVersion: string;
   readonly getActiveProfile: () => Promise<DesktopServerProfile | null>;
   readonly setActiveProfile: (input: SetProfileInput) => Promise<ProfileResult>;

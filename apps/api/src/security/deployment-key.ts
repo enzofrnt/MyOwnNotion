@@ -19,6 +19,7 @@
 
 import { createHash } from "node:crypto";
 import { accessSync, constants as fsConstants, readFileSync, statSync } from "node:fs";
+import { hasPrivateWindowsKeyAcl } from "./windows-key-permissions.ts";
 
 /** AES-256: the wrapping key is exactly 32 bytes. */
 export const DEPLOYMENT_KEY_BYTES = 32;
@@ -161,10 +162,15 @@ export function loadDeploymentKey(
       `deployment key path is not a regular file: ${path}`,
     );
   }
-  if ((options.enforcePermissions ?? true) && isTooPermissive(stats.mode)) {
+  if (
+    (options.enforcePermissions ?? true) &&
+    (process.platform === "win32" ? !hasPrivateWindowsKeyAcl(path) : isTooPermissive(stats.mode))
+  ) {
     throw new DeploymentKeyUnavailableError(
       "world-readable",
-      `deployment key at ${path} is readable beyond its owner (mode ${(stats.mode & 0o777).toString(8)}); use 0400 or 0600`,
+      process.platform === "win32"
+        ? `deployment key at ${path} does not have a verified owner-only Windows ACL`
+        : `deployment key at ${path} is readable beyond its owner (mode ${(stats.mode & 0o777).toString(8)}); use 0400 or 0600`,
     );
   }
   try {
