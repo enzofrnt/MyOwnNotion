@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { fileStorageTransitionEntries, fileStorageTransitions } from "../../schema/index.ts";
 
@@ -47,6 +47,7 @@ export async function nextStorageSource(
   executor: Database | Transaction,
   transitionId: string,
   phase: StorageSourcePhase,
+  category?: "files" | "metadata",
 ): Promise<StorageTransitionEntry | null> {
   return (
     (
@@ -57,6 +58,13 @@ export async function nextStorageSource(
           and(
             eq(fileStorageTransitionEntries.transitionId, transitionId),
             eq(fileStorageTransitionEntries.phase, phase),
+            ...(category === undefined
+              ? []
+              : [
+                  category === "metadata"
+                    ? eq(fileStorageTransitionEntries.kind, "metadata")
+                    : ne(fileStorageTransitionEntries.kind, "metadata"),
+                ]),
           ),
         )
         .orderBy(asc(fileStorageTransitionEntries.id))

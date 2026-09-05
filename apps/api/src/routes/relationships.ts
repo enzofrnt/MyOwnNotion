@@ -14,6 +14,7 @@ import { Type } from "@sinclair/typebox";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
 import { handleMutation } from "../plugins/mutations.ts";
+import { resolveProtectedRelationships } from "../security/content-resolution.ts";
 
 export function registerRelationshipRoutes(app: FastifyInstance, context: AppContext): void {
   app.get(
@@ -27,10 +28,14 @@ export function registerRelationshipRoutes(app: FastifyInstance, context: AppCon
     async (request) => {
       const { itemId } = request.query as { itemId?: string };
       const relationships = await context.db.transaction(async (tx) =>
-        listRelationships(
+        resolveProtectedRelationships(
           tx,
-          context.workspaceId,
-          itemId !== undefined && isUuid(itemId) ? itemId : undefined,
+          await listRelationships(
+            tx,
+            context.workspaceId,
+            itemId !== undefined && isUuid(itemId) ? itemId : undefined,
+          ),
+          context.protectedContent,
         ),
       );
       return { relationships };

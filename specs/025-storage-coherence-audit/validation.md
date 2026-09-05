@@ -246,3 +246,19 @@ suite additionally passes ciphertext-corruption verification/retry. The additive
 schema integration and API strict types pass. These are source/checkpoint proofs;
 canonical metadata backfill, global cutover, source retirement, actual 024 receipt
 composition and all durable driver interruption tests remain unfinished.
+
+Historical canonical metadata now joins the authenticated inventory with per-source
+digests and atomic metadata/checkpoint batches. Backfill preserves authoritative
+sealed values over stale readable copies and compares resolved payloads before
+and after neutralization. A publication failure rolls back the metadata and its
+checkpoint. Ordinary page names/icons/bodies, retained snapshots and relationships
+pass SQL sentinel checks; historical database definitions, view labels and entry
+values retain byte-equivalent JSON API representations after backfill.
+
+The first historical relation test exposed another raw-read boundary: relationship
+listing returned the storage marker. Listing and canonical export now share the
+existing protected relationship resolver, including missing-envelope refusal.
+Thirty focused metadata/file/read-fault tests pass, followed by both complete
+ordinary/structured metadata fixtures. API strict types and changed-source
+format/lint pass. The phase now reaches `metadata-protected`; global verification,
+cutover, source retirement and guarded-driver composition are still pending.

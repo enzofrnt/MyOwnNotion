@@ -20,6 +20,11 @@ import { lockFullFileMaintenance } from "../backup/full/locks.ts";
 import type { ProtectedFileService } from "../files/protected-file-service.ts";
 import { ProtectedUploadService } from "../files/protected-upload-service.ts";
 import {
+  type CanonicalMetadataSource,
+  inventoryCanonicalMetadata,
+  protectCanonicalMetadata,
+} from "./canonical-storage-migration.ts";
+import {
   inventoryLegacyFileSources,
   type LegacyFileSource,
   readLegacyFileSource,
@@ -79,7 +84,14 @@ export class FileStorageMigration {
     if (existing !== null) return existing;
     return this.deps.db.transaction(async (tx) => {
       await lockFullFileMaintenance(tx);
-      const sources = await inventoryLegacyFileSources(tx, this.deps.blobRoot);
+      const sources = [
+        ...(await inventoryLegacyFileSources(tx, this.deps.blobRoot)),
+        ...(await inventoryCanonicalMetadata(
+          tx,
+          this.deps.files.deps.content,
+          this.deps.files.deps.workspaceId,
+        )),
+      ];
       const transitionId = generateUuidV7();
       const entries = sources.map((source) => ({ id: generateUuidV7(), source }));
       const inventoryId = await this.write(tx, "file.transition-inventory", transitionId, {
@@ -129,7 +141,7 @@ export class FileStorageMigration {
         !["inventoried", "backfilling"].includes(transition.phase)
       )
         throw new Error("The storage transition cannot publish in this phase.");
-      const entry = await nextStorageSource(tx, transitionId, "inventoried");
+      const entry = await nextStorageSource(tx, transitionId, "inventoried", "files");
       if (entry === null) return false;
       const source = await this.read<LegacyFileSource>(tx, "file.transition-source", entry.id);
       if (
@@ -203,7 +215,7 @@ export class FileStorageMigration {
       const transition = await readStorageTransition(tx, this.deps.files.deps.installationId);
       if (transition?.id !== transitionId || transition.phase !== "backfilling")
         throw new Error("The storage transition cannot verify in this phase.");
-      const entry = await nextStorageSource(tx, transitionId, "published");
+      const entry = await nextStorageSource(tx, transitionId, "published", "files");
       if (entry === null) return false;
       const source = await this.read<LegacyFileSource>(tx, "file.transition-source", entry.id);
       const replacement = await this.read<
@@ -258,6 +270,61 @@ export class FileStorageMigration {
         id: entry.id,
         from: "published",
         to: "verified",
+        now: this.now(),
+      });
+      return true;
+    });
+  }
+
+  /** Each historical current/history payload is sealed and verified in one resumable batch. */
+  async publishMetadataNext(transitionId: string): Promise<boolean> {
+    return this.deps.db.transaction(async (tx) => {
+      await enterStorageTransition(tx, transitionId);
+      await lockFullFileMaintenance(tx);
+      const transition = await readStorageTransition(tx, this.deps.files.deps.installationId);
+      if (
+        transition?.id !== transitionId ||
+        !["inventoried", "backfilling"].includes(transition.phase)
+      )
+        throw new Error("The storage transition cannot protect metadata in this phase.");
+      if (
+        (await nextStorageSource(tx, transitionId, "inventoried", "files")) !== null ||
+        (await nextStorageSource(tx, transitionId, "published", "files")) !== null
+      )
+        throw new Error("Historical file replacements must verify before metadata cutover.");
+      const entry = await nextStorageSource(tx, transitionId, "inventoried", "metadata");
+      if (entry === null) {
+        await advanceStorageTransition(tx, {
+          id: transitionId,
+          from: transition.phase as "inventoried" | "backfilling",
+          to: "metadata-protected",
+          now: this.now(),
+        });
+        return false;
+      }
+      const source = await this.read<CanonicalMetadataSource>(
+        tx,
+        "file.transition-source",
+        entry.id,
+      );
+      if (
+        source.kind !== "metadata" ||
+        source.objectId !== entry.objectId ||
+        !isUuid(source.entityId)
+      )
+        throw new Error("Historical metadata checkpoint identity does not match.");
+      await protectCanonicalMetadata(tx, this.deps.files.deps.content, source);
+      const replacementEnvelopeId = await this.write(
+        tx,
+        "file.transition-replacement",
+        entry.id,
+        source,
+      );
+      await advanceStorageSource(tx, {
+        id: entry.id,
+        from: "inventoried",
+        to: "verified",
+        replacementEnvelopeId,
         now: this.now(),
       });
       return true;

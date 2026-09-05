@@ -35,6 +35,7 @@ import {
   resolveDatabaseDefinition,
   resolveDatabaseEntryValues,
   resolveProtectedContent,
+  resolveProtectedRelationships,
 } from "../security/content-resolution.ts";
 
 /**
@@ -175,23 +176,22 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
     };
   });
 
-  const relationships = await Promise.all(
-    (await listRelationships(tx, context.workspaceId)).map(async (relationship) => ({
-      id: relationship.id,
-      workspaceId: context.workspaceId,
-      sourceItemId: relationship.sourceItemId,
-      targetItemId: relationship.targetItemId,
-      relationType: relationship.relationType,
-      metadata:
-        context.protectedContent === undefined
-          ? relationship.metadata
-          : ((await context.protectedContent.readRelationshipMetadata<
-              Readonly<Record<string, unknown>>
-            >(tx, relationship.id)) ?? relationship.metadata),
-      createdRevisionId: relationship.createdRevisionId,
-      removedRevisionId: relationship.removedRevisionId,
-    })),
-  );
+  const relationships = (
+    await resolveProtectedRelationships(
+      tx,
+      await listRelationships(tx, context.workspaceId),
+      context.protectedContent,
+    )
+  ).map((relationship) => ({
+    id: relationship.id,
+    workspaceId: context.workspaceId,
+    sourceItemId: relationship.sourceItemId,
+    targetItemId: relationship.targetItemId,
+    relationType: relationship.relationType,
+    metadata: relationship.metadata,
+    createdRevisionId: relationship.createdRevisionId,
+    removedRevisionId: relationship.removedRevisionId,
+  }));
 
   const databaseRecords = structuredTablesAvailable
     ? await listDatabaseRecords(tx, context.workspaceId)
