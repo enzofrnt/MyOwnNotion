@@ -154,6 +154,7 @@ export async function runAdminCli(
               connectionString: databaseUrl,
               blobRoot,
               backupRoot: fullBackupRoot(config),
+              historicalKeyFiles: config.historicalKeyFiles,
               key,
             }).verifiedReceipts(),
           }

@@ -27,6 +27,7 @@ const backupService = new FullBackupService({
   connectionString: databaseUrl,
   blobRoot,
   backupRoot: fullBackupRoot(backupConfig),
+  historicalKeyFiles: backupConfig.historicalKeyFiles,
   key: archiveKey,
   ...(backupConfig.destination === "filesystem"
     ? {}

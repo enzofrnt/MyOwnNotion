@@ -14,6 +14,7 @@ import { componentAad, sealFullStream } from "./crypto.ts";
 import { captureFullFiles } from "./files.ts";
 import { acquireFullBackupLocks, acquireFullRunLock, type FullBackupLockRelease } from "./locks.ts";
 import { PostgresFullBackupTools } from "./postgres.ts";
+import { loadBackupReadKeys, loadHistoricalBackupKeys } from "./read-keys.ts";
 import { type FullBackupReceipt, FullBackupReceipts, fullArchiveName } from "./receipts.ts";
 import { rehearseFullBackup } from "./rehearsal.ts";
 import { inspectFullSource } from "./source.ts";
@@ -23,6 +24,7 @@ export interface FullBackupServiceOptions {
   readonly blobRoot: string;
   readonly backupRoot: string;
   readonly key: () => Uint8Array;
+  readonly historicalKeyFiles?: readonly string[];
   readonly tools?: PostgresFullBackupTools;
   readonly now?: () => Date;
   readonly remote?: () => BackupDestination;
@@ -70,8 +72,12 @@ export class FullBackupService {
   private readonly now: () => Date;
 
   constructor(private readonly options: FullBackupServiceOptions) {
-    this.receipts = new FullBackupReceipts(options.backupRoot, options.key);
-    this.activities = new FullBackupActivities(options.backupRoot, options.key);
+    // Refuse invalid configured history before any backup, pruning or activity write.
+    this.validateHistoricalKeys();
+    this.receipts = new FullBackupReceipts(options.backupRoot, options.key, () => this.readKeys());
+    this.activities = new FullBackupActivities(options.backupRoot, options.key, () =>
+      this.readKeys(),
+    );
     this.tools = options.tools ?? new PostgresFullBackupTools();
     this.now = options.now ?? (() => new Date());
   }
@@ -163,6 +169,7 @@ export class FullBackupService {
     reason: FullBackupManifest["reason"],
     coordinator?: pg.Client,
   ): Promise<{ manifest: FullBackupManifest; receipt: FullBackupReceipt; path: string }> {
+    this.validateHistoricalKeys();
     const client =
       coordinator ??
       new pg.Client({
@@ -210,6 +217,22 @@ export class FullBackupService {
     }
   }
 
+  private validateHistoricalKeys(): void {
+    const keys = loadHistoricalBackupKeys(this.options.historicalKeyFiles ?? [], [
+      this.options.blobRoot,
+      this.options.backupRoot,
+    ]);
+    for (const key of keys) key.fill(0);
+  }
+
+  /** The caller owns these temporary read keys and must clear them. */
+  readKeys(): Buffer[] {
+    return loadBackupReadKeys(this.options.key, this.options.historicalKeyFiles, [
+      this.options.blobRoot,
+      this.options.backupRoot,
+    ]);
+  }
+
   async rehearseLatest() {
     return await this.rehearseArchive();
   }
@@ -225,8 +248,9 @@ export class FullBackupService {
     });
     let release: (() => Promise<void>) | undefined;
     const startedAt = this.now().toISOString();
-    let key: Buffer | undefined;
+    let keys: Buffer[] = [];
     try {
+      this.validateHistoricalKeys();
       await client.connect();
       release = await acquireFullRunLock(client);
       await this.activities.put("rehearsal", {
@@ -242,12 +266,13 @@ export class FullBackupService {
             throw new Error("No locally verified complete backup is available for rehearsal.");
           archivePath = join(this.options.backupRoot, fullArchiveName(receipt.backupId));
         }
-        key = Buffer.from(this.options.key());
+        keys = this.readKeys();
         const result = await rehearseFullBackup({
           archivePath,
           connectionString: this.options.connectionString,
           activeDirectory: this.options.blobRoot,
-          key,
+          key: keys[0] as Buffer,
+          historicalKeys: keys.slice(1),
         });
         await this.activities.put("rehearsal", {
           startedAt,
@@ -268,7 +293,7 @@ export class FullBackupService {
         throw error;
       }
     } finally {
-      key?.fill(0);
+      for (const key of keys) key.fill(0);
       try {
         await release?.();
       } finally {

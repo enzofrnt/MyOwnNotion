@@ -13,6 +13,7 @@ export async function rehearseFullBackup(input: {
   connectionString: string;
   activeDirectory: string;
   key: Uint8Array;
+  historicalKeys?: readonly Uint8Array[];
 }): Promise<{ backupId: string; databaseRestored: true; filesVerified: number }> {
   const directory = await mkdtemp(join(tmpdir(), "mon-full-rehearsal-"));
   const admin = new pg.Client({
@@ -23,7 +24,12 @@ export async function rehearseFullBackup(input: {
   let created = false;
   try {
     // Authenticate before creating even a disposable database.
-    const archive = await VerifiedFullArchive.open(input.archivePath, input.key, directory);
+    const archive = await VerifiedFullArchive.open(
+      input.archivePath,
+      input.key,
+      directory,
+      input.historicalKeys,
+    );
     try {
       await admin.connect();
       await admin.query(`CREATE DATABASE ${databaseName} TEMPLATE template0`);
@@ -39,6 +45,9 @@ export async function rehearseFullBackup(input: {
         activeConnectionString: input.connectionString,
         activeDirectory: input.activeDirectory,
         key: input.key,
+        ...(input.historicalKeys === undefined
+          ? {}
+          : { historicalArchiveKeys: input.historicalKeys }),
       });
       let filesVerified = 0;
       for (const component of archive.manifest.components) {

@@ -74,3 +74,7 @@ retention evidence until full backups explicitly prove equivalent coverage.
 - [x] T026 Close provider upload sources on credential/session preflight failure and handle early source-read errors in `apps/api/src/backup/destinations/google-drive.ts`; verify refused/partial uploads, safe provider diagnostics and retained local archives per FR-005/FR-007 (partial, HIGH).
 
 - [x] T027 Align existing accessibility, narrow-layout and settings-history journeys with full backup as the primary panel and explicitly opened portable exports in `tests/e2e/accessibility.spec.ts`, `tests/e2e/narrow-viewport.spec.ts` and `tests/e2e/workspace-settings-boundary.spec.ts`; retain both surfaces' checks (FR-018/FR-019).
+
+## Phase 9 — Historical backup keys
+
+- [x] T028 Preserve complete-backup recovery across wrapping-key rotation: implement bounded external historical-key configuration and private loading, current-only writes and authenticated historical reads for archives/receipts/activity/rehearsal, wire all runtime and CLI entry points, preserve explicit restore keys and immutable archives, document optional Docker mounting and version/fingerprint custody, remove destructive rotation advice, and verify real A→B rotation/catalogue/scheduling/retry/retention/A restoration with restored root-key access and refusal tests. Record focused checks in `validation.md`; T023/T024 remain integration delivery gates.

@@ -120,6 +120,8 @@ export interface FullRestoreOptions {
   readonly activeConnectionString: string;
   readonly activeDirectory: string;
   readonly key: Uint8Array;
+  /** Explicit read keys for isolated rehearsals only; the CLI apply path supplies none. */
+  readonly historicalArchiveKeys?: readonly Uint8Array[];
   readonly dryRun?: boolean;
   readonly tools?: PostgresFullBackupTools;
 }
@@ -131,6 +133,7 @@ export async function restoreFullBackup(
     options.archivePath,
     options.key,
     options.workingDirectory,
+    options.historicalArchiveKeys,
   );
   const tools = options.tools ?? new PostgresFullBackupTools();
   const client = new pg.Client({

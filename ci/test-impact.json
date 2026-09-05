@@ -78,6 +78,7 @@
       "bun.lock",
       "bunfig.toml",
       "ci/test-impact.json",
+      "compose.backup-key-history.yaml",
       "compose.override.yaml",
       "compose.yaml",
       "package.json",
@@ -206,6 +207,7 @@
         "exact": [
           ".env.example",
           "apps/web/vite.config.ts",
+          "compose.backup-key-history.yaml",
           "compose.dev.yaml",
           "compose.override.yaml",
           "compose.yaml",

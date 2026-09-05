@@ -377,7 +377,7 @@ export async function rotationWrappingKeyCommand(
   return {
     code: EXIT_CODES.ok,
     message:
-      "wrapping-key rotation complete. Replace the mounted deployment key with the new file and restart, then destroy the old key",
+      "wrapping-key rotation complete. Replace the mounted deployment key with the new file and restart. Retain the old key in private external custody for historical backups and their restored root keys.",
     data: {
       operationId,
       rewrappedWorkspaces: rewrapped.length,

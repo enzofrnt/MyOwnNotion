@@ -67,6 +67,7 @@ export async function runFullBackupCommand(
     );
 
   let key: Buffer | undefined;
+  let readKeys: Buffer[] = [];
   let workingDirectory: string | undefined;
   try {
     const config = loadBackupConfig(env);
@@ -78,6 +79,7 @@ export async function runFullBackupCommand(
       connectionString,
       blobRoot: env["MYOWNNOTION_BLOB_ROOT"] || "./.dev-blobs",
       backupRoot: fullBackupRoot(config),
+      historicalKeyFiles: config.historicalKeyFiles,
       key: () => archiveKey,
       ...(config.destination === "filesystem"
         ? {}
@@ -157,7 +159,13 @@ export async function runFullBackupCommand(
         data: result,
       };
     }
-    const archive = await VerifiedFullArchive.open(archivePath, key, workingDirectory);
+    readKeys = service.readKeys();
+    const archive = await VerifiedFullArchive.open(
+      archivePath,
+      key,
+      workingDirectory,
+      readKeys.slice(1),
+    );
     try {
       return {
         code: EXIT_CODES.ok,
@@ -190,6 +198,7 @@ export async function runFullBackupCommand(
     };
   } finally {
     key?.fill(0);
+    for (const candidate of readKeys) candidate.fill(0);
     if (workingDirectory !== undefined)
       await rm(workingDirectory, { recursive: true, force: true });
   }

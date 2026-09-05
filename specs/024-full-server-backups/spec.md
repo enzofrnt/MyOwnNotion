@@ -210,3 +210,28 @@ compare the live server before and after and inspect the recorded rehearsal.
   a documented cutover after successful restoration, not an automatic destructive action.
 - This work implements and tests recovery using generated fixtures. It does not
   restore over the owner's live data or import Notion data during development.
+
+## Convergence: historical deployment keys
+
+Canvas sections 28.4–28.5 and 30 require recoverable historical protection after
+wrapping-key rotation. Rotation must preserve the owner's ability to inspect,
+verify, rehearse, retry remote copies and retain/prune complete backups created
+under earlier keys. Those keys are explicitly supplied as private external secret
+files, separate from application data and backups; they are never stored in SQL,
+archives, images or logs. New archives and operational records use only the
+current key. Existing archives remain immutable. Invalid history configuration
+fails closed instead of silently omitting configured history.
+
+Actual restoration and activation still require the operator to explicitly
+supply the archive's deployment key. The deployment key used by the SQL dump's
+wrapped root keys must also be retained to reopen the restored installation;
+successfully decrypting the outer archive alone does not prove recoverability.
+Old keys may be destroyed only after every dependent backup, recovery artifact
+and restored installation has expired or been deliberately retired.
+
+Acceptance: create A archives and activities, rotate the live wrapping key to B,
+configure A externally and prove historical catalogue/activity, verification,
+rehearsal, retry and retention still work; a scheduled B archive opens with B
+only and scheduling does not duplicate a successful run. Restore A explicitly
+into a disposable target, activate and read its restored root/data keys with A.
+Missing/wrong keys, unsafe paths and malformed/unbounded configuration refuse.

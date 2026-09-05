@@ -40,6 +40,7 @@ export interface GuardedMigrationInput {
   readonly backupRoot: string;
   readonly remote?: () => BackupDestination;
   readonly deploymentKey: () => Uint8Array;
+  readonly historicalKeyFiles?: readonly string[];
   readonly logger?: {
     info(details: unknown, message: string): void;
     error(details: unknown, message: string): void;
@@ -74,6 +75,9 @@ export async function runGuardedMigrations(input: GuardedMigrationInput): Promis
           blobRoot: input.blobRoot,
           backupRoot: input.backupRoot,
           key: input.deploymentKey,
+          ...(input.historicalKeyFiles === undefined
+            ? {}
+            : { historicalKeyFiles: input.historicalKeyFiles }),
           ...(input.remote === undefined ? {} : { remote: input.remote }),
         });
         const result = await backup.run("pre-update", coordinator);

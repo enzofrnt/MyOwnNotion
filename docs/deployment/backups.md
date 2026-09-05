@@ -19,6 +19,74 @@ archive includes authentication records and encrypted application key envelopes.
 The source version, commit/image when known, migrations and PostgreSQL version
 are authenticated inside it. An unrecorded V0 version is displayed explicitly.
 
+## Retain keys across wrapping-key rotation
+
+A wrapping-key rotation rewraps the live SQL root keys. It does not rewrite old
+archives, their receipts or activity records. Keep each old deployment key in
+private external custody while any archive, recovery artifact or restored
+installation still depends on it. Do not destroy A merely because the live
+installation now uses B. Retaining A also retains the ability to decrypt those
+historical snapshots; rotation does not revoke access to already copied backups.
+
+Maintain a separate inventory by wrapping-key version and fingerprint. Record
+`fromVersion`, `toVersion` and `newKeyFingerprint` from the rotation command's
+JSON result, and associate retained archive IDs/dates with the applicable
+version. For the original key, the existing deployment-key loader's
+`fingerprint` identifies its bytes without revealing them. Keep keys and this
+custody inventory separately from archive storage, with an offline recovery copy.
+
+Set `MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES` to a JSON array of explicitly
+selected absolute secret-file paths, empty by default. The limit is 16 unique
+files, 4096 bytes per secret file, 4096 characters per path and 16 KiB of JSON.
+Keys must be outside blob and backup storage, including symlink aliases, and
+must satisfy the normal deployment-key permissions: owner-only on POSIX or the
+existing private Windows ACL checks. An invalid configured file fails closed.
+No keys are discovered automatically or saved in SQL/backups. Restart after
+changing the configured file list; configured file contents are read on each
+operation. New archives, receipts and activity records use only the current key.
+Historical reads support listing, inspection, verification, rehearsal, remote
+retry and retention. Archive bytes remain immutable; a retried receipt may be
+rewritten under the current key. Without its key an old receipt is invalid and
+cannot authorize pruning; restore the missing key configuration instead of
+manually deleting an archive whose protection is unknown.
+
+The optional tracked Docker override mounts an existing private directory into
+both API and migration containers. Populate it outside all data/backup volumes,
+make it traversable only by the API's `bun` user and make each key readable only
+by that user. Bind mounts preserve host permissions; a mount does not make a
+permissive file private. Configure paths, never key material:
+
+```bash
+export MYOWNNOTION_BACKUP_HISTORICAL_KEYS_DIRECTORY=/srv/myownnotion-secrets/backup-key-history
+export MYOWNNOTION_BACKUP_HISTORICAL_KEY_FILES='["/run/secrets/backup-key-history/wrapping-v1"]'
+docker compose -f compose.yaml -f compose.backup-key-history.yaml config --quiet
+docker compose -f compose.yaml -f compose.backup-key-history.yaml up -d
+```
+
+This mounts the directory read-only, refuses to create a missing host directory
+and leaves the current `deployment-key` secret in place. Use the same Compose
+file pair for subsequent lifecycle operations. The override is optional; hosts
+using another secret manager can explicitly mount the same configured files.
+
+For an actual historical restore, point `MYOWNNOTION_DEPLOYMENT_KEY_FILE`
+explicitly at the key that encrypted the chosen archive and use that same key
+for activation. `restore full apply` and `activate` do not silently select a key
+from the historical list. Mount the secret in a separate administrative
+container or select its existing path through that command's environment;
+do not replace the live service's current key just to perform the restore.
+
+The SQL dump preserves its own historical root-key envelopes. The restored
+application must start with the wrapping key matching those envelopes, normally
+the same historical key A. If a backup overlapped an operational wrapping-key
+cutover, the outer archive key and the dump's wrapping version may differ;
+retain both versions and select the dump's wrapping key before opening the
+restored application. Do not run a scheduled/manual backup during that cutover:
+stop the API/scheduler and other writers, finish rotation, replace the current
+secret, configure retained history and restart before creating the B backup.
+Validate both the restored file bytes and protected record/root-key access
+before retiring any recovery material. A byte-level restore rehearsal alone
+does not establish that all historical SQL key envelopes can be reopened.
+
 ## Create, inspect and rehearse
 
 The image includes PostgreSQL 18 client tools and the same CLI as development:

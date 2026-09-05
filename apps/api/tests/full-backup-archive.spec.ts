@@ -294,3 +294,27 @@ describe("complete encrypted archives", () => {
     expect(fixture.key.some((byte) => byte !== 0)).toBe(true);
   });
 });
+
+it("selects historical keys by manifest authentication, owns that key and rejects corrupt components", async () => {
+  const fixture = await setup();
+  await writeFullArchive(fixture);
+  const historical = Buffer.from(fixture.key);
+  const current = randomBytes(32);
+  const reader = await VerifiedFullArchive.open(fixture.destination, current, fixture.directory, [
+    randomBytes(32),
+    historical,
+  ]);
+  historical.fill(0);
+  try {
+    expect(await collect(reader.component(0))).toEqual(fixture.plaintext[0]);
+  } finally {
+    await reader.close();
+  }
+  expect(current.equals(Buffer.alloc(32))).toBe(false);
+  const bytes = await readFile(fixture.destination);
+  bytes[bytes.length - 1] = (bytes[bytes.length - 1] as number) ^ 1;
+  await writeFile(fixture.destination, bytes);
+  await expect(
+    VerifiedFullArchive.open(fixture.destination, current, fixture.directory, [fixture.key]),
+  ).rejects.toThrow();
+});
