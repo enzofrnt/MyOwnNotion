@@ -211,3 +211,16 @@ Keep exact-length/digest checks, short-read handling, fsync and immutable
 publication. Verify input/output independence against WebCrypto and real disk
 corruption, truncation and extension. Record three isolated runs in each Bun
 mode; focused success does not replace the final integrated performance gate.
+
+### Resumed transition before additional schema migrations
+
+Independent review reproduced a pending historical transition followed by a
+new SQL migration: the guard skipped a new backup, applied that migration, and
+only then rejected the corrupted original archive. Authenticate the pending
+transition's original pre-update archive under the existing RUN lock before
+calling the SQL migrator or any schema/bootstrap writer. Reuse the same archive
+identity, receipt, digest and installation checks at both entry and storage
+transition preparation. Missing or corrupt recovery material must leave the SQL
+migration ledger, canonical data, transition state and original blobs unchanged.
+After repairing the exact original archive, the same invocation may apply the
+new migration and complete the existing transition with the original backup ID.

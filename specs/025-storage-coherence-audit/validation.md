@@ -4,6 +4,28 @@ Implementation progress is maintained only in [tasks.md](tasks.md).
 The records below preserve their tested checkpoint, failures and limitations;
 focused checks do not imply successful complete gates or delivery.
 
+## T050 — protect resumed transitions before new SQL
+
+Independent PostgreSQL reproduction on `1104822c` interrupted a real transition
+after cutover, corrupted its original full archive, and supplied a new SQL
+migration. The old guard created that migration's table and ledger entry before
+refusing the archive. The archive is now authenticated under RUN before the SQL
+migrator and again at storage preparation through the same verifier.
+
+Both maintained regressions fail before correction for missing/corrupted
+archives. After correction they prove the new table remains absent, the migration
+ledger, installation, transition, item/file rows and original blob stay unchanged,
+and repairing the exact archive permits the new SQL and completion with the same
+backup identity. All eight guarded migration integration cases, API types,
+Biome and whitespace checks pass. The first corrected run exposed an incomplete
+test migration that omitted its own ledger insertion; after repairing that
+fixture, both resume paths pass. No application migration was changed.
+
+Evidence: `/tmp/mon-review-resume-guard.ts`,
+`/tmp/mon-guarded-resume-before.log`, `/tmp/mon-guarded-resume-fixed.log`,
+`/tmp/mon-guarded-resume-final.log`, `/tmp/mon-guarded-resume-types.log`.
+Final complete gates remain required.
+
 At exact checkpoint 75c950ae, refreshed full coverage passes 405 suites and
 3,867 tests with unchanged absolute budgets. New tracked files are included:
 static scan checks 1,105 sources and secrets scan checks 1,477 files, both with
