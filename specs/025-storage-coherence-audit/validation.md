@@ -208,3 +208,9 @@ conversion retains upload UUID, expiry, declared length and acknowledged offset;
 a truncated prefix rolls back and a converted transfer resumes at that offset.
 All 35 focused file/upload/migration tests and API strict types pass. This is
 preparation for T023–T027, not a completed guarded transition.
+
+The bounded historical source inventory passes five migration-focused cases,
+including complete legacy data, protected-chunk exclusion, acknowledged prefixes,
+recoverable extra tails/temporary files, post-inventory substitution refusal,
+symlink refusal and invalid-path refusal. File reads use 64 KiB chunks and verify
+length/digest at EOF; no historical source is deleted by inventory or conversion.

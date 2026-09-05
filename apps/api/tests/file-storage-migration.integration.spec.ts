@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createUpload, getUpload, schema } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { ProtectedUploadService } from "../src/files/protected-upload-service.ts";
+import {
+  inventoryLegacyFileSources,
+  readLegacyFileSource,
+} from "../src/security/file-storage-source.ts";
 import { createProtectedFileHarness } from "./helpers/protected-files.ts";
 
 async function* source(bytes: Uint8Array) {
@@ -148,6 +154,88 @@ it("preserves an acknowledged legacy upload prefix and resumes at exactly that o
       receivedLength: bytes.length + 4,
     });
   } finally {
+    await harness.close();
+  }
+});
+
+it("inventories legacy prefixes, unacknowledged tails and temporary orphans without recopying protected chunks", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files, workspaceId } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const legacyBytes = Buffer.from("historical complete file");
+    const blob = await files.deps.blobs.put(legacyBytes);
+    const contentId = generateUuidV7();
+    await db.insert(schema.fileContents).values({ id: contentId, ...blob, referenceCount: 1 });
+    await db.transaction((tx) =>
+      files.ingest(tx, source(Buffer.from("protected already")), { maxBytes: 100 }),
+    );
+    const upload = await db.transaction((tx) =>
+      createUpload(tx, {
+        workspaceId: workspaceId as Uuid,
+        originalName: "interrupted.txt",
+        mediaType: "text/plain",
+        declaredLength: 100,
+        now: new Date(),
+      }),
+    );
+    const partial = Buffer.from("prefix with an unacknowledged tail");
+    await db
+      .update(schema.uploads)
+      .set({ receivedLength: 6 })
+      .where(eq(schema.uploads.id, upload.id));
+    await mkdir(join(harness.blobRoot, "uploads"), { recursive: true });
+    await writeFile(join(harness.blobRoot, "uploads", upload.id), partial);
+    await mkdir(join(harness.blobRoot, "ab"), { recursive: true });
+    const temporary = "ab/.tmp-0123456789abcdef";
+    await writeFile(join(harness.blobRoot, temporary), "interrupted private write");
+    const inventory = await inventoryLegacyFileSources(db, harness.blobRoot);
+    expect(inventory).toHaveLength(4);
+    expect(
+      inventory
+        .filter((entry) => entry.kind === "orphan")
+        .map((entry) => entry.path)
+        .sort(),
+    ).toEqual([temporary, `uploads/${upload.id}`].sort());
+    const acknowledged = inventory.find((entry) => entry.kind === "upload");
+    if (acknowledged === undefined) throw new Error("Missing upload inventory");
+    const chunks = [];
+    for await (const bytes of readLegacyFileSource(harness.blobRoot, acknowledged))
+      chunks.push(Buffer.from(bytes));
+    expect(Buffer.concat(chunks)).toEqual(partial.subarray(0, 6));
+    await writeFile(join(harness.blobRoot, "uploads", upload.id), Buffer.alloc(partial.length));
+    await expect(
+      (async () => {
+        for await (const _ of readLegacyFileSource(harness.blobRoot, acknowledged)) {
+          /* consume integrity boundary */
+        }
+      })(),
+    ).rejects.toThrow("integrity");
+  } finally {
+    await harness.close();
+  }
+});
+
+it("refuses symlinked or malformed historical sources instead of reading outside the store", async () => {
+  const harness = await createProtectedFileHarness();
+  const target = `${harness.blobRoot}-outside-source`;
+  try {
+    await writeFile(target, "must not be copied");
+    const directory = join(harness.blobRoot, "ab");
+    await mkdir(directory);
+    const link = join(directory, ".tmp-0123456789abcdef");
+    await symlink(target, link);
+    await expect(
+      inventoryLegacyFileSources(harness.built.context.db, harness.blobRoot),
+    ).rejects.toThrow();
+    await rm(link);
+    await rm(target);
+    await writeFile(join(directory, "unexpected.txt"), "unknown path");
+    await expect(
+      inventoryLegacyFileSources(harness.built.context.db, harness.blobRoot),
+    ).rejects.toThrow("path");
+  } finally {
+    await rm(target, { force: true });
     await harness.close();
   }
 });

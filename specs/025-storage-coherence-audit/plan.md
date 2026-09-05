@@ -138,3 +138,16 @@ metadata at the mutation/snapshot boundary; domain logic must never consume a
 scrub marker as user content. Neutralize relational payloads in the same accepted
 transaction, and extend historical transition metadata coverage. Test subsequent
 neutral writes, dirty/offline sync, structured revisions and portable recovery.
+
+### Historical source inventory detail
+
+The 024 safety archive preserves durable database state and acknowledged upload
+prefixes before schema/content writes. Unacknowledged tails and interrupted
+`.tmp-*` files have no committed identity. Inventory them without modifying them
+and retain their complete original bytes in verified encrypted quarantine before
+retirement; they are not silently promoted into an accepted transfer. Source
+paths, original digests and checkpoint mappings are protected envelopes. Completed
+legacy objects retain their UUID/reference counts; equal bytes do not merge
+historical identities during backfill. Upload backfill preserves its acknowledged
+offset, declared length and expiry. Every source iterator verifies length/digest
+at EOF before the replacement transaction may commit.
