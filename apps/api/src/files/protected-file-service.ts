@@ -4,7 +4,7 @@ import {
   type Database,
   findProtectedContentCandidates,
   listProtectedFileChunks,
-  lockFileKeyGeneration,
+  lockDataKeyGeneration,
   type ProtectedChunkDescriptor,
   putProtectedFileChunk,
   schema,
@@ -86,7 +86,7 @@ export class ProtectedFileService {
       throw new RangeError("Invalid protected file length limit.");
     await shareFullFileMutation(tx);
     const dataKey = await this.deps.keys.dataKey(tx, { writable: true });
-    await lockFileKeyGeneration(tx, {
+    await lockDataKeyGeneration(tx, {
       workspaceId: this.deps.workspaceId,
       generation: dataKey.generation,
       writable: true,

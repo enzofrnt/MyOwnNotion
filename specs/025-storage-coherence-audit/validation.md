@@ -161,3 +161,14 @@ maintenance exclusion and lock release after cancellation, missing content and
 successful consumption. The secured HTTP portable restore and full capture
 consistency scenarios remain green: 24 tests in three files, plus API typecheck.
 Rotation rewrite/revocation itself is still pending; T018 remains open.
+
+T018 rotation checkpoint: bounded completed/partial chunk rewrite is now composed
+into the administrative data-key command, including file counts, checkpoints,
+failed-operation resume, immutable IDs/offsets and transactional revocation
+rechecks. A real four-chunk fixture interrupts publication after one committed
+batch, reads mixed generations, refuses premature revocation, resumes the same
+operation and appends after rotation. Revocation waits for an active reader.
+Ordinary and batched envelope writes reject a deliberately retired key selection
+without publishing a record. Existing rotation/audit and secured file HTTP tests
+remain green: 39 tests across four files, plus API typecheck. The final shared
+migration/restore and complete gate evidence is still pending; T018 remains open.

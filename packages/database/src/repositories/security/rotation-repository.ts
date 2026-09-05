@@ -179,7 +179,7 @@ function toOperation(row: typeof rotationOperations.$inferSelect): RotationOpera
 /** The unfinished operation for a kind, if there is one. */
 export async function findRunningRotation(
   executor: Executor,
-  input: { installationId: string; kind: RotationKind },
+  input: { installationId: string; kind: RotationKind; resumeFailed?: boolean },
 ): Promise<RotationOperationRecord | null> {
   const rows = await executor
     .select()
@@ -191,7 +191,9 @@ export async function findRunningRotation(
       ),
     )
     .orderBy(desc(rotationOperations.createdAt));
-  const running = rows.find((row) => row.phase !== "complete" && row.phase !== "failed");
+  const running = rows.find(
+    (row) => row.phase !== "complete" && (input.resumeFailed || row.phase !== "failed"),
+  );
   return running === undefined ? null : toOperation(running);
 }
 

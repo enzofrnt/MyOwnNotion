@@ -7,7 +7,7 @@ import {
   getUpload,
   insertGeneration,
   listProtectedFileChunks,
-  lockFileKeyGeneration,
+  lockDataKeyGeneration,
   type ProtectedChunkDescriptor,
   type ProtectedFileScope,
   putProtectedFileChunk,
@@ -145,7 +145,7 @@ describe("protected file references", () => {
     try {
       await other.query("SET lock_timeout = '100ms'");
       await context.handle.db.transaction(async (tx) => {
-        await lockFileKeyGeneration(tx, {
+        await lockDataKeyGeneration(tx, {
           workspaceId: context.workspaceId,
           generation: 1,
           writable: true,
@@ -167,7 +167,7 @@ describe("protected file references", () => {
         ),
       ).rejects.toThrow("generation is unavailable");
       await context.handle.db.transaction((tx) =>
-        lockFileKeyGeneration(tx, {
+        lockDataKeyGeneration(tx, {
           workspaceId: context.workspaceId,
           generation: 1,
           writable: false,
@@ -179,7 +179,7 @@ describe("protected file references", () => {
       );
       await expect(
         context.handle.db.transaction((tx) =>
-          lockFileKeyGeneration(tx, {
+          lockDataKeyGeneration(tx, {
             workspaceId: context.workspaceId,
             generation: 1,
             writable: false,

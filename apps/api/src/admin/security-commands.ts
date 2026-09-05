@@ -29,6 +29,7 @@ import {
 } from "@myownnotion/database";
 import { evaluateRotationPolicy, type KeyRotationPolicy } from "@myownnotion/domain";
 import type { RecoveryKit } from "@myownnotion/domain/security";
+import { createProtectedFileRuntime } from "../files/protected-file-runtime.ts";
 import {
   AdministrativeRecoveryError,
   AdministrativeRecoveryService,
@@ -49,6 +50,7 @@ export interface CommandContext {
   readonly db: Database;
   readonly installationId: string;
   readonly deploymentKeyFile: string | undefined;
+  readonly blobRoot?: string;
   readonly now: () => Date;
   /**
    * The audit journal, when the caller wired one.
@@ -230,22 +232,32 @@ async function runDataKeyRotation(
       message: "no deployment key file is configured",
     };
   }
+  const deploymentKey = () => {
+    try {
+      return Buffer.from(loadDeploymentKey(keyFile).bytes);
+    } catch {
+      return null;
+    }
+  };
+  const runtime = createProtectedFileRuntime({
+    db: context.db,
+    installationId: context.installationId,
+    workspaceId: installation.workspaceId,
+    deploymentKey,
+    now: context.now,
+    blobRoot: context.blobRoot ?? "./.dev-blobs",
+  });
   return await rotationDataKeyCommand(
     command,
     {
       db: context.db,
       installationId: context.installationId,
       workspaceId: installation.workspaceId,
+      protectedFiles: runtime.files,
       // Read on each call rather than captured once. A rotation that ran for
       // hours on a key the operator has since unmounted would defeat the point
       // of unmounting it.
-      deploymentKey: () => {
-        try {
-          return Buffer.from(loadDeploymentKey(keyFile).bytes);
-        } catch {
-          return null;
-        }
-      },
+      deploymentKey,
       now: context.now,
       audit: context.audit,
     },

@@ -18,6 +18,7 @@ import type { Database, Transaction } from "@myownnotion/database";
 import {
   assertEnvelopeMatches,
   insertProtectedRecords,
+  lockDataKeyGeneration,
   readProtectedRecord,
   readProtectedRecords,
   SecurityRepositoryError,
@@ -120,7 +121,16 @@ export class ProtectedRecordService {
    * leaving data behind a key the rotation was meant to stop using.
    */
   async write(executor: Database | Transaction, input: ProtectedWrite): Promise<string> {
+    return executor.transaction((tx) => this.writePinned(tx, input));
+  }
+
+  private async writePinned(executor: Transaction, input: ProtectedWrite): Promise<string> {
     const dataKey = await this.#deps.keys.dataKey(executor, { writable: true });
+    await lockDataKeyGeneration(executor, {
+      workspaceId: this.#deps.workspaceId,
+      generation: dataKey.generation,
+      writable: true,
+    });
     const binding = this.#binding({
       entityType: input.entityType,
       entityId: input.entityId,
@@ -145,7 +155,19 @@ export class ProtectedRecordService {
     inputs: readonly ImmutableProtectedWrite[],
   ): Promise<readonly string[]> {
     if (inputs.length === 0) return [];
+    return executor.transaction((tx) => this.writeManyPinned(tx, inputs));
+  }
+
+  private async writeManyPinned(
+    executor: Transaction,
+    inputs: readonly ImmutableProtectedWrite[],
+  ): Promise<readonly string[]> {
     const dataKey = await this.#deps.keys.dataKey(executor, { writable: true });
+    await lockDataKeyGeneration(executor, {
+      workspaceId: this.#deps.workspaceId,
+      generation: dataKey.generation,
+      writable: true,
+    });
     const now = this.#deps.now();
     const records = inputs.map((input) => {
       const binding = this.#binding({

@@ -491,3 +491,22 @@ export async function updateWrappedRootKey(
     })
     .where(eq(workspaceRootKeys.id, input.rootKeyId));
 }
+
+/** Hold through the SQL publication; retirement/revocation update this same row. */
+export async function lockDataKeyGeneration(
+  tx: Transaction,
+  input: { workspaceId: string; generation: number; writable: boolean },
+): Promise<void> {
+  const [row] = await tx
+    .select({ state: dataKeyGenerations.state })
+    .from(dataKeyGenerations)
+    .where(
+      and(
+        eq(dataKeyGenerations.workspaceId, input.workspaceId),
+        eq(dataKeyGenerations.generation, input.generation),
+      ),
+    )
+    .for("share");
+  if (row === undefined || row.state === "revoked" || (input.writable && row.state !== "current"))
+    throw new Error("The encryption generation is unavailable.");
+}

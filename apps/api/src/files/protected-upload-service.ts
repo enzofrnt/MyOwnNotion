@@ -3,7 +3,7 @@ import {
   type Database,
   getUpload,
   listProtectedFileChunks,
-  lockFileKeyGeneration,
+  lockDataKeyGeneration,
   lockUpload,
   putProtectedFileChunk,
   SCRUBBED_PLACEHOLDER,
@@ -43,7 +43,7 @@ export class ProtectedUploadService {
   async lockGeneration(tx: Transaction): Promise<number> {
     await shareFullFileMutation(tx);
     const key = await this.files.deps.keys.dataKey(tx, { writable: true });
-    await lockFileKeyGeneration(tx, {
+    await lockDataKeyGeneration(tx, {
       workspaceId: this.files.deps.workspaceId,
       generation: key.generation,
       writable: true,

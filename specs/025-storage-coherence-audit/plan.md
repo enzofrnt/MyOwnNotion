@@ -117,3 +117,15 @@ No constitution exception. A protected manifest and partial-chunk table are
 required to authenticate total shape and acknowledged offsets without whole-file
 buffering. Migration quarantine preserves recoverable orphan material instead
 of silently discarding it. No generic storage framework is introduced.
+
+File rotation rewrites bounded chunk batches after the envelope sweep. Each
+batch atomically replaces authenticated descriptors and the current manifest,
+queues superseded ciphertext for deferred GC, and records progress. Remaining
+old-generation references are the durable file cursor, so a crash never skips
+parts. Completed and partial content retain IDs, lookup tags, sizes and offsets.
+Failed data-key operations resume instead of silently advancing to another
+source generation; the current writable generation is the rewrite target.
+Revocation takes FILE maintenance and the generation row lock, then recounts
+both envelopes and completed/partial chunks in that transaction. Ordinary and
+batched protected-record publication also lock their selected writable generation;
+a stale selection fails instead of publishing after retirement.

@@ -31,9 +31,10 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import type { Database } from "@myownnotion/database";
+import type { Database, Transaction } from "@myownnotion/database";
 import {
   completeRotationPolicy,
+  countProtectedFileChunksInGeneration,
   countRecordsInGeneration,
   failRotationPolicy,
   findCurrentGeneration,
@@ -46,6 +47,7 @@ import {
   recordRotationCheckpoint,
   revokeGeneration,
   runSecurityTransaction,
+  schema,
   startRotationOperation,
 } from "@myownnotion/database";
 import {
@@ -55,6 +57,10 @@ import {
   planDataKeyRotation,
   rotationCompletion,
 } from "@myownnotion/domain";
+import { and, eq } from "drizzle-orm";
+import { lockFullFileMaintenance } from "../../backup/full/locks.ts";
+import { rotateProtectedFileBatch } from "../../files/protected-file-rotation.ts";
+import type { ProtectedFileService } from "../../files/protected-file-service.ts";
 import { KeyHierarchy } from "../../security/key-hierarchy.ts";
 import { ProtectedRecordService } from "../../security/protected-record-service.ts";
 import { type CommandResult, EXIT_CODES } from "../command-output.ts";
@@ -101,6 +107,7 @@ export interface DataKeyRotationDeps {
   readonly newId?: () => string;
   /** Test seam: how many records one transaction rewrites. */
   readonly batchSize?: number;
+  readonly protectedFiles?: ProtectedFileService;
   /**
    * The audit journal, when the caller wired one.
    *
@@ -149,16 +156,28 @@ export async function rotationDataKeyCommand(
   const running = await findRunningRotation(deps.db, {
     installationId: deps.installationId,
     kind: "data-key",
+    resumeFailed: true,
   });
 
   // On a resume the new generation already exists and is `current`; the
   // generation still to be swept is the one the operation named. On a fresh
   // start the sweep will be over the generation that is current now.
   const fromGeneration = running?.fromVersionOrGeneration ?? current.generation;
-  const remaining = await countRecordsInGeneration(deps.db, {
+  const remainingRecords = await countRecordsInGeneration(deps.db, {
     workspaceId: deps.workspaceId,
     keyGeneration: fromGeneration,
   });
+  const remainingChunks = await countProtectedFileChunksInGeneration(deps.db, {
+    workspaceId: deps.workspaceId,
+    keyGeneration: fromGeneration,
+  });
+  const remaining = remainingRecords + remainingChunks;
+  if (options.execute && remainingChunks > 0 && deps.protectedFiles === undefined) {
+    return {
+      code: EXIT_CODES.refused,
+      message: "protected file storage is required to rotate this generation",
+    };
+  }
 
   if (!options.execute) {
     return {
@@ -168,9 +187,10 @@ export async function rotationDataKeyCommand(
           ? "dry run: nothing has been changed"
           : "dry run: a rotation is in progress",
       data: {
-        wouldRewriteRecords: remaining,
+        wouldRewriteRecords: remainingRecords,
+        wouldRewriteFileChunks: remainingChunks,
         fromGeneration,
-        toGeneration: running?.toVersionOrGeneration ?? current.generation + 1,
+        toGeneration: running === null ? current.generation + 1 : current.generation,
         resuming: running !== null,
         // Named so the operator knows the answer before starting: the old
         // generation stays readable, so this is not an outage window.
@@ -184,7 +204,7 @@ export async function rotationDataKeyCommand(
   const startedAt = deps.now();
 
   let operationId = running?.id ?? nextId();
-  let toGeneration = running?.toVersionOrGeneration ?? current.generation + 1;
+  let toGeneration = running === null ? current.generation + 1 : current.generation;
 
   if (running === null) {
     // Validated before anything is written: the generation must advance, and
@@ -244,6 +264,13 @@ export async function rotationDataKeyCommand(
     }
   } else {
     operationId = running.id;
+    await runSecurityTransaction(deps.db, async (tx) => {
+      await tx
+        .update(schema.rotationOperations)
+        .set({ phase: "rewriting", toVersionOrGeneration: toGeneration, updatedAt: deps.now() })
+        .where(eq(schema.rotationOperations.id, operationId));
+      await markRotationInProgress(tx, { policyId: policy.id, operationId, now: deps.now() });
+    });
   }
 
   const checkpoint = await findLatestCheckpoint(deps.db, operationId);
@@ -273,6 +300,7 @@ export async function rotationDataKeyCommand(
     }
     try {
       await runSecurityTransaction(deps.db, async (tx) => {
+        await lockFullFileMaintenance(tx);
         const keys = hierarchy(deps);
         const records = new ProtectedRecordService({
           db: deps.db,
@@ -338,10 +366,58 @@ export async function rotationDataKeyCommand(
     }
   }
 
-  const stillUnderOld = await countRecordsInGeneration(deps.db, {
-    workspaceId: deps.workspaceId,
-    keyGeneration: fromGeneration,
-  });
+  if (deps.protectedFiles !== undefined) {
+    const files = deps.protectedFiles;
+    try {
+      for (;;) {
+        const rewritten = await runSecurityTransaction(deps.db, async (tx) => {
+          const count = await rotateProtectedFileBatch(
+            tx,
+            files,
+            fromGeneration,
+            toGeneration,
+            batchSize,
+          );
+          if (count === 0) return 0;
+          const next = { ...progress, rewrittenCount: progress.rewrittenCount + count };
+          await recordRotationCheckpoint(tx, {
+            id: nextId(),
+            operationId,
+            sequence,
+            cursor: next.cursor,
+            processedCount: next.rewrittenCount,
+            totalCount: next.totalCount,
+            checkpointDigest: checkpointDigest(operationId, next),
+            idempotencyKey: `${operationId}:${sequence}`,
+            phase: "rewriting",
+            now: deps.now(),
+          });
+          await auditRotationCheckpoint(deps.audit, tx, {
+            kind: "data-key",
+            operationId,
+            processedCount: next.rewrittenCount,
+            totalCount: next.totalCount,
+            cursor: next.cursor,
+          });
+          return count;
+        });
+        if (rewritten === 0) break;
+        progress = { ...progress, rewrittenCount: progress.rewrittenCount + rewritten };
+        sequence++;
+      }
+    } catch (error) {
+      return await abandonRotation(deps, { policyId: policy.id, operationId, progress, error });
+    }
+  }
+  const stillUnderOld = await countGenerationReferences(deps.db, deps.workspaceId, fromGeneration);
+  if (stillUnderOld > 0) {
+    return await abandonRotation(deps, {
+      policyId: policy.id,
+      operationId,
+      progress,
+      error: new Error("The generation still protects stored content; rotation is incomplete."),
+    });
+  }
   const completedAt = deps.now();
   const schedule = await runSecurityTransaction(deps.db, async (tx) => {
     await finishRotationOperation(tx, { operationId, phase: "complete", now: completedAt });
@@ -401,10 +477,7 @@ async function revokeCommand(
     return { code: EXIT_CODES.usage, message: `--revoke-generation must be a generation number` };
   }
 
-  const remaining = await countRecordsInGeneration(deps.db, {
-    workspaceId: deps.workspaceId,
-    keyGeneration: generation,
-  });
+  const remaining = await countGenerationReferences(deps.db, deps.workspaceId, generation);
   if (remaining > 0) {
     return {
       code: EXIT_CODES.refused,
@@ -420,13 +493,25 @@ async function revokeCommand(
     };
   }
 
-  const revoked = await runSecurityTransaction(deps.db, async (tx) =>
-    revokeGeneration(tx, {
+  const revoked = await runSecurityTransaction(deps.db, async (tx) => {
+    await lockFullFileMaintenance(tx);
+    await tx
+      .select({ id: schema.dataKeyGenerations.id })
+      .from(schema.dataKeyGenerations)
+      .where(
+        and(
+          eq(schema.dataKeyGenerations.workspaceId, deps.workspaceId),
+          eq(schema.dataKeyGenerations.generation, generation),
+        ),
+      )
+      .for("update");
+    if ((await countGenerationReferences(tx, deps.workspaceId, generation)) > 0) return false;
+    return revokeGeneration(tx, {
       workspaceId: deps.workspaceId,
       generation,
       now: deps.now(),
-    }),
-  );
+    });
+  });
   return revoked
     ? {
         code: EXIT_CODES.ok,
@@ -441,6 +526,18 @@ async function revokeCommand(
         message: `generation ${generation} is not a retired generation`,
         data: { generation },
       };
+}
+
+async function countGenerationReferences(
+  executor: Database | Transaction,
+  workspaceId: string,
+  generation: number,
+): Promise<number> {
+  const input = { workspaceId, keyGeneration: generation };
+  return (
+    (await countRecordsInGeneration(executor, input)) +
+    (await countProtectedFileChunksInGeneration(executor, input))
+  );
 }
 
 function hierarchy(deps: DataKeyRotationDeps): KeyHierarchy {

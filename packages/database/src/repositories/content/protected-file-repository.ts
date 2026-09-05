@@ -2,13 +2,47 @@ import { generateUuidV7, PROTECTED_FILE_CHUNK_BYTES } from "@myownnotion/domain"
 import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { fileContents, protectedUploadChunks, uploads } from "../../schema/index.ts";
-import { dataKeyGenerations, protectedBlobChunks } from "../../schema/security/index.ts";
+import { protectedBlobChunks } from "../../schema/security/index.ts";
+import { lockDataKeyGeneration } from "../security/key-repository.ts";
 
 export interface ProtectedFileScope {
   readonly installationId: string;
   readonly workspaceId: string;
   readonly kind: "content" | "upload";
   readonly id: string;
+}
+
+export async function countProtectedFileChunksInGeneration(
+  executor: Database | Transaction,
+  input: { workspaceId: string; keyGeneration: number },
+): Promise<number> {
+  const result = await executor.execute<{ total: string }>(sql`
+    SELECT (
+      (SELECT count(*) FROM protected_blob_chunks
+       WHERE workspace_id = ${input.workspaceId} AND key_generation = ${input.keyGeneration}) +
+      (SELECT count(*) FROM protected_upload_chunks
+       WHERE workspace_id = ${input.workspaceId} AND key_generation = ${input.keyGeneration})
+    )::text AS total
+  `);
+  return Number(result.rows[0]?.total ?? 0);
+}
+
+/** One object per bounded rotation transaction; committed references are its restart cursor. */
+export async function findProtectedFileToRotate(
+  tx: Transaction,
+  input: { installationId: string; workspaceId: string; generation: number },
+): Promise<{ kind: "content" | "upload"; id: string } | null> {
+  const result = await tx.execute<{ kind: "content" | "upload"; id: string }>(sql`
+    SELECT 'content' AS kind, content_id AS id FROM protected_blob_chunks
+      WHERE installation_id = ${input.installationId} AND workspace_id = ${input.workspaceId}
+        AND key_generation = ${input.generation}
+    UNION
+    SELECT 'upload' AS kind, upload_id AS id FROM protected_upload_chunks
+      WHERE installation_id = ${input.installationId} AND workspace_id = ${input.workspaceId}
+        AND key_generation = ${input.generation}
+    ORDER BY kind, id LIMIT 1
+  `);
+  return result.rows[0] ?? null;
 }
 
 export interface ProtectedChunkDescriptor {
@@ -21,25 +55,6 @@ export interface ProtectedChunkDescriptor {
   readonly byteLength: number;
   readonly keyGeneration: number;
   readonly recordVersion: number;
-}
-
-/** Hold through the SQL publication; retirement/revocation update this same row. */
-export async function lockFileKeyGeneration(
-  tx: Transaction,
-  input: { workspaceId: string; generation: number; writable: boolean },
-): Promise<void> {
-  const [row] = await tx
-    .select({ state: dataKeyGenerations.state })
-    .from(dataKeyGenerations)
-    .where(
-      and(
-        eq(dataKeyGenerations.workspaceId, input.workspaceId),
-        eq(dataKeyGenerations.generation, input.generation),
-      ),
-    )
-    .for("share");
-  if (row === undefined || row.state === "revoked" || (input.writable && row.state !== "current"))
-    throw new Error("The file encryption generation is unavailable.");
 }
 
 function chunkTable(scope: ProtectedFileScope) {
@@ -96,7 +111,7 @@ export async function putProtectedFileChunk(
     !/^[a-f0-9]{64}$/.test(chunk.storageKey)
   )
     throw new Error("Invalid protected file chunk reference.");
-  await lockFileKeyGeneration(tx, {
+  await lockDataKeyGeneration(tx, {
     workspaceId: scope.workspaceId,
     generation: chunk.keyGeneration,
     writable: true,
