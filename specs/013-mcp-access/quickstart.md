@@ -30,5 +30,22 @@ before any push; this isolated implementation does not push or merge.
   page activation and operational page service.
 - API typecheck, production Bun build, compiled MCP CLI help and focused Biome
   checks passed. The API bundle emits the dedicated exchange CLI.
-- UI tasks T011/T012/T014/T015 remain delegated. Full `checks:local` and final
-  convergence run on the integration branch before publishing; no push here.
+- UI tasks T011/T012/T014/T015 are complete; see [UI validation](ui-validation.md).
+  Full `checks:local` remains the integration branch gate before publishing;
+  no push here.
+
+## Owner UI evidence — 2026-09-05
+
+19 focused Web tests and 15 real browser journeys passed on the five browser
+profiles. The journeys include grant, exchange once, allowed and denied reads,
+revocation, explicit renewal, network refusal, secret memory lifetime and real
+password confirmation after stale authentication. Use the official matrix
+against a disposable database server, with two projects maximum:
+
+```sh
+DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55433/postgres MYOWNNOTION_E2E_API_PORT_BASE=4101 MYOWNNOTION_E2E_WEB_PORT_BASE=6273 MYOWNNOTION_E2E_JOBS=2 bun scripts/e2e/run-local-matrix.ts tests/e2e/mcp-access.spec.ts --retries=0
+```
+
+This direct runner creates and removes isolated databases without starting the
+owner's local Docker development stack. Full evidence and limitations are in
+[ui-validation.md](ui-validation.md).

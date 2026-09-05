@@ -21,6 +21,7 @@ import { FR_COPY } from "../../ui/copy/index.ts";
 import { AsyncState, Button, Field } from "../../ui/primitives/index.ts";
 import { DevicePanel } from "./device-panel.tsx";
 import { KeyRotationPanel } from "./key-rotation-panel.tsx";
+import { McpAccessPanel } from "./mcp-access-panel.tsx";
 import { RecoveryReadinessPanel } from "./recovery-readiness-panel.tsx";
 import { SessionPanel } from "./session-panel.tsx";
 
@@ -37,6 +38,7 @@ export interface SecuritySettingsProps {
    */
   readonly currentDeviceId?: string | null;
   readonly onSignedOut: () => void;
+  readonly onReauthenticated?: () => void;
 }
 
 interface SecurityNotice {
@@ -204,6 +206,8 @@ export function SecuritySettings(props: SecuritySettingsProps) {
       />
 
       <DevicePanel api={props.api} currentDeviceId={props.currentDeviceId ?? null} />
+
+      <McpAccessPanel api={props.api} onReauthenticated={props.onReauthenticated} />
 
       <RecoveryReadinessPanel
         status={recovery}

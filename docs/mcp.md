@@ -1,12 +1,12 @@
 # Connecter un assistant à MyOwnNotion
 
 MCP fait partie de la V1. Il utilise le serveur de votre installation : ouvrez
-**Réglages → Sécurité et appareils → Connexions MCP** pour autoriser un assistant.
+**Réglages → Sécurité et appareils → Accès des assistants** pour autoriser un assistant.
 Une connexion représente votre délégation, sans créer de compte supplémentaire.
 
 Choisissez un nom, les actions utiles, les branches autorisées et l'accès aux
 fichiers. Une branche inclut ses descendants. Recherche et lecture sont des
-permissions distinctes. L'option « tout le contenu » doit être choisie
+permissions distinctes. L'option « Tout l’espace, y compris le futur contenu » doit être choisie
 explicitement. Les accès expirent après 90 jours par défaut ; vous pouvez réduire
 la durée ou reconnaître explicitement le risque d'un accès sans expiration.
 Une authentification récente est nécessaire pour autoriser ou révoquer.
@@ -61,3 +61,11 @@ hors ligne ; les parcours locaux de MyOwnNotion conservent leur fonctionnement
 habituel. La limite d'appel est 300 requêtes par minute et par adresse réseau ;
 un dépassement est explicite avec 429. Les erreurs temporaires sont signalées sans
 révéler de contenu privé ; les essais d'échange sont également limités.
+
+Dans « Accès des assistants », « Générer le code d’accès » affiche le code
+uniquement pour cette visite. « Masquer le code » le retire de l’écran, sans
+révoquer la connexion. Le bouton « Actualiser les accès » recharge l’inventaire
+et le journal. En cas de demande d’identité récente, confirmez votre passkey
+ou votre mot de passe dans le panneau puis réessayez l’action : la saisie est
+conservée. « Renouveler par un nouvel accès » reprend le périmètre à vérifier ;
+l’ancien accès doit être révoqué séparément.

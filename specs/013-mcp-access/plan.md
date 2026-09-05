@@ -58,3 +58,29 @@ Token lifetime/replay/revoke tests; encrypted integration tests for scope,
 canonical writes, rotation and restore; real HTTP SDK client discovery/calls;
 settings Playwright desktop/narrow journey. Focused tests first, full local gate
 at integration branch before push. No production/local-owner databases touched.
+
+## Owner interface design (before UI implementation)
+
+The Security settings panel uses existing Button/Field/AsyncState/ConfirmDialog
+primitives and semantic theme tokens. A labelled form has independent action
+checkboxes, branch choices (descendants included), explicit whole-workspace and
+file choices, 90-day default and acknowledged unlimited duration. Labels and
+branch names wrap at 320 px. Loading and failed reads are distinct from an empty
+inventory; retry keeps the draft. Mutations are never queued offline.
+
+A recent-authentication refusal offers the existing password/passkey ceremonies
+in place, refreshes the app's current session, and leaves authorization for a
+subsequent explicit click. Exchange code is React memory only, cleared on expiry,
+hide, revocation or unmount. Its copy button uses semantic activation and local
+feedback. Instructions show same-origin exchange and MCP endpoints and explain
+single-use exchange, dedicated bearer credentials and client compatibility.
+Connection cards show full scope, expiry, last use and status; renewing prefills
+a new grant and clearly retains the prior connection until separately revoked.
+Revocation uses the existing confirmation dialog. Audit names safe operations
+and identifies connections without exposing credentials or note content.
+
+Validation adds unit checks for refused grant/draft retention, explicit unlimited
+acknowledgement, code lifetime and exact CSRF transport; Playwright performs real
+grant/exchange/read/revoke at desktop and 320 px, keyboard activation, both themes,
+and refusal recovery. Operating-system passkey ceremonies remain covered by the
+existing authentication suite rather than fabricated in the MCP journey.

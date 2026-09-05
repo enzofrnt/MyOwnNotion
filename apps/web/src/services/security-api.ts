@@ -31,6 +31,10 @@ import {
   type FullBackupRehearsal,
   type FullBackupStatus,
   type InstallationStatusDto,
+  type ItemDto,
+  type McpConnectionView,
+  type McpGrant,
+  type McpGrantResult,
   type PasskeyViewDto,
   type RotationPolicyViewDto,
   type SecurityProblemDto,
@@ -101,6 +105,14 @@ export interface BackupStatusView {
   readonly lastRehearsalOutcome: "succeeded" | "failed" | null;
   readonly stale: boolean;
   readonly rehearsalDue: boolean;
+}
+
+export interface McpAuditEvent {
+  id: string;
+  action: string;
+  connectionId: string;
+  outcome: string;
+  occurredAt: string;
 }
 
 export interface BackupRehearsalResult {
@@ -450,6 +462,37 @@ export class SecurityApi {
       method: "POST",
       csrf: true,
     });
+  }
+
+  mcpEndpoint(): string {
+    return new URL(`${this.#baseUrl}/mcp`, window.location.href).href;
+  }
+
+  async listMcpConnections(): Promise<SecurityResult<{ connections: McpConnectionView[] }>> {
+    return this.#authenticatedJson("/v1/mcp/connections");
+  }
+
+  async grantMcpConnection(grant: McpGrant): Promise<SecurityResult<McpGrantResult>> {
+    return this.#authenticatedJson("/v1/mcp/connections", {
+      method: "POST",
+      csrf: true,
+      body: JSON.stringify(grant),
+    });
+  }
+
+  async revokeMcpConnection(id: string): Promise<SecurityResult<void>> {
+    return this.#authenticatedJson(`/v1/mcp/connections/${encodeURIComponent(id)}/revoke`, {
+      method: "POST",
+      csrf: true,
+    });
+  }
+
+  async listMcpAudit(): Promise<SecurityResult<{ events: McpAuditEvent[] }>> {
+    return this.#authenticatedJson("/v1/mcp/audit");
+  }
+
+  async listMcpBranches(): Promise<SecurityResult<{ items: ItemDto[] }>> {
+    return this.#authenticatedJson("/v1/items?lifecycle=active");
   }
 
   async listDevices(): Promise<SecurityResult<{ devices: DeviceDto[] }>> {

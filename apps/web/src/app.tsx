@@ -602,6 +602,7 @@ export function App(props: AppProps = {}) {
               <SecuritySettings
                 api={securityApi}
                 currentSessionId={sessionId}
+                onReauthenticated={onSignedIn}
                 onSignedOut={onSignedOut}
               />
             </>

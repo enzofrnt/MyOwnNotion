@@ -21,11 +21,15 @@
 
 ## Phase 4 — Owner journey and delivery
 
-- [ ] T011 Add authorization/settings panel with explicit scope and one-use code instructions.
-- [ ] T012 Add desktop/narrow Playwright grant/exchange/revoke journey and setup docs.
-- [ ] T013 Run focused checks, converge artifacts and record evidence/remaining full gate.
+- [x] T011 Add authorization/settings panel with explicit scope and one-use code instructions.
+- [x] T012 Add desktop/narrow Playwright grant/exchange/revoke journey and setup docs.
+- [x] T013 Run focused checks, converge artifacts and record evidence/remaining full gate.
 
 ## Phase 5: Convergence
 
-- [ ] T014 Complete the owner authorization/settings UI, including recent-auth retry, explicit scope, code, effective status, audit and revocation per FR-001/FR-011 (missing; T011 implementation delegated).
-- [ ] T015 Validate grant/exchange/revoke on desktop and narrow Playwright profiles, then record evidence per SC-003 (missing; T012 validation delegated).
+- [x] T014 Complete the owner authorization/settings UI, including recent-auth retry, explicit scope, code, effective status, audit and revocation per FR-001/FR-011 (completed; see ui-validation.md).
+- [x] T015 Validate grant/exchange/revoke on desktop and narrow Playwright profiles, then record evidence per SC-003 (completed; see ui-validation.md).
+
+- [ ] T016 Integration owner: run all required local gates on combined changes
+  before push, then PR CI/review; record the delivery result. Focused MCP/UI
+  evidence does not replace this full gate.
