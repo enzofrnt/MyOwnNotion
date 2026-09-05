@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { type BlobStore, EncryptedChunkStore } from "@myownnotion/blob-store";
 import {
   type Database,
+  findProtectedContentCandidates,
   listProtectedFileChunks,
   lockFileKeyGeneration,
   type ProtectedChunkDescriptor,
@@ -11,7 +12,7 @@ import {
 } from "@myownnotion/database";
 import { generateUuidV7, type ProtectedFileManifest, type Uuid } from "@myownnotion/domain";
 import { eq } from "drizzle-orm";
-import { shareFullFileMutation } from "../backup/full/locks.ts";
+import { shareFullBlobDeletion, shareFullFileMutation } from "../backup/full/locks.ts";
 import type { KeyHierarchy } from "../security/key-hierarchy.ts";
 import type { ProtectedContent } from "../security/protected-content.ts";
 
@@ -104,6 +105,41 @@ export class ProtectedFileService {
     const sha256 = new Uint8Array(digest.digest());
     const lookupTag = await this.deps.keys.fileContentLookupTag(tx, sha256, byteLength);
     const verifiedAt = this.deps.now();
+    // A keyed digest narrows candidates; only an authenticated byte comparison permits reuse.
+    for (const candidate of await findProtectedContentCandidates(tx, lookupTag, byteLength)) {
+      let equal = true;
+      let index = 0;
+      try {
+        for await (const existing of this.read(tx, candidate.contentId)) {
+          const incoming = chunks[index++];
+          if (
+            incoming === undefined ||
+            Buffer.compare(
+              Buffer.from(existing),
+              Buffer.from(await this.chunkStore(tx).readChunk(incoming, binding)),
+            ) !== 0
+          ) {
+            equal = false;
+            break;
+          }
+        }
+        equal = equal && index === chunks.length;
+      } catch {
+        equal = false;
+      }
+      if (!equal) continue;
+      await shareFullBlobDeletion(tx);
+      for (const chunk of chunks) await this.deps.blobs.delete(chunk.storageKey);
+      return {
+        contentId: candidate.contentId as Uuid,
+        sha256,
+        byteLength,
+        verifiedAt,
+        reusedExisting: true,
+        storageFormat: "encrypted-chunks-v1",
+        manifestVersion: candidate.manifestVersion,
+      };
+    }
     const manifest: ProtectedFileManifest = {
       format: "myownnotion.protected-file",
       formatVersion: 1,
@@ -120,17 +156,15 @@ export class ProtectedFileService {
         recordVersion: chunk.recordVersion,
       })),
     };
-    await tx
-      .insert(schema.fileContents)
-      .values({
-        id: contentId,
-        storageFormat: "encrypted-chunks-v1",
-        manifestVersion: 1,
-        lookupTag,
-        byteLength,
-        verifiedAt,
-        referenceCount: 0,
-      });
+    await tx.insert(schema.fileContents).values({
+      id: contentId,
+      storageFormat: "encrypted-chunks-v1",
+      manifestVersion: 1,
+      lookupTag,
+      byteLength,
+      verifiedAt,
+      referenceCount: 0,
+    });
     for (const chunk of chunks) await putProtectedFileChunk(tx, scope, chunk, verifiedAt);
     await this.deps.content.writeFileManifest(tx, manifest);
     return {

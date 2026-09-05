@@ -60,6 +60,49 @@ async function collect(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
 }
 
 describe("shared protected file runtime", () => {
+  it("reuses only authenticated byte-equal content and removes temporary duplicate ciphertext", async () => {
+    const bytes = Buffer.from("deduplicated protected fixture bytes");
+    const first = await database.db.transaction((tx) =>
+      runtime.files.ingest(tx, source(bytes), { maxBytes: 100 }),
+    );
+    const physicalKeys = async () =>
+      (
+        await Promise.all(
+          (
+            await readdir(root)
+          ).map(async (directory) =>
+            (await readdir(path.join(root, directory))).map((file) => `${directory}/${file}`),
+          ),
+        )
+      )
+        .flat()
+        .sort();
+    const before = await physicalKeys();
+    const second = await database.db.transaction((tx) =>
+      runtime.files.ingest(tx, source(bytes), { maxBytes: 100 }),
+    );
+    expect(second.contentId).toBe(first.contentId);
+    expect(second.reusedExisting).toBe(true);
+    expect(await physicalKeys()).toEqual(before);
+    const different = Buffer.from(bytes);
+    different[0] = 120;
+    const tag = await runtime.keys.fileContentLookupTag(
+      database.db,
+      createHash("sha256").update(different).digest(),
+      different.length,
+    );
+    await database.db.execute(
+      sql`UPDATE file_contents SET lookup_tag = ${Buffer.from(tag)} WHERE id = ${first.contentId}`,
+    );
+    const third = await database.db.transaction((tx) =>
+      runtime.files.ingest(tx, source(different), { maxBytes: 100 }),
+    );
+    expect(third.contentId).not.toBe(first.contentId);
+    expect(third.reusedExisting).toBe(false);
+    expect(await collect(runtime.files.read(database.db, first.contentId))).toEqual(bytes);
+    expect(await collect(runtime.files.read(database.db, third.contentId))).toEqual(different);
+  });
+
   it("stores ciphertext and private inventory, then reopens exact multi-chunk bytes after restart", async () => {
     const sentinel = "private-attachment-sentinel-for-logical-storage-inspection";
     const bytes = Buffer.alloc(PROTECTED_FILE_CHUNK_BYTES + 29, 8);

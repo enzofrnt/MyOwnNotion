@@ -27,15 +27,20 @@ import { recordPlacementUsage, removePlacementUsage } from "./content/usage-repo
 import { getActivePlacements, getItem, getPlacement } from "./hierarchy-repository.ts";
 import { buildItemSnapshot, insertRevision, supersedeRevision } from "./revision-repository.ts";
 
-export interface StoredContent {
+interface StoredContentBase {
   readonly contentId: Uuid;
   readonly sha256: Uint8Array;
   readonly byteLength: number;
-  readonly storageKey: string;
   readonly verifiedAt: Date;
   /** True when the blob store safely reused existing verified bytes. */
   readonly reusedExisting: boolean;
 }
+
+export type StoredContent = StoredContentBase &
+  (
+    | { readonly storageFormat?: "legacy-v1"; readonly storageKey: string }
+    | { readonly storageFormat: "encrypted-chunks-v1"; readonly manifestVersion: number }
+  );
 
 /**
  * Registers stored content metadata (idempotent on physical reuse).
@@ -45,6 +50,23 @@ export interface StoredContent {
  * row is reused — physical reuse stays invisible to logical files.
  */
 export async function registerContent(tx: Transaction, content: StoredContent): Promise<Uuid> {
+  if (content.storageFormat === "encrypted-chunks-v1") {
+    const updated = await tx
+      .update(fileContents)
+      .set({ referenceCount: sql`${fileContents.referenceCount} + 1` })
+      .where(
+        and(
+          eq(fileContents.id, content.contentId),
+          eq(fileContents.storageFormat, "encrypted-chunks-v1"),
+          eq(fileContents.byteLength, content.byteLength),
+          eq(fileContents.manifestVersion, content.manifestVersion),
+        ),
+      )
+      .returning({ id: fileContents.id, verifiedAt: fileContents.verifiedAt });
+    if (updated[0]?.verifiedAt == null)
+      throw new Error("Protected content was not durably registered.");
+    return content.contentId;
+  }
   if (content.reusedExisting) {
     await tx
       .update(fileContents)

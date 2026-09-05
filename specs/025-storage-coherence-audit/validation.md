@@ -73,3 +73,12 @@ in item/logical-file/revision rows; acknowledged partial bytes remain readable.
 Baseline output is `/tmp/mon-protected-http-before.log` on the development host.
 These tests stay strict while T011–T015 replace that composition. All sentinels
 are synthetic fixture values; no owner content was used or displayed.
+
+T011 checkpoint: multipart import/replacement now consume bounded streams with
+automatic SQL retries disabled, persist protected content and invoke the common
+accepted-write/attribution guard. Two targeted secured HTTP cases pass for direct
+encrypted bytes/downloads and independent logical identities with physical reuse
+and device attribution. Six protected-service cases pass including deliberate
+candidate-tag collision and duplicate ciphertext cleanup. The complete HTTP
+privacy suite still fails its metadata and resumable-upload cases; T011 remains
+open until replacement/refusal checks and the remaining composed paths converge.

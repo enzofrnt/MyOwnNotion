@@ -7,12 +7,12 @@
  * independent logical file (FR-034).
  */
 
+import { Readable } from "node:stream";
 import { FileUsagesResponseSchema, MutationResultSchema } from "@myownnotion/contracts";
 import {
   DomainRejection,
   executeImportFile,
   executeReplaceFileContent,
-  findVerifiedContentByDigest,
   namedUsagesOfFile,
   readItem,
   recordChange,
@@ -24,37 +24,61 @@ import { Type } from "@sinclair/typebox";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { AppContext } from "../context.ts";
+import {
+  ProtectedFileUnavailableError,
+  type ProtectedStoredContent,
+} from "../files/protected-file-service.ts";
 import { sendProblem } from "../plugins/errors.ts";
-import { mutationIdFrom } from "../plugins/mutations.ts";
+import { acceptedWriteGuards, attributionFor, mutationIdFrom } from "../plugins/mutations.ts";
+import { resolveProtectedContent } from "../security/content-resolution.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
+import { maxFileBytes } from "./uploads.ts";
 
 interface ParsedUpload {
-  readonly bytes: Uint8Array;
+  readonly content: ProtectedStoredContent;
   readonly filename: string;
   readonly mediaType: string;
   readonly fields: Record<string, unknown>;
 }
 
-async function parseMultipart(request: {
-  parts: () => AsyncIterableIterator<
-    | { type: "file"; filename?: string; mimetype?: string; toBuffer: () => Promise<Buffer> }
-    | { type: "field"; fieldname: string; value: unknown }
-  >;
-}): Promise<ParsedUpload | null> {
-  let bytes: Uint8Array | null = null;
+async function parseMultipart(
+  request: {
+    parts: () => AsyncIterableIterator<
+      | {
+          type: "file";
+          filename?: string;
+          mimetype?: string;
+          file: AsyncIterable<Uint8Array> & { truncated?: boolean };
+        }
+      | { type: "field"; fieldname: string; value: unknown }
+    >;
+  },
+  consume: (source: AsyncIterable<Uint8Array>) => Promise<ProtectedStoredContent>,
+): Promise<ParsedUpload | null> {
+  let content: ProtectedStoredContent | null = null;
   let filename = "file";
   let mediaType = "application/octet-stream";
   const fields: Record<string, unknown> = {};
   for await (const part of request.parts()) {
     if (part.type === "file") {
-      bytes = new Uint8Array(await part.toBuffer());
+      if (content !== null)
+        throw new DomainRejection({
+          code: "validation.invalid-payload",
+          title: "Only one file part is accepted",
+        });
+      content = await consume(part.file);
+      if (part.file.truncated)
+        throw new DomainRejection({
+          code: "resource.limit-exceeded",
+          title: "The file exceeds the configured size limit",
+        });
       filename = part.filename ?? filename;
       mediaType = part.mimetype ?? mediaType;
     } else {
       fields[part.fieldname] = part.value;
     }
   }
-  return bytes === null ? null : { bytes, filename, mediaType, fields };
+  return content === null ? null : { content, filename, mediaType, fields };
 }
 
 function parsePlacementField(raw: unknown): {
@@ -105,24 +129,8 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
           title: "Idempotency-Key header must be a UUID mutation identity",
         });
       }
-      const upload = await parseMultipart(
-        request as unknown as Parameters<typeof parseMultipart>[0],
-      );
-      if (upload === null) {
-        return sendProblem(reply, {
-          code: "validation.invalid-payload",
-          title: "Multipart upload requires a file part",
-        });
-      }
-      const placement = parsePlacementField(upload.fields["placement"]);
-      if (placement === null) {
-        return sendProblem(reply, {
-          code: "validation.invalid-payload",
-          title: "Multipart upload requires a valid placement field",
-        });
-      }
-      const requestedItemId = upload.fields["itemId"];
-      const itemId = isUuid(requestedItemId) ? requestedItemId : generateUuidV7();
+      const files = context.protectedFiles;
+      if (files === undefined) throw new ProtectedFileUnavailableError();
       const acceptedAt = new Date();
 
       // Replay: an already accepted import returns its prior result.
@@ -155,42 +163,70 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
         });
       }
 
-      // Ingest bytes first (idempotent content addressing), then persist.
+      // Stream once within the publication transaction; a conflict requires a fresh request.
       try {
-        const result = await runMutation(context.db, async (tx) => {
-          const content = await context.contentStore.ingest(upload.bytes, (sha256, byteLength) =>
-            findVerifiedContentByDigest(tx, sha256, byteLength),
-          );
-          const execution = await executeImportFile(tx, {
-            mutationId,
-            workspaceId: context.workspaceId,
-            itemId,
-            name: upload.filename,
-            mediaType: upload.mediaType,
-            content,
-            placement,
-            acceptedAt,
-          });
-          if (!execution.ok) {
-            throw new DomainRejection(execution.error);
-          }
-          await tx.insert(schema.mutations).values({
-            id: mutationId,
-            workspaceId: context.workspaceId,
-            commandType: "file.import",
-            status: "accepted",
-            submittedAt: acceptedAt,
-            acceptedAt,
-            resultRevisionIds: [execution.value.revisionId],
-          });
-          const committedSequence = await recordChange(tx, {
-            workspaceId: context.workspaceId,
-            mutationId,
-            revisionIds: [execution.value.revisionId],
-            changedItemIds: [execution.value.itemId],
-          });
-          return { ...execution.value, committedSequence };
-        });
+        const result = await runMutation(
+          context.db,
+          async (tx) => {
+            await context.rotationPolicies?.assertWritesAllowed(tx);
+            const upload = await parseMultipart(
+              request as unknown as Parameters<typeof parseMultipart>[0],
+              (source) => files.ingest(tx, source, { maxBytes: maxFileBytes() }),
+            );
+            if (upload === null)
+              throw new DomainRejection({
+                code: "validation.invalid-payload",
+                title: "Multipart upload requires a file part",
+              });
+            const placement = parsePlacementField(upload.fields["placement"]);
+            if (placement === null)
+              throw new DomainRejection({
+                code: "validation.invalid-payload",
+                title: "Multipart upload requires a valid placement field",
+              });
+            const requestedItemId = upload.fields["itemId"];
+            const itemId = isUuid(requestedItemId) ? requestedItemId : generateUuidV7();
+            const execution = await executeImportFile(tx, {
+              mutationId,
+              workspaceId: context.workspaceId,
+              itemId,
+              name: upload.filename,
+              mediaType: upload.mediaType,
+              content: upload.content,
+              placement,
+              acceptedAt,
+            });
+            if (!execution.ok) {
+              throw new DomainRejection(execution.error);
+            }
+            await acceptedWriteGuards(
+              { type: "file.import" },
+              context.protectedContent,
+              context.rotationPolicies,
+              attributionFor(request, mutationId),
+            ).onAccepted?.(tx, {
+              primaryItemId: itemId,
+              revisionIds: [execution.value.revisionId],
+            });
+            await tx.insert(schema.mutations).values({
+              id: mutationId,
+              workspaceId: context.workspaceId,
+              commandType: "file.import",
+              status: "accepted",
+              submittedAt: acceptedAt,
+              acceptedAt,
+              resultRevisionIds: [execution.value.revisionId],
+            });
+            const committedSequence = await recordChange(tx, {
+              workspaceId: context.workspaceId,
+              mutationId,
+              revisionIds: [execution.value.revisionId],
+              changedItemIds: [execution.value.itemId],
+            });
+            return { ...execution.value, committedSequence };
+          },
+          { maxAttempts: 1 },
+        );
         announceCommitted(result.committedSequence);
         if (context.search !== undefined) {
           try {
@@ -199,7 +235,15 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
             // The file committed; search invalidates and rebuilds itself.
           }
         }
-        const item = await readItem(context.db, result.itemId);
+        const raw = await readItem(context.db, result.itemId);
+        const item =
+          (
+            await resolveProtectedContent(
+              context.db,
+              raw === null ? [] : [raw],
+              context.protectedContent,
+            )
+          )[0] ?? null;
         return reply.status(201).send({
           mutationId,
           revisionIds: [result.revisionId],
@@ -232,7 +276,7 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
         .from(schema.fileContents)
         .where(eq(schema.fileContents.id, logical.contentId))
         .limit(1);
-      if (content === undefined || content.verifiedAt === null || content.storageKey === null) {
+      if (content === undefined || content.verifiedAt === null) {
         // Unverified content is not served. Handing back bytes the server has
         // not confirmed would make "synchronized" mean less than FR-007 says.
         // Reported as not-found rather than with a code of its own: from the
@@ -243,7 +287,17 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
           title: "This file has no verified content to serve",
         });
       }
-      const bytes = await context.contentStore.read(content.storageKey);
+      const files = context.protectedFiles;
+      if (content.storageFormat === "encrypted-chunks-v1") {
+        if (files === undefined) throw new ProtectedFileUnavailableError();
+        await files.manifest(context.db, content.id);
+      }
+      const bytes =
+        content.storageFormat === "encrypted-chunks-v1" && files !== undefined
+          ? Readable.from(files.read(context.db, content.id), { objectMode: false })
+          : content.storageKey === null
+            ? null
+            : await context.contentStore.read(content.storageKey);
       if (bytes === null) {
         return sendProblem(reply, {
           code: "item.not-found",
@@ -274,7 +328,8 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
         .header("x-content-type-options", "nosniff")
         .header("content-security-policy", "default-src 'none'; sandbox")
         .header("cache-control", "private, max-age=0, must-revalidate")
-        .send(Buffer.from(bytes));
+        .header("content-length", content.byteLength)
+        .send(bytes instanceof Readable ? bytes : Buffer.from(bytes));
     },
   );
 
@@ -314,56 +369,68 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
         });
       }
       const { itemId } = request.params as { itemId: string };
-      const upload = await parseMultipart(
-        request as unknown as Parameters<typeof parseMultipart>[0],
-      );
-      if (upload === null) {
-        return sendProblem(reply, {
-          code: "validation.invalid-payload",
-          title: "Multipart upload requires a file part",
-        });
-      }
-      const baseRevisionId = upload.fields["baseRevisionId"];
-      if (!isUuid(baseRevisionId)) {
-        return sendProblem(reply, {
-          code: "validation.invalid-payload",
-          title: "baseRevisionId field is required",
-        });
-      }
+      const files = context.protectedFiles;
+      if (files === undefined) throw new ProtectedFileUnavailableError();
       const acceptedAt = new Date();
 
       try {
-        const result = await runMutation(context.db, async (tx) => {
-          const content = await context.contentStore.ingest(upload.bytes, (sha256, byteLength) =>
-            findVerifiedContentByDigest(tx, sha256, byteLength),
-          );
-          const execution = await executeReplaceFileContent(tx, {
-            mutationId,
-            itemId: itemId as Uuid,
-            baseRevisionId,
-            content,
-            acceptedAt,
-          });
-          if (!execution.ok) {
-            throw new DomainRejection(execution.error);
-          }
-          await tx.insert(schema.mutations).values({
-            id: mutationId,
-            workspaceId: context.workspaceId,
-            commandType: "file.content.replace",
-            status: "accepted",
-            submittedAt: acceptedAt,
-            acceptedAt,
-            resultRevisionIds: [execution.value.revisionId],
-          });
-          const committedSequence = await recordChange(tx, {
-            workspaceId: context.workspaceId,
-            mutationId,
-            revisionIds: [execution.value.revisionId],
-            changedItemIds: [execution.value.itemId],
-          });
-          return { ...execution.value, committedSequence };
-        });
+        const result = await runMutation(
+          context.db,
+          async (tx) => {
+            await context.rotationPolicies?.assertWritesAllowed(tx);
+            const upload = await parseMultipart(
+              request as unknown as Parameters<typeof parseMultipart>[0],
+              (source) => files.ingest(tx, source, { maxBytes: maxFileBytes() }),
+            );
+            if (upload === null)
+              throw new DomainRejection({
+                code: "validation.invalid-payload",
+                title: "Multipart upload requires a file part",
+              });
+            const baseRevisionId = upload.fields["baseRevisionId"];
+            if (!isUuid(baseRevisionId))
+              throw new DomainRejection({
+                code: "validation.invalid-payload",
+                title: "baseRevisionId field is required",
+              });
+            const execution = await executeReplaceFileContent(tx, {
+              mutationId,
+              itemId: itemId as Uuid,
+              baseRevisionId,
+              content: upload.content,
+              acceptedAt,
+            });
+            if (!execution.ok) {
+              throw new DomainRejection(execution.error);
+            }
+            await acceptedWriteGuards(
+              { type: "file.content.replace" },
+              context.protectedContent,
+              context.rotationPolicies,
+              attributionFor(request, mutationId),
+            ).onAccepted?.(tx, {
+              primaryItemId: itemId as Uuid,
+              revisionIds: [execution.value.revisionId],
+            });
+            await tx.insert(schema.mutations).values({
+              id: mutationId,
+              workspaceId: context.workspaceId,
+              commandType: "file.content.replace",
+              status: "accepted",
+              submittedAt: acceptedAt,
+              acceptedAt,
+              resultRevisionIds: [execution.value.revisionId],
+            });
+            const committedSequence = await recordChange(tx, {
+              workspaceId: context.workspaceId,
+              mutationId,
+              revisionIds: [execution.value.revisionId],
+              changedItemIds: [execution.value.itemId],
+            });
+            return { ...execution.value, committedSequence };
+          },
+          { maxAttempts: 1 },
+        );
         announceCommitted(result.committedSequence);
         if (context.search !== undefined) {
           try {
@@ -372,7 +439,15 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
             // The replacement committed; search invalidates and rebuilds itself.
           }
         }
-        const item = await readItem(context.db, result.itemId);
+        const raw = await readItem(context.db, result.itemId);
+        const item =
+          (
+            await resolveProtectedContent(
+              context.db,
+              raw === null ? [] : [raw],
+              context.protectedContent,
+            )
+          )[0] ?? null;
         return reply.status(200).send({
           mutationId,
           revisionIds: [result.revisionId],

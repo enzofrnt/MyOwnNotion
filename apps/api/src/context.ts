@@ -7,6 +7,7 @@ import type { Database } from "@myownnotion/database";
 import type { Uuid } from "@myownnotion/domain";
 import type { PageOperationArchiveService } from "./backup/page-operation-archive.ts";
 import type { DatabaseQueryService } from "./databases/database-query-service.ts";
+import type { ProtectedFileService } from "./files/protected-file-service.ts";
 import type { SearchService } from "./search/search-service.ts";
 import type { DeviceService } from "./security/device-service.ts";
 import type { ProtectedContent } from "./security/protected-content.ts";
@@ -17,6 +18,7 @@ export interface AppContext {
   readonly workspaceId: Uuid;
   readonly schemaVersion: number;
   readonly contentStore: ContentStore;
+  readonly protectedFiles?: ProtectedFileService | undefined;
   /**
    * Where an unfinished transfer accumulates (feature 005).
    *

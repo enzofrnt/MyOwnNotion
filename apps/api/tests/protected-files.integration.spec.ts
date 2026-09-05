@@ -68,6 +68,18 @@ async function directImport(): Promise<string> {
 }
 
 describe("private files through authenticated HTTP", () => {
+  it("keeps independent logical identities while reusing verified bytes and attributing revisions", async () => {
+    const first = await directImport();
+    const second = await directImport();
+    expect(first).not.toBe(second);
+    const rows = await harness.built.database.db.execute(
+      sql`SELECT l.item_id, l.content_id, r.authored_by_device_id FROM logical_files l JOIN items i ON i.id = l.item_id JOIN revisions r ON r.id = i.current_revision_id WHERE l.item_id IN (${first}, ${second})`,
+    );
+    expect(rows.rows).toHaveLength(2);
+    expect(rows.rows[0]?.["content_id"]).toBe(rows.rows[1]?.["content_id"]);
+    expect(rows.rows.every((row) => row["authored_by_device_id"] !== null)).toBe(true);
+  });
+
   it("encrypts direct upload bytes before persistence while preserving authorized downloads", async () => {
     const id = await directImport();
     const downloaded = await owner({ method: "GET", url: `/v1/files/${id}/content` });

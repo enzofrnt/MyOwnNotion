@@ -36,6 +36,10 @@ import { announceCommitted } from "../sync/change-notifier.ts";
 import { sendProblem } from "./errors.ts";
 import { requireWriteProtocol } from "./protocol.ts";
 
+type AcceptedContentCommand =
+  | MutationCommand
+  | { readonly type: "file.import" | "file.content.replace" };
+
 /**
  * The attribution to record for this request, if it has one (FR-022).
  *
@@ -77,7 +81,7 @@ export function mutationIdFrom(request: FastifyRequest): Uuid | null {
 async function sealPayloads(
   protectedContent: ProtectedContent,
   tx: Transaction,
-  command: MutationCommand,
+  command: AcceptedContentCommand,
   primaryItemId: string | undefined,
   revisionIds: readonly string[],
 ): Promise<void> {
@@ -213,7 +217,7 @@ async function sealPayloads(
  * content commit without its envelope.
  */
 export function acceptedWriteGuards(
-  command: MutationCommand,
+  command: AcceptedContentCommand,
   protectedContent: ProtectedContent | undefined,
   rotationPolicies: RotationPolicyService | undefined,
   /**

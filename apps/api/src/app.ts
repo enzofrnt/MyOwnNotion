@@ -41,6 +41,7 @@ import {
   createDatabaseQueryService,
   type DatabaseQueryService,
 } from "./databases/database-query-service.ts";
+import { ProtectedFileService } from "./files/protected-file-service.ts";
 import { CanonicalMaterializer } from "./page-state/canonical-materializer.ts";
 import {
   type PageCheckpointRetentionPolicy,
@@ -81,7 +82,7 @@ import { registerSearchRoutes } from "./routes/search.ts";
 import { registerRecoveryRoutes } from "./routes/security-recovery.ts";
 import { registerRotationRoutes } from "./routes/security-rotation.ts";
 import { registerSnapshotRoutes } from "./routes/snapshots.ts";
-import { registerUploadRoutes } from "./routes/uploads.ts";
+import { maxFileBytes, registerUploadRoutes } from "./routes/uploads.ts";
 import { createDatabaseSearchService, type SearchService } from "./search/search-service.ts";
 import { AuditService } from "./security/audit-service.ts";
 import { resolvePrincipal } from "./security/authentication-hook.ts";
@@ -244,6 +245,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
    * write a page.
    */
   let protectedContent: ProtectedContent | undefined;
+  let protectedFiles: ProtectedFileService | undefined;
   /** Set with the rest of the security layer; absent leaves feature-001 alone. */
   let rotationPolicies: RotationPolicyService | undefined;
   let keyHierarchy: KeyHierarchy | undefined;
@@ -266,6 +268,9 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     workspaceId: workspace.id,
     schemaVersion: workspace.schemaVersion,
     contentStore,
+    get protectedFiles() {
+      return protectedFiles;
+    },
     partialUploads,
     get rotationPolicies() {
       return rotationPolicies;
@@ -299,7 +304,7 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
     options: { maxPayload: MAX_REALTIME_PAGE_SYNC_MESSAGE_BYTES },
   });
   await app.register(multipart, {
-    limits: { fileSize: 256 * 1024 * 1024, files: 1 },
+    limits: { fileSize: maxFileBytes(), files: 1 },
   });
   // Every request gets a security context before any route runs, including
   // anonymous and rejected ones: the correlation ID it carries is the only
@@ -463,6 +468,14 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       },
     });
     protectedContent = new ProtectedContent({ records: protectedRecords });
+    protectedFiles = new ProtectedFileService({
+      installationId: INSTALLATION_ID,
+      workspaceId: workspace.id,
+      blobs: new FilesystemBlobStore(options.blobRoot),
+      keys: keyHierarchy,
+      content: protectedContent,
+      now,
+    });
 
     search = createDatabaseSearchService({
       db: database.db,
