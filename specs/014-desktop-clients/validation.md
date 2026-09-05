@@ -230,3 +230,14 @@ Evidence: `/tmp/mon-full-gate-desktop-isolated-ports.log`,
 `/tmp/mon-desktop-windows-d313.log`, `/tmp/mon-windows-key-permissions-focused.log`,
 `/tmp/mon-windows-key-permissions-types.log`. The platform ACL approach follows
 [Microsoft's Set-Acl documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-acl).
+
+### Native Windows follow-up — server startup diagnostics
+
+At `6e95cf35`, the complete local gate passed (3,581 coverage tests, all five
+browser projects and native macOS lifecycle/package checks). PR run
+33956926120 passed both Linux architectures and macOS. Both Windows runners
+passed private deployment-key validation, packaging and packaged launch; native
+journey setup then exited while starting a Playwright web server. The emitted
+log omitted server stdout. Preserve both servers' output and failed native
+reports so the next run identifies the cause. This is diagnostic coverage,
+not evidence that the Windows journeys or feature delivery pass.
