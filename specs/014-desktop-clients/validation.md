@@ -190,3 +190,18 @@ native fixture/window failures addressed by `5170f415`:
 Whole-workspace TypeScript and targeted lifecycle tests pass. These changes
 still require the complete pre-push gate and fresh PR/main checks; the native
 signing and installed-update release evidence remains separately outstanding.
+
+### Native Windows asset validation — 2026-09-05
+
+The full local gate on `a9bc261c` passed, including all five browser projects,
+nine native Electron journeys, production builds, multi-architecture images
+and every security/Compose check. PR run `33950316597` subsequently passes
+native Linux x64, Linux ARM64 and macOS ARM64. Both Windows architectures
+reach the web production build but reject its required-asset inventory:
+the worker patterns expect `/` while native glob paths can contain `\`.
+The shared validator now normalizes separators and identifies any missing
+asset class in its error. Eight focused tests cover both path families,
+missing assets with misleading source maps and incorrectly located workers;
+all pass, along with a real production build. Full local and fresh native
+Windows validation are still required for this correction. GitGuardian's
+field-name-list false positive remains unresolved externally.

@@ -266,3 +266,5 @@ fichier concret.
 - [X] T090 Preserve pending page scroll restoration across presentation-state refreshes in `apps/web/src/features/editor/` and verify real mobile navigation plus cancellation before the first animation frame; exposed by the full browser parity CI.
 
 - [X] T091 Exercise database property entry with real keyboard input and assert the visible draft before saving in `tests/e2e/databases-offline-sync.spec.ts`; retain the strict second-device persistence and offline merge checks after WebKit CI submitted an empty Owner draft.
+
+- [X] T092 Normalize native glob path separators when checking required web assets in `apps/web/build-assets.ts`; cover POSIX and Windows paths, absent asset classes and misleading source maps in `apps/web/tests/build-assets.spec.ts`. Both Windows CI architectures exposed the same production-build refusal before their native journeys; renewed native CI proof remains part of T088/T076.

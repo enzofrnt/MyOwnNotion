@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import tailwind from "bun-plugin-tailwind";
 import { injectManifest } from "workbox-build";
+import { requireWebAssetClasses } from "./build-assets";
 
 const appRoot = import.meta.dir;
 const e2eBuild = process.env["MYOWNNOTION_E2E_BUILD"] === "1";
@@ -166,17 +167,7 @@ if (injected.count === 0) {
 await access(path.join(outdir, "index.html"));
 await access(serviceWorkerPath);
 const emittedFiles = [...new Bun.Glob("**/*").scanSync({ cwd: outdir, onlyFiles: true })];
-for (const required of [
-  emittedFiles.some((file) => file.endsWith(".css")),
-  emittedFiles.some((file) => file.endsWith(".wasm")),
-  emittedFiles.some((file) => file.endsWith(".webmanifest")),
-  emittedFiles.some((file) => /^assets\/search\.worker-.+\.js$/.test(file)),
-  emittedFiles.some((file) => /^assets\/knowledge-graph\.worker-.+\.js$/.test(file)),
-]) {
-  if (!required) {
-    throw new Error("The web production build is missing a required asset class");
-  }
-}
+requireWebAssetClasses(emittedFiles);
 
 const javascript = await Promise.all(
   emittedFiles
