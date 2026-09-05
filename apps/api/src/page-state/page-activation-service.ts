@@ -77,6 +77,8 @@ export class PageActivationService {
     readonly requestId: Uuid;
     readonly expectedRevisionId: Uuid;
     readonly expectedCanonicalDigest: string;
+    /** Additional delegated scope proof; owner/device guards remain mandatory. */
+    readonly authorize?: (tx: import("@myownnotion/database").Transaction) => Promise<void>;
     readonly maxRemoteBytes?: number;
   }): Promise<PageCheckpointResponseDto> {
     // Two tabs opening the same page race here on purpose (React strict
@@ -87,6 +89,7 @@ export class PageActivationService {
     for (let attempt = 0; ; attempt += 1) {
       try {
         await runMutation(this.#deps.db, async (tx) => {
+          await input.authorize?.(tx);
           const authorization = await authorizeSynchronizationWrite(tx, input);
           if (!authorization.allowed) {
             throw new PageOperationServiceError(

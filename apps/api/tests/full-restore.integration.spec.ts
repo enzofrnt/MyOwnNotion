@@ -35,6 +35,8 @@ let archivePath: string;
 let oldHeaders: Record<string, string>;
 let pageId: string;
 let protectedFileId: string;
+let mcpAccessToken: string;
+let mcpPendingCode: string;
 const password = "correct horse battery staple";
 const protectedBytes = Buffer.from("Authenticated attachment after complete recovery");
 const key = randomBytes(32);
@@ -101,6 +103,27 @@ beforeAll(async () => {
     INSERT INTO recovery_kits(id, installation_id, source_lineage_id, recovery_epoch, authorization_state, delivery_state, supported_key_generations, artifact_digest, download_token_hash, download_expires_at)
     SELECT gen_random_uuid(), id, source_lineage_id, 1, 'provisional', 'downloadable', ARRAY[1], repeat('e', 64), repeat('f', 64), now() + interval '1 hour' FROM installations
   `);
+  const mcpGrant = () =>
+    authenticated({
+      method: "POST",
+      url: "/v1/mcp/connections",
+      payload: {
+        label: "Restored MCP connection",
+        scope: { actions: ["read"], allContent: true, branchRootIds: [], files: false },
+      },
+    });
+  const grant = await mcpGrant();
+  expect(grant.statusCode, grant.body).toBe(200);
+  const exchanged = await harness.built.app.inject({
+    method: "POST",
+    url: "/mcp/exchange",
+    payload: { code: grant.json().exchangeCode },
+  });
+  expect(exchanged.statusCode, exchanged.body).toBe(200);
+  mcpAccessToken = exchanged.json().accessToken as string;
+  const pending = await mcpGrant();
+  expect(pending.statusCode, pending.body).toBe(200);
+  mcpPendingCode = pending.json().exchangeCode as string;
   const backup = new FullBackupService({
     connectionString: harness.postgres.connectionString,
     blobRoot: harness.blobRoot,
@@ -160,7 +183,28 @@ describe("full restore and explicit security activation", () => {
         (await client.query("SELECT count(*)::integer AS count FROM protected_envelopes")).rows[0]
           .count,
       ).toBeGreaterThan(0);
+      expect(
+        (
+          await client.query(
+            "SELECT count(*)::integer AS count FROM mcp_connections WHERE revoked_at IS NULL",
+          )
+        ).rows[0].count,
+      ).toBe(2);
       const activated = await activateFullRestore(input);
+      expect(
+        (
+          await client.query(
+            "SELECT count(*)::integer AS count FROM mcp_connections WHERE revoked_at IS NULL",
+          )
+        ).rows[0].count,
+      ).toBe(0);
+      expect(
+        (
+          await client.query(
+            "SELECT count(*)::integer AS count FROM mcp_exchange_tokens WHERE consumed_at IS NULL",
+          )
+        ).rows[0].count,
+      ).toBe(0);
       expect(activated).toMatchObject({ sessionsInvalidated: 1, devicesRequireAuthentication: 1 });
       expect(
         (
@@ -197,6 +241,24 @@ describe("full restore and explicit security activation", () => {
         }),
       });
       try {
+        expect(
+          (
+            await built.app.inject({
+              method: "GET",
+              url: "/mcp",
+              headers: { authorization: `Bearer ${mcpAccessToken}` },
+            })
+          ).statusCode,
+        ).toBe(401);
+        expect(
+          (
+            await built.app.inject({
+              method: "POST",
+              url: "/mcp/exchange",
+              payload: { code: mcpPendingCode },
+            })
+          ).statusCode,
+        ).toBe(401);
         expect(
           (
             await built.app.inject({

@@ -1,3 +1,6 @@
+import { McpAccessService } from "./mcp/access-service.ts";
+import { registerMcpHttp } from "./mcp/http.ts";
+import { registerMcpManagementRoutes } from "./routes/mcp.ts";
 import { requiresOwnerHttpAccess } from "./security/http-access.ts";
 /**
  * Fastify composition (T017).
@@ -735,6 +738,31 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       onPageCommitted: (event) => pageAdvances.publish(event),
       now,
     });
+    const mcpAccess = new McpAccessService({
+      db: database.db,
+      installationId: INSTALLATION_ID,
+      workspaceId: workspace.id,
+      records: protectedRecords,
+      audit,
+      now,
+      assertReady: async (executor) => {
+        await protectedRuntime.keys.dataKey(executor, { writable: false });
+      },
+    });
+    registerMcpManagementRoutes(app, {
+      access: mcpAccess,
+      require: requireOwner,
+      publicOrigin: securityConfig.publicOrigin.origin,
+    });
+    registerMcpHttp(app, {
+      context,
+      access: mcpAccess,
+      operations: pageOperations,
+      activation: pageActivation,
+      onPageCommitted: (event) => pageAdvances.publish(event),
+      publicOrigin: securityConfig.publicOrigin.origin,
+    });
+
     registerPageOperationRoutes(app, {
       db: database.db,
       require: requireOwner,

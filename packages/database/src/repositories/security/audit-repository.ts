@@ -34,6 +34,10 @@ type Executor = Database | Transaction;
  * a flow is audited end to end. Adding a flow means adding its events here.
  */
 export const SECURITY_EVENT_TYPES = [
+  "mcp.granted",
+  "mcp.exchanged",
+  "mcp.revoked",
+  "mcp.operation",
   // Installation lifecycle
   "installation.created",
   "installation.state-changed",
@@ -124,7 +128,7 @@ export type AuditOutcome = (typeof AUDIT_OUTCOMES)[number];
  * remote administrator transport, so no HTTP route may ever write an event
  * with this actor class.
  */
-export const AUDIT_ACTOR_CLASSES = ["owner", "hosting-admin", "system"] as const;
+export const AUDIT_ACTOR_CLASSES = ["owner", "hosting-admin", "system", "mcp"] as const;
 export type AuditActorClass = (typeof AUDIT_ACTOR_CLASSES)[number];
 
 export interface AppendAuditEventInput {

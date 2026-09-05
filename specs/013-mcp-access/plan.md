@@ -7,7 +7,9 @@
 Bun 1.4, TypeScript, Fastify, PostgreSQL/Drizzle and official MCP TypeScript SDK
 2.0.0. The remote endpoint uses stateless Streamable HTTP with current protocol
 support and the SDK's supported legacy handshake compatibility. The SDK owns
-JSON-RPC validation and negotiation. No second web server or runtime.
+JSON-RPC validation and negotiation. Per-request handlers are closed after delivery;
+permanent subscriptions are disabled so no stream retains authorization. No
+second web server or runtime.
 
 ## Constitution check
 
@@ -21,7 +23,7 @@ Canvas sections 26 and 47 move this independent feature before V1. No exemption.
 - `packages/database/migrations/0017_mcp_access.sql`: connections with JSON scope,
   exchange digest and access digest; only random secret SHA-256 digests persist.
   Labels are sealed via existing protected records; structural IDs/scope remain
-  readable. Migration0016 belongs to the parallel reusable-database feature.
+  readable. Migration 0016 belongs to the parallel reusable-database feature.
 - `apps/api/src/mcp/`: token repository/service, scope checking, canonical tools,
   SDK transport adapter. `routes/mcp.ts` owns owner authorization management.
 - Settings panel uses existing authentication gate, CSRF and recent proof.

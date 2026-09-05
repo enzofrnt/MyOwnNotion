@@ -193,6 +193,7 @@ La V1 doit fournir un parcours complet et exploitable comprenant :
 - sauvegarde chiffrée, vérification et restauration ;
 - export complet et documenté ;
 - mise à jour avec sauvegarde préalable et retour arrière ;
+- accès MCP avec autorisation depuis les réglages, périmètres et révocation ;
 - commandes administratives essentielles ;
 - observabilité locale et diagnostics expurgés ;
 - chaîne de développement, CI, images conteneurisées et publication GitHub.
@@ -207,7 +208,6 @@ Les capacités suivantes appartiennent à la cible complète, mais peuvent être
 - tâches structurées avancées ;
 - tableaux blancs ;
 - partage public et annotations publiques ;
-- serveur MCP ;
 - adaptation iOS avancée ou application iOS native.
 
 Les fondations de la V1 ne doivent pas rendre ces ajouts difficiles ou nécessiter une rupture du modèle de données canonique.

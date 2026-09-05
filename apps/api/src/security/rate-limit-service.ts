@@ -30,6 +30,8 @@ import { and, eq, sql } from "drizzle-orm";
  * a bug or an attack.
  */
 export const RATE_LIMIT_POLICIES = {
+  "mcp.exchange": { limit: 20, windowMs: 60_000, blockMs: 60_000 },
+  "mcp.request": { limit: 300, windowMs: 60_000, blockMs: 60_000 },
   "bootstrap.claim": { limit: 5, windowMs: 15 * 60_000, blockMs: 60 * 60_000 },
   "bootstrap.credential": { limit: 10, windowMs: 15 * 60_000, blockMs: 30 * 60_000 },
   "bootstrap.download": { limit: 5, windowMs: 15 * 60_000, blockMs: 30 * 60_000 },

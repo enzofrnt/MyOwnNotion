@@ -242,6 +242,15 @@ Linux publie AppImage, deb et rpm par architecture ; aucun store. Prochain
 livrable avant clôture V1. MCP rejoint les conditions de sortie V1 via la feature 013. Les tableaux blancs
 et le partage public restent après la V1 et seront accueillis plus tard par le même hôte.
 
+### 013 — MCP access (obligatoire avant V1)
+
+**État** : spécifiée, planifiée, en implémentation. Décision propriétaire du
+5 septembre 2026 : livraison avant V1.
+**Dossier** : [specs/013-mcp-access](../../specs/013-mcp-access/).
+Autorisation depuis les réglages, permissions granulaires, révocation et audit
+MCP. Canevas : sections 26, 28–30, 42, 47 et 49.
+
+
 ### 021 — Readable and actionable server logs
 
 **État** : spécification initiale créée ; planification et implémentation
@@ -324,13 +333,6 @@ section 23.
 Liens publics, descendants, pièces jointes, annotations, confidentialité et
 modération. Canevas : sections 24 et 25.
 
-### 013 — MCP access (obligatoire avant V1)
-
-**État** : spécifiée, planifiée, en implémentation. Décision propriétaire du
-5 septembre 2026 : livraison avant V1.
-**Dossier** : [specs/013-mcp-access](../../specs/013-mcp-access/).
-Autorisation depuis les réglages, permissions granulaires, révocation et audit
-MCP. Canevas : sections 26, 28–30, 42, 47 et 49.
 
 ### 015 — iOS experience
 

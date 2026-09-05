@@ -338,57 +338,11 @@ export async function handleMutation(input: {
     });
   }
 
-  // Bound once so the callback closes over a narrowed value rather than
-  // re-reading an optional property.
-  const protectedContent = input.protectedContent;
-  const command = input.command;
-
-  const outcome = await submitMutation(input.db, {
-    workspaceId: input.workspaceId,
+  const outcome = await submitCanonicalMutation({
+    ...input,
     mutationId,
-    commandType: input.command.type,
-    command,
-    // Sealing happens inside the mutation's transaction. Content and its
-    // envelope commit together or neither does, and there is no second round
-    // trip on the request path.
-    ...acceptedWriteGuards(
-      command,
-      protectedContent,
-      input.rotationPolicies,
-      attributionFor(input.request, mutationId),
-    ),
+    attribution: attributionFor(input.request, mutationId),
   });
-
-  // After the transaction returned, which is the only moment a device can be
-  // told to read and find the change there (feature 006, FR-001).
-  announceCommitted(outcome.committedSequence);
-  if (
-    outcome.committedSequence !== undefined &&
-    outcome.changedItemIds !== undefined &&
-    input.search !== undefined
-  ) {
-    try {
-      await input.search.applyCommittedChanges(outcome.changedItemIds, outcome.committedSequence);
-    } catch {
-      // The canonical write already committed. Search invalidates itself and
-      // rebuilds; the owner still receives the successful mutation result.
-    }
-  }
-  if (
-    outcome.committedSequence !== undefined &&
-    outcome.changedItemIds !== undefined &&
-    input.structuredQueries !== undefined
-  ) {
-    try {
-      await input.structuredQueries.applyCommittedChanges(
-        outcome.changedItemIds,
-        outcome.committedSequence,
-      );
-    } catch {
-      // The canonical write already committed. The projection refuses stale
-      // completeness and starts a rebuild; the write response remains valid.
-    }
-  }
 
   const { result } = outcome;
   if (result.status === "accepted" || result.status === "already-accepted") {
@@ -432,4 +386,81 @@ export async function handleMutation(input: {
     input.reply,
     result.problem ?? { code: "mutation.rejected", title: "Mutation rejected" },
   );
+}
+
+/** Canonical transaction and projection updates shared by app routes and scoped MCP. */
+export async function submitCanonicalMutation(input: {
+  db: Database;
+  workspaceId: Uuid;
+  mutationId: Uuid;
+  command: MutationCommand;
+  protectedContent?: ProtectedContent | undefined;
+  rotationPolicies?: RotationPolicyService | undefined;
+  search?: SearchService | undefined;
+  structuredQueries?: DatabaseQueryService | undefined;
+  attribution?: { mutationId: Uuid; deviceId: string } | undefined;
+  authorize?: (tx: Transaction) => Promise<void>;
+  onAccepted?: (
+    tx: Transaction,
+    accepted: { readonly changedItemIds: readonly Uuid[] },
+  ) => Promise<void>;
+}) {
+  const { command, protectedContent, mutationId } = input;
+  const guards = acceptedWriteGuards(
+    command,
+    protectedContent,
+    input.rotationPolicies,
+    input.attribution,
+  );
+  const outcome = await submitMutation(input.db, {
+    workspaceId: input.workspaceId,
+    mutationId,
+    commandType: input.command.type,
+    command,
+    // Sealing happens inside the mutation's transaction. Content and its
+    // envelope commit together or neither does, and there is no second round
+    // trip on the request path.
+    ...guards,
+    beforeExecute: async (tx) => {
+      await guards.beforeExecute?.(tx);
+      await input.authorize?.(tx);
+    },
+    onAccepted: async (tx, accepted) => {
+      await guards.onAccepted?.(tx, accepted);
+      await input.onAccepted?.(tx, accepted);
+    },
+  });
+
+  // After the transaction returned, which is the only moment a device can be
+  // told to read and find the change there (feature 006, FR-001).
+  announceCommitted(outcome.committedSequence);
+  if (
+    outcome.committedSequence !== undefined &&
+    outcome.changedItemIds !== undefined &&
+    input.search !== undefined
+  ) {
+    try {
+      await input.search.applyCommittedChanges(outcome.changedItemIds, outcome.committedSequence);
+    } catch {
+      // The canonical write already committed. Search invalidates itself and
+      // rebuilds; the owner still receives the successful mutation result.
+    }
+  }
+  if (
+    outcome.committedSequence !== undefined &&
+    outcome.changedItemIds !== undefined &&
+    input.structuredQueries !== undefined
+  ) {
+    try {
+      await input.structuredQueries.applyCommittedChanges(
+        outcome.changedItemIds,
+        outcome.committedSequence,
+      );
+    } catch {
+      // The canonical write already committed. The projection refuses stale
+      // completeness and starts a rebuild; the write response remains valid.
+    }
+  }
+
+  return outcome;
 }

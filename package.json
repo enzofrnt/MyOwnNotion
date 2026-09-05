@@ -64,7 +64,8 @@
     "db:migrate": "bun scripts/db/migrate.ts",
     "db:generate": "bun run --bun drizzle-kit generate",
     "db:test-migrations": "bun scripts/ci/run-vitest-with-postgres.ts run --project database-integration packages/database/tests/migrations.integration.spec.ts",
-    "desktop:check": "bun scripts/desktop/check.ts"
+    "desktop:check": "bun scripts/desktop/check.ts",
+    "mcp:connect": "bun apps/api/src/mcp/exchange-cli.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

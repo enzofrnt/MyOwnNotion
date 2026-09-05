@@ -31,6 +31,14 @@
 		}
 	}
 
+	handle /mcp* {
+		reverse_proxy api:3001 {
+			header_up Host {host}
+			header_up X-Forwarded-Proto {scheme}
+			flush_interval -1
+		}
+	}
+
 	handle /health {
 		reverse_proxy api:3001 {
 			header_up Host {host}

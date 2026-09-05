@@ -210,3 +210,11 @@ compare the live server before and after and inspect the recorded rehearsal.
   a documented cutover after successful restoration, not an automatic destructive action.
 - This work implements and tests recovery using generated fixtures. It does not
   restore over the owner's live data or import Notion data during development.
+
+## MCP trust invalidation (feature013, 2026-09-05)
+
+Complete archives retain MCP connection metadata and irreversible credential
+digests. Activation revokes every restored MCP connection and consumes pending
+exchange codes, alongside invalidating owner sessions and device trust. Older
+archives without MCP tables remain restorable. The owner explicitly authorizes
+new connections after recovery; historical access never resumes.
