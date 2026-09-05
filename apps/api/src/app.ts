@@ -388,6 +388,12 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
       request: FastifyRequest,
     ): Promise<Extract<RequestPrincipal, { kind: "owner" }> | null> => {
       const outcome = await resolvePrincipal(request, [ownerPrincipalResolver]);
+      if (
+        !outcome.authenticated &&
+        outcome.reason === "rejected" &&
+        outcome.code === "device_revoked"
+      )
+        updateRequestContext(request, { authenticationRefusal: "device_revoked" });
       if (!outcome.authenticated || outcome.principal.kind !== "owner") return null;
       updateRequestContext(request, { principal: outcome.principal });
       return outcome.principal;

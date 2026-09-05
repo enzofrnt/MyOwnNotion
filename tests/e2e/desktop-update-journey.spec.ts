@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { FR_COPY } from "../../apps/web/src/ui/copy/fr.ts";
@@ -119,6 +119,7 @@ test("signed update UI defers, rejects corrupt bytes and retries a verified nati
     await expect(phase).toHaveAttribute("data-phase", "installing");
     const destination = path.join(session.userData, "updates", artifact);
     expect(await readFile(destination)).toEqual(source);
+    if (process.platform === "linux") expect((await stat(destination)).mode & 0o777).toBe(0o700);
     expect(
       await session.app.evaluate(
         () =>

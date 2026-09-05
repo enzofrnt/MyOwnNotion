@@ -41,6 +41,8 @@ export type RequestPrincipal =
 export interface SecurityRequestContext {
   readonly correlationId: string;
   readonly principal: RequestPrincipal;
+  /** Only a verified live session may report its device's revocation. */
+  readonly authenticationRefusal?: "device_revoked";
   /** Null before the installation row exists at all. */
   readonly installationState: InstallationState | null;
   readonly installationId: string | null;

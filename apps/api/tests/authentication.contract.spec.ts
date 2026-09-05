@@ -1036,7 +1036,7 @@ describe("session lifecycle and password change coverage", () => {
 describe("ordinary content HTTP access", () => {
   it("rejects anonymous reads and writes, then rejects the same cookie after device revocation", async () => {
     await seedOwner();
-    for (const url of ["/v1/items", "/v1/snapshots/current", "/v1/changes"]) {
+    for (const url of ["/v1/items", "/v1/snapshots/current", "/v1/changes", "/v1/changes/stream"]) {
       expect((await inject({ method: "GET", url })).statusCode).toBe(401);
     }
     const auth = await authenticate();
@@ -1049,6 +1049,20 @@ describe("ordinary content HTTP access", () => {
     expect(
       (await inject({ method: "GET", url: "/v1/items", headers: authHeaders(auth) })).statusCode,
     ).toBe(401);
+    const stream = await inject({
+      method: "GET",
+      url: "/v1/changes/stream",
+      headers: authHeaders(auth),
+    });
+    expect(stream.statusCode).toBe(401);
+    expect(stream.json().code).toBe("device_revoked");
+    const unknown = await inject({
+      method: "GET",
+      url: "/v1/changes/stream",
+      headers: { cookie: `${COOKIE}=unknown-secret` },
+    });
+    expect(unknown.statusCode).toBe(401);
+    expect(unknown.json().code).toBe("authentication_required");
     expect(
       (await inject({ method: "GET", url: "/v1/auth/session", headers: authHeaders(auth) }))
         .statusCode,

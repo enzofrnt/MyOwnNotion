@@ -12,6 +12,21 @@
  * on a domestic line can mean never finishing.
  */
 
+import { sessionCsrf } from "../../services/session-csrf.ts";
+
+/** Do not forward private file bytes or authorization to a server-supplied external URL. */
+function uploadRequest(url: string, init: RequestInit = {}): Promise<Response> {
+  const origin = typeof location === "undefined" ? "http://localhost" : location.origin;
+  const target = new URL(url, origin);
+  if (target.origin !== origin || target.username || target.password)
+    throw new Error("Untrusted upload location");
+  const headers = Object.fromEntries(new Headers(init.headers));
+  const csrf = sessionCsrf("");
+  if (csrf !== null && !["GET", "HEAD", "OPTIONS"].includes(init.method ?? "GET"))
+    headers["x-csrf-token"] = csrf;
+  return fetch(url, { ...init, headers, credentials: "same-origin", redirect: "error" });
+}
+
 /** 8 MiB: large enough to keep the request count sane, small enough to lose little. */
 export const CHUNK_BYTES = 8 * 1024 * 1024;
 
@@ -56,7 +71,7 @@ export async function createUpload(
   fileItemId?: string,
   attachmentParentItemId?: string,
 ): Promise<{ ok: true; handle: UploadHandle } | { ok: false; state: TransferState }> {
-  const response = await fetch("/v1/uploads", {
+  const response = await uploadRequest("/v1/uploads", {
     method: "POST",
     credentials: "same-origin",
     headers: {
@@ -125,7 +140,10 @@ export type UploadDiscovery =
  */
 export async function discoverUpload(fileItemId: string): Promise<UploadDiscovery> {
   const handle = { uploadId: fileItemId, location: `/v1/uploads/${fileItemId}` };
-  const upload = await fetch(handle.location, { method: "HEAD", credentials: "same-origin" });
+  const upload = await uploadRequest(handle.location, {
+    method: "HEAD",
+    credentials: "same-origin",
+  });
   if (upload.ok) {
     return readUploadOffset(upload.headers) !== null
       ? { kind: "upload", handle }
@@ -146,7 +164,7 @@ export async function discoverUpload(fileItemId: string): Promise<UploadDiscover
       },
     };
   }
-  const item = await fetch(`/v1/items/${encodeURIComponent(fileItemId)}`, {
+  const item = await uploadRequest(`/v1/items/${encodeURIComponent(fileItemId)}`, {
     credentials: "same-origin",
   });
   if (item.ok) {
@@ -175,7 +193,10 @@ export async function discoverUpload(fileItemId: string): Promise<UploadDiscover
  * must start again rather than retry forever.
  */
 export async function serverOffset(handle: UploadHandle): Promise<number | null> {
-  const response = await fetch(handle.location, { method: "HEAD", credentials: "same-origin" });
+  const response = await uploadRequest(handle.location, {
+    method: "HEAD",
+    credentials: "same-origin",
+  });
   if (!response.ok) {
     return null;
   }
@@ -184,7 +205,7 @@ export async function serverOffset(handle: UploadHandle): Promise<number | null>
 
 /** Proves a final response was lost after the server already committed the file. */
 async function verifiedFileExists(itemId: string): Promise<boolean> {
-  const response = await fetch(`/v1/items/${encodeURIComponent(itemId)}`, {
+  const response = await uploadRequest(`/v1/items/${encodeURIComponent(itemId)}`, {
     credentials: "same-origin",
   });
   if (!response.ok) return false;
@@ -250,7 +271,7 @@ export async function sendRemaining(
   // logical file. Offset === size alone is not proof of completion.
   if (offset === file.size) {
     onProgress({ kind: "verifying" });
-    const response = await fetch(handle.location, {
+    const response = await uploadRequest(handle.location, {
       method: "PATCH",
       credentials: "same-origin",
       headers: {
@@ -282,7 +303,7 @@ export async function sendRemaining(
   while (offset < file.size) {
     onProgress({ kind: "uploading", sent: offset, total: file.size });
     const chunk = await file.slice(offset, Math.min(offset + CHUNK_BYTES, file.size));
-    const response = await fetch(handle.location, {
+    const response = await uploadRequest(handle.location, {
       method: "PATCH",
       credentials: "same-origin",
       headers: {

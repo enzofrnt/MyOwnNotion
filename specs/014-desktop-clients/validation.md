@@ -36,14 +36,26 @@ Runtime : Bun 1.4.0 ; hôte Electron 44.1.1 ; production construite par Bun.
 
 ## Vérifications en cours et limites de preuve
 
-Un premier `bun run checks:local` a validé 372 fichiers / 3547 tests et le seuil
-agrégé de couverture, puis les huit benchmarks. Le démarrage du conteneur
-PostgreSQL suivant a expiré avant les tests d'intégration. Un PostgreSQL 18
-séparé est maintenant prêt pour relancer la chaîne complète. Le scan Trivy
-0.70.0 de l'image API linux/amd64 a passé (HIGH/CRITICAL avec correctif : zéro). Il inclut le
-package, le smoke installé et les parcours Electron en plus de la matrice
-navigateur complète. Le passage local complet, le scan Trivy, la CI de PR et
-la CI du commit fusionné sur main ne sont pas encore attestés.
+Le passage local sur `b80cf514` a validé 372 fichiers / 3551 tests et le seuil
+agrégé de couverture, les huit benchmarks, les migrations et 1290 tests de
+contrat. La matrice navigateur a révélé des appels de préparation de tests sans
+session et l'absence de CSRF sur le transfert de fichiers par morceaux ; ce
+passage a été arrêté en échec, sans push. Les corrections suivantes ont validé
+19 parcours ciblés de contenu/transfert, puis les deux parcours de compatibilité
+et révocation. Les 58 contrats d'authentification passent avec le diagnostic sûr
+`device_revoked` pour un détenteur de session valide, sans accès au contenu.
+
+L'écran de connexion a été contrôlé dans le package macOS réel après correction
+des styles actifs. Les tests vérifient la reprise après rejet IPC, la conservation
+de la saisie, le CSRF courant sur chaque chunk et le refus d'une destination
+externe. L'AppImage vérifiée devient exécutable par son propriétaire avant le
+handoff ; neuf tests de récupération de mise à jour passent.
+
+Le scan Trivy 0.70.0 de l'image API linux/amd64 a passé (HIGH/CRITICAL avec
+correctif : zéro). La chaîne locale complète doit être relancée sur le commit
+final : elle inclut les cinq navigateurs, le package, le smoke installé et les
+parcours Electron. Le passage local complet, la CI de PR et la CI du commit
+fusionné sur main ne sont pas encore attestés.
 
 La matrice CI configure les cinq cibles natives avec PostgreSQL 18 ; elle doit
 encore être exécutée. Windows ARM utilise un PostgreSQL x64 de test sous

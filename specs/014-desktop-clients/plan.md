@@ -268,3 +268,18 @@ missing also handles server recovery without an operating-system online event.
 Both tag workflow callers must allow the permissions declared by reusable CI
 (SARIF upload and the main-only publisher). GitHub cannot elevate a caller's
 permissions inside a callee. The image publisher remains gated to a main push.
+
+All resumable upload writes use the current memory-only CSRF token, including
+zero-byte finalization and resumed chunks. A server-provided upload destination
+must remain on the current origin, and redirects are refused before sending
+private file bytes. Standalone Playwright API setup authenticates its own cookie
+jar rather than assuming it shares the browser session.
+
+A verified live session belonging to a revoked device gets the existing safe
+`device_revoked` refusal, without obtaining an owner principal. This preserves
+the change-stream UI's revocation diagnosis while ordinary content access stays
+denied. Unknown, expired and revoked session secrets remain indistinguishable.
+The connection form uses the active `global.css` surface and recovers from IPC
+rejection without discarding input. A verified Linux AppImage becomes executable
+by its owner immediately before revealing its folder; this is still a manual
+handoff, not proof that an upgrade completed.

@@ -1,6 +1,6 @@
 import { createHash, verify } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdir, open, rename, rm } from "node:fs/promises";
+import { chmod, mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import type { DesktopUpdateManifest } from "./update-manifest.ts";
 import type { UpdateDriver } from "./updates.ts";
@@ -128,6 +128,7 @@ export function createUpdateDriver(input: {
       if (file !== path.join(input.directory, artifactName(manifest)) || !trustedArtifact(manifest))
         throw new Error("Invalid installer");
       await verifyDownloadedFile(file, manifest);
+      if (manifest.platform === "linux") await chmod(file, 0o700);
       await input.launch(file, manifest);
     },
   };

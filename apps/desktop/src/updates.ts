@@ -123,7 +123,9 @@ export class UpdateOrchestrator {
       this.#phase = "installing";
       await this.driver.launch(this.#file, this.#manifest);
       this.#message =
-        "Installateur vérifié ouvert. Terminez l’installation puis redémarrez l’application. Votre espace local est conservé.";
+        this.driver.host.platform === "linux"
+          ? "AppImage vérifiée prête dans le dossier ouvert. Fermez l’application puis lancez ce fichier pour utiliser la nouvelle version. Votre espace local est conservé."
+          : "Installateur vérifié ouvert. Terminez l’installation puis redémarrez l’application. Votre espace local est conservé.";
     } catch {
       const downloading = this.#phase === "downloading";
       this.#phase = downloading ? "download-failed" : "install-failed";

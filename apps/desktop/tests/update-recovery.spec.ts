@@ -1,5 +1,5 @@
-import { generateKeyPairSync, sign } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -28,6 +28,34 @@ function driver(): UpdateDriver {
   };
 }
 describe("authenticated updates and recovery", () => {
+  it("makes a verified Linux AppImage executable only by its owner before handoff", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "mon-linux-update-test-"));
+    try {
+      const bytes = Buffer.from("verified AppImage fixture");
+      const file = path.join(directory, "MyOwnNotion-0.2.0-linux-arm64.AppImage");
+      const candidate = {
+        ...manifest,
+        platform: "linux" as const,
+        artifactUrl: `${RELEASE_ROOT}/download/v0.2.0/MyOwnNotion-0.2.0-linux-arm64.AppImage`,
+        artifactSha512: createHash("sha512").update(bytes).digest("hex"),
+      };
+      await writeFile(file, bytes, { mode: 0o600 });
+      const launch = vi.fn(async () => {
+        if (process.platform !== "win32") expect((await stat(file)).mode & 0o777).toBe(0o700);
+      });
+      const transport = createUpdateDriver({
+        host: { ...host, platform: "linux" },
+        publicKey: "",
+        directory,
+        launch,
+      });
+      await transport.launch(file, candidate);
+      expect(launch).toHaveBeenCalledOnce();
+      expect(await readFile(file)).toEqual(bytes);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
   it("authenticates exact bytes and refuses tampering or another signer", () => {
     const keys = generateKeyPairSync("ed25519");
     const publicKey = keys.publicKey.export({ type: "spki", format: "pem" }).toString();

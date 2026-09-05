@@ -87,7 +87,7 @@ export interface IssuedSession {
 
 export type SessionResolution =
   | { readonly resolved: true; readonly session: SessionRecord }
-  | { readonly resolved: false; readonly reason: "absent" | "rejected" };
+  | { readonly resolved: false; readonly reason: "absent" | "rejected" | "device-revoked" };
 
 export class SessionService {
   readonly #deps: SessionServiceDeps;
@@ -200,7 +200,9 @@ export class SessionService {
       deviceId: outcome.session.deviceId,
     });
     if (device === null || device.state === "revoked")
-      return { resolved: false, reason: "rejected" };
+      // The session itself was verified. Its holder may learn that this
+      // device lost access, but must never receive an authenticated principal.
+      return { resolved: false, reason: "device-revoked" };
     return { resolved: true, session: outcome.session };
   }
 

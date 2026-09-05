@@ -24,28 +24,40 @@ export function DesktopConnectionPage({ onConnected }: DesktopConnectionPageProp
       }
       setBusy(true);
       setError(null);
-      const result = await desktop.setActiveProfile({ serverUrl });
-      setBusy(false);
-      if (!result.ok) {
-        setError(result.message);
-        return;
+      try {
+        const result = await desktop.setActiveProfile({ serverUrl });
+        if (!result.ok) {
+          setError(result.message);
+          return;
+        }
+        onConnected();
+      } catch {
+        setError(FR_COPY.desktop.connection.failed);
+      } finally {
+        setBusy(false);
       }
-      onConnected();
     },
     [onConnected, serverUrl],
   );
 
   return (
-    <main className="auth-page" data-testid="desktop-connection-page">
-      <h1>{FR_COPY.desktop.connection.title}</h1>
+    <main
+      className="desktop-connection-page ui-auth-surface"
+      data-testid="desktop-connection-page"
+      aria-labelledby="desktop-connection-heading"
+    >
+      <h1 id="desktop-connection-heading">{FR_COPY.desktop.connection.title}</h1>
       <p>{FR_COPY.desktop.connection.description}</p>
-      <form onSubmit={(event) => void submit(event)}>
+      <form className="ui-auth-card" onSubmit={(event) => void submit(event)}>
         <Field
           label={FR_COPY.desktop.connection.serverUrl}
           value={serverUrl}
           onChange={(event) => setServerUrl(event.target.value)}
           autoComplete="url"
           inputMode="url"
+          spellCheck={false}
+          required
+          disabled={busy}
         />
         {error === null ? null : (
           <AsyncState compact kind="error" testId="desktop-connection-error" title={error} />

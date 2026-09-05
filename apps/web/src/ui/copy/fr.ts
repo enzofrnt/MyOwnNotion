@@ -102,10 +102,11 @@ export const FR_COPY = {
     connection: {
       title: "Connecter cette application",
       description:
-        "Indiquez l’adresse de votre serveur MyOwnNotion. L’application n’exécute jamais de code fourni par le serveur.",
+        "Indiquez l’adresse de votre serveur MyOwnNotion pour retrouver vos pages sur cet appareil.",
       serverUrl: "Adresse du serveur",
       submit: "Continuer",
       missingBridge: "Cette fenêtre n’est pas l’application desktop.",
+      failed: "La connexion n’a pas pu être enregistrée. Vérifiez l’adresse puis réessayez.",
     },
     status: {
       compatible: "Le serveur est compatible.",
