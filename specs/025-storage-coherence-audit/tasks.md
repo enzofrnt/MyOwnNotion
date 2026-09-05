@@ -106,8 +106,8 @@ US2 fixture construction and operational documentation after the format is fixed
 US3 occupied-target tests while US4 browser reproduction runs. These are dependency
 opportunities, not a requirement to run extra agents or overlap heavy DB suites.
 
-All 50 task lines follow the checklist/ID/path format. Counts: setup 2,
-foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1. Each story's acceptance
+All 51 task lines follow the checklist/ID/path format. Counts: setup 2,
+foundations 7, US1 12, US2 7, US3 3, US4 5, cross-cutting 5, canonical privacy extension 4, additional gaps 4, resumed migration convergence 1, active page response convergence 1. Each story's acceptance
 criteria precede its implementation and its completion requires recorded proof.
 
 T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferred beyond this audit delivery.
@@ -115,3 +115,7 @@ T042–T045 extend T013/T016/T024 and block T039–T041; they must not be deferr
 ## Phase 8: Convergence — resumed migration protection
 
 - [x] T050 [US2] Authenticate the original full backup of a pending storage transition before any additional SQL migration in `apps/api/src/backup/guarded-migration.ts`; reproduce a missing/corrupted archive plus a new migration, prove unchanged SQL ledger/data/transition/blob state on refusal, and complete the same transition after exact archive repair in `apps/api/tests/full-guarded-migration.integration.spec.ts` (FR-007/FR-008, SC-003).
+
+## Phase 9: Convergence — active page response rejection
+
+- [x] T051 [US4] Prove active `PageReconciler` transport refusals with real Loro transactions in `packages/client-core/tests/page-reconciler-rejection.spec.ts`: missing/foreign acknowledgements, regressive/incompatible frontiers, corrupt remote digests or reused local update identities, and regressive cursors must retain the checkpoint, cursor, content and recoverable local updates without false synchronization; prove a healthy subsequent response resumes the supported path, reject the confirmed passive frontier regression in `packages/client-core/src/page-sync/page-reconciler.ts`, and record focused tests/types/Biome in `specs/025-storage-coherence-audit/validation.md` (FR-011/FR-012/FR-013; partial evidence).

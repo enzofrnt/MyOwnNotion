@@ -224,3 +224,25 @@ transition preparation. Missing or corrupt recovery material must leave the SQL
 migration ledger, canonical data, transition state and original blobs unchanged.
 After repairing the exact original archive, the same invocation may apply the
 new migration and complete the existing transition with the original backup ID.
+
+## Active page response refusal evidence (T051)
+
+Exercise the public `PageReconciler.synchronize()` boundary with encrypted
+disposable IndexedDB and genuine Loro transactions. Extend the existing missing
+acknowledgement case with durable-state and recovery assertions; add foreign
+acknowledgements, incompatible/retreating causal proofs, reused local identities,
+corrupted remote digests, omitted frontier data and retreating server cursors.
+All other response fields derive from valid server-side fixture documents.
+Refused responses must leave the prior sealed checkpoint/cursor unchanged and
+retain local authored bytes. Passive catch-up failures can retry with a corrected
+response; blocked write batches remain recoverable and must not be reset through
+unconnected repository helpers merely to demonstrate retry. Use no private
+method access, internal mocks, coverage exclusions or changes to production unless
+a concrete defect is reproduced. Full delivery gates remain T037/T038/T040/T041.
+
+The transport regression fixture confirmed that passive catch-up accepted a
+server vector older than the already sealed `serverVersionVector` and advanced
+the local cursor. `page-reconciler.ts` must reject that retreat before importing
+or persisting the response; per-update acknowledgement proofs alone cannot
+protect an empty batch. This T051 correction preserves the existing blocked
+response outcome, with subsequent healthy passive pulls still permitted.
