@@ -43,3 +43,7 @@ ship coloring/editing correctness first, copy feedback second, complete gates.
 ## Phase 6 — Convergence: native mobile line breaks
 
 - [x] T013 [US1] Fix FR-004/FR-005 native mobile insertParagraph/insertLineBreak lost by the custom plain code block: add a composition-safe ProseMirror beforeinput handler in apps/web/src/features/editor/code-block-input.ts, focused editor tests, and retain the mobile newline regression in tests/e2e/code-block-ui.spec.ts.
+
+## Phase 7: Convergence
+
+- [x] T014 Register tests/e2e/code-block-ui.spec.ts and its editor owners in ci/test-impact.json, run tests/contract/test-impact.spec.ts, and record integrated 026/027 validation per plan: Validation and delivery and Constitution III/VII (missing).

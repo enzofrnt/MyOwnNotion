@@ -346,6 +346,18 @@
       }
     },
     {
+      "test": "tests/e2e/code-block-ui.spec.ts",
+      "owners": {
+        "exact": ["apps/api/src/routes/page-documents.ts"],
+        "prefixes": [
+          "apps/web/src/features/editor/",
+          "packages/domain/src/document/",
+          "packages/page-state/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/conflict-resolution.spec.ts",
       "owners": {
         "exact": ["apps/web/src/features/save-state/conflict-notice.tsx"],

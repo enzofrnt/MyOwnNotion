@@ -32,3 +32,10 @@ Le profil CPU effectué sur l'ancien corpus de 1 001 racines a identifié 12,8 s
 La purge planifiée complète reste hors 026 : les tests appliquent l'état canonique purgé et retirent les enveloppes éditoriales de l'ancien hôte pour vérifier l'indépendance réelle. La reprise hors ligne testée garde disponible le shell statique ; elle n'atteste pas un premier démarrage sans réseau avec service worker non préparé.
 
 Le parent doit intégrer les corrections 025 postérieures à `e38ccd3b`, conserver sa normalisation d'index dans `indexedCriterion`, puis exécuter `bun run checks:local` et la matrice documentée avant push. Les checks ciblés de cette branche ne sont pas présentés comme un gate complet.
+
+## Intégration sur l'audit courant
+
+Les commits 026 et 027 ont ensuite été repris sur `1104822c` dans une nouvelle
+branche isolée. Les vérifications communes, la préservation des corrections
+de l'audit et les étapes encore attendues sont consignées dans
+[integration-validation.md](integration-validation.md).

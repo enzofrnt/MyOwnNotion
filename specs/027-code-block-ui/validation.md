@@ -79,3 +79,16 @@ and focused evidence. Native mobile input and cold grammar compilation findings
 are resolved. No remaining feature implementation task was found; T012 remains
 the explicit integration/delivery boundary. Canonical `{type: "code", text,
 language}` data remains suitable for future importers without a migration.
+
+## Integration against the current audit
+
+Feature 027 and the four feature 026 commits were applied without conflicts to
+audit base `1104822c` in a new isolated integration branch. Frozen installation,
+repository-wide formatting, Biome and types pass there; the inherited format
+issue above is absent from that base. Focused integration checks pass 31 suites
+and 235 distinct tests. Convergence task T014 fixes the missing code-block E2E
+journey declaration in the CI impact inventory. Details and pending audit T050
+and delivery gates are recorded in
+[the shared integration report](../026-linked-databases/integration-validation.md).
+The browser evidence above remains historical feature-branch evidence; T012
+is still pending on the eventual delivery combination.

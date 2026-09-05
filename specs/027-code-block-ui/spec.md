@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-05
 
-**Status**: Ready for implementation
+**Status**: Implemented; focused integration validated, delivery gate pending
 
 **Input**: The owner finds the existing code blocks unattractive and missing syntax colors.
 
