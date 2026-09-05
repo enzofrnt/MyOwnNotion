@@ -1,10 +1,25 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 const processResult = vi.hoisted(() => vi.fn());
+const fileFault = vi.hoisted(() => ({ operation: "" }));
 vi.mock("node:child_process", () => ({ spawnSync: processResult }));
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    accessSync: (...args: Parameters<typeof actual.accessSync>) => {
+      if (fileFault.operation === "access") throw new Error("fixture access denied");
+      return actual.accessSync(...args);
+    },
+    readFileSync: (...args: Parameters<typeof actual.readFileSync>) => {
+      if (fileFault.operation === "read") throw new Error("fixture read failed");
+      return actual.readFileSync(...args);
+    },
+  };
+});
 
 import { checkDeploymentKey, loadDeploymentKey } from "../src/security/deployment-key.ts";
 import {
@@ -20,6 +35,76 @@ const valid = {
   rules: [{ sid: "S-1-5-21-123", type: "Allow" }],
 };
 describe("Windows deployment key ACL validation", () => {
+  it.each(["missing", "directory", "access", "read"])(
+    "discards a warmed permission verdict after a %s loader failure",
+    (failure) => {
+      const root = mkdtempSync(path.join(os.tmpdir(), "mon-acl-loader-failure-"));
+      const filename = path.join(root, "fixture");
+      const platform = Object.getOwnPropertyDescriptor(process, "platform");
+      if (platform === undefined) throw new Error("Missing platform descriptor");
+      try {
+        writeFileSync(filename, Buffer.alloc(32, 17).toString("base64"), { mode: 0o600 });
+        Object.defineProperty(process, "platform", { value: "win32" });
+        processResult.mockClear();
+        processResult.mockReturnValue({ status: 0, stdout: JSON.stringify(valid) });
+        expect(loadDeploymentKey(filename).bytes).toEqual(new Uint8Array(Buffer.alloc(32, 17)));
+        if (failure === "missing" || failure === "directory") {
+          rmSync(filename);
+          if (failure === "directory") mkdirSync(filename);
+        } else fileFault.operation = failure;
+        expect(checkDeploymentKey(filename)).toEqual({
+          available: false,
+          problem:
+            failure === "missing"
+              ? "missing"
+              : failure === "directory"
+                ? "not-a-file"
+                : "unreadable",
+        });
+        fileFault.operation = "";
+        if (failure === "missing" || failure === "directory") {
+          rmSync(filename, { recursive: true, force: true });
+          writeFileSync(filename, Buffer.alloc(32, 17).toString("base64"), { mode: 0o600 });
+        }
+        processResult.mockReturnValue({
+          status: 0,
+          stdout: JSON.stringify({ ...valid, protected: false }),
+        });
+        expect(checkDeploymentKey(filename)).toEqual({
+          available: false,
+          problem: "world-readable",
+        });
+        expect(processResult).toHaveBeenCalledTimes(2);
+      } finally {
+        fileFault.operation = "";
+        Object.defineProperty(process, "platform", platform);
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it.each(["access", "read"])("fails closed after a POSIX %s failure", (failure) => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "mon-key-posix-failure-"));
+    const filename = path.join(root, "fixture");
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+    if (platform === undefined) throw new Error("Missing platform descriptor");
+    try {
+      writeFileSync(filename, Buffer.alloc(32, 17).toString("base64"), { mode: 0o600 });
+      Object.defineProperty(process, "platform", { value: "linux" });
+      fileFault.operation = failure;
+      expect(checkDeploymentKey(filename, { enforcePermissions: false })).toEqual({
+        available: false,
+        problem: "unreadable",
+      });
+      fileFault.operation = "";
+      expect(checkDeploymentKey(filename, { enforcePermissions: false }).available).toBe(true);
+    } finally {
+      fileFault.operation = "";
+      Object.defineProperty(process, "platform", platform);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("selects ACL enforcement in the real loader and refuses an unverified descriptor", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "mon-acl-loader-"));
     const filename = path.join(root, "fixture");
@@ -189,6 +274,8 @@ describe("Windows ACL positive cache", () => {
       { ...identity(), ctimeNs: undefined },
       { ...identity(), ctimeNs: 3 },
       { ...identity(), ctimeNs: 0n },
+      { ...identity(), mtimeNs: 0n },
+      { ...identity(), birthtimeNs: 0n },
       { ...identity(), ino: 0n },
       { ...identity(), size: -1n },
       { ...identity(), isFile: () => false },

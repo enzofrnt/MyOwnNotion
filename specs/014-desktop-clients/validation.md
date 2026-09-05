@@ -319,3 +319,19 @@ The same PR run also reports the Windows ARM64 onboarding tree still loading
 after restart at the unchanged 15-second readiness deadline, alongside the
 offline replay failure. Both need fresh native confirmation; local success is
 not a Windows success claim. Artifact: `/tmp/mon-win7e-arm/`.
+
+The complete local attempt on `83269ec5` stops at the unchanged absolute coverage
+gate: 338 uncovered functions (budget 337), 2,218 statements (2,216), and 2,471
+branches (2,465). The missing Windows loader-error paths now have executable
+regressions: a warm verdict is discarded after deletion, directory replacement,
+access denial or a failed read; repaired access still requires a fresh descriptor
+inspection. POSIX I/O failures also remain closed. Both permission/loader suites
+pass 59 cases, with 100% functions, 99.06% statements and 97.8% branches for these
+two production modules; API types and Biome pass. Full aggregate validation must
+be repeated, with no changed thresholds. Evidence:
+`/tmp/mon-full-gate-desktop-acl-cache.log`, `/tmp/mon-acl-loader-failures.log`.
+
+PR run 33989013305 is complete: all five browser projects, Linux x64/ARM64,
+macOS ARM64 and every other application/security check passed. Windows x64 and
+ARM64 native lifecycle failures keep its quality gate red; no merge or main
+validation is claimed by this run.
