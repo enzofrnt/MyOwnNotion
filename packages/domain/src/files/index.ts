@@ -8,4 +8,5 @@
  */
 export * from "./deletion.ts";
 export * from "./eviction.ts";
+export * from "./protected-file.ts";
 export * from "./usages.ts";
