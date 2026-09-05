@@ -264,6 +264,10 @@ export function App(props: AppProps = {}) {
   }, [securityApi]);
 
   useEffect(() => {
+    // The browser already has its final runtime. Replacing that equal profile
+    // would replace SecurityApi while its first session request is pending,
+    // leaving a mounted realtime channel waiting on the new client's token.
+    if (window.myownnotionDesktop === undefined) return;
     let cancelled = false;
     void detectClientRuntime().then(async (detected) => {
       if (cancelled) {
@@ -297,8 +301,11 @@ export function App(props: AppProps = {}) {
   }, []);
 
   useEffect(() => {
-    void resolveGate();
-  }, [resolveGate]);
+    // A native host must resolve its server profile before authentication.
+    // Otherwise an obsolete client's response can open the workspace while
+    // the selected profile's client is still unauthenticated.
+    if (runtimeReady) void resolveGate();
+  }, [resolveGate, runtimeReady]);
 
   useEffect(() => {
     if (gate !== "workspace") return;

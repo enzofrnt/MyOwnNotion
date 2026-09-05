@@ -172,6 +172,46 @@ describe("application routing", () => {
     });
   }
 
+  it("authenticates only after the native server profile is resolved", async () => {
+    const api = securityApi();
+    let releaseProfile!: () => void;
+    const pendingProfile = new Promise<void>((resolve) => {
+      releaseProfile = resolve;
+    });
+    const profile = {
+      profileId: "native-profile",
+      serverUrl: window.location.origin,
+      protocolCompatibility: "compatible",
+    };
+    const previous = Object.getOwnPropertyDescriptor(window, "myownnotionDesktop");
+    Object.defineProperty(window, "myownnotionDesktop", {
+      configurable: true,
+      value: {
+        platform: "darwin",
+        appVersion: "0.0.0",
+        getActiveProfile: async () => {
+          await pendingProfile;
+          return profile;
+        },
+      },
+    });
+    try {
+      await renderAt("/notes", api);
+      expect(container.querySelector('[data-testid="app-checking"]')).not.toBeNull();
+      expect(api.status).not.toHaveBeenCalled();
+      expect(api.currentSession).not.toHaveBeenCalled();
+      await act(async () => {
+        releaseProfile();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(api.currentSession).toHaveBeenCalledTimes(1);
+      expect(container.querySelector('[data-testid="routed-hierarchy"]')).not.toBeNull();
+    } finally {
+      if (previous === undefined) Reflect.deleteProperty(window, "myownnotionDesktop");
+      else Object.defineProperty(window, "myownnotionDesktop", previous);
+    }
+  });
+
   it("canonicalizes the root and settings index with replacement navigation", async () => {
     await renderAt("/");
     expect(container.querySelector('[data-testid="route-location"]')?.textContent).toBe("/notes");

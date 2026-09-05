@@ -87,3 +87,17 @@ La couverture d'accessibilité desktop et la parité exhaustive de tous les
 parcours Web doivent être distinguées des sept parcours ciblés. Les critères
 SC-001, SC-002, SC-006, SC-007 et SC-008 ne sont pas déclarés intégralement
 validés à ce stade. Aucun merge ou publication n'est attesté dans ce document.
+
+Le passage complet isolé sur `934c29ff` a validé 373 fichiers / 3555 tests avec
+couverture, huit benchmarks, 333 tests d'intégration et 1290 contrats. Chromium
+a ensuite terminé avec 258 succès et neuf échecs ; Firefox a reproduit les
+symptômes. La passe a été interrompue et n'autorise aucun push. Le diagnostic
+isolé a montré que la détection runtime Web recréait SecurityApi pendant sa
+première authentification, laissant le canal temps réel `idle` jusqu'au prochain
+événement réseau. Le Web conserve désormais son runtime final et le desktop
+attend son profil avant l'authentification. Le scénario de graphe utilise aussi
+la fixture API authentifiée. Les scénarios ciblés graphe, convergence de pages
+fermées, temps réel, révocation/restauration et références visuelles passent
+ensemble sur Chromium. Quinze tests de routage passent, dont le profil natif
+retardé qui interdit toute authentification prématurée. La passe complète sur
+le nouveau commit reste obligatoire.
