@@ -77,9 +77,10 @@ une entrée et éditer son contenu comme une page ordinaire.
 
 **Acceptance Scenarios**:
 
-1. **Given** un emplacement du workspace, **When** le propriétaire crée une
-   base et lui donne un nom, **Then** elle apparaît dans la navigation avec une
-   identité stable et une première vue utilisable.
+1. **Given** une page ordinaire du workspace, **When** le propriétaire crée une
+   base et lui donne un nom, **Then** une source indépendante est créée avec une
+   identité stable et une première vue intégrée ; la page reste dans la navigation
+   (évolution 026).
 2. **Given** une base, **When** le propriétaire ajoute des propriétés texte,
    nombre, date, statut, sélection, sélection multiple, case à cocher et
    relation, **Then** chacune accepte uniquement des valeurs conformes à son
@@ -280,8 +281,10 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
 
 **Bases, schémas et identités**
 
-- **FR-001**: Le propriétaire MUST pouvoir créer, renommer, déplacer, mettre à
-  la corbeille et restaurer une base comme un élément identifiable du workspace.
+- **FR-001**: Le propriétaire MUST pouvoir créer et nommer une source de base
+  identifiable, puis l'afficher dans des pages ordinaires. Déplacer, mettre à la
+  corbeille ou restaurer une page d'affichage MUST conserver la source et ses
+  entrées ; la 026 remplace le cycle de vie initialement couplé à cette page.
 - **FR-002**: Chaque base MUST conserver une identité stable indépendante de
   son nom, de son emplacement et de ses vues.
 - **FR-003**: Chaque entrée MUST être une page canonique ouvrable et éditable,
@@ -550,3 +553,7 @@ client puis reconnecter les deux appareils et résoudre les conflits produits.
   future feature de cycle de vie.
 - Collaboration multi-utilisateur, assignation à une autre personne, présence
   et coédition, incompatibles avec le produit mono-utilisateur.
+
+### Clarification 026 — emplacement des entrées
+
+Une nouvelle entrée créée depuis une vue reste une page canonique sans placement hiérarchique automatique. Les clients peuvent demander un placement explicitement ; les placements historiques sont conservés. La recherche et l’ouverture canonique ne dépendent pas d’un emplacement dans la navigation.

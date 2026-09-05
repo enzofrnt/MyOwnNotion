@@ -468,12 +468,17 @@ async function executeCreateEntry(
   if (existingMembership !== null || existingItem !== null) {
     return err("database.membership-conflict", "Page already has a database membership");
   }
+  // Reuse ordinary page/document validation without assigning an implicit
+  // navigation location to pages whose membership is their creation context.
+  const placement = command.placement ?? {
+    id: generateUuidV7(),
+    parentItemId: null,
+    positionKey: "a0",
+  };
   const parent =
-    (command.placement.parentItemId === command.databaseId
+    (placement.parentItemId === command.databaseId ? null : placement.parentItemId) === null
       ? null
-      : command.placement.parentItemId) === null
-      ? null
-      : await getItem(tx, command.placement.parentItemId as Uuid);
+      : await getItem(tx, placement.parentItemId as Uuid);
   const plan = validateCreateItem(
     {
       getItem: (id) => (id === parent?.id ? parent : null),
@@ -485,11 +490,8 @@ async function executeCreateEntry(
       kind: "page",
       name: command.title,
       placement: {
-        ...command.placement,
-        parentItemId:
-          command.placement.parentItemId === command.databaseId
-            ? null
-            : command.placement.parentItemId,
+        ...placement,
+        parentItemId: placement.parentItemId === command.databaseId ? null : placement.parentItemId,
         kind: "hierarchy",
       },
       pageDocument: command.document ?? EMPTY_PAGE_DOCUMENT,
@@ -521,17 +523,17 @@ async function executeCreateEntry(
     formatVersion: document.formatVersion,
     body: document.body,
   });
-  await tx.insert(placements).values({
-    id: command.placement.id,
-    workspaceId: context.workspaceId,
-    itemId: command.id,
-    itemIsFile: false,
-    kind: "hierarchy",
-    parentItemId:
-      command.placement.parentItemId === command.databaseId ? null : command.placement.parentItemId,
-    positionKey: command.placement.positionKey,
-    createdRevisionId: revisionId,
-  });
+  if (command.placement !== undefined)
+    await tx.insert(placements).values({
+      id: placement.id,
+      workspaceId: context.workspaceId,
+      itemId: command.id,
+      itemIsFile: false,
+      kind: "hierarchy",
+      parentItemId: placement.parentItemId === command.databaseId ? null : placement.parentItemId,
+      positionKey: placement.positionKey,
+      createdRevisionId: revisionId,
+    });
   const entryValues: EntryValues = {
     format: "myownnotion.database-entry-values+json",
     formatVersion: 1,

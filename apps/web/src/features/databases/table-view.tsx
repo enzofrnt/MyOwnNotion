@@ -172,6 +172,7 @@ export function TableView({
   relationOptions = [],
   scrollTop = 0,
   onScroll,
+  returnFocusEntryId,
 }: {
   readonly properties: readonly DatabaseProperty[];
   readonly view: DatabaseView;
@@ -182,6 +183,7 @@ export function TableView({
   readonly relationOptions?: readonly RelationOption[];
   readonly scrollTop?: number;
   readonly onScroll?: (scrollTop: number) => void;
+  readonly returnFocusEntryId?: Uuid | null;
 }) {
   const stableProperties = useDeepStableValue(properties);
   const stablePresentations = useDeepStableValue(view.properties);
@@ -247,6 +249,7 @@ export function TableView({
       element.scrollTop = scrollTop;
     }
   }, [scrollTop]);
+  const returnIndex = rows.findIndex((row) => row.original.entryId === returnFocusEntryId);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
@@ -256,6 +259,7 @@ export function TableView({
     rangeExtractor: (range) => {
       const indexes = defaultRangeExtractor(range);
       if (!indexes.includes(activeCell.row)) indexes.push(activeCell.row);
+      if (returnIndex >= 0 && !indexes.includes(returnIndex)) indexes.push(returnIndex);
       return indexes.sort((left, right) => left - right);
     },
   });

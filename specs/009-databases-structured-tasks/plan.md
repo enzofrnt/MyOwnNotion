@@ -19,11 +19,11 @@ valide pas rétroactivement les écrans existants.
 
 ## Summary
 
-Ajouter aux pages canoniques une capacité de base de données : la page hôte
-conserve son identité, sa hiérarchie, son cycle de vie et son historique, puis
-un schéma typé, des vues enregistrées et des pages membres viennent enrichir
-cette identité. Une entrée reste une page ordinaire ; son appartenance à une
-base est une relation structurelle distincte de son placement hiérarchique.
+Ajouter aux pages canoniques des propriétés structurées et des vues de base.
+La 026 fait évoluer la livraison initiale : une source indépendante possède
+son schéma et ses entrées ; les pages ordinaires portent des emplacements avec
+leurs propres vues. Une entrée reste une page ordinaire ; son appartenance est
+une relation structurelle distincte de son placement hiérarchique.
 
 Les libellés, configurations et valeurs sont écrits dans les enveloppes
 applicatives existantes. PostgreSQL ne conserve en clair que les identités et
@@ -85,7 +85,7 @@ cinq types de vue
 | II. One Spec, Any Agent | Tous les choix, contrats et preuves de la feature restent sous `specs/009-databases-structured-tasks` | PASS |
 | III. Incremental, Verifiable Delivery | Les fondations, schéma/entrées, table/liste, tâches, vues visuelles puis convergence forment des tranches testables et utiles | PASS |
 | IV. Privacy and Security by Default | Libellés, options, configurations et valeurs utilisent les enveloppes serveur et locales ; la projection déchiffrée est transitoire et les requêtes privées restent dans des corps authentifiés | PASS |
-| V. Simple, Modular Architecture | Une capacité ajoutée aux pages et un évaluateur commun réutilisent identité, révisions, outbox et recherche ; aucun service ni journal parallèle n'est ajouté | PASS |
+| V. Simple, Modular Architecture | Une source indépendante, des pages membres canoniques et un évaluateur commun réutilisent identité, révisions, outbox et recherche ; aucun service ni journal parallèle n'est ajouté | PASS |
 | VI. Accessible and Predictable Experience | Les contrats imposent rôles, focus, clavier, annonces, alternatives au glisser-déposer, couverture et erreurs visibles pour les cinq vues | PASS |
 | VII. Reproducible Toolchains | Les trois dépendances MIT sont ajoutées par pnpm, verrouillées et soumises aux contrôles de licences, builds et tests existants | PASS |
 | VIII. Canonical Product Direction | Le plan concrétise les sections 10, 14, 17 à 22, 27 à 33 et 42 à 43 sans absorber graphe, whiteboards, public, MCP ou évolution complète de l'éditeur | PASS |
@@ -178,12 +178,12 @@ module Web unique et n'introduisent pas un package ou service autonome.
 
 ### Identité canonique et persistance
 
-Une base est une page canonique portant une capacité `database`. Son `itemId`
-est aussi son `databaseId` : renommer, déplacer, mettre à la corbeille et
-restaurer passent par les mécanismes existants. Un enregistrement structurel
-`databases` atteste cette capacité. Une entrée est une autre page canonique ;
-`database_entries` relie son identité à une seule base sans déduire cette
-appartenance de la hiérarchie.
+Le registre `databases` est l'autorité de la source indépendante depuis 026.
+Les identifiants `itemId`/`databaseId` existants et l'ancre de journal restent
+compatibles, mais la révision de définition est portée par le registre et ne
+dépend plus du cycle de vie d'une page hôte. Les configurations des emplacements
+sont protégées dans la définition. `database_entries` relie une page canonique
+à une seule source sans déduire cette appartenance de la hiérarchie.
 
 Deux familles de payloads protégés sont ajoutées : `database.definition`
 contient propriétés, options, vues et rôles de tâche ;
@@ -197,15 +197,15 @@ identité de page, relation ou tâche.
 
 Les commandes structurées rejoignent l'union `MutationCommand`, son parseur et
 le même batch idempotent que les autres écritures. Une modification de
-définition produit une révision de la page hôte ; une modification de valeurs
-produit une révision de la page d'entrée. Le snapshot de révision transporte
+définition produit une révision de source dans son journal conservé ; une
+modification de valeurs produit une révision de la page d'entrée. Le snapshot de révision transporte
 l'état structuré concerné sous l'enveloppe existante.
 
-Toute mutation ordinaire qui touche une page hôte ou une page d'entrée
-(renommage, document, déplacement de lifecycle ou restauration) capture aussi
-son état structuré courant. Une conversion de l'une de ces pages en dossier est
-refusée tant que la capacité ou l'appartenance existe, car elle violerait
-l'invariant « base et entrée sont des pages ».
+Une mutation ordinaire d'entrée capture son état structuré courant. Les
+mutations éditoriales de l'ancienne page hôte n'avancent pas la révision de
+source ; les révisions de définition contiennent seulement son état structuré.
+La conversion d'une entrée en dossier reste refusée tant que son appartenance
+existe. La suppression ou purge d'un hôte conserve la source et ses entrées.
 
 Une fusion à trois voies compare les objets par identités stables. Deux
 propriétés, deux vues ou deux valeurs de propriétés distinctes peuvent fusionner
@@ -339,3 +339,5 @@ gates constitutionnels restent PASS.
 | Projection structurée transitoire serveur et locale | Le chiffrement applicatif interdit d'indexer les valeurs privées en clair dans PostgreSQL, tandis que les vues doivent filtrer et trier 100 000 entrées | Déchiffrer tout à chaque requête dépasse la cible et créer un index persistant ajouterait une nouvelle surface sensible |
 | TanStack Table + Virtual | Une table éditable, contrôlée, accessible et volumineuse exige état de colonnes et réduction du DOM sans imposer de rendu propriétaire | Une table maison reconstruirait navigation et état ; une grille complète imposerait son modèle de données et son identité visuelle |
 | decimal.js-light | Les nombres doivent garder une forme et un ordre identiques sans perte binaire entre Node et navigateurs | `Number` perd des chiffres à partir de certaines saisies et rend la valeur canonique dépendante d'un aller-retour flottant |
+
+026 rend le champ placement optionnel exclusivement pour database.entry.create ; les flux des vues omettent ce champ. Les autres créations et les placements explicitement fournis conservent leur contrat.

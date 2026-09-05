@@ -110,6 +110,23 @@ describe("structured database commands (T018)", () => {
     expect(result.value.relationTargets).toEqual(relationTargets);
   });
 
+  it("accepts an entry without a placement and preserves an explicitly supplied placement", () => {
+    const input = {
+      databaseId: IDS.database,
+      id: IDS.entryA,
+      title: "Entry",
+      values: {},
+      relationTargets: {},
+    };
+    const unplaced = parse("database.entry.create", input);
+    expect(unplaced.ok).toBe(true);
+    if (unplaced.ok) expect(unplaced.value).not.toHaveProperty("placement");
+    const explicit = parse("database.entry.create", { ...input, placement });
+    expect(explicit.ok).toBe(true);
+    if (explicit.ok) expect(explicit.value).toHaveProperty("placement", placement);
+    expect(parse("database.entry.create", { ...input, placement: null }).ok).toBe(false);
+  });
+
   it("parses a complete desired-state value replacement", () => {
     const result = parse("database.entry.values.replace", {
       databaseId: IDS.database,

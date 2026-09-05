@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/026-linked-databases`  
 **Created**: 2026-09-05  
-**Status**: Spécifiée, en cours d'implémentation
+**Status**: Implémentée et vérifiée localement ; gate de livraison après intégration
 
 **Input**: Une base indépendante peut être affichée dans plusieurs pages normales, avec des vues configurables table, Kanban et calendrier. Les entrées restent des pages canoniques.
 
@@ -14,6 +14,7 @@ Cette extension de la 009 applique les sections 10, 13, 14, 18–22, 27–33 et 
 
 - Une base est une ressource indépendante ; une page ordinaire l'affiche par un emplacement. Le propriétaire peut insérer plusieurs ressources dans une page et la même ressource dans plusieurs pages.
 - Le schéma et les valeurs appartiennent à la source. Chaque emplacement possède ses propres vues enregistrées. Retirer un emplacement ou supprimer sa page conserve la source et les pages d'entrée.
+- Une entrée créée depuis une vue ne reçoit pas de placement hiérarchique automatique ; elle reste une page canonique recherchable et ouvrable. Un placement explicitement fourni reste conservé. Les placements historiques ne sont pas retirés sans preuve de provenance.
 - Une source sans emplacement reste disponible dans le sélecteur de bases. La suppression définitive de sources est exclue de cette extension ; le retrait d'affichage est réversible en réinsérant la source.
 - Les bases existantes conservent leurs identifiants et leur affichage sur leur ancienne page hôte devenue une page ordinaire. Les entrées conservent identité, contenu, liens, valeurs et historique.
 
@@ -69,6 +70,9 @@ Source absente localement ; données partiellement téléchargées ; propriété
 - **FR-009** Les sources, emplacements et vues sont inclus dans export, restauration et sauvegarde. Les noms et configurations privés ne sont pas persistés en clair.
 - **FR-010** L'interface présente des actions sémantiques, erreurs avec reprise, état vide, état chargé, thème clair/sombre, focus et largeur de 320 px utilisables.
 
+- **FR-011** Aucune entrée ne disparaît du fait d'un plafond d'affichage : les vues proposent un chargement progressif explicite et un compte chargé. Le tri et le filtre portent sur toutes les données disponibles, et une couverture locale partielle est signalée sans annoncer une base complète.
+- **FR-012** Créer une entrée depuis une vue ne crée aucun placement hiérarchique ; les entrées restent accessibles via les vues, la recherche et leur identité canonique. Un placement fourni explicitement par un client ou import est conservé.
+
 ## Key Entities
 
 - **Source de base** : identité stable, nom, schéma et ensemble de pages d'entrée.
@@ -81,3 +85,5 @@ Source absente localement ; données partiellement téléchargées ; propriété
 - **SC-002** Modifier la configuration d'un emplacement laisse toutes les configurations voisines inchangées après redémarrage et synchronisation.
 - **SC-003** La suppression et purge de tous les hôtes conservent 100 % des sources et entrées du scénario de migration.
 - **SC-004** Un aller-retour d'export/restauration conserve identités, valeurs et configurations ; aucun contenu privé témoin n'apparaît en clair dans les tables ou le stockage local actif.
+
+- **SC-005** Une source de plus de 1 000 entrées permet de charger sa dernière entrée, de l’ouvrir puis de revenir à son emplacement avec focus ; un filtre ciblant cette entrée fonctionne avant le chargement visuel des pages précédentes.

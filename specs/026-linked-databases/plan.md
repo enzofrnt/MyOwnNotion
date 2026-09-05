@@ -46,3 +46,19 @@ Tests de domaine pour identité/validation/fusion d'emplacements ; tests réels 
 ## Project Structure
 
 `packages/domain/src/databases/`, `packages/contracts/src/content-api.ts`, `packages/database/src/`, `packages/client-core/src/`, `apps/api/src/databases/`, `apps/web/src/features/databases/`, `apps/web/src/features/hierarchy/`, tests associés et `specs/026-linked-databases/`.
+
+## Convergence : pagination et chargement des grandes sources
+
+Les emplacements parcourent les curseurs canoniques avec une commande explicite et un compte chargé ; ils n'annoncent pas une couverture complète quand des valeurs locales sont déchargées. Le retour à une entrée hors première page recharge les curseurs de sa vue avant de restaurer le focus. Un scénario API + navigateur crée 1 001 entrées canoniques protégées et mesure séparément la préparation, la première page et la suivante.
+
+Le chargement SQL de la projection ne doit pas relire et déchiffrer chaque page éditoriale à chaque ajout. Une lecture groupée porte uniquement noms, versions exactes des valeurs et relations ; la couche de protection partagée conserve l'authentification et refuse l'absence d'une enveloppe nécessaire. La projection réutilise les entrées inchangées si la définition reste identique, avec reconstruction complète sur changement de définition ou invalidation.
+
+Le scénario réel a également révélé deux coûts de rattrapage : résolution API séquentielle des noms/corps et transactions IndexedDB par entrée affichée. Les lectures de contenu partagées sont groupées par type d'enveloppe ; la résolution locale récupère items/placements/relations par lots et ouvre les enveloppes avec une concurrence bornée à 64, sans persister de copie en clair. Les délais de préparation API et de disponibilité de l'UI sont mesurés séparément.
+
+
+Les affichages conservent leur projection locale lorsqu'une entrée est ouverte. Le panneau reçoit immédiatement l'entrée canonique déjà visible, puis la sélection structurelle vérifie son état en arrière-plan comme pour le parcours 009. Le rafraîchissement de navigation exclut également les ancres de source sans placement après une notification incrémentale, et non uniquement au démarrage.
+
+
+## Clarification des placements d'entrée
+
+`database.entry.create` accepte un `placement` optionnel ; tous les autres contrats de création gardent leurs exigences. Le flux UI omet ce champ et l'API/outbox locale créent une page canonique et son appartenance sans placement hiérarchique. Le contrat explicite ancien continue de fonctionner. Aucune colonne ni migration supplémentaire n'est nécessaire : 0016 autorise déjà les pages sans placement, et son détachement historique conserve les identifiants de placements existants. Le corpus UI de 1 001 entrées reproduit ce nouveau défaut et vérifie que la navigation ne comporte pas 1 001 racines. Les permissions MCP par branche restent fondées sur la hiérarchie ; un affichage n'accorde aucun droit implicite sur les entrées.

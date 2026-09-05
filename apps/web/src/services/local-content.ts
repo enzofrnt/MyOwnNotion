@@ -967,7 +967,12 @@ export class LocalContentService {
   }
 
   async listActiveItems(): Promise<ProjectedItem[]> {
-    return this.repository.listItems("active");
+    const [items, sourceIds] = await Promise.all([
+      this.repository.listItems("active"),
+      this.db.databases.toCollection().primaryKeys(),
+    ]);
+    const sources = new Set(sourceIds);
+    return items.filter((item) => !sources.has(item.id) || item.placements.length > 0);
   }
 
   async getKnowledgeGraphTopology(): Promise<RawGraphSource> {
@@ -982,6 +987,10 @@ export class LocalContentService {
 
   async listTrashedItems(): Promise<ProjectedItem[]> {
     return this.repository.listItems("trashed");
+  }
+
+  async getItems(itemIds: readonly Uuid[]): Promise<ProjectedItem[]> {
+    return this.repository.getItems(itemIds);
   }
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {
@@ -1523,6 +1532,11 @@ export class LocalContentService {
     };
   }
 
+  async listDatabases(): Promise<LocalDatabaseRow[]> {
+    await this.#unlock();
+    return this.databases.listDatabases();
+  }
+
   async getDatabase(databaseId: Uuid): Promise<LocalDatabaseRow | null> {
     await this.#unlock();
     return this.databases.getDatabase(databaseId);
@@ -1550,17 +1564,15 @@ export class LocalContentService {
   }
 
   async previewTrashImpact(
-    itemId: Uuid,
+    _itemId: Uuid,
   ): Promise<{ readonly isDatabase: boolean; readonly activeEntryCount: number }> {
     await this.#unlock();
-    const database = await this.db.databases.get(itemId);
-    if (database === undefined) return { isDatabase: false, activeEntryCount: 0 };
-    const memberships = await this.db.databaseEntries.where("databaseId").equals(itemId).toArray();
-    const members = await this.db.items.bulkGet(memberships.map(({ entryItemId }) => entryItemId));
-    return {
-      isDatabase: true,
-      activeEntryCount: members.filter((item) => item?.lifecycle === "active").length,
-    };
+    return { isDatabase: false, activeEntryCount: 0 };
+  }
+
+  async getDatabaseEntryRelations(databaseId: Uuid, entryIds: readonly Uuid[]) {
+    await this.#unlock();
+    return this.databases.getRelationTargetsForEntries(databaseId, entryIds);
   }
 
   async getDatabaseEntryRelationTargets(databaseId: Uuid, entryId: Uuid) {

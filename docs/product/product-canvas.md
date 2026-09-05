@@ -694,6 +694,8 @@ existants, avec sauvegarde complète préalable vérifiée. Sources et emplaceme
 suivent les garanties de chiffrement, hors ligne, synchronisation,
 export et restauration des autres données canoniques.
 
+Une entrée créée depuis une vue est une page canonique sans placement hiérarchique automatique. Elle reste indexable, recherchable et ouvrable depuis chaque affichage de sa source ; la création de nombreuses entrées ne remplit pas la racine de navigation. Les placements explicitement fournis par le propriétaire, un client ou un import sont conservés, ainsi que les placements existants dont l'origine manuelle ne peut pas être distinguée sûrement. L'appartenance à une base ne confère aucun accès implicite aux pages qui l'affichent.
+
 Les bases de données suivent le modèle mental de Notion. Une entrée est une page possédant des propriétés, par exemple :
 
 - texte ;

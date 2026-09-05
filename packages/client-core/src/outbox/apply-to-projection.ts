@@ -756,6 +756,7 @@ export async function applyCommandToProjection(
         );
       }
       if (
+        command.placement !== undefined &&
         (command.placement.parentItemId === command.databaseId
           ? null
           : command.placement.parentItemId) !== null
@@ -785,21 +786,22 @@ export async function applyCommandToProjection(
         mutationId,
       );
       await db.items.add(prepared.item);
-      await db.placements.add({
-        id: command.placement.id,
-        itemId: command.id,
-        kind: "hierarchy",
-        parentItemId:
-          command.placement.parentItemId === command.databaseId
-            ? null
-            : command.placement.parentItemId,
-        parentKey: parentKeyOf(
-          command.placement.parentItemId === command.databaseId
-            ? null
-            : command.placement.parentItemId,
-        ),
-        positionKey: command.placement.positionKey,
-      });
+      if (command.placement !== undefined)
+        await db.placements.add({
+          id: command.placement.id,
+          itemId: command.id,
+          kind: "hierarchy",
+          parentItemId:
+            command.placement.parentItemId === command.databaseId
+              ? null
+              : command.placement.parentItemId,
+          parentKey: parentKeyOf(
+            command.placement.parentItemId === command.databaseId
+              ? null
+              : command.placement.parentItemId,
+          ),
+          positionKey: command.placement.positionKey,
+        });
       await db.databaseEntries.add(prepared.databaseEntry);
       await reconcileLocalDatabaseRelationships(db, {
         databaseId: command.databaseId,

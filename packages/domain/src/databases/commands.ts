@@ -65,7 +65,7 @@ export type DatabaseMutationCommand =
       readonly databaseId: Uuid;
       readonly id: Uuid;
       readonly title: string;
-      readonly placement: DatabasePlacementInput;
+      readonly placement?: DatabasePlacementInput;
       readonly document?: PageDocument;
       readonly values: Readonly<Record<Uuid, NonRelationPropertyValue>>;
       readonly relationTargets: RelationTargets;
@@ -427,8 +427,8 @@ export function parseDatabaseMutationCommand(
       if (
         !hasExactKeys(
           payload,
-          ["databaseId", "id", "title", "placement", "values", "relationTargets"],
-          ["document"],
+          ["databaseId", "id", "title", "values", "relationTargets"],
+          ["document", "placement"],
         ) ||
         !isUuid(payload["databaseId"]) ||
         !isUuid(payload["id"]) ||
@@ -437,7 +437,8 @@ export function parseDatabaseMutationCommand(
         return invalid();
       }
       const title = normalizeDisplayName(payload["title"]);
-      const placement = parsePlacement(payload["placement"]);
+      const placement =
+        payload["placement"] === undefined ? undefined : parsePlacement(payload["placement"]);
       const values = parseValues(payload["values"]);
       const relationTargets = parseRelationTargets(payload["relationTargets"]);
       const document =
@@ -451,7 +452,7 @@ export function parseDatabaseMutationCommand(
         databaseId: payload["databaseId"],
         id: payload["id"],
         title: title.value,
-        placement,
+        ...(placement === undefined ? {} : { placement }),
         ...(document === undefined ? {} : { document }),
         values,
         relationTargets,

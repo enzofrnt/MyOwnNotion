@@ -129,7 +129,6 @@ describe("protected reusable database resources", () => {
       payload: {
         id: entryId,
         title: "Shared page",
-        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "b" },
         document: {
           format: "myownnotion.document+json",
           formatVersion: 1,
@@ -143,6 +142,19 @@ describe("protected reusable database resources", () => {
     const entryBefore = (
       await owner({ method: "GET", url: `/v1/databases/${databaseId}/entries/${entryId}` })
     ).json();
+    expect((await owner({ method: "GET", url: `/v1/items/${entryId}` })).json().placements).toEqual(
+      [],
+    );
+    await harness.built.context.search?.rebuild();
+    const searchable = await owner({
+      method: "POST",
+      url: "/v1/search",
+      payload: { query: "Shared page", limit: 20 },
+    });
+    expect(searchable.statusCode, searchable.body).toBe(200);
+    expect(searchable.json().results).toEqual(
+      expect.arrayContaining([expect.objectContaining({ itemId: entryId })]),
+    );
     for (const page of [first, second]) {
       const trashed = await owner({
         method: "POST",
@@ -194,6 +206,7 @@ describe("protected reusable database resources", () => {
     }
     expect(JSON.stringify(manifest)).not.toContain("First display");
     expect(JSON.stringify(manifest)).not.toContain("Second display");
+    expect(manifest.items.find((item) => item.id === entryId)?.placements).toEqual([]);
     const exportedSource = manifest.databases.find((row) => row.databaseId === databaseId);
     expect(exportedSource?.definitionRevisionId).toBe(source.definitionRevisionId);
     await context.db.transaction(async (tx) => {
@@ -226,6 +239,57 @@ describe("protected reusable database resources", () => {
       .select({ snapshot: schema.revisions.snapshot })
       .from(schema.revisions);
     expect(snapshots.every((row) => row.snapshot === null)).toBe(true);
+  });
+
+  it("requires the owner, rejects non-page hosts atomically and refuses old-client display erasure", async () => {
+    const denied = await harness.built.app.inject({ method: "GET", url: "/v1/databases" });
+    expect(denied.statusCode).toBe(401);
+    const folder = await createItemViaApi(harness, {
+      kind: "folder",
+      name: "Folder cannot embed",
+      headers: owner.headers,
+    });
+    const id = generateUuidV7();
+    const payload = {
+      id,
+      name: "Guarded source",
+      hostPageId: folder.itemId,
+      placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a0" },
+      titlePropertyId: generateUuidV7(),
+      initialViewId: generateUuidV7(),
+      initialViewName: "Table",
+    };
+    const invalid = await owner({
+      method: "POST",
+      url: "/v1/databases",
+      headers: idempotencyHeaders(),
+      payload,
+    });
+    expect(invalid.statusCode).toBeGreaterThanOrEqual(400);
+    expect(
+      await harness.built.database.db
+        .select()
+        .from(schema.databases)
+        .where(eq(schema.databases.itemId, id)),
+    ).toEqual([]);
+    const page = await host("Valid guarded display");
+    const created = await owner({
+      method: "POST",
+      url: "/v1/databases",
+      headers: idempotencyHeaders(),
+      payload: { ...payload, hostPageId: page.itemId },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const source = await readSource(id);
+    const { embeddings: _displays, ...legacyDefinition } = source.definition;
+    const erased = await owner({
+      method: "PUT",
+      url: `/v1/databases/${id}/definition`,
+      headers: idempotencyHeaders(),
+      payload: { baseRevisionId: source.definitionRevisionId, definition: legacyDefinition },
+    });
+    expect(erased.statusCode).toBeGreaterThanOrEqual(400);
+    expect(await readSource(id)).toEqual(source);
   });
 
   it("preserves the old database identity and definition revision after its original host is purged", async () => {

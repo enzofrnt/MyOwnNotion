@@ -775,7 +775,7 @@ export const CreateEntryRequestSchema = Type.Object(
   {
     id: UuidSchema,
     title: DisplayNameSchema,
-    placement: DatabasePlacementInputSchema,
+    placement: Type.Optional(DatabasePlacementInputSchema),
     document: Type.Optional(PageDocumentSchema),
     values: DatabaseValuesMapSchema,
     relationTargets: DatabaseRelationTargetsMapSchema,

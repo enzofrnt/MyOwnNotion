@@ -32,6 +32,7 @@ import type {
 } from "@myownnotion/contracts";
 import {
   type DatabaseDefinition,
+  databaseEmbeddings,
   generateUuidV7,
   isSafeErrorCode,
   isUuid,
@@ -64,6 +65,7 @@ import { DatabaseConflictResolution } from "../databases/database-conflict-resol
 import { DATABASE_COPY } from "../databases/database-copy.ts";
 import { DatabasePage, type DefinitionConfirmation } from "../databases/database-page.tsx";
 import { type EntryDrafts, EntryPanel } from "../databases/entry-panel.tsx";
+import { PageDatabases } from "../databases/page-databases.tsx";
 import type { DatabaseCellUpdate } from "../databases/table-view.tsx";
 import { initializeEditorFileTransfers } from "../editor/editor-file-state.tsx";
 import type { CreateSubpageRequest } from "../editor/editor-menus/slash-menu.tsx";
@@ -431,6 +433,12 @@ export function HierarchyExplorer({
     readonly definition: DatabaseDefinition;
   } | null>(null);
   const [entryReturnFocusId, setEntryReturnFocusId] = useState<Uuid | null>(null);
+  const linkedEntryOrigin = useRef<{
+    hostPageId: Uuid;
+    embeddingId: Uuid;
+    entryId: Uuid;
+    returning: boolean;
+  } | null>(null);
   const remotelyOpenedEntry = useRef<{
     readonly entry: DatabaseEntryDto;
     readonly definition: DatabaseDefinition;
@@ -553,9 +561,10 @@ export function HierarchyExplorer({
         let nextItems = itemsRef.current;
         let nextTrash = trashedItemsRef.current;
         let catalogChanged = false;
+        const sourceIds = new Set(await service.db.databases.toCollection().primaryKeys());
         for (const itemId of change.itemIds) {
           const next = await service.getItem(itemId);
-          const patched = replaceProjectedItem(nextItems, nextTrash, itemId, next);
+          const patched = replaceProjectedItem(nextItems, nextTrash, itemId, next, sourceIds);
           nextItems = patched.items;
           nextTrash = patched.trashed;
           catalogChanged = catalogChanged || patched.catalogChanged;
@@ -1112,7 +1121,7 @@ export function HierarchyExplorer({
 
   const selectedDatabaseId = selectedDatabase?.databaseId as Uuid | undefined;
   const querySelectedDatabaseView = useCallback(
-    async (viewId: Uuid) => {
+    async (viewId: Uuid, cursor?: string) => {
       if (selectedDatabaseId === undefined) {
         return {
           ok: false as const,
@@ -1127,6 +1136,7 @@ export function HierarchyExplorer({
       return await databaseViews.query(selectedDatabaseId, {
         viewId,
         limit: 100,
+        ...(cursor === undefined ? {} : { cursor }),
       });
     },
     [databaseViews, selectedDatabaseId],
@@ -2493,15 +2503,9 @@ export function HierarchyExplorer({
                       return queued;
                     }}
                     onCreateEntry={async (title) => {
-                      const keys = siblingKeys(selectedItem.id);
                       const result = await service.createDatabaseEntry(selectedItem.id, {
                         id: generateUuidV7(),
                         title,
-                        placement: {
-                          id: generateUuidV7(),
-                          parentItemId: selectedItem.id,
-                          positionKey: safeKeyBetween(keys.at(-1) ?? null, null),
-                        },
                         document: {
                           format: "myownnotion.document+json",
                           formatVersion: 1,
@@ -2557,6 +2561,42 @@ export function HierarchyExplorer({
                     onCaptureScrollAnchor={onCaptureScrollAnchor}
                     onOpenPage={openPageLink}
                     discoverable={sessionIsActive}
+                  />
+                  <PageDatabases
+                    active={sessionIsActive}
+                    service={service}
+                    hostPageId={pageId as Uuid}
+                    onOpenEntry={(entryId, embeddingId, visibleEntry, definition) => {
+                      linkedEntryOrigin.current = {
+                        hostPageId: pageId as Uuid,
+                        embeddingId,
+                        entryId,
+                        returning: false,
+                      };
+                      structuredKindByItemId.current.set(entryId, "entry");
+                      if (visibleEntry !== undefined) {
+                        // Use the same already-visible canonical projection as
+                        // the standalone database, while hydration continues.
+                        remotelyOpenedEntry.current = { entry: visibleEntry, definition };
+                        setSelectedEntry(visibleEntry);
+                        setEntryDefinition(definition);
+                        structuredSelectionItemId.current = entryId;
+                      }
+                      selectItemById(entryId);
+                    }}
+                    returnFocus={
+                      sessionIsActive &&
+                      linkedEntryOrigin.current?.returning === true &&
+                      linkedEntryOrigin.current.hostPageId === pageId
+                        ? linkedEntryOrigin.current
+                        : null
+                    }
+                    onReturnFocusRestored={() => {
+                      linkedEntryOrigin.current = null;
+                    }}
+                    relationOptions={items
+                      .filter((item) => item.kind === "page" && item.lifecycle === "active")
+                      .map((item) => ({ id: item.id, label: item.name }))}
                   />
                 </div>
               );
@@ -2629,7 +2669,21 @@ export function HierarchyExplorer({
               setEntryDraftSession((current) =>
                 current?.entryId === selectedItem.id ? null : current,
               );
-              selectItemById(databaseId, { replace: true });
+              const visibleIds = new Set(items.map((item) => item.id));
+              const origin =
+                linkedEntryOrigin.current?.entryId === selectedEntry.entryId &&
+                visibleIds.has(linkedEntryOrigin.current.hostPageId)
+                  ? linkedEntryOrigin.current
+                  : null;
+              linkedEntryOrigin.current = origin === null ? null : { ...origin, returning: true };
+              const hostPageId =
+                origin?.hostPageId ??
+                databaseEmbeddings(entryDefinition).find(
+                  (embedding) =>
+                    embedding.state === "active" && visibleIds.has(embedding.hostPageId),
+                )?.hostPageId ??
+                (visibleIds.has(databaseId) ? databaseId : null);
+              selectItemById(hostPageId, { replace: true });
               remotelyOpenedEntry.current = null;
             }}
             pageContent={

@@ -460,6 +460,25 @@
       }
     },
     {
+      "test": "tests/e2e/linked-databases.spec.ts",
+      "owners": {
+        "exact": [
+          "apps/api/src/routes/databases.ts",
+          "apps/api/src/databases/database-query-service.ts",
+          "apps/web/src/services/databases.ts",
+          "apps/web/src/services/local-content.ts",
+          "apps/web/src/features/hierarchy/hierarchy-explorer.tsx",
+          "apps/web/src/features/workspace/workspace.css"
+        ],
+        "prefixes": [
+          "apps/web/src/features/databases/",
+          "packages/client-core/src/databases/",
+          "packages/domain/src/databases/"
+        ],
+        "suffixes": []
+      }
+    },
+    {
       "test": "tests/e2e/databases-visual-views.spec.ts",
       "owners": {
         "exact": ["apps/api/src/databases/database-query-service.ts", "apps/web/src/global.css"],

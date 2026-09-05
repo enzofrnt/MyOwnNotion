@@ -264,7 +264,7 @@ describe("saved database views (T041)", () => {
         }),
       ),
     );
-    expect(markup).toContain("Résultat complet · 1 entrée");
+    expect(markup).toContain("Base disponible · 1 entrée");
     expect(markup).toContain("database-list");
     expect(markup).toContain("Alpha");
     expect(markup).toContain("Status");

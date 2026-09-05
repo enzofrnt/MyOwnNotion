@@ -1,5 +1,12 @@
 # Tasks: Bases de données et tâches structurées
 
+> Évolution 026 : les tâches cochées décrivent la livraison historique 009.
+> Le modèle page-capacité et la cascade de cycle de vie de T026/T102/T103/T105
+> sont remplacés par le registre indépendant, les emplacements et la conservation
+> des entrées dans [026](../026-linked-databases/tasks.md). Les autres garanties
+> et vérifications restent applicables.
+
+
 **Phases UI** : charger le [skill UI partagé](../../.agents/skills/ui-quality/SKILL.md)
 pour la conception, la réalisation et la revue. Conserver les états, critères
 et preuves propres à cette feature dans ses artefacts ; cette référence ne

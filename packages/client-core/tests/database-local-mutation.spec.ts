@@ -95,6 +95,50 @@ function expandedDefinition(
 }
 
 describe("atomic structured local mutation (T021)", () => {
+  it("persists an unplaced canonical entry and its replayable offline mutation across restart", async () => {
+    const source = createPayload();
+    expect((await apply("database.create", source)).ok).toBe(true);
+    const entryId = generateUuidV7();
+    const mutation = await apply("database.entry.create", {
+      databaseId: source.id,
+      id: entryId,
+      title: "Unplaced private entry",
+      values: {},
+      relationTargets: {},
+    });
+    expect(mutation.ok).toBe(true);
+    const original = required(await items.getItem(entryId));
+    expect(original.placements).toEqual([]);
+    const explicitId = generateUuidV7();
+    const placement = { id: generateUuidV7(), parentItemId: null, positionKey: "b" };
+    expect(
+      (
+        await apply("database.entry.create", {
+          databaseId: source.id,
+          id: explicitId,
+          title: "Explicit page",
+          placement,
+          values: {},
+          relationTargets: {},
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await items.getItem(explicitId))?.placements[0]).toMatchObject(placement);
+    const databaseName = db.name;
+    db.close();
+    db = openLocalDatabase(databaseName);
+    items = new LocalRepository(db, codec);
+    databases = new LocalDatabaseRepository(db, codec);
+    expect(await items.getItem(entryId)).toEqual(original);
+    expect((await databases.getEntry(entryId))?.databaseId).toBe(source.id);
+    const queued = await new Outbox(db, codec).pending();
+    expect(queued).toHaveLength(3);
+    expect(queued.find((row) => row.payload["id"] === entryId)?.payload).not.toHaveProperty(
+      "placement",
+    );
+    expect(JSON.stringify(await db.items.get(entryId))).not.toContain("Unplaced private entry");
+  });
+
   it("keeps encrypted sources after host tombstones and edits them offline without a visible anchor", async () => {
     const payload = createPayload();
     expect((await apply("database.create", payload)).ok).toBe(true);

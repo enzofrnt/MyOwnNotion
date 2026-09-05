@@ -291,11 +291,15 @@ export function registerDatabaseRoutes(app: FastifyInstance, context: AppContext
           databaseId,
           id: entryId,
           title: body.title,
-          placement: {
-            id: body.placement.id as Uuid,
-            parentItemId: body.placement.parentItemId as Uuid | null,
-            positionKey: body.placement.positionKey,
-          },
+          ...(body.placement === undefined
+            ? {}
+            : {
+                placement: {
+                  id: body.placement.id as Uuid,
+                  parentItemId: body.placement.parentItemId as Uuid | null,
+                  positionKey: body.placement.positionKey,
+                },
+              }),
           ...(body.document === undefined ? {} : { document: body.document as never }),
           values: body.values as never,
           relationTargets: body.relationTargets as never,

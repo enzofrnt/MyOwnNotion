@@ -131,6 +131,7 @@ function GalleryCards({
   onOpenEntry,
   scrollTop,
   onScroll,
+  returnFocusEntryId,
 }: {
   readonly page: DatabaseViewPage;
   readonly selectedProperties: readonly DatabaseProperty[];
@@ -139,11 +140,14 @@ function GalleryCards({
   readonly onOpenEntry: (entryId: Uuid, trigger: HTMLElement | null) => void;
   readonly scrollTop: number;
   readonly onScroll: ((scrollTop: number) => void) | undefined;
+  readonly returnFocusEntryId?: Uuid | null;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [lanes, setLanes] = useState(1);
   const [focusedEntryId, setFocusedEntryId] = useState<Uuid | null>(null);
-  const focusedIndex = page.rows.findIndex(({ entryId }) => entryId === focusedEntryId);
+  const focusedIndex = page.rows.findIndex(
+    ({ entryId }) => entryId === (returnFocusEntryId ?? focusedEntryId),
+  );
   useLayoutEffect(() => {
     const element = scrollRef.current;
     if (element === null || page.rows.length <= 60 || typeof ResizeObserver === "undefined") {
@@ -245,6 +249,7 @@ export function GalleryView({
   onChangeView,
   scrollTop = 0,
   onScroll,
+  returnFocusEntryId,
 }: {
   readonly properties: readonly DatabaseProperty[];
   readonly view: GalleryViewDefinition;
@@ -254,6 +259,7 @@ export function GalleryView({
   readonly onChangeView: (view: GalleryViewDefinition) => void | Promise<void>;
   readonly scrollTop?: number;
   readonly onScroll?: (scrollTop: number) => void;
+  readonly returnFocusEntryId?: Uuid | null;
 }) {
   const selectedProperties = galleryProperties(view, properties);
   const configurableProperties = properties.filter(
@@ -316,6 +322,7 @@ export function GalleryView({
         />
       ) : (
         <GalleryCards
+          {...(returnFocusEntryId === undefined ? {} : { returnFocusEntryId })}
           page={page}
           selectedProperties={selectedProperties}
           previews={previews}
