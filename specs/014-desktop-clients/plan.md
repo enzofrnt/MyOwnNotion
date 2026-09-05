@@ -283,3 +283,9 @@ The connection form uses the active `global.css` surface and recovers from IPC
 rejection without discarding input. A verified Linux AppImage becomes executable
 by its owner immediately before revealing its folder; this is still a manual
 handoff, not proof that an upgrade completed.
+
+Deferred authentication for Bun's WebSocket upgrade is restricted to GET on the
+registered `/v1/page-sync/socket` route. An Upgrade header on any other route
+must retain ordinary owner and CSRF enforcement. Contracts reproduce anonymous
+HTTP reads and authenticated writes with forged Upgrade headers; native
+onboarding and cold offline restart verify the real socket still works.

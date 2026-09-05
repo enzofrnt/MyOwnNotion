@@ -34,6 +34,14 @@ Runtime : Bun 1.4.0 ; hôte Electron 44.1.1 ; production construite par Bun.
   Les routes privées refusent les lectures anonymes et les appareils révoqués ;
   les mutations exigent le CSRF de la session.
 
+Le commit suivant a aussi validé 373 fichiers / 3555 tests et le seuil de
+couverture. Une revue complémentaire a reproduit un contournement par en-tête
+Upgrade sur une route HTTP ordinaire ; le passage complet a été interrompu pour
+corriger ce défaut avant push. Après restriction de l'exception à la route
+WebSocket enregistrée, les 58 contrats d'authentification et les deux parcours
+Electron connexion/reprise hors ligne passent. Aucune requête HTTP déguisée
+n'obtient un accès anonyme ni ne contourne le CSRF dans ces régressions.
+
 ## Vérifications en cours et limites de preuve
 
 Le passage local sur `b80cf514` a validé 372 fichiers / 3551 tests et le seuil

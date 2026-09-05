@@ -321,6 +321,18 @@ describe("CSRF", () => {
     });
     expect(response.statusCode).toBe(403);
     expect(response.json().code).toBe("csrf_validation_failed");
+    const disguised = await inject({
+      method: "POST",
+      url: "/v1/items/018f2b7c-0000-7000-8000-000000000099/trash",
+      headers: {
+        cookie: `${COOKIE}=${auth.cookie}`,
+        upgrade: "websocket",
+        "x-myownnotion-client-protocol": "3",
+        "idempotency-key": "018f2b7c-0000-7000-8000-000000000099",
+      },
+    });
+    expect(disguised.statusCode).toBe(403);
+    expect(disguised.json().code).toBe("csrf_validation_failed");
   });
 
   it("refuses a token that belongs to another session", async () => {
@@ -1040,6 +1052,14 @@ describe("ordinary content HTTP access", () => {
       expect((await inject({ method: "GET", url })).statusCode).toBe(401);
     }
     const auth = await authenticate();
+    // An Upgrade header on an ordinary HTTP route is not a WebSocket route
+    // and must never bypass the shared owner guard.
+    const disguised = await inject({
+      method: "GET",
+      url: "/v1/items",
+      headers: { upgrade: "websocket" },
+    });
+    expect(disguised.statusCode).toBe(401);
     expect(
       (await inject({ method: "GET", url: "/v1/items", headers: authHeaders(auth) })).statusCode,
     ).toBe(200);
