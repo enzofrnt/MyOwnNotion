@@ -20,6 +20,7 @@ import {
   FilesystemBlobStore,
   splitIntoChunks,
 } from "@myownnotion/blob-store";
+import type { ProtectedFileManifest } from "@myownnotion/domain";
 import { EnvelopeDecryptionError, randomKey } from "@myownnotion/domain/security";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -318,3 +319,189 @@ function contentId(label: string): string {
   const digits = Buffer.from(label).toString("hex").slice(0, 12).padEnd(12, "0");
   return `018f2b7c-0000-7000-8000-${digits}`;
 }
+
+describe("bounded protected file streams", () => {
+  it("preserves provider-owned keys when storage fails and refuses invalid chunk bounds", async () => {
+    const originalKey = Uint8Array.from(KEY);
+    let writes = 0;
+    const failing = new EncryptedChunkStore({
+      blobs: {
+        put: async () => {
+          writes += 1;
+          throw new Error("storage unavailable");
+        },
+        get: async () => null,
+        equals: async () => false,
+        delete: async () => undefined,
+      },
+      dataKey: async () => KEY,
+      chunkBytes: SMALL_CHUNK,
+    });
+    for (const [size, index] of [
+      [0, 0],
+      [65, 0],
+      [1, -1],
+      [1, 1.5],
+    ] as const)
+      await expect(failing.writeChunk(Buffer.alloc(size), BINDING, index)).rejects.toThrow(
+        "Invalid encrypted chunk bounds",
+      );
+    expect(writes).toBe(0);
+    await expect(failing.writeChunk(Buffer.from("private"), BINDING, 0)).rejects.toThrow(
+      "storage unavailable",
+    );
+    expectSameBytes(KEY, originalKey);
+    const writing = failing.writeStream(
+      (async function* () {
+        yield Buffer.from("uncommitted prefix");
+        throw new Error("source interrupted");
+      })(),
+      BINDING,
+    );
+    await expect(writing.next()).rejects.toThrow("source interrupted");
+    expect(writes).toBe(1);
+  });
+
+  it("reads a manifest spanning historical and progressively rotated chunk generations", async () => {
+    const rotating = new EncryptedChunkStore({
+      blobs,
+      dataKey: async (generation) => (generation === 1 ? KEY : OTHER_KEY),
+    });
+    const binding = { ...BINDING, contentId: contentId("rotation"), recordVersion: 2 };
+    const bytes = Buffer.alloc(CHUNK_BYTES + 9, 3);
+    const parts = [
+      await rotating.writeChunk(
+        bytes.subarray(0, CHUNK_BYTES),
+        { ...binding, recordVersion: 1 },
+        0,
+      ),
+      await rotating.writeChunk(bytes.subarray(CHUNK_BYTES), { ...binding, keyGeneration: 2 }, 1),
+    ];
+    const manifest: ProtectedFileManifest = {
+      format: "myownnotion.protected-file",
+      formatVersion: 1,
+      kind: "content",
+      id: binding.contentId,
+      recordVersion: 2,
+      byteLength: bytes.length,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      chunks: parts.map((part) => ({
+        index: part.chunkIndex,
+        byteLength: part.byteLength,
+        storageKey: part.storageKey,
+        keyGeneration: part.keyGeneration,
+        recordVersion: part.recordVersion,
+      })),
+    };
+    const opened: Uint8Array[] = [];
+    for await (const part of rotating.readStream(parts, binding, manifest)) opened.push(part);
+    expectSameBytes(Buffer.concat(opened), bytes);
+  });
+
+  it("seals irregular input fragments in fixed chunks without reading ahead", async () => {
+    let consumed = 0;
+    const binding = { ...BINDING, contentId: contentId("stream-write") };
+    const source = (async function* () {
+      for (const size of [3, 61, 10, 60, 1]) {
+        consumed += 1;
+        yield Buffer.alloc(size, consumed);
+      }
+    })();
+    const writing = store.writeStream(source, binding);
+    const first = await writing.next();
+    expect(first.done).toBe(false);
+    expect(consumed).toBe(2);
+    const remaining: ChunkEnvelope[] = [];
+    for await (const chunk of writing) remaining.push(chunk);
+    expect([first.value, ...remaining].map((entry) => entry?.byteLength)).toEqual([64, 64, 7]);
+    if (first.done) throw new Error("Missing first encrypted chunk");
+    expectSameBytes(
+      await store.readChunk(first.value, binding),
+      Buffer.concat([Buffer.alloc(3, 1), Buffer.alloc(61, 2)]),
+    );
+  });
+
+  it("returns source cancellation and never publishes an incomplete pending chunk", async () => {
+    let cancelled = false;
+    const source = (async function* () {
+      try {
+        yield Buffer.alloc(128, 9);
+        throw new Error("must not read ahead");
+      } finally {
+        cancelled = true;
+      }
+    })();
+    const writing = store.writeStream(source, { ...BINDING, contentId: contentId("cancel") });
+    await writing.next();
+    await writing.return(undefined);
+    expect(cancelled).toBe(true);
+  });
+
+  it("separates upload and completed-content encryption purposes", async () => {
+    const upload = { ...BINDING, contentId: contentId("purpose"), kind: "upload" as const };
+    const part = await store.writeChunk(Buffer.from("private accepted prefix"), upload, 0);
+    expectSameBytes(await store.readChunk(part, upload), Buffer.from("private accepted prefix"));
+    await expect(store.readChunk(part, { ...upload, kind: "content" })).rejects.toBeInstanceOf(
+      EnvelopeDecryptionError,
+    );
+    await expect(store.readChunk({ ...part, keyGeneration: 2 }, upload)).rejects.toBeInstanceOf(
+      EnvelopeDecryptionError,
+    );
+    await expect(store.readChunk({ ...part, recordVersion: 2 }, upload)).rejects.toBeInstanceOf(
+      EnvelopeDecryptionError,
+    );
+  });
+
+  it.each([0, -1, 1.5, CHUNK_BYTES + 1])(
+    "refuses invalid buffering sizes instead of looping or allocating unbounded memory: %s",
+    (chunkBytes) => {
+      expect(
+        () => new EncryptedChunkStore({ blobs, dataKey: async () => KEY, chunkBytes }),
+      ).toThrow();
+      expect(() => splitIntoChunks(Buffer.from("one"), chunkBytes)).toThrow();
+    },
+  );
+
+  it("streams only metadata-matched authenticated chunks and refuses a deleted final chunk", async () => {
+    const bytes = Buffer.alloc(CHUNK_BYTES + 17, 7);
+    const binding = { ...BINDING, contentId: contentId("read-stream") };
+    const envelopes: ChunkEnvelope[] = [];
+    for await (const part of fullSizeStore.writeStream(
+      (async function* () {
+        yield bytes;
+      })(),
+      binding,
+    ))
+      envelopes.push(part);
+    const manifest: ProtectedFileManifest = {
+      format: "myownnotion.protected-file",
+      formatVersion: 1,
+      kind: "content",
+      id: binding.contentId,
+      recordVersion: 1,
+      byteLength: bytes.length,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      chunks: envelopes.map((part) => ({
+        index: part.chunkIndex,
+        byteLength: part.byteLength,
+        storageKey: part.storageKey,
+        keyGeneration: part.keyGeneration,
+        recordVersion: part.recordVersion,
+      })),
+    };
+    async function drain(parts: readonly ChunkEnvelope[], inventory = manifest) {
+      const result: Uint8Array[] = [];
+      for await (const part of fullSizeStore.readStream(parts, binding, inventory))
+        result.push(part);
+      return Buffer.concat(result);
+    }
+    expectSameBytes(await drain(envelopes), bytes);
+    await expect(drain(envelopes.slice(0, -1))).rejects.toThrow();
+    const first = envelopes[0];
+    if (first === undefined) throw new Error("Missing encrypted chunk");
+    await expect(
+      drain([{ ...first, byteLength: first.byteLength - 1 }, ...envelopes.slice(1)]),
+    ).rejects.toThrow();
+    await expect(drain(envelopes, { ...manifest, sha256: "ab".repeat(32) })).rejects.toThrow();
+  });
+});

@@ -24,6 +24,11 @@
 
 import { createHash } from "node:crypto";
 import {
+  PROTECTED_FILE_CHUNK_BYTES,
+  type ProtectedFileManifest,
+  readProtectedFileManifest,
+} from "@myownnotion/domain";
+import {
   aadBytes,
   deriveRecordKey,
   type EnvelopeBinding,
@@ -44,7 +49,7 @@ import type { BlobStore } from "../blob-store.ts";
  * single chunk is a comfortable buffer. Changing it changes how existing files
  * are addressed, so it is a constant rather than a parameter.
  */
-export const CHUNK_BYTES = 4 * 1024 * 1024;
+export const CHUNK_BYTES = PROTECTED_FILE_CHUNK_BYTES;
 
 /** The stored metadata for one sealed chunk. */
 export interface ChunkEnvelope {
@@ -60,6 +65,7 @@ export interface ChunkEnvelope {
 }
 
 export interface ChunkBinding {
+  readonly kind?: "content" | "upload";
   readonly installationId: string;
   readonly workspaceId: string;
   readonly contentId: string;
@@ -68,13 +74,19 @@ export interface ChunkBinding {
 }
 
 /** The entity type every file chunk is bound under. */
-const CHUNK_ENTITY_TYPE = "file.chunk";
+function entityType(binding: ChunkBinding): string {
+  return binding.kind === "upload" ? "file.upload-chunk" : "file.chunk";
+}
+function requireChunkSize(value: number): void {
+  if (!Number.isSafeInteger(value) || value <= 0 || value > CHUNK_BYTES)
+    throw new RangeError("Invalid encrypted chunk size.");
+}
 
 function bindingFor(binding: ChunkBinding, chunkIndex: number): EnvelopeBinding {
   return {
     installationId: binding.installationId,
     workspaceId: binding.workspaceId,
-    entityType: CHUNK_ENTITY_TYPE,
+    entityType: entityType(binding),
     entityId: binding.contentId,
     keyGeneration: binding.keyGeneration,
     recordVersion: binding.recordVersion,
@@ -92,6 +104,7 @@ export function splitIntoChunks(
   bytes: Uint8Array,
   chunkBytes: number = CHUNK_BYTES,
 ): readonly Uint8Array[] {
+  requireChunkSize(chunkBytes);
   if (bytes.length === 0) {
     // An empty file has no chunks, and `sealEnvelope` refuses empty plaintext.
     // The caller records a zero-chunk file rather than an empty envelope.
@@ -128,6 +141,7 @@ export class EncryptedChunkStore {
   constructor(deps: EncryptedChunkStoreDeps) {
     this.#deps = deps;
     this.#chunkBytes = deps.chunkBytes ?? CHUNK_BYTES;
+    requireChunkSize(this.#chunkBytes);
   }
 
   /**
@@ -139,31 +153,77 @@ export class EncryptedChunkStore {
    * content and is stable for identical ciphertext.
    */
   async write(bytes: Uint8Array, binding: ChunkBinding): Promise<readonly ChunkEnvelope[]> {
-    const key = await this.#deps.dataKey(binding.keyGeneration);
     const envelopes: ChunkEnvelope[] = [];
+    for (const [index, chunk] of splitIntoChunks(bytes, this.#chunkBytes).entries())
+      envelopes.push(await this.writeChunk(chunk, binding, index));
+    return envelopes;
+  }
 
-    let chunkIndex = 0;
-    for (const chunk of splitIntoChunks(bytes, this.#chunkBytes)) {
+  /** Seal exactly one bounded part; never wipe key material owned by the provider. */
+  async writeChunk(
+    bytes: Uint8Array,
+    binding: ChunkBinding,
+    chunkIndex: number,
+  ): Promise<ChunkEnvelope> {
+    if (
+      bytes.byteLength === 0 ||
+      bytes.byteLength > this.#chunkBytes ||
+      !Number.isSafeInteger(chunkIndex) ||
+      chunkIndex < 0
+    )
+      throw new RangeError("Invalid encrypted chunk bounds.");
+    const key = Uint8Array.from(await this.#deps.dataKey(binding.keyGeneration));
+    let recordKey: Uint8Array | undefined;
+    try {
       const bound = bindingFor(binding, chunkIndex);
       const salt = randomSalt();
-      const recordKey = deriveRecordKey(key, salt, `${CHUNK_ENTITY_TYPE}:${chunkIndex}`);
-      const sealed = seal(recordKey, chunk, aadBytes(bound), randomNonce());
+      recordKey = deriveRecordKey(key, salt, `${entityType(binding)}:${chunkIndex}`);
+      const sealed = seal(recordKey, bytes, aadBytes(bound), randomNonce());
       const stored = await this.#deps.blobs.put(sealed.ciphertext);
-
-      envelopes.push({
+      return {
         chunkIndex,
         storageKey: stored.storageKey,
         salt: toBase64Url(salt),
         nonce: toBase64Url(sealed.nonce),
         tag: toBase64Url(sealed.tag),
         aadDigest: digestOf(aadBytes(bound)),
-        byteLength: chunk.length,
+        byteLength: bytes.byteLength,
         keyGeneration: binding.keyGeneration,
         recordVersion: binding.recordVersion,
-      });
-      chunkIndex += 1;
+      };
+    } finally {
+      recordKey?.fill(0);
+      key.fill(0);
     }
-    return envelopes;
+  }
+
+  /** Backpressure consumes at most one next chunk; cancellation wipes pending bytes. */
+  async *writeStream(
+    source: AsyncIterable<Uint8Array>,
+    binding: ChunkBinding,
+  ): AsyncGenerator<ChunkEnvelope> {
+    const pending = new Uint8Array(this.#chunkBytes);
+    let used = 0;
+    let index = 0;
+    try {
+      for await (const incoming of source) {
+        let offset = 0;
+        while (offset < incoming.byteLength) {
+          const count = Math.min(this.#chunkBytes - used, incoming.byteLength - offset);
+          pending.set(incoming.subarray(offset, offset + count), used);
+          used += count;
+          offset += count;
+          if (used === this.#chunkBytes) {
+            yield await this.writeChunk(pending, binding, index++);
+            pending.fill(0);
+            used = 0;
+          }
+        }
+      }
+      if (used > 0) yield await this.writeChunk(pending.subarray(0, used), binding, index);
+    } finally {
+      pending.fill(0);
+    }
   }
 
   /**
@@ -176,33 +236,78 @@ export class EncryptedChunkStore {
    */
   async readChunk(envelope: ChunkEnvelope, binding: ChunkBinding): Promise<Uint8Array> {
     const bound = bindingFor(binding, envelope.chunkIndex);
-    if (digestOf(aadBytes(bound)) !== envelope.aadDigest) {
+    if (
+      envelope.keyGeneration !== binding.keyGeneration ||
+      envelope.recordVersion !== binding.recordVersion ||
+      !Number.isSafeInteger(envelope.chunkIndex) ||
+      envelope.chunkIndex < 0 ||
+      !Number.isSafeInteger(envelope.byteLength) ||
+      envelope.byteLength <= 0 ||
+      envelope.byteLength > this.#chunkBytes ||
+      digestOf(aadBytes(bound)) !== envelope.aadDigest
+    )
       throw new EnvelopeDecryptionError();
-    }
-
     const ciphertext = await this.#deps.blobs.get(envelope.storageKey);
-    if (ciphertext === null) {
-      // The metadata says there is a chunk and the store does not have it.
-      // Refusing is the only honest answer; returning a short file would be
-      // silent truncation.
+    if (ciphertext === null || ciphertext.byteLength !== envelope.byteLength)
       throw new EnvelopeDecryptionError();
+    const key = Uint8Array.from(await this.#deps.dataKey(envelope.keyGeneration));
+    let recordKey: Uint8Array | undefined;
+    try {
+      recordKey = deriveRecordKey(
+        key,
+        fromBase64Url(envelope.salt),
+        `${entityType(binding)}:${envelope.chunkIndex}`,
+      );
+      return open(
+        recordKey,
+        { nonce: fromBase64Url(envelope.nonce), ciphertext, tag: fromBase64Url(envelope.tag) },
+        aadBytes(bound),
+      );
+    } finally {
+      recordKey?.fill(0);
+      key.fill(0);
     }
+  }
 
-    const key = await this.#deps.dataKey(envelope.keyGeneration);
-    const recordKey = deriveRecordKey(
-      key,
-      fromBase64Url(envelope.salt),
-      `${CHUNK_ENTITY_TYPE}:${envelope.chunkIndex}`,
-    );
-    return open(
-      recordKey,
-      {
-        nonce: fromBase64Url(envelope.nonce),
-        ciphertext,
-        tag: fromBase64Url(envelope.tag),
-      },
-      aadBytes(bound),
-    );
+  /**
+   * The caller must first authenticate the manifest under its trusted binding.
+   * Match SQL descriptors to that inventory before returning each opened chunk.
+   * Ownership of yielded plaintext passes to the consumer; keys remain local.
+   */
+  async *readStream(
+    envelopes: readonly ChunkEnvelope[],
+    binding: ChunkBinding,
+    authenticatedManifest: ProtectedFileManifest,
+  ): AsyncGenerator<Uint8Array> {
+    const manifest = readProtectedFileManifest(authenticatedManifest, {
+      kind: binding.kind ?? "content",
+      id: binding.contentId,
+      recordVersion: binding.recordVersion,
+    });
+    if (envelopes.length !== manifest.chunks.length) throw new EnvelopeDecryptionError();
+    const byIndex = new Map(envelopes.map((envelope) => [envelope.chunkIndex, envelope]));
+    if (byIndex.size !== envelopes.length) throw new EnvelopeDecryptionError();
+    const digest = createHash("sha256");
+    for (const descriptor of manifest.chunks) {
+      const envelope = byIndex.get(descriptor.index);
+      if (
+        envelope === undefined ||
+        envelope.storageKey !== descriptor.storageKey ||
+        envelope.byteLength !== descriptor.byteLength ||
+        envelope.keyGeneration !== descriptor.keyGeneration ||
+        envelope.recordVersion !== descriptor.recordVersion
+      )
+        throw new EnvelopeDecryptionError();
+      const bytes = await this.readChunk(envelope, {
+        ...binding,
+        keyGeneration: descriptor.keyGeneration,
+        recordVersion: descriptor.recordVersion,
+      });
+      digest.update(bytes);
+      yield bytes;
+    }
+    if (manifest.kind === "content" && digest.digest("hex") !== manifest.sha256)
+      throw new EnvelopeDecryptionError();
   }
 
   /**
