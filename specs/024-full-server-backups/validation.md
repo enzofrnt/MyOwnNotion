@@ -126,3 +126,13 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
 - Aggregate coverage run 6: all tests passed, with 2,223 uncovered statements
   (limit 2,216) and 2,498 uncovered branches (limit 2,465). Lines and functions
   passed. These results still block the pre-push gate; limits are unchanged.
+
+- Provider convergence T026 exposed and fixed two source-stream lifecycles:
+  rejected credentials/session setup left the archive open, and a file-open
+  error could arrive after cleanup removed its listener. Upload cleanup now
+  waits for stream completion with the error handler retained. The real missing
+  file regression previously raised an uncaught ENOENT; it now passes. All 45
+  focused provider and native PostgreSQL tests pass, including length mismatch,
+  atomic name collision, unavailable destinations, safe provider failures and
+  historical `sha-<commit>` provenance. The original seven-statement /
+  33-branch aggregate gap remains unclaimed pending a new coverage run.

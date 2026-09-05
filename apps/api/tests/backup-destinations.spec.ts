@@ -12,7 +12,8 @@
  * the implementation they left behind.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { createReadStream, mkdtempSync, rmSync } from "node:fs";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -211,5 +212,173 @@ describe("an unusable destination", () => {
     await expect(
       destination.put("../escape.bin", Readable.from(Buffer.from("no")), 2),
     ).rejects.toMatchObject({ name: "DestinationUnavailableError" });
+  });
+});
+
+it.each(["credential", "session-status", "session-location", "upload-status", "wrong-size"])(
+  "releases the archive stream when Drive cannot finish %s",
+  async (failure) => {
+    const source = Readable.from(Buffer.from("sealed fixture"));
+    const destination = new GoogleDriveDestination({
+      folderId: "fixture-folder",
+      accessToken: () => (failure === "credential" ? " " : "recorded"),
+      fetch: async (_input, init) => {
+        if (init?.method === "POST") {
+          if (failure === "session-status")
+            return new Response("private provider detail", { status: 403 });
+          return new Response(null, {
+            status: 200,
+            headers:
+              failure === "session-location"
+                ? {}
+                : { location: "https://recorded.example/session" },
+          });
+        }
+        if (failure === "upload-status")
+          return new Response("private provider detail", { status: 503 });
+        for await (const _chunk of (init?.body ?? []) as unknown as AsyncIterable<Uint8Array>) {
+          /* drain */
+        }
+        return new Response(null, { status: 200 });
+      },
+    });
+    await expect(destination.put("fixture.monfull", source, 100)).rejects.toMatchObject({
+      name: "DestinationUnavailableError",
+    });
+    expect(source.destroyed).toBe(true);
+    expect(source.listenerCount("error")).toBe(0);
+  },
+);
+
+it.each(["list", "lookup", "download", "empty-download", "delete", "already-deleted"])(
+  "distinguishes Drive %s failures from a missing archive without exposing provider contents",
+  async (operation) => {
+    const destination = new GoogleDriveDestination({
+      folderId: "fixture-folder",
+      accessToken: () => "recorded",
+      fetch: async (input, init) => {
+        const url = String(input);
+        if (url.includes("/files?")) {
+          if (operation === "list" || operation === "lookup")
+            return new Response("private provider detail", { status: 503 });
+          return Response.json({ files: [{ id: "fixture", name: "fixture.monfull" }] });
+        }
+        if (init?.method === "DELETE")
+          return new Response("private provider detail", {
+            status: operation === "already-deleted" ? 404 : 403,
+          });
+        return operation === "empty-download"
+          ? new Response(null, { status: 204 })
+          : new Response("private provider detail", { status: 404 });
+      },
+    });
+    const result =
+      operation === "list"
+        ? destination.list()
+        : operation === "delete" || operation === "already-deleted"
+          ? destination.delete("fixture.monfull")
+          : destination.read("fixture.monfull");
+    if (operation === "already-deleted") await expect(result).resolves.toBeUndefined();
+    else {
+      await expect(result).rejects.toMatchObject({ name: "DestinationUnavailableError" });
+      await expect(result).rejects.not.toThrow("private provider detail");
+    }
+  },
+);
+
+it("reads every Drive listing page and tolerates omitted optional metadata", async () => {
+  const calls: string[] = [];
+  const destination = new GoogleDriveDestination({
+    folderId: "fixture-folder",
+    accessToken: () => "recorded",
+    fetch: async (input) => {
+      const url = new URL(String(input));
+      calls.push(url.searchParams.get("pageToken") ?? "initial");
+      return calls.length === 1
+        ? Response.json({ files: [{ id: "one", name: "older.monfull" }], nextPageToken: "second" })
+        : Response.json({});
+    },
+  });
+  expect(await destination.list()).toEqual([
+    { name: "older.monfull", byteLength: 0, storedAt: new Date(0) },
+  ]);
+  expect(calls).toEqual(["initial", "second"]);
+});
+
+it("handles a source read error while the provider credential is still loading", async () => {
+  let release: (token: string) => void = () => {};
+  const credential = new Promise<string>((resolve) => {
+    release = resolve;
+  });
+  const source = new Readable({ read() {} });
+  const destination = new GoogleDriveDestination({
+    folderId: "fixture",
+    accessToken: () => credential,
+    fetch: async () =>
+      new Response(null, {
+        status: 200,
+        headers: { location: "https://recorded.example/session" },
+      }),
+  });
+  const upload = destination.put("fixture.monfull", source, 100);
+  source.emit("error", new Error("private read failure"));
+  release("recorded");
+  await expect(upload).rejects.toThrow("backup source could not be read");
+  expect(source.destroyed).toBe(true);
+  expect(source.listenerCount("error")).toBe(0);
+});
+
+it("closes a file source even when opening it races with a refused credential", async () => {
+  const source = createReadStream(path.join(root, "missing-archive.monfull"));
+  const closed = new Promise<void>((resolve) => source.once("close", resolve));
+  const destination = new GoogleDriveDestination({ folderId: "fixture", accessToken: () => "" });
+  await expect(destination.put("fixture.monfull", source, 100)).rejects.toThrow(
+    "credential is empty",
+  );
+  await closed;
+  expect(source.destroyed).toBe(true);
+});
+
+describe("filesystem publication failures", () => {
+  it("does not publish or leave staging when the declared archive length is wrong", async () => {
+    const directory = mkdtempSync(path.join(root, "length-"));
+    const destination = new FilesystemDestination(directory);
+    await expect(
+      destination.put("fixture.monfull", Readable.from(Buffer.from("short")), 100),
+    ).rejects.toThrow("declared size");
+    expect(await readdir(directory)).toEqual([]);
+  });
+
+  it("distinguishes an absent destination from a path replaced by a file", async () => {
+    const directory = path.join(root, "unavailable");
+    const destination = new FilesystemDestination(directory);
+    expect(await destination.list()).toEqual([]);
+    await writeFile(directory, "operator fixture");
+    await expect(destination.list()).rejects.toMatchObject({ name: "DestinationUnavailableError" });
+    await expect(destination.read("fixture.monfull")).rejects.toMatchObject({ code: "ENOTDIR" });
+  });
+
+  it("lists only published files and preserves an existing copy on a name collision", async () => {
+    const directory = mkdtempSync(path.join(root, "publication-"));
+    const destination = new FilesystemDestination(directory);
+    await mkdir(path.join(directory, "operator-directory"));
+    await writeFile(path.join(directory, ".backup-interrupted"), "partial");
+    await destination.put("fixture.monfull", Readable.from(Buffer.from("original")), 8);
+    await expect(
+      destination.put("fixture.monfull", Readable.from(Buffer.from("replacement")), 11),
+    ).rejects.toMatchObject({ code: "EEXIST" });
+    expect(
+      (await destination.list()).map(({ name, byteLength }) => ({ name, byteLength })),
+    ).toEqual([{ name: "fixture.monfull", byteLength: 8 }]);
+    const contents = await destination.read("fixture.monfull");
+    const chunks: Buffer[] = [];
+    if (contents === null) throw new Error("Published archive is missing");
+    for await (const chunk of contents) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString()).toBe("original");
+    expect((await readdir(directory)).sort()).toEqual([
+      ".backup-interrupted",
+      "fixture.monfull",
+      "operator-directory",
+    ]);
   });
 });

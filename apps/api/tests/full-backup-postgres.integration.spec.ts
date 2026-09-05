@@ -127,6 +127,15 @@ describe("native PostgreSQL full backup tools", () => {
     await sourceClient.query("ALTER TABLE installations ADD COLUMN application_version text");
     await sourceClient.query("UPDATE installations SET application_version = '0.1.0'");
     expect((await inspectFullSource(sourceClient)).source.applicationVersion).toBe("0.1.0");
+    const historicalCommit = "ab".repeat(20);
+    await sourceClient.query("UPDATE installations SET application_version = $1", [
+      `sha-${historicalCommit}`,
+    ]);
+    expect((await inspectFullSource(sourceClient)).source).toMatchObject({
+      applicationVersion: `sha-${historicalCommit}`,
+      commit: historicalCommit,
+      image: null,
+    });
     await sourceClient.query("INSERT INTO installations(id) VALUES ($1)", [randomUUID()]);
     await expect(inspectFullSource(sourceClient)).rejects.toThrow("ambiguous");
   });
