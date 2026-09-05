@@ -148,3 +148,12 @@ bun run --filter @myownnotion/api typecheck
 bun run tsc -p tsconfig.json --noEmit
 bun run biome check apps/api/tests/protected-files.integration.spec.ts tests/e2e/canonical-storage.ts tests/e2e/databases-offline-sync.spec.ts tests/e2e/page-multi-tab-convergence.spec.ts
 ```
+
+## Complete coverage after allocation and joined privacy changes
+
+At code checkpoint `82df5084`, the complete coverage command passes **406 suites
+and 3,875 tests**, with no changed thresholds (2,452 uncovered branches, budget
+2,465). Log `/tmp/mon-audit-coverage-t045.log`, exit 0. This includes the production
+buffer changes, durable blob verification and T045's expanded protected portable
+fixture. It is complete coverage evidence, not the remaining full `checks:local`
+or a main-delivery result.

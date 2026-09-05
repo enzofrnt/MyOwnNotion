@@ -69,7 +69,7 @@ survive projection updates; active caret/style and native runtime are exercised.
 - [x] T033 [US4] Restore semantic activation in `apps/web/src/ui/stable-action-button.tsx` and stabilize affected database forms/list rows across projection changes without replacing unsaved values (FR-010).
 - [x] T034 [US4] Remove the unimported `apps/web/src/styles.css` and its string-matching test in `apps/web/tests/editor-input.spec.ts`; verify empty-line caret/focus through active `global.css` in browser journeys and fix stale references (FR-012).
 - [x] T035 [US4] Remove only proven unused native locking scaffold in `apps/desktop/src/single-instance.ts` and tests; preserve live partition/profile helpers and actual Electron single-instance lifecycle coverage (FR-012/FR-013).
-- [ ] T036 [US4] Complete evidence/disposition for every declared audit boundary in `docs/audits/2026-09-pre-v1.md`, including checked auth/revocation, sync/revisions, migration/recovery, sensitive logging, shared contracts and native/window state (FR-011, SC-007).
+- [x] T036 [US4] Complete evidence/disposition for every declared audit boundary in `docs/audits/2026-09-pre-v1.md`, including checked auth/revocation, sync/revisions, migration/recovery, sensitive logging, shared contracts and native/window state (FR-011, SC-007).
 
 ## Phase 7: Cross-cutting validation and delivery
 
