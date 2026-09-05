@@ -80,7 +80,12 @@ export class LocalDatabaseRepository {
   async listEntries(databaseId: Uuid): Promise<LocalDatabaseEntryRow[]> {
     const rows = await this.db.databaseEntries.where("databaseId").equals(databaseId).toArray();
     const opened: LocalDatabaseEntryRow[] = [];
-    for (const row of rows) opened.push(await this.#codec.openDatabaseEntry(row));
+    for (let offset = 0; offset < rows.length; offset += 64)
+      opened.push(
+        ...(await Promise.all(
+          rows.slice(offset, offset + 64).map((row) => this.#codec.openDatabaseEntry(row)),
+        )),
+      );
     return opened;
   }
 
@@ -167,6 +172,43 @@ export class LocalDatabaseRepository {
       payload["databaseId"] === databaseId ||
       payload["entryId"] === entryId ||
       payload["itemId"] === entryId
+    );
+  }
+
+  async getRelationTargetsForEntries(
+    databaseId: Uuid,
+    entryIds: readonly Uuid[],
+  ): Promise<ReadonlyMap<Uuid, RelationTargets>> {
+    if (entryIds.length === 0) return new Map();
+    const relationships = await this.db.relationships
+      .where("sourceItemId")
+      .anyOf([...entryIds])
+      .toArray();
+    const byEntry = new Map<Uuid, Record<string, Uuid[]>>();
+    for (const relationship of relationships) {
+      const propertyId = relationship.metadata["propertyId"];
+      if (
+        relationship.relationType !== "database:property" ||
+        relationship.metadata["databaseId"] !== databaseId ||
+        typeof propertyId !== "string"
+      )
+        continue;
+      const properties = byEntry.get(relationship.sourceItemId) ?? {};
+      const targets = properties[propertyId] ?? [];
+      targets.push(relationship.targetItemId);
+      properties[propertyId] = targets;
+      byEntry.set(relationship.sourceItemId, properties);
+    }
+    return new Map(
+      [...byEntry].map(([id, properties]) => [
+        id,
+        Object.fromEntries(
+          Object.entries(properties).map(([propertyId, targets]) => [
+            propertyId,
+            [...new Set(targets)].sort(),
+          ]),
+        ) as RelationTargets,
+      ]),
     );
   }
 

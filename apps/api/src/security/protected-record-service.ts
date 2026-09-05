@@ -290,12 +290,17 @@ export class ProtectedRecordService {
    */
   async readMany(
     executor: Database | Transaction,
-    input: { entityType: string; entityIds: readonly string[] },
+    input: {
+      entityType: string;
+      entityIds: readonly string[];
+      recordVersions?: ReadonlyMap<string, number>;
+    },
   ): Promise<ReadonlyMap<string, Uint8Array>> {
     const stored = await readProtectedRecords(executor, {
       workspaceId: this.#deps.workspaceId,
       entityType: input.entityType,
       entityIds: input.entityIds,
+      ...(input.recordVersions === undefined ? {} : { recordVersions: input.recordVersions }),
     });
     const byGeneration = new Map<number, Array<[string, StoredEnvelope]>>();
     for (const [entityId, record] of stored) {
@@ -303,7 +308,7 @@ export class ProtectedRecordService {
         entityType: input.entityType,
         entityId,
         keyGeneration: record.keyGeneration,
-        recordVersion: record.recordVersion,
+        recordVersion: input.recordVersions?.get(entityId) ?? record.recordVersion,
       });
       assertEnvelopeMatches(record, binding);
       const entries = byGeneration.get(record.keyGeneration) ?? [];
@@ -318,7 +323,7 @@ export class ProtectedRecordService {
           entityType: input.entityType,
           entityId,
           keyGeneration: record.keyGeneration,
-          recordVersion: record.recordVersion,
+          recordVersion: input.recordVersions?.get(entityId) ?? record.recordVersion,
         });
         try {
           opened.set(entityId, openEnvelope(dataKey.material, record.envelope, binding));

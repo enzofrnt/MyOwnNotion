@@ -1,6 +1,6 @@
 import type { DatabaseDefinition, EntryValues, RelationTargets, Uuid } from "@myownnotion/domain";
 import { generateUuidV7 } from "@myownnotion/domain";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { databaseEntries, databases, items, relationships, revisions } from "../schema/index.ts";
 
@@ -368,4 +368,90 @@ export async function hasStructuredPageRole(executor: Executor, itemId: Uuid): P
     .where(eq(databaseEntries.entryItemId, itemId))
     .limit(1);
   return entry.length > 0;
+}
+
+/** Structural projection input; editorial page bodies and placements are not needed. */
+export interface DatabaseProjectionEntryRecord {
+  readonly entryId: Uuid;
+  readonly revisionId: Uuid;
+  readonly storedName: string;
+  readonly valueVersion: number;
+  readonly storedValues: EntryValues | null;
+}
+
+export async function listDatabaseProjectionEntries(
+  executor: Executor,
+  databaseId: Uuid,
+  entryIds?: readonly Uuid[],
+): Promise<DatabaseProjectionEntryRecord[]> {
+  if (entryIds?.length === 0) return [];
+  const rows = await executor
+    .select({
+      entryId: items.id,
+      revisionId: items.currentRevisionId,
+      storedName: items.name,
+      valueVersion: databaseEntries.valueVersion,
+      storedValues: sql<EntryValues | null>`${revisions.snapshot}->'databaseEntryValues'`,
+    })
+    .from(databaseEntries)
+    .innerJoin(items, eq(items.id, databaseEntries.entryItemId))
+    .innerJoin(revisions, eq(revisions.id, items.currentRevisionId))
+    .where(
+      and(
+        eq(databaseEntries.databaseId, databaseId),
+        eq(items.lifecycle, "active"),
+        entryIds === undefined ? undefined : inArray(items.id, [...entryIds]),
+      ),
+    );
+  return rows.map((row) => ({
+    ...row,
+    entryId: row.entryId as Uuid,
+    revisionId: row.revisionId as Uuid,
+  }));
+}
+
+export async function listDatabaseProjectionRelationships(
+  executor: Executor,
+  databaseId: Uuid,
+  entryIds?: readonly Uuid[],
+): Promise<(DatabasePropertyRelationshipRecord & { readonly sourceItemId: Uuid })[]> {
+  if (entryIds?.length === 0) return [];
+  const rows = await executor
+    .select({
+      id: relationships.id,
+      sourceItemId: relationships.sourceItemId,
+      targetItemId: relationships.targetItemId,
+      metadata: relationships.metadata,
+    })
+    .from(relationships)
+    .innerJoin(databaseEntries, eq(databaseEntries.entryItemId, relationships.sourceItemId))
+    .innerJoin(items, eq(items.id, databaseEntries.entryItemId))
+    .where(
+      and(
+        eq(databaseEntries.databaseId, databaseId),
+        eq(items.lifecycle, "active"),
+        eq(relationships.relationType, "database:property"),
+        isNull(relationships.removedRevisionId),
+        entryIds === undefined ? undefined : inArray(items.id, [...entryIds]),
+      ),
+    );
+  return rows.map((row) => ({
+    ...row,
+    id: row.id as Uuid,
+    sourceItemId: row.sourceItemId as Uuid,
+    targetItemId: row.targetItemId as Uuid,
+    metadata: row.metadata as Readonly<Record<string, unknown>>,
+  }));
+}
+
+export async function databaseIdsForEntries(
+  executor: Executor,
+  entryIds: readonly Uuid[],
+): Promise<Uuid[]> {
+  if (entryIds.length === 0) return [];
+  const rows = await executor
+    .selectDistinct({ databaseId: databaseEntries.databaseId })
+    .from(databaseEntries)
+    .where(inArray(databaseEntries.entryItemId, [...entryIds]));
+  return rows.map((row) => row.databaseId as Uuid);
 }

@@ -186,11 +186,16 @@ export class ProtectedContent {
     executor: Database | Transaction,
     entityType: string,
     entityIds: readonly string[],
+    recordVersions?: ReadonlyMap<string, number>,
   ): Promise<ReadonlyMap<string, T>> {
     if (entityIds.length === 0) {
       return new Map();
     }
-    const opened = await this.#deps.records.readMany(executor, { entityType, entityIds });
+    const opened = await this.#deps.records.readMany(executor, {
+      entityType,
+      entityIds,
+      ...(recordVersions === undefined ? {} : { recordVersions }),
+    });
     return new Map(
       [...opened].map(([entityId, value]) => [
         entityId,
@@ -240,6 +245,20 @@ export class ProtectedContent {
 
   async readItemName(executor: Database | Transaction, itemId: string): Promise<string | null> {
     return (await this.readItemPresentation(executor, itemId))?.name ?? null;
+  }
+
+  async readItemPresentations(
+    executor: Database | Transaction,
+    itemIds: readonly string[],
+  ): Promise<ReadonlyMap<string, ItemPresentation>> {
+    const values = await this.#readMany<string | ItemPresentation>(
+      executor,
+      PROTECTED_ENTITY_TYPES.itemName,
+      itemIds,
+    );
+    return new Map(
+      [...values].map(([itemId, value]) => [itemId, normalizeItemPresentation(value)]),
+    );
   }
 
   async readItemNames(
@@ -317,6 +336,29 @@ export class ProtectedContent {
       PROTECTED_ENTITY_TYPES.relationshipMetadata,
       relationshipId,
       recordVersion,
+    );
+  }
+
+  async readRelationshipMetadataMany<T>(
+    executor: Database | Transaction,
+    relationshipIds: readonly string[],
+  ): Promise<ReadonlyMap<string, T>> {
+    return await this.#readMany<T>(
+      executor,
+      PROTECTED_ENTITY_TYPES.relationshipMetadata,
+      relationshipIds,
+    );
+  }
+
+  async readDatabaseEntryValuesMany(
+    executor: Database | Transaction,
+    entries: readonly { entryId: string; valueVersion: number }[],
+  ): Promise<ReadonlyMap<string, EntryValues>> {
+    return await this.#readMany<EntryValues>(
+      executor,
+      PROTECTED_ENTITY_TYPES.databaseEntryValues,
+      entries.map((entry) => entry.entryId),
+      new Map(entries.map((entry) => [entry.entryId, entry.valueVersion])),
     );
   }
 

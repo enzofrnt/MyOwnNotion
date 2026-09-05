@@ -153,9 +153,15 @@ export class LocalRepository {
     rows: ReadonlyArray<{ row: SealedLocalItemRow; placements: LocalPlacementRow[] }>,
   ): Promise<ProjectedItem[]> {
     const opened: ProjectedItem[] = [];
-    for (const entry of rows) {
-      const item = await this.#codec.openItem(entry.row);
-      opened.push({ ...item, placements: entry.placements });
+    for (let offset = 0; offset < rows.length; offset += 64) {
+      opened.push(
+        ...(await Promise.all(
+          rows.slice(offset, offset + 64).map(async (entry) => ({
+            ...(await this.#codec.openItem(entry.row)),
+            placements: entry.placements,
+          })),
+        )),
+      );
     }
     return opened;
   }
@@ -308,6 +314,31 @@ export class LocalRepository {
         await this.db.meta.put({ key: META_KEYS.lastChangeCursor, value: input.cursor });
       },
     );
+  }
+
+  async getItems(itemIds: readonly Uuid[]): Promise<ProjectedItem[]> {
+    if (itemIds.length === 0) return [];
+    const fetched = await this.db.transaction(
+      "r",
+      [this.db.items, this.db.placements],
+      async () => {
+        const items = await this.db.items.bulkGet([...itemIds]);
+        const placements = await this.db.placements
+          .where("itemId")
+          .anyOf([...itemIds])
+          .toArray();
+        const byItem = new Map<Uuid, LocalPlacementRow[]>();
+        for (const placement of placements) {
+          const values = byItem.get(placement.itemId) ?? [];
+          values.push(placement);
+          byItem.set(placement.itemId, values);
+        }
+        return items.flatMap((row) =>
+          row === undefined ? [] : [{ row, placements: byItem.get(row.id) ?? [] }],
+        );
+      },
+    );
+    return await this.#openAll(fetched);
   }
 
   async getItem(itemId: Uuid): Promise<ProjectedItem | null> {

@@ -29,6 +29,8 @@
 import {
   type Database,
   type DatabaseEntryRecord,
+  type DatabaseProjectionEntryRecord,
+  type DatabasePropertyRelationshipRecord,
   type DatabaseRecord,
   type ItemReadModel,
   listDatabasePropertyRelationships,
@@ -85,13 +87,23 @@ export async function resolveProtectedContent(
     );
   }
 
+  const live = models.filter((model) => model.lifecycle !== "purged");
+  // Keep transaction queries sequential while sharing one key lookup per batch.
+  const presentations = await content.readItemPresentations(
+    executor,
+    live.map((model) => model.id),
+  );
+  const bodies = await content.readPageBodies<Record<string, unknown>>(
+    executor,
+    live.filter((model) => model.pageDocument !== null).map((model) => model.id),
+  );
   const resolved: ItemReadModel[] = [];
   for (const model of models) {
     if (model.lifecycle === "purged") {
       resolved.push(purgedItemTombstone(model));
       continue;
     }
-    const sealedPresentation = await content.readItemPresentation(executor, model.id);
+    const sealedPresentation = presentations.get(model.id) ?? null;
     // What is sealed is the document's *body*, not the envelope around it.
     // The format and its version are structural — they say how to parse the
     // body, not what it says — and they stay readable for the same reason the
@@ -99,10 +111,7 @@ export async function resolveProtectedContent(
     // produces a record with no format, which fails serialization rather than
     // returning wrong content, but only because the contract happens to
     // require the field.
-    const sealedBody =
-      model.pageDocument === null
-        ? null
-        : await content.readPageBody<Record<string, unknown>>(executor, model.id);
+    const sealedBody = model.pageDocument === null ? null : (bodies.get(model.id) ?? null);
 
     if (sealedPresentation === null && model.name === SCRUBBED_PLACEHOLDER) {
       // The plaintext was scrubbed and the envelope is gone. Serving the
@@ -214,15 +223,67 @@ export async function resolveProtectedRelationships(
   content: ProtectedContent | undefined,
 ): Promise<RelationshipListing[]> {
   if (content === undefined) return [...relationships];
+  const metadataById = await content.readRelationshipMetadataMany<Record<string, unknown>>(
+    executor,
+    relationships.map((relationship) => relationship.id),
+  );
   const resolved: RelationshipListing[] = [];
   for (const relationship of relationships) {
-    const metadata = await content.readRelationshipMetadata<Record<string, unknown>>(
-      executor,
-      relationship.id,
-    );
+    const metadata = metadataById.get(relationship.id) ?? null;
     if (metadata === null && isProtectedPayload(relationship.metadata))
       throw new ProtectedContentUnavailableError(relationship.id);
     resolved.push({ ...relationship, metadata: metadata ?? relationship.metadata });
   }
   return resolved;
+}
+
+/** Opens only fields used by database views, with exact canonical value versions. */
+export async function resolveDatabaseProjectionEntries(
+  executor: Database | Transaction,
+  databaseId: Uuid,
+  records: readonly DatabaseProjectionEntryRecord[],
+  relationships: readonly (DatabasePropertyRelationshipRecord & { readonly sourceItemId: Uuid })[],
+  content: ProtectedContent | undefined,
+) {
+  const [names, values, metadata] = await Promise.all([
+    content?.readItemNames(
+      executor,
+      records.map((record) => record.entryId),
+    ) ?? new Map<string, string>(),
+    content?.readDatabaseEntryValuesMany(executor, records) ?? new Map<string, EntryValues>(),
+    content?.readRelationshipMetadataMany<Readonly<Record<string, unknown>>>(
+      executor,
+      relationships.map((relationship) => relationship.id),
+    ) ?? new Map<string, Readonly<Record<string, unknown>>>(),
+  ]);
+  const targetsByEntry = new Map<Uuid, Map<Uuid, Uuid[]>>();
+  for (const relationship of relationships) {
+    const value = metadata.get(relationship.id) ?? relationship.metadata;
+    if (isProtectedPayload(value)) throw new ProtectedContentUnavailableError(relationship.id);
+    if (value["databaseId"] !== databaseId || typeof value["propertyId"] !== "string") continue;
+    const propertyId = value["propertyId"] as Uuid;
+    const byProperty = targetsByEntry.get(relationship.sourceItemId) ?? new Map<Uuid, Uuid[]>();
+    const targets = byProperty.get(propertyId) ?? [];
+    targets.push(relationship.targetItemId);
+    byProperty.set(propertyId, targets);
+    targetsByEntry.set(relationship.sourceItemId, byProperty);
+  }
+  return records.map((record) => {
+    const title = names.get(record.entryId) ?? record.storedName;
+    const entryValues = values.get(record.entryId) ?? record.storedValues;
+    if (title === SCRUBBED_PLACEHOLDER || entryValues === null || isProtectedPayload(entryValues))
+      throw new ProtectedContentUnavailableError(record.entryId);
+    return {
+      entryId: record.entryId,
+      revisionId: record.revisionId,
+      title,
+      values: entryValues.values,
+      relationTargets: Object.fromEntries(
+        [...(targetsByEntry.get(record.entryId) ?? [])].map(([propertyId, targets]) => [
+          propertyId,
+          targets.sort(),
+        ]),
+      ) as RelationTargets,
+    };
+  });
 }

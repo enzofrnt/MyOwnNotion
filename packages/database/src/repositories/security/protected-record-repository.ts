@@ -28,7 +28,7 @@ import type { EncryptedEnvelope } from "@myownnotion/domain";
 // The envelope helpers live behind the `/security` subpath because they need
 // `node:crypto`; this package is server-side, so importing them is fine.
 import { type EnvelopeBinding, envelopeMatchesBinding } from "@myownnotion/domain/security";
-import { and, asc, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, or } from "drizzle-orm";
 import type { Database, Transaction } from "../../client.ts";
 import { protectedEnvelopes } from "../../schema/security/index.ts";
 import { SecurityRepositoryError } from "./repository-types.ts";
@@ -231,22 +231,52 @@ export async function readProtectedRecord(
  */
 export async function readProtectedRecords(
   executor: Executor,
-  input: { workspaceId: string; entityType: string; entityIds: readonly string[] },
+  input: {
+    workspaceId: string;
+    entityType: string;
+    entityIds: readonly string[];
+    recordVersions?: ReadonlyMap<string, number>;
+  },
 ): Promise<ReadonlyMap<string, StoredEnvelope>> {
-  if (input.entityIds.length === 0) {
-    return new Map();
+  const ids = [...new Set(input.entityIds)];
+  const result = new Map<string, StoredEnvelope>();
+  // Bound parameter count for large projections and never let row insertion
+  // order choose which historical version a current read returns.
+  for (let offset = 0; offset < ids.length; offset += 500) {
+    const batch = ids.slice(offset, offset + 500);
+    const versions = input.recordVersions;
+    const exact =
+      versions === undefined
+        ? undefined
+        : or(
+            ...batch.map((id) => {
+              const version = versions.get(id);
+              if (version === undefined)
+                throw new SecurityRepositoryError(
+                  "protected_read_failed",
+                  "a requested record version is missing",
+                );
+              return and(
+                eq(protectedEnvelopes.entityId, id),
+                eq(protectedEnvelopes.recordVersion, version),
+              );
+            }),
+          );
+    const rows = await executor
+      .selectDistinctOn([protectedEnvelopes.entityId])
+      .from(protectedEnvelopes)
+      .where(
+        and(
+          eq(protectedEnvelopes.workspaceId, input.workspaceId),
+          eq(protectedEnvelopes.entityType, input.entityType),
+          inArray(protectedEnvelopes.entityId, batch),
+          exact,
+        ),
+      )
+      .orderBy(asc(protectedEnvelopes.entityId), desc(protectedEnvelopes.recordVersion));
+    for (const row of rows) result.set(row.entityId, toStored(row));
   }
-  const rows = await executor
-    .select()
-    .from(protectedEnvelopes)
-    .where(
-      and(
-        eq(protectedEnvelopes.workspaceId, input.workspaceId),
-        eq(protectedEnvelopes.entityType, input.entityType),
-        inArray(protectedEnvelopes.entityId, [...input.entityIds]),
-      ),
-    );
-  return new Map(rows.map((row) => [row.entityId, toStored(row)]));
+  return result;
 }
 
 /**
