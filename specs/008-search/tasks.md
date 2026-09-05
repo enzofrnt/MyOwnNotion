@@ -84,7 +84,7 @@ vide et l'ouverture de chaque résultat.
 - [X] T024 [US1] Ajouter ContentApi.search avec corps JSON et résultats typés dans apps/web/src/services/content-api.ts
 - [X] T025 [US1] Implémenter la surface, les résultats et l'extrait rendu comme texte dans apps/web/src/features/search/search-dialog.tsx et apps/web/src/features/search/search-results.tsx pour satisfaire T018
 - [X] T026 [US1] Ajouter l'entrée Recherche et l'ouverture/navigation de résultat dans apps/web/src/features/navigation/sidebar.tsx et apps/web/src/features/hierarchy/hierarchy-explorer.tsx
-- [X] T027 [US1] Ajouter les styles loading, empty, error et résultat dans apps/web/src/styles.css sans dégrader les composants existants
+- [X] T027 [US1] Ajouter les styles loading, empty, error et résultat dans apps/web/src/global.css sans dégrader les composants existants
 - [X] T028 [US1] Exécuter les tests T016 à T019 et consigner le checkpoint MVP dans specs/008-search/validation.md
 
 **Checkpoint**: La recherche complète en ligne est utilisable et testable
@@ -147,7 +147,7 @@ sur le viewport minimal.
 - [X] T047 [US3] Implémenter les filtres visibles et réinitialisables dans apps/web/src/features/search/search-filters.tsx et les brancher dans search-dialog.tsx
 - [X] T048 [US3] Implémenter focus initial/retour, flèches, Entrée, Échap, annonces et sélection stable dans apps/web/src/features/search/search-dialog.tsx pour satisfaire T042
 - [X] T049 [US3] Implémenter chargement progressif et reprise cursor-stale dans apps/web/src/services/search.ts et apps/web/src/features/search/search-results.tsx
-- [X] T050 [US3] Finaliser les styles 320 px, zoom, reduced-motion et contraste dans apps/web/src/styles.css pour satisfaire T043 et T044
+- [X] T050 [US3] Finaliser les styles 320 px, zoom, reduced-motion et contraste dans apps/web/src/global.css pour satisfaire T043 et T044
 - [X] T051 [US3] Exécuter les tests T041 à T044 et ajouter les preuves accessibilité/responsive dans specs/008-search/validation.md
 
 **Checkpoint**: La recherche complète et locale est filtrable, paginée et

@@ -46,7 +46,7 @@ publication/checkpoint/cutover/cleanup boundary, resume and compare exact data.
 - [ ] T022 [US2] Create historical shared/history-only/partial/orphan fixtures and failing interruption/backup-refusal tests in `apps/api/tests/file-storage-migration.integration.spec.ts` (FR-007, SC-003).
 - [x] T023 [US2] Implement durable inventory and per-object checkpoints in `apps/api/src/security/file-storage-migration.ts` and transition repositories, bound to the verified 024 source-backup identity (FR-007).
 - [x] T024 [US2] Backfill completed/partial ciphertext and sensitive current/history metadata, verify replacements and preserve recoverable orphan data in encrypted quarantine in `apps/api/src/security/file-storage-migration.ts` (FR-002/FR-007).
-- [ ] T025 [US2] Implement verified cutover and resumable retirement of readable originals with explicit corruption/disk/key failures in `apps/api/src/security/file-storage-migration.ts` (FR-007/FR-008).
+- [x] T025 [US2] Implement verified cutover and resumable retirement of readable originals with explicit corruption/disk/key failures in `apps/api/src/security/file-storage-migration.ts` (FR-007/FR-008).
 - [x] T026 [US2] Integrate transition before successful version bookkeeping in `apps/api/src/backup/guarded-migration.ts`; block startup/incompatible mutation paths while transition is incomplete (FR-007/FR-008).
 - [ ] T027 [US2] Prove every durable interruption, backup-before-write, concurrent writer/rotation boundary and logical/file sentinel cleanup in `apps/api/tests/file-storage-migration.integration.spec.ts` (SC-001/SC-003).
 - [x] T028 [US2] Document disk-space needs, resumable recovery, encrypted quarantine, historical WAL/snapshot limits and complete rollback in `docs/deployment/backups.md` and `docs/architecture/file-handling.md` (FR-007/FR-011).
@@ -56,19 +56,19 @@ publication/checkpoint/cutover/cleanup boundary, resume and compare exact data.
 **Independent test**: Occupied import target refuses unchanged; empty target
 adopts identity atomically and imports no devices; 024 invalidates restored trust.
 
-- [ ] T029 [US3] Verify actual reachability and occupied-target/rollback invariants in `apps/api/tests/administrative-recovery.integration.spec.ts`, including real active devices/sessions on the refused source target (FR-009, SC-005).
-- [ ] T030 [US3] Remove or correct the unreachable inconsistent `resetDeviceTrust` branch in `packages/database/src/repositories/security/recovery-import-repository.ts` and its sole administrative caller; preserve result compatibility, empty-target refusal and key cleanup (FR-009/FR-012).
-- [ ] T031 [US3] Re-run actual full-restore trust invalidation and post-activation attachment reads in `apps/api/tests/full-restore.integration.spec.ts`; record distinction between key import and complete restore in the audit (FR-009, SC-005).
+- [x] T029 [US3] Verify actual reachability and occupied-target/rollback invariants in `apps/api/tests/administrative-recovery.integration.spec.ts`, including real active devices/sessions on the refused source target (FR-009, SC-005).
+- [x] T030 [US3] Remove or correct the unreachable inconsistent `resetDeviceTrust` branch in `packages/database/src/repositories/security/recovery-import-repository.ts` and its sole administrative caller; preserve result compatibility, empty-target refusal and key cleanup (FR-009/FR-012).
+- [x] T031 [US3] Re-run actual full-restore trust invalidation and post-activation attachment reads in `apps/api/tests/full-restore.integration.spec.ts`; record distinction between key import and complete restore in the audit (FR-009, SC-005).
 
 ## Phase 6: US4 — Predictable controls and credible checks (P2)
 
 **Independent test**: Pointer cancellation, keyboard submit, dirty input and IME
 survive projection updates; active caret/style and native runtime are exercised.
 
-- [ ] T032 [US4] Add failing real pointer-down/move-away/release, exactly-once keyboard and dirty-form composition/projection journeys in `tests/e2e/database-form-lifecycle.spec.ts` (FR-010, SC-006).
-- [ ] T033 [US4] Restore semantic activation in `apps/web/src/ui/stable-action-button.tsx` and stabilize affected database forms/list rows across projection changes without replacing unsaved values (FR-010).
-- [ ] T034 [US4] Remove the unimported `apps/web/src/styles.css` and its string-matching test in `apps/web/tests/editor-input.spec.ts`; verify empty-line caret/focus through active `global.css` in browser journeys and fix stale references (FR-012).
-- [ ] T035 [US4] Remove only proven unused native locking scaffold in `apps/desktop/src/single-instance.ts` and tests; preserve live partition/profile helpers and actual Electron single-instance lifecycle coverage (FR-012/FR-013).
+- [x] T032 [US4] Add failing real pointer-down/move-away/release, exactly-once keyboard and dirty-form composition/projection journeys in `tests/e2e/database-form-lifecycle.spec.ts` (FR-010, SC-006).
+- [x] T033 [US4] Restore semantic activation in `apps/web/src/ui/stable-action-button.tsx` and stabilize affected database forms/list rows across projection changes without replacing unsaved values (FR-010).
+- [x] T034 [US4] Remove the unimported `apps/web/src/styles.css` and its string-matching test in `apps/web/tests/editor-input.spec.ts`; verify empty-line caret/focus through active `global.css` in browser journeys and fix stale references (FR-012).
+- [x] T035 [US4] Remove only proven unused native locking scaffold in `apps/desktop/src/single-instance.ts` and tests; preserve live partition/profile helpers and actual Electron single-instance lifecycle coverage (FR-012/FR-013).
 - [ ] T036 [US4] Complete evidence/disposition for every declared audit boundary in `docs/audits/2026-09-pre-v1.md`, including checked auth/revocation, sync/revisions, migration/recovery, sensitive logging, shared contracts and native/window state (FR-011, SC-007).
 
 ## Phase 7: Cross-cutting validation and delivery

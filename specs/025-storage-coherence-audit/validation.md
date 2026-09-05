@@ -287,3 +287,41 @@ The maintained Bun/--smol runtime also passes the same 2 GiB fixture: 107.0 MiB
 baseline RSS, 353.6 MiB peak and 246.6 MiB additional RSS over 12.66 seconds.
 This is below the required 256 MiB limit but leaves limited headroom; the full
 gate must reproduce it. Log: `/tmp/mon-protected-files-bun-memory.log`.
+
+
+The pointer-cancellation browser fixture fails on the old pointerdown action,
+then passes with semantic click activation. Thirty targeted browser executions
+(six journeys on each of five projects) pass: cancellation, single keyboard
+activation, real second-device update during a composing dirty field, typed
+schema/entry identity and active editor caret/typing in both themes. Firefox
+and WebKit use the pinned Linux container. Actual Chromium dark and Firefox
+light captures were inspected; no unused stylesheet is used as visual evidence.
+The first expanded run was interrupted after an undefined testInfo in the newly
+added screenshot capture; the corrected complete matrix passes. Logs:
+`/tmp/mon-ui-pointer-baseline.log`, `/tmp/mon-ui-audit-browser-matrix-fixed.log`.
+
+The unused stylesheet and test-only native filesystem lock are removed; their
+live global.css/Electron consumers remain. All maintained task and CI ownership
+references were updated. Forty-eight focused editor/native/impact-policy tests
+pass, as do all workspace strict types after correcting the performance fixture's
+old file-based seal callback to the new stream boundary. The UI skill now
+explicitly requires release cancellation and semantic activation.
+
+Administrative import still refuses any occupied target before adoption. A new
+fixture proves existing real device/session rows remain unchanged; the removed
+resetDeviceTrust helper was unreachable under those owner-FK/emptiness invariants.
+Twenty-seven recovery tests pass. The strengthened actual full-restore suite
+also passes thirteen cases: the old file cookie receives 401, a fresh password
+login authorizes exactly one device, and both full and range HTTP reads return
+the original protected attachment after restore/activation. Logs:
+`/tmp/mon-recovery-trust-audit.log`, `/tmp/mon-full-restore-protected-http.log`.
+
+Twenty historical-storage cases now pass, including unreadable ciphertext,
+missing keys and retirement I/O failure after cutover. Each failure preserves
+its readable original and incomplete transition; repair permits completion.
+Final completion also reconciles every retired checkpoint with the authenticated
+inventory and refuses success if a checkpoint disappeared. The recovery test
+restores that checkpoint and resumes. The maintained Bun portable backup/restore
+benchmark passes after its stream-adapter update (1,000 items: 504 ms backup,
+8,763 ms restore). Logs: `/tmp/mon-retirement-final-inventory.log`,
+`/tmp/mon-audit-portable-perf.log`.

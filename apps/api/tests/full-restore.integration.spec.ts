@@ -19,8 +19,14 @@ import {
   readFullRestoreState,
 } from "../src/backup/full/restore-state.ts";
 import { FullBackupService } from "../src/backup/full/service.ts";
+import { hashPassword } from "../src/security/password-service.ts";
 import { loadSecurityConfig } from "../src/security/security-config.ts";
-import { type ApiHarness, createApiHarness, createItemViaApi } from "./helpers/app.ts";
+import {
+  type ApiHarness,
+  createApiHarness,
+  createItemViaApi,
+  currentProtocolHeaders,
+} from "./helpers/app.ts";
 import { authenticatedContent } from "./helpers/content-owner.ts";
 
 let harness: ApiHarness;
@@ -28,6 +34,9 @@ let directory: string;
 let archivePath: string;
 let oldHeaders: Record<string, string>;
 let pageId: string;
+let protectedFileId: string;
+const password = "correct horse battery staple";
+const protectedBytes = Buffer.from("Authenticated attachment after complete recovery");
 const key = randomBytes(32);
 const attachment = Buffer.from("Private full recovery attachment\n");
 const attachmentId = createHash("sha256").update(attachment).digest("hex");
@@ -48,6 +57,29 @@ beforeAll(async () => {
   });
   const authenticated = await authenticatedContent(harness);
   oldHeaders = authenticated.headers;
+  const credential = await hashPassword(password);
+  await harness.built.database.db.execute(sql`
+    INSERT INTO password_credential_versions(id, owner_id, password_hash, hash_algorithm, state)
+    SELECT gen_random_uuid(), id, ${credential.encoded}, 'scrypt', 'active' FROM owners
+  `);
+  const upload = await authenticated({
+    method: "POST",
+    url: "/v1/uploads",
+    headers: {
+      "upload-length": String(protectedBytes.length),
+      "upload-metadata": `filename ${Buffer.from("private-restored.txt").toString("base64")},mediaType ${Buffer.from("text/plain").toString("base64")}`,
+    },
+  });
+  expect(upload.statusCode, upload.body).toBe(201);
+  const completed = await authenticated({
+    method: "PATCH",
+    url: String(upload.headers.location),
+    headers: { "content-type": "application/offset+octet-stream", "upload-offset": "0" },
+    payload: protectedBytes,
+  });
+  expect(completed.statusCode, completed.body).toBe(201);
+  protectedFileId = completed.json().itemId as string;
+
   pageId = (
     await createItemViaApi(harness, {
       kind: "page",
@@ -177,6 +209,53 @@ describe("full restore and explicit security activation", () => {
         expect(await built.context.protectedContent?.readItemName(built.database.db, pageId)).toBe(
           "Private complete recovery page",
         );
+        expect(
+          (
+            await built.app.inject({
+              method: "GET",
+              url: `/v1/files/${protectedFileId}/content`,
+              headers: oldHeaders,
+            })
+          ).statusCode,
+        ).toBe(401);
+        const login = await built.app.inject({
+          method: "POST",
+          url: "/v1/auth/login/password",
+          headers: currentProtocolHeaders(),
+          payload: {
+            password,
+            device: {
+              deviceBindingId: `web-${randomUUID()}`,
+              name: "Freshly authorized recovery device",
+              platform: "Test platform",
+            },
+          },
+        });
+        expect(login.statusCode, login.body).toBe(200);
+        const setCookie = login.headers["set-cookie"];
+        const cookie = (Array.isArray(setCookie) ? setCookie[0] : setCookie)?.split(";")[0];
+        if (cookie === undefined) throw new Error("Recovery login returned no cookie");
+        const recovered = await built.app.inject({
+          method: "GET",
+          url: `/v1/files/${protectedFileId}/content`,
+          headers: { cookie },
+        });
+        expect(recovered.statusCode, recovered.body).toBe(200);
+        expect(recovered.rawPayload).toEqual(protectedBytes);
+        const range = await built.app.inject({
+          method: "GET",
+          url: `/v1/files/${protectedFileId}/content`,
+          headers: { cookie, range: "bytes=2-12" },
+        });
+        expect(range.statusCode, range.body).toBe(206);
+        expect(range.rawPayload).toEqual(protectedBytes.subarray(2, 13));
+        expect(
+          (
+            await client.query(
+              "SELECT count(*)::integer AS count FROM authorized_devices WHERE state = 'active'",
+            )
+          ).rows[0].count,
+        ).toBe(1);
       } finally {
         await built.close();
       }

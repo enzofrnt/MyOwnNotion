@@ -26,6 +26,10 @@ transport ne doit pas occuper l'espace d'une note sans raison utile à l'utilisa
 
 - Une action utilise un bouton ; une navigation, un lien. Donner un verbe précis
   à l'action. Un bouton icône possède un nom accessible et une aide au survol/focus.
+- Déclencher les actions avec le clic sémantique du bouton, après relâchement.
+  Un appui puis un relâchement hors de la cible doit annuler ; ne pas contourner
+  un remontage du contrôle en exécutant l’action sur `pointerdown`. Vérifier
+  activation unique par Entrée/Espace et technologies d’assistance.
 - Distinguer l'action principale, les actions secondaires et les commandes discrètes
   avec les variantes existantes. Éviter plusieurs actions principales concurrentes
   dans le même groupe. Réserver le style danger aux conséquences destructives.

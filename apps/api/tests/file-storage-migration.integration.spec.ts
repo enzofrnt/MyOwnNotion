@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createUpload, getUpload, schema } from "@myownnotion/database";
 import { generateUuidV7, type Uuid } from "@myownnotion/domain";
@@ -8,11 +8,13 @@ import { expect, it, vi } from "vitest";
 import { buildApp } from "../src/app.ts";
 import { clearWorkspaceForRestore } from "../src/backup/database-restore-target.ts";
 import { rotateProtectedFileBatch } from "../src/files/protected-file-rotation.ts";
+import { createProtectedFileRuntime } from "../src/files/protected-file-runtime.ts";
 import { ProtectedUploadService } from "../src/files/protected-upload-service.ts";
 import {
   FileStorageMigration,
   type StorageMigrationBoundary,
 } from "../src/security/file-storage-migration.ts";
+import * as historicalStorage from "../src/security/file-storage-source.ts";
 import {
   inventoryLegacyFileSources,
   readLegacyFileSource,
@@ -561,6 +563,135 @@ it.each<StorageMigrationBoundary>([
     expect(verify.mock.calls.every(([id]) => id === backupId)).toBe(true);
     verify.mockRejectedValue(new Error("ancient source backup pruned"));
     await expect(migration.run(generateUuidV7())).resolves.toMatchObject({ phase: "complete" });
+  } finally {
+    await harness.close();
+  }
+});
+
+it.each(["ciphertext", "key", "retirement-io"] as const)(
+  "keeps readable sources and incomplete state when %s fails after cutover",
+  async (failure) => {
+    const harness = await createProtectedFileHarness();
+    try {
+      const { db, protectedFiles: files } = harness.built.context;
+      if (files === undefined) throw new Error("Missing protected runtime");
+      const original = Buffer.from("source retained until a replacement can actually be recovered");
+      const raw = await files.deps.blobs.put(original);
+      const id = generateUuidV7();
+      await db.insert(schema.fileContents).values({ id, ...raw, referenceCount: 1 });
+      const records = new ProtectedRecordService({
+        db,
+        keys: files.deps.keys,
+        workspaceId: files.deps.workspaceId,
+        installationId: files.deps.installationId,
+        now: () => new Date(),
+      });
+      let stopped = false;
+      const backupId = generateUuidV7();
+      const deps = {
+        db,
+        files,
+        records,
+        blobRoot: harness.blobRoot,
+        verifySourceBackup: async () => {},
+      };
+      const migration = new FileStorageMigration({
+        ...deps,
+        onBoundary: async (boundary) => {
+          if (boundary === "cutover" && !stopped) {
+            stopped = true;
+            throw new Error("cutover interruption");
+          }
+        },
+      });
+      await expect(migration.run(backupId)).rejects.toThrow("cutover interruption");
+      let repair: (() => Promise<void>) | undefined;
+      let failing = migration;
+      if (failure === "ciphertext") {
+        const chunk = (await files.manifest(db, id)).chunks[0];
+        if (chunk === undefined) throw new Error("Missing replacement chunk");
+        const path = join(harness.blobRoot, chunk.storageKey.slice(0, 2), chunk.storageKey);
+        const good = await readFile(path);
+        await writeFile(path, Buffer.alloc(good.length));
+        repair = async () => {
+          await writeFile(path, good);
+        };
+      } else if (failure === "key") {
+        const unavailable = createProtectedFileRuntime({
+          db,
+          blobRoot: harness.blobRoot,
+          workspaceId: files.deps.workspaceId,
+          installationId: files.deps.installationId,
+          deploymentKey: () => null,
+        });
+        failing = new FileStorageMigration({
+          ...deps,
+          files: unavailable.files,
+          records: unavailable.records,
+        });
+      } else {
+        vi.spyOn(historicalStorage, "retireLegacyFileSource").mockRejectedValueOnce(
+          Object.assign(new Error("retirement denied"), { code: "EACCES" }),
+        );
+      }
+      await expect(failing.run(backupId)).rejects.toThrow();
+      expect(await files.deps.blobs.get(raw.storageKey)).toEqual(new Uint8Array(original));
+      expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).not.toBe(
+        "complete",
+      );
+      await repair?.();
+      await expect(migration.run(backupId)).resolves.toMatchObject({ phase: "complete" });
+    } finally {
+      vi.restoreAllMocks();
+      await harness.close();
+    }
+  },
+);
+
+it("refuses final success if a retired checkpoint disappears, then resumes after its recovery", async () => {
+  const harness = await createProtectedFileHarness();
+  try {
+    const { db, protectedFiles: files } = harness.built.context;
+    if (files === undefined) throw new Error("Missing protected runtime");
+    const raw = await files.deps.blobs.put(Buffer.from("retired checkpoint inventory"));
+    await db
+      .insert(schema.fileContents)
+      .values({ id: generateUuidV7(), ...raw, referenceCount: 1 });
+    const records = new ProtectedRecordService({
+      db,
+      keys: files.deps.keys,
+      workspaceId: files.deps.workspaceId,
+      installationId: files.deps.installationId,
+      now: () => new Date(),
+    });
+    let stopped = false;
+    const migration = new FileStorageMigration({
+      db,
+      files,
+      records,
+      blobRoot: harness.blobRoot,
+      verifySourceBackup: async () => {},
+      onBoundary: async (boundary) => {
+        if (boundary === "source-retired" && !stopped) {
+          stopped = true;
+          throw new Error("interrupted after retirement");
+        }
+      },
+    });
+    const backupId = generateUuidV7();
+    await expect(migration.run(backupId)).rejects.toThrow("interrupted after retirement");
+    const [checkpoint] = await db.select().from(schema.fileStorageTransitionEntries);
+    if (checkpoint === undefined) throw new Error("Missing retired checkpoint");
+    expect(checkpoint.phase).toBe("retired");
+    await db
+      .delete(schema.fileStorageTransitionEntries)
+      .where(eq(schema.fileStorageTransitionEntries.id, checkpoint.id));
+    await expect(migration.run(backupId)).rejects.toThrow("lost a retired checkpoint");
+    expect((await db.select().from(schema.fileStorageTransitions))[0]?.phase).toBe(
+      "retiring-sources",
+    );
+    await db.insert(schema.fileStorageTransitionEntries).values(checkpoint);
+    await expect(migration.run(backupId)).resolves.toMatchObject({ phase: "complete" });
   } finally {
     await harness.close();
   }

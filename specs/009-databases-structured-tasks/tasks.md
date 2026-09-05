@@ -101,7 +101,7 @@ changer ni dupliquer leur identité.
 - [X] T033 [US1] Ajouter la création et l'ouverture de base à apps/web/src/features/navigation/sidebar.tsx et apps/web/src/features/hierarchy/hierarchy-explorer.tsx sans ajouter un nouvel ItemKind
 - [X] T034 [US1] Implémenter le shell de base, l'éditeur de propriétés/options, l'aperçu d'impact et la conservation des saisies dans apps/web/src/features/databases/database-page.tsx et apps/web/src/features/databases/property-editor.tsx pour satisfaire T022
 - [X] T035 [US1] Implémenter création/ouverture d'entrée, valeurs typées, relation picker et éditeur par blocs dans apps/web/src/features/databases/entry-panel.tsx et apps/web/src/features/databases/value-editor.tsx
-- [X] T036 [US1] Ajouter styles d'états, formulaire, panneau et erreurs de base dans apps/web/src/styles.css à 320 px et zoom 200 %
+- [X] T036 [US1] Ajouter styles d'états, formulaire, panneau et erreurs de base dans apps/web/src/global.css à 320 px et zoom 200 %
 - [X] T037 [US1] Exécuter T018 à T023 et consigner le checkpoint MVP, les identités et le stockage protégé dans specs/009-databases-structured-tasks/validation.md
 
 **Checkpoint**: Une base et ses entrées-pages sont utilisables en ligne et
@@ -141,7 +141,7 @@ propriétés masquées sur deux clients.
 - [X] T053 [US2] Implémenter la liste compacte sémantique dans apps/web/src/features/databases/list-view.tsx
 - [X] T054 [US2] Restaurer contexte de vue, sélection et position après ouverture d'une entrée dans apps/web/src/features/databases/use-database-view.ts et apps/web/src/features/databases/entry-panel.tsx
 - [X] T055 [US2] Afficher complete/partial, X/Y, invalid-view, loading et stale-cursor dans apps/web/src/features/databases/database-page.tsx sans annoncer de total partiel comme exhaustif
-- [X] T056 [US2] Finaliser les styles table/list, conteneur de scroll interne, focus et commandes fixes dans apps/web/src/styles.css
+- [X] T056 [US2] Finaliser les styles table/list, conteneur de scroll interne, focus et commandes fixes dans apps/web/src/global.css
 - [X] T057 [US2] Exécuter T038 à T043 et consigner parité, pagination, accessibilité et persistance dans specs/009-databases-structured-tasks/validation.md
 
 **Checkpoint**: Table et liste enregistrées produisent le même résultat
@@ -246,7 +246,7 @@ vérifier une identité/valeur unique dans toutes les vues.
 - [X] T096 [US4] Implémenter calendrier date/instant, navigation et espace non planifié dans apps/web/src/features/databases/calendar-view.tsx pour satisfaire T090
 - [X] T097 [US4] Ajouter aux cartes Kanban et calendrier les actions clavier équivalentes et annonces de cible dans apps/web/src/features/databases/board-view.tsx et apps/web/src/features/databases/calendar-view.tsx
 - [X] T098 [US4] Virtualiser lignes/cartes longues sans perdre aria-rowcount, positions ni focus dans apps/web/src/features/databases/table-view.tsx, board-view.tsx et gallery-view.tsx
-- [X] T099 [US4] Finaliser responsive 320 px, zoom 200 %, reduced-motion, scrolling local et panneaux plein écran des cinq vues dans apps/web/src/styles.css
+- [X] T099 [US4] Finaliser responsive 320 px, zoom 200 %, reduced-motion, scrolling local et panneaux plein écran des cinq vues dans apps/web/src/global.css
 - [X] T100 [US4] Optimiser projection, index, top-K, lots et overscan jusqu'à réussite de T093 dans packages/domain/src/databases/query.ts, apps/api/src/databases/database-query-service.ts et apps/web/src/features/databases/
 - [X] T101 [US4] Exécuter T088 à T093 et consigner vues, accessibilité, responsive et performance dans specs/009-databases-structured-tasks/validation.md
 

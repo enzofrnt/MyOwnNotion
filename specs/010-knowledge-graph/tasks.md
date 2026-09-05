@@ -154,7 +154,7 @@ curseur absent ou une erreur restent annoncés comme partiels.
 
 **Purpose**: Convergence visuelle, sécurité, documentation et gate complet.
 
-- [x] T037 [P] Ajouter les styles responsive, focus visible, zoom 200 % et réduction des animations dans `apps/web/src/styles.css`
+- [x] T037 [P] Ajouter les styles responsive, focus visible, zoom 200 % et réduction des animations dans `apps/web/src/global.css`
 - [x] T038 [P] Ajouter les contrôles de confidentialité des diagnostics et préférences dans `apps/web/tests/knowledge-graph-privacy.spec.tsx` et `packages/graph/tests/contracts.spec.ts`
 
 ---
@@ -317,7 +317,7 @@ l'arborescence.
 - [x] T062 [US3] Ajouter les contrôles « Connaissances », « Hiérarchie » et « Pièces jointes », avec reset vers `knowledge` seule, dans `apps/web/tests/knowledge-graph-global.spec.tsx` et `apps/web/src/features/knowledge-graph/graph-controls.tsx`
 - [x] T063 [P] [US2] Écrire les preuves de disposition relationnelle déterministe sous le budget de 100 ms à 200 nœuds/400 arêtes, rayon borné par backlinks, glisser du fond, zoom ancré au pointeur, survol du voisinage et ouverture canonique dans `packages/graph/tests/layout.spec.ts`, `tests/performance/knowledge-graph.perf.spec.ts` et `apps/web/tests/knowledge-graph-view.spec.tsx`
 - [x] T064 [US2] Remplacer les anneaux BFS globaux par une disposition relationnelle déterministe à itérations bornées et calculer la taille des hubs dans `packages/graph/src/layout.ts`, `packages/graph/src/types.ts` et `apps/web/src/features/knowledge-graph/graph-canvas.tsx`
-- [x] T065 [US2] Implémenter le modèle pointeur complet, l'atténuation du voisinage et l'ouverture directe dans `apps/web/src/features/knowledge-graph/graph-canvas.tsx`, `apps/web/src/features/knowledge-graph/knowledge-graph-view.tsx` et `apps/web/src/styles.css`
+- [x] T065 [US2] Implémenter le modèle pointeur complet, l'atténuation du voisinage et l'ouverture directe dans `apps/web/src/features/knowledge-graph/graph-canvas.tsx`, `apps/web/src/features/knowledge-graph/knowledge-graph-view.tsx` et `apps/web/src/global.css`
 - [x] T066 [US2] Ajouter un parcours Playwright où les liens de contenu diffèrent de l'arborescence puis exercer dix fois glisser, molette, survol, sélection et ouverture au pointeur sous 20 secondes dans `tests/e2e/knowledge-graph.spec.ts`
 
 ### User Story 5 — Coherent editorial demo workspace
@@ -365,7 +365,7 @@ demande, conformément à FR-049–FR-051 et à la feature 022.
 - [x] T075 [US3] Replier filtres, périmètre et couches dans un panneau
       superposé fermé par défaut, et superposer l'inspecteur sans colonne
       permanente (`knowledge-graph-view.tsx`, `graph-controls.tsx`,
-      `apps/web/src/styles.css`)
+      `apps/web/src/global.css`)
 - [x] T076 [US2] Faire remplir la carte au canevas, limiter le chrome de
       navigation au zoom/recentrage/ajustement, et n'afficher les libellés
       d'arête qu'au survol (`graph-canvas.tsx`)

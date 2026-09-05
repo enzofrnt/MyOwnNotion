@@ -509,6 +509,25 @@ export class FileStorageMigration {
         });
       const entry = await nextStorageSource(tx, transitionId, "verified");
       if (entry === null) {
+        const inventory = await this.read<{
+          entries: { id: string; kind: string; objectId: string }[];
+        }>(tx, "file.transition-inventory", transitionId);
+        const checkpoints = await tx
+          .select()
+          .from(schema.fileStorageTransitionEntries)
+          .where(eq(schema.fileStorageTransitionEntries.transitionId, transitionId));
+        const expected = new Map(inventory.entries.map((source) => [source.id, source]));
+        if (
+          checkpoints.length !== inventory.entries.length ||
+          expected.size !== checkpoints.length ||
+          checkpoints.some(
+            (source) =>
+              source.phase !== "retired" ||
+              expected.get(source.id)?.kind !== source.kind ||
+              expected.get(source.id)?.objectId !== source.objectId,
+          )
+        )
+          throw new Error("The completed storage transition lost a retired checkpoint.");
         await this.assertNoReadableSources(tx);
         await advanceStorageTransition(tx, {
           id: transitionId,
