@@ -15,12 +15,29 @@ test("onboarding preserves an authenticated profile and its page after restart",
   const session = await launchDesktopElectron();
   let keep = false;
   try {
+    await session.app.evaluate(({ app }) => {
+      const observed = globalThis as typeof globalThis & {
+        allWindowsClosedDuringOnboarding?: boolean;
+      };
+      observed.allWindowsClosedDuringOnboarding = false;
+      app.on("window-all-closed", () => {
+        observed.allWindowsClosedDuringOnboarding = true;
+      });
+    });
     await expect(session.window.getByTestId("desktop-connection-page")).toBeVisible();
     await session.window.getByLabel(FR_COPY.desktop.connection.serverUrl).fill(baseURL);
     const nextWindow = session.app.waitForEvent("window");
     await session.window.getByRole("button", { name: FR_COPY.desktop.connection.submit }).click();
     const page = await nextWindow;
     await page.waitForLoadState("domcontentloaded");
+    expect(
+      await session.app.evaluate(({ BrowserWindow }) => ({
+        windows: BrowserWindow.getAllWindows().length,
+        closedAll: (
+          globalThis as typeof globalThis & { allWindowsClosedDuringOnboarding?: boolean }
+        ).allWindowsClosedDuringOnboarding,
+      })),
+    ).toEqual({ windows: 1, closedAll: false });
     await session.app.evaluate(
       async ({ BrowserWindow }, input) => {
         const target = BrowserWindow.getAllWindows()[0];

@@ -36,9 +36,17 @@ for await (const chunk of createReadStream(archive)) hash.update(chunk);
 if (hash.digest("hex") !== "7effe34c0bf89027b3f171447d351cbc460f4566c8d0f643daec67f140787858")
   throw new Error("PostgreSQL fixture checksum mismatch");
 // Windows ships bsdtar, which reads ZIPs without PowerShell expression interpolation.
-execFileSync("tar.exe", ["-xf", archive, "-C", root, "pgsql/bin", "pgsql/lib", "pgsql/share"], {
-  stdio: "inherit",
-});
+// Git Bash also ships a GNU tar.exe. Select Windows' bsdtar explicitly so a
+// drive-letter path is never interpreted as a remote archive host.
+const systemRoot = process.env["SystemRoot"];
+if (!systemRoot) throw new Error("The Windows system directory is unavailable");
+execFileSync(
+  path.join(systemRoot, "System32", "tar.exe"),
+  ["-xf", archive, "-C", root, "pgsql/bin", "pgsql/lib", "pgsql/share"],
+  {
+    stdio: "inherit",
+  },
+);
 const bin = path.join(root, "pgsql", "bin");
 const data = path.join(root, "data");
 execFileSync(
