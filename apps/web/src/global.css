@@ -2264,11 +2264,12 @@ textarea {
 }
 
 .page-editor .bn-block-content[data-content-type="codeBlock"] {
-  margin-block: var(--ui-space-2);
+  display: block;
+  min-width: 0;
+  padding: 0;
   color: var(--ui-color-text);
-  background: var(--ui-color-surface-sunken);
-  border: 1px solid var(--ui-color-border);
-  border-radius: var(--ui-radius-md);
+  background: transparent;
+  border: 0;
 }
 
 /* A true preformatted block may scroll horizontally. Inline `code` must not
@@ -2290,7 +2291,7 @@ code,
 
 .editor-code-block pre {
   margin: 0;
-  padding: var(--ui-space-3) var(--ui-space-4) var(--ui-space-4);
+  padding: var(--ui-space-4);
   border: 0;
 }
 
@@ -2646,6 +2647,8 @@ code,
 }
 
 .editor-code-block {
+  width: 100%;
+  min-width: 0;
   margin-block: var(--ui-space-2);
   overflow: hidden;
   background: var(--ui-color-surface-sunken);
@@ -2653,14 +2656,94 @@ code,
   border-radius: var(--ui-radius-md);
 }
 
+.editor-code-block code.bn-inline-content {
+  display: block;
+  min-height: 1.65em;
+  padding: 0;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-sm);
+  font-weight: 400;
+  line-height: var(--ui-leading-relaxed);
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  tab-size: 2;
+  caret-color: var(--ui-color-text);
+}
+
+/* Decorations follow the application theme without changing the document or
+   rebuilding contentDOM when the owner switches themes. */
+.editor-code-block code span[style*="--shiki-light"] {
+  color: var(--shiki-light);
+  font-style: var(--shiki-light-font-style, normal);
+  font-weight: var(--shiki-light-font-weight, inherit);
+  text-decoration: var(--shiki-light-text-decoration, none);
+}
+
+:root[data-theme="dark"] .editor-code-block code span[style*="--shiki-dark"] {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style, normal);
+  font-weight: var(--shiki-dark-font-weight, inherit);
+  text-decoration: var(--shiki-dark-text-decoration, none);
+}
+
 .editor-code-toolbar {
   display: flex;
   min-height: var(--ui-target-compact);
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--ui-space-1);
+  justify-content: space-between;
+  gap: var(--ui-space-2);
   padding: var(--ui-space-1) var(--ui-space-2);
   border-bottom: 1px solid var(--ui-color-border);
+}
+
+.editor-code-language {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  color: var(--ui-color-text-muted);
+}
+
+.editor-code-language > svg {
+  flex-shrink: 0;
+  margin-left: var(--ui-space-2);
+}
+
+.editor-code-language select {
+  min-width: 0;
+  max-width: 100%;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.editor-code-language select:disabled {
+  cursor: default;
+}
+
+.editor-code-copy {
+  flex-shrink: 0;
+}
+
+.editor-code-copy .ui-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+}
+
+.editor-code-feedback {
+  display: block;
+  padding: var(--ui-space-2) var(--ui-space-4) 0;
+  color: var(--ui-color-success);
+  font-size: var(--ui-text-xs);
+}
+
+.editor-code-feedback:empty {
+  display: none;
+}
+
+.editor-code-feedback[data-state="failed"] {
+  color: var(--ui-color-danger);
 }
 
 .editor-code-toolbar select,

@@ -5,6 +5,7 @@ import type { PageCommand } from "@myownnotion/page-state";
 import "@blocknote/ariakit/style.css";
 import "@blocknote/core/style.css";
 import type { BlockNoteSchema as CommunityBlockNoteSchema, PartialBlock } from "@blocknote/core";
+import { SyntaxHighlightingExtension } from "@blocknote/core/extensions";
 import { fr } from "@blocknote/core/locales";
 import { useCreateBlockNote } from "@blocknote/react";
 import {
@@ -29,6 +30,8 @@ import {
   type EditorBlocksChanged,
   type EditorInstance,
 } from "./blocknote-schema.ts";
+import { CodeBlockInputExtension } from "./code-block-input.ts";
+import { createCodeHighlighter } from "./code-highlighting.ts";
 import {
   commandsFromBlockNoteChanges,
   EditorChangeBatcher,
@@ -150,6 +153,10 @@ export function PageEditor({
       animations: false,
       defaultStyles: false,
       setIdAttribute: true,
+      extensions: [
+        SyntaxHighlightingExtension({ createHighlighter: createCodeHighlighter }),
+        CodeBlockInputExtension,
+      ],
       tabBehavior: "prefer-indent",
       links: {
         isValidLink: (href) =>

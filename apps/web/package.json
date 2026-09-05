@@ -38,6 +38,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "7.18.2",
+    "shiki": "4.4.3",
     "workbox-routing": "7.4.1"
   },
   "devDependencies": {
