@@ -44,10 +44,22 @@ export function registerRevisionRoutes(
     },
     async (request, reply) => {
       const { revisionId } = request.params as { revisionId: string };
-      const { revision, attribution } = await context.db.transaction(async (tx) => ({
-        revision: await getRevision(tx, revisionId as Uuid),
-        attribution: await readRevisionAttribution(tx, revisionId as Uuid),
-      }));
+      const { revision, attribution } = await context.db.transaction(async (tx) => {
+        const raw = await getRevision(tx, revisionId as Uuid);
+        const expired =
+          raw?.snapshotExpiresAt != null && Date.parse(raw.snapshotExpiresAt) <= Date.now();
+        const sealed =
+          raw === null || expired
+            ? null
+            : await context.protectedContent?.readRevisionSnapshot<Record<string, unknown>>(
+                tx,
+                revisionId,
+              );
+        return {
+          revision: raw === null ? null : { ...raw, snapshot: sealed ?? raw.snapshot },
+          attribution: await readRevisionAttribution(tx, revisionId as Uuid),
+        };
+      });
       if (revision === null) {
         return sendProblem(reply, { code: "revision.not-found", title: "Revision does not exist" });
       }

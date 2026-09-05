@@ -14,29 +14,58 @@
  */
 
 import {
-  createUpload,
+  type Database,
   DomainRejection,
   deleteUpload,
   executeImportFile,
-  findVerifiedContentByDigest,
   isComplete,
   lockUpload,
-  reconcileUploadReceivedLength,
   recordChange,
   runMutation,
   schema,
+  type Transaction,
   type UploadRecord,
 } from "@myownnotion/database";
 import { generateUuidV7, isUuid, type SafeError, type Uuid } from "@myownnotion/domain";
 import { Type } from "@sinclair/typebox";
-import type { FastifyInstance } from "fastify";
+import { and, eq } from "drizzle-orm";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { AppContext } from "../context.ts";
+import { ProtectedFileUnavailableError } from "../files/protected-file-service.ts";
+import {
+  ProtectedUploadService,
+  UploadLengthExceededError,
+} from "../files/protected-upload-service.ts";
 import { sendProblem } from "../plugins/errors.ts";
+import { acceptedWriteGuards, attributionFor } from "../plugins/mutations.ts";
 import { announceCommitted } from "../sync/change-notifier.ts";
 
 /** 2 GB by default, and bounded in practice by what the deployment carries. */
 const DEFAULT_MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024;
+
+function protectedUploads(context: AppContext): ProtectedUploadService {
+  if (context.protectedFiles === undefined) throw new ProtectedFileUnavailableError();
+  return new ProtectedUploadService(context.protectedFiles);
+}
+
+async function completedUpload(
+  executor: Database | Transaction,
+  workspaceId: Uuid,
+  uploadId: Uuid,
+) {
+  const [receipt] = await executor
+    .select()
+    .from(schema.protectedUploadCompletions)
+    .where(
+      and(
+        eq(schema.protectedUploadCompletions.uploadId, uploadId),
+        eq(schema.protectedUploadCompletions.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+  return receipt;
+}
 
 export function maxFileBytes(): number {
   const configured = process.env["MYOWNNOTION_MAX_FILE_BYTES"];
@@ -82,6 +111,7 @@ export function parseUploadMetadata(header: string | undefined): Record<string, 
 async function completeUpload(
   context: AppContext,
   upload: UploadRecord,
+  request: FastifyRequest,
 ): Promise<{ ok: true; itemId: Uuid } | { ok: false; error: SafeError }> {
   // Editor blocks already contain this UUID before any network request. Using
   // the upload identity for the final logical file keeps that durable document
@@ -95,32 +125,31 @@ async function completeUpload(
   // wait for the next unrelated change to discover a file it was already told
   // about.
   let committedSequence: number | undefined;
+  const protectedTransfers = protectedUploads(context);
   try {
     await runMutation(context.db, async (tx) => {
-      await shareFullFileMutation(tx);
+      await context.rotationPolicies?.assertWritesAllowed(tx);
+      await protectedTransfers.lockGeneration(tx);
       const current = await lockUpload(tx, upload.id);
+      if (current === null && (await completedUpload(tx, context.workspaceId, upload.id))) return;
       if (current === null || !isComplete(current)) {
         throw new DomainRejection({
           code: "item.not-found",
           title: "The completed transfer is no longer available",
         });
       }
-      const bytes = await context.partialUploads.read(upload.id);
-      if (bytes === null || bytes.byteLength !== current.receivedLength) {
-        throw new DomainRejection({
-          code: "item.not-found",
-          title: "The transferred bytes could not be read completely",
-        });
-      }
-      const stored = await context.contentStore.ingest(bytes, (sha256, byteLength) =>
-        findVerifiedContentByDigest(tx, sha256, byteLength),
+      const resolved = await protectedTransfers.resolve(tx, current);
+      const stored = await protectedTransfers.files.ingest(
+        tx,
+        protectedTransfers.read(tx, resolved),
+        { maxBytes: resolved.declaredLength, expectedLength: resolved.declaredLength },
       );
       const execution = await executeImportFile(tx, {
         mutationId,
         workspaceId: context.workspaceId,
         itemId,
-        name: upload.originalName,
-        mediaType: upload.mediaType,
+        name: resolved.originalName,
+        mediaType: resolved.mediaType,
         content: stored,
         placement:
           upload.attachmentParentItemId === null
@@ -135,6 +164,12 @@ async function completeUpload(
       if (!execution.ok) {
         throw new DomainRejection(execution.error);
       }
+      await acceptedWriteGuards(
+        { type: "file.import" },
+        context.protectedContent,
+        context.rotationPolicies,
+        attributionFor(request, mutationId),
+      ).onAccepted?.(tx, { primaryItemId: itemId, revisionIds: [execution.value.revisionId] });
       // The mutation record and the change envelope belong in the same
       // transaction as the file. Without them the file exists and no client
       // learns of it: the change feed is how every other device finds out, so
@@ -156,6 +191,13 @@ async function completeUpload(
         changedItemIds: [execution.value.itemId],
       });
       await deleteUpload(tx, upload.id);
+      await tx.insert(schema.protectedUploadCompletions).values({
+        uploadId: upload.id,
+        workspaceId: context.workspaceId,
+        itemId,
+        byteLength: resolved.declaredLength,
+        completedAt: acceptedAt,
+      });
     });
   } catch (error) {
     if (error instanceof DomainRejection) {
@@ -172,69 +214,15 @@ async function completeUpload(
       // The file is canonical already; search invalidates and rebuilds itself.
     }
   }
-  await context.partialUploads.discard(upload.id);
   return { ok: true, itemId };
 }
 
-type StoredChunkOutcome =
-  | { readonly ok: true; readonly upload: UploadRecord }
-  | { readonly ok: false; readonly reason: "not-found" }
-  | { readonly ok: false; readonly reason: "offset-mismatch"; readonly expected: number }
-  | { readonly ok: false; readonly reason: "overflow" };
-
-/**
- * Appends bytes while holding the upload row lock and makes the filesystem's
- * durable length authoritative. A crash after append but before SQL commit is
- * repaired by the next call; a historical database-ahead state is moved back
- * to the bytes that really exist.
- */
-async function storeChunk(
-  context: AppContext,
-  input: { readonly uploadId: Uuid; readonly offset: number; readonly chunk: Buffer },
-): Promise<StoredChunkOutcome> {
-  return await context.db.transaction(async (tx) => {
-    await shareFullFileMutation(tx);
-    const upload = await lockUpload(tx, input.uploadId);
-    if (upload === null) return { ok: false, reason: "not-found" };
-
-    const storedBefore = await context.partialUploads.size(input.uploadId);
-    if (storedBefore > upload.declaredLength) return { ok: false, reason: "overflow" };
-    if (storedBefore !== upload.receivedLength) {
-      await reconcileUploadReceivedLength(tx, {
-        id: input.uploadId,
-        receivedLength: storedBefore,
-      });
-    }
-    if (storedBefore !== input.offset) {
-      return { ok: false, reason: "offset-mismatch", expected: storedBefore };
-    }
-    const next = storedBefore + input.chunk.byteLength;
-    if (next > upload.declaredLength) return { ok: false, reason: "overflow" };
-
-    await context.partialUploads.append(input.uploadId, input.chunk);
-    const storedAfter = await context.partialUploads.size(input.uploadId);
-    if (storedAfter !== next) {
-      throw new Error("the partial upload length does not match the appended chunk");
-    }
-    await reconcileUploadReceivedLength(tx, { id: input.uploadId, receivedLength: storedAfter });
-    return { ok: true, upload: { ...upload, receivedLength: storedAfter } };
-  });
-}
-
-/** Repairs and returns the offset from the bytes that are actually present. */
+/** Reads the committed encrypted state while serializing against its next append. */
 async function reconciledUpload(context: AppContext, uploadId: Uuid) {
   return await context.db.transaction(async (tx) => {
     await shareFullFileMutation(tx);
     const upload = await lockUpload(tx, uploadId);
-    if (upload === null) return null;
-    const storedLength = await context.partialUploads.size(uploadId);
-    if (storedLength > upload.declaredLength) {
-      throw new Error("the partial upload exceeds its declared length");
-    }
-    if (storedLength !== upload.receivedLength) {
-      await reconcileUploadReceivedLength(tx, { id: uploadId, receivedLength: storedLength });
-    }
-    return { ...upload, receivedLength: storedLength };
+    return upload === null ? null : protectedUploads(context).resolve(tx, upload);
   });
 }
 
@@ -243,13 +231,9 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
   // parser for — without this every PATCH is refused with 415 before the route
   // is reached. The body is taken as raw bytes and not interpreted: the server
   // is storing what it was given, not reading it.
-  app.addContentTypeParser(
-    "application/offset+octet-stream",
-    { parseAs: "buffer" },
-    (_request, body, done) => {
-      done(null, body);
-    },
-  );
+  app.addContentTypeParser("application/offset+octet-stream", (_request, body, done) => {
+    done(null, body);
+  });
 
   app.post(
     "/v1/uploads",
@@ -312,15 +296,18 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
           title: "The attachment source page identity is invalid",
         });
       }
-      const upload = await createUpload(context.db, {
-        ...(requestedItemId === undefined ? {} : { id: requestedItemId as Uuid }),
-        ...(attachmentParentItemId === undefined
-          ? {}
-          : { attachmentParentItemId: attachmentParentItemId as Uuid }),
-        workspaceId: context.workspaceId,
-        declaredLength: declared,
-        mediaType: metadata["mediaType"] ?? "application/octet-stream",
-        originalName: metadata["filename"] ?? "untitled",
+      const upload = await context.db.transaction(async (tx) => {
+        await context.rotationPolicies?.assertWritesAllowed(tx);
+        return protectedUploads(context).create(tx, {
+          ...(requestedItemId === undefined ? {} : { id: requestedItemId as Uuid }),
+          ...(attachmentParentItemId === undefined
+            ? {}
+            : { attachmentParentItemId: attachmentParentItemId as Uuid }),
+          workspaceId: context.workspaceId,
+          declaredLength: declared,
+          mediaType: metadata["mediaType"] ?? "application/octet-stream",
+          originalName: metadata["filename"] ?? "untitled",
+        });
       });
       return reply
         .status(201)
@@ -338,6 +325,16 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
     }
     const upload = await reconciledUpload(context, uploadId as Uuid);
     if (upload === null) {
+      const receipt = await completedUpload(context.db, context.workspaceId, uploadId as Uuid);
+      if (receipt !== undefined)
+        return reply
+          .status(200)
+          .header("upload-offset", String(receipt.byteLength))
+          .header("upload-length", String(receipt.byteLength))
+          .header("upload-complete", "true")
+          .header("cache-control", "no-store")
+          .header("tus-resumable", "1.0.0")
+          .send();
       // 410 rather than 404 when it expired would need a tombstone; without
       // one, "gone" and "never existed" are the same answer, and both mean the
       // client must start again rather than retry forever.
@@ -367,13 +364,29 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
       });
     }
 
-    const body = request.body;
-    const chunk = Buffer.isBuffer(body) ? body : Buffer.from(String(body ?? ""));
-    const outcome = await storeChunk(context, {
-      uploadId: uploadId as Uuid,
-      offset,
-      chunk,
-    });
+    const receipt = await completedUpload(context.db, context.workspaceId, uploadId as Uuid);
+    if (receipt !== undefined)
+      return reply
+        .status(201)
+        .header("upload-offset", String(receipt.byteLength))
+        .header("upload-complete", "true")
+        .header("tus-resumable", "1.0.0")
+        .send({ itemId: receipt.itemId, verified: true });
+    const source = request.body as AsyncIterable<Uint8Array>;
+    let outcome: Awaited<ReturnType<ProtectedUploadService["append"]>>;
+    try {
+      outcome = await context.db.transaction(async (tx) => {
+        await context.rotationPolicies?.assertWritesAllowed(tx);
+        return protectedUploads(context).append(tx, { id: uploadId as Uuid, offset, source });
+      });
+    } catch (error) {
+      if (error instanceof UploadLengthExceededError)
+        return sendProblem(reply, {
+          code: "validation.invalid-payload",
+          title: "This chunk would exceed the length the upload declared",
+        });
+      throw error;
+    }
 
     if (!outcome.ok && outcome.reason === "not-found") {
       return reply.status(404).header("tus-resumable", "1.0.0").send();
@@ -396,7 +409,7 @@ export function registerUploadRoutes(app: FastifyInstance, context: AppContext):
 
     const complete = isComplete(outcome.upload);
     if (complete) {
-      const finished = await completeUpload(context, outcome.upload);
+      const finished = await completeUpload(context, outcome.upload, request);
       if (!finished.ok) {
         return sendProblem(reply, finished.error);
       }

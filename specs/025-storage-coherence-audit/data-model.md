@@ -42,6 +42,15 @@ Finalization rebinds data to completed content, verifies the entire digest and
 commits logical file/revision/mutation/change sequence before retiring partial
 references. A concurrent completion returns its original durable identity.
 
+`protected_upload_completions` retains that identity, workspace and byte length
+atomically with finalization. It contains no user metadata and is removed when
+the logical file is purged. HEAD and a retried final PATCH can acknowledge the
+completed transfer after its partial state has been removed.
+
+Historical file restoration resolves the authenticated snapshot through a trusted
+server callback inside the mutation transaction. It restores the verified content
+pointer and metadata as a new revision; readable SQL snapshots remain neutralized.
+
 ## Sensitive metadata
 
 Protect original filename/media type, item name/icon, upload metadata and file

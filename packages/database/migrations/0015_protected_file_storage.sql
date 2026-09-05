@@ -46,6 +46,16 @@ CREATE TABLE protected_upload_chunks (
 );
 CREATE INDEX protected_upload_chunks_generation_idx ON protected_upload_chunks(workspace_id, key_generation);
 
+-- A lost final response can replay the accepted identity after partial state is
+-- removed. One receipt per logical file; purging that file removes its receipt.
+CREATE TABLE protected_upload_completions (
+    upload_id uuid PRIMARY KEY,
+    workspace_id uuid NOT NULL REFERENCES workspaces(id),
+    item_id uuid NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    byte_length bigint NOT NULL CHECK (byte_length >= 0),
+    completed_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE file_storage_transitions (
     id uuid PRIMARY KEY,
     installation_id uuid NOT NULL UNIQUE REFERENCES installations(id),

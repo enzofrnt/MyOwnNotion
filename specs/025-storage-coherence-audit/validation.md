@@ -82,3 +82,19 @@ and device attribution. Six protected-service cases pass including deliberate
 candidate-tag collision and duplicate ciphertext cleanup. The complete HTTP
 privacy suite still fails its metadata and resumable-upload cases; T011 remains
 open until replacement/refusal checks and the remaining composed paths converge.
+
+T012/T013 checkpoint: 16 protected service/secured HTTP tests pass, including
+multi-chunk append across a partial tail, offset rollback on overflow or source
+interruption, zero-byte completion, replay after a lost final response, private
+current/history metadata and replacement/restoration preserving a duplicate's
+independent identity. API strict types pass. Durable completion receipts commit
+with the logical file and are removed with its eventual purge. Historical restore
+now resolves sealed snapshots inside the mutation and moves the verified file
+content pointer as a new revision. Previously the generic restore only changed
+name/page body and could not resolve a neutralized file snapshot.
+
+Evidence: `/tmp/mon-protected-http-completion.log` (16 tests),
+`/tmp/mon-protected-api-typecheck.log`. T011–T013 remain open: cleanup of abandoned
+ciphertext/transfer envelopes, projection/export composition, migration and the
+remaining failure/concurrency contracts still require convergence. This checkpoint
+has not passed the full local gate and has not been pushed.

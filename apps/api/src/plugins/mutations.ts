@@ -21,10 +21,12 @@ import {
   readRelationshipMetadata,
   readRevisionSnapshots,
   SCRUBBED_PLACEHOLDER,
+  schema,
   submitMutation,
   type Transaction,
 } from "@myownnotion/database";
 import { isUuid, type MutationCommand, type SafeError, type Uuid } from "@myownnotion/domain";
+import { eq } from "drizzle-orm";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { DatabaseQueryService } from "../databases/database-query-service.ts";
 import type { SearchService } from "../search/search-service.ts";
@@ -85,6 +87,24 @@ async function sealPayloads(
   primaryItemId: string | undefined,
   revisionIds: readonly string[],
 ): Promise<void> {
+  const logicalFile =
+    primaryItemId === undefined
+      ? undefined
+      : (
+          await tx
+            .select()
+            .from(schema.logicalFiles)
+            .where(eq(schema.logicalFiles.itemId, primaryItemId))
+            .limit(1)
+        )[0];
+  const fileMetadata =
+    logicalFile === undefined
+      ? null
+      : logicalFile.originalName === SCRUBBED_PLACEHOLDER
+        ? await protectedContent.readFileMetadata(tx, { kind: "file", id: logicalFile.itemId })
+        : { originalName: logicalFile.originalName, mediaType: logicalFile.mediaType };
+  if (logicalFile !== undefined && fileMetadata === null)
+    throw new Error("Protected file metadata is unavailable.");
   // **The snapshots first, because they are the largest exposure.** A snapshot
   // is the whole record as it stood, so sealing only the current title and
   // body would leave every previous state of every page readable in the
@@ -95,7 +115,28 @@ async function sealPayloads(
   // version 1, and never rewritten.
   const snapshots = await readRevisionSnapshots(tx, revisionIds);
   for (const [revisionId, snapshot] of snapshots) {
-    await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot });
+    const file = snapshot["file"];
+    const isFile = file !== null && typeof file === "object";
+    const presentation =
+      isFile && snapshot["name"] === SCRUBBED_PLACEHOLDER && primaryItemId !== undefined
+        ? await protectedContent.readItemPresentation(tx, primaryItemId)
+        : null;
+    const openedSnapshot = isFile
+      ? {
+          ...snapshot,
+          ...(presentation === null ? {} : { name: presentation.name, icon: presentation.icon }),
+          file:
+            "originalName" in file && file.originalName === SCRUBBED_PLACEHOLDER
+              ? { ...file, ...fileMetadata }
+              : file,
+        }
+      : snapshot;
+    await protectedContent.writeRevisionSnapshot(tx, { revisionId, snapshot: openedSnapshot });
+    if (isFile)
+      await tx
+        .update(schema.revisions)
+        .set({ snapshot: null })
+        .where(eq(schema.revisions.id, revisionId));
   }
 
   if (command.type === "page.document.replace" || command.type === "document.resolve-conflict") {
@@ -199,6 +240,22 @@ async function sealPayloads(
       name: current?.name ?? presentation.name,
       icon: presentation.icon,
     });
+    if (logicalFile !== undefined && fileMetadata !== null) {
+      await protectedContent.writeFileMetadata(tx, {
+        kind: "file",
+        id: primaryItemId,
+        recordVersion: 1,
+        metadata: fileMetadata,
+      });
+      await tx
+        .update(schema.logicalFiles)
+        .set({ originalName: SCRUBBED_PLACEHOLDER, mediaType: "application/octet-stream" })
+        .where(eq(schema.logicalFiles.itemId, primaryItemId));
+      await tx
+        .update(schema.items)
+        .set({ name: SCRUBBED_PLACEHOLDER, icon: null })
+        .where(eq(schema.items.id, primaryItemId));
+    }
   }
 }
 
@@ -230,7 +287,16 @@ export function acceptedWriteGuards(
    * and "device unknown" is then recorded honestly as null.
    */
   attribution?: { readonly mutationId: Uuid; readonly deviceId: string } | undefined,
-) {
+): {
+  resolveRevisionSnapshot?: (
+    tx: Transaction,
+    revisionId: Uuid,
+  ) => Promise<Record<string, unknown> | null>;
+  onAccepted?: (
+    tx: Transaction,
+    accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },
+  ) => Promise<void>;
+} {
   if (protectedContent === undefined && attribution === undefined) {
     // Feature-001 harnesses build an app with no security layer at all and must
     // keep writing; there is nothing to seal, no policy to consult, and no
@@ -238,6 +304,12 @@ export function acceptedWriteGuards(
     return {};
   }
   return {
+    ...(protectedContent === undefined
+      ? {}
+      : {
+          resolveRevisionSnapshot: (tx: Transaction, revisionId: Uuid) =>
+            protectedContent.readRevisionSnapshot<Record<string, unknown>>(tx, revisionId),
+        }),
     onAccepted: async (
       tx: Transaction,
       accepted: { primaryItemId?: Uuid; revisionIds: readonly Uuid[] },

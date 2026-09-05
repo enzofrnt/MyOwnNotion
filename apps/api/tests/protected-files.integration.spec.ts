@@ -101,6 +101,39 @@ describe("private files through authenticated HTTP", () => {
       sql`SELECT i.name, l.original_name, r.snapshot FROM items i JOIN logical_files l ON l.item_id = i.id JOIN revisions r ON r.item_id = i.id WHERE i.id = ${id}`,
     );
     expect(JSON.stringify(raw.rows)).not.toContain(NAME);
+    const revisionId = item.json().currentRevisionId as string;
+    const revision = await owner({ method: "GET", url: `/v1/revisions/${revisionId}` });
+    expect(revision.statusCode, revision.body).toBe(200);
+    expect(revision.json().snapshot).toMatchObject({
+      name: NAME,
+      file: { originalName: NAME, mediaType: "text/plain" },
+    });
+    const renamed = await owner({
+      method: "PATCH",
+      url: `/v1/items/${id}`,
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: { baseRevisionId: revisionId, name: "Renamed-private-file-sentinel.txt" },
+    });
+    expect(renamed.statusCode, renamed.body).toBe(200);
+    const updated = await owner({ method: "GET", url: `/v1/items/${id}` });
+    expect(updated.json()).toMatchObject({
+      name: "Renamed-private-file-sentinel.txt",
+      file: { originalName: NAME, mediaType: "text/plain" },
+    });
+    const history = await owner({
+      method: "GET",
+      url: `/v1/revisions/${updated.json().currentRevisionId}`,
+    });
+    expect(history.statusCode, history.body).toBe(200);
+    expect(history.json().snapshot).toMatchObject({
+      name: "Renamed-private-file-sentinel.txt",
+      file: { originalName: NAME, mediaType: "text/plain" },
+    });
+    const after = await harness.built.database.db.execute(
+      sql`SELECT i.name, l.original_name, r.snapshot FROM items i JOIN logical_files l ON l.item_id = i.id JOIN revisions r ON r.item_id = i.id WHERE i.id = ${id}`,
+    );
+    expect(JSON.stringify(after.rows)).not.toContain(NAME);
+    expect(JSON.stringify(after.rows)).not.toContain("Renamed-private-file-sentinel");
   });
 
   it("protects accepted partial uploads and their metadata without overstating the offset", async () => {
@@ -131,5 +164,117 @@ describe("private files through authenticated HTTP", () => {
       sql`SELECT original_name, media_type FROM uploads WHERE id = ${created.json().id}`,
     );
     expect(JSON.stringify(raw.rows)).not.toContain(NAME);
+  });
+
+  it("restores retained file bytes and metadata as a new revision without moving a duplicate", async () => {
+    const id = await directImport();
+    const duplicate = await directImport();
+    const original = (await owner({ method: "GET", url: `/v1/items/${id}` })).json();
+    const boundary = `replace-${generateUuidV7()}`;
+    const replacement = "Replacement private bytes sentinel";
+    const changed = await owner({
+      method: "PUT",
+      url: `/v1/files/${id}/content`,
+      headers: {
+        "idempotency-key": generateUuidV7(),
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      payload: Buffer.from(
+        [
+          `--${boundary}\r\nContent-Disposition: form-data; name="baseRevisionId"\r\n\r\n${original.currentRevisionId}\r\n`,
+          `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="replacement.txt"\r\nContent-Type: text/plain\r\n\r\n`,
+          replacement,
+          `\r\n--${boundary}--\r\n`,
+        ].join(""),
+      ),
+    });
+    expect(changed.statusCode, changed.body).toBe(200);
+    expect((await owner({ method: "GET", url: `/v1/files/${id}/content` })).body).toBe(replacement);
+    expect((await owner({ method: "GET", url: `/v1/files/${duplicate}/content` })).body).toBe(BODY);
+    const current = (await owner({ method: "GET", url: `/v1/items/${id}` })).json();
+    const restored = await owner({
+      method: "POST",
+      url: `/v1/revisions/${original.currentRevisionId}/restore`,
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: { currentRevisionId: current.currentRevisionId },
+    });
+    expect(restored.statusCode, restored.body).toBe(200);
+    expect(restored.json().revisionIds).toHaveLength(1);
+    expect((await owner({ method: "GET", url: `/v1/files/${id}/content` })).body).toBe(BODY);
+    const after = (await owner({ method: "GET", url: `/v1/items/${id}` })).json();
+    expect(after.currentRevisionId).not.toBe(original.currentRevisionId);
+    expect(after.currentRevisionId).not.toBe(current.currentRevisionId);
+    expect(after.file).toMatchObject({ originalName: NAME, byteLength: Buffer.byteLength(BODY) });
+    const raw = await harness.built.database.db.execute(
+      sql`SELECT i.name, l.original_name, r.snapshot FROM items i JOIN logical_files l ON l.item_id = i.id JOIN revisions r ON r.item_id = i.id WHERE i.id = ${id}`,
+    );
+    expect(JSON.stringify(raw.rows)).not.toContain(NAME);
+  });
+
+  it.each(["", BODY])("finalizes and replays a resumable transfer of %s", async (body) => {
+    const created = await owner({
+      method: "POST",
+      url: "/v1/uploads",
+      headers: {
+        "upload-length": String(Buffer.byteLength(body)),
+        "upload-metadata": `filename ${Buffer.from(NAME).toString("base64")}`,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const location = created.headers["location"] as string;
+    const finish = () =>
+      owner({
+        method: "PATCH",
+        url: location,
+        payload: Buffer.from(body),
+        headers: {
+          "upload-offset": "0",
+          "content-type": "application/offset+octet-stream",
+        },
+      });
+    const first = await finish();
+    expect(first.statusCode, first.body).toBe(201);
+    expect(first.json()).toEqual({ itemId: created.json().id, verified: true });
+    const again = await finish();
+    expect(again.statusCode, again.body).toBe(201);
+    expect(again.json()).toEqual(first.json());
+    const head = await owner({ method: "HEAD", url: location });
+    expect(head.statusCode).toBe(200);
+    expect(head.headers["upload-complete"]).toBe("true");
+    expect(head.headers["upload-offset"]).toBe(String(Buffer.byteLength(body)));
+    const download = await owner({ method: "GET", url: `/v1/files/${created.json().id}/content` });
+    expect(download.statusCode, download.body).toBe(200);
+    expect(download.body).toBe(body);
+    const revisions = await harness.built.database.db.execute(
+      sql`SELECT id FROM revisions WHERE item_id = ${created.json().id}`,
+    );
+    expect(revisions.rows).toHaveLength(1);
+  });
+
+  it("refuses a chunk exceeding its declaration while preserving the committed prefix", async () => {
+    const created = await owner({
+      method: "POST",
+      url: "/v1/uploads",
+      headers: { "upload-length": "4" },
+    });
+    const location = created.headers["location"] as string;
+    const patch = (body: string, offset: number) =>
+      owner({
+        method: "PATCH",
+        url: location,
+        payload: Buffer.from(body),
+        headers: {
+          "upload-offset": String(offset),
+          "content-type": "application/offset+octet-stream",
+        },
+      });
+    expect((await patch("ab", 0)).statusCode).toBe(204);
+    const refused = await patch("cde", 2);
+    expect(refused.statusCode, refused.body).toBe(400);
+    expect((await owner({ method: "HEAD", url: location })).headers["upload-offset"]).toBe("2");
+    expect((await patch("cd", 2)).statusCode).toBe(201);
+    expect(
+      (await owner({ method: "GET", url: `/v1/files/${created.json().id}/content` })).body,
+    ).toBe("abcd");
   });
 });

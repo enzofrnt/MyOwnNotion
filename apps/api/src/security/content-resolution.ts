@@ -90,11 +90,21 @@ export async function resolveProtectedContent(
       // case where refusing is the honest answer.
       throw new ProtectedContentUnavailableError(model.id);
     }
+    const fileMetadata =
+      model.file === null
+        ? null
+        : await content.readFileMetadata(executor, { kind: "file", id: model.id });
+    if (model.file?.originalName === SCRUBBED_PLACEHOLDER && fileMetadata === null)
+      throw new ProtectedContentUnavailableError(model.id);
 
     resolved.push({
       ...model,
       name: sealedPresentation?.name ?? model.name,
       icon: sealedPresentation === null ? model.icon : sealedPresentation.icon,
+      file:
+        model.file === null || fileMetadata === null
+          ? model.file
+          : { ...model.file, ...fileMetadata },
       pageDocument:
         model.pageDocument === null || sealedBody === null
           ? model.pageDocument

@@ -12,6 +12,7 @@ import {
   type DomainResult,
   err,
   generateUuidV7,
+  isUuid,
   type MutationCommand,
   ok,
   pageLinkTargets,
@@ -29,7 +30,7 @@ import {
   validateReplacePageDocument,
   validateResolveConflict,
 } from "@myownnotion/domain";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../client.ts";
 import { recordChange } from "../repositories/change-repository.ts";
 import { executeConvertItem } from "../repositories/content/conversion-repository.ts";
@@ -54,7 +55,9 @@ import {
   supersedeRevision,
 } from "../repositories/revision-repository.ts";
 import {
+  fileContents,
   items,
+  logicalFiles,
   mutations,
   pageDocuments,
   placements as placementsTable,
@@ -79,6 +82,11 @@ export interface MutationContext {
   readonly workspaceId: Uuid;
   readonly mutationId: Uuid;
   readonly acceptedAt: Date;
+  /** Trusted server resolver; protected snapshots never return to readable SQL. */
+  readonly resolveRevisionSnapshot?: (
+    tx: Transaction,
+    revisionId: Uuid,
+  ) => Promise<Record<string, unknown> | null>;
 }
 
 /**
@@ -551,7 +559,15 @@ async function executeRestoreRevision(
   context: MutationContext,
   command: Extract<MutationCommand, { type: "revision.restore" }>,
 ): Promise<DomainResult<CommandExecution>> {
-  const source = await getRevision(tx, command.revisionId);
+  const raw = await getRevision(tx, command.revisionId);
+  const source =
+    raw === null
+      ? null
+      : {
+          ...raw,
+          snapshot:
+            (await context.resolveRevisionSnapshot?.(tx, command.revisionId)) ?? raw.snapshot,
+        };
   if (source === null) {
     return err("revision.not-found", "Revision does not exist");
   }
@@ -571,6 +587,48 @@ async function executeRestoreRevision(
   // history): name and page document are restored; lifecycle and placements
   // are not touched by a content restore.
   const restored = plan.value.restoredSnapshot;
+  if (item.kind === "file") {
+    const file = restored["file"];
+    if (
+      file === null ||
+      typeof file !== "object" ||
+      !("contentId" in file) ||
+      typeof file.contentId !== "string" ||
+      !isUuid(file.contentId) ||
+      !("originalName" in file) ||
+      typeof file.originalName !== "string" ||
+      !("mediaType" in file) ||
+      typeof file.mediaType !== "string" ||
+      !("byteLength" in file) ||
+      typeof file.byteLength !== "number"
+    ) {
+      return err("revision.snapshot-expired", "Retained file content is unavailable");
+    }
+    const [content] = await tx
+      .select()
+      .from(fileContents)
+      .where(eq(fileContents.id, file.contentId))
+      .limit(1);
+    if (
+      content === undefined ||
+      content.verifiedAt === null ||
+      content.byteLength !== file.byteLength
+    )
+      return err("revision.snapshot-expired", "Retained file content is unavailable");
+    await tx
+      .update(fileContents)
+      .set({ referenceCount: sql`${fileContents.referenceCount} + 1` })
+      .where(eq(fileContents.id, content.id));
+    await tx
+      .update(logicalFiles)
+      .set({
+        contentId: content.id,
+        originalName: file.originalName,
+        mediaType: file.mediaType,
+        byteLength: content.byteLength,
+      })
+      .where(eq(logicalFiles.itemId, item.id));
+  }
   const revisionId = generateUuidV7();
   const restoredName = typeof restored["name"] === "string" ? (restored["name"] as string) : null;
   if (restoredName !== null) {
@@ -852,6 +910,7 @@ export async function submitMutation(
     readonly commandType: string;
     readonly command: MutationCommand;
     readonly now?: () => Date;
+    readonly resolveRevisionSnapshot?: MutationContext["resolveRevisionSnapshot"];
     /**
      * Runs inside the mutation's transaction, after the command is accepted.
      *
@@ -900,6 +959,9 @@ export async function submitMutation(
         workspaceId: input.workspaceId,
         mutationId: input.mutationId,
         acceptedAt,
+        ...(input.resolveRevisionSnapshot === undefined
+          ? {}
+          : { resolveRevisionSnapshot: input.resolveRevisionSnapshot }),
       };
       const execution = await executeCommand(tx, context, input.command);
       if (!execution.ok) {

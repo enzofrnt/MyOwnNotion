@@ -201,10 +201,13 @@ export class EncryptedChunkStore {
   async *writeStream(
     source: AsyncIterable<Uint8Array>,
     binding: ChunkBinding,
+    startIndex = 0,
   ): AsyncGenerator<ChunkEnvelope> {
+    if (!Number.isSafeInteger(startIndex) || startIndex < 0)
+      throw new RangeError("Invalid encrypted chunk start index.");
     const pending = new Uint8Array(this.#chunkBytes);
     let used = 0;
-    let index = 0;
+    let index = startIndex;
     try {
       for await (const incoming of source) {
         let offset = 0;

@@ -14,6 +14,7 @@ import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/tes
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createProtectedFileRuntime } from "../src/files/protected-file-runtime.ts";
+import { ProtectedUploadService } from "../src/files/protected-upload-service.ts";
 
 let postgres: DisposablePostgres;
 let database: DatabaseHandle;
@@ -60,6 +61,112 @@ async function collect(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
 }
 
 describe("shared protected file runtime", () => {
+  it("resumes across a full chunk boundary, rewrites only the tail and reopens the accepted prefix", async () => {
+    const transfers = new ProtectedUploadService(runtime.files);
+    const upload = await database.db.transaction((tx) =>
+      transfers.create(tx, {
+        workspaceId: workspaceId as import("@myownnotion/domain").Uuid,
+        declaredLength: PROTECTED_FILE_CHUNK_BYTES + 100,
+        originalName: "private transfer.txt",
+        mediaType: "text/plain",
+      }),
+    );
+    const first = Buffer.alloc(PROTECTED_FILE_CHUNK_BYTES - 3, 5);
+    await database.db.transaction((tx) =>
+      transfers.append(tx, { id: upload.id, offset: 0, source: source(first) }),
+    );
+    await database.db.transaction((tx) =>
+      transfers.append(tx, {
+        id: upload.id,
+        offset: first.length,
+        source: source(Buffer.from("ABCDE")),
+      }),
+    );
+    const before = await listProtectedFileChunks(
+      database.db,
+      runtime.files.scope("upload", upload.id),
+    );
+    expect(before).toHaveLength(2);
+    await database.db.transaction((tx) =>
+      transfers.append(tx, {
+        id: upload.id,
+        offset: first.length + 5,
+        source: source(Buffer.from("FG")),
+      }),
+    );
+    const after = await listProtectedFileChunks(
+      database.db,
+      runtime.files.scope("upload", upload.id),
+    );
+    expect(after[0]?.storageKey).toBe(before[0]?.storageKey);
+    expect(after[1]?.storageKey).not.toBe(before[1]?.storageKey);
+    const restarted = createProtectedFileRuntime({
+      db: database.db,
+      workspaceId,
+      installationId,
+      blobRoot: root,
+      deploymentKey: () => deploymentKey,
+    });
+    const reopenedTransfers = new ProtectedUploadService(restarted.files);
+    const resumed = await reopenedTransfers.get(database.db, upload.id);
+    if (resumed === null) throw new Error("Missing upload fixture");
+    expect(resumed).toMatchObject({
+      receivedLength: first.length + 7,
+      originalName: "private transfer.txt",
+    });
+    const readBack = await collect(reopenedTransfers.read(database.db, resumed));
+    expect(Buffer.compare(readBack, Buffer.concat([first, Buffer.from("ABCDEFG")]))).toBe(0);
+    const states = await database.db.execute(
+      sql`SELECT record_version FROM protected_envelopes WHERE entity_type = 'file.upload-state' AND entity_id = ${upload.id}`,
+    );
+    expect(states.rows).toHaveLength(1);
+  });
+
+  it("keeps the old acknowledged prefix after an offset conflict, overflow or interrupted source", async () => {
+    const transfers = new ProtectedUploadService(runtime.files);
+    const upload = await database.db.transaction((tx) =>
+      transfers.create(tx, {
+        workspaceId: workspaceId as import("@myownnotion/domain").Uuid,
+        declaredLength: 12,
+        originalName: "private partial.txt",
+        mediaType: "text/plain",
+      }),
+    );
+    await database.db.transaction((tx) =>
+      transfers.append(tx, { id: upload.id, offset: 0, source: source(Buffer.from("safe")) }),
+    );
+    const before = await transfers.get(database.db, upload.id);
+    expect(
+      await database.db.transaction((tx) =>
+        transfers.append(tx, {
+          id: upload.id,
+          offset: 0,
+          source: source(Buffer.from("duplicate")),
+        }),
+      ),
+    ).toEqual({ ok: false, reason: "offset-mismatch", expected: 4 });
+    await expect(
+      database.db.transaction((tx) =>
+        transfers.append(tx, { id: upload.id, offset: 4, source: source(Buffer.alloc(9)) }),
+      ),
+    ).rejects.toThrow("exceed");
+    await expect(
+      database.db.transaction((tx) =>
+        transfers.append(tx, {
+          id: upload.id,
+          offset: 4,
+          source: (async function* () {
+            yield Buffer.from("next");
+            throw new Error("source disconnected");
+          })(),
+        }),
+      ),
+    ).rejects.toThrow("source disconnected");
+    expect(await transfers.get(database.db, upload.id)).toEqual(before);
+    if (before === null) throw new Error("Missing upload fixture");
+    expect(await collect(transfers.read(database.db, before))).toEqual(Buffer.from("safe"));
+  });
+
   it("reuses only authenticated byte-equal content and removes temporary duplicate ciphertext", async () => {
     const bytes = Buffer.from("deduplicated protected fixture bytes");
     const first = await database.db.transaction((tx) =>

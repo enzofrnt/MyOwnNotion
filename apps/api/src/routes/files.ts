@@ -292,6 +292,12 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
         if (files === undefined) throw new ProtectedFileUnavailableError();
         await files.manifest(context.db, content.id);
       }
+      const metadata = await context.protectedContent?.readFileMetadata(context.db, {
+        kind: "file",
+        id: itemId,
+      });
+      if (content.storageFormat === "encrypted-chunks-v1" && metadata == null)
+        throw new ProtectedFileUnavailableError();
       const bytes =
         content.storageFormat === "encrypted-chunks-v1" && files !== undefined
           ? Readable.from(files.read(context.db, content.id), { objectMode: false })
@@ -320,10 +326,10 @@ export function registerFileRoutes(app: FastifyInstance, context: AppContext): v
       // are set rather than whichever seems sufficient.
       return reply
         .status(200)
-        .header("content-type", logical.mediaType)
+        .header("content-type", metadata?.mediaType ?? logical.mediaType)
         .header(
           "content-disposition",
-          `attachment; filename*=UTF-8''${encodeURIComponent(logical.originalName)}`,
+          `attachment; filename*=UTF-8''${encodeURIComponent(metadata?.originalName ?? logical.originalName)}`,
         )
         .header("x-content-type-options", "nosniff")
         .header("content-security-policy", "default-src 'none'; sandbox")

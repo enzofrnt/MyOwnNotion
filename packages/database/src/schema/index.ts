@@ -299,6 +299,24 @@ export const uploads = pgTable(
   ],
 );
 
+export const protectedUploadCompletions = pgTable(
+  "protected_upload_completions",
+  {
+    uploadId: uuid("upload_id").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    byteLength: bigint("byte_length", { mode: "number" }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("protected_upload_completions_byte_length_check", sql`${table.byteLength} >= 0`),
+  ],
+);
+
 export const mutations = pgTable(
   "mutations",
   {
