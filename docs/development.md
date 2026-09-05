@@ -1073,6 +1073,11 @@ assumptions about preinstalled system clusters on either runner architecture.
 macOS uses its native PostgreSQL fixture. Windows uses a pinned, SHA-256-verified EDB portable archive;
 the ARM runner executes only that test database through Windows x64 emulation,
 while Bun and Electron remain ARM64. The archive is never packaged with the app.
+The Windows journey key uses a protected owner-only ACL. `chmod(0600)` cannot
+establish that boundary on Windows: the fixture sets the current-account ACL and
+the loader independently checks it with PowerShell without reading key bytes in
+the child process. Broad or inherited allow rules fail closed. Native policy
+tests verify both acceptance and refusal; Linux/macOS retain POSIX mode checks.
 Windows selects `%SystemRoot%/System32/tar.exe` explicitly; Git Bash's GNU tar
 must not interpret an archive's drive letter as a remote host.
 Locally, desktop journeys use the disposable databases created by the existing

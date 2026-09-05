@@ -268,3 +268,5 @@ fichier concret.
 - [X] T091 Exercise database property entry with real keyboard input and assert the visible draft before saving in `tests/e2e/databases-offline-sync.spec.ts`; retain the strict second-device persistence and offline merge checks after WebKit CI submitted an empty Owner draft.
 
 - [X] T092 Normalize native glob path separators when checking required web assets in `apps/web/build-assets.ts`; cover POSIX and Windows paths, absent asset classes and misleading source maps in `apps/web/tests/build-assets.spec.ts`. Both Windows CI architectures exposed the same production-build refusal before their native journeys; renewed native CI proof remains part of T088/T076.
+
+- [ ] T093 Validate owner-only Windows ACLs for the native journey server's deployment key in `apps/api/src/security/`, prepare the ephemeral key with an explicit private ACL in `scripts/e2e/`, and exercise allowed/refused ACLs in desktop policy tests. Windows does not represent POSIX 0600 permissions; preserve strict private-key validation and guarded migration instead of skipping either boundary.
