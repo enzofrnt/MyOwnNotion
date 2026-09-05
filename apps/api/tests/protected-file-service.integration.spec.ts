@@ -12,7 +12,11 @@ import {
 import { generateUuidV7, PROTECTED_FILE_CHUNK_BYTES } from "@myownnotion/domain";
 import { type DisposablePostgres, startMigratedPostgres } from "@myownnotion/test-utils";
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  cleanupProtectedFiles,
+  queueProtectedFileGarbage,
+} from "../src/files/protected-file-cleanup.ts";
 import { createProtectedFileRuntime } from "../src/files/protected-file-runtime.ts";
 import { ProtectedUploadService } from "../src/files/protected-upload-service.ts";
 
@@ -61,6 +65,66 @@ async function collect(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
 }
 
 describe("shared protected file runtime", () => {
+  it("reclaims replaced/expired transfer chunks after committed retirement and preserves live references", async () => {
+    const transfers = new ProtectedUploadService(runtime.files);
+    const upload = await database.db.transaction((tx) =>
+      transfers.create(tx, {
+        workspaceId: workspaceId as import("@myownnotion/domain").Uuid,
+        declaredLength: 30,
+        originalName: "expiring private.txt",
+        mediaType: "text/plain",
+        now: now(),
+      }),
+    );
+    await database.db.transaction((tx) =>
+      transfers.append(tx, { id: upload.id, offset: 0, source: source(Buffer.from("first")) }),
+    );
+    const first = (
+      await listProtectedFileChunks(database.db, runtime.files.scope("upload", upload.id))
+    )[0];
+    if (first === undefined) throw new Error("Missing tail fixture");
+    await database.db.transaction((tx) =>
+      transfers.append(tx, { id: upload.id, offset: 5, source: source(Buffer.from("more")) }),
+    );
+    expect(await cleanupProtectedFiles(database.db, runtime.files, now())).toEqual({
+      expired: 0,
+      deleted: 1,
+    });
+    expect(await runtime.blobs.get(first.storageKey)).toBeNull();
+    const current = await transfers.get(database.db, upload.id);
+    if (current === null) throw new Error("Missing committed transfer");
+    expect((await collect(transfers.read(database.db, current))).toString()).toBe("firstmore");
+    const [live] = await listProtectedFileChunks(
+      database.db,
+      runtime.files.scope("upload", upload.id),
+    );
+    if (live === undefined) throw new Error("Missing live tail fixture");
+    await database.db.transaction((tx) =>
+      queueProtectedFileGarbage(tx, workspaceId, [live.storageKey]),
+    );
+    expect((await cleanupProtectedFiles(database.db, runtime.files, now())).deleted).toBe(0);
+    const failure = vi
+      .spyOn(runtime.blobs, "delete")
+      .mockRejectedValueOnce(new Error("disk unavailable"));
+    try {
+      await expect(
+        cleanupProtectedFiles(database.db, runtime.files, new Date("2026-09-07T00:00:00Z")),
+      ).rejects.toThrow("disk unavailable");
+      expect(await transfers.get(database.db, upload.id)).toBeNull();
+      expect(await runtime.blobs.get(live.storageKey)).not.toBeNull();
+    } finally {
+      failure.mockRestore();
+    }
+    expect(
+      await cleanupProtectedFiles(database.db, runtime.files, new Date("2026-09-07T00:00:00Z")),
+    ).toEqual({ expired: 0, deleted: 1 });
+    expect(await runtime.blobs.get(live.storageKey)).toBeNull();
+    const envelopes = await database.db.execute(
+      sql`SELECT id FROM protected_envelopes WHERE entity_id = ${upload.id}`,
+    );
+    expect(envelopes.rows).toHaveLength(0);
+  });
+
   it("decrypts only overlapping range chunks and refuses a tampered selected chunk before yielding", async () => {
     const bytes = randomBytes(PROTECTED_FILE_CHUNK_BYTES * 2 + 17);
     const stored = await database.db.transaction((tx) =>

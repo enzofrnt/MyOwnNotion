@@ -41,6 +41,7 @@ import {
   createDatabaseQueryService,
   type DatabaseQueryService,
 } from "./databases/database-query-service.ts";
+import { startProtectedFileCleanup } from "./files/protected-file-cleanup.ts";
 import { createProtectedFileRuntime } from "./files/protected-file-runtime.ts";
 import type { ProtectedFileService } from "./files/protected-file-service.ts";
 import { CanonicalMaterializer } from "./page-state/canonical-materializer.ts";
@@ -806,6 +807,19 @@ async function composeApp(options: BuildAppOptions, database: DatabaseHandle): P
         );
       },
     });
+  }
+  if (protectedFiles !== undefined) {
+    const stopCleanup = startProtectedFileCleanup({
+      db: database.db,
+      files: protectedFiles,
+      now: options.now ?? (() => new Date()),
+      reportFailure: (error) =>
+        app.log.error(
+          { errorName: error instanceof Error ? error.name : "unknown" },
+          "protected file cleanup failed",
+        ),
+    });
+    app.addHook("onClose", stopCleanup);
   }
   if (pageHistory !== undefined) {
     let consolidationRunning = false;

@@ -317,6 +317,20 @@ export const protectedUploadCompletions = pgTable(
   ],
 );
 
+export const protectedFileGarbage = pgTable(
+  "protected_file_garbage",
+  {
+    storageKey: text("storage_key").primaryKey(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("protected_file_garbage_storage_key_check", sql`${table.storageKey} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
 export const mutations = pgTable(
   "mutations",
   {

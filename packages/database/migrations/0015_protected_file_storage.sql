@@ -56,6 +56,12 @@ CREATE TABLE protected_upload_completions (
     completed_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE protected_file_garbage (
+    storage_key text PRIMARY KEY CHECK (storage_key ~ '^[0-9a-f]{64}$'),
+    workspace_id uuid NOT NULL REFERENCES workspaces(id),
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE file_storage_transitions (
     id uuid PRIMARY KEY,
     installation_id uuid NOT NULL UNIQUE REFERENCES installations(id),

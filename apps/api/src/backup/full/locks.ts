@@ -20,6 +20,11 @@ export async function shareFullFileMutation(tx: Transaction): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock_shared(${NAMESPACE}, ${FILE_MUTATION})`);
 }
 
+/** Short maintenance batches exclude file publication before examining references. */
+export async function lockFullFileMaintenance(tx: Transaction): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${NAMESPACE}, ${FILE_MUTATION})`);
+}
+
 /** Physical GC must hold this through the actual delete, not only the DB update. */
 export async function shareFullBlobDeletion(tx: Transaction): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock_shared(${NAMESPACE}, ${BLOB_DELETION})`);

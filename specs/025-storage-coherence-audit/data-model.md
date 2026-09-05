@@ -47,6 +47,13 @@ atomically with finalization. It contains no user metadata and is removed when
 the logical file is purged. HEAD and a retried final PATCH can acknowledge the
 completed transfer after its partial state has been removed.
 
+`protected_file_garbage` queues superseded transfer ciphertext in the same
+transaction that retires its references. Cleanup first commits expired transfer
+retirement, then deletes only unreferenced queued blobs in a separate bounded
+transaction under the file-publication and backup-deletion locks. A failed disk
+delete can retry without resurrecting a transfer pointing at removed bytes.
+Unclassified historical orphans remain reserved for the verified transition.
+
 Historical file restoration resolves the authenticated snapshot through a trusted
 server callback inside the mutation transaction. It restores the verified content
 pointer and metadata as a new revision; readable SQL snapshots remain neutralized.

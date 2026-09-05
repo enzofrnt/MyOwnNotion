@@ -16,7 +16,6 @@
 import {
   type Database,
   DomainRejection,
-  deleteUpload,
   executeImportFile,
   isComplete,
   lockUpload,
@@ -32,6 +31,7 @@ import { and, eq } from "drizzle-orm";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { shareFullFileMutation } from "../backup/full/locks.ts";
 import type { AppContext } from "../context.ts";
+import { retireProtectedUpload } from "../files/protected-file-cleanup.ts";
 import { ProtectedFileUnavailableError } from "../files/protected-file-service.ts";
 import {
   ProtectedUploadService,
@@ -190,7 +190,7 @@ async function completeUpload(
         revisionIds: [execution.value.revisionId],
         changedItemIds: [execution.value.itemId],
       });
-      await deleteUpload(tx, upload.id);
+      await retireProtectedUpload(tx, protectedTransfers.files, upload.id);
       await tx.insert(schema.protectedUploadCompletions).values({
         uploadId: upload.id,
         workspaceId: context.workspaceId,

@@ -131,3 +131,12 @@ Evidence: `/tmp/mon-protected-portable-restore.log`,
 `/tmp/mon-protected-portable-composition.log`, `/tmp/mon-protected-full-restore.log`,
 `/tmp/mon-protected-composition-typecheck.log`. These are focused checks; remaining
 fixture composition, historical transition and full gates are still open.
+
+Transfer cleanup checkpoint: 20 service/secured HTTP cases and strict API types
+pass. Superseded tails are queued atomically, expired transfer retirement commits
+before physical deletion, live references prevent deletion, and a simulated disk
+failure retains the queue for retry without resurrecting retired upload state.
+Startup and bounded minute batches share this path and shutdown awaits active
+work. Evidence: `/tmp/mon-protected-cleanup-fixed.log`,
+`/tmp/mon-protected-cleanup-typecheck.log`. Unclassified interruption orphans are
+retained for the historical transition; this is not forensic storage erasure.

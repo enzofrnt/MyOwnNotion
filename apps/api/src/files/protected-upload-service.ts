@@ -18,6 +18,7 @@ import {
 } from "@myownnotion/domain";
 import { and, eq, lt } from "drizzle-orm";
 import { shareFullFileMutation } from "../backup/full/locks.ts";
+import { queueProtectedFileGarbage } from "./protected-file-cleanup.ts";
 import {
   type ProtectedFileService,
   ProtectedFileUnavailableError,
@@ -177,6 +178,8 @@ export class ProtectedUploadService {
     const chunks = [...existing.slice(0, startIndex), ...replacement];
     for (const chunk of replacement)
       await putProtectedFileChunk(tx, scope, chunk, this.files.deps.now());
+    if (oldTail !== undefined)
+      await queueProtectedFileGarbage(tx, scope.workspaceId, [oldTail.storageKey]);
     await this.files.deps.content.writeFileManifest(tx, {
       ...state,
       recordVersion: nextVersion,
