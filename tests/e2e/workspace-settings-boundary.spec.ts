@@ -77,13 +77,13 @@ test("settings stay outside the document and returning restores item, focus and 
 
   await page.getByTestId("settings-nav-backups").click();
   await expect(page).toHaveURL(/\/settings\/backups$/u);
-  await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("full-backup-panel")).toBeVisible({ timeout: 30_000 });
   await page.goBack();
   await expect(page).toHaveURL(/\/settings\/security$/u);
   await expect(page.getByTestId("security-settings")).toBeVisible({ timeout: 30_000 });
   await page.goForward();
   await expect(page).toHaveURL(/\/settings\/backups$/u);
-  await expect(page.getByTestId("backup-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("full-backup-panel")).toBeVisible({ timeout: 30_000 });
 
   await page.getByTestId("settings-nav-local-data").click();
   await expect(page).toHaveURL(/\/settings\/storage-sync$/u);

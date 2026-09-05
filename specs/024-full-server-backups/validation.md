@@ -144,3 +144,13 @@ These are focused proofs, not a completed full workspace gate or delivery claim.
   idempotent remote retry, loss immediately after remote upload, cancellation
   before rehearsal database creation, invalid restore parents and safe scheduler
   behavior under clock movement/non-Error failures. Final full gates remain open.
+
+- Full gate on bdfdda04 passed all code/style/type checks, 387 files / 3,715
+  aggregate tests with every unchanged coverage budget, all eight isolated
+  performance benchmarks, database/migration tests and contracts. Chromium then
+  found three older journeys assuming the portable panel was expanded. The
+  remaining matrix was interrupted gracefully; this was not a green full gate.
+- T027 preserves those checks against both the primary full-backup surface and
+  explicitly expanded portable exports. All three focused Chromium accessibility,
+  320px overflow and settings-history journeys pass. The full gate is rerun on
+  the resulting commit, with no skipped required gate or relaxed assertion.

@@ -72,3 +72,5 @@ retention evidence until full backups explicitly prove equivalent coverage.
 - [x] T025 Reject unsupported PostgreSQL major versions during authenticated manifest parsing in `packages/domain/src/backup/full-manifest.ts`, before any restore target writes; cover older/future versions and malformed source provenance in `packages/domain/tests/full-manifest.spec.ts` per FR-015/FR-016 and SC-003 (partial, HIGH).
 
 - [x] T026 Close provider upload sources on credential/session preflight failure and handle early source-read errors in `apps/api/src/backup/destinations/google-drive.ts`; verify refused/partial uploads, safe provider diagnostics and retained local archives per FR-005/FR-007 (partial, HIGH).
+
+- [x] T027 Align existing accessibility, narrow-layout and settings-history journeys with full backup as the primary panel and explicitly opened portable exports in `tests/e2e/accessibility.spec.ts`, `tests/e2e/narrow-viewport.spec.ts` and `tests/e2e/workspace-settings-boundary.spec.ts`; retain both surfaces' checks (FR-018/FR-019).
