@@ -13,7 +13,7 @@ only after cross-artifact analysis. Checked tasks require actual evidence.
 ## Phase 2: Foundations
 
 - [x] T003 Define authenticated completed/partial manifests and corruption/shape property tests in `packages/domain/src/files/protected-file.ts` and `packages/domain/tests/protected-file.spec.ts` (FR-003/FR-006).
-- [ ] T004 Add format-aware content/upload fields, protected upload chunks, transition/quarantine references and constraints in `packages/database/migrations/0015_protected_file_storage.sql`, schema, ledger and migration tests (FR-001/FR-006/FR-007).
+- [x] T004 Add format-aware content/upload fields, protected upload chunks, transition/quarantine references and constraints in `packages/database/migrations/0015_protected_file_storage.sql`, schema, ledger and migration tests (FR-001/FR-006/FR-007).
 - [ ] T005 Add bounded single-chunk write/read iteration and key wiping in `packages/blob-store/src/encryption/encrypted-chunk-store.ts`; cover tail deletion, substitution, exact/empty boundaries in `packages/blob-store/tests/encrypted-chunks.spec.ts` (FR-003/FR-004).
 - [ ] T006 Make ciphertext publication durable through exclusive private staging, verified bytes, fsync and directory fsync in `packages/blob-store/src/filesystem-blob-store.ts` and failure tests (FR-001/FR-008).
 - [ ] T007 Add purpose-specific content-index key derivation in `apps/api/src/security/key-hierarchy.ts` and encrypted file metadata/manifest entities in `apps/api/src/security/protected-content.ts`; verify no recovery-key accessor is reused (FR-002/FR-006).

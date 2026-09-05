@@ -26,7 +26,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { definePageOperationSchema } from "./page-operations.ts";
-import { authorizedDevices, protectedEnvelopes } from "./security/index.ts";
+import { authorizedDevices, installations, protectedEnvelopes } from "./security/index.ts";
 
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType() {
@@ -170,14 +170,24 @@ export const fileContents = pgTable(
   "file_contents",
   {
     id: uuid("id").primaryKey(),
-    sha256: bytea("sha256").notNull(),
+    sha256: bytea("sha256"),
+    storageFormat: text("storage_format").notNull().default("legacy-v1"),
+    lookupTag: bytea("lookup_tag"),
+    manifestVersion: integer("manifest_version").notNull().default(0),
     byteLength: bigint("byte_length", { mode: "number" }).notNull(),
-    storageKey: text("storage_key").notNull().unique(),
+    storageKey: text("storage_key").unique(),
     verifiedAt: timestamp("verified_at", { withTimezone: true }),
     referenceCount: integer("reference_count").notNull().default(0),
   },
   (table) => [
     index("file_contents_digest_idx").on(table.sha256, table.byteLength),
+    index("file_contents_lookup_idx")
+      .on(table.lookupTag, table.byteLength)
+      .where(sql`${table.storageFormat} = 'encrypted-chunks-v1'`),
+    check(
+      "file_contents_storage_format_check",
+      sql`(${table.storageFormat} = 'legacy-v1' AND ${table.sha256} IS NOT NULL AND ${table.storageKey} IS NOT NULL AND ${table.lookupTag} IS NULL AND ${table.manifestVersion} = 0) OR (${table.storageFormat} = 'encrypted-chunks-v1' AND ${table.sha256} IS NULL AND ${table.storageKey} IS NULL AND ${table.lookupTag} IS NOT NULL AND octet_length(${table.lookupTag}) = 32 AND ${table.manifestVersion} >= 1)`,
+    ),
     check("file_contents_length_check", sql`${table.byteLength} >= 0`),
     check("file_contents_sha256_check", sql`octet_length(${table.sha256}) = 32`),
   ],
@@ -269,12 +279,18 @@ export const uploads = pgTable(
      */
     attachmentParentItemId: uuid("attachment_parent_item_id"),
     storageKey: text("storage_key").notNull().unique(),
+    storageFormat: text("storage_format").notNull().default("legacy-v1"),
+    manifestVersion: integer("manifest_version").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     /** Abandoned uploads are reclaimed; otherwise they occupy storage nothing accounts for. */
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     index("uploads_expiry_idx").on(table.expiresAt),
+    check(
+      "uploads_storage_format_check",
+      sql`(${table.storageFormat} = 'legacy-v1' AND ${table.manifestVersion} = 0) OR (${table.storageFormat} = 'encrypted-chunks-v1' AND ${table.manifestVersion} >= 1)`,
+    ),
     check("uploads_declared_length_check", sql`${table.declaredLength} >= 0`),
     check(
       "uploads_received_length_check",
@@ -638,3 +654,128 @@ export const {
   deviceId: authorizedDevices.id,
   protectedEnvelopeId: protectedEnvelopes.id,
 });
+
+/** Ciphertext references for accepted upload prefixes; offset and references commit together. */
+export const protectedUploadChunks = pgTable(
+  "protected_upload_chunks",
+  {
+    id: uuid("id").primaryKey(),
+    installationId: uuid("installation_id")
+      .notNull()
+      .references(() => installations.id),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspaces.id),
+    uploadId: uuid("upload_id")
+      .notNull()
+      .references(() => uploads.id, { onDelete: "cascade" }),
+    chunkIndex: integer("chunk_index").notNull(),
+    keyGeneration: integer("key_generation").notNull(),
+    recordVersion: integer("record_version").notNull().default(1),
+    storageKey: text("storage_key").notNull(),
+    salt: text("salt").notNull(),
+    nonce: text("nonce").notNull(),
+    tag: text("tag").notNull(),
+    aadDigest: text("aad_digest").notNull(),
+    byteLength: bigint("byte_length", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("protected_upload_chunks_position_unique").on(table.uploadId, table.chunkIndex),
+    uniqueIndex("protected_upload_chunks_storage_unique").on(table.storageKey),
+    index("protected_upload_chunks_generation_idx").on(table.workspaceId, table.keyGeneration),
+    check("protected_upload_chunks_chunk_index_check", sql`${table.chunkIndex} >= 0`),
+    check("protected_upload_chunks_key_generation_check", sql`${table.keyGeneration} >= 1`),
+    check("protected_upload_chunks_record_version_check", sql`${table.recordVersion} >= 1`),
+    check("protected_upload_chunks_storage_key_check", sql`${table.storageKey} ~ '^[0-9a-f]{64}$'`),
+    check(
+      "protected_upload_chunks_byte_length_check",
+      sql`${table.byteLength} > 0 AND ${table.byteLength} <= 4194304`,
+    ),
+  ],
+);
+
+export const fileStorageTransitions = pgTable(
+  "file_storage_transitions",
+  {
+    id: uuid("id").primaryKey(),
+    installationId: uuid("installation_id")
+      .notNull()
+      .unique()
+      .references(() => installations.id),
+    sourceBackupId: uuid("source_backup_id").notNull(),
+    sourceInventoryEnvelopeId: uuid("source_inventory_envelope_id")
+      .notNull()
+      .references(() => protectedEnvelopes.id),
+    phase: text("phase").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "file_storage_transitions_phase_check",
+      sql`${table.phase} IN ('inventoried', 'backfilling', 'metadata-protected', 'verified', 'cutover', 'retiring-sources', 'complete')`,
+    ),
+    check(
+      "file_storage_transitions_completion_check",
+      sql`(${table.phase} = 'complete') = (${table.completedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const fileStorageTransitionEntries = pgTable(
+  "file_storage_transition_entries",
+  {
+    id: uuid("id").primaryKey(),
+    transitionId: uuid("transition_id")
+      .notNull()
+      .references(() => fileStorageTransitions.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    objectId: uuid("object_id"),
+    sourceEnvelopeId: uuid("source_envelope_id")
+      .notNull()
+      .references(() => protectedEnvelopes.id),
+    replacementEnvelopeId: uuid("replacement_envelope_id").references(() => protectedEnvelopes.id),
+    phase: text("phase").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("file_storage_transition_entries_object_idx")
+      .on(table.transitionId, table.kind, table.objectId)
+      .where(sql`${table.objectId} IS NOT NULL`),
+    check(
+      "file_storage_transition_entries_kind_check",
+      sql`${table.kind} IN ('content', 'upload', 'metadata', 'orphan')`,
+    ),
+    check(
+      "file_storage_transition_entries_phase_check",
+      sql`${table.phase} IN ('inventoried', 'published', 'verified', 'retired')`,
+    ),
+    check(
+      "file_storage_transition_entries_replacement_check",
+      sql`${table.phase} = 'inventoried' OR ${table.replacementEnvelopeId} IS NOT NULL`,
+    ),
+  ],
+);
+
+export const protectedFileQuarantine = pgTable(
+  "protected_file_quarantine",
+  {
+    id: uuid("id").primaryKey(),
+    transitionEntryId: uuid("transition_entry_id")
+      .notNull()
+      .references(() => fileStorageTransitionEntries.id),
+    storageKey: text("storage_key").notNull().unique(),
+    manifestEnvelopeId: uuid("manifest_envelope_id")
+      .notNull()
+      .references(() => protectedEnvelopes.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "protected_file_quarantine_storage_key_check",
+      sql`${table.storageKey} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+);

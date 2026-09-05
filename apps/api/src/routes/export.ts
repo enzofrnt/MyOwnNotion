@@ -121,6 +121,9 @@ export async function buildManifestInTransaction(context: AppContext, tx: Transa
 
   const items: ExportedItem[] = models.map((model) => {
     const file = filesByItem.get(model.id);
+    if (file?.sha256 === null) {
+      throw new Error("Protected file metadata must be resolved before export.");
+    }
     return {
       id: model.id,
       workspaceId: context.workspaceId,

@@ -385,7 +385,7 @@ export async function findVerifiedContentByDigest(
     .where(and(eq(fileContents.sha256, sha256), eq(fileContents.byteLength, byteLength)))
     .limit(1);
   const row = rows[0];
-  if (row === undefined || row.verifiedAt === null) {
+  if (row === undefined || row.verifiedAt === null || row.storageKey === null) {
     return null;
   }
   return { contentId: row.id as Uuid, storageKey: row.storageKey };
