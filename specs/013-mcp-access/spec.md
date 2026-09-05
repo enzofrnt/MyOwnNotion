@@ -121,3 +121,6 @@ settings destination with connection scope and exchange instructions. A lost
 exchange response requires a new code; secrets are never recoverable from storage.
 File access is read-only in this iteration; file import/replacement remains the
 app's upload flow. Delete means reversible trash, never permanent purge.
+The optional command that writes a client configuration runs on Linux/macOS
+and verifies private file permissions. Other platforms use the documented HTTP
+exchange and their MCP client's private credential storage.

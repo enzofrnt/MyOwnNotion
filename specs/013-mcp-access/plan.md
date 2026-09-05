@@ -52,6 +52,15 @@ request and at mutation commit. Serialized transactions order revoke and writes.
 Assistant content is untrusted input; existing domain validation remains final.
 Audit uses fixed action names and opaque IDs, never tool arguments.
 
+The optional configuration-file exchange helper supports Linux and macOS,
+whose file permissions it can verify. It refuses other host platforms before
+reading a code, creating an output or consuming the one-use exchange. Before
+the HTTP call, a newly created exclusive file must be regular, owned by the
+current Unix account and grant no group/other access. The MCP HTTP protocol and
+owner interface remain available to clients on every platform; Windows clients
+use their own private credential storage. Do not promise private Windows files
+from a POSIX 0600 creation mode, which does not establish Windows ACLs.
+
 ## Validation
 
 Token lifetime/replay/revoke tests; encrypted integration tests for scope,

@@ -18,7 +18,7 @@ objet JSON `{"code":"…"}` à `/mcp/exchange`. La réponse contient un
 `accessToken`, à transmettre ensuite à `/mcp` dans l'en-tête
 `Authorization: Bearer …`. Vos cookies de session ne sont jamais nécessaires.
 
-Pour préparer un fichier de configuration depuis un checkout du dépôt, enregistrez
+Pour préparer un fichier de configuration sous Linux ou macOS depuis un checkout du dépôt, enregistrez
 le code temporaire dans un fichier privé à l'aide de votre éditeur, puis lancez :
 
 ```sh
@@ -27,7 +27,11 @@ bun run mcp:connect --server https://notes.example.com --code-file /private/path
 
 La commande écrit la configuration HTTP dans un **nouveau** fichier accessible
 seulement à votre utilisateur et n'affiche aucun secret. Elle refuse l'écrasement
-d'un fichier existant et les serveurs HTTP hors loopback. Le binaire serveur
+d'un fichier existant et les serveurs HTTP hors loopback. Elle vérifie les
+permissions du fichier avant de consommer le code. Sur Windows, ce helper refuse
+l'opération avant de créer un fichier ou d'échanger le code : utilisez l'échange
+HTTP décrit plus haut et le stockage privé de votre client MCP. Le protocole et
+l'interface d'autorisation restent disponibles sur Windows. Le binaire serveur
 compilé fournit aussi `bun dist/mcp/exchange-cli.js` avec les mêmes options.
 Importez ou adaptez le bloc `mcpServers` pour votre client MCP ; il doit prendre
 en charge Streamable HTTP et un en-tête Bearer explicite. Supprimez ensuite le

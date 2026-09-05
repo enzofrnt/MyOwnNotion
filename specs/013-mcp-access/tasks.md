@@ -33,3 +33,5 @@
 - [ ] T016 Integration owner: run all required local gates on combined changes
   before push, then PR CI/review; record the delivery result. Focused MCP/UI
   evidence does not replace this full gate.
+
+- [x] T017 Refuse unsupported file-permission platforms before consuming an exchange code in `apps/api/src/mcp/exchange-cli.ts`; verify the newly opened POSIX file's ownership/mode before receiving credentials, retain no-secret/refusal cleanup tests, and document the helper's host boundary in `docs/mcp.md` (FR-005/FR-008).

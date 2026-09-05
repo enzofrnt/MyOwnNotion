@@ -1,4 +1,4 @@
-/** Owner-approved MCP exchange: secrets enter via a file and leave only in a new0600 file. */
+/** Owner-approved MCP exchange into a new, verified private Unix configuration file. */
 import { open, readFile, unlink } from "node:fs/promises";
 import process from "node:process";
 
@@ -7,6 +7,8 @@ export async function connectMcp(input: {
   codeFile: string;
   output: string;
 }): Promise<void> {
+  if (process.platform !== "linux" && process.platform !== "darwin")
+    throw new Error("This private configuration helper requires Linux or macOS.");
   const server = new URL(input.server);
   if (
     server.username ||
@@ -27,6 +29,13 @@ export async function connectMcp(input: {
   const output = await open(input.output, "wx", 0o600);
   let written = false;
   try {
+    const permissions = await output.stat();
+    if (
+      !permissions.isFile() ||
+      permissions.uid !== process.getuid?.() ||
+      (permissions.mode & 0o077) !== 0
+    )
+      throw new Error("The output is not a verified owner-only private regular file.");
     const response = await fetch(new URL("/mcp/exchange", server), {
       method: "POST",
       redirect: "error",
@@ -73,7 +82,7 @@ export async function runMcpConnect(
 ): Promise<number> {
   if (argv.length === 0 || argv.includes("--help")) {
     print(
-      "MCP connection: --server HTTPS_ORIGIN --code-file PATH --output NEW_PATH\nThe code is read from a file; credentials are written only to a new private configuration file.",
+      "MCP connection (Linux/macOS): --server HTTPS_ORIGIN --code-file PATH --output NEW_PATH\nThe code is read from a file; credentials are written only to a new verified private configuration file.",
     );
     return 0;
   }
@@ -108,7 +117,7 @@ export async function runMcpConnect(
   } catch {
     // A network, filesystem or JSON error can include user-supplied data.
     print(
-      "MCP connection failed. Check the server, code expiry and that the output path is new. If the code was consumed, revoke that connection and create another.",
+      "MCP connection failed. This helper requires Linux or macOS. Check the server, code expiry and that the output path is new and private. If the code was consumed, revoke that connection and create another.",
     );
     return 1;
   }
