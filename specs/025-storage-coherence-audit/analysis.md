@@ -86,3 +86,13 @@ format, ownership or product-boundary change. Three standard-Bun measurements
 fixture retains its 5 ms and per-fragment sampling. Validation records all
 commands/logs and distinguishes these focused results from the complete
 performance and delivery gates still open in T038/T040/T041.
+
+## T045 joined privacy evidence
+
+The bounded review identified two missing combined proofs, already required by
+FR-014/T045: canonical SQL inspection after actual offline replay and structured
+content in a protected portable target. The existing API/browser fixtures now
+cover both, including subsequent edits and retained revisions. Fourteen API
+tests and ten journeys across all five profiles pass; relevant types pass.
+There is no new product requirement or production change. T045 is complete
+with evidence in validation; T038/T040/T041 retain final gate/delivery duties.

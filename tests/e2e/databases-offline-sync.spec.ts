@@ -8,6 +8,7 @@
  * latency itself. The performance suite owns the percentile assertion.
  */
 import type { Page, TestInfo } from "@playwright/test";
+import { expectPrivateCanonicalStorage } from "./canonical-storage.ts";
 import { expect, test } from "./fixtures.ts";
 import {
   closeMobileNavigation,
@@ -403,6 +404,17 @@ test.describe("structured offline convergence (US5)", () => {
         return revision.parentRevisionIds ?? [];
       }, entryName);
       expect(lineage).toHaveLength(2);
+      await expectPrivateCanonicalStorage([
+        databaseName,
+        entryName,
+        offlineProperty,
+        "common note",
+        "common owner",
+        "local compatible note",
+        "remote compatible owner",
+        "local divergent note",
+        "remote divergent note",
+      ]);
     } finally {
       await second.context.close();
     }

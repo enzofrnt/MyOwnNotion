@@ -84,7 +84,7 @@ survive projection updates; active caret/style and native runtime are exercised.
 - [x] T042 [US1] Reproduce readable canonical presentation/snapshots and restored payloads through secured HTTP in `apps/api/tests/canonical-storage-privacy.integration.spec.ts`, recording SQL sentinel evidence (FR-014).
 - [x] T043 [US1] Resolve protected canonical payloads at mutation/snapshot boundaries and neutralize committed plaintext copies in `apps/api/src/plugins/mutations.ts`, content resolution and database mutation/revision repositories; preserve neutral edits, structured values, restore and sync (FR-014).
 - [x] T044 [US2] Apply the same canonical privacy boundary to portable restoration and historical transition in `apps/api/src/backup/database-restore-target.ts` and `apps/api/src/security/file-storage-migration.ts` (FR-007/FR-014).
-- [ ] T045 [US4] Verify secured canonical SQL sentinel absence, subsequent edits/history, database definitions/values, offline sync and portable/full restored reads; update the audit and convergence evidence (FR-014).
+- [x] T045 [US4] Verify secured canonical SQL sentinel absence, subsequent edits/history, database definitions/values, offline sync and portable/full restored reads; update the audit and convergence evidence (FR-014).
 
 ## Additional confirmed implementation and verification gaps
 

@@ -264,7 +264,7 @@ describe("private files through authenticated HTTP", () => {
       });
     }
   });
-  it("restores a sealed portable archive into protected storage and downloads exact attachment bytes", async () => {
+  it("restores a sealed portable archive into protected storage and preserves later structured edits", async () => {
     const id = await directImport();
     const pageId = generateUuidV7();
     const privatePage = await owner({
@@ -284,6 +284,89 @@ describe("private files through authenticated HTTP", () => {
       },
     });
     expect(privatePage.statusCode, privatePage.body).toBe(201);
+    const databaseId = generateUuidV7();
+    const propertyId = generateUuidV7();
+    const relationPropertyId = generateUuidV7();
+    const entryId = generateUuidV7();
+    const privateValues = {
+      database: "portable private database sentinel",
+      property: "portable private property sentinel",
+      view: "portable private view sentinel",
+      title: "portable private entry sentinel",
+      value: "portable private value sentinel",
+      relationship: "portable private relationship sentinel",
+      edited: "portable edited value sentinel",
+    };
+    const createdDatabase = await owner({
+      method: "POST",
+      url: "/v1/databases",
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: databaseId,
+        name: privateValues.database,
+        placement: { id: generateUuidV7(), parentItemId: null, positionKey: "a" },
+        titlePropertyId: generateUuidV7(),
+        initialViewId: generateUuidV7(),
+        initialViewName: privateValues.view,
+      },
+    });
+    expect(createdDatabase.statusCode, createdDatabase.body).toBe(201);
+    const initialDatabase = createdDatabase.json().database;
+    const definition = {
+      ...initialDatabase.definition,
+      properties: [
+        ...initialDatabase.definition.properties,
+        {
+          id: propertyId,
+          name: privateValues.property,
+          type: "text",
+          positionKey: "b",
+          state: "active",
+          config: {},
+        },
+        {
+          id: relationPropertyId,
+          name: "Private related page",
+          type: "relation",
+          positionKey: "c",
+          state: "active",
+          config: { cardinality: "many" },
+        },
+      ],
+    };
+    const defined = await owner({
+      method: "PUT",
+      url: `/v1/databases/${databaseId}/definition`,
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: { baseRevisionId: initialDatabase.definitionRevisionId, definition },
+    });
+    expect(defined.statusCode, defined.body).toBe(200);
+    const createdEntry = await owner({
+      method: "POST",
+      url: `/v1/databases/${databaseId}/entries`,
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: entryId,
+        title: privateValues.title,
+        placement: { id: generateUuidV7(), parentItemId: databaseId, positionKey: "a" },
+        values: { [propertyId]: { kind: "text", value: privateValues.value } },
+        relationTargets: { [relationPropertyId]: [pageId] },
+      },
+    });
+    expect(createdEntry.statusCode, createdEntry.body).toBe(201);
+    const related = await owner({
+      method: "POST",
+      url: "/v1/relationships",
+      headers: { "idempotency-key": generateUuidV7() },
+      payload: {
+        id: generateUuidV7(),
+        sourceItemId: entryId,
+        targetItemId: pageId,
+        relationType: "link:references",
+        metadata: { note: privateValues.relationship },
+      },
+    });
+    expect(related.statusCode, related.body).toBe(201);
     const destinationRoot = await mkdtemp(path.join(os.tmpdir(), "mon-private-portable-"));
     const destination = new FilesystemDestination(destinationRoot);
     const archiveKey = randomBytes(32);
@@ -338,13 +421,69 @@ describe("private files through authenticated HTTP", () => {
         name: `${NAME} page`,
         pageDocument: { body: { note: BODY } },
       });
-      const canonical = await target.built.database.db.execute(sql`
-        SELECT to_jsonb(i)::text AS payload FROM items i
-        UNION ALL SELECT to_jsonb(p)::text FROM page_documents p
-        UNION ALL SELECT to_jsonb(r)::text FROM revisions r
-      `);
-      expect(JSON.stringify(canonical.rows)).not.toContain(NAME);
-      expect(JSON.stringify(canonical.rows)).not.toContain(BODY);
+      const database = await targetOwner({ method: "GET", url: `/v1/databases/${databaseId}` });
+      expect(database.statusCode, database.body).toBe(200);
+      expect(database.json()).toMatchObject({ name: privateValues.database, definition });
+      const entryUrl = `/v1/databases/${databaseId}/entries/${entryId}`;
+      const restoredEntry = await targetOwner({ method: "GET", url: entryUrl });
+      expect(restoredEntry.statusCode, restoredEntry.body).toBe(200);
+      expect(restoredEntry.json()).toMatchObject({
+        title: privateValues.title,
+        values: { [propertyId]: { kind: "text", value: privateValues.value } },
+        relationTargets: { [relationPropertyId]: [pageId] },
+      });
+      const checkRelationships = async () => {
+        const response = await targetOwner({
+          method: "GET",
+          url: `/v1/relationships?itemId=${entryId}`,
+        });
+        expect(response.statusCode, response.body).toBe(200);
+        expect(response.body).toContain(privateValues.relationship);
+      };
+      const checkCanonicalStorage = async () => {
+        const canonical = await target.built.database.db.execute(sql`
+          SELECT to_jsonb(i)::text AS payload FROM items i
+          UNION ALL SELECT to_jsonb(p)::text FROM page_documents p
+          UNION ALL SELECT to_jsonb(r)::text FROM revisions r
+          UNION ALL SELECT to_jsonb(d)::text FROM databases d
+          UNION ALL SELECT to_jsonb(e)::text FROM database_entries e
+          UNION ALL SELECT to_jsonb(r)::text FROM relationships r
+          UNION ALL SELECT to_jsonb(e)::text FROM protected_envelopes e
+        `);
+        for (const sentinel of [NAME, BODY, ...Object.values(privateValues)])
+          expect(JSON.stringify(canonical.rows)).not.toContain(sentinel);
+      };
+      await checkRelationships();
+      await checkCanonicalStorage();
+      const edited = await targetOwner({
+        method: "PUT",
+        url: `${entryUrl}/values`,
+        headers: { "idempotency-key": generateUuidV7() },
+        payload: {
+          baseRevisionId: restoredEntry.json().revisionId,
+          values: { [propertyId]: { kind: "text", value: privateValues.edited } },
+          relationTargets: { [relationPropertyId]: [pageId] },
+        },
+      });
+      expect(edited.statusCode, edited.body).toBe(200);
+      const afterEdit = await targetOwner({ method: "GET", url: entryUrl });
+      expect(afterEdit.json()).toMatchObject({
+        title: privateValues.title,
+        values: { [propertyId]: { kind: "text", value: privateValues.edited } },
+        relationTargets: { [relationPropertyId]: [pageId] },
+      });
+      expect(afterEdit.json().revisionId).not.toBe(restoredEntry.json().revisionId);
+      for (const [revisionId, value] of [
+        [restoredEntry.json().revisionId, privateValues.value],
+        [afterEdit.json().revisionId, privateValues.edited],
+      ]) {
+        const revision = await targetOwner({ method: "GET", url: `/v1/revisions/${revisionId}` });
+        expect(revision.statusCode, revision.body).toBe(200);
+        expect(revision.body).toContain(value);
+        expect(revision.body).toContain(privateValues.title);
+      }
+      await checkRelationships();
+      await checkCanonicalStorage();
       expect(rows.rows[0]).toMatchObject({ sha256: null, storage_key: null });
     } finally {
       await target.close();

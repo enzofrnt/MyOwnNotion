@@ -158,6 +158,15 @@ scrub marker as user content. Neutralize relational payloads in the same accepte
 transaction, and extend historical transition metadata coverage. Test subsequent
 neutral writes, dirty/offline sync, structured revisions and portable recovery.
 
+T045 joins the previously separate proofs: retain actual offline UI edits,
+restart/replay and independent converged-value assertions in the existing
+database and page tab journeys, then inspect canonical SQL for their title,
+body, definition and value sentinels. Extend the secured portable file round
+trip with structured definitions/values and relationship metadata, verify
+authorized target reads and clean canonical SQL, then edit the restored data
+and check both current and retained revisions. These targeted additions retain
+every browser profile and do not replace the complete final gates.
+
 ### Historical source inventory detail
 
 The 024 safety archive preserves durable database state and acknowledged upload
