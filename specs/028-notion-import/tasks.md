@@ -33,3 +33,9 @@
 ## Phase 6: Convergence
 
 - [x] T016 Detect committed CLI writes in already-open SSE streams through the existing heartbeat; preserve revocation, monotonic cursors and close/error boundaries, and prove separate-process notification and reconnect catch-up per FR-010 (partial).
+
+## Phase 7: Coverage convergence
+
+- [x] T017 Exercise uncovered source/Markdown/CSV/archive integrity and filesystem race boundaries with synthetic input per FR-002/003/009.
+- [x] T018 Exercise canonical refusal, interrupted file replay, checkpoint integrity, target readiness and CLI error boundaries per FR-006/007/008.
+- [x] T019 Record exact scoped uncovered counts and meaningful remaining limitations after coverage; keep all global thresholds and exclusions unchanged per Constitution VII.

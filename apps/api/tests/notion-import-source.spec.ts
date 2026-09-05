@@ -33,6 +33,8 @@ function zip(
     mode?: number;
     compress?: boolean;
     corrupt?: boolean;
+    encrypted?: boolean;
+    method?: number;
   }>,
 ): Buffer {
   const locals: Buffer[] = [],
@@ -46,7 +48,8 @@ function zip(
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50);
     local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(entry.compress ? 8 : 0, 8);
+    local.writeUInt16LE(entry.encrypted ? 1 : 0, 6);
+    local.writeUInt16LE(entry.method ?? (entry.compress ? 8 : 0), 8);
     local.writeUInt32LE(crc >>> 0, 14);
     local.writeUInt32LE(bytes.length, 18);
     local.writeUInt32LE(plain.length, 22);
@@ -56,7 +59,8 @@ function zip(
     header.writeUInt32LE(0x02014b50);
     header.writeUInt16LE(0x0314, 4);
     header.writeUInt16LE(20, 6);
-    header.writeUInt16LE(entry.compress ? 8 : 0, 10);
+    header.writeUInt16LE(entry.encrypted ? 1 : 0, 8);
+    header.writeUInt16LE(entry.method ?? (entry.compress ? 8 : 0), 10);
     header.writeUInt32LE(crc >>> 0, 16);
     header.writeUInt32LE(bytes.length, 20);
     header.writeUInt32LE(plain.length, 24);
@@ -75,6 +79,20 @@ function zip(
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, directory, end]);
 }
+it("bounds archive entry count even when entries are empty directories", async () => {
+  const source = await fixture({
+    "many.zip": zip(
+      Array.from({ length: SOURCE_LIMITS.entries + 1 }, (_, index) => ({
+        name: `${index}/`,
+        text: "",
+        mode: 0o040700,
+      })),
+    ),
+  });
+  await expect(readImportSource(join(source, "many.zip"))).rejects.toMatchObject({
+    code: "import.too-many-entries",
+  });
+});
 describe("Notion source preview", () => {
   it("preserves converted notes, attachments, properties, member identities and available tables", async () => {
     const root = await fixture({
@@ -312,5 +330,188 @@ describe("Notion source preview", () => {
     expect(plan.report.issues).toContainEqual(
       expect.objectContaining({ code: "import.cyclic-dependencies", blocking: true }),
     );
+  });
+  it("accounts for empty archives and directories and refuses incomplete or encrypted ZIP sources", async () => {
+    const empty = await fixture({
+      "empty.zip": zip([]),
+      "bad.zip": "not a zip",
+      "plain.md": "# Page",
+    });
+    expect(
+      planNotionImport(await readImportSource(join(empty, "empty.zip"))).report.totals.sourceFiles,
+    ).toBe(0);
+    await expect(readImportSource(join(empty, "bad.zip"))).rejects.toMatchObject({
+      code: "import.invalid-archive",
+    });
+    await expect(readImportSource(join(empty, "plain.md"))).rejects.toMatchObject({
+      code: "import.unsupported-source",
+    });
+    const link = join(empty, "source-link");
+    await symlink(empty, link);
+    await expect(readImportSource(link)).rejects.toMatchObject({ code: "import.symlink-refused" });
+    const directories = await fixture({
+      "source.zip": zip([{ name: "empty/", text: "", mode: 0o040755 }]),
+    });
+    expect((await readImportSource(join(directories, "source.zip"))).directories).toEqual([
+      "empty",
+    ]);
+    for (const entry of [
+      { name: "encrypted.md", text: "secret", encrypted: true, compress: true },
+      { name: "invalid/", text: "unexpected content", mode: 0o040755 },
+      { name: "method.md", text: "unsupported", method: 99 },
+    ]) {
+      const root = await fixture({ "source.zip": zip([entry]) });
+      await expect(readImportSource(join(root, "source.zip"))).rejects.toThrow(
+        entry.encrypted ? "import.encrypted-archive-refused" : "import.invalid-archive",
+      );
+    }
+    for (const path of ["", "a//b", ".", "a/./b", "a/".repeat(33), "bad\u007f"])
+      expect(() => normalizeSourcePath(path)).toThrow();
+  });
+  it("retains frontmatter outside databases, reference links, inert inline HTML and unresolved embeds", async () => {
+    const root = await fixture({
+      "Standalone.md": `---
+Owner: Someone
+Nested: {target: "[[Peer]]"}
+Infinity: .inf
+---
+# Standalone
+
+#### Deep heading
+
+Before **prefix [[Peer#heading|label]] suffix**.
+
+[reference][peer]
+
+[peer]: Peer.md
+
+![image][picture]
+
+[picture]: image.gif
+
+[download](image.gif)
+
+![missing](absent.png)
+
+<span>inert</span> and a footnote[^note].
+
+[^note]: Preserved definition
+
+Line\x20\x20
+break and **marked\x20\x20
+break**.
+
+- > quote first in list
+
+\`\`\`
+plain code
+\`\`\`
+`,
+      "Peer.md": "# Peer",
+      "image.gif": new Uint8Array([1, 2]),
+    });
+    const plan = planNotionImport(await readImportSource(root));
+    expect(plan.report.properties).toContainEqual(
+      expect.objectContaining({ name: "Nested", representation: "preserved-metadata" }),
+    );
+    expect(plan.report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "import.heading-level-normalized" }),
+        expect.objectContaining({ code: "import.link-anchor-preserved-in-source" }),
+        expect.objectContaining({ code: "import.html-preserved-as-text" }),
+      ]),
+    );
+    expect(plan.report.issues.some((issue) => issue.blocking)).toBe(false);
+    expect(
+      JSON.stringify(plan.pages.find((page) => page.path === "Standalone.md")?.document),
+    ).toContain("Infinity");
+    expect(() => safeYaml("---\na: [\n")).toThrow();
+    for (const yaml of ["[value]", "string", "false"])
+      expect(() =>
+        planNotionImport({
+          files: [{ path: "bad.md", bytes: Buffer.from(`---\n${yaml}\n---\nBody`), sha256: "bad" }],
+          totalBytes: 30,
+          digest: yaml,
+        }),
+      ).toThrow("import.invalid-frontmatter");
+  });
+  it("resolves exported Notion identifiers and reports unsafe, ambiguous and source-only configuration", async () => {
+    const id = "abcdef0123456789abcdef0123456789";
+    const root = await fixture({
+      [`Target ${id}.md`]: "# Target",
+      "a/Twin.md": "# First",
+      "b/Twin.md": "# Second",
+      "Mixed.md": `# ${"T".repeat(260)}\n[Notion](https://www.notion.so/Target-${id})\n[Mail](mailto:test@example.invalid)\n[Anchor](#section)\n[Escape](../outside)\n[Bad](%XX)\n[[Twin]]\n[[Unique]]\n`,
+      "folder/Unique.md": "# Unique",
+      "Data.base": `filters: note['base'] == link('Data')\nformulas: {calculated: '1 + 1'}\nviews:\n  - type: table\n    name: Table\n  - type: cards\n    name: Extra\n`,
+    });
+    const plan = planNotionImport(await readImportSource(root));
+    expect(plan.report.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceTarget: "../outside", status: "unsafe" }),
+        expect.objectContaining({ sourceTarget: "%XX", status: "unsafe" }),
+        expect.objectContaining({ sourceTarget: "Twin", status: "ambiguous" }),
+        expect.objectContaining({ sourceTarget: "Unique", status: "resolved" }),
+        expect.objectContaining({
+          sourceTarget: `https://www.notion.so/Target-${id}`,
+          status: "resolved",
+        }),
+      ]),
+    );
+    expect(plan.report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "import.title-shortened" }),
+        expect.objectContaining({ code: "import.additional-views-preserved-in-source" }),
+        expect.objectContaining({ code: "import.base-formulas-preserved-in-source" }),
+      ]),
+    );
+    for (const csv of ["", "Name,Name\nA,B\n", "Name,\nA,B\n"])
+      expect(() =>
+        planNotionImport({
+          files: [{ path: "bad.csv", bytes: Buffer.from(csv), sha256: "bad" }],
+          totalBytes: csv.length,
+          digest: csv,
+        }),
+      ).toThrow("import.invalid-csv");
+    expect(() =>
+      planNotionImport({
+        files: [{ path: "bad.base", bytes: Buffer.from("[]"), sha256: "bad" }],
+        totalBytes: 2,
+        digest: "bad",
+      }),
+    ).toThrow("import.invalid-base");
+  });
+  it("reports ambiguous native rows and invalid canonical definitions before application", async () => {
+    const root = await fixture({
+      "Data.csv": "Name,Status\nTwin,Done\n",
+      "a/Twin.md": "# Twin",
+      "b/Twin.md": "# Twin",
+      "Invalid.csv": `Name,${"p".repeat(513)}\nRow,Value\n`,
+      "Page.md": "# Page\n![table](Empty.base)\n![[missing.bin]]\n[bad](https://)\n",
+      "Empty.base": 'filters: note.base == link("Empty")\n',
+      "Unknown.bin": new Uint8Array([1, 2]),
+      " .md": " ",
+    });
+    const plan = planNotionImport(await readImportSource(root));
+    expect(plan.report.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "import.csv-row-ambiguous", blocking: true }),
+        expect.objectContaining({ code: "import.invalid-definition", blocking: true }),
+        expect.objectContaining({ code: "import.invalid-document", blocking: true }),
+      ]),
+    );
+    expect(plan.files.find((file) => file.path === "Unknown.bin")?.mediaType).toBe(
+      "application/octet-stream",
+    );
+    expect(plan.pages.find((page) => page.path === " .md")?.title).toBe("Sans titre");
+    expect(plan.databases.find((source) => source.path === "Empty.base")?.hostPageId).toBe(
+      plan.pages.find((page) => page.path === "Page.md")?.id,
+    );
+    for (const filters of ["[]", "{or: []}", "{and: [false]}"]) {
+      const snapshot = await fixture({ "Bad.base": `filters: ${filters}\n` });
+      expect(planNotionImport(await readImportSource(snapshot)).report.issues).toContainEqual(
+        expect.objectContaining({ code: "import.base-filter-unsupported", blocking: true }),
+      );
+    }
   });
 });

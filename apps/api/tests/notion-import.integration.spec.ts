@@ -3,11 +3,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { readDatabaseRecord, schema } from "@myownnotion/database";
 import { generateUuidV7 } from "@myownnotion/domain";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { FULL_RESTORE_MARKER, writeFullRestoreState } from "../src/backup/full/restore-state.ts";
 import { applyNotionImport } from "../src/imports/notion/apply.ts";
 import { runNotionImportCli } from "../src/imports/notion/cli.ts";
+import { importId } from "../src/imports/notion/model.ts";
 import { planNotionImport } from "../src/imports/notion/plan.ts";
 import { readImportSource } from "../src/imports/notion/source.ts";
 import { type NotionTarget, openNotionTarget } from "../src/imports/notion/target.ts";
@@ -54,6 +55,10 @@ async function plan(files: Record<string, string | Uint8Array>) {
     value: planNotionImport(await readImportSource(directory), generateUuidV7()),
   };
 }
+function required<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error("fixture value missing");
+  return value;
+}
 async function countItems() {
   return (
     (
@@ -73,6 +78,254 @@ async function item(id: string) {
   return response.json();
 }
 describe("protected canonical Notion apply", () => {
+  it("rejects invalid plans before backup or target access", async () => {
+    const imported = await plan({ "Page.md": "# Valid" });
+    const inaccessible = {
+      ...target,
+      get context(): NotionTarget["context"] {
+        throw new Error("target accessed before validation");
+      },
+    } as NotionTarget;
+    const blocked = structuredClone(imported.value);
+    blocked.report.issues.push({
+      code: "test.blocked-source",
+      sourcePath: "Page.md",
+      blocking: true,
+    });
+    await expect(applyNotionImport(blocked, inaccessible)).rejects.toMatchObject({
+      code: "import.preview-blocked",
+    });
+    const invalid = structuredClone(imported.value);
+    required(invalid.pages[0]).document = {
+      ...required(invalid.pages[0]).document,
+      formatVersion: 999,
+    };
+    await expect(applyNotionImport(invalid, inaccessible)).rejects.toMatchObject({
+      code: "import.invalid-document",
+    });
+    const database = await plan({ "Data.csv": "Name,Status\nEntry,Done\n" });
+    const source = required(database.value.databases[0]);
+    source.definition = { ...source.definition, properties: [] };
+    await expect(applyNotionImport(database.value, inaccessible)).rejects.toMatchObject({
+      code: "import.invalid-definition",
+    });
+    expect(await countItems()).toBe(0);
+  });
+
+  it("returns the canonical refusal when a planned folder parent is unavailable", async () => {
+    const imported = await plan({ "Page.md": "# Rejected page" });
+    required(imported.value.folders[0]).parentId = generateUuidV7();
+    await expect(applyNotionImport(imported.value, target)).rejects.toMatchObject({
+      code: "containment.parent-not-found",
+    });
+    expect(await countItems()).toBe(0);
+    expect(
+      await target.runtime.records.read(target.context.db, {
+        entityType: "import.step",
+        entityId: importId(imported.value.id, `operation:folder:${imported.value.rootId}`),
+      }),
+    ).toBeNull();
+  }, 180_000);
+  it("completes an empty source through the human-readable CLI with a safety backup", async () => {
+    const imported = await plan({});
+    const lines: string[] = [];
+    expect(
+      await runNotionImportCli(
+        ["--source", imported.directory, "--id", imported.value.id, "--apply"],
+        (line) => lines.push(line),
+        {
+          DATABASE_URL: harness.api.postgres.connectionString,
+          MYOWNNOTION_BLOB_ROOT: harness.api.blobRoot,
+          MYOWNNOTION_DEPLOYMENT_KEY_FILE: harness.deploymentKeyFile,
+          MYOWNNOTION_BACKUP_ROOT: join(root, "empty-backups"),
+        },
+      ),
+    ).toBe(0);
+    expect(lines.at(-1)).toContain(
+      `Import ${imported.value.id}: complete; root ${imported.value.rootId}; safety backup `,
+    );
+    expect(await countItems()).toBe(imported.value.folders.length);
+    expect(await target.context.db.select().from(schema.logicalFiles)).toEqual([]);
+  }, 180_000);
+  it("resumes a committed file without publishing another revision or copy", async () => {
+    const imported = await plan({
+      "Page.md": "# Pending document",
+      "asset.pdf": new Uint8Array([1, 2, 3]),
+    });
+    const file = required(imported.value.files[0]);
+    const mutationId = importId(imported.value.id, `operation:file:${file.id}`);
+    await expect(
+      applyNotionImport(imported.value, target, {
+        afterOperation: async () => {
+          const [published] = await target.context.db
+            .select()
+            .from(schema.mutations)
+            .where(eq(schema.mutations.id, mutationId));
+          if (published) throw new Error("pause after durable file publication");
+        },
+      }),
+    ).rejects.toThrow("pause after durable file");
+    const revisions = await target.context.db
+      .select()
+      .from(schema.revisions)
+      .where(eq(schema.revisions.itemId, file.id));
+    const stored = await target.context.db
+      .select()
+      .from(schema.logicalFiles)
+      .where(eq(schema.logicalFiles.itemId, file.id));
+    const result = await applyNotionImport(imported.value, target);
+    expect(result.alreadyComplete).toBe(false);
+    expect(
+      await target.context.db
+        .select()
+        .from(schema.revisions)
+        .where(eq(schema.revisions.itemId, file.id)),
+    ).toEqual(revisions);
+    expect(
+      await target.context.db
+        .select()
+        .from(schema.logicalFiles)
+        .where(eq(schema.logicalFiles.itemId, file.id)),
+    ).toEqual(stored);
+    expect(
+      JSON.stringify((await item(required(imported.value.pages[0]).id)).pageDocument),
+    ).toContain("Pending document");
+  }, 180_000);
+  it("rolls back refused file publication and leaves its checkpoint absent", async () => {
+    const imported = await plan({ "asset.pdf": new Uint8Array([42, 12, 8]) });
+    const file = required(imported.value.files[0]);
+    file.parentId = generateUuidV7();
+    await expect(applyNotionImport(imported.value, target)).rejects.toMatchObject({
+      name: "DomainRejection",
+    });
+    expect(
+      await target.context.db.select().from(schema.items).where(eq(schema.items.id, file.id)),
+    ).toEqual([]);
+    expect(
+      await target.context.db
+        .select()
+        .from(schema.logicalFiles)
+        .where(eq(schema.logicalFiles.itemId, file.id)),
+    ).toEqual([]);
+    expect(
+      await target.context.db
+        .select()
+        .from(schema.revisions)
+        .where(eq(schema.revisions.itemId, file.id)),
+    ).toEqual([]);
+    const mutationId = importId(imported.value.id, `operation:file:${file.id}`);
+    expect(
+      await target.context.db
+        .select()
+        .from(schema.mutations)
+        .where(eq(schema.mutations.id, mutationId)),
+    ).toEqual([]);
+    expect(
+      await target.runtime.records.read(target.context.db, {
+        entityType: "import.step",
+        entityId: mutationId,
+      }),
+    ).toBeNull();
+    expect(await readFile(join(imported.directory, "asset.pdf"))).toEqual(Buffer.from([42, 12, 8]));
+  }, 180_000);
+  it.each(["folder", "file"] as const)(
+    "refuses an unowned %s mutation identity instead of replaying it",
+    async (kind) => {
+      const imported = await plan({ "asset.pdf": new Uint8Array([42]) });
+      const id = kind === "folder" ? imported.value.rootId : required(imported.value.files[0]).id;
+      const mutationId = importId(imported.value.id, `operation:${kind}:${id}`);
+      await target.context.db.insert(schema.mutations).values({
+        id: mutationId,
+        workspaceId: target.context.workspaceId,
+        commandType: kind === "folder" ? "item.create" : "file.import",
+        status: "accepted",
+        acceptedAt: new Date(),
+        resultRevisionIds: [generateUuidV7()],
+      });
+      await expect(applyNotionImport(imported.value, target)).rejects.toMatchObject({
+        code: "import.identity-conflict",
+      });
+      expect(
+        await target.runtime.records.read(target.context.db, {
+          entityType: "import.step",
+          entityId: mutationId,
+        }),
+      ).toBeNull();
+      expect(
+        await target.context.db.select().from(schema.items).where(eq(schema.items.id, id)),
+      ).toEqual([]);
+    },
+    180_000,
+  );
+  it("refuses a tampered encrypted checkpoint before resuming any canonical write", async () => {
+    const imported = await plan({ "Page.md": "# Private checkpoint" });
+    await expect(
+      applyNotionImport(imported.value, target, {
+        afterOperation: async () => {
+          throw new Error("pause");
+        },
+      }),
+    ).rejects.toThrow("pause");
+    const [envelope] = await target.context.db
+      .select()
+      .from(schema.protectedEnvelopes)
+      .where(
+        and(
+          eq(schema.protectedEnvelopes.entityType, "import.job"),
+          eq(schema.protectedEnvelopes.entityId, imported.value.id),
+        ),
+      );
+    expect(envelope).toBeDefined();
+    const bytes = Buffer.from(required(envelope).ciphertext, "base64");
+    bytes[0] = bytes.readUInt8(0) ^ 1;
+    await target.context.db
+      .update(schema.protectedEnvelopes)
+      .set({ ciphertext: bytes.toString("base64") })
+      .where(eq(schema.protectedEnvelopes.id, required(envelope).id));
+    const before = await target.context.db.select().from(schema.mutations);
+    const blobs = (await readdir(harness.api.blobRoot, { recursive: true })).sort();
+    await expect(applyNotionImport(imported.value, target)).rejects.toThrow();
+    expect(await target.context.db.select().from(schema.mutations)).toEqual(before);
+    expect((await readdir(harness.api.blobRoot, { recursive: true })).sort()).toEqual(blobs);
+  }, 180_000);
+  it("refuses a target without a ready installation or a complete migration inventory", async () => {
+    const options = {
+      connectionString: harness.api.postgres.connectionString,
+      blobRoot: harness.api.blobRoot,
+      keyFile: harness.deploymentKeyFile,
+      backupRoot: join(root, "unused-backups"),
+    };
+    await target.context.db.update(schema.installations).set({ state: "recovery-required" });
+    await expect(openNotionTarget(options)).rejects.toMatchObject({
+      code: "import.target-not-ready",
+    });
+    await target.context.db
+      .update(schema.installations)
+      .set({ state: "ready", workspaceId: generateUuidV7() });
+    await expect(openNotionTarget(options)).rejects.toMatchObject({
+      code: "import.target-not-ready",
+    });
+    await expect(target.context.db.transaction((tx) => target.ready(tx))).rejects.toMatchObject({
+      code: "import.target-not-ready",
+    });
+    await target.context.db
+      .update(schema.installations)
+      .set({ workspaceId: target.context.workspaceId });
+    const removed = await target.context.db.execute<{ version: string }>(
+      sql`DELETE FROM schema_migrations WHERE version = (SELECT max(version) FROM schema_migrations) RETURNING version`,
+    );
+    try {
+      await expect(openNotionTarget(options)).rejects.toMatchObject({
+        code: "import.pending-migrations",
+      });
+    } finally {
+      await target.context.db.execute(
+        sql`INSERT INTO schema_migrations (version) VALUES (${required(removed.rows[0]).version})`,
+      );
+    }
+    expect(await countItems()).toBe(0);
+  });
+
   it("publishes ordinary pages, links and encrypted original/file bytes after a real full safety backup", async () => {
     await createItemViaApi(harness.api, { kind: "page", name: "Existing owner page", headers });
     const imported = await plan({
@@ -349,6 +602,15 @@ describe("protected canonical Notion apply", () => {
     expect(await runNotionImportCli(argv, (line) => lines.push(line), env)).toBe(0);
     expect(JSON.parse(lines.at(-1) ?? "{}").alreadyComplete).toBe(true);
     expect(await countItems()).toBe(count);
+    expect(
+      await runNotionImportCli(
+        argv.filter((arg) => arg !== "--json"),
+        (line) => lines.push(line),
+        env,
+      ),
+    ).toBe(0);
+    expect(lines.at(-1)).toContain("already complete; root");
+    expect(lines.at(-1)).not.toContain("CLI imported page");
   }, 180_000);
   it("transfers typed values and relations through ordinary database readback", async () => {
     const imported = await plan({

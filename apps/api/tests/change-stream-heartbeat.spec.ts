@@ -95,6 +95,24 @@ describe("SSE canonical heartbeat boundaries", () => {
       expect(input.close).toHaveBeenCalledOnce();
     },
   );
+  it("contains a late read rejection after the transport has already closed", async () => {
+    const { input, heartbeat } = fixture();
+    let reject!: (reason: Error) => void;
+    input.currentCursor.mockImplementation(
+      () =>
+        new Promise<number>((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    const pending = heartbeat.tick();
+    await Promise.resolve();
+    heartbeat.stop();
+    reject(new Error("late private database failure"));
+    await expect(pending).resolves.toBeUndefined();
+    expect(input.close).not.toHaveBeenCalled();
+    expect(input.advanced).not.toHaveBeenCalled();
+    expect(input.keepAlive).not.toHaveBeenCalled();
+  });
   it("contains a close failure when the underlying transport is already broken", async () => {
     const { input, heartbeat } = fixture();
     input.revoked.mockResolvedValue(true);

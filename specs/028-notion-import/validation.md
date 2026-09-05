@@ -1,64 +1,119 @@
 # Validation evidence — 2026-09-05
 
-## Focused behavior
+## Focused behavior and coverage convergence
 
-- 22 dedicated tests pass: 11 immutable-source/conversion tests and 11 encrypted
-  target/CLI tests. A21-test run before the final activation regression measured
-  feature-scoped coverage. The final22-test run passed in11.83s after the
-  activation guard correction.
-- 20 ordinary upload contract tests and 12 protected-file HTTP integration
-  regressions passed after extracting shared canonical file publication.
-- API strict typecheck and Bun production build pass; the compiled CLI help
-  entrypoint executes successfully. Biome and whitespace checks pass.
-- Production dependency audit reports no high/critical vulnerability; license
-  policy passes for404 production packages with no violations.
+The final scoped run passes 104 tests across 9 API suites in 22.24s, using only
+synthetic sources and disposable PostgreSQL databases on 55433. API strict
+typecheck, Biome and whitespace checks pass. Earlier API production build,
+compiled CLI help, dependency audit and license-policy checks also passed;
+this final increment changes tests and maintained validation artifacts only.
+The full repository gate remains an integration responsibility.
 
-Dedicated coverage:90.11% statements,79.74% branches,97.46% functions and93.35%
-lines for `apps/api/src/imports/notion/*.ts`. This targeted measurement does not
-replace the repository's complete coverage gate. No threshold or exclusion was
-changed. The final instrumented run took66.84s under concurrent integration
-load; earlier uninstrumented20-test run took16.09s. Repeated native backups emit
-Bun FileHandle listener warnings without a failed test.
+The initial comparable 72-test run measured 90.38% statements, 80.05% branches,
+93.67% lines, with 87 uncovered statements and 145 uncovered branches. T017–T019
+add 32 behavioral cases and meaningful assertions to existing cases. The final
+measurement is 98.12% statements, 92.43% branches, 99.39% functions and 99.24% lines:
+17 statements, 55 branches, 1 function and 6 lines remain uncovered. Global
+thresholds and exclusions are unchanged. No test-only production API, mocked
+canonical mutation, fabricated checkpoint or coverage exclusion was added.
+
+| Module | Statements | Branches | Remaining statements / branches |
+| --- | --- | --- | --- |
+| `canonical-file-import.ts` | 100% | 100% | 0 / 0 |
+| `apply.ts` | 96.62% | 82.55% | 5 / 15 |
+| `cli.ts` | 95.65% | 98.11% | 2 / 1 |
+| `markdown.ts` | 100% | 92.12% | 0 / 13 |
+| `model.ts` | 100% | 50% | 0 / 2 |
+| `plan.ts` | 98.31% | 93.75% | 6 / 18 |
+| `source.ts` | 97.31% | 94.68% | 4 / 5 |
+| `target.ts` | 100% | 93.75% | 0 / 1 |
+| `change-stream-heartbeat.ts` | 100% | 100% | 0 / 0 |
+
+Boundary evidence:
+
+- Native ZIP/Markdown/CSV and converted YAML/wikilinks/Bases retain source
+  originals, metadata, hierarchy, independent memberships and exported table
+  displays. Tests cover empty folders/ZIPs/sources, 10,001 empty archive entries,
+  encrypted or malformed archives, CRC/ratio/path/symlink/UTF-8 violations,
+  filesystem replacement/growth/mtime/containment races and handle closure.
+  Filesystem race injection uses real temporary files with controlled
+  filesystem responses; no production I/O or size limits are changed.
+- Conversion tests cover ambiguous CSV members, blocking canonical document
+  and definition validation, missing configurations, unsafe/missing/ambiguous
+  links, Notion-ID links, reference images/links, inline HTML, footnotes,
+  frontmatter outside databases, large integers/nonfinite values and invalid
+  civil dates. Missing Notion view settings are never fabricated.
+- Actual protected apply takes a verified full backup. Ordinary HTTP readback
+  verifies pages, links, typed properties/relations and exact attachment bytes.
+  Refused folder/file publication leaves no accepted content or checkpoint.
+  Folder/file mutation collisions refuse replay. Resuming a committed file
+  leaves its logical record and revisions identical; completed replay preserves
+  owner edits. Tampered GCM job metadata refuses before new mutations or blobs.
+- Job locking, failed backups, inactive owners, installation/workspace changes,
+  pending migrations, rotation blocks and missing deployment keys refuse
+  writes. A real encrypted full-restore marker inserted after a committed step
+  blocks both opening and resuming; job, mutations, revisions and blobs remain
+  identical. Human-readable and JSON CLI output, argument failures, preview,
+  dry-run precedence, empty apply and completed replay are exercised.
+- A real separate Bun writer is observed by the running API SSE stream; the
+  canonical durable feed catches up after reconnect. The heartbeat covers
+  revocation before reads, unchanged/regressing cursors, overlapping ticks,
+  local notification races, late resolutions/rejections after close and bounded
+  transport/database failure handling without sensitive logs.
+
+Remaining uncovered paths are recorded explicitly, rather than presented as
+full coverage:
+
+- `apply.ts`: defensive lookups after dependency ordering at 180/210, missing
+  definition heads at 195/311, missing snapshot file at 249; 15 branches also
+  include optional field/head fallbacks and document parsing already validated
+  before opening a target. Real stale editorial/source heads and canonical
+  refusals are tested.
+- `cli.ts`: the process-entrypoint stdout adapter at 89–90 is exercised by the
+  compiled CLI help smoke, outside the Vitest instrumented process. All exported
+  CLI runner behavior is covered.
+- `markdown.ts`: 13 branch alternatives concern guaranteed regex captures,
+  parser-provided positions/definitions/alt text and recursive-call defaults;
+  all conversion statements are exercised. `model.ts`: 2 zero-byte fallbacks
+  follow a fixed 16-byte SHA-256 slice. `target.ts`: 1 owner-ID fallback follows
+  the ready-installation non-null check.
+- `plan.ts`: statements 375/406/542/769 guard array/map values constructed in the
+  same pass; 521 guards a relation target already resolved during relation type
+  selection; 718 propagates unexpected internal exceptions. The 18 remaining
+  branches include these and optional fallback paths. External malformed
+  definitions/documents and ambiguous/cyclic source inputs are tested.
+- `source.ts`: aggregate 256 MiB budget overflow at 101 is not exercised with a
+  large in-memory corpus in this bounded suite; per-file and entry/ratio limits
+  are tested. The depth guard at 115 follows normalized path depth validation.
+  Stream-size fallback guards 185/189 follow yauzl size validation; malformed
+  archive refusal is exercised through the parser. The fifth branch is the
+  equal-path sort comparison, after normalized duplicate paths are refused.
+
+Repeated native backup fixtures emit Bun FileHandle listener warnings without
+a failed test. No application behavior needed correction during this coverage
+pass. Scope-restricted percentages cannot establish that the integration-wide
+absolute uncovered budgets pass; that conclusion requires the full gate.
 
 ```bash
 PATH=/opt/homebrew/opt/libpq/bin:$PATH \
 TEST_DATABASE_URL=postgres://myownnotion:myownnotion-dev@127.0.0.1:55433/myownnotion \
 bun run --bun vitest run --project api-contract \
   apps/api/tests/notion-import.integration.spec.ts \
-  apps/api/tests/notion-import-source.spec.ts --maxWorkers=2
-
-bun run --filter @myownnotion/api typecheck
-bun run --filter @myownnotion/api build
-bun apps/api/dist/imports/notion/cli.js --help
-bun run security:audit
-bun run security:licenses
+  apps/api/tests/notion-import-source.spec.ts \
+  apps/api/tests/notion-import-source-races.spec.ts \
+  apps/api/tests/notion-import-cli.spec.ts \
+  apps/api/tests/notion-import-stream.contract.spec.ts \
+  apps/api/tests/change-stream-heartbeat.spec.ts \
+  apps/api/tests/change-stream.contract.spec.ts \
+  apps/api/tests/uploads.contract.spec.ts \
+  apps/api/tests/protected-files.integration.spec.ts \
+  --maxWorkers=2 --coverage \
+  --coverage.include='apps/api/src/imports/notion/*.ts' \
+  --coverage.include='apps/api/src/sync/change-stream-heartbeat.ts' \
+  --coverage.include='apps/api/src/files/canonical-file-import.ts' \
+  --coverage.reporter=text --coverage.reporter=json \
+  --coverage.reportsDirectory=coverage/notion-import-boundaries
 ```
-
-## Properties demonstrated
-
-Synthetic fixtures exercise native ZIP/Markdown/CSV and converted YAML/wikilinks/
-Bases; unsafe paths, symlinks, normalization collisions, oversized text, ZIP
-CRC failures and compression bombs; malformed CSV/YAML, aliases and tags;
-literal code examples, large integer preservation and invalid dates. Empty
-directories and generated-page collisions are accounted for.
-
-Apply uses an actual verified full backup, then ordinary API readback verifies
-pages, links, attachments, independent database sources, two displays sharing
-one membership reference, typed values and relations. SQL inspection excludes
-imported editorial plaintext; protected reads recover exact attachment bytes.
-Interrupted operations resume after closing/reopening the target. Completed
-replay preserves owner edits; partial replay refuses newer editorial and
-independent definition revisions. Job locks, failed backups, inactive owners,
-rotation write blocks and missing external keys refuse protected publication.
-An independent review found that resumed jobs also needed the full-restore
-activation guard. The new regression first failed against the old code, then
-passed with assertFullRestoreActivated at open and before every operation. A
-real encrypted data-restored marker inserted after an accepted step causes
-refusal; job payload, mutation/revision/item/change counts and recursive blob
-inventory remain identical. Both existing-target resume and new-target opening
-refuse the unactivated state.
-The CLI itself is tested for source-only preview, explicit configuration, apply
-and idempotent replay.
 
 ## Authorized actual-source preview
 
@@ -125,3 +180,8 @@ API typecheck/build pass after the change.
 AfterT016, final convergence reports no remaining gap in the specified import
 and synchronization scope. Integration-wide delivery gates remain with the
 root task.
+
+Coverage convergence checks the same 11 functional requirements, 4 success
+criteria, 11 acceptance scenarios, 11 plan decisions and 8 constitution
+principles. No new functional finding was identified after T017–T019; the
+remaining instrumented coverage paths above stay visible to integration.
